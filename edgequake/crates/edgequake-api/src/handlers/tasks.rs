@@ -54,7 +54,8 @@ pub async fn get_task(
     Path(track_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let task = state
-        .task_storage
+        .tasks
+        .storage
         .get_task(&track_id)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
@@ -169,7 +170,8 @@ pub async fn list_tasks(
     };
 
     let task_list = state
-        .task_storage
+        .tasks
+        .storage
         .list_tasks(filter.clone(), pagination)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to list tasks: {}", e)))?;
@@ -177,7 +179,8 @@ pub async fn list_tasks(
     // Get statistics with the same filter to ensure tenant isolation
     // WHY: Statistics must respect the same tenant/workspace filters as the task list
     let stats = state
-        .task_storage
+        .tasks
+        .storage
         .get_statistics(filter)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
@@ -228,8 +231,8 @@ pub async fn cancel_task(
     // (9.3 s total). This was caused by `keys() + filter ends_with("-metadata")`.
     // `keys_with_suffix` uses the reverse-key expression index for O(log N + K).
     let mut doc_updated = false;
-    if let Ok(metadata_keys) = state.kv_storage.keys_with_suffix("-metadata").await {
-        if let Ok(metadata_values) = state.kv_storage.get_by_ids(&metadata_keys).await {
+    if let Ok(metadata_keys) = state.storage.kv_storage.keys_with_suffix("-metadata").await {
+        if let Ok(metadata_values) = state.storage.kv_storage.get_by_ids(&metadata_keys).await {
             for (key, value) in metadata_keys.iter().zip(metadata_values.iter()) {
                 if let Some(obj) = value.as_object() {
                     if let Some(doc_track_id) = obj.get("track_id").and_then(|v| v.as_str()) {
@@ -247,6 +250,7 @@ pub async fn cancel_task(
 
                             // Don't fail cancel if document update fails - log and continue
                             match state
+                                .storage
                                 .kv_storage
                                 .upsert(&[(key.clone(), json!(updated))])
                                 .await
@@ -272,7 +276,8 @@ pub async fn cancel_task(
 
     // Now try to get and cancel the task if it exists
     let task = state
-        .task_storage
+        .tasks
+        .storage
         .get_task(&track_id)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
@@ -308,7 +313,7 @@ pub async fn cancel_task(
             // WHY: Signal the in-flight CancellationToken so that every pipeline
             // stage currently processing this task will observe cancellation at
             // its next cooperative checkpoint and bail out early.
-            let was_running = state.cancellation_registry.cancel(&track_id).await;
+            let was_running = state.tasks.cancellation_registry.cancel(&track_id).await;
             if was_running {
                 tracing::info!(
                     track_id = %track_id,
@@ -317,7 +322,8 @@ pub async fn cancel_task(
             }
 
             state
-                .task_storage
+                .tasks
+                .storage
                 .update_task(&task)
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to cancel task: {}", e)))?;
@@ -379,7 +385,8 @@ pub async fn retry_task(
     Path(track_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut task = state
-        .task_storage
+        .tasks
+        .storage
         .get_task(&track_id)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?
@@ -405,14 +412,16 @@ pub async fn retry_task(
     task.error_message = None;
 
     state
-        .task_storage
+        .tasks
+        .storage
         .update_task(&task)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to update task: {}", e)))?;
 
     // Re-enqueue task
     state
-        .task_queue
+        .tasks
+        .queue
         .send(task.clone())
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to enqueue task: {}", e)))?;

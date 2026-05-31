@@ -18,28 +18,35 @@ fn strip_nul_bytes(text: String) -> String {
 }
 
 #[cfg(feature = "postgres")]
-fn should_fallback_to_edgeparse(
+fn task_error_to_vision_failure(
+    error: &edgequake_tasks::TaskError,
+) -> edgequake_pdf::VisionFailureKind {
+    match error {
+        edgequake_tasks::TaskError::Timeout(_) => edgequake_pdf::VisionFailureKind::Timeout,
+        edgequake_tasks::TaskError::Processing(_) => {
+            edgequake_pdf::VisionFailureKind::ConversionFailed
+        }
+        edgequake_tasks::TaskError::UnsupportedOperation(_) => {
+            edgequake_pdf::VisionFailureKind::FeatureUnavailable
+        }
+        _ => edgequake_pdf::VisionFailureKind::ProviderUnavailable,
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn vision_fallback_allowed(
     requested_backend: edgequake_pdf::PdfParserBackend,
     error: &edgequake_tasks::TaskError,
 ) -> bool {
-    if requested_backend != edgequake_pdf::PdfParserBackend::Vision {
-        return false;
-    }
-
-    matches!(
-        error,
-        edgequake_tasks::TaskError::Timeout(_)
-            | edgequake_tasks::TaskError::Processing(_)
-            | edgequake_tasks::TaskError::UnsupportedOperation(_)
+    edgequake_pdf::should_fallback_to_edgeparse(
+        requested_backend,
+        task_error_to_vision_failure(error),
     )
 }
 
 #[cfg(feature = "postgres")]
 fn build_edgeparse_fallback_message(provider: &str, error: &edgequake_tasks::TaskError) -> String {
-    format!(
-        "Vision extraction via {} was unavailable ({}). Falling back to EdgeParse for a more reliable text extraction.",
-        provider, error
-    )
+    edgequake_pdf::build_edgeparse_fallback_message(provider, &error.to_string())
 }
 
 #[cfg(feature = "postgres")]
@@ -489,7 +496,7 @@ impl DocumentTaskProcessor {
                                     "Failed to create vision provider '{}': {e}",
                                     data.vision_provider
                                 ));
-                                if !should_fallback_to_edgeparse(backend, &error) {
+                                if !vision_fallback_allowed(backend, &error) {
                                     return Err(error);
                                 }
                                 let message =
@@ -631,7 +638,7 @@ impl DocumentTaskProcessor {
                         let error = edgequake_tasks::TaskError::Processing(format!(
                             "PDF conversion failed: {e}"
                         ));
-                        if !should_fallback_to_edgeparse(backend, &error) {
+                        if !vision_fallback_allowed(backend, &error) {
                             return Err(error);
                         }
 
@@ -668,7 +675,7 @@ impl DocumentTaskProcessor {
                             data.pdf_id,
                             data.vision_provider
                         ));
-                        if !should_fallback_to_edgeparse(backend, &error) {
+                        if !vision_fallback_allowed(backend, &error) {
                             return Err(error);
                         }
 
@@ -914,7 +921,7 @@ impl DocumentTaskProcessor {
 #[cfg(all(test, feature = "postgres"))]
 mod tests {
     use super::*;
-    use edgequake_pdf::PdfParserBackend;
+    use edgequake_pdf::{PdfParserBackend, VisionFailureKind};
     use edgequake_tasks::TaskError;
 
     #[test]
@@ -924,17 +931,18 @@ mod tests {
                 .to_string(),
         );
 
-        assert!(should_fallback_to_edgeparse(
-            PdfParserBackend::Vision,
-            &error
-        ));
+        assert!(vision_fallback_allowed(PdfParserBackend::Vision, &error));
     }
 
     #[test]
     fn edgeparse_requests_do_not_self_fallback() {
         let error = TaskError::Timeout("EdgeParse timed out".to_string());
 
-        assert!(!should_fallback_to_edgeparse(
+        assert!(!edgequake_pdf::should_fallback_to_edgeparse(
+            PdfParserBackend::EdgeParse,
+            VisionFailureKind::Timeout,
+        ));
+        assert!(!vision_fallback_allowed(
             PdfParserBackend::EdgeParse,
             &error
         ));

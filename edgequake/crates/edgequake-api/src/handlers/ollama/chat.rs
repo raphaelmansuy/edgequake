@@ -85,7 +85,7 @@ pub async fn ollama_chat(
         // Streaming response
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(32);
 
-        let engine = state.query_engine.clone();
+        let engine = state.query.query_engine.clone();
         let model = model_name();
         // SPEC-004: Clone system prompt for async task
         let system_prompt = request.system.clone();
@@ -211,6 +211,7 @@ pub async fn ollama_chat(
         };
 
         let response = state
+            .query
             .query_engine
             .query(engine_request)
             .await

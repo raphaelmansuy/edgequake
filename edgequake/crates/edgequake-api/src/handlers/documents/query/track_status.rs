@@ -26,11 +26,11 @@ pub async fn get_track_status(
     State(state): State<AppState>,
     axum::extract::Path(track_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<TrackStatusResponse>> {
-    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
-    let chunk_keys = state.kv_storage.keys_like("%-chunk-%").await?;
+    let metadata_keys = state.storage.kv_storage.keys_like("%-metadata").await?;
+    let chunk_keys = state.storage.kv_storage.keys_like("%-chunk-%").await?;
 
     // Fetch all metadata
-    let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+    let metadata_values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
 
     // Group chunks by document
     let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();

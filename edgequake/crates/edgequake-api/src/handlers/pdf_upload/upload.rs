@@ -414,6 +414,7 @@ async fn process_pdf_upload_parts(
 
             let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
             state
+                .tasks
                 .pipeline_state
                 .start_pdf_progress(
                     &effective_track_id,
@@ -448,6 +449,7 @@ async fn process_pdf_upload_parts(
 
         if let Some(ref track_id) = options.track_id {
             state
+                .tasks
                 .pipeline_state
                 .start_pdf_progress(track_id, &existing.pdf_id.to_string(), &existing.filename)
                 .await;
@@ -537,6 +539,7 @@ async fn process_pdf_upload_parts(
         create_pdf_processing_task(state, context, pdf_id, &options, workspace.as_ref()).await?;
     let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
     state
+        .tasks
         .pipeline_state
         .start_pdf_progress(&effective_track_id, &pdf_id.to_string(), &filename)
         .await;

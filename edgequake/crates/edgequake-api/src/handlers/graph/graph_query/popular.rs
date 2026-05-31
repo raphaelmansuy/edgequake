@@ -32,10 +32,11 @@ pub async fn get_popular_labels(
 ) -> ApiResult<Json<PopularLabelsResponse>> {
     // SPEC-011 iter 02 Fix B: total_entities feeds a dashboard counter — the
     // planner estimate is O(1) and accurate within autovacuum's threshold.
-    let total_entities = state.graph_storage.node_count_fast().await?;
+    let total_entities = state.storage.graph_storage.node_count_fast().await?;
 
     // OPTIMIZED: Use get_popular_nodes_with_degree for single-query performance
     let popular_nodes = state
+        .storage
         .graph_storage
         .get_popular_nodes_with_degree(
             params.limit,
@@ -106,6 +107,7 @@ pub async fn get_degrees_batch(
 
     // OPTIMIZED: Single query for all degrees (50x faster than N queries)
     let degrees_result = state
+        .storage
         .graph_storage
         .node_degrees_batch(&request.node_ids)
         .await?;

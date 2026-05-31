@@ -137,7 +137,7 @@ async fn process_single_file(
 
     // WHY-OODA81+83: Use ContentHasher for workspace-scoped hash key
     let hash_key = ContentHasher::workspace_hash_key(workspace_id, &content_hash);
-    if let Some(existing) = state.kv_storage.get_by_id(&hash_key).await? {
+    if let Some(existing) = state.storage.kv_storage.get_by_id(&hash_key).await? {
         if let Some(doc_id) = existing.as_str() {
             return Ok((doc_id.to_string(), true));
         }
@@ -148,12 +148,14 @@ async fn process_single_file(
 
     // Store hash mapping
     state
+        .storage
         .kv_storage
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
 
     // Process through pipeline (resilient - tolerates partial chunk failures)
     let result = state
+        .query
         .pipeline
         .process_with_resilience(&document_id, &text_content, None)
         .await?;
@@ -185,7 +187,7 @@ async fn process_single_file(
         })
         .collect();
 
-    state.kv_storage.upsert(&chunks).await?;
+    state.storage.kv_storage.upsert(&chunks).await?;
 
     // Store chunk embeddings in vector storage for semantic search
     // Note: Batch upload uses default vector storage since there's no workspace context.
@@ -201,6 +203,7 @@ async fn process_single_file(
             });
 
             let _ = state
+                .storage
                 .vector_storage
                 .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
                 .await;

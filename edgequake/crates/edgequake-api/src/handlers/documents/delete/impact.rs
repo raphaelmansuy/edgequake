@@ -31,12 +31,26 @@ pub async fn analyze_deletion_impact(
     axum::extract::Path(document_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<DeletionImpactResponse>> {
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
+    let chunk_ids = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
 
     let metadata_key = format!("{}-metadata", document_id);
     let content_key = format!("{}-content", document_id);
-    let has_metadata = state.kv_storage.get_by_id(&metadata_key).await?.is_some();
-    let has_content = state.kv_storage.get_by_id(&content_key).await?.is_some();
+    let has_metadata = state
+        .storage
+        .kv_storage
+        .get_by_id(&metadata_key)
+        .await?
+        .is_some();
+    let has_content = state
+        .storage
+        .kv_storage
+        .get_by_id(&content_key)
+        .await?
+        .is_some();
 
     // Document must have either chunks, metadata, or content
     if chunk_ids.is_empty() && !has_metadata && !has_content {
@@ -53,7 +67,7 @@ pub async fn analyze_deletion_impact(
     let mut relationships_to_update = 0usize;
 
     // Analyze entities (read-only)
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
     for node in all_nodes {
         if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
             let sources: Vec<&str> = source_id.split('|').collect();
@@ -71,7 +85,7 @@ pub async fn analyze_deletion_impact(
     }
 
     // Analyze edges (read-only)
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
     for edge in all_edges {
         if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
             let sources: Vec<&str> = source_id.split('|').collect();

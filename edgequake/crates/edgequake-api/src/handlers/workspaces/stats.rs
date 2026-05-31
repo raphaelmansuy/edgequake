@@ -165,6 +165,7 @@ async fn try_kv_storage_stats(
     // expression index (`eq_{prefix}_kv_reverse_key_idx`) for an O(log N + K)
     // prefix scan — replaces the previous `keys_like("%-metadata")` full scan.
     let metadata_keys = state
+        .storage
         .kv_storage
         .keys_with_suffix("-metadata")
         .await
@@ -172,6 +173,7 @@ async fn try_kv_storage_stats(
     // `"%-chunk-%"` is an interior wildcard, not a suffix — still uses the slow
     // path. Documented as a known gap in SPEC-011 ITERATION_02_AUDIT.md §8.
     let chunk_keys = state
+        .storage
         .kv_storage
         .keys_like("%-chunk-%")
         .await
@@ -179,6 +181,7 @@ async fn try_kv_storage_stats(
 
     // Get all metadata values
     let metadata_values = state
+        .storage
         .kv_storage
         .get_by_ids(&metadata_keys)
         .await
@@ -218,12 +221,14 @@ async fn try_kv_storage_stats(
     // The actual entity/relationship data is stored in the graph, not metadata.
     // This fixes dashboard showing 0 entities despite successful extraction.
     let entity_count = state
+        .storage
         .graph_storage
         .node_count_by_workspace(&workspace_id)
         .await
         .unwrap_or(0);
 
     let relationship_count = state
+        .storage
         .graph_storage
         .edge_count_by_workspace(&workspace_id)
         .await
@@ -246,6 +251,7 @@ async fn try_kv_storage_stats(
         // Get chunk data to check for embeddings
         if !doc_chunk_keys.is_empty() {
             let chunk_values = state
+                .storage
                 .kv_storage
                 .get_by_ids(&doc_chunk_keys)
                 .await
@@ -267,6 +273,7 @@ async fn try_kv_storage_stats(
     // nodes over the wire just to compute unique types. This single aggregate
     // query reduces latency from seconds to milliseconds.
     let entity_type_count = state
+        .storage
         .graph_storage
         .distinct_node_type_count_by_workspace(&workspace_id)
         .await

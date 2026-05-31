@@ -422,20 +422,20 @@ impl ProviderStatusResponse {
         use chrono::Utc;
 
         // Get LLM provider info
-        let llm_name = app_state.llm_provider.name().to_string();
-        let llm_model = app_state.llm_provider.model().to_string();
+        let llm_name = app_state.query.llm_provider.name().to_string();
+        let llm_model = app_state.query.llm_provider.model().to_string();
 
         // Get embedding provider info
-        let emb_name = app_state.embedding_provider.name().to_string();
-        let emb_model = app_state.embedding_provider.model().to_string();
-        let emb_dim = app_state.embedding_provider.dimension();
+        let emb_name = app_state.query.embedding_provider.name().to_string();
+        let emb_model = app_state.query.embedding_provider.model().to_string();
+        let emb_dim = app_state.query.embedding_provider.dimension();
 
         // Get storage info
-        let storage_dim = app_state.vector_storage.dimension();
-        let storage_namespace = app_state.vector_storage.namespace();
+        let storage_dim = app_state.storage.vector_storage.dimension();
+        let storage_namespace = app_state.storage.vector_storage.namespace();
 
         // Detect storage type using storage_mode field
-        let storage_type = app_state.storage_mode.as_str();
+        let storage_type = app_state.storage.mode.as_str();
 
         // Check dimension mismatch
         let dimension_mismatch = storage_dim != emb_dim;

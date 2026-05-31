@@ -220,7 +220,7 @@ pub async fn protected_api_auth(
     request: Request,
     next: Next,
 ) -> Response {
-    if !state.auth_config.auth_enabled {
+    if !state.auth.config.auth_enabled {
         return next.run(request).await;
     }
 
@@ -233,11 +233,12 @@ pub async fn protected_api_auth(
 
     if let Some(token) = extract_api_key(&request) {
         if state
-            .auth_config
+            .auth
+            .config
             .api_keys
             .iter()
             .any(|configured| configured == &token)
-            || state.jwt_service.verify_token(&token).is_ok()
+            || state.auth.jwt.verify_token(&token).is_ok()
         {
             return next.run(request).await;
         }
@@ -267,7 +268,7 @@ fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str
             | "/auth/refresh"
     ) || (*method == Method::POST
         && normalized_path == "/users"
-        && state.auth_config.allow_registration)
+        && state.auth.config.allow_registration)
 }
 
 fn extract_api_key(request: &Request) -> Option<String> {

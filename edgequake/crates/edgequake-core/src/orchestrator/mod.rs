@@ -347,7 +347,7 @@ pub struct EdgeQuake {
     pipeline: Option<Arc<Pipeline>>,
 
     /// Query engine.
-    query_engine: Option<Arc<crate::query::QueryEngine>>,
+    query_engine: Option<Arc<edgequake_query::SOTAQueryEngine>>,
 }
 
 impl EdgeQuake {
@@ -485,15 +485,17 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::config("Vector storage not set"))?;
 
-        // Initialize SOTA query engine from edgequake-query
-        let query_engine = crate::query::QueryEngine::new(
-            llm.clone(),
-            embedding.clone(),
-            graph_storage.clone(),
+        // Initialize SOTA query engine from edgequake-query (SPEC-017 unified path)
+        use edgequake_query::SOTAQueryConfig;
+        let sota_engine = edgequake_query::SOTAQueryEngine::new(
+            SOTAQueryConfig::default(),
             vector_storage.clone(),
+            graph_storage.clone(),
+            embedding.clone(),
+            llm.clone(),
         );
 
-        self.query_engine = Some(Arc::new(query_engine));
+        self.query_engine = Some(Arc::new(sota_engine));
 
         self.initialized = true;
         tracing::info!("EdgeQuake initialized successfully");

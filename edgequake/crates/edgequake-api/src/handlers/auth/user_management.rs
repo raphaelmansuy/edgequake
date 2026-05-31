@@ -79,6 +79,7 @@ pub async fn create_user(
         request.username.to_lowercase()
     );
     if state
+        .storage
         .kv_storage
         .get_by_id(&username_key)
         .await
@@ -91,6 +92,7 @@ pub async fn create_user(
     // Check email uniqueness
     let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, request.email.to_lowercase());
     if state
+        .storage
         .kv_storage
         .get_by_id(&email_key)
         .await
@@ -102,18 +104,19 @@ pub async fn create_user(
 
     let auth_context = authenticate_request(&headers, &state)?;
 
-    if auth_context.is_none() && !state.auth_config.allow_registration {
+    if auth_context.is_none() && !state.auth.config.allow_registration {
         return Err(ApiError::Forbidden);
     }
 
     // Hash password
     let password_hash = state
-        .password_service
+        .auth
+        .password
         .hash_password(&request.password)
         .map_err(|e| ApiError::BadRequest(format!("Password error: {}", e)))?;
 
     // Determine role
-    let default_role = Role::parse(&state.auth_config.default_role);
+    let default_role = Role::parse(&state.auth.config.default_role);
     let requested_role = request.role.as_ref().map(|r| Role::parse(r));
 
     let role = match auth_context {
@@ -155,6 +158,7 @@ pub async fn create_user(
     let email_value = serde_json::Value::String(user_id.clone());
 
     state
+        .storage
         .kv_storage
         .upsert(&[
             (user_key, user_value),
@@ -203,6 +207,7 @@ pub async fn list_users(
     // `keys_with_prefix` instead of `keys() + filter starts_with(...)` which
     // scans the entire kv table on every admin user-list call.
     let user_keys: Vec<String> = state
+        .storage
         .kv_storage
         .keys_with_prefix(USER_KEY_PREFIX)
         .await
@@ -312,6 +317,7 @@ pub async fn delete_user(
     let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, record.email.to_lowercase());
 
     state
+        .storage
         .kv_storage
         .delete(&[user_key, username_key, email_key])
         .await
@@ -367,7 +373,7 @@ pub async fn update_user(
         // WHY: Guard against demoting the last admin — system would be unmanageable.
         if current_role == Role::Admin && parsed != Role::Admin {
             // Count remaining admins (excluding this user)
-            let all_keys = state.kv_storage.keys().await.map_err(storage_err)?;
+            let all_keys = state.storage.kv_storage.keys().await.map_err(storage_err)?;
             let mut admin_count = 0u32;
             for key in all_keys.iter().filter(|k| k.starts_with(USER_KEY_PREFIX)) {
                 let uid = key.trim_start_matches(USER_KEY_PREFIX);
@@ -399,7 +405,7 @@ pub async fn update_user(
 
         // Check email uniqueness (skip current user's email)
         let email_key = format!("{}{}", super::USER_BY_EMAIL_PREFIX, email_lower);
-        if let Ok(Some(existing_id_val)) = state.kv_storage.get_by_id(&email_key).await {
+        if let Ok(Some(existing_id_val)) = state.storage.kv_storage.get_by_id(&email_key).await {
             if let Some(existing_id) = existing_id_val.as_str() {
                 if existing_id != user_id {
                     return Err(ApiError::Conflict("Email already in use".to_string()));
@@ -414,12 +420,14 @@ pub async fn update_user(
             record.email.to_lowercase()
         );
         state
+            .storage
             .kv_storage
             .delete(&[old_email_key])
             .await
             .map_err(storage_err)?;
         let new_email_value = serde_json::Value::String(user_id.clone());
         state
+            .storage
             .kv_storage
             .upsert(&[(email_key, new_email_value)])
             .await
@@ -435,6 +443,7 @@ pub async fn update_user(
     let user_value = serde_json::to_value(&record)
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
     state
+        .storage
         .kv_storage
         .upsert(&[(user_key, user_value)])
         .await

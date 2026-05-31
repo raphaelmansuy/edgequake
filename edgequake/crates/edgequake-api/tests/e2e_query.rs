@@ -969,3 +969,59 @@ async fn test_query_rerank_with_model() {
     assert!(body.get("answer").is_some());
     // Model parameter is accepted (even if not fully implemented yet)
 }
+
+/// SPEC-017 P1-07: Partial LLM override must return 400, not 500.
+#[tokio::test]
+async fn test_query_partial_llm_override_returns_bad_request() {
+    let app = create_test_app();
+
+    let request = json!({
+        "query": "What is EdgeQuake?",
+        "llm_provider": "openai"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/query")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = extract_json(response).await;
+    assert_eq!(
+        body.get("code").and_then(|v| v.as_str()),
+        Some("BAD_REQUEST")
+    );
+}
+
+/// SPEC-017 P1-03: Query and chat share routing — smoke test chat completion path.
+#[tokio::test]
+async fn test_chat_completion_empty_message_validation() {
+    let app = create_test_app();
+
+    let request = json!({
+        "message": "   "
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/chat/completions")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-Id", uuid::Uuid::new_v4().to_string())
+                .header("X-User-Id", uuid::Uuid::new_v4().to_string())
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}

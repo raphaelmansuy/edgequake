@@ -41,7 +41,11 @@ pub async fn delete_all_documents(
 ) -> ApiResult<Json<DeleteAllDocumentsResponse>> {
     tracing::info!(workspace_id = ?tenant_ctx.workspace_id, "Bulk delete documents requested");
 
-    let metadata_keys = state.kv_storage.keys_with_suffix("-metadata").await?;
+    let metadata_keys = state
+        .storage
+        .kv_storage
+        .keys_with_suffix("-metadata")
+        .await?;
 
     let mut deleted_count = 0usize;
     let mut total_chunks_deleted = 0usize;
@@ -59,7 +63,7 @@ pub async fn delete_all_documents(
 
         // Get document status and metadata to check if safe to delete
         let (status, updated_at_opt, stage_progress_opt, track_id_opt, workspace_id_opt) =
-            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(metadata_key).await {
+            if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(metadata_key).await {
                 // WHY: "Clear all" in the UI is scoped to the current workspace.
                 // Never trust raw metadata scans without re-checking the request context.
                 if !metadata_matches_tenant_context(&metadata, &tenant_ctx) {
@@ -139,19 +143,24 @@ pub async fn delete_all_documents(
 
         // Attempt to delete this document within the validated workspace scope.
         let chunk_prefix = format!("{}-chunk-", document_id);
-        let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
+        let chunk_ids = state
+            .storage
+            .kv_storage
+            .keys_with_prefix(&chunk_prefix)
+            .await?;
 
         let content_key = format!("{}-content", document_id);
 
         // Delete from KV storage - delete takes a slice of strings
         if !chunk_ids.is_empty() {
-            if let Err(e) = state.kv_storage.delete(&chunk_ids).await {
+            if let Err(e) = state.storage.kv_storage.delete(&chunk_ids).await {
                 tracing::warn!(document_id = %document_id, error = %e, "Failed to delete chunks");
             }
         }
 
         // Delete metadata key
         if let Err(e) = state
+            .storage
             .kv_storage
             .delete(std::slice::from_ref(metadata_key))
             .await
@@ -161,6 +170,7 @@ pub async fn delete_all_documents(
 
         // Delete content key
         if let Err(e) = state
+            .storage
             .kv_storage
             .delete(std::slice::from_ref(&content_key))
             .await
@@ -170,7 +180,7 @@ pub async fn delete_all_documents(
 
         // Delete from vector storage (use default storage for bulk operations)
         if !chunk_ids.is_empty() {
-            if let Err(e) = state.vector_storage.delete(&chunk_ids).await {
+            if let Err(e) = state.storage.vector_storage.delete(&chunk_ids).await {
                 tracing::warn!(
                     document_id = %document_id,
                     error = %e,
@@ -191,7 +201,7 @@ pub async fn delete_all_documents(
 
     // Clean up orphaned graph entities (entities with no remaining source documents)
     // This is a simplified cleanup - full cascade is done per-document for precision
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
     for node in all_nodes {
         // Check if node has any source references
         let has_sources = node
@@ -212,7 +222,7 @@ pub async fn delete_all_documents(
 
             if !has_legacy_source {
                 // No sources at all, delete the orphaned entity
-                if let Err(e) = state.graph_storage.delete_node(&node.id).await {
+                if let Err(e) = state.storage.graph_storage.delete_node(&node.id).await {
                     tracing::warn!(node_id = %node.id, error = %e, "Failed to delete orphaned node");
                 } else {
                     total_entities_removed += 1;
@@ -222,8 +232,8 @@ pub async fn delete_all_documents(
     }
 
     // Clean up orphaned edges
-    let all_edges = state.graph_storage.get_all_edges().await?;
-    let remaining_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
+    let remaining_nodes = state.storage.graph_storage.get_all_nodes().await?;
     let remaining_node_ids: std::collections::HashSet<String> =
         remaining_nodes.iter().map(|n| n.id.clone()).collect();
 
@@ -233,6 +243,7 @@ pub async fn delete_all_documents(
 
         if is_orphaned {
             if let Err(e) = state
+                .storage
                 .graph_storage
                 .delete_edge(&edge.source, &edge.target)
                 .await
@@ -255,7 +266,7 @@ pub async fn delete_all_documents(
     #[allow(unused_mut)] // mut only used when postgres feature is enabled
     let mut total_pdfs_deleted = 0usize;
     #[cfg(feature = "postgres")]
-    if let Some(ref pdf_storage) = state.pdf_storage {
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
         // List all PDFs (no workspace filter to ensure full cleanup)
         let filter = ListPdfFilter {
             workspace_id: None,

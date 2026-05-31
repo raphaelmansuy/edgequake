@@ -43,6 +43,7 @@ pub async fn get_entity_provenance(
 
     // Look up entity
     let node = state
+        .storage
         .graph_storage
         .get_node(&normalized_id)
         .await?
@@ -112,20 +113,21 @@ pub async fn get_entity_provenance(
     for (doc_id, mut chunks) in doc_map {
         // Resolve document name from metadata
         let metadata_key = format!("{}-metadata", doc_id);
-        let doc_name =
-            if let Ok(Some(meta)) = cached_kv_get(state.kv_storage.as_ref(), &metadata_key).await {
-                meta.get("title")
-                    .or_else(|| meta.get("file_name"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            };
+        let doc_name = if let Ok(Some(meta)) =
+            cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key).await
+        {
+            meta.get("title")
+                .or_else(|| meta.get("file_name"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        } else {
+            None
+        };
 
         // Resolve chunk line positions from KV storage
         for chunk in &mut chunks {
             if let Ok(Some(chunk_data)) =
-                cached_kv_get(state.kv_storage.as_ref(), &chunk.chunk_id).await
+                cached_kv_get(state.storage.kv_storage.as_ref(), &chunk.chunk_id).await
             {
                 chunk.start_line = chunk_data
                     .get("start_line")
@@ -147,7 +149,7 @@ pub async fn get_entity_provenance(
     }
 
     // Find related entities
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
     let mut related: Vec<RelatedEntityInfo> = Vec::new();
 
     for edge in all_edges {

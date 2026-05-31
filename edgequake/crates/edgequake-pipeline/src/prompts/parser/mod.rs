@@ -174,7 +174,7 @@ impl HybridExtractionParser {
 
 #[cfg(test)]
 mod tests {
-    use super::json_parser::extract_json_from_response;
+    use super::super::json_extract::extract_json_from_response;
     use super::*;
 
     #[test]

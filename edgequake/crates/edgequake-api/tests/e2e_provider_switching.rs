@@ -70,12 +70,12 @@ async fn test_provider_autodetect_default_mock() {
     let state = edgequake_api::AppState::new_memory(None::<String>);
 
     assert_eq!(
-        state.llm_provider.name(),
+        state.query.llm_provider.name(),
         "mock",
         "Without env vars, should fallback to Mock"
     );
-    assert_eq!(state.embedding_provider.name(), "mock");
-    assert_eq!(state.embedding_provider.dimension(), 1536);
+    assert_eq!(state.query.embedding_provider.name(), "mock");
+    assert_eq!(state.query.embedding_provider.dimension(), 1536);
 }
 
 /// Test provider detection priority: Ollama > LM Studio > OpenAI > Mock.
@@ -99,7 +99,7 @@ async fn test_provider_detection_priority() {
     // Test 3: Explicit mock env - deterministic fallback for hermetic testing
     force_mock_provider_env();
     let state_mock = edgequake_api::AppState::new_memory(None::<String>);
-    assert_eq!(state_mock.llm_provider.name(), "mock");
+    assert_eq!(state_mock.query.llm_provider.name(), "mock");
 }
 
 // ============================================================================
@@ -193,8 +193,7 @@ async fn test_workspace_default_embedding_config() {
 #[tokio::test]
 #[serial]
 async fn test_embedding_dimension_autodetection() {
-    // Known provider dimensions for validation
-    // Default is 768 for unknown models (matches Ollama embeddinggemma from models.toml)
+    // Default is 1536 (OpenAI-compatible / MockProvider default)
     let test_cases = [
         ("text-embedding-3-small", 1536),
         ("text-embedding-3-large", 3072),
@@ -202,7 +201,7 @@ async fn test_embedding_dimension_autodetection() {
         ("nomic-embed-text", 768),
         ("nomic-embed-text:latest", 768),
         ("mxbai-embed-large", 1024),
-        ("unknown-model", 768), // Default fallback now matches Ollama/models.toml
+        ("unknown-model", 1536),
     ];
 
     for (model, expected) in test_cases {

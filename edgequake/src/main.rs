@@ -516,20 +516,20 @@ async fn main() -> Result<()> {
     // OODA-10: Also attach progress broadcaster for WebSocket event delivery.
     info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
     let mut processor = DocumentTaskProcessor::with_workspace_support_strict(
-        Arc::clone(&state.pipeline),
-        Arc::clone(&state.llm_provider),
-        Arc::clone(&state.kv_storage),
-        Arc::clone(&state.vector_storage),
-        Arc::clone(&state.vector_registry),
-        Arc::clone(&state.graph_storage),
-        state.pipeline_state.clone(),
+        Arc::clone(&state.query.pipeline),
+        Arc::clone(&state.query.llm_provider),
+        Arc::clone(&state.storage.kv_storage),
+        Arc::clone(&state.storage.vector_storage),
+        Arc::clone(&state.storage.vector_registry),
+        Arc::clone(&state.storage.graph_storage),
+        state.tasks.pipeline_state.clone(),
         Arc::clone(&state.workspace_service),
-        Arc::clone(&state.models_config),
+        Arc::clone(&state.query.models_config),
     )
-    .with_progress_broadcaster(state.progress_broadcaster.clone());
+    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone());
 
     // CRITICAL: Attach PDF storage for PDF processing tasks
-    if let Some(ref pdf_storage) = state.pdf_storage {
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
         processor = processor.with_pdf_storage(Arc::clone(pdf_storage));
         info!("📄 PDF storage attached to task processor");
     }
@@ -586,7 +586,7 @@ async fn main() -> Result<()> {
     // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
     // MUST run BEFORE starting workers to prevent race conditions
     if let Err(e) =
-        recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await
+        recover_orphaned_tasks(Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>).await
     {
         warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
     }
@@ -594,7 +594,7 @@ async fn main() -> Result<()> {
     // Recover orphaned documents stuck in non-terminal states (uploading, pending, etc.)
     // MUST run BEFORE starting workers to avoid race with new uploads
     if let Err(e) = recover_orphaned_documents(
-        Arc::clone(&state.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>
+        Arc::clone(&state.storage.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>
     )
     .await
     {
@@ -604,8 +604,8 @@ async fn main() -> Result<()> {
     // Requeue pending tasks from database to in-memory queue (PRODUCTION_BUG_FIX)
     // MUST run BEFORE starting workers so tasks are available when workers start polling
     if let Err(e) = requeue_pending_tasks(
-        Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>,
-        Arc::clone(&state.task_queue) as Arc<dyn TaskQueue>,
+        Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>,
+        Arc::clone(&state.tasks.queue) as Arc<dyn TaskQueue>,
     )
     .await
     {
@@ -616,14 +616,16 @@ async fn main() -> Result<()> {
     // WHY: Stale checkpoints reference outdated provider configs or content
     // that may have been re-uploaded. Cleaning on startup keeps storage lean
     // and prevents stale data from being reloaded.
-    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(&state.kv_storage)
-        .await;
+    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(
+        &state.storage.kv_storage,
+    )
+    .await;
 
     // Create and start worker pool
     let mut worker_pool = WorkerPool::new(
         worker_config.clone(),
-        Arc::clone(&state.task_queue) as Arc<dyn edgequake_tasks::TaskQueue>,
-        Arc::clone(&state.task_storage) as Arc<dyn edgequake_tasks::TaskStorage>,
+        Arc::clone(&state.tasks.queue) as Arc<dyn edgequake_tasks::TaskQueue>,
+        Arc::clone(&state.tasks.storage) as Arc<dyn edgequake_tasks::TaskStorage>,
         processor,
     );
 
@@ -631,7 +633,7 @@ async fn main() -> Result<()> {
     // on AppState.  The worker loop registers/checks tokens via the registry
     // in WorkerPool.  Both must point to the *same* underlying Arc so that a
     // cancel request from the HTTP handler is visible to the running worker.
-    state.cancellation_registry = worker_pool.cancellation_registry();
+    state.tasks.cancellation_registry = worker_pool.cancellation_registry();
 
     info!(
         "Starting worker pool with {} workers (task timeout: {}s)",
@@ -644,7 +646,7 @@ async fn main() -> Result<()> {
     // 10-minute updated_at threshold — safe because legitimate tasks have heartbeats
     // updating every 60s. This complements startup recovery (which is unconditional)
     // and the processing timeout (which catches hung tasks with active heartbeats).
-    let periodic_task_storage = Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>;
+    let periodic_task_storage = Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>;
     tokio::spawn(async move {
         // WHY 5 minutes: Frequent enough to catch dead-heartbeat tasks within
         // ~15 minutes (10 min threshold + up to 5 min wait for the next check).
@@ -673,7 +675,7 @@ async fn main() -> Result<()> {
     // Print startup banner with storage mode
     print_startup_banner(
         env!("CARGO_PKG_VERSION"),
-        &state.storage_mode,
+        &state.storage.mode,
         &config.host,
         config.port,
     );

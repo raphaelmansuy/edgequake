@@ -118,6 +118,7 @@ async fn test_text_upload_increments_document_count() {
 
     let doc_id = uuid::Uuid::new_v4().to_string();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_id),
@@ -153,6 +154,7 @@ async fn test_mixed_document_types_all_counted() {
     for (st, title) in &types {
         let did = uuid::Uuid::new_v4().to_string();
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-metadata", did),
@@ -181,6 +183,7 @@ async fn test_entity_relationship_counts_from_graph() {
 
     // 1 document in KV
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_id),
@@ -195,7 +198,12 @@ async fn test_entity_relationship_counts_from_graph() {
         props.insert("entity_type".into(), json!("PERSON"));
         props.insert("workspace_id".into(), json!(ws_str));
         props.insert("source_ids".into(), json!([doc_id]));
-        state.graph_storage.upsert_node(name, props).await.unwrap();
+        state
+            .storage
+            .graph_storage
+            .upsert_node(name, props)
+            .await
+            .unwrap();
     }
 
     // 1 relationship
@@ -204,6 +212,7 @@ async fn test_entity_relationship_counts_from_graph() {
     ep.insert("workspace_id".into(), json!(ws_str));
     ep.insert("source_ids".into(), json!([doc_id]));
     state
+        .storage
         .graph_storage
         .upsert_edge("SARAH_CHEN", "MIT", ep)
         .await
@@ -226,7 +235,7 @@ async fn test_stats_workspace_isolation() {
     for i in 0..2 {
         let did = uuid::Uuid::new_v4().to_string();
         state
-            .kv_storage
+            .storage.kv_storage
             .upsert(&[(
                 format!("{}-metadata", did),
                 json!({"id": did,"title":format!("a{}",i),"status":"completed","workspace_id": ws_a.to_string()}),
@@ -239,7 +248,7 @@ async fn test_stats_workspace_isolation() {
     for i in 0..5 {
         let did = uuid::Uuid::new_v4().to_string();
         state
-            .kv_storage
+            .storage.kv_storage
             .upsert(&[(
                 format!("{}-metadata", did),
                 json!({"id": did,"title":format!("b{}",i),"status":"completed","workspace_id": ws_b.to_string()}),
@@ -265,6 +274,7 @@ async fn test_chunk_count_from_kv() {
     let doc_id = uuid::Uuid::new_v4().to_string();
 
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_id),
@@ -281,7 +291,7 @@ async fn test_chunk_count_from_kv() {
             )
         })
         .collect();
-    state.kv_storage.upsert(&chunks).await.unwrap();
+    state.storage.kv_storage.upsert(&chunks).await.unwrap();
 
     let (_, json) = get_stats(&app, ws_id).await;
     assert_eq!(json["document_count"], 1);
@@ -297,7 +307,7 @@ async fn test_storage_bytes_aggregation() {
     let d1 = uuid::Uuid::new_v4().to_string();
     let d2 = uuid::Uuid::new_v4().to_string();
     state
-        .kv_storage
+        .storage.kv_storage
         .upsert(&[
             (
                 format!("{}-metadata", d1),
@@ -332,6 +342,7 @@ async fn test_all_status_documents_counted() {
     for (i, st) in statuses.iter().enumerate() {
         let did = uuid::Uuid::new_v4().to_string();
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-metadata", did),
@@ -377,7 +388,7 @@ async fn test_no_cross_workspace_cache_contamination() {
     for i in 0..3 {
         let did = uuid::Uuid::new_v4().to_string();
         state
-            .kv_storage
+            .storage.kv_storage
             .upsert(&[(
                 format!("{}-metadata", did),
                 json!({"id": did,"title":format!("d{}",i),"status":"completed","workspace_id": ws1.to_string()}),
@@ -408,6 +419,7 @@ async fn test_orphan_document_not_counted() {
 
     let orphan = uuid::Uuid::new_v4().to_string();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", orphan),
@@ -428,6 +440,7 @@ async fn test_only_metadata_keys_counted() {
     let doc_id = uuid::Uuid::new_v4().to_string();
 
     state
+        .storage
         .kv_storage
         .upsert(&[
             (
@@ -469,7 +482,7 @@ async fn test_large_document_count() {
             )
         })
         .collect();
-    state.kv_storage.upsert(&entries).await.unwrap();
+    state.storage.kv_storage.upsert(&entries).await.unwrap();
 
     let (_, json) = get_stats(&app, ws_id).await;
     assert_eq!(json["document_count"], n);
@@ -488,6 +501,7 @@ async fn test_entity_isolation_across_workspaces() {
     // ws_a: 1 doc + 3 entities
     let da = uuid::Uuid::new_v4().to_string();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", da),
@@ -499,12 +513,18 @@ async fn test_entity_isolation_across_workspaces() {
         let mut p = std::collections::HashMap::new();
         p.insert("entity_type".into(), json!("CONCEPT"));
         p.insert("workspace_id".into(), json!(ws_a.to_string()));
-        state.graph_storage.upsert_node(name, p).await.unwrap();
+        state
+            .storage
+            .graph_storage
+            .upsert_node(name, p)
+            .await
+            .unwrap();
     }
 
     // ws_b: 1 doc + 1 entity
     let db = uuid::Uuid::new_v4().to_string();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", db),
@@ -516,7 +536,12 @@ async fn test_entity_isolation_across_workspaces() {
         let mut p = std::collections::HashMap::new();
         p.insert("entity_type".into(), json!("PERSON"));
         p.insert("workspace_id".into(), json!(ws_b.to_string()));
-        state.graph_storage.upsert_node("BOB", p).await.unwrap();
+        state
+            .storage
+            .graph_storage
+            .upsert_node("BOB", p)
+            .await
+            .unwrap();
     }
 
     let app = Server::new(test_config(), state).build_router();

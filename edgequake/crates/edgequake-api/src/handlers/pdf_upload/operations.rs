@@ -99,6 +99,7 @@ pub async fn retry_pdf_processing(
 
         // OODA-17: Get PDF and validate state
         let pdf_storage = state
+            .storage
             .pdf_storage
             .as_ref()
             .ok_or_else(|| ApiError::Internal("PDF storage not available".to_string()))?;
@@ -208,6 +209,7 @@ pub async fn cancel_pdf_processing(
 
         // OODA-17: Get PDF and validate state
         let pdf_storage = state
+            .storage
             .pdf_storage
             .as_ref()
             .ok_or_else(|| ApiError::Internal("PDF storage not available".to_string()))?;
@@ -235,7 +237,7 @@ pub async fn cancel_pdf_processing(
 
         // OODA-17: Request cancellation via pipeline state
         // WHY: This sets a flag that the worker checks periodically
-        state.pipeline_state.request_cancellation().await;
+        state.tasks.pipeline_state.request_cancellation().await;
 
         // OODA-17: Update status to Failed with cancellation message
         // WHY: UpdatePdfProcessingRequest requires pdf_id and processing_status as non-optional

@@ -40,6 +40,7 @@ pub async fn get_document(
     let metadata_key = format!("{}-metadata", document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
     let metadata_values = state
+        .storage
         .kv_storage
         .get_by_ids(std::slice::from_ref(&metadata_key))
         .await?;
@@ -53,7 +54,11 @@ pub async fn get_document(
 
     // SPEC-011: prefix scan — no full keys() table scan
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_keys = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
+    let chunk_keys = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
     let chunk_count = chunk_keys.len();
     debug!(chunk_count = chunk_count, "Document chunk keys loaded");
 
@@ -94,7 +99,7 @@ pub async fn get_document(
 
     // Fetch document content
     let content_key = format!("{}-content", document_id);
-    let content_values = state.kv_storage.get_by_ids(&[content_key]).await?;
+    let content_values = state.storage.kv_storage.get_by_ids(&[content_key]).await?;
     let content = content_values.into_iter().next().and_then(|v| {
         v.get("content")
             .and_then(|c| c.as_str())

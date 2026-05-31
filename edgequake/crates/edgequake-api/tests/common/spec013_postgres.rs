@@ -128,20 +128,20 @@ async fn start_worker_pool(state: &mut AppState) {
     shutdown_worker_pool().await;
 
     let mut processor = DocumentTaskProcessor::with_workspace_support_strict(
-        Arc::clone(&state.pipeline),
-        Arc::clone(&state.llm_provider),
-        Arc::clone(&state.kv_storage),
-        Arc::clone(&state.vector_storage),
-        Arc::clone(&state.vector_registry),
-        Arc::clone(&state.graph_storage),
-        state.pipeline_state.clone(),
+        Arc::clone(&state.query.pipeline),
+        Arc::clone(&state.query.llm_provider),
+        Arc::clone(&state.storage.kv_storage),
+        Arc::clone(&state.storage.vector_storage),
+        Arc::clone(&state.storage.vector_registry),
+        Arc::clone(&state.storage.graph_storage),
+        state.tasks.pipeline_state.clone(),
         Arc::clone(&state.workspace_service),
-        Arc::clone(&state.models_config),
+        Arc::clone(&state.query.models_config),
     )
-    .with_progress_broadcaster(state.progress_broadcaster.clone());
+    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone());
 
     #[cfg(feature = "postgres")]
-    if let Some(ref pdf_storage) = state.pdf_storage {
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
         processor = processor.with_pdf_storage(Arc::clone(pdf_storage));
     }
 
@@ -159,12 +159,12 @@ async fn start_worker_pool(state: &mut AppState) {
 
     let mut worker_pool = WorkerPool::new(
         worker_config,
-        Arc::clone(&state.task_queue) as Arc<dyn TaskQueue>,
-        Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>,
+        Arc::clone(&state.tasks.queue) as Arc<dyn TaskQueue>,
+        Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>,
         processor,
     );
 
-    state.cancellation_registry = worker_pool.cancellation_registry();
+    state.tasks.cancellation_registry = worker_pool.cancellation_registry();
     worker_pool.start();
 
     let slot = SPEC013_WORKER_POOL.get_or_init(|| Mutex::new(None));
@@ -199,9 +199,9 @@ pub async fn wait_until_app_ready(app: &axum::Router) {
 
 async fn build_postgres_router(mut state: AppState) -> axum::Router {
     assert!(
-        matches!(state.storage_mode, edgequake_api::StorageMode::PostgreSQL),
+        matches!(state.storage.mode, edgequake_api::StorageMode::PostgreSQL),
         "SPEC-013 E2E must use PostgreSQL storage, got {:?}",
-        state.storage_mode
+        state.storage.mode
     );
     start_worker_pool(&mut state).await;
     let router = Server::new(test_server_config(), state).build_router();

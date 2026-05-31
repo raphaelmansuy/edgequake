@@ -136,17 +136,10 @@ pub async fn reprocess_all_documents(
                 task_value,
             );
 
-            if let Err(e) = state.task_storage.create_task(&task).await {
-                info!(error = %e, doc_id = %doc.doc_id, "Failed to create task, skipping");
+            if let Err(e) = state.enqueue_task(task).await {
+                info!(error = %e, doc_id = %doc.doc_id, "Failed to enqueue task, skipping");
                 documents_skipped += 1;
-                *skip_reasons.entry("task_create_failed").or_insert(0) += 1;
-                continue;
-            }
-
-            if let Err(e) = state.task_queue.send(task).await {
-                info!(error = %e, doc_id = %doc.doc_id, "Failed to queue task, skipping");
-                documents_skipped += 1;
-                *skip_reasons.entry("task_queue_failed").or_insert(0) += 1;
+                *skip_reasons.entry("task_enqueue_failed").or_insert(0) += 1;
                 continue;
             }
 

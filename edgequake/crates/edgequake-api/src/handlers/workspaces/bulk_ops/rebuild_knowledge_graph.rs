@@ -114,12 +114,12 @@ pub async fn rebuild_knowledge_graph(
     );
 
     // 5. Clear graph storage (workspace-scoped)
-    let (nodes_cleared, edges_cleared) =
-        state
-            .graph_storage
-            .clear_workspace(&workspace_id)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Failed to clear graph: {}", e)))?;
+    let (nodes_cleared, edges_cleared) = state
+        .storage
+        .graph_storage
+        .clear_workspace(&workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to clear graph: {}", e)))?;
 
     info!(
         workspace_id = %workspace_id,
@@ -131,6 +131,7 @@ pub async fn rebuild_knowledge_graph(
     // 6. Optionally clear vectors (if also changing embeddings)
     let vectors_cleared = if request.rebuild_embeddings {
         let count = state
+            .storage
             .vector_storage
             .clear_workspace(&workspace_id)
             .await
@@ -140,7 +141,7 @@ pub async fn rebuild_knowledge_graph(
         // WHY: If rebuild_embeddings is requested, the embedding model/dimension may change.
         // The cached vector storage instance holds the old dimension configuration.
         // Evicting forces recreation with correct dimension on next access.
-        state.vector_registry.evict(&workspace_id).await;
+        state.storage.vector_registry.evict(&workspace_id).await;
 
         info!(
             workspace_id = %workspace_id,
@@ -220,9 +221,7 @@ pub async fn rebuild_knowledge_graph(
                     task_value,
                 );
 
-                if state.task_storage.create_task(&task).await.is_ok()
-                    && state.task_queue.send(task).await.is_ok()
-                {
+                if state.enqueue_task(task).await.is_ok() {
                     documents_queued += 1;
                     total_chunks += doc.chunk_count;
                 }

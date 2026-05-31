@@ -26,7 +26,7 @@ impl Pipeline {
         let start = std::time::Instant::now();
 
         // Step 1: Chunk the document
-        let mut chunks = self.chunker.chunk(content, document_id)?;
+        let mut chunks = self.chunker.chunk_async(content, document_id).await?;
         let mut stats = self.init_chunk_stats(&chunks);
 
         // Step 2: Extract entities and relationships
@@ -83,7 +83,7 @@ impl Pipeline {
         let start = std::time::Instant::now();
 
         // Step 1: Chunk the document
-        let mut chunks = self.chunker.chunk(content, document_id)?;
+        let mut chunks = self.chunker.chunk_async(content, document_id).await?;
         let mut stats = self.init_chunk_stats(&chunks);
 
         // Step 2: Extract entities and relationships WITH PROGRESS CALLBACK
@@ -180,7 +180,7 @@ impl Pipeline {
         let start = std::time::Instant::now();
 
         // Step 1: Chunk the document
-        let mut chunks = self.chunker.chunk(content, document_id)?;
+        let mut chunks = self.chunker.chunk_async(content, document_id).await?;
         let mut stats = self.init_chunk_stats(&chunks);
 
         // Step 2: Extract entities and relationships WITH RESILIENCE

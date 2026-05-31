@@ -497,6 +497,7 @@ async fn test_delete_pending_document_succeeds() {
     });
 
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_key.clone(), metadata)])
         .await
@@ -507,6 +508,7 @@ async fn test_delete_pending_document_succeeds() {
         "content": "Test content for pending document"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(content_key, content)])
         .await
@@ -543,6 +545,7 @@ async fn test_delete_processing_document_succeeds() {
     });
 
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_key.clone(), metadata)])
         .await
@@ -553,6 +556,7 @@ async fn test_delete_processing_document_succeeds() {
         "content": "Test content for processing document"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(content_key, content)])
         .await
@@ -590,6 +594,7 @@ async fn test_delete_failed_document_allowed() {
     });
 
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_key, metadata)])
         .await
@@ -600,6 +605,7 @@ async fn test_delete_failed_document_allowed() {
         "content": "Test content for failed document"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(content_key, content)])
         .await
@@ -649,6 +655,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
     entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("PARTIAL_ENTITY_A", entity_props.clone())
         .await
@@ -660,6 +667,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
     entity_b_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("PARTIAL_ENTITY_B", entity_b_props)
         .await
@@ -677,6 +685,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
     });
 
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_key.clone(), metadata)])
         .await
@@ -687,6 +696,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
         "content": "Test content for partial cleanup test"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(content_key, content)])
         .await
@@ -700,13 +710,14 @@ async fn test_delete_failed_document_cleans_partial_entities() {
         "index": 0
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_key, chunk_data)])
         .await
         .expect("Should be able to store chunk");
 
     // 3. Verify entities exist before deletion
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_before.iter().any(|n| n.id == "PARTIAL_ENTITY_A"),
         "PARTIAL_ENTITY_A should exist before deletion"
@@ -730,7 +741,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
     );
 
     // 5. Verify entities were cleaned up
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     assert!(
         !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_A"),
@@ -779,6 +790,7 @@ async fn test_delete_preserves_shared_entities() {
     );
 
     state
+        .storage
         .graph_storage
         .upsert_node("SHARED_ENTITY", shared_entity_props)
         .await
@@ -791,6 +803,7 @@ async fn test_delete_preserves_shared_entities() {
     unique_entity_props.insert("source_ids".to_string(), json!([chunk_a_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("UNIQUE_TO_DOC_A", unique_entity_props)
         .await
@@ -805,6 +818,7 @@ async fn test_delete_preserves_shared_entities() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_a_key, metadata_a)])
         .await
@@ -812,6 +826,7 @@ async fn test_delete_preserves_shared_entities() {
 
     let content_a_key = format!("{}-content", doc_a_id);
     state
+        .storage
         .kv_storage
         .upsert(&[(content_a_key, json!({"content": "Doc A content"}))])
         .await
@@ -819,6 +834,7 @@ async fn test_delete_preserves_shared_entities() {
 
     let chunk_a_key = format!("{}-chunk-0", doc_a_id);
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_a_key, json!({"content": "Chunk A"}))])
         .await
@@ -833,6 +849,7 @@ async fn test_delete_preserves_shared_entities() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_b_key, metadata_b)])
         .await
@@ -840,6 +857,7 @@ async fn test_delete_preserves_shared_entities() {
 
     let content_b_key = format!("{}-content", doc_b_id);
     state
+        .storage
         .kv_storage
         .upsert(&[(content_b_key, json!({"content": "Doc B content"}))])
         .await
@@ -847,13 +865,14 @@ async fn test_delete_preserves_shared_entities() {
 
     let chunk_b_key = format!("{}-chunk-0", doc_b_id);
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_b_key, json!({"content": "Chunk B"}))])
         .await
         .unwrap();
 
     // 5. Verify both entities exist
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(nodes_before.iter().any(|n| n.id == "SHARED_ENTITY"));
     assert!(nodes_before.iter().any(|n| n.id == "UNIQUE_TO_DOC_A"));
 
@@ -862,7 +881,7 @@ async fn test_delete_preserves_shared_entities() {
     assert_eq!(status, StatusCode::OK);
 
     // 7. Verify SHARED_ENTITY is preserved (still referenced by Doc B)
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     // SHARED_ENTITY should still exist (referenced by doc_b)
     let shared_entity = nodes_after.iter().find(|n| n.id == "SHARED_ENTITY");
@@ -901,7 +920,7 @@ async fn test_delete_preserves_shared_entities() {
     assert_eq!(status_b, StatusCode::OK);
 
     // After deleting both documents, SHARED_ENTITY should also be gone
-    let nodes_final = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_final = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         !nodes_final.iter().any(|n| n.id == "SHARED_ENTITY"),
         "SHARED_ENTITY should be deleted after all referencing documents are deleted"
@@ -932,6 +951,7 @@ async fn test_idempotent_deletion_returns_404() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_key.clone(), metadata)])
         .await
@@ -939,6 +959,7 @@ async fn test_idempotent_deletion_returns_404() {
 
     let content_key = format!("{}-content", doc_id);
     state
+        .storage
         .kv_storage
         .upsert(&[(content_key, json!({"content": "Test content"}))])
         .await
@@ -1007,6 +1028,7 @@ async fn test_concurrent_deletion_of_shared_entity() {
     );
 
     state
+        .storage
         .graph_storage
         .upsert_node("SHARED_CONCURRENT_ENTITY", shared_props)
         .await
@@ -1020,16 +1042,19 @@ async fn test_concurrent_deletion_of_shared_entity() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_a_id), metadata_a)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_a_id), json!({"content": "A"}))])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_a_id.clone(), json!({"content": "Chunk A"}))])
         .await
@@ -1042,23 +1067,26 @@ async fn test_concurrent_deletion_of_shared_entity() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_b_id), metadata_b)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_b_id), json!({"content": "B"}))])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_b_id.clone(), json!({"content": "Chunk B"}))])
         .await
         .unwrap();
 
     // 3. Verify entity exists before deletion
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_before
             .iter()
@@ -1096,7 +1124,7 @@ async fn test_concurrent_deletion_of_shared_entity() {
 
     // 6. Critical: After both deletions complete, entity should be GONE
     // If RACE-04 exists, the entity might still have one source_id due to lost update
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     let shared_entity = nodes_after
         .iter()
@@ -1154,6 +1182,7 @@ async fn test_multiple_concurrent_deletions() {
         ]),
     );
     state
+        .storage
         .graph_storage
         .upsert_node("MULTI_ENTITY_A", entity_a_props)
         .await
@@ -1171,6 +1200,7 @@ async fn test_multiple_concurrent_deletions() {
         ]),
     );
     state
+        .storage
         .graph_storage
         .upsert_node("MULTI_ENTITY_B", entity_b_props)
         .await
@@ -1184,6 +1214,7 @@ async fn test_multiple_concurrent_deletions() {
         json!([format!("{}-chunk-0", &doc_ids[0])]),
     );
     state
+        .storage
         .graph_storage
         .upsert_node("MULTI_ENTITY_C", entity_c_props)
         .await
@@ -1198,16 +1229,19 @@ async fn test_multiple_concurrent_deletions() {
             "workspace_id": "default"
         });
         state
+            .storage
             .kv_storage
             .upsert(&[(format!("{}-metadata", doc_id), metadata)])
             .await
             .unwrap();
         state
+            .storage
             .kv_storage
             .upsert(&[(format!("{}-content", doc_id), json!({"content": "X"}))])
             .await
             .unwrap();
         state
+            .storage
             .kv_storage
             .upsert(&[(format!("{}-chunk-0", doc_id), json!({"content": "Chunk"}))])
             .await
@@ -1215,7 +1249,7 @@ async fn test_multiple_concurrent_deletions() {
     }
 
     // Verify initial state
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert_eq!(
         nodes_before.len(),
         3,
@@ -1255,7 +1289,7 @@ async fn test_multiple_concurrent_deletions() {
     }
 
     // After all deletions, all entities should be gone
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     // Check each entity
     for entity_id in ["MULTI_ENTITY_A", "MULTI_ENTITY_B", "MULTI_ENTITY_C"] {
@@ -1320,13 +1354,14 @@ async fn test_source_ids_accumulates_across_documents() {
     entity_props_a.insert("source_ids".to_string(), json!([chunk_a_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("ACCUMULATE_TEST_ENTITY", entity_props_a)
         .await
         .expect("Should create entity from doc A");
 
     // 2. Verify entity has doc A reference
-    let nodes_after_a = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_a = state.storage.graph_storage.get_all_nodes().await.unwrap();
     let entity_after_a = nodes_after_a
         .iter()
         .find(|n| n.id == "ACCUMULATE_TEST_ENTITY")
@@ -1351,7 +1386,12 @@ async fn test_source_ids_accumulates_across_documents() {
     // 3. Second document "uploads" the same entity
     // OODA-06 FIX: Simulate the fixed handler behavior - merge source_ids before upsert
     // This is what the fixed upload_document handler now does
-    let merged_source_ids = match state.graph_storage.get_node("ACCUMULATE_TEST_ENTITY").await {
+    let merged_source_ids = match state
+        .storage
+        .graph_storage
+        .get_node("ACCUMULATE_TEST_ENTITY")
+        .await
+    {
         Ok(Some(existing)) => {
             let mut existing_sources: std::collections::HashSet<String> = existing
                 .properties
@@ -1375,13 +1415,14 @@ async fn test_source_ids_accumulates_across_documents() {
     entity_props_b.insert("source_ids".to_string(), json!(merged_source_ids));
 
     state
+        .storage
         .graph_storage
         .upsert_node("ACCUMULATE_TEST_ENTITY", entity_props_b)
         .await
         .expect("Should upsert entity from doc B with merged source_ids");
 
     // 4. Check if source_ids accumulated (GAP-07 test)
-    let nodes_after_b = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_b = state.storage.graph_storage.get_all_nodes().await.unwrap();
     let entity_after_b = nodes_after_b
         .iter()
         .find(|n| n.id == "ACCUMULATE_TEST_ENTITY")
@@ -1451,6 +1492,7 @@ async fn test_delete_with_accumulated_source_ids() {
     );
 
     state
+        .storage
         .graph_storage
         .upsert_node("ACCUMULATED_DELETE_ENTITY", entity_props)
         .await
@@ -1464,16 +1506,19 @@ async fn test_delete_with_accumulated_source_ids() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_a_id), metadata_a)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_a_id), json!({"content": "A"}))])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_a_id.clone(), json!({"content": "Chunk A"}))])
         .await
@@ -1486,16 +1531,19 @@ async fn test_delete_with_accumulated_source_ids() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_b_id), metadata_b)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_b_id), json!({"content": "B"}))])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_b_id.clone(), json!({"content": "Chunk B"}))])
         .await
@@ -1506,7 +1554,7 @@ async fn test_delete_with_accumulated_source_ids() {
     assert_eq!(status_a, StatusCode::OK);
 
     // 4. Verify entity is PRESERVED (still referenced by doc B)
-    let nodes_after_a = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_a = state.storage.graph_storage.get_all_nodes().await.unwrap();
     let entity_after_a = nodes_after_a
         .iter()
         .find(|n| n.id == "ACCUMULATED_DELETE_ENTITY");
@@ -1545,7 +1593,7 @@ async fn test_delete_with_accumulated_source_ids() {
     assert_eq!(status_b, StatusCode::OK);
 
     // 7. Verify entity is now DELETED (no more references)
-    let nodes_after_b = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_b = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         !nodes_after_b
             .iter()
@@ -1585,11 +1633,13 @@ async fn test_reprocess_cleans_partial_graph_data() {
         "error_message": "Simulated processing failure"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_id), metadata)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_id),
@@ -1608,13 +1658,14 @@ async fn test_reprocess_cleans_partial_graph_data() {
     entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("PARTIAL_ENTITY_FROM_FAILURE", entity_props)
         .await
         .expect("Should create partial entity");
 
     // Verify entity exists before reprocess
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_before
             .iter()
@@ -1647,7 +1698,7 @@ async fn test_reprocess_cleans_partial_graph_data() {
 
     // 4. Verify partial entity was cleaned up
     // WHY: The cleanup happens BEFORE requeueing, so entity should be gone immediately
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     assert!(
         !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_FAILURE"),
@@ -1688,11 +1739,13 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
         "updated_at": old_timestamp  // KEY: Old timestamp makes it "stuck"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_id), metadata)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_id),
@@ -1711,13 +1764,14 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
     entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("PARTIAL_ENTITY_FROM_STUCK", entity_props)
         .await
         .expect("Should create partial entity");
 
     // Verify entity exists before recovery
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_before
             .iter()
@@ -1754,7 +1808,7 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
     );
 
     // 4. Verify partial entity was cleaned up
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     assert!(
         !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_STUCK"),
@@ -1777,6 +1831,7 @@ async fn test_recover_stuck_only_requeues_current_workspace() {
 
     for (doc_id, workspace_id) in [(doc_a, workspace_a), (doc_b, workspace_b)] {
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-metadata", doc_id),
@@ -1791,6 +1846,7 @@ async fn test_recover_stuck_only_requeues_current_workspace() {
             .await
             .unwrap();
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-content", doc_id),
@@ -1860,6 +1916,7 @@ async fn test_reprocess_preserves_shared_entities() {
     );
 
     state
+        .storage
         .graph_storage
         .upsert_node("SHARED_REPROCESS_ENTITY", entity_props)
         .await
@@ -1873,11 +1930,13 @@ async fn test_reprocess_preserves_shared_entities() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_a_id), metadata_a)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_a_id),
@@ -1886,6 +1945,7 @@ async fn test_reprocess_preserves_shared_entities() {
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_a_id.clone(), json!({"content": "Chunk A"}))])
         .await
@@ -1899,11 +1959,13 @@ async fn test_reprocess_preserves_shared_entities() {
         "workspace_id": "default"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_b_id), metadata_b)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_b_id),
@@ -1912,6 +1974,7 @@ async fn test_reprocess_preserves_shared_entities() {
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(chunk_b_id.clone(), json!({"content": "Chunk B"}))])
         .await
@@ -1938,7 +2001,7 @@ async fn test_reprocess_preserves_shared_entities() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // 5. Verify shared entity is PRESERVED (still referenced by doc A)
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
     let shared_entity = nodes_after
         .iter()
         .find(|n| n.id == "SHARED_REPROCESS_ENTITY");
@@ -2168,6 +2231,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
         props.insert("source_ids".to_string(), json!(source_ids));
 
         state
+            .storage
             .graph_storage
             .upsert_node(entity_id, props)
             .await
@@ -2183,11 +2247,13 @@ async fn test_high_volume_concurrent_deletions_stress() {
             "workspace_id": "default"
         });
         state
+            .storage
             .kv_storage
             .upsert(&[(format!("{}-metadata", doc_id), metadata)])
             .await
             .unwrap();
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-content", doc_id),
@@ -2196,6 +2262,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
             .await
             .unwrap();
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-chunk-0", doc_id),
@@ -2206,7 +2273,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
     }
 
     // Verify initial state: 5 entities
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert_eq!(
         nodes_before.len(),
         5,
@@ -2264,7 +2331,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
     // - Entity 4 (docs 9-13): PRESERVED (docs 11-13 remain)
     // - Entity 5 (docs 11-15): PRESERVED (docs 11-15 remain)
 
-    let nodes_after_phase1 = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_phase1 = state.storage.graph_storage.get_all_nodes().await.unwrap();
 
     // Entity 1 and 2 should be deleted
     assert!(
@@ -2318,7 +2385,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
     }
 
     // Verify final state: all entities should be deleted
-    let nodes_final = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_final = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_final.is_empty(),
         "All entities should be deleted, but {} remain: {:?}",
@@ -2363,8 +2430,8 @@ async fn test_deletion_with_bidirectional_relationships() {
         .expect("Should have document_id");
 
     // Check initial state - should have nodes and edges
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     println!(
         "Before deletion: {} nodes, {} edges",
@@ -2391,8 +2458,8 @@ async fn test_deletion_with_bidirectional_relationships() {
     );
 
     // Verify all nodes and edges are deleted
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     assert!(
         nodes_after.is_empty(),
@@ -2436,7 +2503,7 @@ async fn test_deletion_with_self_referential_entity() {
         .expect("Should have document_id");
 
     // Check initial state
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     println!("Before deletion: {} nodes", nodes_before.len());
 
     // Delete document
@@ -2452,8 +2519,8 @@ async fn test_deletion_with_self_referential_entity() {
     );
 
     // Verify cleanup
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     assert!(
         nodes_after.is_empty(),
@@ -2509,8 +2576,8 @@ async fn test_deletion_with_cycle_preserves_shared() {
         .expect("doc2_id");
 
     // Check initial state
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     println!(
         "Before deletion: {} nodes, {} edges",
@@ -2523,8 +2590,8 @@ async fn test_deletion_with_cycle_preserves_shared() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Verify state after Doc1 deletion
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     // ALPHA should be deleted (only in doc1)
     // BETA and GAMMA from doc2 should be preserved
@@ -2573,11 +2640,13 @@ async fn test_reprocess_excludes_processing_documents() {
         "updated_at": chrono::Utc::now().to_rfc3339()  // Recent timestamp
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_id), metadata)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_id),
@@ -2596,13 +2665,14 @@ async fn test_reprocess_excludes_processing_documents() {
     entity_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("ACTIVE_PROCESSING_ENTITY", entity_props)
         .await
         .expect("Should create entity");
 
     // Verify entity exists before reprocess call
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_before
             .iter()
@@ -2648,7 +2718,7 @@ async fn test_reprocess_excludes_processing_documents() {
     );
 
     // 5. Verify entity was NOT cleaned up (document still processing)
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
     assert!(
         nodes_after
             .iter()
@@ -2686,11 +2756,13 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
         "error_message": "Simulated processing failure"
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-metadata", doc_id), metadata)])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_id),
@@ -2710,6 +2782,7 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
         props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
         state
+            .storage
             .graph_storage
             .upsert_node(entity_name, props)
             .await
@@ -2722,20 +2795,22 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     rel_props.insert("source_ids".to_string(), json!([chunk_id.clone()]));
 
     state
+        .storage
         .graph_storage
         .upsert_edge("FAILED_ENTITY_A", "FAILED_ENTITY_B", rel_props.clone())
         .await
         .expect("Should create relationship");
 
     state
+        .storage
         .graph_storage
         .upsert_edge("FAILED_ENTITY_B", "FAILED_ENTITY_C", rel_props)
         .await
         .expect("Should create relationship");
 
     // Verify state before reprocess
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     assert_eq!(
         nodes_before.len(),
@@ -2771,8 +2846,8 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // 5. Verify ALL entities and relationships were cleaned up
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     assert!(
         nodes_after.is_empty(),
@@ -2803,6 +2878,7 @@ async fn test_reprocess_only_requeues_current_workspace_failed_docs() {
 
     for (doc_id, workspace_id) in [(doc_a, workspace_a), (doc_b, workspace_b)] {
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-metadata", doc_id),
@@ -2816,6 +2892,7 @@ async fn test_reprocess_only_requeues_current_workspace_failed_docs() {
             .await
             .unwrap();
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 format!("{}-content", doc_id),
@@ -2937,7 +3014,7 @@ async fn test_deletion_preserves_unrelated_data() {
     let doc2_id = body2["document_id"].as_str().unwrap().to_string();
 
     // Count entities before deletion
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
     let doc2_entities_before: Vec<_> = nodes_before
         .iter()
         .filter(|n| {
@@ -2954,7 +3031,7 @@ async fn test_deletion_preserves_unrelated_data() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Doc2's entities should still exist
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
     let doc2_entities_after: Vec<_> = nodes_after
         .iter()
         .filter(|n| {
@@ -3237,8 +3314,8 @@ async fn test_bulk_deletion_cleanup() {
     }
 
     // Count entities before bulk delete
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     println!("📊 Before bulk delete:");
     println!("   Documents: {}", doc_count);
@@ -3258,8 +3335,8 @@ async fn test_bulk_deletion_cleanup() {
     assert_eq!(success_count, doc_count, "All documents should be deleted");
 
     // Count entities after bulk delete
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     println!("📊 After bulk delete:");
     println!("   Nodes remaining: {}", nodes_after.len());
@@ -3644,8 +3721,8 @@ async fn test_rapid_create_delete_cycles() {
     }
 
     // After all cycles, verify clean state
-    let nodes = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     // With mock LLM, we may have no entities, which is fine
     // Key assertion: no orphaned data from our documents
@@ -3875,6 +3952,7 @@ async fn test_delete_document_rejects_cross_workspace_uuid_context() {
     let requester_workspace = "00000000-0000-0000-0000-0000000000b2";
 
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_id),
@@ -3888,6 +3966,7 @@ async fn test_delete_document_rejects_cross_workspace_uuid_context() {
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_id), json!({"content": "secret"}))])
         .await
@@ -3896,6 +3975,7 @@ async fn test_delete_document_rejects_cross_workspace_uuid_context() {
     let (status, _) = delete_document_http_scoped(&app, doc_id, requester_workspace).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(state
+        .storage
         .kv_storage
         .get_by_id(&format!("{}-metadata", doc_id))
         .await
@@ -3914,6 +3994,7 @@ async fn test_delete_legacy_default_document_rejects_random_workspace_context() 
     let random_workspace = "00000000-0000-0000-0000-0000000000ff";
 
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_id),
@@ -3927,6 +4008,7 @@ async fn test_delete_legacy_default_document_rejects_random_workspace_context() 
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_id), json!({"content": "legacy"}))])
         .await
@@ -3935,6 +4017,7 @@ async fn test_delete_legacy_default_document_rejects_random_workspace_context() 
     let (status, _) = delete_document_http_scoped(&app, doc_id, random_workspace).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(state
+        .storage
         .kv_storage
         .get_by_id(&format!("{}-metadata", doc_id))
         .await
@@ -3996,6 +4079,7 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
     let track_id = "bulk-scope-stuck-track";
 
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_a),
@@ -4012,17 +4096,20 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_a), json!({"content": "A"}))])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-chunk-0", doc_a), json!({"content": "chunk a"}))])
         .await
         .unwrap();
 
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_b),
@@ -4036,11 +4123,13 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-content", doc_b), json!({"content": "B"}))])
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(format!("{}-chunk-0", doc_b), json!({"content": "chunk b"}))])
         .await
@@ -4059,24 +4148,27 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
     );
     task.track_id = track_id.to_string();
     task.status = TaskStatus::Processing;
-    state.task_storage.create_task(&task).await.unwrap();
+    state.tasks.storage.create_task(&task).await.unwrap();
 
     let (status, body) = delete_all_documents_http_scoped(&app, &workspace_a.to_string()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["deleted_count"].as_u64(), Some(1));
     assert!(state
-        .task_storage
+        .tasks
+        .storage
         .get_task(track_id)
         .await
         .unwrap()
         .is_none());
     assert!(state
+        .storage
         .kv_storage
         .get_by_id(&format!("{}-metadata", doc_a))
         .await
         .unwrap()
         .is_none());
     assert!(state
+        .storage
         .kv_storage
         .get_by_id(&format!("{}-metadata", doc_b))
         .await
@@ -4532,8 +4624,20 @@ async fn test_batch_cleanup_verification() {
     let app = create_test_server_with_state(state.clone());
 
     // Record initial state
-    let initial_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
-    let initial_edges = state.graph_storage.get_all_edges().await.unwrap().len();
+    let initial_nodes = state
+        .storage
+        .graph_storage
+        .get_all_nodes()
+        .await
+        .unwrap()
+        .len();
+    let initial_edges = state
+        .storage
+        .graph_storage
+        .get_all_edges()
+        .await
+        .unwrap()
+        .len();
 
     // Upload 5 documents
     let mut doc_ids = Vec::new();
@@ -4555,8 +4659,20 @@ async fn test_batch_cleanup_verification() {
     }
 
     // Verify state is back to initial (no orphans)
-    let final_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
-    let final_edges = state.graph_storage.get_all_edges().await.unwrap().len();
+    let final_nodes = state
+        .storage
+        .graph_storage
+        .get_all_nodes()
+        .await
+        .unwrap()
+        .len();
+    let final_edges = state
+        .storage
+        .graph_storage
+        .get_all_edges()
+        .await
+        .unwrap()
+        .len();
 
     assert_eq!(
         initial_nodes, final_nodes,
@@ -4832,6 +4948,7 @@ async fn test_delete_processing_document_removes_persisted_task() {
     let track_id = "issue-179-processing-track";
 
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-metadata", doc_id),
@@ -4846,6 +4963,7 @@ async fn test_delete_processing_document_removes_persisted_task() {
         .await
         .unwrap();
     state
+        .storage
         .kv_storage
         .upsert(&[(
             format!("{}-content", doc_id),
@@ -4872,10 +4990,11 @@ async fn test_delete_processing_document_removes_persisted_task() {
     );
     task.track_id = track_id.to_string();
     task.status = TaskStatus::Processing;
-    state.task_storage.create_task(&task).await.unwrap();
+    state.tasks.storage.create_task(&task).await.unwrap();
 
     assert!(state
-        .task_storage
+        .tasks
+        .storage
         .get_task(track_id)
         .await
         .unwrap()
@@ -4885,7 +5004,7 @@ async fn test_delete_processing_document_removes_persisted_task() {
     assert_eq!(delete_status, StatusCode::OK);
 
     assert!(
-        state.task_storage.get_task(track_id).await.unwrap().is_none(),
+        state.tasks.storage.get_task(track_id).await.unwrap().is_none(),
         "Deleting a processing document must remove its persisted task so startup recovery cannot resurrect it"
     );
 }
@@ -5106,7 +5225,13 @@ async fn test_complete_add_delete_cycle() {
     let app = create_test_server_with_state(state.clone());
 
     // Record initial state
-    let initial_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
+    let initial_nodes = state
+        .storage
+        .graph_storage
+        .get_all_nodes()
+        .await
+        .unwrap()
+        .len();
 
     // Upload document with all options
     let request = json!({
@@ -5149,7 +5274,13 @@ async fn test_complete_add_delete_cycle() {
     );
 
     // Verify clean state
-    let final_nodes = state.graph_storage.get_all_nodes().await.unwrap().len();
+    let final_nodes = state
+        .storage
+        .graph_storage
+        .get_all_nodes()
+        .await
+        .unwrap()
+        .len();
     assert_eq!(
         initial_nodes, final_nodes,
         "Should return to initial node count"

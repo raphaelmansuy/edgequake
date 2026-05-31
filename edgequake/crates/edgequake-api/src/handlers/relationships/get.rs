@@ -38,10 +38,10 @@ pub async fn get_relationship(
     // In production, maintain a separate index for relationship IDs
 
     // Get all nodes and search their edges
-    let nodes = state.graph_storage.get_all_nodes().await?;
+    let nodes = state.storage.graph_storage.get_all_nodes().await?;
 
     for node in nodes {
-        let edges = state.graph_storage.get_node_edges(&node.id).await?;
+        let edges = state.storage.graph_storage.get_node_edges(&node.id).await?;
 
         for edge in edges {
             let edge_id = edge
@@ -56,12 +56,14 @@ pub async fn get_relationship(
 
                 // Get entity summaries
                 let source_node = state
+                    .storage
                     .graph_storage
                     .get_node(&edge.source)
                     .await?
                     .ok_or_else(|| ApiError::NotFound("Source entity not found".to_string()))?;
 
                 let target_node = state
+                    .storage
                     .graph_storage
                     .get_node(&edge.target)
                     .await?

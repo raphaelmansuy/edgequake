@@ -54,7 +54,12 @@ pub async fn retry_failed_chunks(
 
     // Verify document exists
     let metadata_key = format!("{}-metadata", document_id);
-    let doc_exists = state.kv_storage.get_by_id(&metadata_key).await?.is_some();
+    let doc_exists = state
+        .storage
+        .kv_storage
+        .get_by_id(&metadata_key)
+        .await?
+        .is_some();
 
     if !doc_exists {
         return Err(ApiError::NotFound(format!(
@@ -119,7 +124,7 @@ pub async fn list_failed_chunks(
 
     // Verify document exists
     let metadata_key = format!("{}-metadata", document_id);
-    let metadata = state.kv_storage.get_by_id(&metadata_key).await?;
+    let metadata = state.storage.kv_storage.get_by_id(&metadata_key).await?;
 
     if metadata.is_none() {
         return Err(ApiError::NotFound(format!(

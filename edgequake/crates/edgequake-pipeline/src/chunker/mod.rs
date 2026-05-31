@@ -95,10 +95,12 @@ impl Chunker {
         }
     }
 
-    /// Chunk text into overlapping segments.
+    /// Chunk text into overlapping segments using the configured [`ChunkingStrategy`].
+    ///
+    /// Sync entry point for tests and legacy callers. Production async pipeline
+    /// should prefer [`chunk_async`](Self::chunk_async) to avoid nested runtime issues.
     pub fn chunk(&self, text: &str, doc_id: &str) -> Result<Vec<TextChunk>> {
-        // Always use sync implementation to avoid tokio runtime conflicts
-        self.chunk_sync(text, doc_id)
+        futures::executor::block_on(self.chunk_async(text, doc_id))
     }
 
     /// Chunk text asynchronously using the configured strategy.
@@ -128,46 +130,6 @@ impl Chunker {
                 )
             })
             .collect())
-    }
-
-    /// Synchronous chunk implementation (fallback).
-    fn chunk_sync(&self, text: &str, doc_id: &str) -> Result<Vec<TextChunk>> {
-        if text.trim().is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let target_chars = self.config.chunk_size * 4;
-        let overlap_chars = self.config.chunk_overlap * 4;
-        let min_chars = self.config.min_chunk_size * 4;
-
-        let chunks = self.split_text(text, target_chars, overlap_chars, min_chars);
-
-        Ok(chunks
-            .into_iter()
-            .enumerate()
-            .map(|(index, (content, start, end))| {
-                let id = format!("{}-chunk-{}", doc_id, index);
-                let (start_line, end_line) = calculate_line_numbers(text, start, end);
-                TextChunk::with_line_numbers(id, content, index, start, end, start_line, end_line)
-            })
-            .collect())
-    }
-
-    /// Split text using recursive character splitting.
-    fn split_text(
-        &self,
-        text: &str,
-        target_size: usize,
-        overlap: usize,
-        min_size: usize,
-    ) -> Vec<(String, usize, usize)> {
-        text_utils::split_text_internal(
-            text,
-            target_size,
-            overlap,
-            min_size,
-            &self.config.separators,
-        )
     }
 
     /// Find the best split point near the target size.
@@ -212,6 +174,42 @@ mod tests {
 
         assert!(!chunks.is_empty());
         assert_eq!(chunks[0].index, 0);
+    }
+
+    #[test]
+    fn test_sentence_boundary_strategy_changes_chunk_count() {
+        use super::SentenceBoundaryChunking;
+        use std::sync::Arc;
+
+        let text = "First sentence here. Second sentence follows. Third one ends.";
+        let doc_id = "strategy-test";
+        let small_config = ChunkerConfig {
+            chunk_size: 5,
+            min_chunk_size: 1,
+            chunk_overlap: 0,
+            ..ChunkerConfig::default()
+        };
+
+        let token_chunker = Chunker::new(small_config.clone());
+        let sentence_chunker =
+            Chunker::with_strategy(small_config, Arc::new(SentenceBoundaryChunking));
+
+        let token_chunks = token_chunker.chunk(text, doc_id).unwrap();
+        let sentence_chunks = sentence_chunker.chunk(text, doc_id).unwrap();
+
+        assert!(
+            !token_chunks.is_empty() && !sentence_chunks.is_empty(),
+            "both strategies must produce chunks"
+        );
+        assert_ne!(
+            token_chunker.strategy_name(),
+            sentence_chunker.strategy_name(),
+            "configured strategy must be honored"
+        );
+        assert!(
+            sentence_chunks.len() >= 2,
+            "sentence strategy with small token budget should split sentences"
+        );
     }
 
     #[test]

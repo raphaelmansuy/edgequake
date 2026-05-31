@@ -27,6 +27,7 @@
 
 mod entity_extraction;
 mod entity_type_policy;
+mod json_extract;
 mod normalizer;
 mod parser;
 mod summarization;
@@ -36,6 +37,7 @@ pub use entity_type_policy::{
     enforce_entity_type, json_entity_types_prompt_section, normalize_type_token,
     sota_entity_type_instruction, EntityExtractionSchema, METADATA_ENTITY_TYPES_STRICT,
 };
+pub use json_extract::extract_json_from_response;
 pub use normalizer::normalize_entity_name;
 pub use parser::{HybridExtractionParser, JsonExtractionParser, TupleParser};
 pub use summarization::SummarizationPrompts;

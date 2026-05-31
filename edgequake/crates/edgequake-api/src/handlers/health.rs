@@ -73,14 +73,14 @@ pub use crate::handlers::health_types::{
 pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<HealthResponse>> {
     let components = ComponentHealth {
         // SPEC-011: ping() is O(1); count() was O(N) full-table scan per health probe.
-        kv_storage: state.kv_storage.ping().await.is_ok(),
-        vector_storage: state.vector_storage.ping().await.is_ok(),
-        graph_storage: state.graph_storage.ping().await.is_ok(),
+        kv_storage: state.storage.kv_storage.ping().await.is_ok(),
+        vector_storage: state.storage.vector_storage.ping().await.is_ok(),
+        graph_storage: state.storage.graph_storage.ping().await.is_ok(),
         llm_provider: true, // Assume available, actual check would require API call
     };
 
     // Get the LLM provider name from the configured provider
-    let llm_provider_name = Some(state.llm_provider.name().to_string());
+    let llm_provider_name = Some(state.query.llm_provider.name().to_string());
 
     // Query schema health (PostgreSQL only)
     // WHY: OODA-14 - Mission requires schema version verification
@@ -91,20 +91,20 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     // Operators need full visibility to debug ingestion/query issues.
     let providers = Some(ProvidersHealth {
         llm: LlmProviderHealth {
-            name: state.llm_provider.name().to_string(),
-            model: state.llm_provider.model().to_string(),
+            name: state.query.llm_provider.name().to_string(),
+            model: state.query.llm_provider.model().to_string(),
         },
         embedding: EmbeddingProviderHealth {
-            name: state.embedding_provider.name().to_string(),
-            model: state.embedding_provider.model().to_string(),
-            dimension: state.embedding_provider.dimension(),
+            name: state.query.embedding_provider.name().to_string(),
+            model: state.query.embedding_provider.model().to_string(),
+            dimension: state.query.embedding_provider.dimension(),
         },
     });
 
     // WHY: OODA-11 - PDF storage availability affects document upload success.
     // When false, PDF uploads will fail. Helps operators diagnose issues.
     #[cfg(feature = "postgres")]
-    let pdf_storage_enabled = Some(state.pdf_storage.is_some());
+    let pdf_storage_enabled = Some(state.storage.pdf_storage.is_some());
     #[cfg(not(feature = "postgres"))]
     let pdf_storage_enabled: Option<bool> = None;
 
@@ -117,7 +117,7 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
             build_timestamp: env!("EDGEQUAKE_BUILD_TIMESTAMP").to_string(),
             build_number: env!("EDGEQUAKE_BUILD_NUMBER").to_string(),
         }),
-        storage_mode: state.storage_mode.as_str().to_string(),
+        storage_mode: state.storage.mode.as_str().to_string(),
         workspace_id: state.config.workspace_id.clone(),
         components,
         llm_provider_name,

@@ -54,7 +54,8 @@ pub async fn create_api_key(
 
     // Hash the key for storage
     let key_hash = state
-        .password_service
+        .auth
+        .password
         .hash_password(&full_key)
         .map_err(|e| ApiError::Internal(format!("Key hashing error: {}", e)))?;
 
@@ -86,6 +87,7 @@ pub async fn create_api_key(
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
     state
+        .storage
         .kv_storage
         .upsert(&[(key, value)])
         .await
@@ -144,6 +146,7 @@ pub async fn list_api_keys(
     let page_size = query.page_size.clamp(1, 100);
 
     let key_ids = state
+        .storage
         .kv_storage
         .keys_with_prefix(API_KEY_PREFIX)
         .await
@@ -152,6 +155,7 @@ pub async fn list_api_keys(
     let mut summaries: Vec<ApiKeySummary> = Vec::new();
     for key in key_ids {
         let value = state
+            .storage
             .kv_storage
             .get_by_id(&key)
             .await
@@ -226,6 +230,7 @@ pub async fn revoke_api_key(
 
     // Get the existing record
     let value = state
+        .storage
         .kv_storage
         .get_by_id(&key)
         .await
@@ -242,6 +247,7 @@ pub async fn revoke_api_key(
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
     state
+        .storage
         .kv_storage
         .upsert(&[(key, new_value)])
         .await

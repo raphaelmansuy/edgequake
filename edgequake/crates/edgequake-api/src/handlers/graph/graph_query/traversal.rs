@@ -75,6 +75,7 @@ pub async fn get_graph(
 
     let (nodes, edges, is_truncated) = if let Some(start) = &params.start_node {
         let kg = state
+            .storage
             .graph_storage
             .get_knowledge_graph(start, params.depth, params.max_nodes)
             .await?;
@@ -139,7 +140,7 @@ pub async fn get_graph(
 
         const QUERY_TIMEOUT_SECS: u64 = 15;
 
-        let query_future = state.graph_storage.get_popular_nodes_with_degree(
+        let query_future = state.storage.graph_storage.get_popular_nodes_with_degree(
             params.max_nodes,
             None, // No min_degree filter
             None, // No entity_type filter
@@ -164,6 +165,7 @@ pub async fn get_graph(
 
                         // Fall back to simple node list
                         state
+                            .storage
                             .graph_storage
                             .get_all_nodes()
                             .await?
@@ -185,7 +187,7 @@ pub async fn get_graph(
                     );
 
                     // Use get_all_nodes with limit as fallback (no degree calculation)
-                    let all_nodes = state.graph_storage.get_all_nodes().await?;
+                    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
                     let filtered_nodes: Vec<_> = all_nodes
                         .into_iter()
                         .filter(|n| properties_match_tenant_context(&n.properties, &tenant_ctx))
@@ -223,6 +225,7 @@ pub async fn get_graph(
         // OPTIMIZED: Use filtered edge query instead of get_all_edges
         let node_ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
         let filtered_edges = state
+            .storage
             .graph_storage
             .get_edges_for_node_set(
                 &node_ids,
@@ -258,8 +261,8 @@ pub async fn get_graph(
     // `COUNT(*)` (O(N) — production logs showed 38 s / 5780 calls for the
     // vertex count alone). The graph traversal endpoint is polled by the UI.
     let (total_nodes_result, total_edges_result) = tokio::join!(
-        state.graph_storage.node_count_fast(),
-        state.graph_storage.edge_count_fast(),
+        state.storage.graph_storage.node_count_fast(),
+        state.storage.graph_storage.edge_count_fast(),
     );
     let total_nodes = total_nodes_result.unwrap_or(nodes.len());
     let total_edges = total_edges_result.unwrap_or(edges.len());

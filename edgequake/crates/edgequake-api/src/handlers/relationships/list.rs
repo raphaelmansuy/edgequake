@@ -40,7 +40,7 @@ pub async fn list_relationships(
     // Get all edges from graph storage
     // WHY: We need to fetch all edges and filter in memory because the storage
     // interface doesn't support pagination/filtering yet.
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
 
     // WHY: Apply tenant isolation first to ensure multi-tenancy is respected
     let tenant_filtered_edges = filter_edges_by_tenant_context(all_edges, &tenant_ctx);

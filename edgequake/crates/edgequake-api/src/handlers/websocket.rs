@@ -108,7 +108,7 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
     }
 
     // Send initial status snapshot
-    let status = state.pipeline_state.get_status().await;
+    let status = state.tasks.pipeline_state.get_status().await;
     let snapshot_event = ProgressEvent::StatusSnapshot {
         is_busy: status.is_busy,
         job_name: status.job_name.clone(),
@@ -123,7 +123,7 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
     }
 
     // Subscribe to progress broadcast channel
-    let mut progress_rx = state.progress_broadcaster.subscribe();
+    let mut progress_rx = state.tasks.progress_broadcaster.subscribe();
 
     // Create heartbeat interval
     let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL);
@@ -138,7 +138,7 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
                         debug!("Received text message: {}", text);
                         // Handle client commands if needed
                         if text.trim() == "status" {
-                            let status = state.pipeline_state.get_status().await;
+                            let status = state.tasks.pipeline_state.get_status().await;
                             let snapshot = ProgressEvent::StatusSnapshot {
                                 is_busy: status.is_busy,
                                 job_name: status.job_name.clone(),
@@ -296,7 +296,7 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
     }
 
     // Send initial progress snapshot if available
-    if let Some(progress) = state.pipeline_state.get_pdf_progress(&track_id).await {
+    if let Some(progress) = state.tasks.pipeline_state.get_pdf_progress(&track_id).await {
         // Serialize progress as a special event
         if let Ok(json) = serde_json::to_value(&progress) {
             let snapshot_msg = serde_json::json!({
@@ -313,7 +313,7 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
     }
 
     // Subscribe to progress broadcast channel
-    let mut progress_rx = state.progress_broadcaster.subscribe();
+    let mut progress_rx = state.tasks.progress_broadcaster.subscribe();
 
     // Create heartbeat interval
     let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL);
@@ -329,7 +329,7 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
                         // Handle client commands if needed
                         if text.trim() == "status" {
                             // Send current progress snapshot
-                            if let Some(progress) = state.pipeline_state.get_pdf_progress(&track_id).await {
+                            if let Some(progress) = state.tasks.pipeline_state.get_pdf_progress(&track_id).await {
                                 if let Ok(json) = serde_json::to_value(&progress) {
                                     let snapshot_msg = serde_json::json!({
                                         "type": "ProgressSnapshot",
