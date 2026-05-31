@@ -93,14 +93,8 @@ impl VectorStorage for MemoryVectorStorage {
             )));
         }
 
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let metadata = self
-            .metadata
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
+        let metadata = self.metadata.read().map_err(super::lock::map_lock_err)?;
 
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
@@ -140,14 +134,8 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn upsert(&self, data: &[(String, Vec<f32>, serde_json::Value)]) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         for (id, vec, meta) in data {
             if vec.len() != self.dimension {
@@ -165,14 +153,8 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn delete(&self, ids: &[String]) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         for id in ids {
             vectors.remove(id);
@@ -183,14 +165,8 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn delete_entity(&self, entity_name: &str) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         let to_remove: Vec<String> = vectors
             .keys()
@@ -211,18 +187,12 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
         Ok(vectors.get(id).cloned())
     }
 
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
 
         let results: Vec<(String, Vec<f32>)> = ids
             .iter()
@@ -233,30 +203,18 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
         Ok(vectors.is_empty())
     }
 
     async fn count(&self) -> Result<usize> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
         Ok(vectors.len())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         vectors.clear();
         metadata.clear();
@@ -268,14 +226,8 @@ impl VectorStorage for MemoryVectorStorage {
     /// Filters by `workspace_id` field in metadata JSON.
     /// Returns the count of deleted vectors.
     async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata_map = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata_map = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         let workspace_id_str = workspace_id.to_string();
 
@@ -330,14 +282,8 @@ impl VectorStorage for MemoryVectorStorage {
             )));
         }
 
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let metadata = self
-            .metadata
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
+        let metadata = self.metadata.read().map_err(super::lock::map_lock_err)?;
 
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
