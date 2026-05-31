@@ -9,6 +9,7 @@
  * @implements SPEC-040: Vision LLM workspace override for PDF extraction
  */
 
+import { ProviderIcon } from '@/components/providers/provider-icon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,18 +27,6 @@ import { toast } from 'sonner';
 /**
  * Return a small icon for each LLM provider.
  */
-function getProviderIcon(providerId: string | undefined) {
-  switch (providerId?.toLowerCase()) {
-    case 'openai':
-      return <Cloud className="h-4 w-4 text-green-600" />;
-    case 'ollama':
-      return <Cpu className="h-4 w-4 text-blue-600" />;
-    case 'lmstudio':
-      return <Brain className="h-4 w-4 text-purple-600" />;
-    default:
-      return <Sparkles className="h-4 w-4 text-muted-foreground" />;
-  }
-}
 
 /**
  * VisionLLMSettingsCard
@@ -153,7 +142,7 @@ export function VisionLLMSettingsCard() {
           </>
         ) : workspace ? (
           <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-            {getProviderIcon(workspace.vision_llm_provider)}
+            {<ProviderIcon providerId={workspace.vision_llm_provider} />}
             <div>
               <div className="font-medium">
                 {workspace.vision_llm_model ||

@@ -8,6 +8,7 @@
  */
 "use client";
 
+import { getProviderIconColorClass } from "@/components/providers/provider-icon";
 import { apiClient } from "@/lib/api/client";
 import type {
     EmbeddingModelsResponse,
@@ -118,19 +119,8 @@ export function getProviderDisplayName(providerId: string): string {
 
 /**
  * Get provider icon class based on provider ID.
+ * @deprecated Prefer `getProviderIconColorClass` from `@/components/providers/provider-icon`.
  */
 export function getProviderIconClass(providerId: string): string {
-  const icons: Record<string, string> = {
-    openai: "text-green-600",
-    ollama: "text-blue-600",
-    lmstudio: "text-purple-600",
-    anthropic: "text-orange-600",
-    gemini: "text-blue-500",
-    xai: "text-slate-700",
-    openrouter: "text-indigo-600",
-    azure: "text-sky-600",
-    minimax: "text-teal-600",
-    mock: "text-gray-500",
-  };
-  return icons[providerId.toLowerCase()] || "text-gray-500";
+  return getProviderIconColorClass(providerId);
 }

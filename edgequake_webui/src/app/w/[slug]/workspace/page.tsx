@@ -11,6 +11,7 @@
  */
 'use client';
 
+import { ProviderIcon } from '@/components/providers/provider-icon';
 import { useParams } from 'next/navigation';
 
 import {
@@ -59,21 +60,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
-/**
- * Get icon component for a provider.
- */
-function getProviderIcon(providerId: string | undefined) {
-  switch (providerId?.toLowerCase()) {
-    case 'openai':
-      return <Cloud className="h-4 w-4 text-green-600" />;
-    case 'ollama':
-      return <Cpu className="h-4 w-4 text-blue-600" />;
-    case 'lmstudio':
-      return <Brain className="h-4 w-4 text-purple-600" />;
-    default:
-      return <Sparkles className="h-4 w-4 text-muted-foreground" />;
-  }
-}
 
 export default function WorkspacePage() {
   const { t } = useTranslation();
@@ -517,7 +503,7 @@ export default function WorkspacePage() {
               </>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {getProviderIcon(workspace.llm_provider)}
+                {<ProviderIcon providerId={workspace.llm_provider} />}
                 <div>
                   <div className="font-medium">
                     {workspace.llm_model || t('workspace.serverDefault', 'Server Default')}
@@ -565,7 +551,7 @@ export default function WorkspacePage() {
               </>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {getProviderIcon(workspace.embedding_provider)}
+                {<ProviderIcon providerId={workspace.embedding_provider} />}
                 <div>
                   <div className="font-medium">
                     {workspace.embedding_model || t('workspace.serverDefault', 'Server Default')}

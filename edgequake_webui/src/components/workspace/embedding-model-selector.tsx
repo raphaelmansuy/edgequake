@@ -12,6 +12,7 @@
  */
 'use client';
 
+import { ProviderIcon } from '@/components/providers/provider-icon';
 import {
     Select,
     SelectContent,
@@ -48,23 +49,6 @@ interface EmbeddingModelSelectorProps {
   className?: string;
 }
 
-/**
- * Get icon component for a provider.
- */
-function getProviderIcon(providerId: string) {
-  switch (providerId.toLowerCase()) {
-    case 'openai':
-      return <Cloud className="h-4 w-4 text-green-600" />;
-    case 'ollama':
-      return <Cpu className="h-4 w-4 text-blue-600" />;
-    case 'lmstudio':
-      return <Brain className="h-4 w-4 text-purple-600" />;
-    case 'mock':
-      return <FlaskConical className="h-4 w-4 text-gray-500" />;
-    default:
-      return <Brain className="h-4 w-4 text-muted-foreground" />;
-  }
-}
 
 /**
  * Embedding model selector component for workspace creation.
@@ -158,7 +142,7 @@ export function EmbeddingModelSelector({
         <SelectValue placeholder="Server default">
           {currentValue ? (
             <div className="flex items-center gap-2">
-              {getProviderIcon(value?.provider || '')}
+              {<ProviderIcon providerId={value?.provider || ''} />}
               <span className="text-sm truncate">{value?.model}</span>
               <span className="text-xs text-muted-foreground">({value?.dimension}d)</span>
             </div>
@@ -185,7 +169,7 @@ export function EmbeddingModelSelector({
         {Object.entries(modelsByProvider).map(([providerId, { displayName, models }]) => (
           <SelectGroup key={providerId}>
             <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 flex items-center gap-1">
-              {getProviderIcon(providerId)}
+              {<ProviderIcon providerId={providerId} />}
               {displayName}
             </SelectLabel>
             {models.map((model) => {
