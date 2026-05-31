@@ -20,7 +20,7 @@
  */
 
 import { apiClient, streamClient } from "./client";
-import type { DocumentFilter } from "@/types";
+import type { DocumentFilter, QueryMode } from "@/types";
 
 // ============================================================================
 // Types
@@ -34,8 +34,8 @@ export interface ChatCompletionRequest {
   conversation_id?: string;
   /** User message content. */
   message: string;
-  /** Query mode (local, global, hybrid, naive). */
-  mode?: "local" | "global" | "hybrid" | "naive";
+  /** Query mode (naive, local, global, hybrid, mix, bypass). */
+  mode?: QueryMode;
   /** Whether to stream the response. */
   stream?: boolean;
   /** Maximum tokens for response. */

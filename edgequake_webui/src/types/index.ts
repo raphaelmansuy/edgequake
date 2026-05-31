@@ -415,8 +415,28 @@ export interface PdfUploadResponse {
   duplicate_of?: string;
 }
 
-// Query types
-export type QueryMode = "local" | "global" | "hybrid" | "naive";
+// Query types — aligned with backend QueryMode (edgequake-query/modes.rs)
+export type QueryMode =
+  | "local"
+  | "global"
+  | "hybrid"
+  | "naive"
+  | "mix"
+  | "bypass";
+
+/** All valid query modes (backend parity). */
+export const QUERY_MODES: readonly QueryMode[] = [
+  "naive",
+  "local",
+  "global",
+  "hybrid",
+  "mix",
+  "bypass",
+] as const;
+
+export function isQueryMode(value: string): value is QueryMode {
+  return (QUERY_MODES as readonly string[]).includes(value);
+}
 
 /**
  * Document filter criteria for narrowing query scope.
@@ -1129,7 +1149,7 @@ export interface QueryHistoryItem {
 // Conversation Types (Server-synced)
 // ============================================================================
 
-export type ConversationMode = "local" | "global" | "hybrid" | "naive" | "mix";
+export type ConversationMode = QueryMode;
 
 export interface ServerConversation {
   id: string;
