@@ -40,7 +40,7 @@ test.describe("WebSocket Document Upload (OpenAI Tenant)", () => {
     });
 
     // Navigate to documents page
-    await page.goto("http://localhost:3000/documents");
+    await page.goto("/documents");
 
     // Wait for page to load
     await page.waitForLoadState("networkidle");

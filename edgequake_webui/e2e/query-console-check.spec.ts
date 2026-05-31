@@ -10,7 +10,7 @@ test.describe("Query Console Check", () => {
       console.log(text);
     });
 
-    await page.goto("http://localhost:3000/query");
+    await page.goto("/query");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 

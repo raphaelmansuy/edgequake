@@ -12,7 +12,7 @@
 
 import { expect, test } from "@playwright/test";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "/";
 
 test.describe("Right Panel Scroll", () => {
   test.beforeEach(async ({ page }) => {

@@ -12,7 +12,7 @@
  *   - Cards: Link → /knowledge/:id, Trash2 icon (Button with stopPropagation) → nested Dialog → Button "Delete"
  *   - Detail page (/knowledge/:id): Pencil button → edit name/content → Save button
  *
- * Runs against the live dev stack on http://localhost:3000
+ * Runs against the live dev stack on 
  *
  * IMPORTANT: Tests run SERIALLY to avoid saturating the OpenAI API with
  * parallel extraction requests, which causes processing timeouts.
@@ -20,7 +20,7 @@
 
 import { expect, Page, test } from "@playwright/test";
 
-const KNOWLEDGE_URL = "http://localhost:3000/knowledge";
+const KNOWLEDGE_URL = "/knowledge";
 const WS_ID = "8efcd288-37f7-413c-97bb-95bd7b535059";
 const API_INJECTIONS_URL = `http://localhost:8080/api/v1/workspaces/${WS_ID}/injections`;
 const WS_HEADERS = { "X-Workspace-ID": WS_ID };

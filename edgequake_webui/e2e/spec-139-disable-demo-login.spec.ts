@@ -15,13 +15,10 @@
 
 import { type Page, expect, test } from '@playwright/test';
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
-const LOGIN_URL = `${BASE_URL}/login`;
-
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 async function gotoLogin(page: Page): Promise<void> {
-  await page.goto(LOGIN_URL);
+  await page.goto('/login');
   await page.waitForLoadState('domcontentloaded');
 }
 

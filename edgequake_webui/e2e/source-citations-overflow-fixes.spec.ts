@@ -13,7 +13,7 @@ async function submitQueryAndGetCitations(
   page: import("@playwright/test").Page
 ): Promise<boolean> {
   // Navigate to query page with workspace
-  await page.goto("http://localhost:3000/query?workspace=default-workspace");
+  await page.goto("/query?workspace=default-workspace");
   await page.waitForLoadState("networkidle");
 
   // Submit a query to get citations - use regex to match different placeholder variations
@@ -221,7 +221,7 @@ test.describe("Document Detail Page", () => {
   test("Issue #4: Right sidebar should be scrollable", async ({ page }) => {
     // Navigate to documents list
     await page.goto(
-      "http://localhost:3000/documents?workspace=default-workspace"
+      "/documents?workspace=default-workspace"
     );
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
@@ -297,7 +297,7 @@ test.describe("Document Detail Page", () => {
   }) => {
     // Create a direct URL with line numbers
     await page.goto(
-      "http://localhost:3000/documents?workspace=default-workspace"
+      "/documents?workspace=default-workspace"
     );
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
@@ -322,7 +322,7 @@ test.describe("Document Detail Page", () => {
     if (docId) {
       // Navigate with line parameters
       await page.goto(
-        `http://localhost:3000/documents/${docId}?workspace=default-workspace&start_line=5&end_line=15`
+        `/documents/${docId}?workspace=default-workspace&start_line=5&end_line=15`
       );
       await page.waitForTimeout(1500);
 
@@ -357,7 +357,7 @@ test.describe("Document Detail Page", () => {
 
 test.describe("Visual Regression Tests", () => {
   test("Source Citations panel visual snapshot", async ({ page }) => {
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
+    await page.goto("/query?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
 
     // Submit query - use regex to match different placeholder variations

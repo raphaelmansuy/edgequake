@@ -171,6 +171,54 @@ function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
   return headers;
 }
 
+/** Resolve URL for backend root endpoints (/health, /ready) — not under /api/v1. */
+export function resolveServerRootUrl(endpoint: string): string {
+  if (endpoint.startsWith("http")) {
+    return endpoint;
+  }
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const serverBaseUrl = getRuntimeServerBaseUrl();
+  return serverBaseUrl ? `${serverBaseUrl}${path}` : path;
+}
+
+/**
+ * GET/POST to backend server root (health, readiness). Uses unified error handling.
+ * No auth headers — probes must work before login.
+ * @implements UI-DRY-003
+ */
+export async function serverRootClient<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = resolveServerRootUrl(endpoint);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      method: options.method ?? "GET",
+    });
+
+    if (!response.ok) {
+      throw await handleErrorResponse(response);
+    }
+
+    const text = await response.text();
+    if (!text) {
+      return {} as T;
+    }
+
+    return JSON.parse(text) as T;
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
+    if (error instanceof TypeError) {
+      throw new NetworkError();
+    }
+    throw error;
+  }
+}
+
 // Main API client function
 export async function apiClient<T>(
   endpoint: string,
@@ -449,6 +497,11 @@ export const api = {
       method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     }),
+
+  serverRoot: {
+    get: <T>(endpoint: string, options?: RequestInit) =>
+      serverRootClient<T>(endpoint, { ...options, method: "GET" }),
+  },
 };
 
 export default api;

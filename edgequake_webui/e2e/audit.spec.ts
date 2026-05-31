@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 test("site audit: crawl and screenshot", async ({ page, baseURL }) => {
-  const start = baseURL || "http://localhost:3000";
+  const start = baseURL || "/";
   const visited = new Set<string>();
   const toVisit: { url: string; depth: number }[] = [{ url: start, depth: 0 }];
   const screenshotsDir = path.resolve(process.cwd(), "specs/screenshots");

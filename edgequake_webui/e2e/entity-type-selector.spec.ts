@@ -11,7 +11,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = '/';
 const API_URL = 'http://localhost:8080';
 
 test.describe('SPEC-085: Entity Type Selector', () => {

@@ -35,7 +35,7 @@ test.describe("Dashboard All API Calls", () => {
     });
 
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait longer to see all requests
     await page.waitForTimeout(8000);

@@ -12,7 +12,7 @@
 import { expect, Page, test } from "@playwright/test";
 
 // Test configuration
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env.BASE_URL || "/";
 const API_URL = process.env.API_URL || "http://localhost:8080/api/v1";
 
 // Test tenants

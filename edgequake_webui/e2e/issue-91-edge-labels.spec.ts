@@ -13,7 +13,7 @@ import { expect, test } from "@playwright/test";
  * @see https://github.com/raphaelmansuy/edgequake/issues/91
  */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "/";
 
 test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
   test("Settings page has Show Edge Labels toggle", async ({ page }) => {

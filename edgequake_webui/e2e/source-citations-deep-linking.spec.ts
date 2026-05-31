@@ -41,7 +41,7 @@ async function submitQueryAndWaitForCitations(
 test.describe("Source Citations Deep Linking", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page with workspace
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
+    await page.goto("/query?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
   });
 
@@ -209,7 +209,7 @@ test.describe("Source Citations Deep Linking", () => {
     // Navigate directly to a document with highlight param
     // First, we need to get a valid document ID
     await page.goto(
-      "http://localhost:3000/documents?workspace=default-workspace"
+      "/documents?workspace=default-workspace"
     );
     await page.waitForLoadState("networkidle");
 
@@ -242,7 +242,7 @@ test.describe("Source Citations Deep Linking", () => {
       // Navigate with highlight parameter
       const highlightText = "EdgeQuake knowledge graph";
       await page.goto(
-        `http://localhost:3000/documents/${docId}?workspace=default-workspace&highlight=${encodeURIComponent(
+        `/documents/${docId}?workspace=default-workspace&highlight=${encodeURIComponent(
           highlightText
         )}`
       );
@@ -262,7 +262,7 @@ test.describe("Source Citations Deep Linking", () => {
   test("graph page should support entity URL parameters", async ({ page }) => {
     // Navigate to graph with entity filter
     await page.goto(
-      "http://localhost:3000/graph?entities=EDGEQUAKE%2CLIGHTRAG&focus=EDGEQUAKE&workspace=default-workspace"
+      "/graph?entities=EDGEQUAKE%2CLIGHTRAG&focus=EDGEQUAKE&workspace=default-workspace"
     );
     await page.waitForLoadState("networkidle");
 
@@ -285,7 +285,7 @@ test.describe("Source Citations Deep Linking", () => {
 
 test.describe("Confidence Calculation Quality", () => {
   test("confidence should reflect actual chunk scores", async ({ page }) => {
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
+    await page.goto("/query?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
 
     // Query that should return high-relevance chunks
@@ -329,7 +329,7 @@ test.describe("Confidence Calculation Quality", () => {
 
 test.describe("Normalized Score Display", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
+    await page.goto("/query?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
   });
 

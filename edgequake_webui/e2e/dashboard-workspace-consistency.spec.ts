@@ -5,7 +5,7 @@ test.describe("Dashboard and Workspace Stats Consistency", () => {
     page,
   }) => {
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for the page to load
     await page.waitForSelector("main", { timeout: 10000 });
@@ -35,7 +35,7 @@ test.describe("Dashboard and Workspace Stats Consistency", () => {
     console.log("Dashboard stats:", dashboardStats);
 
     // Navigate to Workspace page
-    await page.goto("http://localhost:3000/workspace");
+    await page.goto("/workspace");
 
     // Wait for the page to load
     await page.waitForSelector("main", { timeout: 10000 });

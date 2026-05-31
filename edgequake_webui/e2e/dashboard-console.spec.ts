@@ -33,7 +33,7 @@ test.describe("Dashboard Console Errors", () => {
     });
 
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for page to load
     await page.waitForTimeout(5000);
