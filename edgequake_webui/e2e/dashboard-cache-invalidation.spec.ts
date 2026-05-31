@@ -16,6 +16,7 @@ import { waitForAppReady, clearAppStorage } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { ZUSTAND_TENANT_KEY } from "./helpers/storage-keys";
 import { getDocumentsFileInput } from "./helpers/upload";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 test.describe("Dashboard Stats Cache Invalidation", () => {
   test.beforeEach(async ({ page }) => {
@@ -27,6 +28,7 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "dash-cache");
 
     // Step 1: Go to dashboard
@@ -163,6 +165,7 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "dash-cache-fresh");
     // Step 1: Go to dashboard
     await page.goto("/");

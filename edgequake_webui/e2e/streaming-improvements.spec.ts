@@ -19,12 +19,14 @@ import {
   waitForStreamingComplete,
 } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 // Increase timeout for streaming tests
 test.setTimeout(60_000);
 
 test.describe("Streaming Improvements E2E", () => {
   test.beforeEach(async ({ page, request }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "streaming");
     await page.goto("/query");
     await waitForAppReady(page);

@@ -217,10 +217,20 @@ jobs:
                   
                   echo "✅ Test count gate passed: ${TOTAL_PASSED} >= ${MIN_TESTS}"
 
+    # E2E static flake lint — no Playwright/browser required
+    e2e-flake-lint:
+        name: E2E Flake Lint (chromium gate)
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        steps:
+            - uses: actions/checkout@v6
+            - name: Validate chromium gate anti-patterns
+              run: make test-e2e-lint
+
     # Summary job
     quality-summary:
         name: Quality Gate Summary
-        needs: [unit-tests, invariant-tests, api-tests, optimized-tests, test-count-gate]
+        needs: [unit-tests, invariant-tests, api-tests, optimized-tests, test-count-gate, e2e-flake-lint]
         runs-on: ubuntu-latest
         if: always()
         steps:
@@ -235,6 +245,7 @@ jobs:
                   echo "| API Tests (<30s) | ${{ needs.api-tests.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Optimized Tests | ${{ needs.optimized-tests.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Test Count (>900) | ${{ needs.test-count-gate.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| E2E Flake Lint | ${{ needs.e2e-flake-lint.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### Timing Targets" >> $GITHUB_STEP_SUMMARY
                   echo "- Unit tests: <30s" >> $GITHUB_STEP_SUMMARY

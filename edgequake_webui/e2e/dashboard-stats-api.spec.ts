@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 function extractWorkspaceId(url: string): string | null {
   const match = url.match(/workspaces\/([a-f0-9-]+)\/stats/);
@@ -11,6 +12,7 @@ test.describe("Dashboard Workspace Stats", () => {
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     const ctx = await bootstrapDeterministicUiContext(
       page,
       request,
@@ -37,6 +39,7 @@ test.describe("Dashboard Workspace Stats", () => {
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     const ctx = await bootstrapDeterministicUiContext(
       page,
       request,

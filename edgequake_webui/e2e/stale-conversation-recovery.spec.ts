@@ -3,7 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
-import { liveStackSkipReason, requiresLiveStack } from "./helpers/live-stack";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 const FAKE_CONVERSATION_ID = "00000000-0000-0000-0000-000000000000";
 const EMPTY_STATE = /Ask about your knowledge graph/i;
@@ -43,7 +43,7 @@ test.describe("Stale Conversation Recovery", () => {
   });
 
   test("handles loading when no active conversation exists", async ({ page }) => {
-    test.skip(!requiresLiveStack, liveStackSkipReason);
+    skipUnlessLiveStack();
     await page.goto("/query");
     await waitForAppReady(page);
 
@@ -55,7 +55,7 @@ test.describe("Stale Conversation Recovery", () => {
   test("auto-recovers when stale localStorage conversation ID is set", async ({
     page,
   }) => {
-    test.skip(!requiresLiveStack, liveStackSkipReason);
+    skipUnlessLiveStack();
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
@@ -75,7 +75,7 @@ test.describe("Stale Conversation Recovery", () => {
   test("clears stale conversation ID from localStorage on page load", async ({
     page,
   }) => {
-    test.skip(!requiresLiveStack, liveStackSkipReason);
+    skipUnlessLiveStack();
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
@@ -99,7 +99,7 @@ test.describe("Stale Conversation Recovery", () => {
   test("shows friendly notification when recovering from stale ID", async ({
     page,
   }) => {
-    test.skip(!requiresLiveStack, liveStackSkipReason);
+    skipUnlessLiveStack();
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);

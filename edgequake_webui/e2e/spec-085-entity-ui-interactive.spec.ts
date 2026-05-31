@@ -19,11 +19,11 @@ import {
   bootstrapDeterministicUiContext,
   openCreateWorkspaceDialog,
 } from "./helpers/bootstrap-ui";
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   test.beforeEach(async ({ page, request }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, 'spec085');
   });
 
