@@ -5,6 +5,9 @@ use edgequake_storage::traits::{
     GraphStorage, GraphStorageAnalyticsCap, GraphStorageMutator, GraphStorageReader,
 };
 
+#[cfg(feature = "postgres")]
+use edgequake_storage::PostgresAGEGraphStorage;
+
 fn assert_graph_storage_isp<T>()
 where
     T: GraphStorage + GraphStorageReader + GraphStorageMutator + GraphStorageAnalyticsCap,
@@ -14,6 +17,12 @@ where
 #[test]
 fn memory_graph_storage_satisfies_isp_contract() {
     assert_graph_storage_isp::<MemoryGraphStorage>();
+}
+
+#[cfg(feature = "postgres")]
+#[test]
+fn postgres_graph_storage_satisfies_isp_contract() {
+    assert_graph_storage_isp::<PostgresAGEGraphStorage>();
 }
 
 #[tokio::test]
