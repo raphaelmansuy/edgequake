@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-041: Tenant Vision LLM Configuration E2E Tests
  *
@@ -25,6 +26,11 @@ test.setTimeout(90000);
 // ---------------------------------------------------------------------------
 // API-level tests (no UI required)
 // ---------------------------------------------------------------------------
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("SPEC-041: Tenant Vision LLM – API", () => {
   const uniqueName = () => `spec041-${Date.now()}`;
 

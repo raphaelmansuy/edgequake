@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Query Page Model Selection and Lineage E2E Tests
  *
@@ -15,6 +16,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 
 test.setTimeout(90000);
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("SPEC-032: Query Page Model Selection", () => {
   test.beforeEach(async ({ page }) => {

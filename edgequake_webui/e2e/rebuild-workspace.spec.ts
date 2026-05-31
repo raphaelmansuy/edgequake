@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * E2E Test: Workspace Rebuild Functionality (OODA 256-280)
  *
@@ -14,6 +15,11 @@ import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } fr
 const FRONTEND_URL = "/";
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002";
 const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000003";
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Workspace Rebuild E2E Tests", () => {
   test.beforeEach(async ({ page }) => {

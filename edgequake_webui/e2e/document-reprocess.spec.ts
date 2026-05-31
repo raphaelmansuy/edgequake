@@ -181,7 +181,7 @@ test.describe("@load Document Reprocessing", () => {
   });
 });
 
-test.describe("Pipeline Status Dialog", () => {
+test.describe("@load Pipeline Status Dialog", () => {
   test("pipeline status dialog shows correct information", async ({ page }) => {
     await page.goto("/documents");
     await waitForAppReady(page);
@@ -215,7 +215,7 @@ test.describe("Pipeline Status Dialog", () => {
   });
 });
 
-test.describe("Rebuild Operations", () => {
+test.describe("@load Rebuild Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to settings or workspace page where rebuild is available
     await page.goto("/settings");
@@ -261,7 +261,7 @@ test.describe("Rebuild Operations", () => {
   });
 });
 
-test.describe("Error Handling UX", () => {
+test.describe("@load Error Handling UX", () => {
   test("error messages are actionable and copyable", async ({ page }) => {
     await page.goto("/documents");
     await waitForAppReady(page);
@@ -314,7 +314,7 @@ test.describe("Error Handling UX", () => {
   });
 });
 
-test.describe("Ollama Integration Tests", () => {
+test.describe("@load Ollama Integration Tests", () => {
   test.beforeEach(async () => {
     const available = await isOllamaAvailable();
     if (!available) {

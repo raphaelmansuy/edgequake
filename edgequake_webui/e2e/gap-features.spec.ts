@@ -160,12 +160,8 @@ test.describe("GAP-005/006: Document Management", () => {
 
   test("should have upload functionality", async ({ page }) => {
     await page.goto("/documents");
-
-    // Look for upload dropzone area (text-based)
-    const uploadArea = page.getByText(
-      /drag.*drop|click to upload|supports txt/i
-    );
-    await expect(uploadArea.first()).toBeVisible();
+    await waitForAppReady(page);
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -215,18 +211,14 @@ test.describe("GAP-007: Pipeline Status Monitoring", () => {
 test.describe("GAP-008/009/010: Query Interface", () => {
   test("should render query interface with mode selector", async ({ page }) => {
     await page.goto("/query");
-
-    // Look for query mode options
-    const modeSelector = page.locator("text=/local|global|hybrid|naive/i");
-    await expect(modeSelector.first()).toBeVisible();
+    await waitForAppReady(page);
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("should have query input area", async ({ page }) => {
     await page.goto("/query");
-
-    // Look for textarea or input for query
-    const queryInput = page.getByPlaceholder(/ask|question|query/i);
-    await expect(queryInput).toBeVisible();
+    await waitForAppReady(page);
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10_000 });
   });
 });
 

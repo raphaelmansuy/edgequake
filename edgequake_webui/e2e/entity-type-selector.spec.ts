@@ -10,10 +10,16 @@
  * 5. Workspace created with manufacturing preset has entity_types in response
  */
 import { expect, test } from '@playwright/test';
+import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 const BASE_URL = '/';
 const API_URL = `${BACKEND_URL}`;
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('SPEC-085: Entity Type Selector', () => {
   test.beforeEach(async ({ page }) => {

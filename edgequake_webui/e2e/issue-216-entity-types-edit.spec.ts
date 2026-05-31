@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-013 / GitHub #216 — Update workspace entity_types via API.
  */
@@ -7,6 +8,11 @@ import {
   SPEC013_BACKEND,
   tenantHeaders,
 } from './helpers/spec013-api';
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('Issue #216 entity types update', () => {
   test('PUT workspace entity_types persists', async ({ request }) => {

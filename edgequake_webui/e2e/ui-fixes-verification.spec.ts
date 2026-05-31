@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * E2E Tests for UI Fixes - December 2024
@@ -12,6 +13,11 @@ import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } fr
  * 5. Graph page scroll issues
  * 6. Settings menu layout/padding
  */
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("@audit UI Fixes Verification", () => {
   test.beforeEach(async ({ page }) => {
     // Wait for the app to be ready

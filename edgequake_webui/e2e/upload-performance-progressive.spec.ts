@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /** API base for direct upload perf tests — never use PLAYWRIGHT_BASE_URL (frontend). */
 const API_BASE = API_V1_URL.replace(/\/api\/v1$/, "") || BACKEND_URL;
@@ -294,6 +295,11 @@ async function executeConcurrentUploads(
 // Test Suite
 // ============================================================================
 
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("@load Upload Performance - Progressive Load Testing", () => {
   const apiBase = API_V1_URL;
   const allMetrics: PerformanceMetrics[] = [];
@@ -515,7 +521,7 @@ test.describe("@load Upload Performance - Progressive Load Testing", () => {
 // Additional Performance Tests
 // ============================================================================
 
-test.describe("Upload Performance - Specific Scenarios", () => {
+test.describe("@load Upload Performance - Specific Scenarios", () => {
   const apiBase = API_V1_URL;
 
   test("Sustained Load - Constant Rate for 2 Minutes", async () => {

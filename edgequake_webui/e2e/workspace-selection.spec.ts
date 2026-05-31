@@ -1,6 +1,11 @@
 // E2E tests for workspace/tenant default selection
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Workspace/Tenant Default Selection", () => {
   test.beforeEach(async ({ page }) => {

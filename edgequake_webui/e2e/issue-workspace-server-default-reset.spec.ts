@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-013 — Workspace "Server default" must clear stale mock LLM overrides.
  */
@@ -6,6 +7,11 @@ import {
   createTenantWorkspaceViaApi,
   SPEC013_BACKEND,
 } from './helpers/spec013-api';
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('Workspace server-default LLM reset', () => {
   test('PUT with empty llm fields clears mock override', async ({ request }) => {

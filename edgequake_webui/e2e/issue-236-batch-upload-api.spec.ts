@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-014 / GitHub #236 — batch upload API for document and PDF.
  */
@@ -39,6 +40,11 @@ function multipartBody(
   chunks.push(Buffer.from(`--${boundary}--\r\n`));
   return { boundary, body: Buffer.concat(chunks) };
 }
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('Issue #236 batch upload API', () => {
   test('openapi exposes batch upload endpoints', async ({ page, request }) => {

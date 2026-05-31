@@ -213,6 +213,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
 
 test.describe('SPEC-085: Workspace Detail Page shows entity types', () => {
   test('workspace detail page shows configured entity types', async ({ page, request }) => {
+    skipUnlessLiveStack();
     // Create a workspace with healthcare entity types via API
     const tenantsRes = await request.get(`${API_URL}/api/v1/tenants`);
     const tenants = await tenantsRes.json();

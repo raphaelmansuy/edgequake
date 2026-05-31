@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Rebuild Operations E2E Tests
@@ -39,6 +40,11 @@ async function isBackendAvailable(): Promise<boolean> {
     return false;
   }
 }
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Rebuild Embeddings", () => {
   test.beforeEach(async ({ page }) => {

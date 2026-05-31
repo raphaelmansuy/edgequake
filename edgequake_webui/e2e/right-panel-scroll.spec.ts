@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * Right Panel Scroll E2E Tests
  *
@@ -14,6 +15,11 @@ import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "/";
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Right Panel Scroll", () => {
   test.beforeEach(async ({ page }) => {

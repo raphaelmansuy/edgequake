@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * @file E2E Test: WebSocket-based PDF Upload with Real-time Status Updates
  * @description Tests document upload with WebSocket (no polling) for OpenAI tenant
@@ -28,6 +29,11 @@ const TEST_PDF = path.join(
   __dirname,
   "../../zz_test_docs/academic_papers/lighrag_2410.05779v3.pdf",
 );
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@load WebSocket Document Upload (OpenAI Tenant)", () => {
   test.beforeEach(async ({ page }) => {

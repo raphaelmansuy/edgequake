@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-013 / GitHub #231 — Document upload accepts X-Workspace-ID.
  */
@@ -7,6 +8,11 @@ import {
   SPEC013_BACKEND,
   tenantHeaders,
 } from './helpers/spec013-api';
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('Issue #231 workspace upload header', () => {
   test('text document upload with workspace header returns 201', async ({ request }) => {

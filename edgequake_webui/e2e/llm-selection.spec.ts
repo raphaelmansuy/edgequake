@@ -234,6 +234,10 @@ test.describe("LLM Model Selection and Usage", () => {
 });
 
 test.describe("LLM Provider Resolution Priority", () => {
+  test.beforeEach(() => {
+    skipUnlessLiveStack();
+  });
+
   // These tests verify the resolution logic documented in:
   // edgequake/crates/edgequake-api/src/providers/resolver.rs
 
