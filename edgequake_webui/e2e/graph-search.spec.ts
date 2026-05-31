@@ -10,9 +10,11 @@ import {
   waitForGraphSearchResponse,
 } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { liveStackSkipReason, requiresLiveStack } from "./helpers/live-stack";
 
 test.describe("Graph Search with Tenant Context", () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page, request }, testInfo) => {
+    test.skip(!requiresLiveStack, liveStackSkipReason);
     await bootstrapDeterministicUiContext(page, request, "graph-search");
     await page.goto("/graph");
     await waitForAppReady(page);
@@ -83,7 +85,8 @@ test.describe("Graph Search with Tenant Context", () => {
 });
 
 test.describe("Entity Browser Search", () => {
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page, request }, testInfo) => {
+    test.skip(!requiresLiveStack, liveStackSkipReason);
     await bootstrapDeterministicUiContext(page, request, "entity-browser");
     await page.goto("/graph");
     await waitForAppReady(page);

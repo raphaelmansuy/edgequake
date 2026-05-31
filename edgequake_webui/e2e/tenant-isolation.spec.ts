@@ -11,6 +11,7 @@ import {
   waitForTasksCreated,
 } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { liveStackSkipReason, requiresLiveStack } from "./helpers/live-stack";
 
 type TenantCtx = { id: string; name: string };
 type WorkspaceCtx = { id: string; name: string; tenant_id: string };
@@ -93,7 +94,12 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
   let workspaceA: WorkspaceCtx;
   let workspaceB: WorkspaceCtx;
 
+  test.beforeEach(({ }, testInfo) => {
+    test.skip(!requiresLiveStack, liveStackSkipReason);
+  });
+
   test.beforeAll(async ({ request }) => {
+    if (!requiresLiveStack) return;
     ({ tenantA, tenantB, workspaceA, workspaceB } = await createTenantPair(request));
   });
 
@@ -197,6 +203,10 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
 });
 
 test.describe("Regression Tests - Previous Fixes", () => {
+  test.beforeEach(({ }, testInfo) => {
+    test.skip(!requiresLiveStack, liveStackSkipReason);
+  });
+
   test("BookOpen icon is present in query interface", async ({ page, request }) => {
     await bootstrapDeterministicUiContext(page, request, "book-open");
     await page.goto("/query");

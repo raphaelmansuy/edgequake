@@ -3,14 +3,10 @@
  */
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
+import { liveStackSkipReason, requiresLiveStack } from "./helpers/live-stack";
 
 const FAKE_CONVERSATION_ID = "00000000-0000-0000-0000-000000000000";
 const EMPTY_STATE = /Ask about your knowledge graph/i;
-
-/** Recovery logic calls the API — skip in webServer-only mode (no backend). */
-const requiresLiveStack =
-  !!process.env.PLAYWRIGHT_BASE_URL &&
-  process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1";
 
 function seedStaleConversation(page: import("@playwright/test").Page) {
   return page.evaluate((conversationId) => {
@@ -47,7 +43,7 @@ test.describe("Stale Conversation Recovery", () => {
   });
 
   test("handles loading when no active conversation exists", async ({ page }) => {
-    test.skip(!requiresLiveStack, "Requires live backend (make dev-bg)");
+    test.skip(!requiresLiveStack, liveStackSkipReason);
     await page.goto("/query");
     await waitForAppReady(page);
 
@@ -59,7 +55,7 @@ test.describe("Stale Conversation Recovery", () => {
   test("auto-recovers when stale localStorage conversation ID is set", async ({
     page,
   }) => {
-    test.skip(!requiresLiveStack, "Requires live backend (make dev-bg)");
+    test.skip(!requiresLiveStack, liveStackSkipReason);
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
@@ -79,7 +75,7 @@ test.describe("Stale Conversation Recovery", () => {
   test("clears stale conversation ID from localStorage on page load", async ({
     page,
   }) => {
-    test.skip(!requiresLiveStack, "Requires live backend (make dev-bg)");
+    test.skip(!requiresLiveStack, liveStackSkipReason);
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
@@ -103,7 +99,7 @@ test.describe("Stale Conversation Recovery", () => {
   test("shows friendly notification when recovering from stale ID", async ({
     page,
   }) => {
-    test.skip(!requiresLiveStack, "Requires live backend (make dev-bg)");
+    test.skip(!requiresLiveStack, liveStackSkipReason);
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
