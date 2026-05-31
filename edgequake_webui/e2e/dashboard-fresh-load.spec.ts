@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 test.describe("Dashboard Stats - Fresh Load", () => {
   test("should show numeric stats after bootstrap", async ({ page, request }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "dash-fresh");
     await page.goto("/");
     await waitForAppReady(page);

@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import type { Spec013BootstrapContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 test.describe("Dashboard Network Requests", () => {
   test("should make API request for workspace stats", async ({
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     const ctx = await bootstrapDeterministicUiContext(
       page,
       request,

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 function parseStatsFromPage(pageText: string) {
   const docMatch = pageText.match(/(\d+)\s+Documents?/i);
@@ -20,6 +21,7 @@ test.describe("Dashboard and Workspace Stats Consistency", () => {
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "dash-ws-consistency");
 
     await page.goto("/");

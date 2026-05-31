@@ -8,6 +8,7 @@ import {
   bootstrapDeterministicUiContext,
   openCreateWorkspaceDialog,
 } from './helpers/spec013-bootstrap';
+import { skipUnlessLiveStack } from './helpers/live-stack';
 
 const SCREENSHOT_DIR = path.join(__dirname, 'screenshots', 'issue-233');
 
@@ -16,6 +17,7 @@ test.describe('Issue #233 workspace create UX', () => {
     page,
     request,
   }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, 'issue-233');
     await openCreateWorkspaceDialog(page);
 

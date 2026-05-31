@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
-import { liveStackSkipReason, requiresLiveStack } from "./helpers/live-stack";
+import { liveStackSkipReason, requiresLiveStack, skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Multi-Tenant Isolation E2E Tests
@@ -20,8 +20,8 @@ test.describe("Multi-Tenant Isolation", () => {
   let workspaceA: { id: string; name: string };
   let workspaceB: { id: string; name: string };
 
-  test.beforeEach(({ }, testInfo) => {
-    test.skip(!requiresLiveStack, liveStackSkipReason);
+  test.beforeEach(() => {
+    skipUnlessLiveStack();
   });
 
   test.beforeAll(async ({ request }) => {

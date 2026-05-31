@@ -10,10 +10,11 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, waitForQueryResponse } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
-import { BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 test.describe("LLM Model Selection and Usage", () => {
   test.beforeEach(async ({ page, request }) => {
+    skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "llm-selection");
     await page.goto("/query");
     await waitForAppReady(page);
