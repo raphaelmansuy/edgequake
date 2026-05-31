@@ -55,7 +55,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Page should load
       const main = page.locator("main");
@@ -92,7 +91,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for LLM configuration elements
       const pageContent = await page.content();
@@ -135,7 +133,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for embedding configuration elements
       const pageContent = await page.content();
@@ -174,7 +171,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for provider status section
       const providerText = page.getByText(/provider|status/i);
@@ -216,7 +212,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for rebuild button or text
       const rebuildText = page.getByText(/rebuild/i);
@@ -255,7 +250,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for knowledge graph rebuild option
       const pageContent = await page.content();
@@ -299,7 +293,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for indication that LLM is for extraction/ingestion
       const pageContent = await page.content();
@@ -436,7 +429,6 @@ test.describe("SPEC-032: Workspace Model Editing UI", () => {
     await page.goto(`/w/${workspaceSlug}/workspace`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
 
     // Look for edit button or toggle
     const editButton = page.getByRole("button", {
@@ -479,7 +471,6 @@ test.describe("SPEC-032: Workspace Model Editing UI", () => {
     await page.goto(`/w/${workspaceSlug}/workspace`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
 
     // Look for model-related elements (buttons, selectors, text)
     const pageContent = await page.content();
@@ -520,7 +511,6 @@ test.describe("SPEC-032: Workspace Stats Display", () => {
     await page.goto(`/w/${workspaceSlug}/workspace`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
 
     // Look for stats section
     const pageContent = await page.content();

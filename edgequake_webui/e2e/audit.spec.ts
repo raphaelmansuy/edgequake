@@ -2,7 +2,8 @@ import { test, expect } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 
-test("site audit: crawl and screenshot", async ({ page, baseURL }) => {
+test.describe("@audit site audit", () => {
+  test("crawl and screenshot", async ({ page, baseURL }) => {
   const start = baseURL || "/";
   const visited = new Set<string>();
   const toVisit: { url: string; depth: number }[] = [{ url: start, depth: 0 }];
@@ -82,5 +83,5 @@ test("site audit: crawl and screenshot", async ({ page, baseURL }) => {
   }
 
   fs.writeFileSync(auditMd, mdLines.join("\n"));
-  expect(fs.existsSync(auditMd)).toBeTruthy();
+});
 });

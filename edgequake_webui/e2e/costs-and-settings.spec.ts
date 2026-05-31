@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 /**
@@ -106,7 +107,7 @@ test.describe("Cost Tracking API", () => {
 test.describe("Cost Tracking Page", () => {
   test("costs page loads", async ({ page }) => {
     await page.goto("/costs");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Page should load (might redirect or show content)
     const main = page.locator("main");
@@ -115,7 +116,7 @@ test.describe("Cost Tracking Page", () => {
 
   test("costs page shows cost summary or placeholder", async ({ page }) => {
     await page.goto("/costs");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for cost-related content
     const costContent = page.locator(
@@ -143,7 +144,7 @@ test.describe("Cost Tracking Page", () => {
 
   test("costs page has date range filters", async ({ page }) => {
     await page.goto("/costs");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for date pickers or filters
     const dateFilters = page.locator(
@@ -165,7 +166,7 @@ test.describe("Cost Tracking Page", () => {
 test.describe("API Explorer", () => {
   test("api-explorer page loads", async ({ page }) => {
     await page.goto("/api-explorer");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Page should load
     const main = page.locator("main");
@@ -174,7 +175,7 @@ test.describe("API Explorer", () => {
 
   test("api-explorer shows API documentation", async ({ page }) => {
     await page.goto("/api-explorer");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for Swagger/OpenAPI content or custom API docs
     const apiContent = page.locator(
@@ -193,7 +194,7 @@ test.describe("API Explorer", () => {
 
   test("api-explorer has interactive elements", async ({ page }) => {
     await page.goto("/api-explorer");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for interactive API testing elements
     const tryButton = page.locator(
@@ -214,7 +215,7 @@ test.describe("API Explorer", () => {
 test.describe("Settings Page", () => {
   test("settings page loads", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     const main = page.locator("main");
     await expect(main).toBeVisible({ timeout: 10000 });
@@ -222,7 +223,7 @@ test.describe("Settings Page", () => {
 
   test("settings shows configuration options", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for form elements or configuration sections
     const formElements = page.locator('input, select, [role="switch"], button');
@@ -233,7 +234,7 @@ test.describe("Settings Page", () => {
 
   test("settings has workspace management section", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for workspace-related settings
     const workspaceSection = page.locator(

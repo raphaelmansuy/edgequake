@@ -8,11 +8,12 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
+import { gotoApp } from "./helpers/navigation";
 
-const BASE_URL = process.env.BASE_URL || "/";
 const SCREENSHOT_DIR = "e2e/screenshots/audit-verification";
 
-test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
+test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
   test.beforeEach(async ({ page }) => {
     // Set a consistent viewport for reproducible screenshots
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -21,8 +22,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("01 - Dashboard: Stats cards with colored accents and proper spacing", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Wait for stats cards to load
     await page.waitForTimeout(1000);
@@ -47,8 +48,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("02 - Dashboard: Dark mode stats cards", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Toggle dark mode via settings
     // First, add dark class to html element
@@ -67,8 +68,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("03 - Documents: Compact upload zone and improved header", async ({
     page,
   }) => {
-    await page.goto(`${BASE_URL}/documents`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/documents');
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Full page screenshot
@@ -89,8 +90,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("04 - Documents: Drag hover state on upload zone", async ({ page }) => {
-    await page.goto(`${BASE_URL}/documents`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/documents');
+    await waitForAppReady(page);
 
     // Simulate drag hover state by adding class
     await page.evaluate(() => {
@@ -109,8 +110,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("05 - Query: Improved header and message spacing", async ({ page }) => {
-    await page.goto(`${BASE_URL}/query`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/query');
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Full page screenshot
@@ -129,8 +130,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("06 - Query: Input area with proper padding", async ({ page }) => {
-    await page.goto(`${BASE_URL}/query`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/query');
+    await waitForAppReady(page);
 
     // Focus on textarea to see focus ring
     const textarea = page.locator("textarea");
@@ -146,8 +147,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("07 - Graph: Improved toolbar spacing", async ({ page }) => {
-    await page.goto(`${BASE_URL}/graph`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/graph');
+    await waitForAppReady(page);
     await page.waitForTimeout(2000); // Graph takes time to render
 
     await page.screenshot({
@@ -165,8 +166,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("08 - Graph: Right sidebar with improved padding", async ({ page }) => {
-    await page.goto(`${BASE_URL}/graph`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/graph');
+    await waitForAppReady(page);
     await page.waitForTimeout(1500);
 
     // Right sidebar
@@ -181,8 +182,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("09 - Settings: Section separation and header styling", async ({
     page,
   }) => {
-    await page.goto(`${BASE_URL}/settings`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/settings');
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     await page.screenshot({
@@ -192,8 +193,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("10 - Settings: Dangerous actions section", async ({ page }) => {
-    await page.goto(`${BASE_URL}/settings`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/settings');
+    await waitForAppReady(page);
 
     // Scroll to data management section
     await page.evaluate(() => {
@@ -219,8 +220,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("11 - Sidebar: Improved navigation spacing and touch targets", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Sidebar screenshot
     const sidebar = page.locator("aside").first();
@@ -232,8 +233,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("12 - Sidebar: Collapsed state", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Click collapse button
     const collapseButton = page.locator('button:has-text("Collapse")');
@@ -251,8 +252,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("13 - API Explorer: Endpoint list layout", async ({ page }) => {
-    await page.goto(`${BASE_URL}/api-explorer`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/api-explorer');
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     await page.screenshot({
@@ -263,8 +264,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
 
   test("14 - Mobile: Dashboard responsive layout", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 }); // iPhone X
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     await page.screenshot({
@@ -275,8 +276,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
 
   test("15 - Tablet: Dashboard responsive layout", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 }); // iPad
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     await page.screenshot({
@@ -298,8 +299,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
 
     for (let i = 0; i < pages.length; i++) {
       const pagePath = pages[i];
-      await page.goto(`${BASE_URL}${pagePath}`);
-      await page.waitForLoadState("networkidle");
+      await gotoApp(page, pagePath);
+      await waitForAppReady(page);
       await page.waitForTimeout(500);
 
       // Get the first h1 element
@@ -326,8 +327,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("17 - Focus states: Keyboard navigation visibility", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Tab through navigation items
     await page.keyboard.press("Tab");
@@ -340,8 +341,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("18 - Card hover states", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Hover over first stats card
@@ -361,8 +362,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
 
 test.describe("Spacing Measurement Verification", () => {
   test("Verify design token application", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Check that CSS custom properties are available
     const cssProperties = await page.evaluate(() => {

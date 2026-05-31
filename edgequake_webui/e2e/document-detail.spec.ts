@@ -1,11 +1,12 @@
 // E2E tests for document detail page
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 test.describe("Document Detail Page", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check if any documents exist (look for "View" link)
     const viewLink = page.getByRole("link", { name: /view/i }).first();
@@ -49,7 +50,7 @@ test.describe("Document Detail Page", () => {
     await page.getByRole("link", { name: /view/i }).first().click();
 
     // Wait for page load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check key stats are visible
     await expect(page.getByText(/chunks/i)).toBeVisible();
@@ -99,7 +100,7 @@ test.describe("Document Detail Page", () => {
     // beforeEach already navigated and verified documents exist
     // Navigate to first document
     await page.getByRole("link", { name: /view/i }).first().click();
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for lineage section
     const lineageSection = page.getByText(/extraction lineage/i);

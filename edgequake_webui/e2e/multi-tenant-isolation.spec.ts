@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 /**
  * Multi-Tenant Isolation E2E Tests
@@ -215,7 +216,7 @@ test.describe("Multi-Tenant Isolation", () => {
 test.describe("Workspace Switching in UI", () => {
   test("switching workspace changes document list", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get workspace selector
     const selector = page.getByTestId("workspace-selector");
@@ -248,7 +249,7 @@ test.describe("Workspace Switching in UI", () => {
   }) => {
     // Start on documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get workspace selector text
     const selector = page.getByTestId("workspace-selector");
@@ -256,7 +257,7 @@ test.describe("Workspace Switching in UI", () => {
 
     // Navigate to query page
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Workspace should still be selected
     const selectorAfter = page.getByTestId("workspace-selector");
@@ -269,7 +270,7 @@ test.describe("Workspace Switching in UI", () => {
   test("workspace context persists after page reload", async ({ page }) => {
     // Go to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get workspace selector
     const selector = page.getByTestId("workspace-selector");
@@ -278,7 +279,7 @@ test.describe("Workspace Switching in UI", () => {
 
     // Reload page
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Workspace should still be selected (from localStorage)
     const selectorAfter = page.getByTestId("workspace-selector");

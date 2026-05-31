@@ -13,16 +13,18 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady } from "./helpers/app-ready";
+import { waitForQueryResponse } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 
 // Increase timeout for streaming tests
-test.setTimeout(60000);
+test.setTimeout(60_000);
 
 test.describe("Streaming Improvements E2E", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to query page
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "streaming");
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("StreamAccumulator: Content displays correctly without concatenation", async ({
@@ -170,7 +172,7 @@ test.describe("Streaming Improvements E2E", () => {
     await submitButton.click();
 
     // Wait for response to complete
-    await page.waitForTimeout(10000);
+    await waitForQueryResponse(page);
 
     // Capture page content before refresh
     const contentBefore = await page.textContent("body");
@@ -184,8 +186,8 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Refresh the page
     await page.reload();
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(3000);
+    await waitForAppReady(page);
+    await waitForAppReady(page);
 
     // Capture page content after refresh
     const contentAfter = await page.textContent("body");
@@ -225,7 +227,7 @@ test.describe("Streaming Improvements E2E", () => {
     await submitButton.click();
 
     // Wait for response
-    await page.waitForTimeout(8000);
+    await waitForQueryResponse(page);
 
     // Get the response content from the page
     const bodyText = await page.textContent("body");
@@ -275,7 +277,7 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Submit and verify response
     await submitButton.click();
-    await page.waitForTimeout(5000);
+    await waitForQueryResponse(page);
 
     const bodyText = await page.textContent("body");
     const hasResponse =
@@ -303,12 +305,12 @@ test.describe("Streaming Improvements E2E", () => {
       .getByRole("button", { name: /send|submit/i })
       .first();
     await submitButton.click();
-    await page.waitForTimeout(6000);
+    await waitForQueryResponse(page);
 
     // Second message
     await textarea.fill("What number did I ask you to remember?");
     await submitButton.click();
-    await page.waitForTimeout(6000);
+    await waitForQueryResponse(page);
 
     // Get page content
     const bodyText = await page.textContent("body");
@@ -343,7 +345,7 @@ test.describe("Streaming Improvements E2E", () => {
     await submitButton.click();
 
     // Wait longer for large response
-    await page.waitForTimeout(15000);
+    await waitForQueryResponse(page, 120_000);
 
     // Get page content
     const bodyText = await page.textContent("body");

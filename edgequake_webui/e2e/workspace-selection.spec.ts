@@ -1,5 +1,6 @@
 // E2E tests for workspace/tenant default selection
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 test.describe("Workspace/Tenant Default Selection", () => {
   test.beforeEach(async ({ page }) => {
@@ -32,7 +33,7 @@ test.describe("Workspace/Tenant Default Selection", () => {
   }) => {
     // First, set up a workspace by visiting the page and letting it auto-select
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for auto-selection to complete
     await page.waitForTimeout(2000);
@@ -42,7 +43,7 @@ test.describe("Workspace/Tenant Default Selection", () => {
 
     // Now reload the page to simulate a returning user
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Should stay in the app (localStorage persists state)
@@ -55,7 +56,7 @@ test.describe("Workspace/Tenant Default Selection", () => {
     await page.goto("/");
 
     // Wait for initialization
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Click workspace selector
     await page.getByTestId("workspace-selector").click();

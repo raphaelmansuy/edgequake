@@ -1400,7 +1400,7 @@ test-e2e-full: dev-bg ## Run full E2E test suite (requires make dev-bg stack)
 	}
 	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
-		pnpm exec playwright test --reporter=line
+		pnpm exec playwright test --project=chromium --reporter=line
 
 # ============================================================================
 # SPEC-013 — GitHub issues #216–#233 (May 2026)

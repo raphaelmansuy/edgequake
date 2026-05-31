@@ -15,63 +15,28 @@
 
 import { type Page, expect, test } from '@playwright/test';
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
-
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? '/';
-const API_URL = `${BACKEND_URL}`;
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Open the workspace creation dialog from the header selector. */
-async function openCreateWorkspaceDialog(page: Page): Promise<void> {
-  // Go to the dashboard (/ or /workspace)
-  await page.goto(BASE_URL);
-  await page.waitForLoadState('networkidle');
-
-  // Primary path: header workspace selector -> "Create New Workspace"
-  let opened = false;
-  const wsSelector = page.locator('[data-testid="workspace-selector"]').first();
-  if (await wsSelector.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await wsSelector.click();
-    const createWorkspaceItem = page
-      .locator('[role="menuitem"]')
-      .filter({ hasText: /create new workspace/i })
-      .first();
-    if (await createWorkspaceItem.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await createWorkspaceItem.click();
-      opened = true;
-    }
-  }
-
-  // Fallback path: tenant-guard first-workspace flow
-  if (!opened) {
-    const fallbackCreateWorkspace = page
-      .locator('button')
-      .filter({ hasText: /create workspace/i })
-      .first();
-    if (await fallbackCreateWorkspace.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await fallbackCreateWorkspace.click();
-      opened = true;
-    }
-  }
-
-  // Wait for the dialog to appear (workspace name input is always visible)
-  await page.waitForSelector('[role="dialog"]', { timeout: 10000 });
-
-  // Entity types are inside a Collapsible section — expand it
-  const entityTrigger = page.locator('[role="dialog"] button').filter({ hasText: /entity types/i }).first();
-  if (await entityTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await entityTrigger.click();
-  }
-
-  // Now wait for the entity type selector to be visible
-  await page.waitForSelector('[data-testid="entity-type-selector"]', { timeout: 10000 });
-}
+import {
+  bootstrapDeterministicUiContext,
+  openCreateWorkspaceDialog,
+} from "./helpers/bootstrap-ui";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, 'spec085');
+  });
+
+  async function openDialog(page: Page): Promise<void> {
+    await openDialog(page);
+    const entityTrigger = page.locator('[role="dialog"] button').filter({ hasText: /entity types/i }).first();
+    if (await entityTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await entityTrigger.click();
+    }
+    await page.waitForSelector('[data-testid="entity-type-selector"]', { timeout: 10_000 });
+  }
   test('entity-type-selector renders with preset buttons and chip list', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     // Entity type selector should be visible
     const selector = page.locator('[data-testid="entity-type-selector"]');
@@ -100,7 +65,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('switching preset changes the type chips', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     // Click Manufacturing preset
     const mfgBtn = page.locator('[data-testid="preset-btn-manufacturing"]');
@@ -124,7 +89,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('custom type input: add via Enter key, normalized to uppercase', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     const input = page.locator('[data-testid="entity-type-input"]');
     await input.fill('circuit board');
@@ -145,7 +110,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('custom type input: add via Add button', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     const input = page.locator('[data-testid="entity-type-input"]');
     await input.fill('my-custom-type');
@@ -161,7 +126,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('remove a type chip', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     // Initially 9 types with General
     const chips = page.locator('[data-testid="entity-types-chips"] [data-testid^="entity-type-chip-"]');
@@ -187,7 +152,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('empty state shows server-defaults hint', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     // Remove all types by clicking each remove button
     const removeButtons = page.locator('[data-testid^="remove-type-"]');
@@ -214,7 +179,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('duplicate entry is deduplicated (Add same type twice)', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     // General already has PERSON, try to add it again
     const input = page.locator('[data-testid="entity-type-input"]');
@@ -228,7 +193,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   test('Add button is disabled when input is empty', async ({ page }) => {
-    await openCreateWorkspaceDialog(page);
+    await openDialog(page);
 
     const addBtn = page.locator('[data-testid="entity-type-add-btn"]');
     await expect(addBtn).toBeDisabled();
@@ -271,8 +236,8 @@ test.describe('SPEC-085: Workspace Detail Page shows entity types', () => {
     expect(wsId).toBeTruthy();
 
     // Navigate to the workspace settings/detail page
-    await page.goto(`${BASE_URL}/workspace?workspace_id=${wsId}`);
-    await page.waitForLoadState('networkidle');
+    await page.goto('/workspace?workspace_id=${wsId}');
+    await waitForAppReady(page);
 
     // Validate entity type tags are visible on the page
     // Look for badges that contain domain-specific types

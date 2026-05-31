@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 /**
  * Document Reprocess E2E Tests
@@ -32,7 +33,7 @@ test.describe("Document Reprocessing", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -141,7 +142,7 @@ test.describe("Document Reprocessing", () => {
 
     // Navigate to documents if not already there
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for file upload area
     const dropzone = page.locator(
@@ -183,7 +184,7 @@ test.describe("Document Reprocessing", () => {
 test.describe("Pipeline Status Dialog", () => {
   test("pipeline status dialog shows correct information", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for pipeline status button (usually shows when processing is active)
     const pipelineButton = page.locator(
@@ -218,7 +219,7 @@ test.describe("Rebuild Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to settings or workspace page where rebuild is available
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -236,7 +237,7 @@ test.describe("Rebuild Operations", () => {
     } else {
       // Try workspace page
       await page.goto("/workspace");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       const wsRebuild = page.locator('button:has-text("Rebuild")');
       const hasWsRebuild = await wsRebuild.first().isVisible().catch(() => false);
@@ -263,7 +264,7 @@ test.describe("Rebuild Operations", () => {
 test.describe("Error Handling UX", () => {
   test("error messages are actionable and copyable", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Find failed documents using proper filter syntax
     const failedRows = page.locator('tr').filter({ hasText: 'Failed' });
@@ -297,7 +298,7 @@ test.describe("Error Handling UX", () => {
 
   test("error categorization is clear", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for error indicators
     const errorIndicators = page.locator(
@@ -323,7 +324,7 @@ test.describe("Ollama Integration Tests", () => {
 
   test("can configure Ollama as provider", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for provider selection
     const providerSelect = page.locator(
@@ -353,7 +354,7 @@ test.describe("Ollama Integration Tests", () => {
     }
 
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check for documents processed with Ollama
     const ollamaIndicators = page.getByText(/ollama|gemma/i);

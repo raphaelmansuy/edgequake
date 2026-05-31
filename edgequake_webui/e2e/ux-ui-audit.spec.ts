@@ -14,7 +14,7 @@ if (!fs.existsSync(AUDIT_DIR)) {
   fs.mkdirSync(AUDIT_DIR, { recursive: true });
 }
 
-test.describe("UX/UI Comprehensive Audit", () => {
+test.describe("@audit UX/UI Comprehensive Audit", () => {
   test.beforeEach(async ({ page }) => {
     // Set viewport to standard desktop size
     await page.setViewportSize({ width: 1920, height: 1080 });

@@ -16,6 +16,7 @@
 import { expect, test } from "@playwright/test";
 import path from "path";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 // OpenAI Tenant Configuration
 const ACTIVE_UPLOAD_STATUSES = /Pending|Processing|Converting PDF|Chunking|Extracting/;
@@ -44,7 +45,7 @@ test.describe("WebSocket Document Upload (OpenAI Tenant)", () => {
     await page.goto("/documents");
 
     // Wait for page to load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should upload PDF and track status via WebSocket (no polling)", async ({

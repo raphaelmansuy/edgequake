@@ -62,7 +62,7 @@ async function logLayoutMetrics(page: Page, container: string) {
   }
 }
 
-test.describe("UX/UI Comprehensive Audit - All Screens", () => {
+test.describe("@audit UX/UI Comprehensive Audit - All Screens", () => {
   test.beforeEach(async ({ page }) => {
     // Set standard desktop viewport
     await page.setViewportSize({ width: 1920, height: 1080 });

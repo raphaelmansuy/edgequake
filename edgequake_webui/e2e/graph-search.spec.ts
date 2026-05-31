@@ -7,34 +7,14 @@
  * @see edgequake/crates/edgequake-api/src/handlers/graph.rs:453 (search_nodes handler)
  */
 import { expect, test } from "@playwright/test";
-
-// Helper to wait for backend to be ready
-async function waitForBackend(baseURL: string) {
-  const maxRetries = 30;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(
-        `${baseURL.replace(":3001", ":8080")}/health`,
-      );
-      if (response.ok) return true;
-    } catch (e) {
-      // Backend not ready yet
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  throw new Error("Backend health check failed after 30 seconds");
-}
+import { waitForAppReady } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 
 test.describe("Graph Search with Tenant Context", () => {
-  test.beforeEach(async ({ page, baseURL }) => {
-    // Wait for backend to be ready before running tests
-    if (baseURL) {
-      await waitForBackend(baseURL);
-    }
-
-    // Navigate to graph page
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "graph-search");
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should find nodes using search with proper tenant filtering", async ({
@@ -154,7 +134,7 @@ test.describe("Graph Search with Tenant Context", () => {
 test.describe("Entity Browser Search", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should search entities in browser panel with tenant filtering", async ({

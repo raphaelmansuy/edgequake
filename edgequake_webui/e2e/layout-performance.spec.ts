@@ -48,7 +48,7 @@ const layouts: LayoutTest[] = [
   },
 ];
 
-test.describe("Layout Performance Benchmarks", () => {
+test.describe("@audit Layout Performance Benchmarks", () => {
   // These tests require graph data with actual nodes
   test.beforeEach(async ({ page }) => {
     // Navigate to graph page

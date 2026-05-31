@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
-test.describe("Comprehensive Chat UX Test", () => {
+test.describe("@audit Comprehensive Chat UX Test", () => {
   test("should have perfect chat UX with all features working", async ({
     page,
   }) => {
@@ -8,7 +9,7 @@ test.describe("Comprehensive Chat UX Test", () => {
 
     // Navigate to query page
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take initial screenshot
     await page.screenshot({

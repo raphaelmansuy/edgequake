@@ -20,6 +20,7 @@
 
 import { expect, Page, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 const KNOWLEDGE_URL = "/knowledge";
 const WS_ID = "8efcd288-37f7-413c-97bb-95bd7b535059";
@@ -45,7 +46,7 @@ const PROCESSING_TIMEOUT_MS = 480_000; // 8 minutes
 
 async function gotoKnowledge(page: Page) {
   await page.goto(KNOWLEDGE_URL);
-  await page.waitForLoadState("networkidle");
+  await waitForAppReady(page);
 }
 
 /** Open the "New Injection" dialog. */
@@ -145,7 +146,7 @@ test.describe("Knowledge Injection CRUD", () => {
     await expect(cardLink).toBeVisible({ timeout: 5_000 });
     await cardLink.click();
     await page.waitForURL(/\/knowledge\/[a-f0-9-]+/, { timeout: 8_000 });
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     console.log(`[2] Detail page: ${page.url()}`);
 
     // Click the Pencil (Edit) button
@@ -190,7 +191,7 @@ test.describe("Knowledge Injection CRUD", () => {
     await expect(cardLink).toBeVisible({ timeout: 5_000 });
     await cardLink.click();
     await page.waitForURL(/\/knowledge\/[a-f0-9-]+/, { timeout: 8_000 });
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     console.log(`[3] Detail page: ${page.url()}`);
 
     // Click the red "Delete" button on the detail page header

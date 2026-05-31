@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 /**
  * Document Viewer E2E Tests
@@ -19,7 +20,7 @@ test.describe("Document Viewer", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
   });
 
@@ -64,7 +65,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for pagination indicators (page X of Y pattern)
         const pageIndicator = page.locator('text=/\\d+\\s*\\/\\s*\\d+/');
@@ -91,7 +92,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for zoom controls
         const zoomIn = page.locator('button[title*="Zoom in"], button:has(.lucide-zoom-in)');
@@ -123,7 +124,7 @@ test.describe("Document Viewer", () => {
       const viewButton = completedDoc.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Check for prose content (markdown rendered)
         const proseContent = page.locator('.prose, article, [data-testid="markdown-viewer"]');
@@ -150,7 +151,7 @@ test.describe("Document Viewer", () => {
       const viewButton = completedDoc.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for copy button
         const copyButton = page.locator('button:has-text("Copy"), button:has(.lucide-copy)');
@@ -186,7 +187,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for side-by-side layout
         const sideBySide = page.locator('[data-testid="side-by-side"], .side-by-side-viewer');
@@ -213,7 +214,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for view mode toggle buttons
         const pdfOnlyButton = page.locator('button[title*="PDF Only"], button:has(.lucide-panel-right-close)');
@@ -250,7 +251,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for resize handle
         const resizeHandle = page.locator('[data-testid="resize-handle"], .cursor-col-resize');
@@ -277,7 +278,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for download button
         const downloadButton = page.locator('button:has-text("Download"), button:has(.lucide-download)');
@@ -311,7 +312,7 @@ test.describe("Document Viewer", () => {
       const viewButton = pdfDocument.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Look for external link button
         const externalButton = page.locator('button[title*="new tab"], button:has(.lucide-external-link)');
@@ -326,7 +327,7 @@ test.describe("Document Viewer", () => {
     test("displays error state for missing document", async ({ page }) => {
       // Navigate to a non-existent document
       await page.goto("/documents/00000000-0000-0000-0000-000000000000");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       
       // Should see error message
       const errorMessage = page.locator('text=/not found|error|failed/i');
@@ -361,7 +362,7 @@ test.describe("Document Viewer", () => {
       const viewButton = completedDoc.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Check for scroll-smooth class
         const scrollContainers = page.locator('.scroll-smooth, [class*="overflow-auto"]');
@@ -386,7 +387,7 @@ test.describe("Document Viewer", () => {
       const viewButton = completedDoc.locator('button:has-text("View"), a:has-text("View")').first();
       if (await viewButton.isVisible()) {
         await viewButton.click();
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         
         // Check prose content has proper styling
         const proseContent = page.locator('.prose');
@@ -410,7 +411,7 @@ test.describe("Document Viewer", () => {
     test("workspace documents are isolated", async ({ page }) => {
       // Navigate with specific workspace
       await page.goto("/documents?workspace=default-workspace");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       
       // Documents should be filtered by workspace
       const documentCount = await page.locator('[data-testid="document-row"], tr.document-row, .document-item').count();
@@ -430,7 +431,7 @@ test.describe("Document Viewer", () => {
       });
       
       await page.goto("/documents");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       await page.waitForTimeout(1000);
       
       // Verify workspace context is present in requests

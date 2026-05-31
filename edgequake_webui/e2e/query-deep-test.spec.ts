@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
-test.describe("Query Deep Dive - Issue Detection", () => {
+test.describe("@debug Query Deep Dive - Issue Detection", () => {
   test.beforeEach(async ({ page }) => {
     // Capture all console messages
     page.on("console", (msg) => {
@@ -26,7 +27,7 @@ test.describe("Query Deep Dive - Issue Detection", () => {
     });
 
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should detect streaming response issues", async ({ page }) => {
@@ -198,7 +199,7 @@ test.describe("Query Deep Dive - Issue Detection", () => {
 
     // Reload page
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(3000);
 
     // Check if conversation still visible

@@ -11,7 +11,7 @@
 import { expect, test } from "@playwright/test";
 
 // Test group for Dashboard Page
-test.describe("Phase 1: Dashboard Page", () => {
+test.describe("@audit Phase 1: Dashboard Page", () => {
   test("should render dashboard as the home page", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");

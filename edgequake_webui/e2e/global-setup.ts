@@ -1,4 +1,4 @@
-import { BACKEND_URL, isEdgequakeBackendHealthy } from "./helpers/backend-url";
+import { BACKEND_URL, waitForBackendInGlobalSetup } from "./helpers/backend-url";
 import type { FullConfig } from "@playwright/test";
 import { request } from "@playwright/test";
 
@@ -13,7 +13,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
 
   const api = await request.newContext();
   try {
-    const healthy = await isEdgequakeBackendHealthy(api);
+    const healthy = await waitForBackendInGlobalSetup(api);
     if (!healthy) {
       throw new Error(
         `EdgeQuake backend not healthy at ${BACKEND_URL}. ` +

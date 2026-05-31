@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Query Streaming Test", () => {
+test.describe("@debug Query Streaming Test", () => {
   test("should properly handle streaming text without concatenation issues", async ({
     page,
   }) => {

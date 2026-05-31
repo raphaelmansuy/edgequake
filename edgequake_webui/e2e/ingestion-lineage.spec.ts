@@ -6,6 +6,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 import path from "path";
 
 // Screenshot output directory
@@ -15,7 +16,7 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("01 - Documents page shows upload zone", async ({ page }) => {
@@ -83,7 +84,7 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
     if (isCostsVisible) {
       // Navigate to costs page
       await costsLink.click();
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       await expect(page).toHaveURL(/\/costs/);
 
       // Check costs page content - look for heading or dashboard text
@@ -107,7 +108,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("04 - Document detail shows lineage section", async ({ page }) => {
@@ -117,7 +118,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
     if ((await viewLinks.count()) > 0) {
       // Click on first document
       await viewLinks.first().click();
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Check for lineage section
       const hasLineage =
@@ -143,7 +144,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
   test("05 - Graph page shows knowledge graph", async ({ page }) => {
     // Navigate to graph page
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check for graph canvas or empty state
     const hasGraph =
@@ -164,7 +165,7 @@ test.describe("WebSocket Progress Tracking E2E Tests", () => {
   test("06 - WebSocket connection can be established", async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Listen for WebSocket connections
     let wsConnected = false;
@@ -189,7 +190,7 @@ test.describe("WebSocket Progress Tracking E2E Tests", () => {
 test.describe("API Integration E2E Tests", () => {
   test("07 - Documents API returns data or shows error", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check for either successful data display or connection error
     const hasContent =
@@ -208,7 +209,7 @@ test.describe("API Integration E2E Tests", () => {
   test("08 - Entity provenance component exists", async ({ page }) => {
     // Navigate to graph page
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Try to find and click an entity if graph is populated
     const entityNode = page.locator(

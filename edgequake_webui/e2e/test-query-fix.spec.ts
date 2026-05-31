@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-test.describe("Query Page Functionality Test", () => {
+test.describe("@debug Query Page Functionality Test", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page
     await page.goto("/query");

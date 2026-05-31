@@ -11,6 +11,7 @@
 
 import { expect, Page, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady } from "./helpers/app-ready";
 
 // Test configuration
 const BASE_URL = process.env.BASE_URL || "/";
@@ -112,7 +113,7 @@ async function getPipelineStatus(
 test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
-    await page.goto(`${BASE_URL}/documents`);
+    await page.goto('/documents');
   });
 
   test("API: Tasks endpoint filters by tenant_id", async ({ page }) => {
@@ -187,7 +188,7 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
     );
 
     // Open Pipeline Status dialog
-    await page.goto(`${BASE_URL}/documents?workspace=workspacea`);
+    await page.goto('/documents?workspace=workspacea');
 
     // Click "Click for details" link
     await page.click("text=Click for details");
@@ -238,7 +239,7 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
     page,
   }) => {
     // Navigate with workspace query param
-    await page.goto(`${BASE_URL}/documents?workspace=${WORKSPACE_A1.id}`);
+    await page.goto('/documents?workspace=${WORKSPACE_A1.id}');
 
     // Intercept API calls
     let pipelineStatusCalled = false;
@@ -261,11 +262,12 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
       await route.continue();
     });
 
-    // Wait for page to load and make API calls
-    await page.waitForTimeout(3000);
+    await waitForAppReady(page);
+    await expect
+      .poll(() => pipelineStatusCalled, { timeout: 15000 })
+      .toBeTruthy();
 
     // CRITICAL: Verify pipeline status was called with tenant context
-    expect(pipelineStatusCalled).toBeTruthy();
     expect(hasTenantContext).toBeTruthy();
   });
 
@@ -302,7 +304,7 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
   test("UI: Message display consistency between Pipeline page and Dialog", async ({
     page,
   }) => {
-    await page.goto(`${BASE_URL}/documents?workspace=${WORKSPACE_A1.id}`);
+    await page.goto('/documents?workspace=${WORKSPACE_A1.id}');
 
     // Upload a document to trigger processing
     await uploadTestDocument(
@@ -337,7 +339,7 @@ test.describe("Tenant/Workspace Isolation - Pipeline Status", () => {
 
 test.describe("Regression Tests - Previous Fixes", () => {
   test("BookOpen icon is present in query interface", async ({ page }) => {
-    await page.goto(`${BASE_URL}/query`);
+    await page.goto('/query');
 
     // Check that BookOpen icon loads (previous fix)
     const bookIcon = page.locator("svg").filter({ hasText: /book/i });

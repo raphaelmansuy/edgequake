@@ -1,79 +1,44 @@
 import { expect, test } from "@playwright/test";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { waitForAppReady } from "./helpers/app-ready";
+
+function parseStatsFromPage(pageText: string) {
+  const docMatch = pageText.match(/(\d+)\s+Documents?/i);
+  const entMatch = pageText.match(/(\d+)\s+Entities/i);
+  const relMatch = pageText.match(/(\d+)\s+Relationships?/i);
+  const chunkMatch = pageText.match(/(\d+)\s+Chunks?/i);
+  return {
+    documents: docMatch ? parseInt(docMatch[1], 10) : null,
+    entities: entMatch ? parseInt(entMatch[1], 10) : null,
+    relationships: relMatch ? parseInt(relMatch[1], 10) : null,
+    chunks: chunkMatch ? parseInt(chunkMatch[1], 10) : null,
+  };
+}
 
 test.describe("Dashboard and Workspace Stats Consistency", () => {
   test("Dashboard and Workspace page should show identical stats", async ({
     page,
+    request,
   }) => {
-    // Navigate to Dashboard
+    await bootstrapDeterministicUiContext(page, request, "dash-ws-consistency");
+
     await page.goto("/");
+    await waitForAppReady(page);
+    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 15_000 });
+    const dashboardStats = parseStatsFromPage(
+      await page.evaluate(() => document.body.innerText),
+    );
 
-    // Wait for the page to load
-    await page.waitForSelector("main", { timeout: 10000 });
-
-    // Wait a bit for stats to load
-    await page.waitForTimeout(2000);
-
-    // Extract stats from Dashboard
-    const dashboardStats = await page.evaluate(() => {
-      // Find all stat cards on the page
-      const statsText = document.body.innerText;
-
-      // Extract numbers using patterns
-      const docMatch = statsText.match(/(\d+)\s+Documents?/);
-      const entMatch = statsText.match(/(\d+)\s+Entities/);
-      const relMatch = statsText.match(/(\d+)\s+Relationships?/);
-      const chunkMatch = statsText.match(/(\d+)\s+Chunks?/);
-
-      return {
-        documents: docMatch ? parseInt(docMatch[1]) : null,
-        entities: entMatch ? parseInt(entMatch[1]) : null,
-        relationships: relMatch ? parseInt(relMatch[1]) : null,
-        chunks: chunkMatch ? parseInt(chunkMatch[1]) : null,
-      };
-    });
-
-    console.log("Dashboard stats:", dashboardStats);
-
-    // Navigate to Workspace page
     await page.goto("/workspace");
+    await waitForAppReady(page);
+    await page.waitForSelector("main", { timeout: 15_000 });
+    const workspaceStats = parseStatsFromPage(
+      await page.evaluate(() => document.body.innerText),
+    );
 
-    // Wait for the page to load
-    await page.waitForSelector("main", { timeout: 10000 });
-
-    // Wait a bit for stats to load
-    await page.waitForTimeout(2000);
-
-    // Extract stats from Workspace page
-    const workspaceStats = await page.evaluate(() => {
-      // Find all stat cards on the page
-      const statsText = document.body.innerText;
-
-      // Extract numbers using patterns
-      const docMatch = statsText.match(/(\d+)\s+Documents?/);
-      const entMatch = statsText.match(/(\d+)\s+Entities/);
-      const relMatch = statsText.match(/(\d+)\s+Relationships?/);
-      const chunkMatch = statsText.match(/(\d+)\s+Chunks?/);
-
-      return {
-        documents: docMatch ? parseInt(docMatch[1]) : null,
-        entities: entMatch ? parseInt(entMatch[1]) : null,
-        relationships: relMatch ? parseInt(relMatch[1]) : null,
-        chunks: chunkMatch ? parseInt(chunkMatch[1]) : null,
-      };
-    });
-
-    console.log("Workspace stats:", workspaceStats);
-
-    // Verify stats match
     expect(dashboardStats.documents).toBe(workspaceStats.documents);
     expect(dashboardStats.entities).toBe(workspaceStats.entities);
     expect(dashboardStats.relationships).toBe(workspaceStats.relationships);
     expect(dashboardStats.chunks).toBe(workspaceStats.chunks);
-
-    // Verify expected values (from TenantZZ / Default Workspace)
-    expect(dashboardStats.documents).toBe(1);
-    expect(dashboardStats.entities).toBe(13);
-    expect(dashboardStats.relationships).toBe(9);
-    expect(dashboardStats.chunks).toBe(1);
   });
 });

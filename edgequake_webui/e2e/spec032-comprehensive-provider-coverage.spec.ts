@@ -331,7 +331,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for provider selector
       const providerSelector = page.locator('[role="combobox"]').first();
@@ -376,7 +375,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Click provider selector to open dropdown
       const providerSelector = page.locator('[role="combobox"]').first();
@@ -776,7 +774,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for configuration sections
       const pageContent = await page.content();
@@ -822,7 +819,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for rebuild buttons/sections
       const rebuildText = page.getByText(/rebuild/i);
