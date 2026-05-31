@@ -27,7 +27,7 @@ test.describe("Source Tracking and Citations", () => {
       );
     });
 
-    await page.goto("http://localhost:3000/query");
+    await page.goto("/query");
     await page.waitForLoadState("networkidle");
   });
 

@@ -13,7 +13,7 @@ test.describe("Dashboard Workspace Stats", () => {
     });
 
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for stats to load
     await page.waitForTimeout(3000);
@@ -57,7 +57,7 @@ test.describe("Dashboard Workspace Stats", () => {
       }
     });
 
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
     await page.waitForTimeout(2000);
 
     console.log("[TEST] Dashboard requests:", dashboardRequests);
@@ -72,7 +72,7 @@ test.describe("Dashboard Workspace Stats", () => {
       }
     });
 
-    await page.goto("http://localhost:3000/workspace");
+    await page.goto("/workspace");
     await page.waitForTimeout(2000);
 
     console.log("[TEST] Workspace requests:", workspaceRequests);

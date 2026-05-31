@@ -24,7 +24,7 @@ test.describe("Dashboard Network Requests", () => {
     });
 
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for page to fully load
     await page.waitForTimeout(5000);

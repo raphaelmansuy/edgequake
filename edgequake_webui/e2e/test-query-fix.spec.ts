@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test.describe("Query Page Functionality Test", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page
-    await page.goto("http://localhost:3000/query");
+    await page.goto("/query");
   });
 
   test("should load query page and check UI elements", async ({ page }) => {

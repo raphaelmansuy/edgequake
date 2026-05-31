@@ -10,7 +10,7 @@
 import { expect, test } from "@playwright/test";
 
 const BACKEND_URL = "http://localhost:8080";
-const FRONTEND_URL = "http://localhost:3000";
+const FRONTEND_URL = "/";
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002";
 const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000003";
 

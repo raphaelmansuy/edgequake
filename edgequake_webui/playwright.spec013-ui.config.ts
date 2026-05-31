@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Requires backend + frontend running (see `make spec013-proof-ui`).
  */
 const backendUrl = process.env.E2E_BACKEND_URL ?? process.env.SPEC013_BACKEND_URL ?? 'http://localhost:8080';
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001';
 
 export default defineConfig({
   testDir: './e2e',

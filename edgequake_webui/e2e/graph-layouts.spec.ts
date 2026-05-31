@@ -19,7 +19,7 @@ test.describe("Graph Layouts", () => {
   // Skip if no canvas (empty graph)
   test.beforeEach(async ({ page }) => {
     // Navigate to graph page
-    await page.goto("http://localhost:3000/graph?workspace=default-workspace");
+    await page.goto("/graph?workspace=default-workspace");
 
     // Wait for page to load
     await page.waitForLoadState("networkidle");

@@ -9,7 +9,7 @@
 
 import { expect, test } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env.BASE_URL || "/";
 const SCREENSHOT_DIR = "e2e/screenshots/audit-verification";
 
 test.describe("UX/UI Audit Verification - Spacing & Padding", () => {

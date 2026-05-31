@@ -18,7 +18,7 @@
 import { expect, test } from "@playwright/test";
 
 const BACKEND_URL = "http://localhost:8080";
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "/";
 
 test.setTimeout(90000);
 

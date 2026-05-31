@@ -25,7 +25,7 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
 
   test("should invalidate cache when workspace changes", async ({ page }) => {
     // Step 1: Go to dashboard
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
 
     // Wait for onboarding to complete (if needed)
     await page.waitForTimeout(1000);
@@ -84,7 +84,7 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     });
 
     // Step 4: Upload a document to ensure stats change
-    await page.goto("http://localhost:3000/documents");
+    await page.goto("/documents");
     await page.waitForSelector('[data-testid="upload-button"]', {
       timeout: 5000,
     });
@@ -101,7 +101,7 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     await page.waitForTimeout(2000);
 
     // Step 5: Go back to dashboard and check stats updated
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
     await page.waitForSelector('[data-testid="stats-card"]', {
       timeout: 10000,
     });
@@ -161,7 +161,7 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
 
   test("should fetch fresh stats on every page load", async ({ page }) => {
     // Step 1: Go to dashboard
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
     await page.waitForTimeout(1000);
 
     // Handle onboarding if needed

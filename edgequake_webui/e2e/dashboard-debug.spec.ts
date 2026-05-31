@@ -5,7 +5,7 @@ test.describe("Dashboard localStorage Debug", () => {
     page,
   }) => {
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for page to load
     await page.waitForTimeout(3000);
@@ -68,7 +68,7 @@ test.describe("Dashboard localStorage Debug", () => {
     browserName,
   }) => {
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for React to hydrate
     await page.waitForSelector("main", { timeout: 10000 });

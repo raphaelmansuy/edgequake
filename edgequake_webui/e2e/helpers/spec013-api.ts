@@ -6,7 +6,7 @@ export const SPEC013_BACKEND =
   process.env.E2E_BACKEND_URL ?? process.env.SPEC013_BACKEND_URL ?? 'http://localhost:8080';
 
 export const SPEC013_FRONTEND =
-  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+  process.env.PLAYWRIGHT_BASE_URL ?? '/';
 
 /** Mistral models used consistently in SPEC-013 intensive E2E. */
 export const MISTRAL_LLM_MODEL = 'mistral-small-latest';

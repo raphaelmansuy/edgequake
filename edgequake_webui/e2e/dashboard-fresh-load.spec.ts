@@ -9,7 +9,7 @@ test.describe("Dashboard Stats - Fresh Load", () => {
     await context.clearCookies();
 
     // Navigate with cache disabled
-    await page.goto("http://localhost:3000/", {
+    await page.goto("/", {
       waitUntil: "networkidle",
     });
 

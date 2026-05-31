@@ -52,7 +52,7 @@ test.describe("Layout Performance Benchmarks", () => {
   // These tests require graph data with actual nodes
   test.beforeEach(async ({ page }) => {
     // Navigate to graph page
-    await page.goto("http://localhost:3000/graph?workspace=default-workspace");
+    await page.goto("/graph?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
 
     // Check if canvas exists (graph has data)
@@ -176,7 +176,7 @@ test.describe("Layout Performance Benchmarks", () => {
 test.describe("Memory and UI Responsiveness", () => {
   // These tests require graph data with actual nodes
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3000/graph?workspace=default-workspace");
+    await page.goto("/graph?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
 
     const canvas = page
@@ -241,7 +241,7 @@ test.describe("Memory and UI Responsiveness", () => {
 test.describe("Layout Quality Assessment", () => {
   // These tests require graph data with actual nodes
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3000/graph?workspace=default-workspace");
+    await page.goto("/graph?workspace=default-workspace");
     await page.waitForLoadState("networkidle");
 
     const canvas = page

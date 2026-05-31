@@ -4,7 +4,7 @@ test.describe("Query Page - Final Validation with Correct Selectors", () => {
   test("should successfully query and display messages", async ({ page }) => {
     console.log("\n🧪 Testing Query Page with Correct Selectors\n");
 
-    await page.goto("http://localhost:3000/query");
+    await page.goto("/query");
     await page.waitForLoadState("networkidle");
 
     // Enter query
