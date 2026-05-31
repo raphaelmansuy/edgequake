@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 /**
  * OODA-228: Interactive E2E Test for Workspace Embedding Dimension Fix
@@ -188,7 +189,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
   test("Should validate API response format", async ({ page, baseURL }) => {
     // Test the API directly
     const apiBaseUrl =
-      baseURL?.replace(":3001", ":8080") || "http://localhost:8080";
+      baseURL?.replace(":3001", ":8080") || `${BACKEND_URL}`;
 
     console.log(`🔗 Testing API at: ${apiBaseUrl}`);
 
@@ -238,7 +239,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
   test("Should handle streaming chat response", async ({ page, baseURL }) => {
     // This test validates that streaming responses also use workspace embedding
     const apiBaseUrl =
-      baseURL?.replace(":3001", ":8080") || "http://localhost:8080";
+      baseURL?.replace(":3001", ":8080") || `${BACKEND_URL}`;
 
     console.log("🧪 Testing streaming chat endpoint");
 

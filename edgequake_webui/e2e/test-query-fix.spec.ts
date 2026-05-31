@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 test.describe("Query Page Functionality Test", () => {
   test.beforeEach(async ({ page }) => {
@@ -135,7 +136,7 @@ test.describe("Query Page Functionality Test", () => {
 
   test("should check for API connectivity", async ({ page }) => {
     // Check if backend is reachable
-    const response = await page.request.get("http://localhost:8080/health");
+    const response = await page.request.get(`${BACKEND_URL}/health`);
     console.log(`Backend health check: ${response.status()}`);
 
     if (response.ok()) {

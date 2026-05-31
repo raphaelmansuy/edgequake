@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 /**
  * Multi-Tenant Isolation E2E Tests
@@ -9,7 +10,7 @@ import { expect, test } from "@playwright/test";
  * 3. API requests require proper tenant context
  */
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = `${BACKEND_URL}`;
 
 test.describe("Multi-Tenant Isolation", () => {
   let tenantA: { id: string; name: string };

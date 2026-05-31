@@ -763,6 +763,8 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 	@# Read the effective DATABASE_URL resolved by db-start (may differ in port
 	@# when another PostgreSQL occupies the default 5432).
 	@$(LOAD_EFF_DB_URL); \
+	_BIN="$(BACKEND_DIR)/target/debug/edgequake"; \
+	if [ -x "$$_BIN" ]; then _RUN="exec $$_BIN"; else _RUN="cd $(BACKEND_DIR) && exec cargo run"; fi; \
 	if [ -n "$$MISTRAL_API_KEY" ] || [ -n "$(MISTRAL_API_KEY)" ]; then \
 		_MISTRAL_KEY="$${MISTRAL_API_KEY:-$(MISTRAL_API_KEY)}"; \
 		echo "$(YELLOW)→ MISTRAL_API_KEY detected - using Mistral as default provider$(RESET)"; \
@@ -781,7 +783,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export EDGEQUAKE_VISION_MODEL=\"pixtral-large-latest\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_EMBEDDING_BATCH_SIZE=\"16\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	elif [ -n "$(OPENAI_API_KEY)" ]; then \
@@ -796,7 +798,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	else \
@@ -811,7 +813,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export OLLAMA_MODEL=\"gemma4:latest\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"embeddinggemma:latest\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	fi
@@ -1391,9 +1393,13 @@ test-e2e-critical: ## Run E2E critical path tests
 	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
 		pnpm exec playwright test ooda-228-critical-path.spec.ts --reporter=line
 
-test-e2e-full: ## Run full E2E test suite
-	@echo "$(BLUE)Running full E2E suite...$(RESET)"
-	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
+test-e2e-full: dev-bg ## Run full E2E test suite (requires make dev-bg stack)
+	@echo "$(BLUE)Running full E2E suite → frontend $(FRONTEND_URL) backend $(BACKEND_URL)$(RESET)"
+	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ EdgeQuake backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \
+	}
+	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --reporter=line
 
 # ============================================================================

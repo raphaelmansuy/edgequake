@@ -11,6 +11,7 @@
  * @iteration OODA 59
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 // Increase timeout for tests that use the page
 test.setTimeout(60000);
@@ -29,7 +30,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       // Test the models API endpoint
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -58,7 +59,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      * Verifies that default model configuration references valid providers and models.
      */
     test("default model configuration is valid", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -106,7 +107,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      * Note: API returns providers in registration order, client should sort by priority.
      */
     test("providers have priority property", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -128,7 +129,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      * Core providers (openai, ollama, mock) should always be enabled.
      */
     test("core providers are enabled", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -152,7 +153,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      */
     test("OpenAI models have valid names", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/llm"
+        `${API_V1_URL}/models/llm`
       );
       expect(response.ok()).toBe(true);
 
@@ -188,7 +189,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("LLM models exist in providers", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -209,7 +210,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models exist in providers", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -234,7 +235,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      * Verifies that LLM models have complete capability information.
      */
     test("LLM models have complete capabilities", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -269,7 +270,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      * Verifies that models have cost information for pricing display.
      */
     test("models have cost information", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -302,7 +303,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      * Verifies that models have tags for UI display and filtering.
      */
     test("models have tags property", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -340,7 +341,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
       expect(response.ok()).toBe(true);
 
@@ -403,7 +404,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // First get a workspace slug to use deeplink route
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0]?.id;
@@ -414,7 +415,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspaceSlug = workspaces.items[0]?.slug;
@@ -479,7 +480,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Focus 8: Streaming Support", () => {
     test("LLM models report streaming capability", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -502,7 +503,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models do not support streaming", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -530,7 +531,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create tenant with model configuration
       const createResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: uniqueName,
@@ -555,7 +556,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(tenant).toHaveProperty("default_embedding_provider", "openai");
 
       // Cleanup - delete tenant
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
 
     test("can create workspace with model config via API", async ({
@@ -563,7 +564,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Find the Default tenant with high workspace limit
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       expect(tenantsResponse.ok()).toBe(true);
       const tenants = await tenantsResponse.json();
@@ -580,7 +581,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create workspace with model configuration
       const createResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`,
         {
           data: {
             name: uniqueName,
@@ -617,7 +618,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Cleanup - delete workspace
       await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces/${workspace.id}`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces/${workspace.id}`
       );
     });
 
@@ -627,7 +628,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create a tenant with model config (backend may use server defaults for workspace)
       const tenantName = `Inherit Test Tenant ${Date.now()}`;
       const createTenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: tenantName,
@@ -646,7 +647,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create workspace WITHOUT specifying model config
       const workspaceName = `Inherit Test Workspace ${Date.now()}`;
       const createWorkspaceResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: workspaceName,
@@ -670,9 +671,9 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Cleanup
       await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces/${workspace.id}`
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces/${workspace.id}`
       );
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
   });
 
@@ -692,13 +693,13 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Get existing workspace slug from API
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0].id;
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspaceSlug = workspaces.items[0]?.slug;
@@ -759,13 +760,13 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Get existing workspace slug from API
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0].id;
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspaceSlug = workspaces.items[0]?.slug;
@@ -795,13 +796,13 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Get existing workspace slug from API
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0].id;
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspaceSlug = workspaces.items[0]?.slug;
@@ -878,7 +879,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Get existing workspace
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0]?.id;
@@ -889,7 +890,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspaceId = workspaces.items[0]?.id;
@@ -901,7 +902,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // POST to rebuild without force flag - should fail with 400
       const rebuildResponse = await request.post(
-        `http://localhost:8080/api/v1/workspaces/${workspaceId}/rebuild-embeddings`,
+        `${API_V1_URL}/workspaces/${workspaceId}/rebuild-embeddings`,
         {
           data: {
             force: false,
@@ -921,7 +922,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("rebuild embeddings API accepts force flag", async ({ request }) => {
       // Get existing workspace
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0]?.id;
@@ -932,7 +933,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspaceId = workspaces.items[0]?.id;
@@ -944,7 +945,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // POST with force: true - should succeed
       const rebuildResponse = await request.post(
-        `http://localhost:8080/api/v1/workspaces/${workspaceId}/rebuild-embeddings`,
+        `${API_V1_URL}/workspaces/${workspaceId}/rebuild-embeddings`,
         {
           data: {
             force: true,
@@ -971,7 +972,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      */
     test("invalid tenant ID returns 404", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants/00000000-0000-0000-0000-000000000000"
+        `${API_V1_URL}/tenants/00000000-0000-0000-0000-000000000000`
       );
       expect(response.status()).toBe(404);
     });
@@ -982,7 +983,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("invalid workspace ID returns 404", async ({ request }) => {
       // Get valid tenant first
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0]?.id;
@@ -994,7 +995,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Request invalid workspace
       const response = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces/00000000-0000-0000-0000-000000000000`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces/00000000-0000-0000-0000-000000000000`
       );
       expect(response.status()).toBe(404);
     });
@@ -1005,7 +1006,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      */
     test("list tenants returns paginated results", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       expect(response.ok()).toBe(true);
 
@@ -1023,7 +1024,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("list workspaces returns paginated results", async ({ request }) => {
       // Get valid tenant first
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0]?.id;
@@ -1034,7 +1035,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
 
       const response = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       expect(response.ok()).toBe(true);
 
@@ -1051,7 +1052,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("workspace has model configuration fields", async ({ request }) => {
       // Get valid tenant and workspace
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenantId = tenants.items[0]?.id;
@@ -1062,7 +1063,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       }
 
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       const workspace = workspaces.items[0];
@@ -1092,7 +1093,7 @@ test.describe("SPEC-032: Provider Integration", () => {
      */
     test("tenant has default model configuration", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       const tenant = tenants.items[0];
@@ -1222,7 +1223,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       expect(response.ok()).toBe(true);
 
@@ -1250,7 +1251,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Get tenant first
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
 
@@ -1261,7 +1262,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const response = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       expect(response.ok()).toBe(true);
 
@@ -1285,7 +1286,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("models response has complete structure", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1330,7 +1331,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("OpenAI provider has LLM and embedding models", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1355,7 +1356,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("Ollama provider has multimodal models", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1374,7 +1375,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("providers have valid priority values", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1389,7 +1390,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("deprecated models are marked", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1413,7 +1414,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Capability", () => {
     test("LLM models have streaming capability", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1435,7 +1436,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("multimodal models have vision capability", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1455,7 +1456,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models have dimension", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1475,7 +1476,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("models have context length", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1506,7 +1507,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Cost", () => {
     test("LLM models have input/output costs", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1529,7 +1530,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models have embedding costs", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1550,7 +1551,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("all costs are non-negative", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1577,7 +1578,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Tags", () => {
     test("models have tags array", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1590,7 +1591,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("tags are strings", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1605,7 +1606,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("recommended models have recommended tag", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -1628,7 +1629,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("Provider Health Extended", () => {
     test("health endpoint returns enabled providers", async ({ request }) => {
       const modelsResponse = await request.get(
-        "http://localhost:8080/api/v1/models"
+        `${API_V1_URL}/models`
       );
       const modelsData = await modelsResponse.json();
       // Filter to only enabled providers
@@ -1637,7 +1638,7 @@ test.describe("SPEC-032: Provider Integration", () => {
         .map((p: any) => p.name);
 
       const healthResponse = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
       expect(healthResponse.ok()).toBe(true);
 
@@ -1655,7 +1656,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("health status has proper structure", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
       expect(response.ok()).toBe(true);
 
@@ -1680,25 +1681,25 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("API Endpoint Availability", () => {
     test("GET /api/v1/tenants is available", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       expect(response.ok()).toBe(true);
     });
 
     test("GET /api/v1/models is available", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
     });
 
     test("GET /api/v1/models/health is available", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
       expect(response.ok()).toBe(true);
     });
 
     test("health check endpoint responds", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/health");
+      const response = await request.get(`${BACKEND_URL}/health`);
       expect(response.ok()).toBe(true);
     });
   });
@@ -1712,7 +1713,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("Workspace Operations", () => {
     test("can list workspaces for a tenant", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
 
@@ -1723,7 +1724,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const response = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       expect(response.ok()).toBe(true);
 
@@ -1733,7 +1734,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("workspace has complete model configuration", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
 
@@ -1744,7 +1745,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
 
@@ -1771,7 +1772,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("Tenant Operations", () => {
     test("can list tenants", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       expect(response.ok()).toBe(true);
 
@@ -1782,7 +1783,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("tenant has unique slug", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const data = await response.json();
 
@@ -1805,7 +1806,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Filtering", () => {
     test("can filter LLM models", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const llmModels = data.providers.flatMap((p: any) =>
@@ -1819,7 +1820,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("can filter embedding models", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const embeddingModels = data.providers.flatMap((p: any) =>
@@ -1841,7 +1842,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Provider Status", () => {
     test("enabled providers return true for enabled", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const enabledProviders = data.providers.filter((p: any) => p.enabled);
@@ -1853,7 +1854,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("disabled providers exist in registry", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const disabledProviders = data.providers.filter((p: any) => !p.enabled);
@@ -1870,7 +1871,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Function Calling Capability", () => {
     test("OpenAI models support function calling", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const openai = data.providers.find((p: any) => p.name === "openai");
@@ -1888,7 +1889,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("some models do not support function calling", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       // Embedding models should not support function calling
@@ -1910,7 +1911,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("JSON Mode Capability", () => {
     test("most LLM models support JSON mode", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const llmModels = data.providers
@@ -1929,7 +1930,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models do not support JSON mode", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const embeddingModels = data.providers.flatMap((p: any) =>
@@ -1948,7 +1949,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("System Message Capability", () => {
     test("LLM models support system message", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const llmModels = data.providers
@@ -1967,7 +1968,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("embedding models do not support system message", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const embeddingModels = data.providers.flatMap((p: any) =>
@@ -1986,7 +1987,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Vision Capability", () => {
     test("multimodal models support vision", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const multimodalModels = data.providers.flatMap((p: any) =>
@@ -1999,7 +2000,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models do not support vision", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const embeddingModels = data.providers.flatMap((p: any) =>
@@ -2018,7 +2019,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Max Output Tokens", () => {
     test("LLM models have positive max output tokens", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const llmModels = data.providers.flatMap((p: any) =>
@@ -2033,7 +2034,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("embedding models have zero max output tokens", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const embeddingModels = data.providers.flatMap((p: any) =>
@@ -2052,7 +2053,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Description", () => {
     test("all models have descriptions", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const allModels = data.providers.flatMap((p: any) => p.models);
@@ -2065,7 +2066,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("all models have display names", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const allModels = data.providers.flatMap((p: any) => p.models);
@@ -2084,7 +2085,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Provider Description", () => {
     test("all providers have descriptions", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       for (const provider of data.providers) {
@@ -2095,7 +2096,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("all providers have display names", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       for (const provider of data.providers) {
@@ -2112,7 +2113,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Image Cost", () => {
     test("vision models have image cost field", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const visionModels = data.providers.flatMap((p: any) =>
@@ -2126,7 +2127,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("non-vision models have zero image cost", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const nonVisionModels = data.providers.flatMap((p: any) =>
@@ -2145,7 +2146,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Provider Type Enum", () => {
     test("provider types are valid enum values", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const validTypes = [
@@ -2163,7 +2164,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("provider name matches provider type", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       for (const provider of data.providers) {
@@ -2178,7 +2179,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Uniqueness", () => {
     test("model names are unique within provider", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       for (const provider of data.providers) {
@@ -2191,7 +2192,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("model display names are unique within provider", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       for (const provider of data.providers) {
@@ -2208,7 +2209,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Default Model Validation", () => {
     test("default LLM model exists", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const provider = data.providers.find(
@@ -2223,7 +2224,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("default embedding model exists", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const provider = data.providers.find(
@@ -2245,7 +2246,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("API Response Time", () => {
     test("models endpoint responds within 5 seconds", async ({ request }) => {
       const start = Date.now();
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const elapsed = Date.now() - start;
 
       expect(response.ok()).toBe(true);
@@ -2255,7 +2256,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("tenants endpoint responds within 5 seconds", async ({ request }) => {
       const start = Date.now();
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const elapsed = Date.now() - start;
 
@@ -2270,14 +2271,14 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Provider Count", () => {
     test("at least 3 providers are available", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       expect(data.providers.length).toBeGreaterThanOrEqual(3);
     });
 
     test("at least 2 providers are enabled", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const enabledCount = data.providers.filter((p: any) => p.enabled).length;
@@ -2291,7 +2292,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("Model Count", () => {
     test("each enabled provider has at least 1 model", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const enabledProviders = data.providers.filter((p: any) => p.enabled);
@@ -2303,7 +2304,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("at least 10 models are available across providers", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const data = await response.json();
 
       const totalModels = data.providers.reduce(
@@ -2321,7 +2322,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("Health Latency", () => {
     test("health response includes latency", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
       const data = await response.json();
 
@@ -2335,7 +2336,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
       const data = await response.json();
 
@@ -2356,7 +2357,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Step 1: List tenants
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       expect(tenantsResponse.ok()).toBe(true);
       const tenants = await tenantsResponse.json();
@@ -2369,7 +2370,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Step 2: Get workspaces for first tenant
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       expect(workspacesResponse.ok()).toBe(true);
       const workspaces = await workspacesResponse.json();
@@ -2386,7 +2387,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Step 4: Verify the providers exist in models endpoint
       const modelsResponse = await request.get(
-        "http://localhost:8080/api/v1/models"
+        `${API_V1_URL}/models`
       );
       const models = await modelsResponse.json();
       const providerNames = models.providers.map((p: any) => p.name);
@@ -2409,7 +2410,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Get a valid workspace first
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -2419,7 +2420,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       if (!workspaces.items?.[0]?.id) {
@@ -2431,7 +2432,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Make a non-streaming query request
       const queryResponse = await request.post(
-        "http://localhost:8080/api/v1/query",
+        `${API_V1_URL}/query`,
         {
           headers: {
             "X-Tenant-Id": tenantId,
@@ -2470,7 +2471,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("models API returns provider display names", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -2484,7 +2485,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("models include description for lineage context", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -2506,7 +2507,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("rebuild-embeddings endpoint exists", async ({ request }) => {
       // Get a workspace ID first
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -2516,7 +2517,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       if (!workspaces.items?.[0]?.id) {
@@ -2528,7 +2529,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Check endpoint exists (OPTIONS or POST with empty body)
       const response = await request.post(
-        `http://localhost:8080/api/v1/workspaces/${workspaceId}/rebuild-embeddings`,
+        `${API_V1_URL}/workspaces/${workspaceId}/rebuild-embeddings`,
         {
           headers: {
             "X-Tenant-Id": tenantId,
@@ -2544,7 +2545,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("workspace embedding config endpoint exists", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -2554,7 +2555,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       if (!workspaces.items?.[0]?.id) {
@@ -2566,7 +2567,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Check embedding config endpoint
       const response = await request.get(
-        `http://localhost:8080/api/v1/workspaces/${workspaceId}/embedding-config`,
+        `${API_V1_URL}/workspaces/${workspaceId}/embedding-config`,
         {
           headers: {
             "X-Tenant-Id": tenantId,
@@ -2588,7 +2589,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("models API returns models grouped by provider", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -2603,7 +2604,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/llm"
+        `${API_V1_URL}/models/llm`
       );
       expect(response.ok()).toBe(true);
       const data = await response.json();
@@ -2629,7 +2630,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/embedding"
+        `${API_V1_URL}/models/embedding`
       );
       expect(response.ok()).toBe(true);
       const data = await response.json();
@@ -2667,7 +2668,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/llm"
+        `${API_V1_URL}/models/llm`
       );
       expect(response.ok()).toBe(true);
       const data = await response.json();
@@ -2700,7 +2701,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       const uniqueName = `OODA121-Tenant-${Date.now()}`;
 
       const createResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: uniqueName,
@@ -2721,14 +2722,14 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(tenant.default_embedding_model).toBe("embeddinggemma");
 
       // Cleanup: delete the test tenant
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
 
     test("tenant accepts openai provider config", async ({ request }) => {
       const uniqueName = `OODA121-OpenAI-${Date.now()}`;
 
       const createResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: uniqueName,
@@ -2747,7 +2748,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(tenant.default_embedding_provider).toBe("openai");
 
       // Cleanup
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
   });
 
@@ -2762,7 +2763,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create a fresh tenant for this test to avoid workspace limits
       const tenantName = `OODA122-T-${Date.now()}`;
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: tenantName,
@@ -2783,7 +2784,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       try {
         const createResponse = await request.post(
-          `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+          `${API_V1_URL}/tenants/${tenantId}/workspaces`,
           {
             data: {
               name: uniqueName,
@@ -2806,7 +2807,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       } finally {
         // Cleanup: delete the tenant (cascades to workspaces)
         await request.delete(
-          `http://localhost:8080/api/v1/tenants/${tenantId}`
+          `${API_V1_URL}/tenants/${tenantId}`
         );
       }
     });
@@ -2817,7 +2818,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create tenant with specific defaults
       const tenantName = `OODA122-Tenant-${Date.now()}`;
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: tenantName,
@@ -2835,7 +2836,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create workspace without model config
       const workspaceName = `OODA122-WS-${Date.now()}`;
       const workspaceResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: workspaceName,
@@ -2852,7 +2853,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace.embedding_provider).toBeDefined();
 
       // Cleanup
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
   });
 
@@ -2863,7 +2864,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("OODA 123: Tenant/Workspace Headers", () => {
     test("API accepts X-Tenant-Id header", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -2875,7 +2876,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Make request with X-Tenant-Id header
       const response = await request.get(
-        "http://localhost:8080/api/v1/workspaces",
+        `${API_V1_URL}/workspaces`,
         {
           headers: {
             "X-Tenant-Id": tenantId,
@@ -2889,7 +2890,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("API accepts X-Workspace-Id header", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -2899,7 +2900,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       if (!workspaces.items?.[0]?.id) {
@@ -2911,7 +2912,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Make request with both headers
       const response = await request.get(
-        "http://localhost:8080/api/v1/documents",
+        `${API_V1_URL}/documents`,
         {
           headers: {
             "X-Tenant-Id": tenantId,
@@ -2925,13 +2926,13 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("swagger endpoint is accessible", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/swagger-ui/");
+      const response = await request.get(`${BACKEND_URL}/swagger-ui/`);
       expect(response.ok()).toBe(true);
     });
 
     test("openapi.json is accessible", async ({ request }) => {
       const response = await request.get(
-        "http://localhost:8080/api-docs/openapi.json"
+        `${BACKEND_URL}/api-docs/openapi.json`
       );
       expect(response.ok()).toBe(true);
 
@@ -2976,7 +2977,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create a fresh tenant for this test to avoid workspace limits
       const tenantName = `OODA125-T-${Date.now()}`;
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: tenantName,
@@ -2998,7 +2999,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       try {
         // Create workspace with specific config
         const createResponse = await request.post(
-          `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+          `${API_V1_URL}/tenants/${tenantId}/workspaces`,
           {
             data: {
               name: uniqueName,
@@ -3016,7 +3017,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
         // Fetch workspace again
         const fetchResponse = await request.get(
-          `http://localhost:8080/api/v1/workspaces/${workspace.id}`,
+          `${API_V1_URL}/workspaces/${workspace.id}`,
           {
             headers: { "X-Tenant-Id": tenantId },
           }
@@ -3031,7 +3032,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       } finally {
         // Cleanup: delete the tenant (cascades to workspaces)
         await request.delete(
-          `http://localhost:8080/api/v1/tenants/${tenantId}`
+          `${API_V1_URL}/tenants/${tenantId}`
         );
       }
     });
@@ -3049,7 +3050,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Create a fresh tenant for this test
       const tenantName = `OODA246-T-${Date.now()}`;
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: tenantName,
@@ -3071,7 +3072,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       try {
         // Create workspace with initial config
         const createResponse = await request.post(
-          `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+          `${API_V1_URL}/tenants/${tenantId}/workspaces`,
           {
             data: {
               name: uniqueName,
@@ -3089,7 +3090,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
         // Update workspace to use different models (API uses PUT)
         const updateResponse = await request.put(
-          `http://localhost:8080/api/v1/workspaces/${workspace.id}`,
+          `${API_V1_URL}/workspaces/${workspace.id}`,
           {
             headers: { "X-Tenant-Id": tenantId },
             data: {
@@ -3112,7 +3113,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       } finally {
         // Cleanup
         await request.delete(
-          `http://localhost:8080/api/v1/tenants/${tenantId}`
+          `${API_V1_URL}/tenants/${tenantId}`
         );
       }
     });
@@ -3123,7 +3124,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("OODA 126-127: Provider Ordering", () => {
     test("providers sorted by priority", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3137,7 +3138,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("openai has highest priority (lowest number)", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3157,7 +3158,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("OODA 128-130: Ollama Provider", () => {
     test("ollama provider exists in models API", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3167,7 +3168,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("ollama has gemma3 model", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3184,7 +3185,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("ollama has embedding models", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3206,7 +3207,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("OODA 131-133: LM Studio Provider", () => {
     test("lmstudio provider exists in models API", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3215,7 +3216,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("lmstudio has LLM models", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3232,7 +3233,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("lmstudio streaming capability is defined", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3256,7 +3257,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("OODA 134-136: Model Capabilities", () => {
     test("vision models have supports_vision true", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3271,7 +3272,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("models have context_length property", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3284,7 +3285,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("embedding models have dimension property", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3308,7 +3309,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -3318,7 +3319,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       const tenantId = tenants.items[0].id;
       const workspacesResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
       if (!workspaces.items?.[0]?.slug) {
@@ -3394,7 +3395,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("OODA 146-150: Error Handling", () => {
     test("invalid provider name returns error", async ({ request }) => {
       const tenantsResponse = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const tenants = await tenantsResponse.json();
       if (!tenants.items?.[0]?.id) {
@@ -3406,7 +3407,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Try to create workspace with invalid provider
       const createResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`,
         {
           data: {
             name: `Invalid-${Date.now()}`,
@@ -3422,7 +3423,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("models API handles errors gracefully", async ({ request }) => {
       // Test that API doesn't crash on unusual requests
       const response = await request.get(
-        "http://localhost:8080/api/v1/models?invalid=param"
+        `${API_V1_URL}/models?invalid=param`
       );
 
       // Should still return 200
@@ -3440,7 +3441,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Step 1: Create tenant
       const tenantName = `OODA151-${Date.now()}`;
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: tenantName,
@@ -3455,7 +3456,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Step 2: Create workspace
       const workspaceName = `OODA151-WS-${Date.now()}`;
       const workspaceResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: workspaceName,
@@ -3470,12 +3471,12 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace.llm_provider).toBeDefined();
 
       // Cleanup
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
 
     test("models endpoint performance is acceptable", async ({ request }) => {
       const start = Date.now();
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const duration = Date.now() - start;
 
       expect(response.ok()).toBe(true);
@@ -3484,7 +3485,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("health check includes llm_provider_name", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/health");
+      const response = await request.get(`${BACKEND_URL}/health`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -3497,7 +3498,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("OODA 156-160: Configuration", () => {
     test("default config uses ollama provider", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3507,7 +3508,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("models.toml config is loaded", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3521,7 +3522,7 @@ test.describe("SPEC-032: Provider Integration", () => {
    */
   test.describe("OODA 161-167: Final Hardening", () => {
     test("all providers have unique names", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3533,7 +3534,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("all models have unique names within provider", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3545,7 +3546,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     });
 
     test("deprecated models are marked", async ({ request }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
       const data = await response.json();
 
@@ -3560,7 +3561,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       // Make 5 concurrent requests
       const promises = Array(5)
         .fill(null)
-        .map(() => request.get("http://localhost:8080/api/v1/models"));
+        .map(() => request.get(`${API_V1_URL}/models`));
 
       const responses = await Promise.all(promises);
 
@@ -3573,10 +3574,10 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("models API returns consistent data", async ({ request }) => {
       // Make two requests and compare
       const response1 = await request.get(
-        "http://localhost:8080/api/v1/models"
+        `${API_V1_URL}/models`
       );
       const response2 = await request.get(
-        "http://localhost:8080/api/v1/models"
+        `${API_V1_URL}/models`
       );
 
       expect(response1.ok()).toBe(true);
@@ -3637,7 +3638,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Test that the tenant creation API accepts model configuration fields
       const response = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: {
             name: "E2E Test Tenant with Models",
@@ -3658,7 +3659,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Clean up - delete the tenant
       const deleteResponse = await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
+        `${API_V1_URL}/tenants/${tenant.id}`
       );
       expect([200, 204]).toContain(deleteResponse.status());
     });
@@ -3668,7 +3669,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // First create a tenant to ensure we have one
       const createTenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: { name: `E2E Test Tenant ${Date.now()}` },
         }
@@ -3681,7 +3682,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create workspace with model configuration
       const response = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`,
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`,
         {
           data: {
             name: `E2E Test Workspace ${Date.now()}`,
@@ -3702,7 +3703,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace).toHaveProperty("id");
 
       // Clean up - delete the tenant (which cascades to delete workspace)
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenantId}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenantId}`);
     });
   });
 
@@ -3825,7 +3826,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       request,
     }) => {
       // Direct API test - verify the /models endpoint works
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -3838,7 +3839,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Test the /models/status endpoint
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/status"
+        `${API_V1_URL}/models/status`
       );
 
       // Should either succeed or return 404 if not implemented
@@ -3853,7 +3854,7 @@ test.describe("SPEC-032: Provider Integration", () => {
   test.describe("Focus 8: Response Time Tracking (OODA 186-190)", () => {
     test("health endpoint responds within 2000ms", async ({ request }) => {
       const startTime = Date.now();
-      const response = await request.get("http://localhost:8080/health");
+      const response = await request.get(`${BACKEND_URL}/health`);
       const endTime = Date.now();
 
       expect(response.ok()).toBe(true);
@@ -3862,7 +3863,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
     test("models endpoint responds within 2000ms", async ({ request }) => {
       const startTime = Date.now();
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       const endTime = Date.now();
 
       expect(response.ok()).toBe(true);
@@ -3872,7 +3873,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("tenants list responds within 1000ms", async ({ request }) => {
       const startTime = Date.now();
       const response = await request.get(
-        "http://localhost:8080/api/v1/tenants"
+        `${API_V1_URL}/tenants`
       );
       const endTime = Date.now();
 
@@ -3889,7 +3890,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("query API response includes provider field", async ({ request }) => {
       // First, ensure we have a tenant
       const createTenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: { name: `Lineage Test Tenant ${Date.now()}` },
         }
@@ -3899,7 +3900,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create a workspace
       const createWorkspaceResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: `Lineage Test Workspace ${Date.now()}`,
@@ -3913,7 +3914,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Make a query (may fail if no documents, but request structure should be valid)
       const queryResponse = await request.post(
-        `http://localhost:8080/api/v1/query`,
+        `${API_V1_URL}/query`,
         {
           data: {
             query: "Test query for lineage",
@@ -3931,7 +3932,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect([200, 400, 404, 422, 500]).toContain(queryResponse.status());
 
       // Clean up
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
 
     test("conversations API requires workspace context headers", async ({
@@ -3942,7 +3943,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Request without headers should return 400
       const responseNoHeaders = await request.get(
-        `http://localhost:8080/api/v1/conversations`
+        `${API_V1_URL}/conversations`
       );
       expect(responseNoHeaders.status()).toBe(400);
 
@@ -3963,7 +3964,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Create tenant
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: { name: `Embedding Test ${Date.now()}` },
         }
@@ -3973,7 +3974,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create workspace with custom embedding dimension
       const workspaceResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: `Embedding Workspace ${Date.now()}`,
@@ -3989,7 +3990,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace).toHaveProperty("id");
 
       // Clean up
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
 
     test("workspace returns LLM configuration in response", async ({
@@ -3997,7 +3998,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     }) => {
       // Create tenant
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: { name: `LLM Config Test ${Date.now()}` },
         }
@@ -4007,7 +4008,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create workspace with LLM configuration
       const workspaceResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: `LLM Workspace ${Date.now()}`,
@@ -4023,7 +4024,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       expect(workspace).toHaveProperty("id");
 
       // Clean up
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
   });
 
@@ -4071,7 +4072,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("models health API returns provider status", async ({ request }) => {
       // Test the /models/health endpoint
       const response = await request.get(
-        "http://localhost:8080/api/v1/models/health"
+        `${API_V1_URL}/models/health`
       );
 
       // Should return 200 or 404 (if endpoint not implemented yet)
@@ -4087,7 +4088,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("models list API returns providers with enabled status", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -4118,7 +4119,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       for (const endpoint of endpoints) {
         const response = await request.get(
-          `http://localhost:8080${endpoint.path}`
+          `${BACKEND_URL}${endpoint.path}`
         );
         expect(endpoint.expected).toContain(response.status());
       }
@@ -4127,7 +4128,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("provider model listing returns valid structure", async ({
       request,
     }) => {
-      const response = await request.get("http://localhost:8080/api/v1/models");
+      const response = await request.get(`${API_V1_URL}/models`);
       expect(response.ok()).toBe(true);
 
       const data = await response.json();
@@ -4139,7 +4140,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("tenant CRUD operations work correctly", async ({ request }) => {
       // Create
       const createResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: { name: `CRUD Test ${Date.now()}` },
         }
@@ -4150,13 +4151,13 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Read
       const readResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
+        `${API_V1_URL}/tenants/${tenant.id}`
       );
       expect(readResponse.ok()).toBe(true);
 
       // Delete
       const deleteResponse = await request.delete(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}`
+        `${API_V1_URL}/tenants/${tenant.id}`
       );
       expect([200, 204]).toContain(deleteResponse.status());
     });
@@ -4164,7 +4165,7 @@ test.describe("SPEC-032: Provider Integration", () => {
     test("workspace CRUD operations work correctly", async ({ request }) => {
       // Create tenant first
       const tenantResponse = await request.post(
-        "http://localhost:8080/api/v1/tenants",
+        `${API_V1_URL}/tenants`,
         {
           data: { name: `Workspace CRUD Test ${Date.now()}` },
         }
@@ -4174,7 +4175,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // Create workspace
       const createResponse = await request.post(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`,
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`,
         {
           data: {
             name: `Test Workspace ${Date.now()}`,
@@ -4187,7 +4188,7 @@ test.describe("SPEC-032: Provider Integration", () => {
 
       // List workspaces (verify workspace appears in list)
       const listResponse = await request.get(
-        `http://localhost:8080/api/v1/tenants/${tenant.id}/workspaces`
+        `${API_V1_URL}/tenants/${tenant.id}/workspaces`
       );
       expect(listResponse.ok()).toBe(true);
       const listData = await listResponse.json();
@@ -4196,7 +4197,7 @@ test.describe("SPEC-032: Provider Integration", () => {
       ).toBe(true);
 
       // Clean up
-      await request.delete(`http://localhost:8080/api/v1/tenants/${tenant.id}`);
+      await request.delete(`${API_V1_URL}/tenants/${tenant.id}`);
     });
   });
 });

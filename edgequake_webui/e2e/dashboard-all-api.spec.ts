@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 test.describe("Dashboard All API Calls", () => {
   test("should log all API calls made by Dashboard", async ({ page }) => {

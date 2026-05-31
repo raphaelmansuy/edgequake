@@ -15,6 +15,7 @@
 
 import { expect, test } from "@playwright/test";
 import path from "path";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 // OpenAI Tenant Configuration
 const ACTIVE_UPLOAD_STATUSES = /Pending|Processing|Converting PDF|Chunking|Extracting/;
@@ -30,7 +31,7 @@ const TEST_PDF = path.join(
 test.describe("WebSocket Document Upload (OpenAI Tenant)", () => {
   test.beforeEach(async ({ page }) => {
     // Intercept all API requests and inject tenant headers
-    await page.route("http://localhost:8080/api/**", async (route) => {
+    await page.route(`${BACKEND_URL}/api/**`, async (route) => {
       const headers = {
         ...route.request().headers(),
         "X-Tenant-ID": OPENAI_TENANT_ID,

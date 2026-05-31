@@ -2,8 +2,9 @@
  * SPEC-013 / GitHub #232 — GET /api/v1/api-keys must return created keys.
  */
 import { expect, test } from '@playwright/test';
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND = process.env.E2E_BACKEND_URL ?? 'http://localhost:8080';
+const BACKEND = process.env.E2E_BACKEND_URL ?? `${BACKEND_URL}`;
 
 test.describe('Issue #232 API keys list', () => {
   test('create then list returns at least one key', async ({ request }) => {

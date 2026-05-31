@@ -44,4 +44,10 @@ export default defineConfig({
           timeout: 120 * 1000,
         },
       }),
+
+  /** Stack check only when targeting an external dev server (make test-e2e-full). */
+  globalSetup:
+    customBaseUrl && process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1"
+      ? "./e2e/global-setup.ts"
+      : undefined,
 });

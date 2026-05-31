@@ -8,8 +8,8 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
 const FRONTEND_URL = "/";
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002";
 const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000003";
