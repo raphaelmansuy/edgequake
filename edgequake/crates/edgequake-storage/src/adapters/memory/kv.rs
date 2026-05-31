@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::sync::RwLock;
 
-use crate::error::{Result, StorageError};
+use crate::error::Result;
 use crate::traits::{kv_key_matches_like, KVStorage};
 
 /// In-memory key-value storage implementation.
@@ -56,7 +56,7 @@ impl KVStorage for MemoryKVStorage {
         let mut init = self
             .initialized
             .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+            .map_err(super::lock::map_lock_err)?;
         *init = true;
         Ok(())
     }
@@ -66,19 +66,13 @@ impl KVStorage for MemoryKVStorage {
     }
 
     async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
 
         Ok(data.get(id).cloned())
     }
 
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<serde_json::Value>> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
 
         let mut results = Vec::new();
         for id in ids {
@@ -90,20 +84,14 @@ impl KVStorage for MemoryKVStorage {
     }
 
     async fn filter_keys(&self, keys: HashSet<String>) -> Result<HashSet<String>> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
 
         let missing: HashSet<String> = keys.into_iter().filter(|k| !data.contains_key(k)).collect();
         Ok(missing)
     }
 
     async fn upsert(&self, items: &[(String, serde_json::Value)]) -> Result<()> {
-        let mut data = self
-            .data
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut data = self.data.write().map_err(super::lock::map_lock_err)?;
 
         for (id, value) in items {
             data.insert(id.clone(), value.clone());
@@ -112,10 +100,7 @@ impl KVStorage for MemoryKVStorage {
     }
 
     async fn delete(&self, ids: &[String]) -> Result<()> {
-        let mut data = self
-            .data
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut data = self.data.write().map_err(super::lock::map_lock_err)?;
 
         for id in ids {
             data.remove(id);
@@ -124,35 +109,23 @@ impl KVStorage for MemoryKVStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
         Ok(data.is_empty())
     }
 
     async fn count(&self) -> Result<usize> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
         Ok(data.len())
     }
 
     async fn ping(&self) -> Result<()> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
         let _reachable = data.len();
         Ok(())
     }
 
     async fn keys_like(&self, pattern: &str) -> Result<Vec<String>> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
         Ok(data
             .keys()
             .filter(|key| kv_key_matches_like(key, pattern))
@@ -161,10 +134,7 @@ impl KVStorage for MemoryKVStorage {
     }
 
     async fn keys_with_prefix(&self, prefix: &str) -> Result<Vec<String>> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
         Ok(data
             .keys()
             .filter(|key| key.starts_with(prefix))
@@ -173,18 +143,12 @@ impl KVStorage for MemoryKVStorage {
     }
 
     async fn keys(&self) -> Result<Vec<String>> {
-        let data = self
-            .data
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
         Ok(data.keys().cloned().collect())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut data = self
-            .data
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut data = self.data.write().map_err(super::lock::map_lock_err)?;
         data.clear();
         Ok(())
     }
@@ -208,10 +172,7 @@ impl KVStorage for MemoryKVStorage {
         expected_status: &str,
         new_status: &str,
     ) -> Result<bool> {
-        let mut data = self
-            .data
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut data = self.data.write().map_err(super::lock::map_lock_err)?;
 
         // Check if key exists and status matches
         if let Some(value) = data.get_mut(key) {

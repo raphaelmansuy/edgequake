@@ -25,6 +25,7 @@
 
 mod graph;
 mod kv;
+mod lock;
 mod vector;
 mod workspace_vector;
 
