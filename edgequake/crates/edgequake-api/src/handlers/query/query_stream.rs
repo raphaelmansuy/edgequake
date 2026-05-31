@@ -21,13 +21,13 @@ use crate::handlers::chat::build_sources;
 use crate::handlers::query::resolve_chunk_file_paths;
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
+use crate::services::{execute_sota_query_stream, resolve_workspace_query_resources};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 use super::workspace_resolve::resolve_query_workspace;
-use crate::handlers::query::{get_workspace_embedding_provider, get_workspace_vector_storage};
 pub use crate::handlers::query_types::{QueryStreamEvent, QueryStreamStats, StreamQueryRequest};
 
 type BoxedSseStream = Pin<Box<dyn futures::Stream<Item = Result<Event, Infallible>> + Send>>;
@@ -108,7 +108,7 @@ pub async fn stream_query(
         let ws_id_str = tenant_ctx.workspace_id.clone();
         let tenant_filter = data_tenant_id.clone();
         match crate::handlers::query::document_filter_resolver::resolve_document_filter(
-            state.kv_storage.as_ref(),
+            state.storage.kv_storage.as_ref(),
             filter,
             &tenant_filter,
             &ws_id_str,
@@ -161,13 +161,15 @@ pub async fn stream_query(
             }
         };
 
-    // SPEC-006: v1 backward-compatible mode - raw text streaming
+    // SPEC-006: v1 backward-compatible mode - raw text streaming (workspace-aware)
     if use_v1 {
-        let stream = state
-            .sota_engine
-            .query_stream(engine_request)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Streaming query failed: {}", e)))?;
+        let resources =
+            resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
+
+        let (_, _, stream) =
+            execute_sota_query_stream(&state, engine_request, resources, llm_override.clone())
+                .await
+                .map_err(ApiError::from)?;
 
         let sse_stream: BoxedSseStream = Box::pin(stream.map(|res| match res {
             Ok(text) => Ok(Event::default().data(text)),
@@ -188,84 +190,32 @@ pub async fn stream_query(
     tokio::spawn(async move {
         let retrieval_start = std::time::Instant::now();
 
-        // Resolve workspace-specific providers
-        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) =
-            workspace_id_str
+        let resources = match resolve_workspace_query_resources(
+            &state_clone,
+            workspace_id_str.as_deref(),
+        )
+        .await
         {
-            let embed_provider =
-                match get_workspace_embedding_provider(&state_clone, ws_id_str).await {
-                    Ok(Some(p)) => Some(p),
-                    Ok(None) => None,
-                    Err(e) => {
-                        error!(error = %e, "Cannot create workspace embedding provider");
-                        let _ = tx
-                            .send(QueryStreamEvent::Error {
-                                message: format!("Embedding provider error: {}", e),
-                                code: "EMBEDDING_PROVIDER_CONFIG_ERROR".to_string(),
-                            })
-                            .await;
-                        return;
-                    }
-                };
-
-            let vector_storage = match get_workspace_vector_storage(&state_clone, ws_id_str).await {
-                Ok(Some(s)) => Some(s),
-                Ok(None) => None,
-                Err(e) => {
-                    error!(error = %e, "Cannot get workspace vector storage");
-                    let _ = tx
-                        .send(QueryStreamEvent::Error {
-                            message: format!("Vector storage error: {}", e),
-                            code: "VECTOR_STORAGE_ERROR".to_string(),
-                        })
-                        .await;
-                    return;
-                }
-            };
-
-            (embed_provider, vector_storage)
-        } else {
-            (None, None)
-        };
-
-        // Execute streaming query with context - dispatch based on available providers
-        let stream_result = match (&ws_embedding_provider, &ws_vector_storage) {
-            (Some(embed), Some(vector)) => {
-                state_clone
-                    .sota_engine
-                    .query_stream_with_full_config(
-                        engine_request,
-                        embed.clone(),
-                        vector.clone(),
-                        llm_override.clone(),
-                    )
-                    .await
-            }
-            (Some(embed), None) => {
-                state_clone
-                    .sota_engine
-                    .query_stream_with_full_config(
-                        engine_request,
-                        embed.clone(),
-                        state_clone.vector_storage.clone(),
-                        llm_override.clone(),
-                    )
-                    .await
-            }
-            _ => {
-                if let Some(ref llm) = llm_override {
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context_and_llm(engine_request, llm.clone())
-                        .await
-                } else {
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context(engine_request)
-                        .await
-                }
+            Ok(resources) => resources,
+            Err(e) => {
+                error!(error = %e, "Workspace query resolution failed for streaming query");
+                let _ = tx
+                    .send(QueryStreamEvent::Error {
+                        message: e.to_string(),
+                        code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
+                    })
+                    .await;
+                return;
             }
         };
+
+        let stream_result = execute_sota_query_stream(
+            &state_clone,
+            engine_request,
+            resources,
+            llm_override.clone(),
+        )
+        .await;
 
         match stream_result {
             Ok((context, used_mode, mut stream)) => {
@@ -273,7 +223,8 @@ pub async fn stream_query(
 
                 // Build and enrich sources
                 let mut sources = build_sources(&context);
-                resolve_chunk_file_paths(state_clone.kv_storage.as_ref(), &mut sources).await;
+                resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
+                    .await;
 
                 // SPEC-006 FR-001: Emit context event BEFORE tokens
                 let context_event = QueryStreamEvent::Context {

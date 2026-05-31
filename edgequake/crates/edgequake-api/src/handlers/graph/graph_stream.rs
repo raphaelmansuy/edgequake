@@ -82,6 +82,7 @@ pub async fn stream_graph(
             // SPEC-011 iter 02 Fix B: planner estimate (O(1)) for polling endpoint.
             async {
                 state_clone
+                    .storage
                     .graph_storage
                     .node_count_fast()
                     .await
@@ -89,6 +90,7 @@ pub async fn stream_graph(
             },
             async {
                 state_clone
+                    .storage
                     .graph_storage
                     .edge_count_fast()
                     .await
@@ -96,13 +98,16 @@ pub async fn stream_graph(
             },
             tokio::time::timeout(
                 Duration::from_secs(QUERY_TIMEOUT_SECS),
-                state_clone.graph_storage.get_popular_nodes_with_degree(
-                    params_clone.max_nodes,
-                    None,
-                    None,
-                    tenant_ctx_clone.tenant_id.as_deref(),
-                    tenant_ctx_clone.workspace_id.as_deref(),
-                ),
+                state_clone
+                    .storage
+                    .graph_storage
+                    .get_popular_nodes_with_degree(
+                        params_clone.max_nodes,
+                        None,
+                        None,
+                        tenant_ctx_clone.tenant_id.as_deref(),
+                        tenant_ctx_clone.workspace_id.as_deref(),
+                    ),
             ),
         );
 
@@ -124,7 +129,7 @@ pub async fn stream_graph(
                         "Database query timed out, falling back to simple node fetch"
                     );
 
-                    match state_clone.graph_storage.get_all_nodes().await {
+                    match state_clone.storage.graph_storage.get_all_nodes().await {
                         Ok(all_nodes) => all_nodes
                             .into_iter()
                             .filter(|n| {
@@ -160,7 +165,7 @@ pub async fn stream_graph(
                     "Stream query timed out, falling back to simple node fetch"
                 );
 
-                match state_clone.graph_storage.get_all_nodes().await {
+                match state_clone.storage.graph_storage.get_all_nodes().await {
                     Ok(all_nodes) => all_nodes
                         .into_iter()
                         .filter(|n| {
@@ -249,6 +254,7 @@ pub async fn stream_graph(
 
         // Fetch and stream edges (optimized batch query)
         let edges = match state_clone
+            .storage
             .graph_storage
             .get_edges_for_node_set(
                 &all_node_ids,

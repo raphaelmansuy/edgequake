@@ -80,10 +80,12 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("Query engine not initialized"))?;
 
-        // Delegate to SOTA query engine (FEAT0109)
-        // WHY delegation: Query logic is complex; separating into edgequake-query crate
-        // enables independent testing and evolution of retrieval strategies
-        query_engine.query(query, params).await
+        let llm = self
+            .llm_provider
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
+
+        crate::sota_bridge::query_via_sota(query_engine, llm, query, params).await
     }
 
     /// Delete a document and cascade delete associated graph data.

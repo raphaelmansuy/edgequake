@@ -59,7 +59,8 @@ pub async fn login(
 
     // Verify password
     let password_valid = state
-        .password_service
+        .auth
+        .password
         .verify_password(&request.password, &user.password_hash)
         .map_err(|e| {
             warn!("Password verification error: {}", e);
@@ -79,7 +80,8 @@ pub async fn login(
         .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
 
     let access_token = state
-        .jwt_service
+        .auth
+        .jwt
         .generate_token(user_uuid, user.role.clone())
         .map_err(|e| {
             warn!("Token generation error: {}", e);
@@ -104,12 +106,13 @@ pub async fn login(
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
     state
+        .storage
         .kv_storage
         .upsert(&[(key, value)])
         .await
         .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
 
-    let expires_in = state.jwt_service.expiry_duration().as_secs() as i64;
+    let expires_in = state.auth.jwt.expiry_duration().as_secs() as i64;
 
     info!("Login successful for user: {}", user.username);
 
@@ -142,7 +145,7 @@ pub async fn refresh_token(
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, request.refresh_token);
 
     // Look up refresh token
-    let record = match state.kv_storage.get_by_id(&key).await {
+    let record = match state.storage.kv_storage.get_by_id(&key).await {
         Ok(Some(value)) => serde_json::from_value::<RefreshTokenRecord>(value)
             .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?,
         Ok(None) => {
@@ -173,11 +176,12 @@ pub async fn refresh_token(
         .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
 
     let access_token = state
-        .jwt_service
+        .auth
+        .jwt
         .generate_token(user_uuid, user.role)
         .map_err(|e| ApiError::Internal(format!("Token generation error: {}", e)))?;
 
-    let expires_in = state.jwt_service.expiry_duration().as_secs() as i64;
+    let expires_in = state.auth.jwt.expiry_duration().as_secs() as i64;
 
     Ok(Json(RefreshTokenResponse {
         access_token,
@@ -207,6 +211,7 @@ pub async fn logout(
 
     // Look up and revoke the refresh token
     if let Some(value) = state
+        .storage
         .kv_storage
         .get_by_id(&key)
         .await
@@ -221,6 +226,7 @@ pub async fn logout(
             .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
         state
+            .storage
             .kv_storage
             .upsert(&[(key, new_value)])
             .await
@@ -262,7 +268,8 @@ pub async fn get_me(
 
     // Verify the JWT and extract claims
     let claims = state
-        .jwt_service
+        .auth
+        .jwt
         .verify_token(token)
         .map_err(|e| ApiError::BadRequest(format!("Invalid token: {}", e)))?;
 
@@ -275,6 +282,7 @@ pub async fn get_me(
     let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
 
     let user_value = state
+        .storage
         .kv_storage
         .get_by_id(&user_key)
         .await

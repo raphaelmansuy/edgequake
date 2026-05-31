@@ -60,8 +60,8 @@ pub async fn list_documents(
     }
 
     // SPEC-011: SQL LIKE filters avoid O(N) full key scan + in-memory filter.
-    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
-    let chunk_keys = state.kv_storage.keys_like("%-chunk-%").await?;
+    let metadata_keys = state.storage.kv_storage.keys_like("%-metadata").await?;
+    let chunk_keys = state.storage.kv_storage.keys_like("%-chunk-%").await?;
     debug!(
         metadata_key_count = metadata_keys.len(),
         chunk_key_count = chunk_keys.len(),
@@ -96,7 +96,7 @@ pub async fn list_documents(
         metadata_keys_count = metadata_keys.len(),
         "Fetching metadata for keys"
     );
-    let metadata_values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+    let metadata_values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
     debug!(
         metadata_values_count = metadata_values.len(),
         "Metadata values retrieved"

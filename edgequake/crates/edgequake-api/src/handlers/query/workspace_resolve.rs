@@ -36,7 +36,7 @@ pub(super) async fn get_workspace(
 /// back to the server default would silently turn a scoped query into an
 /// unscoped one. Query handlers should therefore fail closed for explicit
 /// workspace requests and only use default behavior when no workspace was sent.
-pub(super) async fn resolve_query_workspace(
+pub async fn resolve_query_workspace(
     state: &AppState,
     workspace_id: Option<&str>,
 ) -> Result<Option<edgequake_core::Workspace>, ApiError> {
@@ -143,7 +143,12 @@ pub async fn get_workspace_vector_storage(
     // WHY: When embedding provider changes (e.g., Ollama 768 → OpenAI 1536), the cached
     // vector storage instance may hold the old dimension. If get_or_create fails due to
     // dimension mismatch, we evict the cache and retry with the new dimension.
-    let storage = match state.vector_registry.get_or_create(config.clone()).await {
+    let storage = match state
+        .storage
+        .vector_registry
+        .get_or_create(config.clone())
+        .await
+    {
         Ok(s) => s,
         Err(e) => {
             let error_msg = e.to_string();
@@ -154,11 +159,11 @@ pub async fn get_workspace_vector_storage(
                     error = %error_msg,
                     "Dimension mismatch detected, evicting cache and retrying"
                 );
-                state.vector_registry.evict(&workspace_uuid).await;
+                state.storage.vector_registry.evict(&workspace_uuid).await;
 
                 // Retry after eviction
                 state
-                    .vector_registry
+                    .storage.vector_registry
                     .get_or_create(config)
                     .await
                     .map_err(|e2| {

@@ -31,6 +31,7 @@ pub async fn search_labels(
     Query(params): Query<SearchLabelsQuery>,
 ) -> ApiResult<Json<SearchLabelsResponse>> {
     let labels = state
+        .storage
         .graph_storage
         .search_labels(&params.q, params.limit)
         .await?;
@@ -70,6 +71,7 @@ pub async fn search_nodes(
 
     // Search for matching nodes
     let matching_nodes = state
+        .storage
         .graph_storage
         .search_nodes(
             &params.q,
@@ -99,6 +101,7 @@ pub async fn search_nodes(
         for node_id in initial_node_ids {
             // Limit neighbor lookups
             if let Ok(neighbors) = state
+                .storage
                 .graph_storage
                 .get_neighbors(&node_id, params.neighbor_depth)
                 .await
@@ -108,6 +111,7 @@ pub async fn search_nodes(
                         node_ids.insert(neighbor.id.clone());
                         // Get degree for neighbor
                         let degree = state
+                            .storage
                             .graph_storage
                             .node_degree(&neighbor.id)
                             .await
@@ -123,6 +127,7 @@ pub async fn search_nodes(
     let edges = if all_nodes.len() > 1 {
         let node_id_vec: Vec<String> = node_ids.into_iter().collect();
         state
+            .storage
             .graph_storage
             .get_edges_for_node_set(&node_id_vec, tenant_id.as_deref(), workspace_id.as_deref())
             .await

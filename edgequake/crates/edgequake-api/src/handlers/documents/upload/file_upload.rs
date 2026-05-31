@@ -114,25 +114,29 @@ pub async fn upload_file(
         // WHY: If the configured LLM doesn't support vision (e.g. Mistral text-only),
         // we still ingest the image as a document with a descriptive placeholder rather
         // than returning a hard error to the user.
-        let extracted =
-            match extract_text_from_image(&content, mime, &filename, state.llm_provider.as_ref())
-                .await
-            {
-                Ok(text) => text,
-                Err(e) => {
-                    tracing::warn!(
-                        filename = %filename,
-                        error = %e,
-                        "Vision extraction failed; storing image with placeholder text"
-                    );
-                    format!(
-                        "# Image Document: {filename}\n\n\
+        let extracted = match extract_text_from_image(
+            &content,
+            mime,
+            &filename,
+            state.query.llm_provider.as_ref(),
+        )
+        .await
+        {
+            Ok(text) => text,
+            Err(e) => {
+                tracing::warn!(
+                    filename = %filename,
+                    error = %e,
+                    "Vision extraction failed; storing image with placeholder text"
+                );
+                format!(
+                    "# Image Document: {filename}\n\n\
                      *Automatic text extraction failed: {e}*\n\n\
                      Configure a vision-capable LLM (e.g., gpt-4o, gemma3:12b, llava) \
                      to enable OCR/text extraction from image uploads."
-                    )
-                }
-            };
+                )
+            }
+        };
         (extracted, mime)
     } else {
         // ── Text path: validate size, extension, and UTF-8 ───────────────────
@@ -154,7 +158,7 @@ pub async fn upload_file(
     // FIX-4: Duplicates now trigger re-ingestion instead of rejection
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
     debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
-    if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
+    if let Some(existing_doc_id) = state.storage.kv_storage.get_by_id(&hash_key).await? {
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
             // FIX-4: Try to delete old document data for re-ingestion
@@ -211,6 +215,7 @@ pub async fn upload_file(
 
     // Store hash mapping for deduplication (workspace-scoped)
     state
+        .storage
         .kv_storage
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
@@ -245,6 +250,7 @@ pub async fn upload_file(
         "custom_metadata": metadata,
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(doc_metadata_key.clone(), doc_metadata)])
         .await?;
@@ -255,6 +261,7 @@ pub async fn upload_file(
         "content": text_content,
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(doc_content_key, doc_content)])
         .await?;
@@ -295,7 +302,7 @@ pub async fn upload_file(
         })
         .collect();
 
-    state.kv_storage.upsert(&chunks).await?;
+    state.storage.kv_storage.upsert(&chunks).await?;
 
     // SPEC-033: Get workspace-specific vector storage for file embeddings
     // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
@@ -395,6 +402,7 @@ pub async fn upload_file(
             // are stored as separate nodes, bypassing deduplication in the merger.
             let entity_key = normalize_entity_name(&entity.name);
             match state
+                .storage
                 .graph_storage
                 .upsert_node(&entity_key, properties)
                 .await
@@ -478,6 +486,7 @@ pub async fn upload_file(
             );
 
             let _ = state
+                .storage
                 .graph_storage
                 .upsert_edge(&relationship.source, &relationship.target, properties)
                 .await;
@@ -517,6 +526,7 @@ pub async fn upload_file(
         "processing_duration_ms": result.stats.processing_time_ms,
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
@@ -525,7 +535,7 @@ pub async fn upload_file(
     // WHY: Without this, file uploads only write to KV storage. The PostgreSQL
     // `documents` table stays incomplete, causing Dashboard KPI mismatch.
     #[cfg(feature = "postgres")]
-    if let Some(ref pdf_storage) = state.pdf_storage {
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
         if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
             if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
                 let tenant_uuid = tenant_id_for_storage

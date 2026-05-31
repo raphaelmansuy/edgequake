@@ -49,7 +49,7 @@ async fn seed_kv(state: &AppState, workspace_id: Uuid, tenant_id: Uuid) -> usize
         }
     }
 
-    state.kv_storage.upsert(&batch).await.unwrap();
+    state.storage.kv_storage.upsert(&batch).await.unwrap();
     batch.len()
 }
 
@@ -124,7 +124,7 @@ async fn test_kv_ping_slo_with_large_kv() {
     let (state, _, _, _) = setup_app_with_workspace().await;
 
     let start = Instant::now();
-    state.kv_storage.ping().await.unwrap();
+    state.storage.kv_storage.ping().await.unwrap();
     let elapsed = start.elapsed();
 
     assert!(
@@ -141,7 +141,12 @@ async fn test_keys_with_prefix_slo_and_correctness() {
     let prefix = format!("{doc_id}-chunk-");
 
     let start = Instant::now();
-    let keys = state.kv_storage.keys_with_prefix(&prefix).await.unwrap();
+    let keys = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&prefix)
+        .await
+        .unwrap();
     let elapsed = start.elapsed();
 
     assert_eq!(keys.len(), SEED_CHUNKS_PER_DOC);
@@ -156,7 +161,12 @@ async fn test_keys_with_prefix_slo_and_correctness() {
 async fn test_keys_like_metadata_count_matches_seed() {
     let (state, _, _, _) = setup_app_with_workspace().await;
 
-    let metadata_keys = state.kv_storage.keys_like("%-metadata").await.unwrap();
+    let metadata_keys = state
+        .storage
+        .kv_storage
+        .keys_like("%-metadata")
+        .await
+        .unwrap();
     assert_eq!(
         metadata_keys.len(),
         SEED_DOC_COUNT,
@@ -195,7 +205,7 @@ async fn test_document_list_slo_with_large_kv() {
 async fn test_count_still_exact_under_load() {
     let (state, _, _, _) = setup_app_with_workspace().await;
     let expected = SEED_DOC_COUNT * (SEED_CHUNKS_PER_DOC + 1);
-    assert_eq!(state.kv_storage.count().await.unwrap(), expected);
+    assert_eq!(state.storage.kv_storage.count().await.unwrap(), expected);
 }
 
 /// Regression: the 13s production query was `SELECT COUNT(*) FROM eq_eq_default_kv`

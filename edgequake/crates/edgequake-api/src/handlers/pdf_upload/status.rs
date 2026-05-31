@@ -262,6 +262,7 @@ pub async fn get_pdf_progress(
     Path(track_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let progress = state
+        .tasks
         .pipeline_state
         .get_pdf_progress(&track_id)
         .await
@@ -327,7 +328,7 @@ pub async fn get_pdf_progress_stream(
     State(state): State<AppState>,
     Path(track_id): Path<String>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let pipeline_state = state.pipeline_state.clone();
+    let pipeline_state = state.tasks.pipeline_state.clone();
     let tid = track_id.clone();
 
     // Adaptive poll interval based on whether we've seen progress yet

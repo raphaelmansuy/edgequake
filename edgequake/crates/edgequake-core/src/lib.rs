@@ -43,7 +43,7 @@ pub mod error;
 pub mod keyword_extractor;
 #[cfg(feature = "pipeline")]
 pub mod orchestrator;
-pub mod query;
+pub mod sota_bridge;
 #[cfg(feature = "pipeline")]
 pub mod tenant_manager;
 pub mod token_budget;
@@ -95,7 +95,6 @@ pub use config::Config;
 pub use error::{Error, Result};
 #[cfg(feature = "pipeline")]
 pub use orchestrator::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
-pub use query::QueryEngine;
 pub use types::{
     Chunk, ContextChunk, ContextEntity, ContextRelationship, Conversation, ConversationFilter,
     ConversationMode, ConversationSortField, CreateConversationRequest, CreateFolderRequest,

@@ -5,7 +5,11 @@
 
 use std::sync::Arc;
 
-use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
+use super::{
+    create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
+};
+use crate::cache_manager::CacheManager;
 use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
 use edgequake_llm::ModelsConfig;
@@ -16,13 +20,6 @@ use edgequake_storage::{
     traits::{GraphStorage, KVStorage, VectorStorage},
     PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage, PostgresKVStorage,
 };
-use edgequake_tasks::PipelineState;
-
-use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{create_bm25_reranker, AppState};
-use crate::cache_manager::CacheManager;
-use crate::handlers::ProgressBroadcaster;
-
 impl AppState {
     /// Load path validation configuration from environment.
     ///
@@ -339,55 +336,49 @@ impl AppState {
             ));
 
         // Create auth services
-        let auth_config = AuthConfig::from_env();
-        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
-        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
-        let rbac_service = Arc::new(RbacService::new());
+        let auth = AuthRuntime::from_env();
 
         // Create PDF storage (SPEC-007) - uses the connection pool
         let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
             Arc::new(edgequake_storage::PostgresPdfStorage::new(pool.clone()));
 
         Ok(Self {
-            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
-            vector_storage: Arc::clone(&vector_storage)
-                as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            vector_registry,
-            graph_storage: Arc::clone(&graph_storage)
-                as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            vision_llm_provider: super::provider_setup::resolve_vision_llm_provider(),
-            embedding_provider: Arc::clone(&embedding_provider),
-            query_engine,
-            sota_engine,
-            pipeline,
-            task_storage,
-            task_queue,
-            pipeline_state: PipelineState::new(),
-            progress_broadcaster: ProgressBroadcaster::default(),
+            storage: StorageRuntime {
+                kv_storage: Arc::clone(&kv_storage)
+                    as Arc<dyn edgequake_storage::traits::KVStorage>,
+                vector_storage: Arc::clone(&vector_storage)
+                    as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                vector_registry,
+                graph_storage: Arc::clone(&graph_storage)
+                    as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                pdf_storage: Some(pdf_storage),
+                mode: StorageMode::PostgreSQL,
+            },
+            query: QueryRuntime {
+                llm_provider: Arc::clone(&llm_provider)
+                    as Arc<dyn edgequake_llm::traits::LLMProvider>,
+                vision_llm_provider: super::provider_setup::resolve_vision_llm_provider(),
+                embedding_provider: Arc::clone(&embedding_provider),
+                query_engine,
+                sota_engine,
+                pipeline,
+                models_config: Arc::new({
+                    const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
+                    ModelsConfig::from_toml(BUNDLED_MODELS)
+                        .or_else(|_| ModelsConfig::load())
+                        .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
+                }),
+            },
+            auth,
+            tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
-            auth_config,
-            jwt_service,
-            password_service,
-            rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
-            storage_mode: StorageMode::PostgreSQL,
-            models_config: Arc::new({
-                const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
-                ModelsConfig::from_toml(BUNDLED_MODELS)
-                    .or_else(|_| ModelsConfig::load())
-                    .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
-            }),
             pg_pool: Some(pool),
-            pdf_storage: Some(pdf_storage),
             start_time: std::time::Instant::now(),
-            // SECURITY (OODA-248): PostgreSQL mode defaults to secure config.
-            // Administrators should configure ALLOWED_SCAN_PATHS environment variable.
             path_validation_config: Self::load_path_validation_config(),
-            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
         })
     }
 }

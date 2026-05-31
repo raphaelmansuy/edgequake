@@ -150,10 +150,6 @@ pub enum ApiError {
     /// Pipeline error.
     #[error("Pipeline error: {0}")]
     Pipeline(#[from] edgequake_pipeline::error::PipelineError),
-
-    /// Query error.
-    #[error("Query error: {0}")]
-    Query(#[from] edgequake_query::error::QueryError),
 }
 
 impl ApiError {
@@ -174,7 +170,6 @@ impl ApiError {
             Self::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Llm(_) => StatusCode::BAD_GATEWAY,
             Self::Pipeline(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Query(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -195,7 +190,6 @@ impl ApiError {
             Self::Storage(_) => "STORAGE_ERROR",
             Self::Llm(_) => "LLM_ERROR",
             Self::Pipeline(_) => "PIPELINE_ERROR",
-            Self::Query(_) => "QUERY_ERROR",
         }
     }
 }
@@ -261,6 +255,26 @@ impl From<ProviderResolutionError> for ApiError {
             ProviderResolutionError::WorkspaceServiceError(msg) => {
                 ApiError::Internal(format!("Workspace service error: {}", msg))
             }
+        }
+    }
+}
+
+/// Convert query engine errors to semantic HTTP API errors (SPEC-017 P1-07).
+impl From<edgequake_query::error::QueryError> for ApiError {
+    fn from(e: edgequake_query::error::QueryError) -> Self {
+        use edgequake_query::error::QueryError;
+        match e {
+            QueryError::InvalidQuery(msg) => ApiError::BadRequest(msg),
+            QueryError::NoResults => ApiError::NotFound("No results found for query".to_string()),
+            QueryError::ContextLimitExceeded { max, got } => ApiError::BadRequest(format!(
+                "Context limit exceeded: max {} tokens, got {}",
+                max, got
+            )),
+            QueryError::StorageError(se) => ApiError::Storage(se),
+            QueryError::LlmError(le) => ApiError::Llm(le),
+            QueryError::ConfigError(msg) => ApiError::ConfigError(msg),
+            QueryError::Timeout(ms) => ApiError::Timeout(format!("Query timed out after {}ms", ms)),
+            QueryError::Internal(msg) => ApiError::Internal(msg),
         }
     }
 }
@@ -463,10 +477,15 @@ mod tests {
     #[test]
     fn test_query_error_status_code() {
         use edgequake_query::error::QueryError;
-        let query_err = QueryError::InvalidQuery("bad query".to_string());
-        let api_err = ApiError::Query(query_err);
-        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(api_err.code(), "QUERY_ERROR");
+        let api_err = ApiError::from(QueryError::InvalidQuery("bad query".to_string()));
+        assert_eq!(api_err.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(api_err.code(), "BAD_REQUEST");
+
+        let api_err = ApiError::from(QueryError::NoResults);
+        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+
+        let api_err = ApiError::from(QueryError::ConfigError("missing key".into()));
+        assert_eq!(api_err.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[test]

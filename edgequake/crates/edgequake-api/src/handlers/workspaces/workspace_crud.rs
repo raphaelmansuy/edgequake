@@ -336,7 +336,12 @@ pub async fn delete_workspace(
 
     // 1. Clear vector storage for this workspace
     // WHY: Remove all embeddings (chunks + entities) before deleting workspace
-    let vectors_cleared = match state.vector_storage.clear_workspace(&workspace_id).await {
+    let vectors_cleared = match state
+        .storage
+        .vector_storage
+        .clear_workspace(&workspace_id)
+        .await
+    {
         Ok(count) => {
             tracing::info!(workspace_id = %workspace_id, vectors_cleared = count, "Cleared vector storage");
             count
@@ -350,6 +355,7 @@ pub async fn delete_workspace(
     // 2. Clear graph storage for this workspace (entities and relationships)
     // WHY: Remove all knowledge graph nodes and edges
     let (nodes_cleared, edges_cleared) = match state
+        .storage
         .graph_storage
         .clear_workspace(&workspace_id)
         .await
@@ -377,7 +383,7 @@ pub async fn delete_workspace(
     // NOTE (SPEC-012): keep the `kv.keys()` scan here \u2014 deletion needs the full key
     // universe to find chunk keys per document. This is *not* a polled hotspot
     // (delete workspace is a rare admin op), so a full scan is acceptable.
-    if let Ok(all_keys) = state.kv_storage.keys().await {
+    if let Ok(all_keys) = state.storage.kv_storage.keys().await {
         // Find metadata keys and check workspace membership
         let metadata_keys: Vec<String> = all_keys
             .iter()
@@ -388,7 +394,7 @@ pub async fn delete_workspace(
         let mut keys_to_delete: Vec<String> = Vec::new();
 
         for key in metadata_keys {
-            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&key).await {
+            if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(&key).await {
                 // Check if document belongs to this workspace
                 let doc_workspace = metadata
                     .get("workspace_id")
@@ -418,7 +424,7 @@ pub async fn delete_workspace(
 
         // Delete all queued keys
         if !keys_to_delete.is_empty() {
-            if let Err(e) = state.kv_storage.delete(&keys_to_delete).await {
+            if let Err(e) = state.storage.kv_storage.delete(&keys_to_delete).await {
                 tracing::warn!(
                     workspace_id = %workspace_id,
                     error = %e,
@@ -444,7 +450,7 @@ pub async fn delete_workspace(
             use edgequake_storage::ListPdfFilter;
 
             let mut deleted = 0usize;
-            if let Some(ref pdf_storage) = state.pdf_storage {
+            if let Some(ref pdf_storage) = state.storage.pdf_storage {
                 let filter = ListPdfFilter {
                     workspace_id: Some(workspace_id),
                     processing_status: None,
@@ -470,7 +476,7 @@ pub async fn delete_workspace(
 
     // 4. Evict workspace from vector registry cache
     // WHY: Ensure cached storage instances are cleaned up
-    state.vector_registry.evict(&workspace_id).await;
+    state.storage.vector_registry.evict(&workspace_id).await;
 
     // 5. Finally delete the workspace record from database
     state

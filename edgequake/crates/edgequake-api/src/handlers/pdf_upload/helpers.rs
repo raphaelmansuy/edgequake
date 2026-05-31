@@ -22,9 +22,14 @@ use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
 /// @enforces BR0701: PostgreSQL-backed PDF storage
 #[cfg(feature = "postgres")]
 pub(super) fn get_pdf_storage(state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> {
-    state.pdf_storage.as_ref().map(Arc::clone).ok_or_else(|| {
-        ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
-    })
+    state
+        .storage
+        .pdf_storage
+        .as_ref()
+        .map(Arc::clone)
+        .ok_or_else(|| {
+            ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
+        })
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -95,19 +100,7 @@ pub(super) async fn create_pdf_processing_task(
         result: None,
     };
 
-    // Store task in database
-    state
-        .task_storage
-        .create_task(&task)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
-
-    // Queue task for background processing (critical - missing this causes tasks to stay in pending)
-    state
-        .task_queue
-        .send(task)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+    state.enqueue_task(task).await?;
 
     debug!(
         "Created and queued PDF processing task: id={}, pdf_id={}",
@@ -210,7 +203,7 @@ pub(super) async fn clear_document_derived_data(
     let mut edges_cleared = 0;
 
     // 1. Clear graph data (entities and relationships)
-    let graph_storage = &state.graph_storage;
+    let graph_storage = &state.storage.graph_storage;
 
     // Get all nodes and filter by source_id
     let all_nodes = graph_storage

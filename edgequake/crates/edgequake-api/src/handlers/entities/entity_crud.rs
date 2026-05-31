@@ -59,7 +59,7 @@ pub async fn list_entities(
     // WHY: We need to fetch all nodes and filter in memory because the storage
     // interface doesn't support pagination/filtering yet. Future optimization
     // would push these filters down to the storage layer.
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
 
     // WHY: Apply tenant isolation first to ensure multi-tenancy is respected
     // This filters out nodes belonging to other tenants/workspaces
@@ -117,7 +117,12 @@ pub async fn list_entities(
     // Convert to response format
     let mut items = Vec::with_capacity(page_nodes.len());
     for node in page_nodes {
-        let degree = state.graph_storage.node_degree(&node.id).await.unwrap_or(0);
+        let degree = state
+            .storage
+            .graph_storage
+            .node_degree(&node.id)
+            .await
+            .unwrap_or(0);
         items.push(node_to_entity_response(node, degree));
     }
 
@@ -153,7 +158,13 @@ pub async fn create_entity(
     let entity_name = normalize_entity_name(&req.entity_name);
 
     // Check if entity already exists
-    if state.graph_storage.get_node(&entity_name).await?.is_some() {
+    if state
+        .storage
+        .graph_storage
+        .get_node(&entity_name)
+        .await?
+        .is_some()
+    {
         return Err(ApiError::Conflict(format!(
             "Entity '{}' already exists",
             entity_name
@@ -181,6 +192,7 @@ pub async fn create_entity(
 
     // Create node using upsert_node
     state
+        .storage
         .graph_storage
         .upsert_node(&entity_name, properties.clone())
         .await?;
@@ -221,16 +233,25 @@ pub async fn get_entity(
 
     // Get entity node
     let node = state
+        .storage
         .graph_storage
         .get_node(&entity_name)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_name)))?;
 
-    let degree = state.graph_storage.node_degree(&entity_name).await?;
+    let degree = state
+        .storage
+        .graph_storage
+        .node_degree(&entity_name)
+        .await?;
     let entity = node_to_entity_response(node, degree);
 
     // Get relationships (outgoing and incoming)
-    let edges = state.graph_storage.get_node_edges(&entity_name).await?;
+    let edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&entity_name)
+        .await?;
 
     let mut outgoing = Vec::new();
     let mut incoming = Vec::new();
@@ -305,6 +326,7 @@ pub async fn update_entity(
 
     // Get existing entity
     let mut node = state
+        .storage
         .graph_storage
         .get_node(&entity_name)
         .await?
@@ -342,11 +364,16 @@ pub async fn update_entity(
 
     // Update node in storage using upsert_node
     state
+        .storage
         .graph_storage
         .upsert_node(&entity_name, node.properties.clone())
         .await?;
 
-    let degree = state.graph_storage.node_degree(&entity_name).await?;
+    let degree = state
+        .storage
+        .graph_storage
+        .node_degree(&entity_name)
+        .await?;
     let entity = node_to_entity_response(node, degree);
 
     let changes = ChangesSummary {
@@ -393,7 +420,13 @@ pub async fn delete_entity(
     }
 
     // Check if entity exists
-    if state.graph_storage.get_node(&entity_name).await?.is_none() {
+    if state
+        .storage
+        .graph_storage
+        .get_node(&entity_name)
+        .await?
+        .is_none()
+    {
         return Err(ApiError::NotFound(format!(
             "Entity '{}' not found",
             entity_name
@@ -401,7 +434,11 @@ pub async fn delete_entity(
     }
 
     // Get affected entities (neighbors)
-    let edges = state.graph_storage.get_node_edges(&entity_name).await?;
+    let edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&entity_name)
+        .await?;
 
     let mut affected_entities = Vec::new();
     for edge in &edges {
@@ -414,7 +451,11 @@ pub async fn delete_entity(
     let deleted_relationships = edges.len();
 
     // Delete node (edges will be deleted automatically)
-    state.graph_storage.delete_node(&entity_name).await?;
+    state
+        .storage
+        .graph_storage
+        .delete_node(&entity_name)
+        .await?;
 
     Ok(Json(DeleteEntityResponse {
         status: "success".to_string(),

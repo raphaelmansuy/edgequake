@@ -98,7 +98,7 @@ async fn test_workspace_pipeline_with_ollama() {
     assert!(
         !std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "Should create workspace-specific pipeline, not global"
     );
@@ -138,7 +138,7 @@ async fn test_workspace_pipeline_invalid_uuid() {
     assert!(
         std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "Invalid UUID should return global pipeline"
     );
@@ -161,7 +161,7 @@ async fn test_workspace_pipeline_nonexistent_workspace() {
     assert!(
         std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "Non-existent workspace should return global pipeline"
     );
@@ -195,7 +195,7 @@ async fn test_workspace_pipeline_with_lmstudio() {
     assert!(
         !std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "Should create workspace-specific pipeline for LMStudio"
     );
@@ -229,7 +229,7 @@ async fn test_workspace_pipeline_with_mock() {
     assert!(
         !std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "Should create workspace-specific pipeline for mock provider"
     );
@@ -263,7 +263,7 @@ async fn test_pipeline_changes_after_provider_switch() {
     // Verify initial pipeline is workspace-specific
     assert!(!std::ptr::eq(
         pipeline1.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
+        state.query.pipeline.as_ref() as *const _
     ));
 
     // Switch to LMStudio
@@ -299,7 +299,7 @@ async fn test_pipeline_changes_after_provider_switch() {
     // New pipeline should also be workspace-specific
     assert!(!std::ptr::eq(
         pipeline2.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
+        state.query.pipeline.as_ref() as *const _
     ));
 
     // The two pipelines should be different instances
@@ -371,15 +371,15 @@ async fn test_isolated_pipelines_per_workspace() {
     // All should be workspace-specific (not global)
     assert!(!std::ptr::eq(
         pipeline1.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
+        state.query.pipeline.as_ref() as *const _
     ));
     assert!(!std::ptr::eq(
         pipeline2.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
+        state.query.pipeline.as_ref() as *const _
     ));
     assert!(!std::ptr::eq(
         pipeline3.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
+        state.query.pipeline.as_ref() as *const _
     ));
 
     // Each should be a distinct instance
@@ -429,7 +429,7 @@ async fn test_openai_workspace_without_key_fallback() {
     assert!(
         std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "OpenAI without key should fall back to global pipeline"
     );

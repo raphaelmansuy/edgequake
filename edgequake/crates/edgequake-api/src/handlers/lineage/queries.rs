@@ -33,6 +33,7 @@ pub async fn get_entity_lineage(
 
     // Look up entity in graph storage
     let node = state
+        .storage
         .graph_storage
         .get_node(&normalized_name)
         .await?
@@ -122,14 +123,25 @@ pub async fn get_document_lineage(
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<DocumentGraphLineageResponse>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace first.
-    verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // SPEC-011: prefix scan for document chunks; point lookup for metadata
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
+    let chunk_ids = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
 
     let metadata_key = format!("{}-metadata", document_id);
-    if chunk_ids.is_empty() && state.kv_storage.get_by_id(&metadata_key).await?.is_none() {
+    if chunk_ids.is_empty()
+        && state
+            .storage
+            .kv_storage
+            .get_by_id(&metadata_key)
+            .await?
+            .is_none()
+    {
         return Err(ApiError::NotFound(format!(
             "Document '{}' not found",
             document_id
@@ -137,7 +149,7 @@ pub async fn get_document_lineage(
     }
 
     // Find all entities sourced from this document
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
     let mut entities: Vec<EntitySummaryResponse> = Vec::new();
 
     for node in &all_nodes {
@@ -170,7 +182,7 @@ pub async fn get_document_lineage(
     }
 
     // Find all relationships sourced from this document
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
     let mut relationships: Vec<RelationshipSummaryResponse> = Vec::new();
 
     for edge in all_edges {
@@ -245,6 +257,7 @@ pub async fn get_chunk_lineage(
 ) -> ApiResult<Json<ChunkLineageResponse>> {
     // Look up chunk in KV storage
     let chunk_data = state
+        .storage
         .kv_storage
         .get_by_id(&chunk_id)
         .await?
@@ -313,7 +326,8 @@ pub async fn get_chunk_lineage(
 
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     let doc_metadata =
-        verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+            .await?;
 
     let document_name = doc_metadata
         .get("title")
@@ -326,7 +340,7 @@ pub async fn get_chunk_lineage(
         .map(|s| s.to_string());
 
     // Count entities and relationships from this chunk
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
     let mut entity_names: Vec<String> = Vec::new();
 
     for node in &all_nodes {
@@ -337,7 +351,7 @@ pub async fn get_chunk_lineage(
         }
     }
 
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
     let mut relationship_count = 0usize;
     for edge in &all_edges {
         if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
@@ -397,11 +411,11 @@ pub async fn get_document_full_lineage(
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace.
-    verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // OADA-23: Use cached KV lookup for sub-millisecond cache hits
     let lineage_key = format!("{}-lineage", document_id);
-    let lineage_data = cached_kv_get(state.kv_storage.as_ref(), &lineage_key)
+    let lineage_data = cached_kv_get(state.storage.kv_storage.as_ref(), &lineage_key)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -414,7 +428,7 @@ pub async fn get_document_full_lineage(
     // can render both the hierarchy and document context without a second API call.
     // This satisfies F5: "Single API call retrieves complete document lineage tree."
     let metadata_key = format!("{}-metadata", document_id);
-    let metadata = cached_kv_get(state.kv_storage.as_ref(), &metadata_key)
+    let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id, "status": "unknown"}));
     Ok(Json(serde_json::json!({
@@ -449,7 +463,8 @@ pub async fn get_document_metadata(
     // SECURITY: verify_document_access already fetches and checks metadata,
     // so we reuse its return value directly.
     let metadata =
-        verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+            .await?;
 
     Ok(Json(metadata))
 }

@@ -141,7 +141,7 @@ pub async fn get_cost_summary(
         }));
     }
     // Query all document metadata to aggregate costs
-    let metadata_keys = state.kv_storage.keys_like("%-metadata").await?;
+    let metadata_keys = state.storage.kv_storage.keys_like("%-metadata").await?;
 
     let mut total_cost = 0.0;
     let mut total_input_tokens = 0usize;
@@ -151,7 +151,7 @@ pub async fn get_cost_summary(
     let mut embedding_cost = 0.0;
 
     if !metadata_keys.is_empty() {
-        let values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+        let values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
 
         for value in values {
             if let Some(obj) = value.as_object() {
@@ -371,13 +371,17 @@ pub async fn get_cost_history(
     let granularity = params.granularity.as_deref().unwrap_or("day");
 
     // SPEC-012 Fix C+: indexed suffix scan (was `keys_like(\"%-metadata\")`).
-    let metadata_keys = state.kv_storage.keys_with_suffix("-metadata").await?;
+    let metadata_keys = state
+        .storage
+        .kv_storage
+        .keys_with_suffix("-metadata")
+        .await?;
 
     // Group costs by time period
     let mut period_data: BTreeMap<String, (f64, usize, usize)> = BTreeMap::new();
 
     if !metadata_keys.is_empty() {
-        let values = state.kv_storage.get_by_ids(&metadata_keys).await?;
+        let values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
 
         for value in values {
             if let Some(obj) = value.as_object() {

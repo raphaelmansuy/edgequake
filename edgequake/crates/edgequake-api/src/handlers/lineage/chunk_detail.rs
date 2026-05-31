@@ -37,6 +37,7 @@ pub async fn get_chunk_detail(
 ) -> ApiResult<Json<ChunkDetailResponse>> {
     // Look up chunk in KV storage
     let chunk_data = state
+        .storage
         .kv_storage
         .get_by_id(&chunk_id)
         .await?
@@ -98,7 +99,8 @@ pub async fn get_chunk_detail(
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     // Returns 404 (not 403) to avoid leaking cross-tenant document IDs.
     let doc_metadata =
-        verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+            .await?;
 
     // Get document name from already-fetched metadata
     let doc_name = doc_metadata
@@ -107,7 +109,7 @@ pub async fn get_chunk_detail(
         .map(|s| s.to_string());
 
     // Find entities extracted from this chunk
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
     let mut entities: Vec<ExtractedEntityInfo> = Vec::new();
 
     for node in &all_nodes {
@@ -136,7 +138,7 @@ pub async fn get_chunk_detail(
     }
 
     // Find relationships from this chunk
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let all_edges = state.storage.graph_storage.get_all_edges().await?;
     let mut relationships: Vec<ExtractedRelationshipInfo> = Vec::new();
 
     for edge in all_edges {

@@ -156,6 +156,7 @@ pub async fn scan_directory(
             "status": "pending",
         });
         state
+            .storage
             .kv_storage
             .upsert(&[(doc_metadata_key, doc_metadata)])
             .await?;
@@ -166,6 +167,7 @@ pub async fn scan_directory(
             "content": content,
         });
         state
+            .storage
             .kv_storage
             .upsert(&[(doc_content_key, doc_content)])
             .await?;
@@ -206,17 +208,7 @@ pub async fn scan_directory(
                 serde_json::to_value(task_data).unwrap(),
             );
 
-            state
-                .task_storage
-                .create_task(&task)
-                .await
-                .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
-
-            state
-                .task_queue
-                .send(task)
-                .await
-                .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+            state.enqueue_task(task).await?;
         }
 
         queued_files.push(file_path.display().to_string());

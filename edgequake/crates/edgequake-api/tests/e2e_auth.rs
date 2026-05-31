@@ -71,8 +71,8 @@ async fn test_create_user_success() {
 #[tokio::test]
 async fn test_create_user_with_role() {
     let mut state = AppState::test_state();
-    state.auth_config.auth_enabled = true;
-    state.auth_config.api_keys = vec!["master-test-key".to_string()];
+    state.auth.config.auth_enabled = true;
+    state.auth.config.api_keys = vec!["master-test-key".to_string()];
 
     let config = ServerConfig {
         host: "127.0.0.1".to_string(),
@@ -145,7 +145,7 @@ async fn test_public_registration_cannot_self_assign_admin_role() {
 #[tokio::test]
 async fn test_registration_can_be_disabled_via_config() {
     let mut state = AppState::test_state();
-    state.auth_config.allow_registration = false;
+    state.auth.config.allow_registration = false;
 
     let config = ServerConfig {
         host: "127.0.0.1".to_string(),
@@ -182,8 +182,8 @@ async fn test_registration_can_be_disabled_via_config() {
 #[tokio::test]
 async fn test_auth_enabled_protects_business_endpoints() {
     let mut state = AppState::test_state();
-    state.auth_config.auth_enabled = true;
-    state.auth_config.api_keys = vec!["master-test-key".to_string()];
+    state.auth.config.auth_enabled = true;
+    state.auth.config.api_keys = vec!["master-test-key".to_string()];
 
     let config = ServerConfig {
         host: "127.0.0.1".to_string(),

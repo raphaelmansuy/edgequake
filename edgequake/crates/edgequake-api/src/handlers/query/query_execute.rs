@@ -5,42 +5,22 @@
 //! @implements FEAT0101-0106 (Query modes)
 
 use axum::{extract::State, Json};
-use tracing::{debug, error};
+use tracing::debug;
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::ApiResult;
 use crate::middleware::TenantContext;
+use crate::services::{
+    execute_sota_query, llm_override_from_request, resolve_workspace_query_resources,
+};
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 use super::{
     resolve_chunk_file_paths,
-    workspace_resolve::{
-        get_workspace_embedding_provider, get_workspace_llm_info, get_workspace_vector_storage,
-        resolve_query_workspace,
-    },
+    workspace_resolve::{get_workspace_llm_info, resolve_query_workspace},
 };
 pub use crate::handlers::query_types::{QueryRequest, QueryResponse, QueryStats, SourceReference};
-
-async fn run_query_with_optional_llm_override(
-    state: &AppState,
-    engine_request: EngineQueryRequest,
-    llm_override: Option<std::sync::Arc<dyn edgequake_llm::LLMProvider>>,
-) -> Result<edgequake_query::QueryResponse, ApiError> {
-    if let Some(llm) = llm_override {
-        state
-            .sota_engine
-            .query_with_llm_provider(engine_request, llm)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))
-    } else {
-        state
-            .sota_engine
-            .query(engine_request)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))
-    }
-}
 
 /// Execute a RAG query with multi-mode retrieval.
 ///
@@ -166,7 +146,7 @@ pub async fn execute_query(
     // SPEC-005: Resolve document filter → allowed_document_ids
     if let Some(ref filter) = request.document_filter {
         if let Some(allowed_ids) = super::document_filter_resolver::resolve_document_filter(
-            state.kv_storage.as_ref(),
+            state.storage.kv_storage.as_ref(),
             filter,
             &data_tenant_id,
             &tenant_ctx.workspace_id,
@@ -186,109 +166,16 @@ pub async fn execute_query(
 
     // FIX #168: Create LLM override OUTSIDE the workspace block so it's available
     // in all code paths (with or without workspace context).
-    let llm_override = if let (Some(ref provider), Some(ref model)) =
-        (&request.llm_provider, &request.llm_model)
-    {
-        debug!(provider = %provider, model = %model, "Creating LLM provider override from request");
-        Some(
-            crate::safety_limits::create_safe_llm_provider_with_headers(
-                provider,
-                model,
-                request.extra_headers.clone(),
-            )
-            .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
-        )
-    } else {
-        None
-    };
+    let llm_override = llm_override_from_request(
+        request.llm_provider.as_deref(),
+        request.llm_model.as_deref(),
+        request.extra_headers.clone(),
+    )?;
 
-    let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        // Try to get workspace embedding and vector storage configuration
-        let embedding_result = get_workspace_embedding_provider(&state, workspace_id).await;
-        let vector_result = get_workspace_vector_storage(&state, workspace_id).await;
+    let resources =
+        resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-        match (embedding_result, vector_result) {
-            (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
-                // Full workspace isolation: use both workspace-specific embedding and vector storage.
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using workspace-specific embedding provider AND vector storage for query"
-                );
-                state
-                    .sota_engine
-                    .query_with_full_config(
-                        engine_request,
-                        embedding_provider,
-                        vector_storage,
-                        llm_override.clone(),
-                    )
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-            (Ok(Some(embedding_provider)), Ok(None)) => {
-                // WHY: A workspace may intentionally share the default vector table while
-                // still overriding its embedding provider. This path is only allowed when
-                // the resolver explicitly confirms there is no workspace vector override.
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using workspace-specific embedding provider for query"
-                );
-                state
-                    .sota_engine
-                    .query_with_full_config(
-                        engine_request,
-                        embedding_provider,
-                        state.sota_engine.default_vector_storage(),
-                        llm_override.clone(),
-                    )
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-            (Ok(None), Ok(Some(vector_storage))) => {
-                // Workspace uses default embedding model but has its own vector storage table.
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using default embedding + workspace-specific vector storage for query"
-                );
-                state
-                    .sota_engine
-                    .query_with_full_config(
-                        engine_request,
-                        state.sota_engine.default_embedding_provider(),
-                        vector_storage,
-                        llm_override.clone(),
-                    )
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-            (Ok(None), Ok(None)) => {
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using default embedding provider for query (no workspace vector storage)"
-                );
-                run_query_with_optional_llm_override(&state, engine_request, llm_override.clone())
-                    .await?
-            }
-            (Err(e), _) | (_, Err(e)) => {
-                // WHY: Once a request is explicitly scoped to a workspace, silently
-                // degrading to the server default would query a different isolation
-                // boundary. That is more dangerous than failing fast.
-                error!(
-                    workspace_id = %workspace_id,
-                    error = %e,
-                    "Workspace-specific query resolution failed - returning error instead of falling back"
-                );
-                return Err(e);
-            }
-        }
-    } else {
-        // No workspace context, use the default config while preserving any explicit LLM override.
-        run_query_with_optional_llm_override(&state, engine_request, llm_override.clone()).await?
-    };
+    let result = execute_sota_query(&state, engine_request, resources, llm_override).await?;
 
     // Convert sources from context
     let mut sources = Vec::new();
@@ -344,7 +231,7 @@ pub async fn execute_query(
         .collect();
 
     // Resolve document_id → file_path (document title) for chunk sources
-    resolve_chunk_file_paths(state.kv_storage.as_ref(), &mut chunk_sources).await;
+    resolve_chunk_file_paths(state.storage.kv_storage.as_ref(), &mut chunk_sources).await;
 
     // SPEC-0002: Exclude injection artifacts from cited sources.
     // Injection chunks enrich LLM context but must NOT appear as source citations.

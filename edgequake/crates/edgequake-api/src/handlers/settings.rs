@@ -422,8 +422,8 @@ pub async fn get_provider_status(
 pub async fn list_available_providers(
     State(app_state): State<AppState>,
 ) -> Result<Json<AvailableProvidersResponse>, ApiError> {
-    let active_llm = app_state.llm_provider.name();
-    let active_embedding = app_state.embedding_provider.name();
+    let active_llm = app_state.query.llm_provider.name();
+    let active_embedding = app_state.query.embedding_provider.name();
 
     let response = AvailableProvidersResponse::build(active_llm, active_embedding);
 

@@ -189,15 +189,8 @@ impl MergeStats {
     }
 }
 
-/// Normalize an entity name to a consistent key format.
-pub fn normalize_entity_name(name: &str) -> String {
-    name.trim()
-        .to_uppercase()
-        .replace(|c: char| !c.is_alphanumeric() && c != ' ', "")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join("_")
-}
+/// Canonical entity key normalization (single source of truth: `prompts::normalizer`).
+pub use crate::prompts::normalize_entity_name;
 
 /// Merge two descriptions, avoiding duplication.
 fn merge_descriptions(existing: &str, new: &str, max_length: usize) -> String {
@@ -254,8 +247,24 @@ mod tests {
     fn test_normalize_entity_name() {
         assert_eq!(normalize_entity_name("John Doe"), "JOHN_DOE");
         assert_eq!(normalize_entity_name("  Hello  World  "), "HELLO_WORLD");
-        assert_eq!(normalize_entity_name("O'Brien"), "OBRIEN");
-        assert_eq!(normalize_entity_name("AI/ML"), "AIML");
+        assert_eq!(normalize_entity_name("O'Brien"), "O'BRIEN");
+        assert_eq!(normalize_entity_name("AI/ML"), "AI/ML");
+        assert_eq!(normalize_entity_name("The Company"), "COMPANY");
+    }
+
+    /// Parse→merge path must use the same key as extraction parsers (SPEC-017 P0).
+    #[test]
+    fn test_parse_merge_key_alignment() {
+        use crate::prompts::normalize_entity_name as parser_normalize;
+        let names = ["The Company", "John Doe", "the company", "O'Brien"];
+        for name in names {
+            assert_eq!(
+                normalize_entity_name(name),
+                parser_normalize(name),
+                "merger and parser keys diverged for {:?}",
+                name
+            );
+        }
     }
 
     // ── Fix #202: case-insensitive entity deduplication ──────────────────────
@@ -308,21 +317,14 @@ mod tests {
 
     #[test]
     fn test_normalize_entity_name_edge_cases() {
-        // Empty string
         assert_eq!(normalize_entity_name(""), "");
-        // Only special characters stripped to empty
-        assert_eq!(normalize_entity_name("---"), "");
-        // Single word
+        assert_eq!(normalize_entity_name("---"), "---");
         assert_eq!(normalize_entity_name("rust"), "RUST");
-        // Numbers preserved
         assert_eq!(normalize_entity_name("COVID 19"), "COVID_19");
-        assert_eq!(normalize_entity_name("gpt-4o"), "GPT4O");
-        // Extra internal whitespace collapsed to single underscore
+        assert_eq!(normalize_entity_name("gpt-4o"), "GPT-4O");
         assert_eq!(normalize_entity_name("Hello   World"), "HELLO_WORLD");
-        // Tabs and newlines: NOT space char ' ', so stripped (not turned into _)
-        // after remove-non-alnum, split_whitespace sees no separator → no underscore
-        assert_eq!(normalize_entity_name("A\tB"), "AB");
-        assert_eq!(normalize_entity_name("A\nB"), "AB");
+        assert_eq!(normalize_entity_name("A\tB"), "A_B");
+        assert_eq!(normalize_entity_name("A\nB"), "A_B");
     }
 
     #[test]

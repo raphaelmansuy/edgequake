@@ -37,10 +37,10 @@ pub async fn update_relationship(
     Json(req): Json<UpdateRelationshipRequest>,
 ) -> ApiResult<Json<UpdateRelationshipResponse>> {
     // Search through all edges to find matching relationship ID
-    let nodes = state.graph_storage.get_all_nodes().await?;
+    let nodes = state.storage.graph_storage.get_all_nodes().await?;
 
     for node in nodes {
-        let edges = state.graph_storage.get_node_edges(&node.id).await?;
+        let edges = state.storage.graph_storage.get_node_edges(&node.id).await?;
 
         for mut edge in edges {
             let edge_id = edge
@@ -85,6 +85,7 @@ pub async fn update_relationship(
                 let src = edge.source.clone();
                 let tgt = edge.target.clone();
                 state
+                    .storage
                     .graph_storage
                     .upsert_edge(&src, &tgt, edge.properties.clone())
                     .await?;

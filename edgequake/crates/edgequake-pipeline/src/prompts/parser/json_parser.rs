@@ -7,6 +7,7 @@
 use super::super::normalizer::normalize_entity_name;
 use crate::error::{PipelineError, Result};
 use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
+use crate::prompts::extract_json_from_response;
 
 /// Parser for JSON-based extraction results (legacy format).
 #[derive(Debug, Clone, Default)]
@@ -205,38 +206,4 @@ fn sanitize_json(json: &str) -> String {
         .to_string();
 
     sanitized
-}
-
-/// Extract JSON from a potentially wrapped LLM response.
-pub(super) fn extract_json_from_response(response: &str) -> String {
-    let response = response.trim();
-
-    // Try to find JSON block markers
-    if let Some(start) = response.find("```json") {
-        if let Some(end) = response[start + 7..].find("```") {
-            return response[start + 7..start + 7 + end].trim().to_string();
-        }
-    }
-
-    // Try regular code block
-    if let Some(start) = response.find("```") {
-        if let Some(end) = response[start + 3..].find("```") {
-            let content = response[start + 3..start + 3 + end].trim();
-            // Check if it starts like JSON
-            if content.starts_with('{') {
-                return content.to_string();
-            }
-        }
-    }
-
-    // Try to find JSON starting with {
-    if let Some(start) = response.find('{') {
-        if let Some(end) = response.rfind('}') {
-            if end > start {
-                return response[start..=end].to_string();
-            }
-        }
-    }
-
-    response.to_string()
 }

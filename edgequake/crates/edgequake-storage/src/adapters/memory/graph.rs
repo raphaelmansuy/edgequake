@@ -601,6 +601,62 @@ impl GraphStorage for MemoryGraphStorage {
         Ok(edges.len())
     }
 
+    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let workspace_id_str = workspace_id.to_string();
+        Ok(nodes
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .count())
+    }
+
+    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let edges = self
+            .edges
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let workspace_id_str = workspace_id.to_string();
+        Ok(edges
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .count())
+    }
+
+    async fn distinct_node_type_count_by_workspace(
+        &self,
+        workspace_id: &uuid::Uuid,
+    ) -> Result<usize> {
+        let nodes = self
+            .nodes
+            .read()
+            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let workspace_id_str = workspace_id.to_string();
+        let types: std::collections::HashSet<&str> = nodes
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .filter_map(|props| props.get("entity_type").and_then(|v| v.as_str()))
+            .collect();
+        Ok(types.len())
+    }
+
     async fn clear(&self) -> Result<()> {
         let mut nodes = self
             .nodes

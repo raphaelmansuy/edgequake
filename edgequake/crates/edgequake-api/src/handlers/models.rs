@@ -158,13 +158,13 @@ fn provider_to_response(provider: &edgequake_llm::ProviderConfig) -> ProviderRes
     )
 )]
 pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<ModelsListResponse>> {
-    let config = &*state.models_config;
+    let config = &*state.query.models_config;
 
     // WHY: Show all enabled providers from models.toml by default so every
     // model is selectable when creating workspaces/tenants. Restrict with
     // EDGEQUAKE_ALLOWED_PROVIDERS=a,b,c for single-provider deployments.
     let allowed = active_provider_names(
-        &state.llm_provider.name().to_lowercase(),
+        &state.query.llm_provider.name().to_lowercase(),
         &config.defaults.embedding_provider.to_lowercase(),
     );
     let providers: Vec<ProviderResponse> = filter_providers(&config.providers, &allowed)
@@ -177,8 +177,8 @@ pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<Models
     // defaults would show "ollama/gemma4:e4b" even when OpenAI is active.
     Ok(Json(ModelsListResponse {
         providers,
-        default_llm_provider: state.llm_provider.name().to_string(),
-        default_llm_model: state.llm_provider.model().to_string(),
+        default_llm_provider: state.query.llm_provider.name().to_string(),
+        default_llm_model: state.query.llm_provider.model().to_string(),
         default_embedding_provider: config.defaults.embedding_provider.clone(),
         default_embedding_model: config.defaults.embedding_model.clone(),
     }))
@@ -202,12 +202,12 @@ pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<Models
     )
 )]
 pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<LlmModelsResponse>> {
-    let config = &*state.models_config;
+    let config = &*state.query.models_config;
 
     // WHY: Show all enabled providers from models.toml by default.
     // Use EDGEQUAKE_ALLOWED_PROVIDERS=a,b,c to restrict to a subset.
     let allowed = active_provider_names(
-        &state.llm_provider.name().to_lowercase(),
+        &state.query.llm_provider.name().to_lowercase(),
         &config.defaults.embedding_provider.to_lowercase(),
     );
 
@@ -230,8 +230,8 @@ pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<Ll
     // defaults would show "ollama/gemma4:e4b" even when OpenAI is active.
     Ok(Json(LlmModelsResponse {
         models,
-        default_provider: state.llm_provider.name().to_string(),
-        default_model: state.llm_provider.model().to_string(),
+        default_provider: state.query.llm_provider.name().to_string(),
+        default_model: state.query.llm_provider.model().to_string(),
     }))
 }
 
@@ -255,7 +255,7 @@ pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<Ll
 pub async fn list_embedding_models(
     State(state): State<AppState>,
 ) -> ApiResult<Json<EmbeddingModelsResponse>> {
-    let config = &*state.models_config;
+    let config = &*state.query.models_config;
 
     // WHY: `all_embedding_models()` in published edgequake-llm <=0.6.1 incorrectly
     // includes ModelType::Multimodal models (e.g. gemma4, gemma3, llama3.2-vision).
@@ -311,7 +311,7 @@ pub async fn get_provider(
     State(state): State<AppState>,
     axum::extract::Path(provider_name): axum::extract::Path<String>,
 ) -> ApiResult<Json<ProviderResponse>> {
-    let config = &*state.models_config;
+    let config = &*state.query.models_config;
 
     let provider = config
         .get_provider(&provider_name)
@@ -351,7 +351,7 @@ pub async fn get_model(
     State(state): State<AppState>,
     axum::extract::Path((provider_name, model_name)): axum::extract::Path<(String, String)>,
 ) -> ApiResult<Json<ModelResponse>> {
-    let config = &*state.models_config;
+    let config = &*state.query.models_config;
 
     let model = config
         .get_model(&provider_name, &model_name)
@@ -391,7 +391,7 @@ pub async fn get_model(
 pub async fn check_providers_health(
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<ProviderResponse>>> {
-    let config = &*state.models_config;
+    let config = &*state.query.models_config;
     let now = chrono::Utc::now().to_rfc3339();
 
     let mut providers: Vec<ProviderResponse> = Vec::new();

@@ -94,7 +94,11 @@ fn task_references_document(task: &edgequake_tasks::Task, document_id: &str) -> 
 
 async fn cancel_and_delete_task(state: &AppState, task: &edgequake_tasks::Task) -> bool {
     if matches!(task.status, TaskStatus::Pending | TaskStatus::Processing) {
-        let cancelled = state.cancellation_registry.cancel(&task.track_id).await;
+        let cancelled = state
+            .tasks
+            .cancellation_registry
+            .cancel(&task.track_id)
+            .await;
         tracing::info!(
             track_id = %task.track_id,
             cancelled,
@@ -103,16 +107,22 @@ async fn cancel_and_delete_task(state: &AppState, task: &edgequake_tasks::Task) 
     }
 
     state
+        .tasks
         .pipeline_state
         .remove_pdf_progress(&task.track_id)
         .await;
 
-    if let Ok(Some(mut persisted_task)) = state.task_storage.get_task(&task.track_id).await {
+    if let Ok(Some(mut persisted_task)) = state.tasks.storage.get_task(&task.track_id).await {
         persisted_task.mark_cancelled();
-        let _ = state.task_storage.update_task(&persisted_task).await;
+        let _ = state.tasks.storage.update_task(&persisted_task).await;
     }
 
-    state.task_storage.delete_task(&task.track_id).await.is_ok()
+    state
+        .tasks
+        .storage
+        .delete_task(&task.track_id)
+        .await
+        .is_ok()
 }
 
 /// Remove persisted tasks associated with a single document.
@@ -135,7 +145,7 @@ pub(crate) async fn purge_persisted_tasks_for_document(
         ..Default::default()
     };
 
-    let Ok(task_list) = state.task_storage.list_tasks(filter, pagination).await else {
+    let Ok(task_list) = state.tasks.storage.list_tasks(filter, pagination).await else {
         return 0;
     };
 
@@ -172,7 +182,7 @@ pub(crate) async fn purge_workspace_tasks(state: &AppState, workspace_id: Uuid) 
         ..Default::default()
     };
 
-    let Ok(task_list) = state.task_storage.list_tasks(filter, pagination).await else {
+    let Ok(task_list) = state.tasks.storage.list_tasks(filter, pagination).await else {
         return 0;
     };
 
@@ -232,7 +242,7 @@ pub(super) async fn get_workspace_vector_storage_strict(
 
     // OODA-223: Allow fallback in memory mode (tests) but not in production (PostgreSQL)
     // This prevents silent data loss in production while maintaining test compatibility
-    let allow_fallback = state.storage_mode.is_memory();
+    let allow_fallback = state.storage.mode.is_memory();
 
     // OODA-13: Handle "default" workspace by mapping to the well-known UUID
     // WHY: Documents created via default workspace are stored with workspace_id="default"
@@ -253,10 +263,10 @@ pub(super) async fn get_workspace_vector_storage_strict(
                 tracing::warn!(
                     workspace_id = %workspace_id,
                     error = %e,
-                    storage_mode = ?state.storage_mode,
+                    storage_mode = ?state.storage.mode,
                     "Invalid workspace ID - using default storage (allowed in memory/test mode)"
                 );
-                return Ok(state.vector_registry.default_storage());
+                return Ok(state.storage.vector_registry.default_storage());
             }
             tracing::error!(
                 workspace_id = %workspace_id,
@@ -278,10 +288,10 @@ pub(super) async fn get_workspace_vector_storage_strict(
                 // WHY-OODA223: Test mode - log warning and use default storage
                 tracing::warn!(
                     workspace_id = %workspace_id,
-                    storage_mode = ?state.storage_mode,
+                    storage_mode = ?state.storage.mode,
                     "Workspace not found - using default storage (allowed in memory/test mode)"
                 );
-                return Ok(state.vector_registry.default_storage());
+                return Ok(state.storage.vector_registry.default_storage());
             }
             tracing::error!(
                 workspace_id = %workspace_id,
@@ -298,10 +308,10 @@ pub(super) async fn get_workspace_vector_storage_strict(
                 tracing::warn!(
                     workspace_id = %workspace_id,
                     error = %e,
-                    storage_mode = ?state.storage_mode,
+                    storage_mode = ?state.storage.mode,
                     "Failed to lookup workspace - using default storage (allowed in memory/test mode)"
                 );
-                return Ok(state.vector_registry.default_storage());
+                return Ok(state.storage.vector_registry.default_storage());
             }
             tracing::error!(
                 workspace_id = %workspace_id,
@@ -330,7 +340,7 @@ pub(super) async fn get_workspace_vector_storage_strict(
     );
 
     // Get or create workspace vector storage - FAIL if creation fails
-    match state.vector_registry.get_or_create(config).await {
+    match state.storage.vector_registry.get_or_create(config).await {
         Ok(storage) => Ok(storage),
         Err(e) => {
             if allow_fallback {
@@ -339,10 +349,10 @@ pub(super) async fn get_workspace_vector_storage_strict(
                     workspace_id = %workspace_id,
                     dimension = workspace.embedding_dimension,
                     error = %e,
-                    storage_mode = ?state.storage_mode,
+                    storage_mode = ?state.storage.mode,
                     "Failed to create workspace storage - using default (allowed in memory/test mode)"
                 );
-                return Ok(state.vector_registry.default_storage());
+                return Ok(state.storage.vector_registry.default_storage());
             }
             tracing::error!(
                 workspace_id = %workspace_id,
@@ -384,7 +394,7 @@ pub(super) async fn get_workspace_vector_storage_with_fallback(
                 error = %e,
                 "Falling back to default vector storage (READ ONLY operations)"
             );
-            state.vector_registry.default_storage()
+            state.storage.vector_registry.default_storage()
         }
     }
 }
@@ -431,7 +441,7 @@ pub(super) async fn get_workspace_vector_storage_for_delete(
                  Proceeding with default storage. Orphaned vector rows (if any) can be \
                  cleaned up later via the vector storage maintenance API."
             );
-            state.vector_registry.default_storage()
+            state.storage.vector_registry.default_storage()
         }
     }
 }
@@ -703,6 +713,7 @@ pub(super) async fn delete_document_for_reingestion(
     let mut transitioned = false;
     for from_status in &allowed_from_statuses {
         match state
+            .storage
             .kv_storage
             .transition_if_status(&metadata_key, from_status, "deleting")
             .await
@@ -752,14 +763,18 @@ pub(super) async fn delete_document_for_reingestion(
     // Clean up graph data (entities, relationships, embeddings)
     let cleanup_stats = cleanup_document_graph_data(
         document_id,
-        &state.graph_storage,
+        &state.storage.graph_storage,
         Some(&workspace_vector_storage),
     )
     .await?;
 
     // Delete chunk embeddings from vector storage
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids = state.kv_storage.keys_with_prefix(&chunk_prefix).await?;
+    let chunk_ids = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
 
     if !chunk_ids.is_empty() {
         if let Err(e) = workspace_vector_storage.delete(&chunk_ids).await {
@@ -777,7 +792,7 @@ pub(super) async fn delete_document_for_reingestion(
     keys_to_delete.push(format!("{}-content", document_id));
 
     // Delete all KV storage entries
-    state.kv_storage.delete(&keys_to_delete).await?;
+    state.storage.kv_storage.delete(&keys_to_delete).await?;
 
     tracing::info!(
         document_id = %document_id,

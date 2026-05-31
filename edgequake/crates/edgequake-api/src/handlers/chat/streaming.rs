@@ -13,11 +13,10 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::query::{
-    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
-};
+use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
+use crate::services::{execute_sota_query_stream, resolve_workspace_query_resources};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use edgequake_core::types::{
@@ -74,11 +73,6 @@ pub async fn chat_completion_stream(
         .ok_or(ApiError::Unauthorized)?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-    let workspace_id = tenant_ctx
-        .workspace_id
-        .map(|s| s.parse::<Uuid>())
-        .transpose()
-        .map_err(|_| ApiError::BadRequest("Invalid workspace ID".to_string()))?;
 
     debug!(
         tenant_id = %tenant_id,
@@ -107,23 +101,9 @@ pub async fn chat_completion_stream(
         .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
     }
 
-    // Validate workspace_id exists in database (may be stale from localStorage)
-    // Also store workspace for LLM provider fallback (SPEC-032)
-    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
-        match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
-            Ok(None) => {
-                warn!(workspace_id = %ws_id, "Workspace not found in streaming handler, ignoring stale workspace_id");
-                (None, None)
-            }
-            Err(e) => {
-                warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace in streaming handler, ignoring");
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
+    // Fail closed when an explicit workspace header is invalid (same as /query).
+    let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
+    let workspace_id = workspace.as_ref().map(|ws| ws.workspace_id);
 
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
@@ -244,7 +224,7 @@ pub async fn chat_completion_stream(
             let ws_id_str = workspace_id.as_ref().map(|id| id.to_string());
             let tenant_filter = Some(data_tenant_id.clone());
             match crate::handlers::query::document_filter_resolver::resolve_document_filter(
-                state_clone.kv_storage.as_ref(),
+                state_clone.storage.kv_storage.as_ref(),
                 filter,
                 &tenant_filter,
                 &ws_id_str,
@@ -354,7 +334,7 @@ pub async fn chat_completion_stream(
                 .as_ref()
                 .is_some_and(|imgs| !imgs.is_empty())
         {
-            if let Some(ref vision_provider) = state_clone.vision_llm_provider {
+            if let Some(ref vision_provider) = state_clone.query.vision_llm_provider {
                 debug!("Using vision LLM provider for image query (FEAT0203 streaming)");
                 (
                     Some(Arc::clone(vision_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>),
@@ -368,135 +348,39 @@ pub async fn chat_completion_stream(
             (llm_override, used_provider, used_model)
         };
 
-        // Execute streaming query with context using SOTA engine (LightRAG-style)
-        // OODA-228: Get workspace embedding provider and vector storage for proper isolation
         let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
-        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) =
-            workspace_id_str
+        let resources = match resolve_workspace_query_resources(
+            &state_clone,
+            workspace_id_str.as_deref(),
+        )
+        .await
         {
-            // Get workspace embedding provider
-            let embed_provider = match get_workspace_embedding_provider(&state_clone, ws_id_str)
-                .await
-            {
-                Ok(Some(p)) => Some(p),
-                Ok(None) => {
-                    debug!(workspace_id = %ws_id_str, "Workspace using default embedding provider for streaming");
-                    None
-                }
-                Err(e) => {
-                    // OODA-228/OODA-229: Send error event with clear message
-                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot create workspace embedding provider for streaming");
-                    let err_msg = e.to_string();
-                    let _ = tx
-                        .send(ChatStreamEvent::Error {
-                            message: err_msg,
-                            code: "EMBEDDING_PROVIDER_CONFIG_ERROR".to_string(),
-                        })
-                        .await;
-                    return; // Exit task early with error sent
-                }
-            };
-
-            // Get workspace vector storage
-            let vector_storage = match get_workspace_vector_storage(&state_clone, ws_id_str).await {
-                Ok(Some(s)) => Some(s),
-                Ok(None) => {
-                    debug!(workspace_id = %ws_id_str, "Workspace using default vector storage for streaming");
-                    None
-                }
-                Err(e) => {
-                    // OODA-228: Send error event for vector storage failures too
-                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot get workspace vector storage for streaming");
-                    let err_msg = format!(
-                        "Cannot stream query for workspace: {}. Vector storage error: {:?}",
-                        ws_id_str, e
-                    );
-                    let _ = tx
-                        .send(ChatStreamEvent::Error {
-                            message: err_msg,
-                            code: "VECTOR_STORAGE_ERROR".to_string(),
-                        })
-                        .await;
-                    return; // Exit task early with error sent
-                }
-            };
-
-            (embed_provider, vector_storage)
-        } else {
-            (None, None)
+            Ok(resources) => resources,
+            Err(e) => {
+                error!(
+                    workspace_id = ?workspace_id_str,
+                    error = %e,
+                    "Workspace query resolution failed for streaming chat"
+                );
+                let _ = tx
+                    .send(ChatStreamEvent::Error {
+                        message: e.to_string(),
+                        code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
+                    })
+                    .await;
+                return;
+            }
         };
 
-        // SPEC-006: Track retrieval time for context enrichment
         let retrieval_start = std::time::Instant::now();
 
-        // WHY: Five dispatch paths exist because the SOTA engine needs different
-        // combinations of providers. The paths form a priority cascade:
-        //
-        //   (embed + vector + llm_override)  → full workspace isolation
-        //   (embed only + llm_override)      → uses DEFAULT vector storage (potential dimension bug)
-        //   (embed only, no llm)             → uses DEFAULT vector storage + DEFAULT LLM
-        //   (llm_override only)              → uses DEFAULT embedding + DEFAULT vector storage
-        //   (nothing)                        → all-default (server startup providers)
-        //
-        // The happy path for workspace queries is ALWAYS the first branch
-        // (embed + vector + llm_override). If you land in other branches, check
-        // whether get_workspace_embedding_provider or get_workspace_vector_storage
-        // returned None/Err — that usually means a missing API key or dimension mismatch.
-        let stream_result = match (&ws_embedding_provider, &ws_vector_storage) {
-            (Some(embed), Some(vector)) => {
-                // OODA-228: Use workspace embedding + storage + optional LLM override
-                debug!("Using full config for streaming (workspace embedding + vector storage + LLM override)");
-                state_clone
-                    .sota_engine
-                    .query_stream_with_full_config(
-                        engine_request,
-                        embed.clone(),
-                        vector.clone(),
-                        llm_override.clone(),
-                    )
-                    .await
-            }
-            (Some(embed), None) => {
-                // WHY: We have workspace embedding but no workspace-specific vector storage.
-                // This is unusual but can happen during workspace migration or misconfiguration.
-                // Use workspace embedding + server default vector storage + optional LLM override.
-                //
-                // Previously this dropped the embedding provider entirely and fell through to
-                // query_stream_with_context_and_llm, which used the DEFAULT embedding provider.
-                // That caused dimension mismatches when workspace embedding dimension != default.
-                //
-                // FIX: Use query_stream_with_full_config with the server's default vector storage.
-                // This preserves the workspace embedding while using the default vector table.
-                warn!("[QUERY] Workspace embedding available but no workspace-specific vector storage - using workspace embedding with server default vector storage");
-                state_clone
-                    .sota_engine
-                    .query_stream_with_full_config(
-                        engine_request,
-                        embed.clone(),
-                        state_clone.vector_storage.clone(),
-                        llm_override.clone(),
-                    )
-                    .await
-            }
-            _ => {
-                // No workspace config - use LLM override only
-                if let Some(ref llm) = llm_override {
-                    debug!("Using LLM provider override for streaming (no workspace config)");
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context_and_llm(engine_request, llm.clone())
-                        .await
-                } else {
-                    debug!(
-                        "Using default configuration for streaming (no workspace or LLM override)"
-                    );
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context(engine_request)
-                        .await
-                }
-            }
-        };
+        let stream_result = execute_sota_query_stream(
+            &state_clone,
+            engine_request,
+            resources,
+            llm_override.clone(),
+        )
+        .await;
 
         match stream_result {
             Ok((context, used_mode, mut stream)) => {
@@ -504,7 +388,8 @@ pub async fn chat_completion_stream(
                 let mut sources = build_sources(&context);
 
                 // Resolve document names for chunk sources
-                resolve_chunk_file_paths(state_clone.kv_storage.as_ref(), &mut sources).await;
+                resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
+                    .await;
 
                 // Save message context for later persistence
                 saved_message_context = Some(sources_to_message_context(&sources));
@@ -632,7 +517,7 @@ pub async fn chat_completion_stream(
                 // FEAT0505: Auto-generate conversation title for new conversations
                 if is_new_conversation {
                     let title_llm =
-                        llm_override.unwrap_or_else(|| state_clone.llm_provider.clone());
+                        llm_override.unwrap_or_else(|| state_clone.query.llm_provider.clone());
                     let title_conv_service = state_clone.conversation_service.clone();
                     let title_conv_id = conversation_id;
                     let title_first_msg = first_message_for_title.clone();
