@@ -17,7 +17,7 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 test.setTimeout(90000);
 
-test.describe("SPEC-032: Tenant Creation Dialog", () => {
+test.describe("@load SPEC-032: Tenant Creation Dialog", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -131,7 +131,7 @@ test.describe("SPEC-032: Tenant Creation Dialog", () => {
   });
 });
 
-test.describe("SPEC-032: Workspace Creation Dialog", () => {
+test.describe("@load SPEC-032: Workspace Creation Dialog", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());

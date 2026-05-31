@@ -33,6 +33,7 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       grepInvert: [/@audit/, /@load/, /@debug/],
+      ...(customBaseUrl ? { workers: 1 } : {}),
     },
     {
       name: "audit",

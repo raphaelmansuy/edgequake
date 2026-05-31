@@ -7,7 +7,7 @@ async function waitForGraphPage(page: import("@playwright/test").Page) {
   await page.waitForSelector('[data-tour="graph-header"]', { timeout: 30000 });
 }
 
-test.describe("Graph Viewer Responsive Layout", () => {
+test.describe("@audit Graph Viewer Responsive Layout", () => {
   // Increase timeout for graph tests
   test.setTimeout(60000);
 

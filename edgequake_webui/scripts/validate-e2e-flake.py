@@ -40,7 +40,7 @@ def main() -> int:
             for pattern, label in BANNED_IN_CHROMIUM:
                 if pattern.search(line):
                     violations.append(f"{path.name}:{line_no}: {label}")
-        # waitForTimeout in gate specs — warn if > 2s (screenshot settle ok at 500ms)
+        # waitForTimeout in gate specs — warn if > 2s (use expect/waitForResponse)
         for m in re.finditer(r"waitForTimeout\s*\(\s*(\d+)", text):
             ms = int(m.group(1))
             if ms > 2000:

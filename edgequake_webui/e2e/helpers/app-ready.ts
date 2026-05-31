@@ -3,6 +3,7 @@
  * @implements SPEC-017 E2E reliability
  */
 import type { Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { BACKEND_URL } from "./backend-url";
 
 /** Safe goto options for Next.js dev (HMR keeps connections open). */
@@ -75,4 +76,64 @@ export async function waitForQueryResponse(
 export async function waitForWorkspacePage(page: Page): Promise<void> {
   await waitForAppReady(page);
   await page.locator("main").waitFor({ state: "visible", timeout: 15_000 });
+}
+
+/** Wait for graph node search API after debounced input. */
+export async function waitForGraphSearchResponse(
+  page: Page,
+  timeout = 15_000,
+): Promise<void> {
+  await page
+    .waitForResponse(
+      (r) =>
+        r.url().includes("/graph/nodes/search") &&
+        r.status() >= 200 &&
+        r.status() < 500,
+      { timeout },
+    )
+    .catch(() => {});
+}
+
+/** Wait until query streaming finishes (textarea re-enabled or stop button gone). */
+export async function waitForStreamingComplete(
+  page: Page,
+  timeout = 60_000,
+): Promise<void> {
+  await Promise.race([
+    page.waitForFunction(
+      () => {
+        const textarea = document.querySelector("textarea");
+        return textarea && !textarea.hasAttribute("disabled");
+      },
+      { timeout },
+    ),
+    page.waitForFunction(
+      () =>
+        !document.querySelector(
+          'button[aria-label*="Stop"], button:has-text("Stop")',
+        ),
+      { timeout },
+    ),
+  ]).catch(() => {});
+}
+
+/** Poll until tasks API returns at least one task for tenant/workspace. */
+export async function waitForTasksCreated(
+  page: Page,
+  tasksUrl: string,
+  headers: Record<string, string>,
+  minCount = 1,
+  timeout = 30_000,
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get(tasksUrl, { headers });
+        if (!res.ok()) return 0;
+        const body = (await res.json()) as { tasks?: unknown[] };
+        return body.tasks?.length ?? 0;
+      },
+      { timeout },
+    )
+    .toBeGreaterThanOrEqual(minCount);
 }

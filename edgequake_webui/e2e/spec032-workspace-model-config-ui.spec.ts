@@ -17,7 +17,7 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 test.setTimeout(90000);
 
-test.describe("SPEC-032: Workspace Configuration UI", () => {
+test.describe("@load SPEC-032: Workspace Configuration UI", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -403,7 +403,7 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
   });
 });
 
-test.describe("SPEC-032: Workspace Model Editing UI", () => {
+test.describe("@load SPEC-032: Workspace Model Editing UI", () => {
   test("workspace page has edit mode toggle", async ({ page, request }) => {
     // Get workspace slug
     const tenantsResponse = await request.get(`${BACKEND_URL}/api/v1/tenants`);
@@ -485,7 +485,7 @@ test.describe("SPEC-032: Workspace Model Editing UI", () => {
   });
 });
 
-test.describe("SPEC-032: Workspace Stats Display", () => {
+test.describe("@load SPEC-032: Workspace Stats Display", () => {
   test("workspace page shows document count", async ({ page, request }) => {
     // Get workspace slug
     const tenantsResponse = await request.get(`${BACKEND_URL}/api/v1/tenants`);

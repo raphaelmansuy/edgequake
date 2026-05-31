@@ -16,7 +16,7 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 // Increase timeout for tests that use the page
 test.setTimeout(60000);
 
-test.describe("SPEC-032: Provider Integration", () => {
+test.describe("@load SPEC-032: Provider Integration", () => {
   test.beforeEach(async ({ page }) => {
     // Clear localStorage before each test for fresh state
     await page.goto("/", { waitUntil: "domcontentloaded" });

@@ -39,7 +39,7 @@ async function submitQueryAndWaitForCitations(
   }
 }
 
-test.describe("Source Citations Deep Linking", () => {
+test.describe("@audit Source Citations Deep Linking", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page with workspace
     await page.goto("/query?workspace=default-workspace");

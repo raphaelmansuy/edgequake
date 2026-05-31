@@ -13,8 +13,11 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { waitForAppReady } from "./helpers/app-ready";
-import { waitForQueryResponse } from "./helpers/app-ready";
+import {
+  waitForAppReady,
+  waitForQueryResponse,
+  waitForStreamingComplete,
+} from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 
 // Increase timeout for streaming tests
@@ -45,42 +48,9 @@ test.describe("Streaming Improvements E2E", () => {
       .first();
     await submitButton.click();
 
-    // Wait for streaming to complete - look for the textarea to be enabled again
-    // which indicates the response is complete
-    console.log("⏳ Waiting for streaming to complete...");
-    try {
-      // First wait for streaming to start (textarea becomes disabled)
-      await page.waitForTimeout(1000);
+    await waitForQueryResponse(page);
+    await waitForStreamingComplete(page);
 
-      // Then wait for streaming to complete (textarea becomes enabled OR stop button disappears)
-      await Promise.race([
-        page.waitForFunction(
-          () => {
-            const textarea = document.querySelector("textarea");
-            return textarea && !textarea.hasAttribute("disabled");
-          },
-          { timeout: 30000 }
-        ),
-        page.waitForFunction(
-          () => {
-            // Wait for "Stop" button to disappear (streaming complete)
-            return !document.querySelector(
-              'button[aria-label*="Stop"], button:has-text("Stop")'
-            );
-          },
-          { timeout: 30000 }
-        ),
-      ]);
-    } catch {
-      // If timeout, just continue - the content might still be there
-      console.log("⚠️ Timeout waiting for streaming, continuing...");
-    }
-    console.log("✅ Streaming completed");
-
-    // Give a moment for the DOM to settle
-    await page.waitForTimeout(500);
-
-    // Get page content
     const pageText = await page.textContent("body");
     console.log("📄 Page text length:", pageText?.length);
 

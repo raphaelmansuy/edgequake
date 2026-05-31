@@ -29,7 +29,7 @@ async function isOllamaAvailable(): Promise<boolean> {
   }
 }
 
-test.describe("Document Reprocessing", () => {
+test.describe("@load Document Reprocessing", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");

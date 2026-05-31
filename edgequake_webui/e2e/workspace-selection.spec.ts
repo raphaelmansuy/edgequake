@@ -34,22 +34,15 @@ test.describe("Workspace/Tenant Default Selection", () => {
     // First, set up a workspace by visiting the page and letting it auto-select
     await page.goto("/");
     await waitForAppReady(page);
+    await expect(page.getByTestId("workspace-selector")).toBeVisible({
+      timeout: 10_000,
+    });
 
-    // Wait for auto-selection to complete
-    await page.waitForTimeout(2000);
-
-    // Store the current state in localStorage manually via the page
-    const currentUrl = page.url();
-
-    // Now reload the page to simulate a returning user
     await page.reload();
     await waitForAppReady(page);
-    await page.waitForTimeout(1000);
-
-    // Should stay in the app (localStorage persists state)
-    // The URL might be "/" initially but should redirect or the selector should work
-    const workspaceSelector = page.getByTestId("workspace-selector");
-    await expect(workspaceSelector).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId("workspace-selector")).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("can manually switch workspace", async ({ page }) => {

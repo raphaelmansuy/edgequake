@@ -15,7 +15,7 @@ import { waitForAppReady } from "./helpers/app-ready";
  * 7. 🌳 Hierarchical
  */
 
-test.describe("Graph Layouts", () => {
+test.describe("@audit Graph Layouts", () => {
   // These tests require graph data to be present
   // Skip if no canvas (empty graph)
   test.beforeEach(async ({ page }) => {

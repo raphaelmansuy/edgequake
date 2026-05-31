@@ -97,10 +97,10 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
       buffer: Buffer.from(testContent),
     });
 
-    // Wait for upload to complete
-    await page.waitForTimeout(2000);
+    await expect(page.getByText("cache-test.txt").first()).toBeVisible({
+      timeout: 30_000,
+    });
 
-    // Step 5: Go back to dashboard and check stats updated
     await page.goto("/");
     await page.waitForSelector('[data-testid="stats-card"]', {
       timeout: 10000,
