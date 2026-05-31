@@ -24,6 +24,20 @@ impl StorageRuntime {
     pub fn is_memory(&self) -> bool {
         self.mode.is_memory()
     }
+
+    /// Fail closed when PostgreSQL mode is active but PDF storage was not wired (P1-08).
+    #[cfg(feature = "postgres")]
+    pub fn validate_postgres_adapters(&self) -> Result<(), String> {
+        if !self.is_postgresql() {
+            return Ok(());
+        }
+        if self.pdf_storage.is_none() {
+            return Err(
+                "PostgreSQL mode requires PostgresPdfStorage adapter (SPEC-017 P1-08)".into(),
+            );
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -56,5 +70,28 @@ mod tests {
 
         assert!(storage.is_memory());
         assert!(!storage.is_postgresql());
+    }
+
+    #[test]
+    #[cfg(feature = "postgres")]
+    fn postgres_mode_requires_pdf_storage() {
+        let kv = Arc::new(MemoryKVStorage::new("test"));
+        let vector = Arc::new(MemoryVectorStorage::new("test", 1536));
+        let graph = Arc::new(MemoryGraphStorage::new("test"));
+        let registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(
+                Arc::clone(&vector) as Arc<dyn edgequake_storage::traits::VectorStorage>
+            ));
+
+        let missing_pdf = StorageRuntime {
+            kv_storage: Arc::clone(&kv) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            vector_storage: Arc::clone(&vector)
+                as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry: registry,
+            graph_storage: Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            pdf_storage: None,
+            mode: StorageMode::PostgreSQL,
+        };
+        assert!(missing_pdf.validate_postgres_adapters().is_err());
     }
 }
