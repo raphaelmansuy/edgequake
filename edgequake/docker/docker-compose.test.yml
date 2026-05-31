@@ -18,9 +18,11 @@
 # ============================================================================
 
 services:
-  # Standard PostgreSQL with pgvector for KV/Vector storage tests
+  # PostgreSQL with pgvector + Apache AGE (mirrors production Dockerfile.postgres)
   postgres-test:
-    image: pgvector/pgvector:pg16
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: edgequake-postgres-test
     environment:
       POSTGRES_DB: edgequake_test
@@ -37,8 +39,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U edgequake_test -d edgequake_test"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 15
+      start_period: 60s
     networks:
       - edgequake-test
     command:
@@ -50,16 +52,20 @@ services:
       - "-c"
       - "log_statement=all"
 
-  # PostgreSQL with AGE extension for graph database tests
+  # Legacy AGE-only container — deprecated; unified postgres-test now includes AGE.
+  # Kept for backward compatibility with scripts that target port 5434.
   postgres-age-test:
-    image: apache/age:latest
+    profiles: ["legacy-age"]
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: edgequake-postgres-age-test
     environment:
       POSTGRES_DB: edgequake_test_age
       POSTGRES_USER: edgequake_test
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password_123}
     ports:
-      - "5434:5432" # Use 5434 for AGE
+      - "5434:5432"
     volumes:
       - postgres_age_test_data:/var/lib/postgresql/data
       - ../migrations:/docker-entrypoint-initdb.d/migrations:ro

@@ -1655,12 +1655,15 @@ test-stability-report: ## Generate test stability report
 
 test-postgres-start: ## Start PostgreSQL test containers
 	@echo "$(BLUE)Starting PostgreSQL test containers...$(RESET)"
-	@cd $(DOCKER_DIR) && docker compose -f docker-compose.test.yml up -d
+	@cd $(DOCKER_DIR) && docker compose -f docker-compose.test.yml up -d --build postgres-test
 	@echo "$(YELLOW)Waiting for databases to be ready...$(RESET)"
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 20 25 30; do \
 		(docker exec edgequake-postgres-test pg_isready -U edgequake_test -d edgequake_test 2>/dev/null) && break || sleep 2; \
 	done
-	@echo "$(GREEN)✓ PostgreSQL test containers ready$(RESET)"
+	@echo "$(YELLOW)Verifying pgvector + AGE extensions...$(RESET)"
+	@docker exec edgequake-postgres-test psql -U edgequake_test -d edgequake_test -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS age;" >/dev/null 2>&1 \
+		|| (echo "$(RED)✗ Failed to enable vector/age extensions$(RESET)" && exit 1)
+	@echo "$(GREEN)✓ PostgreSQL test containers ready (pgvector + AGE)$(RESET)"
 
 test-postgres-stop: ## Stop PostgreSQL test containers
 	@echo "$(BLUE)Stopping PostgreSQL test containers...$(RESET)"

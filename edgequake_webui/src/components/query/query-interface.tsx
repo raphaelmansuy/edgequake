@@ -38,7 +38,7 @@ import { generateUUID } from '@/lib/utils/uuid';
 import { useActiveConversationId, useQueryUIStore } from '@/stores/use-query-ui-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
-import type { QueryContext, ServerMessage } from '@/types';
+import type { QueryContext, QueryMode, ServerMessage } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     BookOpen,
@@ -68,15 +68,12 @@ import { parseCOTContent } from './thinking-display';
 // Streaming state for better UX
 type StreamingState = 'idle' | 'thinking' | 'generating' | 'complete' | 'error';
 
-// Query mode type
-type QueryModeType = 'local' | 'global' | 'hybrid' | 'naive';
-
 // Message type compatible with ChatMessageData
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  mode?: QueryModeType;
+  mode?: QueryMode;
   tokensUsed?: number;
   durationMs?: number;
   thinkingTimeMs?: number;
@@ -389,7 +386,7 @@ export function QueryInterface() {
       id: msg.id,
       role: msg.role as 'user' | 'assistant',
       content: msg.content,
-      mode: (msg.mode as QueryModeType) ?? undefined,
+      mode: (msg.mode as QueryMode) ?? undefined,
       tokensUsed: msg.tokens_used ?? undefined,
       durationMs: msg.duration_ms ?? undefined,
       thinkingTimeMs: msg.thinking_time_ms ?? undefined,
