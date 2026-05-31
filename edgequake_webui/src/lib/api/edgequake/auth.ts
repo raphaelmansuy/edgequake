@@ -5,36 +5,8 @@
 import { api } from "../client";
 
 import type {
-    CreateWorkspaceRequest,
-    Document,
-    DocumentStatusCounts,
-    EnhancedPipelineStatus,
-    Entity,
-    GraphEdge,
-    GraphNode,
-    HealthResponse,
-    KnowledgeGraph,
-    ListDocumentsResponse,
-    LoginRequest,
-    LoginResponse,
-    MergeEntitiesRequest,
-    MergeEntitiesResponse,
-    PaginatedResponse,
-    PaginationParams,
-    PdfUploadOptions,
-    PdfUploadResponse,
-    PipelineStatus,
-    QueryRequest,
-    QueryResponse,
-    QueryStreamChunk,
-    QueueMetrics,
-    Relationship,
-    Tenant,
-    TrackStatusResponse,
-    UploadDocumentRequest,
-    UploadDocumentResponse,
-    Workspace,
-    WorkspacePdfParserBackendUpdate,
+  LoginRequest,
+  LoginResponse,
 } from "@/types";
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
