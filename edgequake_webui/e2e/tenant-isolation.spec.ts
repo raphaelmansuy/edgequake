@@ -10,10 +10,11 @@
  */
 
 import { expect, Page, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 // Test configuration
 const BASE_URL = process.env.BASE_URL || "/";
-const API_URL = process.env.API_URL || "http://localhost:8080/api/v1";
+const API_URL = process.env.API_URL || `${API_V1_URL}`;
 
 // Test tenants
 const TENANT_A = {

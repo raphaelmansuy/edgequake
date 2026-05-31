@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 /**
  * Document Lifecycle E2E Tests
@@ -243,7 +244,7 @@ test.describe("Lineage Tracking", () => {
 
 test.describe("API Health", () => {
   test("backend API is healthy", async ({ page }) => {
-    const response = await page.request.get("http://localhost:8080/health");
+    const response = await page.request.get(`${BACKEND_URL}/health`);
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
@@ -253,7 +254,7 @@ test.describe("API Health", () => {
 
   test("tenants API returns data", async ({ page }) => {
     const response = await page.request.get(
-      "http://localhost:8080/api/v1/tenants"
+      `${API_V1_URL}/tenants`
     );
     expect(response.ok()).toBeTruthy();
 
@@ -267,7 +268,7 @@ test.describe("API Health", () => {
   test("documents API accepts requests", async ({ page }) => {
     // Get tenant and workspace IDs first
     const tenantsResponse = await page.request.get(
-      "http://localhost:8080/api/v1/tenants"
+      `${API_V1_URL}/tenants`
     );
     const tenants = await tenantsResponse.json();
 
@@ -276,7 +277,7 @@ test.describe("API Health", () => {
 
       // Get workspaces
       const workspacesResponse = await page.request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
 
@@ -285,7 +286,7 @@ test.describe("API Health", () => {
 
         // Try to list documents
         const response = await page.request.get(
-          "http://localhost:8080/api/v1/documents",
+          `${API_V1_URL}/documents`,
           {
             headers: {
               "X-Tenant-ID": tenantId,

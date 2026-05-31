@@ -19,10 +19,11 @@
  */
 
 import { expect, Page, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 const KNOWLEDGE_URL = "/knowledge";
 const WS_ID = "8efcd288-37f7-413c-97bb-95bd7b535059";
-const API_INJECTIONS_URL = `http://localhost:8080/api/v1/workspaces/${WS_ID}/injections`;
+const API_INJECTIONS_URL = `${API_V1_URL}/workspaces/${WS_ID}/injections`;
 const WS_HEADERS = { "X-Workspace-ID": WS_ID };
 
 // Unique suffix per test run to avoid name collisions
@@ -244,7 +245,7 @@ test.describe("Knowledge Injection CRUD", () => {
   test("5 - Query retrieves XJMIJI → Hermes 3 from injection", async ({
     page,
   }) => {
-    const resp = await page.request.post("http://localhost:8080/api/v1/query", {
+    const resp = await page.request.post(`${API_V1_URL}/query`, {
       headers: {
         "Content-Type": "application/json",
         "X-Workspace-ID": WS_ID,

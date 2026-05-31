@@ -14,9 +14,10 @@
  */
 
 import { type Page, expect, test } from '@playwright/test';
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? '/';
-const API_URL = 'http://localhost:8080';
+const API_URL = `${BACKEND_URL}`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

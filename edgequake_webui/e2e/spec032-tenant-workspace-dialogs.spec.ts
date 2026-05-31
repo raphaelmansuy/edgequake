@@ -12,8 +12,8 @@
  * @iteration OODA 59
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
 
 test.setTimeout(90000);
 

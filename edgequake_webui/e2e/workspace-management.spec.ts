@@ -8,8 +8,8 @@
  * 4. Query page works after fresh workspace creation
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = process.env.EQ_BACKEND_URL || "http://localhost:8080";
 
 test.describe("Workspace Management (specs/21-workspace)", () => {
   test.beforeEach(async ({ page }) => {

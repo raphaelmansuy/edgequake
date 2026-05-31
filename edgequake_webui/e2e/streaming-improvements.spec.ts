@@ -13,6 +13,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 // Increase timeout for streaming tests
 test.setTimeout(60000);
@@ -236,7 +237,7 @@ test.describe("Streaming Improvements E2E", () => {
     // Try to get conversation from API to check token storage
     try {
       const workspacesResponse = await request.get(
-        "http://localhost:8080/api/v1/workspaces"
+        `${API_V1_URL}/workspaces`
       );
       if (workspacesResponse.ok()) {
         const workspaces = await workspacesResponse.json();
