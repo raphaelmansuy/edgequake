@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * E2E tests for SPEC-032: Ollama/LM Studio Provider Integration
  *
@@ -15,6 +16,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 // Increase timeout for tests that use the page
 test.setTimeout(60000);
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@load SPEC-032: Provider Integration", () => {
   test.beforeEach(async ({ page }) => {

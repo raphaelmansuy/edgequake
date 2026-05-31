@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Rebuild Operations Provider E2E Tests
  *
@@ -15,6 +16,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 
 test.setTimeout(120000);
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@load SPEC-032: Rebuild Operations", () => {
   test.beforeEach(async ({ page }) => {

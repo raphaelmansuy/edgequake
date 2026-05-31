@@ -1,5 +1,6 @@
 import { test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 import {
   waitForAppReady,
   waitForQueryResponse,
@@ -16,6 +17,11 @@ import {
  * Solution: Updated chat_completion and chat_completion_stream handlers to use
  *           query_with_full_config() method that accepts workspace embedding + storage
  */
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
   // Default timeout for these tests

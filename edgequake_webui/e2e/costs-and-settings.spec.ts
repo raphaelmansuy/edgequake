@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Cost Tracking E2E Tests
@@ -12,6 +13,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
  */
 
 const API_BASE = `${BACKEND_URL}`;
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Cost Tracking API", () => {
   let tenantId: string;

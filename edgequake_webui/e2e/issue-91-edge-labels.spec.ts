@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { gotoApp } from "./helpers/navigation";
 import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
   test("Settings page has Show Edge Labels toggle", async ({ page }) => {

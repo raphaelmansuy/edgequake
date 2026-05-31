@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@debug Query Page Functionality Test", () => {
   test.beforeEach(async ({ page }) => {

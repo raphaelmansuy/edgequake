@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Phase 3 Optional Enhancements E2E Tests
@@ -12,6 +13,11 @@ import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } fr
  * 5. Onboarding tour component
  * 6. Reduced motion support
  */
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("@audit Phase 3 Optional Enhancements", () => {
   // =========================================================================
   // Graph Empty State Illustration Tests

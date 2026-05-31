@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Comprehensive Provider/Model Selection E2E Tests
  *
@@ -23,6 +24,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 // Increase timeout for E2E tests
 test.setTimeout(90000);
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@load SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () => {
   test.beforeEach(async ({ page }) => {

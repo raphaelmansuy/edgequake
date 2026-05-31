@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * E2E Tests for Source Citations Deep Linking
@@ -38,6 +39,11 @@ async function submitQueryAndWaitForCitations(
     return false;
   }
 }
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@audit Source Citations Deep Linking", () => {
   test.beforeEach(async ({ page }) => {

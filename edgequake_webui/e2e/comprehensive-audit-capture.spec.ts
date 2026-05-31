@@ -2,6 +2,7 @@ import { Page, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Comprehensive UX/UI Audit Script for EdgeQuake WebUI
@@ -165,6 +166,11 @@ function saveAuditData(data: AuditData, fileName: string) {
     JSON.stringify(data, null, 2)
   );
 }
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@audit UX/UI Comprehensive Audit - Screenshot Capture", () => {
   test.beforeEach(async ({ page }) => {

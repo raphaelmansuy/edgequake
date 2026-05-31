@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * E2E Tests for Source Tracking and Citations
@@ -10,6 +11,11 @@ import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } fr
  * 3. Relationship source tracking shows document links
  * 4. Document navigation from citations works
  */
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("@audit Source Tracking and Citations", () => {
   test.beforeEach(async ({ page }) => {
     // Capture console errors

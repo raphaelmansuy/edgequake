@@ -1,5 +1,6 @@
 import { test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * OODA-228: Critical Path E2E Test
@@ -15,6 +16,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
  * - No error messages containing "dimension" or "vector mismatch"
  * - Response contains content (not error)
  */
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("OODA-228: Critical Path Validation", () => {
   test.setTimeout(90000);

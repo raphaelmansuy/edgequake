@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@debug Query Deep Dive - Issue Detection", () => {
   test.beforeEach(async ({ page }) => {

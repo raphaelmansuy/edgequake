@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * E2E tests for Workspace Management improvements (specs/21-workspace.md)
  *
@@ -11,6 +12,11 @@ import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Workspace Management (specs/21-workspace)", () => {
   test.beforeEach(async ({ page }) => {

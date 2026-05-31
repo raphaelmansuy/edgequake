@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Tenant and Workspace Creation Dialogs E2E Tests
  *
@@ -16,6 +17,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 
 test.setTimeout(90000);
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("@load SPEC-032: Tenant Creation Dialog", () => {
   test.beforeEach(async ({ page }) => {

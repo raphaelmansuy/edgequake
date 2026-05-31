@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-013 entity_extraction — strict limit checkbox (API + UI).
  */
@@ -15,6 +16,11 @@ const SCREENSHOT_DIR = path.join(
   'implementation',
   'screenshots'
 );
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('Entity types strict limit', () => {
   test('API persists entity_types_strict false and true', async ({ request }) => {

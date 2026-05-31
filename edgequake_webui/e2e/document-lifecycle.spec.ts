@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Document Lifecycle E2E Tests
@@ -12,6 +13,11 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
  * 4. Verify lineage tracking
  * 5. Delete document
  */
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Document Lifecycle", () => {
   test.beforeEach(async ({ page }) => {

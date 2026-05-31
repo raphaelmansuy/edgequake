@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * E2E tests for Knowledge Injection CRUD operations:
  *   1. Add new text injection → verify card appears + entity_count > 0
@@ -96,6 +97,11 @@ async function pollInjectionStatus(
 // ─────────────────────────────────────────────────────────────────────────────
 // Test suite — SERIAL to avoid parallel OpenAI extraction overload
 // ─────────────────────────────────────────────────────────────────────────────
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe.configure({ mode: "serial" });
 

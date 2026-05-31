@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Tests for source citations overflow and navigation fixes.
@@ -34,6 +35,11 @@ async function submitQueryAndGetCitations(
     return false;
   }
 }
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Source Citations Overflow & Navigation Fixes", () => {
   test("Issue #1: Documents tab chunks should not overflow container", async ({
