@@ -82,6 +82,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: E2E flake lint (chromium gate)
+        run: make test-e2e-lint
+
       - name: Download backend
         uses: actions/download-artifact@v4
         with:
