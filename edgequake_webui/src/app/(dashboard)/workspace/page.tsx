@@ -11,9 +11,7 @@
  */
 'use client';
 
-import { ProviderIcon } from '@/components/providers/provider-icon';
 import {
-  PdfParserBackendField,
   type PdfParserBackendChoice,
 } from '@/components/settings/pdf-parser-backend-field';
 import {
@@ -26,16 +24,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
-import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
-import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
-import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
+import type { EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
+import type { LLMSelection } from '@/components/workspace/llm-model-selector';
+import { WorkspaceActionsCard } from '@/components/workspace/workspace-actions-card';
+import { WorkspaceExtendedModelConfig } from '@/components/workspace/workspace-extended-model-config';
+import { WorkspaceModelConfigGrid } from '@/components/workspace/workspace-model-config-grid';
+import { WorkspaceStatusFooter } from '@/components/workspace/workspace-status-footer';
 import { WorkspaceEntityTypesCard } from '@/components/workspace/workspace-entity-types-card';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
 import { WorkspaceProviderHealthCard } from '@/components/workspace/workspace-provider-health-card';
@@ -54,24 +53,9 @@ import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
-  Brain,
-  CheckCircle,
-  Cloud,
-  Cpu,
-  Database,
-  Eye,
-  FileText,
   FolderKanban,
-  Gauge,
-  GitBranch,
-  Layers,
   RefreshCw,
-  Save,
-  Server,
-  Settings,
-  Sparkles,
   Trash2,
-  XCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -415,217 +399,26 @@ export default function WorkspacePage() {
         isLoadingStats={isLoadingStats}
       />
 
-      {/* Model Configuration */}      {/* Model Configuration */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LLM Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-blue-600" />
-              {t('workspace.llmConfig', 'LLM Configuration')}
-            </CardTitle>
-            <CardDescription>
-              {t('workspace.llmConfigDesc', 'Model used for entity extraction and summarization during document ingestion.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isEditing ? (
-              <>
-                <LLMModelSelector
-                  value={selectedLLM}
-                  onChange={setSelectedLLM}
-                  showUsageHint
-                />
-                {llmModelChanged && (
-                  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-700 dark:text-blue-300">
-                      {t('workspace.llmChangeWarning', 'Changing LLM model requires re-extracting entities from all documents.')}
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (() => {
-              // FIXED: Always show workspace's saved LLM configuration
-              // Do not override with environment defaults even when workspace has 0 documents
-              const displayProvider = workspace.llm_provider;
-              const displayModel = workspace.llm_model;
-              const displayFullId = workspace.llm_full_id;
+      <WorkspaceModelConfigGrid
+        workspace={workspace}
+        isEditing={isEditing}
+        selectedLLM={selectedLLM}
+        selectedEmbedding={selectedEmbedding}
+        onLlmChange={setSelectedLLM}
+        onEmbeddingChange={setSelectedEmbedding}
+        llmModelChanged={llmModelChanged ?? false}
+        embeddingModelChanged={embeddingModelChanged ?? false}
+      />
 
-              return (
-                <>
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    {<ProviderIcon providerId={displayProvider} />}
-                    <div>
-                      <div className="font-medium">
-                        {displayModel || t('workspace.serverDefault', 'Server Default')}
-                      </div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        {displayProvider || t('workspace.autoDetect', 'Auto-detected')}
-                      </div>
-                    </div>
-                    {displayFullId && (
-                      <Badge variant="outline" className="ml-auto">
-                        {displayFullId}
-                      </Badge>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-          </CardContent>
-        </Card>
-
-        {/* Embedding Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-purple-600" />
-              {t('workspace.embeddingConfig', 'Embedding Configuration')}
-            </CardTitle>
-            <CardDescription>
-              {t('workspace.embeddingConfigDesc', 'Model used for vector embeddings of document chunks.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isEditing ? (
-              <>
-                <EmbeddingModelSelector
-                  value={selectedEmbedding}
-                  onChange={setSelectedEmbedding}
-                />
-                {embeddingModelChanged && (
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <span className="text-sm text-amber-700 dark:text-amber-300">
-                      {t('workspace.embeddingChangeWarning', 'Changing embedding model requires rebuilding all document embeddings.')}
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (() => {
-              // FIXED: Always show workspace's saved embedding configuration
-              // Do not override with environment defaults even when workspace has 0 documents
-              const displayProvider = workspace.embedding_provider;
-              const displayModel = workspace.embedding_model;
-              const displayDimension = workspace.embedding_dimension;
-              const displayFullId = workspace.embedding_full_id;
-
-              return (
-                <>
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    {<ProviderIcon providerId={displayProvider} />}
-                    <div>
-                      <div className="font-medium">
-                        {displayModel || t('workspace.serverDefault', 'Server Default')}
-                      </div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        {displayProvider || t('workspace.autoDetect', 'Auto-detected')}
-                        {displayDimension && (
-                          <span className="ml-2">• {displayDimension} dims</span>
-                        )}
-                      </div>
-                    </div>
-                    {displayFullId && (
-                      <Badge variant="outline" className="ml-auto">
-                        {displayFullId}
-                      </Badge>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Vision LLM Configuration - SPEC-040: PDF-to-Markdown vision model */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-orange-600" />
-              {t('workspace.visionLlmConfig', 'Vision LLM (PDF Extraction)')}
-            </CardTitle>
-            <CardDescription>
-              {t('workspace.visionLlmConfigDesc', 'Multimodal model used for PDF page rendering and text extraction. Overrides server default for this workspace.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isEditing ? (
-              <>
-                <LLMModelSelector
-                  value={selectedVisionLLM}
-                  onChange={setSelectedVisionLLM}
-                  showUsageHint
-                />
-                {visionLLMChanged && (
-                  <div className="flex items-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm text-orange-700 dark:text-orange-300">
-                      {t('workspace.visionLlmChangeWarning', 'New Vision LLM will be used for all subsequent PDF uploads.')}
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {<ProviderIcon providerId={workspace.vision_llm_provider} />}
-                <div>
-                  <div className="font-medium">
-                    {workspace.vision_llm_model || t('workspace.serverDefault', 'Server Default')}
-                  </div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {workspace.vision_llm_provider || t('workspace.autoDetect', 'Auto-detected')}
-                  </div>
-                </div>
-                {workspace.vision_llm_provider && workspace.vision_llm_model && (
-                  <Badge variant="outline" className="ml-auto">
-                    {`${workspace.vision_llm_provider}/${workspace.vision_llm_model}`}
-                  </Badge>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {selectedPdfParserBackend === 'vision' ? (
-                <Eye className="h-5 w-5 text-amber-600" />
-              ) : (
-                <Gauge className="h-5 w-5 text-amber-600" />
-              )}
-              {t('workspace.pdfParserConfig', 'PDF Parser')}
-            </CardTitle>
-            <CardDescription>
-              {t(
-                'workspace.pdfParserConfigDesc',
-                'Choose the default parser for new PDF uploads in this workspace. EdgeParse is best for digital PDFs; Vision is better for scanned or image-heavy files.',
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <PdfParserBackendField
-              value={selectedPdfParserBackend}
-              isEditing={isEditing}
-              onChange={setSelectedPdfParserBackend}
-            />
-            {isEditing && (
-              <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <span className="text-sm text-amber-700 dark:text-amber-300">
-                  {t(
-                    'workspace.pdfParserChangeWarning',
-                    'This default applies to subsequent PDF uploads. Existing documents keep their original extraction method unless reprocessed.',
-                  )}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <WorkspaceExtendedModelConfig
+        workspace={workspace}
+        isEditing={isEditing}
+        selectedVisionLLM={selectedVisionLLM}
+        selectedPdfParserBackend={selectedPdfParserBackend}
+        onVisionLlmChange={setSelectedVisionLLM}
+        onPdfParserBackendChange={setSelectedPdfParserBackend}
+        visionLLMChanged={visionLLMChanged ?? false}
+      />
 
       <WorkspaceEntityTypesCard
         isEditing={isEditing}
@@ -641,102 +434,18 @@ export default function WorkspacePage() {
         isLoadingHealth={isLoadingHealth}
       />
 
-      {/* Actions Section */}      {/* Actions Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            {t('workspace.actions', 'Workspace Actions')}
-          </CardTitle>
-          <CardDescription>
-            {t('workspace.actionsDesc', 'Manage workspace data and re-process documents.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Pending rebuild alert */}
-          {pendingRebuild && (pendingRebuild.embeddings || pendingRebuild.extraction || pendingRebuild.vision) && (
-            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-              <div className="flex-1">
-                <p className="font-medium text-amber-800 dark:text-amber-200">
-                  {t('workspace.rebuildPending', 'Rebuild Required')}
-                </p>
-                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  {pendingRebuild.embeddings && pendingRebuild.extraction ? (
-                    t('workspace.rebuildBothPending', 'You changed both LLM and embedding models. Click "Rebuild Knowledge Graph" to reprocess all documents from original files with the new configuration.')
-                  ) : pendingRebuild.embeddings ? (
-                    t('workspace.rebuildEmbeddingsPending', 'You changed the embedding model. Click "Rebuild Embeddings" to regenerate vector embeddings.')
-                  ) : pendingRebuild.vision ? (
-                    t('workspace.rebuildVisionPending', 'You changed the Vision LLM model. Click "Rebuild Knowledge Graph" to re-extract all PDF documents from their original files using the new vision model.')
-                  ) : (
-                    t('workspace.rebuildExtractionPending', 'You changed the LLM model. Click "Rebuild Knowledge Graph" to re-extract entities from all documents.')
-                  )}
-                </p>
-              </div>
-            </div>
-          )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Rebuild Embeddings */}
-            <RebuildEmbeddingsButton
-              variant="card"
-              onComplete={() => {
-                queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
-                // Clear pending rebuild state after successful rebuild
-                setPendingRebuild(null);
-              }}
-            />
+      <WorkspaceActionsCard
+        workspace={workspace}
+        pendingRebuild={pendingRebuild}
+        includeVisionPending
+        onRebuildComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+          queryClient.invalidateQueries({ queryKey: ['documents'] });
+          setPendingRebuild(null);
+        }}
+      />
 
-            {/* Rebuild Knowledge Graph */}
-            <RebuildKnowledgeGraphButton
-              variant="card"
-              rebuildEmbeddings={true}
-              onComplete={() => {
-                queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
-                queryClient.invalidateQueries({ queryKey: ['documents'] });
-                // Clear pending rebuild state after successful rebuild
-                setPendingRebuild(null);
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {/* Workspace Info Card */}
-            <Card className="border-dashed">
-              <CardContent className="pt-6">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.id', 'Workspace ID')}</span>
-                    <code className="max-w-[60%] break-all rounded bg-muted px-2 py-1 text-right text-xs">{workspace.id}</code>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.slug', 'Slug')}</span>
-                    <code className="max-w-[60%] break-all rounded bg-muted px-2 py-1 text-right text-xs">{workspace.slug || '-'}</code>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.created', 'Created')}</span>
-                    <span className="text-sm">{new Date(workspace.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.updated', 'Updated')}</span>
-                    <span className="text-sm">
-                      {workspace.updated_at
-                        ? new Date(workspace.updated_at).toLocaleDateString()
-                        : '-'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-        {/* Status Indicator */}
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle className="h-4 w-4 text-green-500" />
-          {t('workspace.statusReady', 'Workspace ready for queries and document ingestion')}
-        </div>
+      <WorkspaceStatusFooter />
 
         {/* FIX #171: Danger Zone — Delete Workspace */}
         <Card className="border-destructive/50">
