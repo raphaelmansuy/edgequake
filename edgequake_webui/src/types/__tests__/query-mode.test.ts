@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { isQueryMode, QUERY_MODES } from "@/types";
 
 describe("QueryMode backend parity (UI-DRY-005)", () => {
