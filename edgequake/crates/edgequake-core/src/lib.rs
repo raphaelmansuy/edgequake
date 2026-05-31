@@ -40,6 +40,7 @@ pub mod config;
 pub mod conversation_service;
 pub mod env;
 pub mod error;
+pub mod graph_mapping;
 pub mod keyword_extractor;
 #[cfg(feature = "pipeline")]
 pub mod orchestrator;
