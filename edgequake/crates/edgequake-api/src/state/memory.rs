@@ -22,15 +22,6 @@ use super::{
 };
 use crate::cache_manager::CacheManager;
 
-fn bundled_models_config() -> Arc<ModelsConfig> {
-    Arc::new({
-        const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
-        ModelsConfig::from_toml(BUNDLED_MODELS)
-            .or_else(|_| ModelsConfig::load())
-            .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
-    })
-}
-
 impl AppState {
     /// Create a new application state.
     ///
@@ -73,7 +64,7 @@ impl AppState {
                 query_engine,
                 sota_engine,
                 pipeline,
-                models_config: bundled_models_config(),
+                models_config: super::bundled_models::bundled_models_config(),
             },
             auth: AuthRuntime::from_env(),
             tasks: TaskRuntime::new(task_storage, task_queue),
@@ -212,7 +203,7 @@ impl AppState {
                 query_engine,
                 sota_engine,
                 pipeline,
-                models_config: bundled_models_config(),
+                models_config: super::bundled_models::bundled_models_config(),
             },
             auth,
             tasks: TaskRuntime::new(task_storage, task_queue),

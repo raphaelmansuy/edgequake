@@ -101,6 +101,7 @@ pub mod openapi;
 pub mod path_validation;
 pub mod pipeline_progress_callback;
 pub mod processor;
+mod provider_catalog;
 pub mod provider_types;
 pub mod providers;
 pub mod routes;
