@@ -342,18 +342,20 @@ impl AppState {
         let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
             Arc::new(edgequake_storage::PostgresPdfStorage::new(pool.clone()));
 
+        let storage = StorageRuntime {
+            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            vector_storage: Arc::clone(&vector_storage)
+                as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
+            graph_storage: Arc::clone(&graph_storage)
+                as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            pdf_storage: Some(pdf_storage),
+            mode: StorageMode::PostgreSQL,
+        };
+        storage.validate_postgres_adapters()?;
+
         Ok(Self {
-            storage: StorageRuntime {
-                kv_storage: Arc::clone(&kv_storage)
-                    as Arc<dyn edgequake_storage::traits::KVStorage>,
-                vector_storage: Arc::clone(&vector_storage)
-                    as Arc<dyn edgequake_storage::traits::VectorStorage>,
-                vector_registry,
-                graph_storage: Arc::clone(&graph_storage)
-                    as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                pdf_storage: Some(pdf_storage),
-                mode: StorageMode::PostgreSQL,
-            },
+            storage,
             query: QueryRuntime {
                 llm_provider: Arc::clone(&llm_provider)
                     as Arc<dyn edgequake_llm::traits::LLMProvider>,

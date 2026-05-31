@@ -24,6 +24,10 @@ use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
 pub(super) fn get_pdf_storage(state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> {
     state
         .storage
+        .validate_postgres_adapters()
+        .map_err(ApiError::Internal)?;
+    state
+        .storage
         .pdf_storage
         .as_ref()
         .map(Arc::clone)
