@@ -19,7 +19,7 @@ test.describe('SPEC-085: Entity Type Selector', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the homepage (workspace dashboard)
     await page.goto(BASE_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
   });
 
   test('workspace creation dialog shows entity type section', async ({ page }) => {

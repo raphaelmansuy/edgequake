@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 /**
  * E2E Tests for Source Tracking and Citations
@@ -9,7 +10,7 @@ import { expect, test } from "@playwright/test";
  * 3. Relationship source tracking shows document links
  * 4. Document navigation from citations works
  */
-test.describe("Source Tracking and Citations", () => {
+test.describe("@audit Source Tracking and Citations", () => {
   test.beforeEach(async ({ page }) => {
     // Capture console errors
     page.on("console", (msg) => {
@@ -28,7 +29,7 @@ test.describe("Source Tracking and Citations", () => {
     });
 
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should receive context in streaming response", async ({ page }) => {

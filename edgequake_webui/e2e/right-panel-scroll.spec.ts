@@ -11,14 +11,15 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "/";
 
 test.describe("Right Panel Scroll", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the documents page and wait for it to be ready.
-    await page.goto(`${BASE_URL}/documents?workspace=default-workspace`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/documents?workspace=default-workspace');
+    await waitForAppReady(page);
     await page.waitForTimeout(600);
   });
 

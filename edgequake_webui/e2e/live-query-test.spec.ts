@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Live Query Test", () => {
+test.describe("@debug Live Query Test", () => {
   test("should execute a real streaming query and verify response quality", async ({
     page,
   }) => {

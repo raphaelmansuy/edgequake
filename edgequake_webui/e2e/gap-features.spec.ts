@@ -16,6 +16,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 // Test group for navigation and layout
 test.describe("Navigation and Layout", () => {
@@ -59,7 +60,7 @@ test.describe("Navigation and Layout", () => {
 test.describe("GAP-001: Internationalization (i18n)", () => {
   test("should have language selector in header", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for client-side hydration (I18nProvider may take a moment)
     await page.waitForTimeout(1000);
@@ -82,7 +83,7 @@ test.describe("GAP-001: Internationalization (i18n)", () => {
   test.skip("should switch language to Chinese", async ({ page }) => {
     // Skipped: Requires full client-side hydration which may be flaky in E2E
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for language selector to be visible
     const languageButton = page.getByTestId("language-selector");
@@ -110,7 +111,7 @@ test.describe("GAP-001: Internationalization (i18n)", () => {
   test.skip("should switch language to French", async ({ page }) => {
     // Skipped: Requires full client-side hydration which may be flaky in E2E
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for language selector to be visible
     const languageButton = page.getByTestId("language-selector");
@@ -174,7 +175,7 @@ test.describe("GAP-002/003/004: Graph Visualization", () => {
     await page.goto("/graph");
 
     // Wait for the page to load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Graph page should have either a visible heading OR graph controls
     // The main h1 may be hidden on mobile (md:hidden), so check for controls too
@@ -206,7 +207,7 @@ test.describe("GAP-007: Pipeline Status Monitoring", () => {
 
     // Pipeline status is shown in header or document manager
     // Look for activity/pipeline related UI
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 });
 
@@ -233,7 +234,7 @@ test.describe("GAP-008/009/010: Query Interface", () => {
 test.describe("UX: Keyboard Shortcuts", () => {
   test("should open keyboard shortcuts dialog with ? key", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Press ? to open shortcuts dialog
     await page.keyboard.press("Shift+?");
@@ -261,7 +262,7 @@ test.describe("UX: Keyboard Shortcuts", () => {
 
   test("should close dialog with Escape key", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Open shortcuts dialog
     await page.keyboard.press("Shift+?");

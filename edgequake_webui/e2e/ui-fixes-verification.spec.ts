@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 /**
  * E2E Tests for UI Fixes - December 2024
@@ -11,11 +12,11 @@ import { expect, test } from "@playwright/test";
  * 5. Graph page scroll issues
  * 6. Settings menu layout/padding
  */
-test.describe("UI Fixes Verification", () => {
+test.describe("@audit UI Fixes Verification", () => {
   test.beforeEach(async ({ page }) => {
     // Wait for the app to be ready
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("1. Tenant/workspace selector overflow is contained", async ({
@@ -54,7 +55,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("2. Document filter/sort alignment", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take screenshot of the filter area
     await page.screenshot({
@@ -71,7 +72,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("3. Graph left panel is collapsible", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for the entity browser panel
     await page.waitForTimeout(1000);
@@ -118,7 +119,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("4. Search input styling", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for the entity browser search input
     const searchInput = page.locator(
@@ -161,7 +162,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("5. Graph page scroll is contained", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check that the graph viewer has overflow-hidden
     const graphViewerContainer = page
@@ -184,7 +185,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("6. Settings menu layout and padding", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take screenshot of settings page
     await page.screenshot({
@@ -209,7 +210,7 @@ test.describe("UI Fixes Verification", () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take mobile screenshot
     await page.screenshot({
@@ -241,7 +242,7 @@ test.describe("UI Fixes Verification", () => {
 
     for (const { path, name } of pages) {
       await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Take screenshot
       await page.screenshot({

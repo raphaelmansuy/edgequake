@@ -14,12 +14,29 @@ export const API_V1_URL = `${BACKEND_URL}/api/v1`;
 export async function isEdgequakeBackendHealthy(
   request: { get: (url: string) => Promise<{ ok: () => boolean; json: () => Promise<unknown> }> },
 ): Promise<boolean> {
-  try {
-    const response = await request.get(`${BACKEND_URL}/health`);
-    if (!response.ok()) return false;
-    const body = (await response.json()) as { status?: string; storage_mode?: string };
-    return body.status === "healthy" && typeof body.storage_mode === "string";
-  } catch {
-    return false;
+  for (const path of ["/health", "/api/v1/health"]) {
+    try {
+      const response = await request.get(`${BACKEND_URL}${path}`);
+      if (!response.ok()) continue;
+      const body = (await response.json()) as { status?: string; storage_mode?: string };
+      if (body.status === "healthy" && typeof body.storage_mode === "string") {
+        return true;
+      }
+    } catch {
+      /* try next path */
+    }
   }
+  return false;
+}
+
+/** Poll until backend is ready (cold start after make dev-bg). */
+export async function waitForBackendInGlobalSetup(
+  request: { get: (url: string) => Promise<{ ok: () => boolean; json: () => Promise<unknown> }> },
+  maxAttempts = 45,
+): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    if (await isEdgequakeBackendHealthy(request)) return true;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
 }

@@ -53,7 +53,7 @@ async function captureAllBreakpoints(page: Page, baseName: string) {
   }
 }
 
-test.describe("Audit Fixes Verification", () => {
+test.describe("@audit Audit Fixes Verification", () => {
   test.beforeEach(async ({ page }) => {
     // Set desktop viewport as default
     await page.setViewportSize(BREAKPOINTS["desktop"]);

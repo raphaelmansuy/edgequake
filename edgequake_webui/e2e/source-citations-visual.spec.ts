@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Source Citations Visual Verification", () => {
+test.describe("@audit Source Citations Visual Verification", () => {
   test("verify improved source citations UX", async ({ page }) => {
     // Navigate to query page
     await page.goto("/query");

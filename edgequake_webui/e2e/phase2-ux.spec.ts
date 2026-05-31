@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Phase 2 UX Improvements - Graph & Query", () => {
+test.describe("@audit Phase 2 UX Improvements - Graph & Query", () => {
   // =========================================================================
   // Graph Export Tests
   // =========================================================================

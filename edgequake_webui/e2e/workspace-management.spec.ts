@@ -8,6 +8,7 @@
  * 4. Query page works after fresh workspace creation
  */
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 
@@ -24,7 +25,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
     await page.goto("/");
 
     // Wait for the page to load and workspace context to be ready
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // The workspace selector button should be visible in the header
     await expect(page.getByTestId("workspace-selector")).toBeVisible({
@@ -45,7 +46,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
     await page.goto("/query");
 
     // Wait for the page to fully load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for workspace to be set in URL
     await page.waitForFunction(
@@ -66,7 +67,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
     await page.goto("/query");
 
     // Wait for page load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Should see the query interface - look for the textarea
     const queryTextarea = page.getByRole("textbox", {
@@ -117,7 +118,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
   test("workspace slug endpoint works correctly", async ({ page, request }) => {
     // First get the current tenant ID from the page
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get tenants from API
     const tenantsResponse = await request.get(
@@ -155,7 +156,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
   test("workspace selector shows current workspace name", async ({ page }) => {
     await page.goto("/documents");
 
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Workspace selector should show a workspace name
     const workspaceSelector = page.getByTestId("workspace-selector");
@@ -172,7 +173,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
   test("documents page loads without errors", async ({ page }) => {
     await page.goto("/documents");
 
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Should see documents interface
     await expect(
@@ -193,7 +194,7 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
   test("graph page loads without errors", async ({ page }) => {
     await page.goto("/graph");
 
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Should see graph interface or empty state
     // Wait for page content (graph visualization or empty state message)

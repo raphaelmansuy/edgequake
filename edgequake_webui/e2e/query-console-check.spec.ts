@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-test.describe("Query Console Check", () => {
+test.describe("@debug Query Console Check", () => {
   test("should show console output for debugging", async ({ page }) => {
     // Capture ALL console messages
     const consoleMessages: string[] = [];

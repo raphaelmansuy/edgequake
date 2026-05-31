@@ -8,33 +8,15 @@
  * @see edgequake/crates/edgequake-api/src/providers/resolver.rs (WorkspaceProviderResolver)
  */
 import { expect, test } from "@playwright/test";
-
-// Helper to wait for backend
-async function waitForBackend(baseURL: string) {
-  const maxRetries = 30;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(
-        `${baseURL.replace(":3001", ":8080")}/health`,
-      );
-      if (response.ok) return true;
-    } catch (e) {
-      // Not ready
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  throw new Error("Backend not ready after 30 seconds");
-}
+import { waitForAppReady, waitForQueryResponse } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { BACKEND_URL } from "./helpers/backend-url";
 
 test.describe("LLM Model Selection and Usage", () => {
-  test.beforeEach(async ({ page, baseURL }) => {
-    if (baseURL) {
-      await waitForBackend(baseURL);
-    }
-
-    // Navigate to query page
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "llm-selection");
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should show LLM model selector in query interface", async ({
@@ -234,8 +216,7 @@ test.describe("LLM Model Selection and Usage", () => {
       .or(page.locator('button:has-text("Send")'));
     await sendButton.click();
 
-    // Wait for response to start streaming
-    await page.waitForTimeout(3000);
+    await waitForQueryResponse(page);
 
     // Look for chat message with response
     const chatMessages = page
@@ -262,7 +243,7 @@ test.describe("LLM Provider Resolution Priority", () => {
     page,
   }) => {
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // This is an integration test - requires backend to have:
     // 1. A workspace with LLM provider configured
@@ -277,7 +258,7 @@ test.describe("LLM Provider Resolution Priority", () => {
     page,
   }) => {
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Verify workspace settings page shows LLM configuration
     const workspaceSettings = page.locator(

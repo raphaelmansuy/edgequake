@@ -8,6 +8,7 @@
  * Fix: Clear stale conversation ID and notify user to retry
  */
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 test.describe("Stale Conversation Recovery", () => {
   // A UUID that doesn't exist on the server
@@ -26,7 +27,7 @@ test.describe("Stale Conversation Recovery", () => {
     await page.goto(`/query`);
 
     // Wait for the page to load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // The query page should still load (not crash)
     await expect(page.getByRole("heading", { name: "Query" })).toBeVisible({
@@ -70,7 +71,7 @@ test.describe("Stale Conversation Recovery", () => {
 
     // Navigate to the query page
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for the auto-recovery to complete
     await page.waitForTimeout(2000);
@@ -122,7 +123,7 @@ test.describe("Stale Conversation Recovery", () => {
 
     // Navigate to the query page - this should trigger the recovery logic
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for React to process the error and clear the stale ID
     await page.waitForTimeout(2000);
@@ -181,7 +182,7 @@ test.describe("Stale Conversation Recovery", () => {
 
     // Navigate to query page
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Should see a friendly notification (toast) about starting fresh
     // Give it time to appear

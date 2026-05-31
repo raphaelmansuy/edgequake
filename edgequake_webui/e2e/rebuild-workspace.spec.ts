@@ -9,6 +9,7 @@
 
 import { expect, test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 const FRONTEND_URL = "/";
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002";
@@ -17,15 +18,15 @@ const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000003";
 test.describe("Workspace Rebuild E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to workspace page
-    await page.goto(`${FRONTEND_URL}/w/default`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/w/default');
+    await waitForAppReady(page);
   });
 
   test("Backend API: Rebuild embeddings endpoint exists", async ({
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -62,7 +63,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+      `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -100,7 +101,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
 
   test("Backend API: Force rebuild embeddings works", async ({ request }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -129,7 +130,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+      `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -164,8 +165,8 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     page,
   }) => {
     // Navigate to workspace page via sidebar
-    await page.goto(`${FRONTEND_URL}/w/default/workspace`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/w/default/workspace');
+    await waitForAppReady(page);
 
     // Check if workspace config page loaded
     const heading = page
@@ -178,8 +179,8 @@ test.describe("Workspace Rebuild E2E Tests", () => {
   });
 
   test("Frontend: Sidebar has workspace link", async ({ page }) => {
-    await page.goto(`${FRONTEND_URL}/w/default`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/w/default');
+    await waitForAppReady(page);
 
     // Look for workspace navigation link
     const workspaceLink = page
@@ -198,7 +199,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     // Upload a test document to workspace 1
-    const docResponse = await request.post(`${BACKEND_URL}/api/v1/documents`, {
+    const docResponse = await request.post(`${API_V1_URL}/documents`, {
       headers: {
         "Content-Type": "application/json",
         "X-Tenant-ID": DEFAULT_TENANT_ID,
@@ -221,7 +222,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
 
       // Rebuild workspace 1 with force
       const rebuild = await request.post(
-        `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+        `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -251,7 +252,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -287,7 +288,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+      `${API_V1_URL}/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -328,7 +329,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     const fakeWorkspaceId = "00000000-0000-0000-0000-999999999999";
 
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${fakeWorkspaceId}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${fakeWorkspaceId}/rebuild-embeddings`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -345,7 +346,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
 
   test("Swagger UI: Rebuild endpoints documented", async ({ page }) => {
     await page.goto(`${BACKEND_URL}/swagger-ui`);
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check if swagger UI loaded
     const swagger = page

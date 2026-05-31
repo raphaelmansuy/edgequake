@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 /**
  * Tests for source citations overflow and navigation fixes.
@@ -14,7 +15,7 @@ async function submitQueryAndGetCitations(
 ): Promise<boolean> {
   // Navigate to query page with workspace
   await page.goto("/query?workspace=default-workspace");
-  await page.waitForLoadState("networkidle");
+  await waitForAppReady(page);
 
   // Submit a query to get citations - use regex to match different placeholder variations
   const input = page.getByPlaceholder(/ask.*question/i);
@@ -223,7 +224,7 @@ test.describe("Document Detail Page", () => {
     await page.goto(
       "/documents?workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Click first document
@@ -299,7 +300,7 @@ test.describe("Document Detail Page", () => {
     await page.goto(
       "/documents?workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Get first document ID
@@ -358,7 +359,7 @@ test.describe("Document Detail Page", () => {
 test.describe("Visual Regression Tests", () => {
   test("Source Citations panel visual snapshot", async ({ page }) => {
     await page.goto("/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Submit query - use regex to match different placeholder variations
     await page

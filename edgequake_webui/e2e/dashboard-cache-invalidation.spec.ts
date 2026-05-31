@@ -12,18 +12,23 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, clearAppStorage } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { ZUSTAND_TENANT_KEY } from "./helpers/storage-keys";
+import { getDocumentsFileInput } from "./helpers/upload";
 
 test.describe("Dashboard Stats Cache Invalidation", () => {
   test.beforeEach(async ({ page }) => {
-    // Clear all storage before each test
     await page.context().clearCookies();
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
+    await clearAppStorage(page);
   });
 
-  test("should invalidate cache when workspace changes", async ({ page }) => {
+  test("should invalidate cache when workspace changes", async ({
+    page,
+    request,
+  }) => {
+    await bootstrapDeterministicUiContext(page, request, "dash-cache");
+
     // Step 1: Go to dashboard
     await page.goto("/");
 
@@ -67,10 +72,10 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     console.log("Initial entity count:", initialEntityCount);
 
     // Step 3: Get current workspace context from localStorage
-    const tenantStore = await page.evaluate(() => {
-      const stored = localStorage.getItem("edgequake-tenant-store");
+    const tenantStore = await page.evaluate((key) => {
+      const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : null;
-    });
+    }, ZUSTAND_TENANT_KEY);
 
     expect(tenantStore).not.toBeNull();
     expect(tenantStore.state).toBeDefined();
@@ -84,14 +89,9 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     });
 
     // Step 4: Upload a document to ensure stats change
-    await page.goto("/documents");
-    await page.waitForSelector('[data-testid="upload-button"]', {
-      timeout: 5000,
-    });
-
-    // Create a test file
+    const fileInput = await getDocumentsFileInput(page);
     const testContent = "Test document content for cache invalidation test";
-    await page.setInputFiles('input[type="file"]', {
+    await fileInput.setInputFiles({
       name: "cache-test.txt",
       mimeType: "text/plain",
       buffer: Buffer.from(testContent),
@@ -159,7 +159,11 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     expect(finalEntityCount).toBe(updatedEntityCount);
   });
 
-  test("should fetch fresh stats on every page load", async ({ page }) => {
+  test("should fetch fresh stats on every page load", async ({
+    page,
+    request,
+  }) => {
+    await bootstrapDeterministicUiContext(page, request, "dash-cache-fresh");
     // Step 1: Go to dashboard
     await page.goto("/");
     await page.waitForTimeout(1000);

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 /**
  * E2E Tests for Source Citations Deep Linking
@@ -42,7 +43,7 @@ test.describe("Source Citations Deep Linking", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page with workspace
     await page.goto("/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should display confidence score based on chunk scores", async ({
@@ -211,7 +212,7 @@ test.describe("Source Citations Deep Linking", () => {
     await page.goto(
       "/documents?workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for documents to load
     await page.waitForTimeout(2000);
@@ -246,7 +247,7 @@ test.describe("Source Citations Deep Linking", () => {
           highlightText
         )}`
       );
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Take screenshot showing any highlighting
       await page.screenshot({
@@ -264,7 +265,7 @@ test.describe("Source Citations Deep Linking", () => {
     await page.goto(
       "/graph?entities=EDGEQUAKE%2CLIGHTRAG&focus=EDGEQUAKE&workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for graph to load
     await page.waitForTimeout(2000);
@@ -286,7 +287,7 @@ test.describe("Source Citations Deep Linking", () => {
 test.describe("Confidence Calculation Quality", () => {
   test("confidence should reflect actual chunk scores", async ({ page }) => {
     await page.goto("/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Query that should return high-relevance chunks
     const hasCitations = await submitQueryAndWaitForCitations(
@@ -330,7 +331,7 @@ test.describe("Confidence Calculation Quality", () => {
 test.describe("Normalized Score Display", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("all displayed score percentages must be <= 100%", async ({ page }) => {

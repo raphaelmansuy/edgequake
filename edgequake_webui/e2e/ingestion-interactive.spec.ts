@@ -58,7 +58,7 @@ EdgeQuake represents a significant advancement in RAG technology,
 combining graph databases with vector search for enhanced retrieval.
 `;
 
-test.describe("Interactive Ingestion Pipeline Tests", () => {
+test.describe("@audit Interactive Ingestion Pipeline Tests", () => {
   test.beforeAll(async () => {
     // Ensure screenshot directory exists
     if (!fs.existsSync(SCREENSHOT_DIR)) {

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 /**
@@ -16,7 +17,7 @@ test.describe("Document Lifecycle", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page and wait for initialization
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -141,7 +142,7 @@ test.describe("Document Lifecycle", () => {
 test.describe("Graph Integration", () => {
   test("graph page shows nodes after document processing", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Graph container should be visible
     const graphContainer = page.locator(
@@ -164,7 +165,7 @@ test.describe("Graph Integration", () => {
 
   test("graph controls are visible", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for graph controls (zoom, pan, etc.)
     const controls = page.locator(
@@ -185,7 +186,7 @@ test.describe("Graph Integration", () => {
 test.describe("Query with Documents", () => {
   test("query page accepts questions", async ({ page }) => {
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Find the query input
     const queryInput = page
@@ -205,7 +206,7 @@ test.describe("Query with Documents", () => {
 
   test("query submit button is visible", async ({ page }) => {
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Find submit button
     const submitButton = page
@@ -221,7 +222,7 @@ test.describe("Query with Documents", () => {
 test.describe("Lineage Tracking", () => {
   test("lineage information is accessible", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for lineage tab or section
     const lineageTab = page.locator(

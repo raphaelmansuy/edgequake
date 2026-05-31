@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 /**
  * Error Handling E2E Tests
@@ -15,7 +16,7 @@ import { expect, test } from "@playwright/test";
 test.describe("Error Message Popover", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -26,7 +27,7 @@ test.describe("Error Message Popover", () => {
 
     // Check for documents table or empty state
     const table = page.locator("table");
-    const emptyState = page.locator('text*="No documents"');
+    const emptyState = page.locator('text="No documents"');
 
     const hasTable = await table.isVisible().catch(() => false);
     const hasEmpty = await emptyState.isVisible().catch(() => false);
@@ -131,7 +132,7 @@ test.describe("Error Message Popover", () => {
 test.describe("Reprocess Failed Button", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -215,7 +216,7 @@ test.describe("Reprocess Failed Button", () => {
 test.describe("Document Status Display", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -300,7 +301,7 @@ test.describe("Document Status Display", () => {
 test.describe("Bulk Operations", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -339,7 +340,7 @@ test.describe("Bulk Operations", () => {
       await page.waitForTimeout(300);
 
       // Look for bulk action bar
-      const bulkBar = page.locator('text*="selected"');
+      const bulkBar = page.locator('text="selected"');
       const hasBulk = await bulkBar
         .first()
         .isVisible()

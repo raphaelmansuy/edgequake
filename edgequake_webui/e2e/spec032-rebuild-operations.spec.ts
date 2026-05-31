@@ -305,7 +305,6 @@ test.describe("SPEC-032: Rebuild Operations", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for rebuild buttons
       const pageContent = await page.content();
@@ -348,7 +347,6 @@ test.describe("SPEC-032: Rebuild Operations", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Find rebuild knowledge graph button
       const rebuildKgButton = page.getByRole("button", {
@@ -396,7 +394,6 @@ test.describe("SPEC-032: Rebuild Operations", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Find rebuild embeddings button
       const rebuildEmbedButton = page.getByRole("button", {

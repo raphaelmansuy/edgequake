@@ -432,7 +432,6 @@ test.describe("SPEC-032: Provider Integration", () => {
       await page.waitForLoadState("domcontentloaded");
 
       // Wait for React to hydrate - increase for flakiness
-      await page.waitForTimeout(3000);
 
       // Find and click the provider selector (combobox) - try multiple selectors
       const providerTrigger = page.locator('[role="combobox"]').first();
@@ -3722,7 +3721,6 @@ test.describe("SPEC-032: Provider Integration", () => {
       });
 
       // Should either show workspace not found message or redirect to documents
-      await page.waitForTimeout(3000);
 
       const currentUrl = page.url();
       // Should either be at /documents or still at /w/test-workspace/documents (with 404)
@@ -3737,8 +3735,6 @@ test.describe("SPEC-032: Provider Integration", () => {
         waitUntil: "domcontentloaded",
       });
 
-      await page.waitForTimeout(3000);
-
       const currentUrl = page.url();
       // Should either be at /graph or still at /w/test-workspace/graph (with 404)
       expect(currentUrl).toMatch(/(\/graph|\/w\/test-workspace\/graph)/);
@@ -3748,8 +3744,6 @@ test.describe("SPEC-032: Provider Integration", () => {
       await page.goto("/w/test-workspace/query", {
         waitUntil: "domcontentloaded",
       });
-
-      await page.waitForTimeout(3000);
 
       // Should show either query interface or workspace not found
       const hasQueryInterface =
@@ -3772,8 +3766,6 @@ test.describe("SPEC-032: Provider Integration", () => {
       await page.goto("/w/test-workspace/settings", {
         waitUntil: "domcontentloaded",
       });
-
-      await page.waitForTimeout(3000);
 
       const currentUrl = page.url();
       // Should redirect to /workspace (settings page) or show 404
@@ -4046,7 +4038,6 @@ test.describe("SPEC-032: Provider Integration", () => {
       page,
     }) => {
       await page.goto("/workspace", { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(3000);
 
       // Either shows configuration sections or "no workspace selected" message
       const hasConfig = await page
