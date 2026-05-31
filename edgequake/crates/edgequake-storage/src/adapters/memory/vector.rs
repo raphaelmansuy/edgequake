@@ -355,44 +355,7 @@ impl VectorStorage for MemoryVectorStorage {
                     Some(m) => m,
                     None => return false,
                 };
-                // Document IDs filter: match both "document_id" and "source_document_id"
-                if let Some(doc_ids) = &mf.document_ids {
-                    let doc_id = meta.get("document_id").and_then(|v| v.as_str());
-                    let src_doc_id = meta.get("source_document_id").and_then(|v| v.as_str());
-                    let matches = doc_id
-                        .map(|d| doc_ids.iter().any(|id| id == d))
-                        .unwrap_or(false)
-                        || src_doc_id
-                            .map(|d| doc_ids.iter().any(|id| id == d))
-                            .unwrap_or(false);
-                    if !matches {
-                        return false;
-                    }
-                }
-                // Tenant ID filter
-                if let Some(tid) = &mf.tenant_id {
-                    if let Some(meta_tid) = meta.get("tenant_id").and_then(|v| v.as_str()) {
-                        if meta_tid != tid {
-                            return false;
-                        }
-                    }
-                }
-                // Workspace ID filter
-                if let Some(wid) = &mf.workspace_id {
-                    if let Some(meta_wid) = meta.get("workspace_id").and_then(|v| v.as_str()) {
-                        if meta_wid != wid {
-                            return false;
-                        }
-                    }
-                }
-                // Vector type filter (e.g. "chunk", "entity", "relationship")
-                if let Some(vtype) = &mf.vector_type {
-                    let meta_type = meta.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                    if meta_type != vtype {
-                        return false;
-                    }
-                }
-                true
+                mf.matches(meta)
             })
             .map(|(id, vec)| {
                 let score = Self::cosine_similarity(query_embedding, vec);

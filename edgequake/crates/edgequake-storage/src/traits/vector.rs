@@ -23,6 +23,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::error::Result;
 
@@ -101,6 +102,87 @@ impl MetadataFilter {
             workspace_id,
             vector_type: Some(vector_type.into()),
         })
+    }
+
+    /// Returns true when `metadata` satisfies all set filter fields.
+    ///
+    /// Shared predicate for memory adapters and parity tests; postgres uses
+    /// equivalent SQL in `PgVectorStorage::query_filtered`.
+    pub fn matches(&self, meta: &serde_json::Value) -> bool {
+        self.matches_fields(|key| meta.get(key).and_then(|v| v.as_str()))
+    }
+
+    /// Same as [`Self::matches`] for graph node / edge property maps.
+    pub fn matches_properties(&self, props: &HashMap<String, serde_json::Value>) -> bool {
+        self.matches_fields(|key| props.get(key).and_then(|v| v.as_str()))
+    }
+
+    /// Tenant/workspace isolation check for JSON metadata (legacy query paths).
+    pub fn matches_tenant_workspace_value(
+        metadata: &serde_json::Value,
+        tenant_id: &Option<String>,
+        workspace_id: &Option<String>,
+    ) -> bool {
+        match Self::from_tenant_workspace(tenant_id.clone(), workspace_id.clone()) {
+            None => true,
+            Some(filter) => filter.matches(metadata),
+        }
+    }
+
+    /// Tenant/workspace isolation check for graph property maps.
+    pub fn matches_tenant_workspace_properties(
+        properties: &HashMap<String, serde_json::Value>,
+        tenant_id: &Option<String>,
+        workspace_id: &Option<String>,
+    ) -> bool {
+        match Self::from_tenant_workspace(tenant_id.clone(), workspace_id.clone()) {
+            None => true,
+            Some(filter) => filter.matches_properties(properties),
+        }
+    }
+
+    fn matches_fields<'a, F>(&self, get_str: F) -> bool
+    where
+        F: Fn(&str) -> Option<&'a str>,
+    {
+        if let Some(doc_ids) = &self.document_ids {
+            let doc_id = get_str("document_id");
+            let src_doc_id = get_str("source_document_id");
+            let matches = doc_id
+                .map(|d| doc_ids.iter().any(|id| id == d))
+                .unwrap_or(false)
+                || src_doc_id
+                    .map(|d| doc_ids.iter().any(|id| id == d))
+                    .unwrap_or(false);
+            if !matches {
+                return false;
+            }
+        }
+
+        if let Some(tid) = &self.tenant_id {
+            if let Some(meta_tid) = get_str("tenant_id") {
+                if meta_tid != tid {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(wid) = &self.workspace_id {
+            if let Some(meta_wid) = get_str("workspace_id") {
+                if meta_wid != wid {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(vtype) = &self.vector_type {
+            let meta_type = get_str("type").unwrap_or("");
+            if meta_type != vtype {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -350,5 +432,48 @@ mod tests {
         let restored: MetadataFilter = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.vector_type.as_deref(), Some("chunk"));
         assert_eq!(restored.tenant_id.as_deref(), Some("t1"));
+    }
+
+    #[test]
+    fn matches_document_ids_accepts_either_key() {
+        let mf = MetadataFilter {
+            document_ids: Some(vec!["doc-a".into()]),
+            ..Default::default()
+        };
+        assert!(mf.matches(&serde_json::json!({"document_id": "doc-a"})));
+        assert!(mf.matches(&serde_json::json!({"source_document_id": "doc-a"})));
+        assert!(!mf.matches(&serde_json::json!({"document_id": "other"})));
+    }
+
+    #[test]
+    fn matches_tenant_workspace_skips_missing_metadata_fields() {
+        let mf =
+            MetadataFilter::from_tenant_workspace(Some("t1".into()), Some("ws1".into())).unwrap();
+        assert!(mf.matches(&serde_json::json!({})));
+        assert!(mf.matches(&serde_json::json!({"tenant_id": "t1"})));
+        assert!(!mf.matches(&serde_json::json!({"tenant_id": "other"})));
+        assert!(!mf.matches(&serde_json::json!({"tenant_id": "t1", "workspace_id": "wrong"})));
+    }
+
+    #[test]
+    fn matches_vector_type_requires_exact_type_field() {
+        let mf = MetadataFilter::from_tenant_workspace_type(None, None, "chunk").unwrap();
+        assert!(mf.matches(&serde_json::json!({"type": "chunk"})));
+        assert!(!mf.matches(&serde_json::json!({"type": "entity"})));
+    }
+
+    #[test]
+    fn matches_tenant_workspace_helpers_delegate_to_filter() {
+        let meta = serde_json::json!({"tenant_id": "t1", "workspace_id": "ws1"});
+        assert!(MetadataFilter::matches_tenant_workspace_value(
+            &meta,
+            &Some("t1".into()),
+            &Some("ws1".into())
+        ));
+        assert!(!MetadataFilter::matches_tenant_workspace_value(
+            &meta,
+            &Some("t2".into()),
+            &None
+        ));
     }
 }
