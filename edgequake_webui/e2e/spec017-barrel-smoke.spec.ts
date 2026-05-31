@@ -29,4 +29,20 @@ test.describe("SPEC-017 route smoke", () => {
     expect(html.length).toBeGreaterThan(100);
     expect(html.toLowerCase()).not.toContain("application error");
   });
+
+  test("pipeline route loads without crash", async ({ page }) => {
+    await page.goto("/pipeline", GOTO_OPTS);
+    await expect(page.locator("body")).toBeAttached();
+    const html = await page.content();
+    expect(html.length).toBeGreaterThan(100);
+    expect(html.toLowerCase()).not.toContain("application error");
+  });
+
+  test("workspace route loads without crash", async ({ page }) => {
+    await page.goto("/workspace", GOTO_OPTS);
+    await expect(page.locator("body")).toBeAttached();
+    const html = await page.content();
+    expect(html.length).toBeGreaterThan(100);
+    expect(html.toLowerCase()).not.toContain("application error");
+  });
 });
