@@ -2315,6 +2315,71 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 # =============================================================================
+# GOOGLE VERTEX AI PROVIDER
+# =============================================================================
+# Google Cloud Vertex AI Gemini models (enterprise, ADC auth)
+# Requires: GOOGLE_CLOUD_PROJECT + Application Default Credentials or access token
+# Docs: https://cloud.google.com/vertex-ai/generative-ai/docs
+
+[[providers]]
+name = "vertexai"
+display_name = "Google Vertex AI"
+type = "openaicompatible"
+api_base = ""
+api_key_env = ""
+enabled = true
+priority = 19
+description = "Google Cloud Vertex AI Gemini (paid, high-quota, ADC auth)"
+
+[[providers.models]]
+name = "gemini-2.5-flash"
+display_name = "Gemini 2.5 Flash (Vertex)"
+model_type = "llm"
+description = "Fast Gemini model on Vertex AI with 1M context"
+deprecated = false
+tags = ["recommended", "fast", "vertex"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 65536
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.00015
+output_per_1k = 0.0006
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-embedding-001"
+display_name = "Gemini Embedding 001 (Vertex)"
+model_type = "embedding"
+description = "Google embedding model on Vertex AI"
+deprecated = false
+tags = ["recommended", "embedding", "vertex"]
+
+[providers.models.capabilities]
+context_length = 2048
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 3072
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.00001
+image_per_unit = 0.0
+
+# =============================================================================
 # MOCK PROVIDER
 # =============================================================================
 # For testing and development without external API calls
