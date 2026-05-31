@@ -70,6 +70,7 @@
 //! for concurrent access across multiple request handlers.
 
 mod auth_runtime;
+pub(crate) mod bundled_models;
 mod config;
 mod memory;
 #[cfg(feature = "postgres")]

@@ -12,7 +12,6 @@ use super::{
 use crate::cache_manager::CacheManager;
 use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
-use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
@@ -364,12 +363,7 @@ impl AppState {
                 query_engine,
                 sota_engine,
                 pipeline,
-                models_config: Arc::new({
-                    const BUNDLED_MODELS: &str = include_str!("../../../../models.toml");
-                    ModelsConfig::from_toml(BUNDLED_MODELS)
-                        .or_else(|_| ModelsConfig::load())
-                        .unwrap_or_else(|_| ModelsConfig::builtin_defaults())
-                }),
+                models_config: super::bundled_models::bundled_models_config(),
             },
             auth,
             tasks: TaskRuntime::new(task_storage, task_queue),
