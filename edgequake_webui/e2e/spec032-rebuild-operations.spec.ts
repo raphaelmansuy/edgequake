@@ -16,7 +16,7 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
 test.setTimeout(120000);
 
-test.describe("SPEC-032: Rebuild Operations", () => {
+test.describe("@load SPEC-032: Rebuild Operations", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -416,7 +416,7 @@ test.describe("SPEC-032: Rebuild Operations", () => {
   });
 });
 
-test.describe("SPEC-032: Provider Switching and Rebuild", () => {
+test.describe("@load SPEC-032: Provider Switching and Rebuild", () => {
   test.describe("Focus 19+20: Provider Switch Workflow", () => {
     test("can switch LLM provider and trigger rebuild", async ({ request }) => {
       // Get workspace
@@ -609,7 +609,7 @@ test.describe("SPEC-032: Provider Switching and Rebuild", () => {
   });
 });
 
-test.describe("SPEC-032: Rebuild Status Tracking", () => {
+test.describe("@load SPEC-032: Rebuild Status Tracking", () => {
   test("workspace stats endpoint available", async ({ request }) => {
     // Get workspace
     const tenantsResponse = await request.get(`${BACKEND_URL}/api/v1/tenants`);

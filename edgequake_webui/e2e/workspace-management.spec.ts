@@ -196,11 +196,10 @@ test.describe("Workspace Management (specs/21-workspace)", () => {
 
     await waitForAppReady(page);
 
-    // Should see graph interface or empty state
-    // Wait for page content (graph visualization or empty state message)
-    await page.waitForTimeout(2000);
+    await page.goto("/graph");
+    await waitForAppReady(page);
+    await expect(page.locator("main")).toBeVisible();
 
-    // No error toasts
     const errorToast = page.locator('[data-sonner-toast][data-type="error"]');
     await expect(errorToast).not.toBeVisible();
   });

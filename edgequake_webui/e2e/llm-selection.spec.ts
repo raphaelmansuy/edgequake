@@ -137,11 +137,8 @@ test.describe("LLM Model Selection and Usage", () => {
       .locator('button[aria-label*="Send"]')
       .or(page.locator('button:has-text("Send")'));
     await sendButton.click();
+    await waitForQueryResponse(page);
 
-    // Wait for request to be sent
-    await page.waitForTimeout(2000);
-
-    // Verify request includes provider/model if one was selected
     if (chatRequests.length > 0) {
       const request = chatRequests[0];
       console.log("Chat request payload:", {

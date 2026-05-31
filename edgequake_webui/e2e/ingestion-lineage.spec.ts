@@ -12,7 +12,7 @@ import path from "path";
 // Screenshot output directory
 const SCREENSHOT_DIR = "e2e/screenshots/ingestion";
 
-test.describe("Ingestion Pipeline E2E Tests", () => {
+test.describe("@load Ingestion Pipeline E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
@@ -104,7 +104,7 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
   });
 });
 
-test.describe("Lineage Visualization E2E Tests", () => {
+test.describe("@load Lineage Visualization E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
@@ -161,7 +161,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
   });
 });
 
-test.describe("WebSocket Progress Tracking E2E Tests", () => {
+test.describe("@load WebSocket Progress Tracking E2E Tests", () => {
   test("06 - WebSocket connection can be established", async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");

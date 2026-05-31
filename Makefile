@@ -138,7 +138,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
         test-quality test-invariants test-timing test-count test-flaky \
-        test-e2e-critical test-e2e-full test-stability-report \
+        test-e2e-critical test-e2e-full test-e2e-lint test-stability-report \
         sdk-e2e sdk-e2e-with-stack sdk-csharp-test-unit
 
 # ============================================================================
@@ -334,6 +334,7 @@ help: ## Show this help message
 	@echo "  $(GREEN)make test-count$(RESET)       Verify test count (>=2600)"
 	@echo "  $(GREEN)make test-flaky$(RESET)       Detect flaky tests"
 	@echo "  $(GREEN)make test-e2e-critical$(RESET) Run E2E critical path"
+	@echo "  $(GREEN)make test-e2e-lint$(RESET)      Validate chromium gate for flake anti-patterns"
 	@echo "  $(GREEN)make test-e2e-full$(RESET)    Run full E2E suite"
 	@echo "  $(GREEN)make sdk-e2e$(RESET)          Run Rust/Python/TS SDK E2E vs SDK_E2E_URL (needs healthy API)"
 	@echo "  $(GREEN)make sdk-e2e-with-stack$(RESET)  $(GREEN)make stack$(RESET) then SDK E2E (Docker quickstart)"
@@ -1393,7 +1394,10 @@ test-e2e-critical: ## Run E2E critical path tests
 	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
 		pnpm exec playwright test ooda-228-critical-path.spec.ts --reporter=line
 
-test-e2e-full: dev-bg ## Run full E2E test suite (requires make dev-bg stack)
+test-e2e-lint: ## Fail if chromium-gate e2e specs contain flake anti-patterns
+	@python3 $(FRONTEND_DIR)/scripts/validate-e2e-flake.py
+
+test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg stack)
 	@echo "$(BLUE)Running full E2E suite → frontend $(FRONTEND_URL) backend $(BACKEND_URL)$(RESET)"
 	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
 		echo "$(RED)✗ EdgeQuake backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \

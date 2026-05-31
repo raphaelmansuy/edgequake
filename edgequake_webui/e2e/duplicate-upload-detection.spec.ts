@@ -112,7 +112,7 @@ const MOCK_WORKSPACE = {
 // Test Suite
 // ---------------------------------------------------------------------------
 
-test.describe("Duplicate Upload Detection", () => {
+test.describe("@load Duplicate Upload Detection", () => {
   test.setTimeout(60_000);
 
   test.beforeEach(async ({ page }) => {

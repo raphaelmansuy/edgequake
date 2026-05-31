@@ -99,7 +99,7 @@ async function pollInjectionStatus(
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("Knowledge Injection CRUD", () => {
+test.describe("@load Knowledge Injection CRUD", () => {
   // ── TEST 1: Add ────────────────────────────────────────────────────────────
   test("1 - Add text injection → card shows entity_count > 0", async ({
     page,

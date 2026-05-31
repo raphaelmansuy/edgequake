@@ -24,7 +24,7 @@ import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 // Increase timeout for E2E tests
 test.setTimeout(90000);
 
-test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () => {
+test.describe("@load SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -1231,7 +1231,7 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
  *
  * Critical E2E tests for provider switching workflow.
  */
-test.describe("SPEC-032 Focus 25: Provider Switching Critical Path", () => {
+test.describe("@load SPEC-032 Focus 25: Provider Switching Critical Path", () => {
   test.setTimeout(120000);
 
   test("full workflow: create workspace with ollama, switch to openai, rebuild", async ({
@@ -1417,7 +1417,7 @@ test.describe("SPEC-032 Focus 25: Provider Switching Critical Path", () => {
  *
  * Verifies health endpoints for all providers.
  */
-test.describe("SPEC-032: Provider Health Verification", () => {
+test.describe("@load SPEC-032: Provider Health Verification", () => {
   test("health endpoint includes provider status", async ({ request }) => {
     const response = await request.get(`${BACKEND_URL}/health`);
     expect(response.ok()).toBe(true);

@@ -1,6 +1,9 @@
 import { test } from "@playwright/test";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
-import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import {
+  waitForAppReady,
+  waitForQueryResponse,
+} from "./helpers/app-ready";
 
 /**
  * OODA-228: Interactive E2E Test for Workspace Embedding Dimension Fix
@@ -138,12 +141,8 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
               { timeout: 30000 },
             );
 
-            console.log("✓ Chat API request completed");
+            await waitForQueryResponse(page);
 
-            // Wait a bit for response to render
-            await page.waitForTimeout(2000);
-
-            // Check for any error messages related to dimension mismatch
             const errorIndicator = page.locator(
               "[data-testid='error'], .error-message, .text-red-500",
             );

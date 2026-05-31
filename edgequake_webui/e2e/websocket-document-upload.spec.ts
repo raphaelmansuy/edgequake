@@ -29,7 +29,7 @@ const TEST_PDF = path.join(
   "../../zz_test_docs/academic_papers/lighrag_2410.05779v3.pdf",
 );
 
-test.describe("WebSocket Document Upload (OpenAI Tenant)", () => {
+test.describe("@load WebSocket Document Upload (OpenAI Tenant)", () => {
   test.beforeEach(async ({ page }) => {
     // Intercept all API requests and inject tenant headers
     await page.route(`${BACKEND_URL}/api/**`, async (route) => {
