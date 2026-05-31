@@ -11,6 +11,7 @@
  */
 'use client';
 
+import { ProviderIcon } from '@/components/providers/provider-icon';
 import {
   PdfParserBackendField,
   type PdfParserBackendChoice,
@@ -74,21 +75,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
-/**
- * Get icon component for a provider.
- */
-function getProviderIcon(providerId: string | undefined) {
-  switch (providerId?.toLowerCase()) {
-    case 'openai':
-      return <Cloud className="h-4 w-4 text-green-600" />;
-    case 'ollama':
-      return <Cpu className="h-4 w-4 text-blue-600" />;
-    case 'lmstudio':
-      return <Brain className="h-4 w-4 text-purple-600" />;
-    default:
-      return <Sparkles className="h-4 w-4 text-muted-foreground" />;
-  }
-}
 
 export default function WorkspacePage() {
   const { t } = useTranslation();
@@ -618,7 +604,7 @@ export default function WorkspacePage() {
               return (
                 <>
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    {getProviderIcon(displayProvider)}
+                    {<ProviderIcon providerId={displayProvider} />}
                     <div>
                       <div className="font-medium">
                         {displayModel || t('workspace.serverDefault', 'Server Default')}
@@ -677,7 +663,7 @@ export default function WorkspacePage() {
               return (
                 <>
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    {getProviderIcon(displayProvider)}
+                    {<ProviderIcon providerId={displayProvider} />}
                     <div>
                       <div className="font-medium">
                         {displayModel || t('workspace.serverDefault', 'Server Default')}
@@ -733,7 +719,7 @@ export default function WorkspacePage() {
               </>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {getProviderIcon(workspace.vision_llm_provider)}
+                {<ProviderIcon providerId={workspace.vision_llm_provider} />}
                 <div>
                   <div className="font-medium">
                     {workspace.vision_llm_model || t('workspace.serverDefault', 'Server Default')}

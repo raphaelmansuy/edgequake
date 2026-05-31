@@ -4,8 +4,19 @@
 //! callers can bound on narrower capability traits to document intent and
 //! prevent accidental writes in read-only code paths.
 //!
-//! All capability traits are automatically implemented for any `GraphStorage`
-//! backend via blanket impls — zero adapter churn.
+//! ## Method-level ISP — deferred (SPEC-017)
+//!
+//! Splitting [`GraphStorage`] into separate traits per method group (read / mutate /
+//! analytics) was evaluated and **rejected** for the current architecture:
+//!
+//! - Rust does not support `dyn TraitA + TraitB + …` for non-auto traits.
+//! - The query/core/api layers store `Arc<dyn GraphStorage>` — method-level split
+//!   would require a new composite trait or enum wrapper across all call sites.
+//! - Marker capability traits (`GraphStorageReader`, etc.) document intent at zero
+//!   adapter churn via blanket impls.
+//!
+//! Revisit if the storage layer moves to generic bounds (`S: GraphStorageReader`)
+//! instead of trait objects.
 
 pub use super::graph::GraphStorage;
 

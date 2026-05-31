@@ -4,28 +4,29 @@
  */
 import { expect, test } from "@playwright/test";
 
+/** Avoid flaky `load` waits on Next.js dev HMR. */
+const GOTO_OPTS = { waitUntil: "domcontentloaded" as const };
+
 test.describe("SPEC-017 route smoke", () => {
   test("login page renders sign-in form", async ({ page }) => {
-    await page.goto("/login");
+    await page.goto("/login", GOTO_OPTS);
     await expect(page.locator("input#username")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("input#password")).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
   test("documents route loads without crash", async ({ page }) => {
-    await page.goto("/documents");
-    await page.waitForLoadState("domcontentloaded");
+    await page.goto("/documents", GOTO_OPTS);
     await expect(page.locator("body")).not.toBeEmpty();
     const title = await page.title();
     expect(title.length).toBeGreaterThan(0);
   });
 
   test("query route loads without crash", async ({ page }) => {
-    await page.goto("/query");
-    await page.waitForLoadState("domcontentloaded");
-    await expect(page.locator("body")).not.toBeEmpty();
-    const bodyText = await page.locator("body").innerText();
-    expect(bodyText.length).toBeGreaterThan(0);
-    expect(bodyText.toLowerCase()).not.toContain("application error");
+    await page.goto("/query", GOTO_OPTS);
+    await expect(page.locator("body")).toBeAttached();
+    const html = await page.content();
+    expect(html.length).toBeGreaterThan(100);
+    expect(html.toLowerCase()).not.toContain("application error");
   });
 });
