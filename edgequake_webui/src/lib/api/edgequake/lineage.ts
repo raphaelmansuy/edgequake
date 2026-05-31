@@ -5,39 +5,6 @@
 import { api } from "../client";
 import { getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 
-import type {
-    CreateWorkspaceRequest,
-    Document,
-    DocumentStatusCounts,
-    EnhancedPipelineStatus,
-    Entity,
-    GraphEdge,
-    GraphNode,
-    HealthResponse,
-    KnowledgeGraph,
-    ListDocumentsResponse,
-    LoginRequest,
-    LoginResponse,
-    MergeEntitiesRequest,
-    MergeEntitiesResponse,
-    PaginatedResponse,
-    PaginationParams,
-    PdfUploadOptions,
-    PdfUploadResponse,
-    PipelineStatus,
-    QueryRequest,
-    QueryResponse,
-    QueryStreamChunk,
-    QueueMetrics,
-    Relationship,
-    Tenant,
-    TrackStatusResponse,
-    UploadDocumentRequest,
-    UploadDocumentResponse,
-    Workspace,
-    WorkspacePdfParserBackendUpdate,
-} from "@/types";
-
 /**
  * Get document lineage from the graph-based lineage endpoint.
  * Uses /lineage/documents/:id which returns entity/relationship summaries.
