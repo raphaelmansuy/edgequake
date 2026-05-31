@@ -10,26 +10,6 @@ use crate::provider_types::{
     AvailableProvidersResponse, ConfigRequirement, DefaultModels, ProviderInfo,
 };
 
-/// Providers exposed in the catalog but not yet declared in `models.toml`.
-fn supplemental_providers() -> Vec<ProviderConfig> {
-    vec![ProviderConfig {
-        name: "vertexai".to_string(),
-        display_name: "Google Vertex AI".to_string(),
-        provider_type: edgequake_llm::model_config::ProviderType::OpenAICompatible,
-        api_key_env: None,
-        api_key: None,
-        base_url: None,
-        base_url_env: None,
-        default_llm_model: Some("gemini-2.5-flash".to_string()),
-        default_embedding_model: Some("gemini-embedding-001".to_string()),
-        models: vec![],
-        enabled: true,
-        priority: 19,
-        description: "Google Cloud Vertex AI Gemini (paid, high-quota, ADC auth)".to_string(),
-        ..Default::default()
-    }]
-}
-
 /// Build the available-providers response from configuration.
 pub fn build_available_providers_response(
     config: &ModelsConfig,
@@ -42,13 +22,6 @@ pub fn build_available_providers_response(
         .filter(|p| p.enabled)
         .cloned()
         .collect();
-
-    let known: std::collections::HashSet<_> = providers.iter().map(|p| p.name.clone()).collect();
-    for extra in supplemental_providers() {
-        if !known.contains(&extra.name) {
-            providers.push(extra);
-        }
-    }
 
     providers.sort_by_key(|p| p.priority);
 
@@ -242,7 +215,7 @@ mod tests {
     use crate::state::bundled_models::load_bundled_models_config;
 
     #[test]
-    fn catalog_includes_supplemental_vertexai() {
+    fn catalog_includes_vertexai_from_models_toml() {
         let config = load_bundled_models_config();
         let response = build_available_providers_response(&config, "mock", "mock");
         let ids: Vec<_> = response

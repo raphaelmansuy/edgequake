@@ -23,11 +23,13 @@
 //! - **Modularity**: Storage can be swapped without changing business logic
 
 mod graph;
+mod graph_isp;
 mod kv;
 mod vector;
 mod workspace_vector;
 
 pub use graph::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
+pub use graph_isp::{GraphStorageAnalyticsCap, GraphStorageMutator, GraphStorageReader};
 pub use kv::{kv_key_matches_like, KVStorage};
 pub use vector::{MetadataFilter, VectorSearchResult, VectorStorage};
 pub use workspace_vector::{WorkspaceVectorConfig, WorkspaceVectorRegistry};

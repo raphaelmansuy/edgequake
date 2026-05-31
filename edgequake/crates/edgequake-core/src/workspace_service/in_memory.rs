@@ -1,31 +1,7 @@
-//! Workspace service for managing workspaces within tenants.
-//!
-//! This service provides CRUD operations for workspaces (knowledge bases)
-//! and integrates with the RLS system for isolation.
-//!
-//! ## Implements
-//!
-//! @implements FEAT0016 (Workspace Management)
-//! @implements FEAT0820 (Workspace CRUD operations)
-//! @implements FEAT0821 (Tenant management)
-//! @implements FEAT0822 (Membership and role management)
-//! @implements FEAT0823 (Workspace statistics)
-//!
-//! ## Use Cases
-//!
-//! - **UC2410**: Admin creates new workspace for team
-//! - **UC2411**: User lists workspaces they have access to
-//! - **UC2412**: Admin invites user to workspace with role
-//! - **UC2413**: System reports workspace usage statistics
-//!
-//! ## Enforces
-//!
-//! - **BR0820**: Workspace names unique within tenant
-//! - **BR0821**: Workspace deletion cascades to all resources
+//! In-memory implementation of [`WorkspaceService`](super::WorkspaceService) for testing.
 
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -35,171 +11,7 @@ use crate::types::{
     Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
 };
 
-/// Result returned by `update_tenant_quota`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct UpdateTenantQuotaResult {
-    /// The tenant whose quota was updated.
-    pub tenant_id: Uuid,
-    /// New max_workspaces value.
-    pub max_workspaces: usize,
-    /// Previous max_workspaces value.
-    pub previous_max_workspaces: usize,
-    /// Current number of workspaces (used during validation).
-    pub current_workspace_count: usize,
-}
-
-/// Service trait for workspace management.
-#[async_trait]
-pub trait WorkspaceService: Send + Sync {
-    // ============ Tenant Operations ============
-
-    /// Create a new tenant.
-    async fn create_tenant(&self, tenant: Tenant) -> Result<Tenant>;
-
-    /// Get a tenant by ID.
-    async fn get_tenant(&self, tenant_id: Uuid) -> Result<Option<Tenant>>;
-
-    /// Get a tenant by slug.
-    async fn get_tenant_by_slug(&self, slug: &str) -> Result<Option<Tenant>>;
-
-    /// Update a tenant.
-    async fn update_tenant(&self, tenant: Tenant) -> Result<Tenant>;
-
-    /// Delete a tenant and all its workspaces.
-    async fn delete_tenant(&self, tenant_id: Uuid) -> Result<()>;
-
-    /// List all tenants (admin only).
-    async fn list_tenants(&self, limit: usize, offset: usize) -> Result<Vec<Tenant>>;
-
-    // ============ Workspace Operations ============
-
-    /// Create a new workspace within a tenant.
-    async fn create_workspace(
-        &self,
-        tenant_id: Uuid,
-        request: CreateWorkspaceRequest,
-    ) -> Result<Workspace>;
-
-    /// Insert a workspace with a specific ID (for syncing from external storage).
-    async fn insert_workspace(&self, workspace: Workspace) -> Result<Workspace>;
-
-    /// Get a workspace by ID.
-    async fn get_workspace(&self, workspace_id: Uuid) -> Result<Option<Workspace>>;
-
-    /// Get a workspace by tenant and slug.
-    async fn get_workspace_by_slug(&self, tenant_id: Uuid, slug: &str)
-        -> Result<Option<Workspace>>;
-
-    /// Update a workspace.
-    async fn update_workspace(
-        &self,
-        workspace_id: Uuid,
-        request: UpdateWorkspaceRequest,
-    ) -> Result<Workspace>;
-
-    /// Delete a workspace and all its data.
-    async fn delete_workspace(&self, workspace_id: Uuid) -> Result<()>;
-
-    /// List all workspaces for a tenant.
-    async fn list_workspaces(&self, tenant_id: Uuid) -> Result<Vec<Workspace>>;
-
-    /// Get workspace statistics.
-    async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<WorkspaceStats>;
-
-    // ============ Metrics Operations ============
-
-    /// Record a metrics snapshot for time-series analysis.
-    ///
-    /// This captures the current workspace stats and stores them in
-    /// workspace_metrics_history for trend analysis and debugging.
-    ///
-    /// OODA-20: Implements metrics recording per mission requirement.
-    async fn record_metrics_snapshot(
-        &self,
-        workspace_id: Uuid,
-        trigger_type: MetricsTriggerType,
-    ) -> Result<MetricsSnapshot>;
-
-    /// Get metrics history for a workspace.
-    ///
-    /// Returns snapshots in reverse chronological order (newest first).
-    ///
-    /// OODA-22: Implements metrics history query per mission requirement.
-    async fn get_metrics_history(
-        &self,
-        workspace_id: Uuid,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<MetricsSnapshot>>;
-
-    // ============ Membership Operations ============
-
-    /// Add a membership (user access to tenant/workspace).
-    async fn add_membership(&self, membership: Membership) -> Result<Membership>;
-
-    /// Get memberships for a user.
-    async fn get_user_memberships(&self, user_id: Uuid) -> Result<Vec<Membership>>;
-
-    /// Get memberships for a tenant.
-    async fn get_tenant_memberships(&self, tenant_id: Uuid) -> Result<Vec<Membership>>;
-
-    /// Update a membership role.
-    async fn update_membership_role(
-        &self,
-        membership_id: Uuid,
-        role: MembershipRole,
-    ) -> Result<Membership>;
-
-    /// Remove a membership.
-    async fn remove_membership(&self, membership_id: Uuid) -> Result<()>;
-
-    /// Check if a user has access to a tenant.
-    async fn check_tenant_access(&self, user_id: Uuid, tenant_id: Uuid) -> Result<bool>;
-
-    /// Check if a user has access to a workspace.
-    async fn check_workspace_access(&self, user_id: Uuid, workspace_id: Uuid) -> Result<bool>;
-
-    /// Get user's role in a tenant.
-    async fn get_user_role(&self, user_id: Uuid, tenant_id: Uuid)
-        -> Result<Option<MembershipRole>>;
-
-    // ============ Context Operations ============
-
-    /// Build a tenant context for RLS from user and request info.
-    async fn build_context(
-        &self,
-        user_id: Uuid,
-        tenant_id: Uuid,
-        workspace_id: Option<Uuid>,
-    ) -> Result<TenantContext>;
-
-    // ============ Quota Operations (SPEC-0001) ============
-
-    /// Update the max_workspaces quota for a specific tenant.
-    ///
-    /// # Validation Rules (SPEC-0001)
-    /// - V1: new_value > 0
-    /// - V2: new_value >= current workspace count (prevent orphan state)
-    /// - V3: new_value <= 10000 (sanity limit)
-    async fn update_tenant_quota(
-        &self,
-        tenant_id: Uuid,
-        new_max_workspaces: usize,
-    ) -> Result<UpdateTenantQuotaResult>;
-
-    /// Get the server-wide default max_workspaces for new tenants.
-    ///
-    /// Resolution order:
-    ///   1. server_config table → key "default_max_workspaces"
-    ///   2. EDGEQUAKE_DEFAULT_MAX_WORKSPACES env var
-    ///   3. Compile-time fallback (100)
-    async fn get_server_default_max_workspaces(&self) -> Result<usize>;
-
-    /// Set the server-wide default max_workspaces for new tenants.
-    ///
-    /// Only affects newly created tenants. Not retroactive.
-    async fn set_server_default_max_workspaces(&self, value: usize) -> Result<usize>;
-}
+use super::{UpdateTenantQuotaResult, WorkspaceService};
 
 /// In-memory implementation of WorkspaceService for testing.
 pub struct InMemoryWorkspaceService {
@@ -833,22 +645,6 @@ impl WorkspaceService for InMemoryWorkspaceService {
         Ok(value)
     }
 }
-
-/// Factory for creating workspace services.
-pub struct WorkspaceServiceFactory;
-
-impl WorkspaceServiceFactory {
-    /// Create an in-memory workspace service (for testing).
-    pub fn in_memory() -> Arc<dyn WorkspaceService> {
-        Arc::new(InMemoryWorkspaceService::new())
-    }
-
-    /// Create a workspace service with a default tenant.
-    pub async fn with_default_tenant() -> Arc<dyn WorkspaceService> {
-        Arc::new(InMemoryWorkspaceService::with_default_tenant().await)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
