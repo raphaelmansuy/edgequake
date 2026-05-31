@@ -19,7 +19,11 @@ import {
   WorkspaceNotFound,
 } from '@/components/workspace/workspace-deeplink-states';
 import { WorkspaceEntityTypesCard } from '@/components/workspace/workspace-entity-types-card';
+import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
+import { WorkspaceProviderHealthCard } from '@/components/workspace/workspace-provider-health-card';
+import { WorkspaceStatsCards } from '@/components/workspace/workspace-stats-cards';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
+import { useWorkspaceDetailQueries } from '@/hooks/use-workspace-detail-queries';
 import { useWorkspaceSlugResolver } from '@/hooks/use-workspace-slug-resolver';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,14 +34,13 @@ import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/wo
 import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
-import { getWorkspace, getWorkspaceStats, updateWorkspace } from '@/lib/api/edgequake';
-import { fetchProvidersHealth } from '@/lib/api/models';
+import { updateWorkspace } from '@/lib/api/edgequake';
 import {
   getWorkspaceEmbeddingSelection,
   getWorkspaceLlmSelection,
 } from '@/lib/workspace/drafts';
 import { useTenantStore } from '@/stores/use-tenant-store';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     AlertTriangle,
     Brain,
@@ -79,44 +82,16 @@ export default function WorkspacePage() {
   ]);
   const [selectedEntityTypesStrict, setSelectedEntityTypesStrict] = useState(true);
 
-  // Fetch workspace data
   const {
-    data: workspace,
-    isLoading: isLoadingWorkspace,
-    refetch: refetchWorkspace,
-  } = useQuery({
-    queryKey: ['workspace', selectedTenantId, selectedWorkspaceId],
-    queryFn: () =>
-      selectedTenantId && selectedWorkspaceId
-        ? getWorkspace(selectedTenantId, selectedWorkspaceId)
-        : Promise.reject(new Error('No workspace selected')),
-    enabled: !!selectedTenantId && !!selectedWorkspaceId,
-    staleTime: 30000,
-  });
-
-  // Fetch workspace stats
-  const {
-    data: stats,
-    isLoading: isLoadingStats,
-  } = useQuery({
-    queryKey: ['workspaceStats', selectedWorkspaceId],
-    queryFn: () =>
-      selectedWorkspaceId
-        ? getWorkspaceStats(selectedWorkspaceId)
-        : Promise.reject(new Error('No workspace selected')),
-    enabled: !!selectedWorkspaceId,
-    staleTime: 30000,
-  });
-
-  // Fetch provider health status (SPEC-032: OODA 201-210)
-  const {
-    data: providerHealth,
-    isLoading: isLoadingHealth,
-  } = useQuery({
-    queryKey: ['providersHealth'],
-    queryFn: fetchProvidersHealth,
-    staleTime: 60000, // Cache for 1 minute
-    retry: 1, // Only retry once since providers may be down
+    workspace,
+    stats,
+    providerHealth,
+    isLoadingWorkspace,
+    isLoadingStats,
+    isLoadingHealth,
+    refetchWorkspace,
+  } = useWorkspaceDetailQueries(selectedTenantId, selectedWorkspaceId, {
+    enabled: isReady,
   });
 
   // Update workspace mutation
@@ -334,144 +309,25 @@ export default function WorkspacePage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <FolderKanban className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">{workspace.name}</h1>
-            <Badge variant={workspace.is_active ? 'default' : 'secondary'}>
-              {workspace.is_active ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
-            </Badge>
-          </div>
-          {workspace.description && (
-            <p className="text-muted-foreground">{workspace.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetchWorkspace()}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {t('common.refresh', 'Refresh')}
-          </Button>
-          {!isEditing ? (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleEditStart}
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              {t('workspace.editConfig', 'Edit Configuration')}
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-              >
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleSave}
-                disabled={updateMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {t('common.save', 'Save')}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+      <WorkspacePageHeader
+        workspace={workspace}
+        isEditing={isEditing}
+        isSaving={updateMutation.isPending}
+        onRefresh={() => refetchWorkspace()}
+        onEditStart={handleEditStart}
+        onCancel={handleCancel}
+        onSave={handleSave}
+      />
 
       <Separator />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              {t('workspace.documents', 'Documents')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoadingStats ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                stats?.document_count ?? workspace.document_count ?? 0
-              )}
-            </div>
-            {workspace.max_documents && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {t('workspace.maxDocuments', 'Max')}: {workspace.max_documents.toLocaleString()}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+      <WorkspaceStatsCards
+        workspace={workspace}
+        stats={stats}
+        isLoadingStats={isLoadingStats}
+      />
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <GitBranch className="h-4 w-4" />
-              {t('workspace.entities', 'Entities')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoadingStats ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                stats?.entity_count ?? workspace.entity_count ?? 0
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Layers className="h-4 w-4" />
-              {t('workspace.relationships', 'Relationships')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoadingStats ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                stats?.relationship_count ?? 0
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              {t('workspace.chunks', 'Chunks')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoadingStats ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                stats?.chunk_count ?? 0
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Model Configuration */}
+      {/* Model Configuration */}      {/* Model Configuration */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LLM Configuration */}
         <Card>
@@ -583,60 +439,12 @@ export default function WorkspacePage() {
         onStrictLimitChange={setSelectedEntityTypesStrict}
       />
 
-      {/* Provider Health Status - SPEC-032: OODA 201-210 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-slate-600" />
-            {t('workspace.providerHealth', 'Provider Status')}
-          </CardTitle>
-          <CardDescription>
-            {t('workspace.providerHealthDesc', 'Real-time availability of configured LLM and embedding providers.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingHealth ? (
-            <div className="flex gap-2">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-8 w-24" />
-              ))}
-            </div>
-          ) : providerHealth && providerHealth.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {providerHealth.filter(p => p.enabled).map((provider) => {
-                const isAvailable = provider.health?.available ?? provider.enabled;
-                return (
-                  <Badge
-                    key={provider.name}
-                    variant={isAvailable ? 'default' : 'secondary'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 ${
-                      isAvailable 
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800' 
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800'
-                    }`}
-                  >
-                    {isAvailable ? (
-                      <CheckCircle className="h-3 w-3" />
-                    ) : (
-                      <XCircle className="h-3 w-3" />
-                    )}
-                    <span className="capitalize">{provider.display_name || provider.name}</span>
-                    {provider.models && provider.models.length > 0 && (
-                      <span className="text-xs opacity-70">({provider.models.length})</span>
-                    )}
-                  </Badge>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {t('workspace.noProvidersConfigured', 'No providers configured')}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <WorkspaceProviderHealthCard
+        providerHealth={providerHealth}
+        isLoadingHealth={isLoadingHealth}
+      />
 
-      {/* Actions Section */}
+      {/* Actions Section */}      {/* Actions Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
