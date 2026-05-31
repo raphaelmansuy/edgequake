@@ -11,7 +11,6 @@
  */
 'use client';
 
-import { ProviderIcon } from '@/components/providers/provider-icon';
 import { useParams } from 'next/navigation';
 
 import {
@@ -21,19 +20,18 @@ import {
 import { WorkspaceEntityTypesCard } from '@/components/workspace/workspace-entity-types-card';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
 import { WorkspaceProviderHealthCard } from '@/components/workspace/workspace-provider-health-card';
+import { WorkspaceActionsCard } from '@/components/workspace/workspace-actions-card';
+import { WorkspaceModelConfigGrid } from '@/components/workspace/workspace-model-config-grid';
+import { WorkspaceStatusFooter } from '@/components/workspace/workspace-status-footer';
 import { WorkspaceStatsCards } from '@/components/workspace/workspace-stats-cards';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
 import { useWorkspaceDetailQueries } from '@/hooks/use-workspace-detail-queries';
 import { useWorkspaceSlugResolver } from '@/hooks/use-workspace-slug-resolver';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { EmbeddingModelSelector, type EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
-import { LLMModelSelector, type LLMSelection } from '@/components/workspace/llm-model-selector';
-import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
-import { RebuildKnowledgeGraphButton } from '@/components/workspace/rebuild-knowledge-graph-button';
+import type { EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
+import type { LLMSelection } from '@/components/workspace/llm-model-selector';
 import { updateWorkspace } from '@/lib/api/edgequake';
 import {
   getWorkspaceEmbeddingSelection,
@@ -42,22 +40,8 @@ import {
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    AlertTriangle,
-    Brain,
-    CheckCircle,
-    Cloud,
-    Cpu,
-    Database,
-    FileText,
-    FolderKanban,
-    GitBranch,
-    Layers,
-    RefreshCw,
-    Save,
-    Server,
-    Settings,
-    Sparkles,
-    XCircle,
+  AlertTriangle,
+  FolderKanban,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -327,108 +311,17 @@ export default function WorkspacePage() {
         isLoadingStats={isLoadingStats}
       />
 
-      {/* Model Configuration */}      {/* Model Configuration */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LLM Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-blue-600" />
-              {t('workspace.llmConfig', 'LLM Configuration')}
-            </CardTitle>
-            <CardDescription>
-              {t('workspace.llmConfigDesc', 'Model used for entity extraction and summarization during document ingestion.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isEditing ? (
-              <>
-                <LLMModelSelector
-                  value={selectedLLM}
-                  onChange={setSelectedLLM}
-                  showUsageHint
-                />
-                {llmModelChanged && (
-                  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-700 dark:text-blue-300">
-                      {t('workspace.llmChangeWarning', 'Changing LLM model requires re-extracting entities from all documents.')}
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {<ProviderIcon providerId={workspace.llm_provider} />}
-                <div>
-                  <div className="font-medium">
-                    {workspace.llm_model || t('workspace.serverDefault', 'Server Default')}
-                  </div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {workspace.llm_provider || t('workspace.autoDetect', 'Auto-detected')}
-                  </div>
-                </div>
-                {workspace.llm_full_id && (
-                  <Badge variant="outline" className="ml-auto">
-                    {workspace.llm_full_id}
-                  </Badge>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Embedding Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-purple-600" />
-              {t('workspace.embeddingConfig', 'Embedding Configuration')}
-            </CardTitle>
-            <CardDescription>
-              {t('workspace.embeddingConfigDesc', 'Model used for vector embeddings of document chunks.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isEditing ? (
-              <>
-                <EmbeddingModelSelector
-                  value={selectedEmbedding}
-                  onChange={setSelectedEmbedding}
-                />
-                {embeddingModelChanged && (
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <span className="text-sm text-amber-700 dark:text-amber-300">
-                      {t('workspace.embeddingChangeWarning', 'Changing embedding model requires rebuilding all document embeddings.')}
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                {<ProviderIcon providerId={workspace.embedding_provider} />}
-                <div>
-                  <div className="font-medium">
-                    {workspace.embedding_model || t('workspace.serverDefault', 'Server Default')}
-                  </div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {workspace.embedding_provider || t('workspace.autoDetect', 'Auto-detected')}
-                    {workspace.embedding_dimension && (
-                      <span className="ml-2">• {workspace.embedding_dimension} dims</span>
-                    )}
-                  </div>
-                </div>
-                {workspace.embedding_full_id && (
-                  <Badge variant="outline" className="ml-auto">
-                    {workspace.embedding_full_id}
-                  </Badge>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      
+      <WorkspaceModelConfigGrid
+        workspace={workspace}
+        isEditing={isEditing}
+        selectedLLM={selectedLLM}
+        selectedEmbedding={selectedEmbedding}
+        onLlmChange={setSelectedLLM}
+        onEmbeddingChange={setSelectedEmbedding}
+        llmModelChanged={llmModelChanged ?? false}
+        embeddingModelChanged={embeddingModelChanged ?? false}
+      />
 
       <WorkspaceEntityTypesCard
         isEditing={isEditing}
@@ -444,100 +337,17 @@ export default function WorkspacePage() {
         isLoadingHealth={isLoadingHealth}
       />
 
-      {/* Actions Section */}      {/* Actions Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            {t('workspace.actions', 'Workspace Actions')}
-          </CardTitle>
-          <CardDescription>
-            {t('workspace.actionsDesc', 'Manage workspace data and re-process documents.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Pending rebuild alert */}
-          {pendingRebuild && (pendingRebuild.embeddings || pendingRebuild.extraction) && (
-            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium text-amber-800 dark:text-amber-200">
-                  {t('workspace.rebuildPending', 'Rebuild Required')}
-                </p>
-                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  {pendingRebuild.embeddings && pendingRebuild.extraction ? (
-                    t('workspace.rebuildBothPending', 'You changed both LLM and embedding models. Click "Rebuild Embeddings" to reprocess all documents with the new configuration.')
-                  ) : pendingRebuild.embeddings ? (
-                    t('workspace.rebuildEmbeddingsPending', 'You changed the embedding model. Click "Rebuild Embeddings" to regenerate vector embeddings.')
-                  ) : (
-                    t('workspace.rebuildExtractionPending', 'You changed the LLM model. Click "Rebuild Embeddings" to re-extract entities from all documents.')
-                  )}
-                </p>
-              </div>
-            </div>
-          )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Rebuild Embeddings */}
-            <RebuildEmbeddingsButton
-              variant="card"
-              onComplete={() => {
-                queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
-                // Clear pending rebuild state after successful rebuild
-                setPendingRebuild(null);
-              }}
-            />
+      <WorkspaceActionsCard
+        workspace={workspace}
+        pendingRebuild={pendingRebuild}
+        onRebuildComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
+          queryClient.invalidateQueries({ queryKey: ['documents'] });
+          setPendingRebuild(null);
+        }}
+      />
 
-            {/* Rebuild Knowledge Graph */}
-            <RebuildKnowledgeGraphButton
-              variant="card"
-              rebuildEmbeddings={true}
-              onComplete={() => {
-                queryClient.invalidateQueries({ queryKey: ['workspaceStats', selectedWorkspaceId] });
-                queryClient.invalidateQueries({ queryKey: ['documents'] });
-                // Clear pending rebuild state after successful rebuild
-                setPendingRebuild(null);
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {/* Workspace Info Card */}
-            <Card className="border-dashed">
-              <CardContent className="pt-6">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.id', 'Workspace ID')}</span>
-                    <code className="text-xs bg-muted px-2 py-1 rounded">{workspace.id}</code>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.slug', 'Slug')}</span>
-                    <code className="text-xs bg-muted px-2 py-1 rounded">{workspace.slug || '-'}</code>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.created', 'Created')}</span>
-                    <span className="text-sm">{new Date(workspace.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('workspace.updated', 'Updated')}</span>
-                    <span className="text-sm">
-                      {workspace.updated_at
-                        ? new Date(workspace.updated_at).toLocaleDateString()
-                        : '-'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Status Indicator */}
-      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-        <CheckCircle className="h-4 w-4 text-green-500" />
-        {t('workspace.statusReady', 'Workspace ready for queries and document ingestion')}
-      </div>
+      <WorkspaceStatusFooter />
     </div>
   );
 }
