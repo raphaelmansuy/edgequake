@@ -1454,16 +1454,23 @@ test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (require
 		echo "$(RED)✗ MISTRAL_API_KEY required for test-e2e-mistral-live$(RESET)"; \
 		exit 1; \
 	fi
-	@$(MAKE) backend-bg DEV_AUTH_ENABLED=false --no-print-directory
+	@$(MAKE) backend-bg DEV_AUTH_ENABLED=false WORKER_THREADS=1 MAX_TASKS_PER_TENANT=1 --no-print-directory
 	@$(MAKE) frontend-bg DEV_AUTH_ENABLED=false DEV_DISABLE_DEMO_LOGIN=true --no-print-directory
-	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
-		echo "$(RED)✗ Backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \
+	@for i in $$(seq 1 30); do \
+		if curl -sf "$(BACKEND_URL)/health" >/dev/null 2>&1; then break; fi; \
+		sleep 2; \
+	done; \
+	curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ Backend not healthy at $(BACKEND_URL)$(RESET)"; \
+		echo "  Last backend logs:"; tail -20 /tmp/edgequake-backend.log 2>/dev/null || true; \
+		exit 1; \
 	}
 	@curl -sf "$(BACKEND_URL)/health" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("llm_provider_name") or d.get("providers",{}).get("llm",{}).get("name"); sys.exit(0 if p=="mistral" else 1)' || { \
 		echo "$(RED)✗ Backend is not running live Mistral$(RESET)"; \
 		echo "  Current health: $$(curl -sf "$(BACKEND_URL)/health" 2>/dev/null || echo unavailable)"; \
 		exit 1; \
 	}
+	@echo "$(GREEN)✓ Live Mistral backend verified at $(BACKEND_URL)$(RESET)"
 	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
