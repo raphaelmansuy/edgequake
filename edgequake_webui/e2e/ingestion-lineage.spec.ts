@@ -6,11 +6,8 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady } from "./helpers/app-ready";
-import path from "path";
-
-// Screenshot output directory
-const SCREENSHOT_DIR = "e2e/screenshots/ingestion";
 
 test.describe("@load Ingestion Pipeline E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
@@ -40,7 +37,7 @@ test.describe("@load Ingestion Pipeline E2E Tests", () => {
     }
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "01-upload-zone.png"),
+      path: e2eScreenshot("ingestion", "01-upload-zone.png"),
       fullPage: true,
     });
   });
@@ -67,7 +64,7 @@ test.describe("@load Ingestion Pipeline E2E Tests", () => {
     ).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "02-document-list.png"),
+      path: e2eScreenshot("ingestion", "02-document-list.png"),
       fullPage: true,
     });
   });
@@ -98,7 +95,7 @@ test.describe("@load Ingestion Pipeline E2E Tests", () => {
     }
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "03-costs-page.png"),
+      path: e2eScreenshot("ingestion", "03-costs-page.png"),
       fullPage: true,
     });
   });
@@ -132,7 +129,7 @@ test.describe("@load Lineage Visualization E2E Tests", () => {
       expect(hasLineage || hasStats).toBeTruthy();
 
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "04-document-lineage.png"),
+        path: e2eScreenshot("ingestion", "04-document-lineage.png"),
         fullPage: true,
       });
     } else {
@@ -155,7 +152,7 @@ test.describe("@load Lineage Visualization E2E Tests", () => {
     expect(hasGraph || hasEmptyState).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "05-knowledge-graph.png"),
+      path: e2eScreenshot("ingestion", "05-knowledge-graph.png"),
       fullPage: true,
     });
   });
@@ -181,7 +178,7 @@ test.describe("@load WebSocket Progress Tracking E2E Tests", () => {
     // Note: WebSocket may not connect until document upload starts
     // This test verifies the page loads without WebSocket errors
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "06-websocket-ready.png"),
+      path: e2eScreenshot("ingestion", "06-websocket-ready.png"),
       fullPage: true,
     });
   });
@@ -201,7 +198,7 @@ test.describe("@load API Integration E2E Tests", () => {
     expect(hasContent).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "07-api-integration.png"),
+      path: e2eScreenshot("ingestion", "07-api-integration.png"),
       fullPage: true,
     });
   });
@@ -225,13 +222,13 @@ test.describe("@load API Integration E2E Tests", () => {
         (await page.getByText(/provenance|source|extracted from/i).count()) > 0;
 
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "08-entity-provenance.png"),
+        path: e2eScreenshot("ingestion", "08-entity-provenance.png"),
         fullPage: true,
       });
     } else {
       // No entities, take screenshot of empty state
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "08-no-entities.png"),
+        path: e2eScreenshot("ingestion", "08-no-entities.png"),
         fullPage: true,
       });
     }

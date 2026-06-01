@@ -7,7 +7,7 @@ test.describe("@audit site audit", () => {
   const start = baseURL || "/";
   const visited = new Set<string>();
   const toVisit: { url: string; depth: number }[] = [{ url: start, depth: 0 }];
-  const screenshotsDir = path.resolve(process.cwd(), "specs/screenshots");
+  const screenshotsDir = path.resolve(process.cwd(), "e2e/screenshots/crawl");
   const auditMd = path.resolve(process.cwd(), "specs/audit.md");
 
   if (!fs.existsSync(path.dirname(auditMd))) fs.mkdirSync(path.dirname(auditMd), { recursive: true });
@@ -51,7 +51,7 @@ test.describe("@audit site audit", () => {
       mdLines.push("");
       mdLines.push(`- title: ${title}`);
       mdLines.push(`- h1: ${h1 || "(none)"}`);
-      mdLines.push(`- screenshot: ./screenshots/${fileName}`);
+      mdLines.push(`- screenshot: ./e2e/screenshots/crawl/${fileName}`);
 
       const msgs = consoleMessages.get(page.url() || normalized) || [];
       if (msgs.length) {

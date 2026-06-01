@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady, waitForQueryResponse } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
@@ -28,7 +29,7 @@ test.describe("@load Markdown Rendering Test", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/markdown-test.png",
+      path: e2eScreenshot("load", "markdown-test.png"),
       fullPage: true,
     });
 

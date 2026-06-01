@@ -3,14 +3,13 @@
  * Uses API bootstrap (no silent skip on missing controls).
  */
 import { expect, test } from '@playwright/test';
-import path from 'node:path';
+import { issueScreenshot } from "./helpers/screenshot-paths";
 import {
   bootstrapDeterministicUiContext,
   openCreateWorkspaceDialog,
 } from './helpers/spec013-bootstrap';
 import { skipUnlessLiveStack } from './helpers/live-stack';
 
-const SCREENSHOT_DIR = path.join(__dirname, 'screenshots', 'issue-233');
 
 test.describe('Issue #233 workspace create UX', () => {
   test('server defaults summary or advanced toggle visible in create dialog', async ({
@@ -31,7 +30,7 @@ test.describe('Issue #233 workspace create UX', () => {
     expect(hasDefaults || hasAdvanced).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, 'create-workspace-dialog.png'),
+      path: issueScreenshot("issue-233", "create-workspace-dialog.png"),
       fullPage: true,
     });
   });

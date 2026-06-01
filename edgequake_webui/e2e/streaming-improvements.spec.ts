@@ -13,6 +13,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import {
   waitForAppReady,
   waitForQueryResponse,
@@ -84,7 +85,7 @@ test.describe("@load Streaming Improvements E2E", () => {
 
     // Take screenshot for debugging
     await page.screenshot({
-      path: "test-results/streaming-accumulator-test.png",
+      path: e2eScreenshot("streaming", "streaming-accumulator-test.png"),
       fullPage: true,
     });
   });
@@ -152,7 +153,7 @@ test.describe("@load Streaming Improvements E2E", () => {
 
     // Take screenshot before refresh
     await page.screenshot({
-      path: "test-results/persistence-before-refresh.png",
+      path: e2eScreenshot("streaming", "persistence-before-refresh.png"),
       fullPage: true,
     });
 
@@ -167,7 +168,7 @@ test.describe("@load Streaming Improvements E2E", () => {
 
     // Take screenshot after refresh
     await page.screenshot({
-      path: "test-results/persistence-after-refresh.png",
+      path: e2eScreenshot("streaming", "persistence-after-refresh.png"),
       fullPage: true,
     });
 
@@ -294,7 +295,7 @@ test.describe("@load Streaming Improvements E2E", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/multi-turn-conversation.png",
+      path: e2eScreenshot("streaming", "multi-turn-conversation.png"),
       fullPage: true,
     });
 
@@ -343,7 +344,7 @@ test.describe("@load Streaming Improvements E2E", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/large-response.png",
+      path: e2eScreenshot("streaming", "large-response.png"),
       fullPage: true,
     });
   });

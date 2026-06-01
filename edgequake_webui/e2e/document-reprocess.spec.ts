@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady } from "./helpers/app-ready";
 
 /**
@@ -174,7 +175,7 @@ test.describe("@load Document Reprocessing", () => {
       );
 
       // Capture screenshot for visual verification
-      await page.screenshot({ path: "test-results/upload-processing.png" });
+      await page.screenshot({ path: e2eScreenshot("load", "upload-processing.png") });
 
       console.log("Upload triggered - check screenshot for processing states");
     }

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -430,7 +431,7 @@ test.describe("@audit Phase 3 Optional Enhancements", () => {
 
       // Take screenshot
       await page.screenshot({
-        path: "e2e/screenshots/phase3-enhancements-graph.png",
+        path: e2eScreenshot("phase3", "phase3-enhancements-graph.png"),
         fullPage: false,
       });
     });

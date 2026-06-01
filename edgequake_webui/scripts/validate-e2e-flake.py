@@ -40,6 +40,17 @@ BACKEND_MARKERS = (
 )
 
 
+def check_screenshot_path_gate(path: Path, text: str) -> list[str]:
+    """All specs: intentional captures must not use Playwright test-results/."""
+    violations: list[str] = []
+    for line_no, line in enumerate(text.splitlines(), 1):
+        if re.search(r"""path:\s*["']test-results/""", line):
+            violations.append(
+                f"{path.name}:{line_no}: use e2e/screenshots/ or audit_ui/screenshots/ (screenshot-paths.ts)"
+            )
+    return violations
+
+
 def check_query_response_gate(path: Path, text: str) -> list[str]:
     """Specs that wait for LLM chat must be @load (or @audit/@debug)."""
     if TAG_RE.search(text):
@@ -68,6 +79,7 @@ def main() -> int:
         text = path.read_text()
         violations.extend(check_live_stack_gate(path, text))
         violations.extend(check_query_response_gate(path, text))
+        violations.extend(check_screenshot_path_gate(path, text))
         if not is_gated_spec(path, text):
             continue
         for line_no, line in enumerate(text.splitlines(), 1):

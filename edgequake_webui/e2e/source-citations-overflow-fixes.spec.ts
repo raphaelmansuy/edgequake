@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -76,7 +77,7 @@ test.describe("@audit Source Citations Overflow & Navigation Fixes", () => {
 
     // Screenshot verification
     await page.screenshot({
-      path: "test-results/issue1-documents-no-overflow.png",
+      path: e2eScreenshot("citations", "issue1-documents-no-overflow.png"),
       fullPage: false,
     });
   });
@@ -115,7 +116,7 @@ test.describe("@audit Source Citations Overflow & Navigation Fixes", () => {
 
     // Screenshot
     await page.screenshot({
-      path: "test-results/issue2-knowledge-no-overflow.png",
+      path: e2eScreenshot("citations", "issue2-knowledge-no-overflow.png"),
       fullPage: false,
     });
   });
@@ -151,7 +152,7 @@ test.describe("@audit Source Citations Overflow & Navigation Fixes", () => {
 
     // Screenshot
     await page.screenshot({
-      path: "test-results/issue3-title-truncate.png",
+      path: e2eScreenshot("citations", "issue3-title-truncate.png"),
       fullPage: false,
     });
   });
@@ -197,7 +198,7 @@ test.describe("@audit Source Citations Overflow & Navigation Fixes", () => {
       if (await highlight.isVisible({ timeout: 3000 })) {
         // Screenshot the highlighted content
         await page.screenshot({
-          path: "test-results/issue3-line-highlight.png",
+          path: e2eScreenshot("citations", "issue3-line-highlight.png"),
           fullPage: true,
         });
       } else {
@@ -291,7 +292,7 @@ test.describe("@audit Document Detail Page", () => {
 
       // Screenshot
       await page.screenshot({
-        path: "test-results/issue4-sidebar-scrollable.png",
+        path: e2eScreenshot("citations", "issue4-sidebar-scrollable.png"),
         fullPage: true,
       });
     } else {
@@ -350,7 +351,7 @@ test.describe("@audit Document Detail Page", () => {
 
         // Screenshot
         await page.screenshot({
-          path: "test-results/issue3-stabilo-highlight.png",
+          path: e2eScreenshot("citations", "issue3-stabilo-highlight.png"),
           fullPage: true,
         });
       } else {
@@ -391,14 +392,14 @@ test.describe("@audit Visual Regression Tests", () => {
     await page.getByRole("tab", { name: /documents/i }).click();
     await page.waitForTimeout(300);
     await page.screenshot({
-      path: "test-results/visual-documents-tab.png",
+      path: e2eScreenshot("citations", "visual-documents-tab.png"),
     });
 
     // Knowledge tab
     await page.getByRole("tab", { name: /knowledge/i }).click();
     await page.waitForTimeout(300);
     await page.screenshot({
-      path: "test-results/visual-knowledge-tab.png",
+      path: e2eScreenshot("citations", "visual-knowledge-tab.png"),
     });
   });
 });

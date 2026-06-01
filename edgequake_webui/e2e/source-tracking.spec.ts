@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -101,7 +102,7 @@ test.describe("@audit Source Tracking and Citations", () => {
 
     // Screenshot for debugging
     await page.screenshot({
-      path: "test-results/source-tracking-response.png",
+      path: e2eScreenshot("citations", "source-tracking-response.png"),
       fullPage: true,
     });
   });
@@ -148,7 +149,7 @@ test.describe("@audit Source Tracking and Citations", () => {
     }
 
     await page.screenshot({
-      path: "test-results/source-citations-display.png",
+      path: e2eScreenshot("citations", "source-citations-display.png"),
       fullPage: true,
     });
   });
@@ -214,7 +215,7 @@ test.describe("@audit Source Tracking and Citations", () => {
     }
 
     await page.screenshot({
-      path: "test-results/entity-hover-card.png",
+      path: e2eScreenshot("citations", "entity-hover-card.png"),
       fullPage: true,
     });
   });
@@ -273,7 +274,7 @@ test.describe("@audit Source Tracking and Citations", () => {
     }
 
     await page.screenshot({
-      path: "test-results/document-navigation.png",
+      path: e2eScreenshot("citations", "document-navigation.png"),
       fullPage: true,
     });
   });
@@ -317,7 +318,7 @@ test.describe("@audit Source Tracking and Citations", () => {
     }
 
     await page.screenshot({
-      path: "test-results/empty-sources.png",
+      path: e2eScreenshot("citations", "empty-sources.png"),
       fullPage: true,
     });
   });
