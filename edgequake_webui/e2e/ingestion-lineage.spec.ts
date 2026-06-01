@@ -187,7 +187,7 @@ test.describe("@load WebSocket Progress Tracking E2E Tests", () => {
   });
 });
 
-test.describe("API Integration E2E Tests", () => {
+test.describe("@load API Integration E2E Tests", () => {
   test("07 - Documents API returns data or shows error", async ({ page }) => {
     await page.goto("/documents");
     await waitForAppReady(page);

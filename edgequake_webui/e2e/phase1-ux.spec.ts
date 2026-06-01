@@ -92,7 +92,7 @@ test.describe("@audit Phase 1: Dashboard Page", () => {
 });
 
 // Test group for Sidebar Navigation
-test.describe("Phase 1: Sidebar Navigation", () => {
+test.describe("@audit Phase 1: Sidebar Navigation", () => {
   test("should have Home/Dashboard link in sidebar", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -178,7 +178,7 @@ test.describe("Phase 1: Sidebar Navigation", () => {
 });
 
 // Test group for Settings Toast Confirmations
-test.describe("Phase 1: Settings Toast Confirmations", () => {
+test.describe("@audit Phase 1: Settings Toast Confirmations", () => {
   test("should show toast when changing theme", async ({ page }) => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
@@ -295,7 +295,7 @@ test.describe("Phase 1: Document Upload Validation", () => {
 });
 
 // Test group for Empty States
-test.describe("Phase 1: Empty States", () => {
+test.describe("@audit Phase 1: Empty States", () => {
   test("should handle empty documents list gracefully", async ({ page }) => {
     await page.goto("/documents");
     await page.waitForLoadState("networkidle");

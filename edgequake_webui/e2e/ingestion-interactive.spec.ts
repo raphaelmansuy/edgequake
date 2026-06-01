@@ -340,7 +340,7 @@ test.describe("@audit Interactive Ingestion Pipeline Tests", () => {
   });
 });
 
-test.describe("Stage Indicator Visualization Tests", () => {
+test.describe("@audit Stage Indicator Visualization Tests", () => {
   test("09 - Verify stage indicator styles", async ({ page }) => {
     // Navigate to documents and look for stage indicators
     await page.goto("/documents");
@@ -372,7 +372,7 @@ test.describe("Stage Indicator Visualization Tests", () => {
   });
 });
 
-test.describe("Cost Tracking UI Tests", () => {
+test.describe("@audit Cost Tracking UI Tests", () => {
   test("10 - Verify cost badge displays", async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");

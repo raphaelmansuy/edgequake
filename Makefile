@@ -1397,6 +1397,11 @@ test-e2e-critical: ## Run E2E critical path tests
 test-e2e-lint: ## Fail if chromium-gate e2e specs contain flake anti-patterns
 	@python3 $(FRONTEND_DIR)/scripts/validate-e2e-flake.py
 
+test-e2e-ui: test-e2e-lint ## UI-only chromium gate (no backend; skips integration specs)
+	@echo "$(BLUE)Running UI-only E2E chromium gate (PLAYWRIGHT_SKIP_STACK_CHECK=1)$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 \
+		pnpm exec playwright test --project=chromium --reporter=line
+
 test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg stack)
 	@echo "$(BLUE)Running full E2E suite → frontend $(FRONTEND_URL) backend $(BACKEND_URL)$(RESET)"
 	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \

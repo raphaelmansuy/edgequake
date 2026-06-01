@@ -33,6 +33,10 @@ function seedStaleConversation(page: import("@playwright/test").Page) {
   }, FAKE_CONVERSATION_ID);
 }
 
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("Stale Conversation Recovery", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
@@ -43,7 +47,6 @@ test.describe("Stale Conversation Recovery", () => {
   });
 
   test("handles loading when no active conversation exists", async ({ page }) => {
-    skipUnlessLiveStack();
     await page.goto("/query");
     await waitForAppReady(page);
 
@@ -55,7 +58,6 @@ test.describe("Stale Conversation Recovery", () => {
   test("auto-recovers when stale localStorage conversation ID is set", async ({
     page,
   }) => {
-    skipUnlessLiveStack();
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
@@ -75,7 +77,6 @@ test.describe("Stale Conversation Recovery", () => {
   test("clears stale conversation ID from localStorage on page load", async ({
     page,
   }) => {
-    skipUnlessLiveStack();
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);
@@ -99,7 +100,6 @@ test.describe("Stale Conversation Recovery", () => {
   test("shows friendly notification when recovering from stale ID", async ({
     page,
   }) => {
-    skipUnlessLiveStack();
     await seedStaleConversation(page);
     await page.goto("/query");
     await waitForAppReady(page);

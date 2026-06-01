@@ -360,7 +360,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
   });
 });
 
-test.describe("Spacing Measurement Verification", () => {
+test.describe("@audit Spacing Measurement Verification", () => {
   test("Verify design token application", async ({ page }) => {
     await gotoApp(page, "/");
     await waitForAppReady(page);
