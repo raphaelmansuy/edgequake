@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 
 test.describe("@debug Query Console Check", () => {
   test("should show console output for debugging", async ({ page }) => {
@@ -38,7 +39,7 @@ test.describe("@debug Query Console Check", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/console-check.png",
+      path: e2eScreenshot("debug", "console-check.png"),
       fullPage: true,
     });
 

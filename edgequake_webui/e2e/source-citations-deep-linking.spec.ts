@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -79,7 +80,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
 
     // Take screenshot of the source citations
     await page.screenshot({
-      path: "test-results/source-citations-confidence.png",
+      path: e2eScreenshot("citations", "source-citations-confidence.png"),
       fullPage: false,
     });
   });
@@ -118,7 +119,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
 
     // Take screenshot before clicking
     await page.screenshot({
-      path: "test-results/source-citations-documents-tab.png",
+      path: e2eScreenshot("citations", "source-citations-documents-tab.png"),
     });
 
     // Listen for navigation events
@@ -146,7 +147,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
 
       // Take screenshot of document page
       await page.screenshot({
-        path: "test-results/document-detail-page.png",
+        path: e2eScreenshot("citations", "document-detail-page.png"),
       });
     }
   });
@@ -183,7 +184,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
 
     // Take screenshot of Explore tab
     await page.screenshot({
-      path: "test-results/source-citations-explore-tab.png",
+      path: e2eScreenshot("citations", "source-citations-explore-tab.png"),
     });
 
     // Click "Open Graph Explorer" button
@@ -207,7 +208,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
       // Take screenshot of filtered graph
       await page.waitForTimeout(1000); // Wait for graph to render
       await page.screenshot({
-        path: "test-results/graph-filtered-by-entities.png",
+        path: e2eScreenshot("citations", "graph-filtered-by-entities.png"),
       });
     }
   });
@@ -257,7 +258,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
 
       // Take screenshot showing any highlighting
       await page.screenshot({
-        path: "test-results/document-with-highlight.png",
+        path: e2eScreenshot("citations", "document-with-highlight.png"),
       });
 
       // Check for highlight mark elements
@@ -278,7 +279,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/graph-with-entity-params.png",
+      path: e2eScreenshot("citations", "graph-with-entity-params.png"),
     });
 
     // Check if search query was set based on URL params
@@ -329,7 +330,7 @@ test.describe("@audit Confidence Calculation Quality", () => {
     }
 
     await page.screenshot({
-      path: "test-results/confidence-quality-check.png",
+      path: e2eScreenshot("citations", "confidence-quality-check.png"),
     });
   });
 });
@@ -389,7 +390,7 @@ test.describe("@audit Normalized Score Display", () => {
     }
 
     await page.screenshot({
-      path: "test-results/normalized-scores-bounded.png",
+      path: e2eScreenshot("citations", "normalized-scores-bounded.png"),
     });
   });
 
@@ -434,7 +435,7 @@ test.describe("@audit Normalized Score Display", () => {
     expect(over100).toHaveLength(0);
 
     await page.screenshot({
-      path: "test-results/normalized-scores-no-overflow.png",
+      path: e2eScreenshot("citations", "normalized-scores-no-overflow.png"),
     });
   });
 });

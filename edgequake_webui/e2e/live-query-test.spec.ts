@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 
 test.describe("@debug Live Query Test", () => {
   test("should execute a real streaming query and verify response quality", async ({
@@ -36,7 +37,7 @@ test.describe("@debug Live Query Test", () => {
 
     // Take screenshot for debugging
     await page.screenshot({
-      path: "test-results/live-query-test.png",
+      path: e2eScreenshot("debug", "live-query-test.png"),
       fullPage: true,
     });
 

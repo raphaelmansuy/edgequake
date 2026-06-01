@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -19,7 +20,7 @@ test.describe("@debug Query Page Functionality Test", () => {
 
     // Take screenshot of initial state
     await page.screenshot({
-      path: "test-results/query-page-initial.png",
+      path: e2eScreenshot("debug", "query-page-initial.png"),
       fullPage: true,
     });
 
@@ -64,7 +65,7 @@ test.describe("@debug Query Page Functionality Test", () => {
 
     // Take screenshot before submission
     await page.screenshot({
-      path: "test-results/query-before-submit.png",
+      path: e2eScreenshot("debug", "query-before-submit.png"),
       fullPage: true,
     });
 
@@ -80,7 +81,7 @@ test.describe("@debug Query Page Functionality Test", () => {
 
     // Take screenshot after submission
     await page.screenshot({
-      path: "test-results/query-after-submit.png",
+      path: e2eScreenshot("debug", "query-after-submit.png"),
       fullPage: true,
     });
 
@@ -97,7 +98,7 @@ test.describe("@debug Query Page Functionality Test", () => {
 
     // Take screenshot of response
     await page.screenshot({
-      path: "test-results/query-with-response.png",
+      path: e2eScreenshot("debug", "query-with-response.png"),
       fullPage: true,
     });
 

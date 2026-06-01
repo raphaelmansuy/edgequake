@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -123,7 +124,7 @@ test.describe("@debug Query Deep Dive - Issue Detection", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/streaming-response.png",
+      path: e2eScreenshot("debug", "streaming-response.png"),
       fullPage: true,
     });
 
@@ -223,7 +224,7 @@ test.describe("@debug Query Deep Dive - Issue Detection", () => {
     }
 
     await page.screenshot({
-      path: "test-results/after-reload.png",
+      path: e2eScreenshot("debug", "after-reload.png"),
       fullPage: true,
     });
   });
@@ -263,7 +264,7 @@ test.describe("@debug Query Deep Dive - Issue Detection", () => {
     }
 
     await page.screenshot({
-      path: "test-results/error-handling.png",
+      path: e2eScreenshot("debug", "error-handling.png"),
       fullPage: true,
     });
   });
@@ -306,7 +307,7 @@ test.describe("@debug Query Deep Dive - Issue Detection", () => {
     }
 
     await page.screenshot({
-      path: "test-results/streaming-tokens.png",
+      path: e2eScreenshot("debug", "streaming-tokens.png"),
       fullPage: true,
     });
   });

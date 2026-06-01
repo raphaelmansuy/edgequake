@@ -8,10 +8,9 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 import { waitForAppReady } from "./helpers/app-ready";
 import { gotoApp } from "./helpers/navigation";
-
-const SCREENSHOT_DIR = "e2e/screenshots/audit-verification";
 
 test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
   test.beforeEach(async ({ page }) => {
@@ -30,7 +29,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
 
     // Take full page screenshot
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/01-dashboard-full.png`,
+      path: e2eScreenshot("audit-verification", "01-dashboard-full.png"),
       fullPage: true,
     });
 
@@ -38,7 +37,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     const statsSection = page.locator('section[aria-label="Statistics"]');
     if ((await statsSection.count()) > 0) {
       await statsSection.screenshot({
-        path: `${SCREENSHOT_DIR}/01-dashboard-stats-cards.png`,
+        path: e2eScreenshot("audit-verification", "01-dashboard-stats-cards.png"),
       });
     }
 
@@ -60,7 +59,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(500);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/02-dashboard-dark-mode.png`,
+      path: e2eScreenshot("audit-verification", "02-dashboard-dark-mode.png"),
       fullPage: true,
     });
   });
@@ -74,7 +73,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/03-documents-full.png`,
+      path: e2eScreenshot("audit-verification", "03-documents-full.png"),
       fullPage: true,
     });
 
@@ -84,7 +83,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
       .first();
     if ((await uploadZone.count()) > 0) {
       await uploadZone.screenshot({
-        path: `${SCREENSHOT_DIR}/03-documents-upload-zone.png`,
+        path: e2eScreenshot("audit-verification", "03-documents-upload-zone.png"),
       });
     }
   });
@@ -104,7 +103,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(300);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/04-documents-drag-hover.png`,
+      path: e2eScreenshot("audit-verification", "04-documents-drag-hover.png"),
       fullPage: true,
     });
   });
@@ -116,7 +115,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/05-query-full.png`,
+      path: e2eScreenshot("audit-verification", "05-query-full.png"),
       fullPage: true,
     });
 
@@ -124,7 +123,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     const header = page.locator("header").first();
     if ((await header.count()) > 0) {
       await header.screenshot({
-        path: `${SCREENSHOT_DIR}/05-query-header.png`,
+        path: e2eScreenshot("audit-verification", "05-query-header.png"),
       });
     }
   });
@@ -140,7 +139,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
       await textarea.fill("What are the main entities in my knowledge graph?");
 
       await page.screenshot({
-        path: `${SCREENSHOT_DIR}/06-query-input-focused.png`,
+        path: e2eScreenshot("audit-verification", "06-query-input-focused.png"),
         fullPage: true,
       });
     }
@@ -152,7 +151,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(2000); // Graph takes time to render
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/07-graph-full.png`,
+      path: e2eScreenshot("audit-verification", "07-graph-full.png"),
       fullPage: true,
     });
 
@@ -160,7 +159,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     const toolbar = page.locator("header").first();
     if ((await toolbar.count()) > 0) {
       await toolbar.screenshot({
-        path: `${SCREENSHOT_DIR}/07-graph-toolbar.png`,
+        path: e2eScreenshot("audit-verification", "07-graph-toolbar.png"),
       });
     }
   });
@@ -174,7 +173,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     const sidebar = page.locator("aside").last();
     if ((await sidebar.count()) > 0) {
       await sidebar.screenshot({
-        path: `${SCREENSHOT_DIR}/08-graph-sidebar.png`,
+        path: e2eScreenshot("audit-verification", "08-graph-sidebar.png"),
       });
     }
   });
@@ -187,7 +186,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(500);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/09-settings-full.png`,
+      path: e2eScreenshot("audit-verification", "09-settings-full.png"),
       fullPage: true,
     });
   });
@@ -207,12 +206,12 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     const dangerousCard = page.locator(".border-destructive\\/30").first();
     if ((await dangerousCard.count()) > 0) {
       await dangerousCard.screenshot({
-        path: `${SCREENSHOT_DIR}/10-settings-dangerous-actions.png`,
+        path: e2eScreenshot("audit-verification", "10-settings-dangerous-actions.png"),
       });
     } else {
       // Fallback - screenshot bottom of page
       await page.screenshot({
-        path: `${SCREENSHOT_DIR}/10-settings-bottom.png`,
+        path: e2eScreenshot("audit-verification", "10-settings-bottom.png"),
       });
     }
   });
@@ -227,7 +226,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     const sidebar = page.locator("aside").first();
     if ((await sidebar.count()) > 0) {
       await sidebar.screenshot({
-        path: `${SCREENSHOT_DIR}/11-sidebar-expanded.png`,
+        path: e2eScreenshot("audit-verification", "11-sidebar-expanded.png"),
       });
     }
   });
@@ -245,7 +244,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
       const sidebar = page.locator("aside").first();
       if ((await sidebar.count()) > 0) {
         await sidebar.screenshot({
-          path: `${SCREENSHOT_DIR}/12-sidebar-collapsed.png`,
+          path: e2eScreenshot("audit-verification", "12-sidebar-collapsed.png"),
         });
       }
     }
@@ -257,7 +256,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(500);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/13-api-explorer-full.png`,
+      path: e2eScreenshot("audit-verification", "13-api-explorer-full.png"),
       fullPage: true,
     });
   });
@@ -269,7 +268,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/14-mobile-dashboard.png`,
+      path: e2eScreenshot("audit-verification", "14-mobile-dashboard.png"),
       fullPage: true,
     });
   });
@@ -281,7 +280,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/15-tablet-dashboard.png`,
+      path: e2eScreenshot("audit-verification", "15-tablet-dashboard.png"),
       fullPage: true,
     });
   });
@@ -309,9 +308,10 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
         const box = await h1.boundingBox();
         if (box) {
           await page.screenshot({
-            path: `${SCREENSHOT_DIR}/16-title-${
-              pagePath.replace("/", "") || "home"
-            }.png`,
+            path: e2eScreenshot(
+              "audit-verification",
+              `16-title-${pagePath.replace("/", "") || "home"}.png`,
+            ),
             clip: {
               x: 0,
               y: 0,
@@ -336,7 +336,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
     await page.keyboard.press("Tab");
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/17-focus-states.png`,
+      path: e2eScreenshot("audit-verification", "17-focus-states.png"),
     });
   });
 
@@ -354,7 +354,7 @@ test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
       await page.waitForTimeout(300);
 
       await page.screenshot({
-        path: `${SCREENSHOT_DIR}/18-card-hover.png`,
+        path: e2eScreenshot("audit-verification", "18-card-hover.png"),
       });
     }
   });
