@@ -1434,15 +1434,39 @@ spec013-mistral-backend-bg: db-wait ## Backend on :8081 with Mistral (avoids Doc
 
 spec013-e2e-playwright-intensive: ## Playwright intensive SPEC-013 suite (Mistral stack)
 	@echo "$(BLUE)SPEC-013 Playwright intensive → backend $(SPEC013_BACKEND_URL)$(RESET)"
-	@curl -sf "$(SPEC013_BACKEND_URL)/api/v1/health" >/dev/null 2>&1 || { \
+	@curl -sf "$(SPEC013_BACKEND_URL)/health" >/dev/null 2>&1 || { \
 		echo "$(RED)✗ Backend not healthy at $(SPEC013_BACKEND_URL)$(RESET)"; \
 		echo "  Run: $(GREEN)make spec013-mistral-backend-bg$(RESET) and $(GREEN)make frontend-bg$(RESET)"; \
+		exit 1; \
+	}
+	@curl -sf "$(SPEC013_BACKEND_URL)/health" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("llm_provider_name") or d.get("providers",{}).get("llm",{}).get("name"); sys.exit(0 if p=="mistral" else 1)' || { \
+		echo "$(RED)✗ Backend is not using live Mistral (llm_provider_name != mistral)$(RESET)"; \
+		echo "  Current health: $$(curl -sf "$(SPEC013_BACKEND_URL)/health" 2>/dev/null || echo unavailable)"; \
 		exit 1; \
 	}
 	@cd $(FRONTEND_DIR) && SPEC013_BACKEND_URL="$(SPEC013_BACKEND_URL)" \
 		E2E_BACKEND_URL="$(SPEC013_BACKEND_URL)" \
 		PLAYWRIGHT_BASE_URL=http://localhost:$(FRONTEND_PORT) \
 		pnpm exec playwright test -c playwright.spec013.config.ts --reporter=line
+
+test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (requires MISTRAL_API_KEY)
+	@if [ -z "$(MISTRAL_API_KEY)" ] && [ -z "$$MISTRAL_API_KEY" ]; then \
+		echo "$(RED)✗ MISTRAL_API_KEY required for test-e2e-mistral-live$(RESET)"; \
+		exit 1; \
+	fi
+	@$(MAKE) backend-bg DEV_AUTH_ENABLED=false --no-print-directory
+	@$(MAKE) frontend-bg DEV_AUTH_ENABLED=false DEV_DISABLE_DEMO_LOGIN=true --no-print-directory
+	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ Backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \
+	}
+	@curl -sf "$(BACKEND_URL)/health" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("llm_provider_name") or d.get("providers",{}).get("llm",{}).get("name"); sys.exit(0 if p=="mistral" else 1)' || { \
+		echo "$(RED)✗ Backend is not running live Mistral$(RESET)"; \
+		echo "  Current health: $$(curl -sf "$(BACKEND_URL)/health" 2>/dev/null || echo unavailable)"; \
+		exit 1; \
+	}
+	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
+		pnpm exec playwright test --project=chromium --reporter=line
 
 spec013-e2e-mistral-live: db-wait ## Live Mistral document ingest (MISTRAL_API_KEY + PostgreSQL)
 	@echo "$(BLUE)SPEC-013 live Mistral ingest test (PostgreSQL)...$(RESET)"
