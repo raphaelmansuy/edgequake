@@ -91,7 +91,7 @@ test.describe("LLM Model Selection and Usage", () => {
     }
   });
 
-  test("should send selected provider/model in chat API request", async ({
+  test("@load should send selected provider/model in chat API request", async ({
     page,
   }) => {
     // Monitor network requests
@@ -183,7 +183,7 @@ test.describe("LLM Model Selection and Usage", () => {
     }
   });
 
-  test("should display LLM provider in chat response metadata", async ({
+  test("@load should display LLM provider in chat response metadata", async ({
     page,
   }) => {
     // Skip if we can't submit a query
