@@ -1,6 +1,7 @@
 import { Page, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { resolveAuditPath, SCREENSHOT_ROOT } from "./helpers/screenshot-paths";
 import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
@@ -16,7 +17,7 @@ import { skipUnlessLiveStack } from "./helpers/live-stack";
  * - Desktop L: 1536px
  */
 
-const AUDIT_DIR = path.join(process.cwd(), "../audit_ui/screenshots");
+const AUDIT_DIR = SCREENSHOT_ROOT.audit;
 
 // Breakpoints for responsive testing
 const BREAKPOINTS = {
@@ -43,14 +44,11 @@ async function captureAllBreakpoints(
   baseName: string,
   subDir?: string
 ) {
-  const screenshotDir = subDir ? path.join(AUDIT_DIR, subDir) : AUDIT_DIR;
-  ensureDir(screenshotDir);
-
   for (const [breakpointName, size] of Object.entries(BREAKPOINTS)) {
     await page.setViewportSize(size);
     await page.waitForTimeout(300); // Allow layout to settle
     await page.screenshot({
-      path: path.join(screenshotDir, `${baseName}-${breakpointName}.png`),
+      path: resolveAuditPath(subDir, `${baseName}-${breakpointName}.png`),
       fullPage: true,
     });
   }
@@ -63,10 +61,8 @@ async function captureScreenshot(
   subDir?: string,
   fullPage: boolean = true
 ) {
-  const screenshotDir = subDir ? path.join(AUDIT_DIR, subDir) : AUDIT_DIR;
-  ensureDir(screenshotDir);
   await page.screenshot({
-    path: path.join(screenshotDir, fileName),
+    path: resolveAuditPath(subDir, fileName),
     fullPage,
   });
 }
@@ -78,12 +74,10 @@ async function captureElement(
   fileName: string,
   subDir?: string
 ) {
-  const screenshotDir = subDir ? path.join(AUDIT_DIR, subDir) : AUDIT_DIR;
-  ensureDir(screenshotDir);
   const element = page.locator(selector).first();
   if ((await element.count()) > 0 && (await element.isVisible())) {
     await element.screenshot({
-      path: path.join(screenshotDir, fileName),
+      path: resolveAuditPath(subDir, fileName),
     });
     return true;
   }
@@ -360,7 +354,7 @@ test.describe("@audit UX/UI Comprehensive Audit - Screenshot Capture", () => {
       .first();
     if ((await rightPanel.count()) > 0 && (await rightPanel.isVisible())) {
       await rightPanel.screenshot({
-        path: path.join(AUDIT_DIR, "components", "03-query-right-panel.png"),
+        path: resolveAuditPath("components", "03-query-right-panel.png"),
       });
     }
 
