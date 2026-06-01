@@ -4,9 +4,11 @@
  */
 import { test } from "@playwright/test";
 
+/** True when Playwright should run API/bootstrap integration specs (not UI-only smoke). */
 export const requiresLiveStack =
-  !!process.env.PLAYWRIGHT_BASE_URL &&
-  process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1";
+  process.env.E2E_LIVE_STACK === "1" ||
+  (!!process.env.PLAYWRIGHT_BASE_URL &&
+    process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1");
 
 export const liveStackSkipReason =
   "Requires live backend (make dev-bg && make test-e2e-full)";

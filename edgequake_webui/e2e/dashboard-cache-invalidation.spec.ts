@@ -18,6 +18,8 @@ import { ZUSTAND_TENANT_KEY } from "./helpers/storage-keys";
 import { getDocumentsFileInput } from "./helpers/upload";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
+const CURRENT_CACHE_VERSION = "v1.0.0";
+
 test.describe("Dashboard Stats Cache Invalidation", () => {
   test.beforeEach(async ({ page }) => {
     await page.context().clearCookies();
@@ -136,7 +138,20 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
       timeout: 10000,
     });
 
-    // Check that cache version was updated
+    // Cache manager runs after Zustand hydration — poll instead of fixed read.
+    await expect
+      .poll(
+        async () => {
+          const ctx = await page.evaluate(() => {
+            const stored = localStorage.getItem("edgequake-cache-version");
+            return stored ? JSON.parse(stored) : null;
+          });
+          return ctx?.version ?? null;
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(CURRENT_CACHE_VERSION);
+
     const newCacheContext = await page.evaluate(() => {
       const stored = localStorage.getItem("edgequake-cache-version");
       return stored ? JSON.parse(stored) : null;
@@ -144,8 +159,6 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
 
     console.log("New cache context:", newCacheContext);
 
-    // Verify cache version was updated to current version
-    expect(newCacheContext.version).toBe("v1.0.0");
     expect(newCacheContext.tenantId).toBe(originalTenantId);
     expect(newCacheContext.workspaceId).toBe(originalWorkspaceId);
 

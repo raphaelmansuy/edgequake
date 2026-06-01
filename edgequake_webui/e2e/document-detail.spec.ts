@@ -1,12 +1,18 @@
 // E2E tests for document detail page
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+import { gotoApp } from "./helpers/navigation";
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Document Detail Page", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to documents page
-    await page.goto("/documents?workspace=default-workspace");
-    await waitForAppReady(page);
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "doc-detail");
+    await gotoApp(page, "/documents");
 
     // Check if any documents exist (look for "View" link)
     const viewLink = page.getByRole("link", { name: /view/i }).first();

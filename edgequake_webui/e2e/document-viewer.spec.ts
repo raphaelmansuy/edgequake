@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+import { gotoApp } from "./helpers/navigation";
 
 /**
  * Document Viewer E2E Tests
@@ -16,12 +19,14 @@ import { waitForAppReady } from "./helpers/app-ready";
  * 6. Multi-tenancy isolation
  */
 
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("Document Viewer", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to documents page
-    await page.goto("/documents");
-    await waitForAppReady(page);
-    await page.waitForTimeout(500);
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "doc-viewer");
+    await gotoApp(page, "/documents");
   });
 
   test.describe("PDF Viewer Component", () => {

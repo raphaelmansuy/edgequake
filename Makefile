@@ -1399,6 +1399,12 @@ test-e2e-lint: ## Fail if chromium-gate e2e specs contain flake anti-patterns
 
 test-e2e-ui: test-e2e-lint ## UI-only chromium gate (no backend; skips integration specs)
 	@echo "$(BLUE)Running UI-only E2E chromium gate (PLAYWRIGHT_SKIP_STACK_CHECK=1)$(RESET)"
+	@FPID=$$(lsof -nP -iTCP:3001 -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	if [ -n "$$FPID" ] && ! curl -fsS --max-time 3 http://127.0.0.1:3001 2>/dev/null | grep -qi EdgeQuake; then \
+		echo "$(YELLOW)→ Killing unhealthy frontend listener on port 3001$(RESET)"; \
+		kill "$$FPID" 2>/dev/null || true; \
+		sleep 1; \
+	fi
 	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 \
 		pnpm exec playwright test --project=chromium --reporter=line
 
@@ -1408,7 +1414,7 @@ test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg 
 		echo "$(RED)✗ EdgeQuake backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \
 	}
 	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
-		SPEC013_BACKEND_URL="$(BACKEND_URL)" PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
 
 # ============================================================================
@@ -1483,9 +1489,9 @@ test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (require
 	}
 	@echo "$(GREEN)✓ Live Mistral backend verified at $(BACKEND_URL)$(RESET)"
 	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
-		SPEC013_BACKEND_URL="$(BACKEND_URL)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" \
-		NEXT_PUBLIC_AUTH_ENABLED=false NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true \
-		PLAYWRIGHT_SKIP_STACK_CHECK=1 \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 NEXT_PUBLIC_API_URL="$(BACKEND_URL)" \
+		EDGEQUAKE_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED=false \
+		NEXT_PUBLIC_DISABLE_DEMO_LOGIN=false PLAYWRIGHT_SKIP_STACK_CHECK=1 \
 		pnpm exec playwright test --project=chromium --reporter=line
 
 spec013-e2e-mistral-live: db-wait ## Live Mistral document ingest (MISTRAL_API_KEY + PostgreSQL)
