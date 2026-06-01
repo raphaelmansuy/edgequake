@@ -50,12 +50,29 @@ export function ensureDir(dir: string): string {
   return dir;
 }
 
-/** `audit_ui/screenshots/<subdir>/<fileName>` */
+/** `audit_ui/screenshots/<subdir>/` (created if missing) */
+export function auditScreenshotDir(subdir?: string): string {
+  return ensureDir(
+    subdir
+      ? path.join(SCREENSHOT_ROOT.audit, subdir)
+      : SCREENSHOT_ROOT.audit,
+  );
+}
+
+/** `audit_ui/screenshots/<subdir>/<fileName>` — omit subdir for audit root */
 export function auditScreenshot(
   subdir: AuditScreenshotSubdir | string,
   fileName: string,
 ): string {
-  return path.join(ensureDir(path.join(SCREENSHOT_ROOT.audit, subdir)), fileName);
+  return path.join(auditScreenshotDir(subdir), fileName);
+}
+
+/** Audit capture with optional nested subdir (e.g. `screens/dashboard`). */
+export function resolveAuditPath(
+  subdir: string | undefined,
+  fileName: string,
+): string {
+  return path.join(auditScreenshotDir(subdir), fileName);
 }
 
 /** `e2e/screenshots/<subdir>/<fileName>` */
