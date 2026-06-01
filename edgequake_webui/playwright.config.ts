@@ -47,6 +47,7 @@ function resolveFrontendUrl(): { baseURL: string; startWebServer: boolean } {
 }
 
 const { baseURL, startWebServer } = resolveFrontendUrl();
+const isLiveStack = process.env.E2E_LIVE_STACK === "1";
 
 const sharedUse = {
   baseURL,
@@ -56,11 +57,13 @@ const sharedUse = {
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  fullyParallel: !isLiveStack,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  timeout: isLiveStack ? 120_000 : 30_000,
   // Single worker when driving a dev server avoids Next.js dev crashes under load.
-  workers: process.env.CI ? 2 : customBaseUrl ? 1 : startWebServer ? 1 : undefined,
+  workers:
+    process.env.CI ? 2 : isLiveStack || customBaseUrl || startWebServer ? 1 : undefined,
   reporter: [["html", { open: "never" }], ["list"]],
   use: sharedUse,
 
