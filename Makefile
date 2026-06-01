@@ -1454,8 +1454,19 @@ test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (require
 		echo "$(RED)✗ MISTRAL_API_KEY required for test-e2e-mistral-live$(RESET)"; \
 		exit 1; \
 	fi
+	@BPID=$$(lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	if [ -n "$$BPID" ]; then \
+		echo "$(YELLOW)→ Restarting backend on port $(BACKEND_PORT) for deterministic auth/provider config$(RESET)"; \
+		kill "$$BPID" 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@FPID=$$(lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	if [ -n "$$FPID" ]; then \
+		echo "$(YELLOW)→ Freeing frontend port $(FRONTEND_PORT) for Playwright-managed webServer$(RESET)"; \
+		kill "$$FPID" 2>/dev/null || true; \
+		sleep 1; \
+	fi
 	@$(MAKE) backend-bg DEV_AUTH_ENABLED=false WORKER_THREADS=1 MAX_TASKS_PER_TENANT=1 --no-print-directory
-	@$(MAKE) frontend-bg DEV_AUTH_ENABLED=false DEV_DISABLE_DEMO_LOGIN=true --no-print-directory
 	@for i in $$(seq 1 30); do \
 		if curl -sf "$(BACKEND_URL)/health" >/dev/null 2>&1; then break; fi; \
 		sleep 2; \
@@ -1472,7 +1483,9 @@ test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (require
 	}
 	@echo "$(GREEN)✓ Live Mistral backend verified at $(BACKEND_URL)$(RESET)"
 	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
-		SPEC013_BACKEND_URL="$(BACKEND_URL)" PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" \
+		NEXT_PUBLIC_AUTH_ENABLED=false NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true \
+		PLAYWRIGHT_SKIP_STACK_CHECK=1 \
 		pnpm exec playwright test --project=chromium --reporter=line
 
 spec013-e2e-mistral-live: db-wait ## Live Mistral document ingest (MISTRAL_API_KEY + PostgreSQL)

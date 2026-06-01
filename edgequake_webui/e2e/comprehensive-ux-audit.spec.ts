@@ -855,7 +855,7 @@ test.describe("@audit UX/UI Comprehensive Audit - All Screens", () => {
 });
 
 // Summary test that runs after all audits
-test("99 - Audit Summary", async ({ page }) => {
+test("@audit 99 - Audit Summary", async ({ page }) => {
   console.log("\n" + "═".repeat(60));
   console.log("📊 UX/UI AUDIT COMPLETE");
   console.log("═".repeat(60));
