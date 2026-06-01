@@ -15,10 +15,11 @@ const customBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
 
 function portResponds(port: number): boolean {
   try {
-    execSync(`curl -sf --max-time 2 http://127.0.0.1:${port}/ -o /dev/null`, {
-      stdio: "ignore",
-    });
-    return true;
+    const body = execSync(
+      `curl -sf --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null | head -c 400`,
+      { encoding: "utf8" },
+    );
+    return /edgequake/i.test(body);
   } catch {
     return false;
   }
@@ -103,7 +104,8 @@ export default defineConfig({
     : {}),
 
   globalSetup:
-    customBaseUrl && process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1"
+    (customBaseUrl && process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1") ||
+    process.env.E2E_LIVE_STACK === "1"
       ? "./e2e/global-setup.ts"
       : undefined,
 });
