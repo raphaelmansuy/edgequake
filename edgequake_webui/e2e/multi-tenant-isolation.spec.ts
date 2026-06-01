@@ -220,6 +220,10 @@ test.describe("Multi-Tenant Isolation", () => {
 });
 
 test.describe("Workspace Switching in UI", () => {
+  test.beforeEach(() => {
+    skipUnlessLiveStack();
+  });
+
   test("switching workspace changes document list", async ({ page }) => {
     await page.goto("/documents");
     await waitForAppReady(page);

@@ -30,10 +30,31 @@ def is_gated_spec(path: Path, text: str) -> bool:
     return True
 
 
+BACKEND_MARKERS = (
+    "helpers/backend-url",
+    "helpers/bootstrap-ui",
+    "helpers/spec013-api",
+    "createTenantWorkspaceViaApi",
+    "bootstrapDeterministicUiContext",
+)
+
+
+def check_live_stack_gate(path: Path, text: str) -> list[str]:
+    """Chromium specs that touch the API must call skipUnlessLiveStack()."""
+    if TAG_RE.search(text):
+        return []
+    if not any(m in text for m in BACKEND_MARKERS):
+        return []
+    if re.search(r"skipUnlessLiveStack\s*\(\s*\)", text):
+        return []
+    return [f"{path.name}: missing skipUnlessLiveStack() for backend/bootstrap spec"]
+
+
 def main() -> int:
     violations: list[str] = []
     for path in sorted(E2E.glob("*.spec.ts")):
         text = path.read_text()
+        violations.extend(check_live_stack_gate(path, text))
         if not is_gated_spec(path, text):
             continue
         for line_no, line in enumerate(text.splitlines(), 1):

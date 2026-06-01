@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -5,13 +6,46 @@ import { defineConfig, devices } from "@playwright/test";
  * @see https://playwright.dev/docs/test-configuration
  *
  * Projects (first-principles):
- * - default: integration + smoke (PR gate via make test-e2e-full)
+ * - chromium: integration + smoke (PR gate via make test-e2e-full)
  * - audit: screenshot/visual — workers=1, longer timeout
  * - load: perf stress — workers=1, requires live backend
  * - debug: legacy fixture-debug specs — excluded from default CI
  */
 const customBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
-const baseURL = customBaseUrl || "http://localhost:3001";
+
+function portResponds(port: number): boolean {
+  try {
+    execSync(`curl -sf --max-time 2 http://127.0.0.1:${port}/ -o /dev/null`, {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Prefer make dev on :3000 for integration; UI-only gate always uses :3001 webServer. */
+function resolveFrontendUrl(): { baseURL: string; startWebServer: boolean } {
+  if (customBaseUrl) {
+    return { baseURL: customBaseUrl, startWebServer: false };
+  }
+  // UI-only gate: isolated Next dev server (no auth, no collision with make dev on :3000).
+  if (process.env.PLAYWRIGHT_SKIP_STACK_CHECK === "1") {
+    if (portResponds(3001)) {
+      return { baseURL: "http://localhost:3001", startWebServer: false };
+    }
+    return { baseURL: "http://localhost:3001", startWebServer: true };
+  }
+  if (portResponds(3000)) {
+    return { baseURL: "http://localhost:3000", startWebServer: false };
+  }
+  if (portResponds(3001)) {
+    return { baseURL: "http://localhost:3001", startWebServer: false };
+  }
+  return { baseURL: "http://localhost:3001", startWebServer: true };
+}
+
+const { baseURL, startWebServer } = resolveFrontendUrl();
 
 const sharedUse = {
   baseURL,
@@ -24,7 +58,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  // Single worker when driving a dev server avoids Next.js dev crashes under load.
+  workers: process.env.CI ? 2 : customBaseUrl ? 1 : startWebServer ? 1 : undefined,
   reporter: [["html", { open: "never" }], ["list"]],
   use: sharedUse,
 
@@ -33,7 +68,6 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       grepInvert: [/@audit/, /@load/, /@debug/],
-      ...(customBaseUrl ? { workers: 1 } : {}),
     },
     {
       name: "audit",
@@ -57,16 +91,16 @@ export default defineConfig({
     },
   ],
 
-  ...(customBaseUrl
-    ? {}
-    : {
+  ...(startWebServer
+    ? {
         webServer: {
           command: "bun run dev -- --port 3001",
           url: "http://localhost:3001",
           reuseExistingServer: !process.env.CI,
           timeout: 120 * 1000,
         },
-      }),
+      }
+    : {}),
 
   globalSetup:
     customBaseUrl && process.env.PLAYWRIGHT_SKIP_STACK_CHECK !== "1"
