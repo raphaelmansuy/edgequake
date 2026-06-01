@@ -41,7 +41,7 @@ test.beforeEach(() => {
   skipUnlessLiveStack();
 });
 
-test.describe("Source Citations Overflow & Navigation Fixes", () => {
+test.describe("@audit Source Citations Overflow & Navigation Fixes", () => {
   test("Issue #1: Documents tab chunks should not overflow container", async ({
     page,
   }) => {
@@ -224,7 +224,7 @@ test.describe("Source Citations Overflow & Navigation Fixes", () => {
   });
 });
 
-test.describe("Document Detail Page", () => {
+test.describe("@audit Document Detail Page", () => {
   test("Issue #4: Right sidebar should be scrollable", async ({ page }) => {
     // Navigate to documents list
     await page.goto(
@@ -362,7 +362,7 @@ test.describe("Document Detail Page", () => {
   });
 });
 
-test.describe("Visual Regression Tests", () => {
+test.describe("@audit Visual Regression Tests", () => {
   test("Source Citations panel visual snapshot", async ({ page }) => {
     await page.goto("/query?workspace=default-workspace");
     await waitForAppReady(page);

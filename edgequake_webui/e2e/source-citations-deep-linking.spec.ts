@@ -290,7 +290,7 @@ test.describe("@audit Source Citations Deep Linking", () => {
   });
 });
 
-test.describe("Confidence Calculation Quality", () => {
+test.describe("@audit Confidence Calculation Quality", () => {
   test("confidence should reflect actual chunk scores", async ({ page }) => {
     await page.goto("/query?workspace=default-workspace");
     await waitForAppReady(page);
@@ -334,7 +334,7 @@ test.describe("Confidence Calculation Quality", () => {
   });
 });
 
-test.describe("Normalized Score Display", () => {
+test.describe("@audit Normalized Score Display", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/query?workspace=default-workspace");
     await waitForAppReady(page);
