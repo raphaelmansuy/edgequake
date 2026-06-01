@@ -18,6 +18,7 @@ BANNED_IN_CHROMIUM = [
     (re.compile(r'replace\s*\(\s*["\']:3001["\']'), "port hack :3001→:8080"),
     (re.compile(r'\$\{BASE_URL\}/'), "BASE_URL path join (use relative /path)"),
     (re.compile(r'\$\{FRONTEND_URL\}/'), "FRONTEND_URL path join"),
+    (re.compile(r"default-workspace"), "stale default-workspace slug (use bootstrap slug)"),
 ]
 
 TAG_RE = re.compile(r"@(?:audit|load|debug)")
@@ -39,6 +40,17 @@ BACKEND_MARKERS = (
 )
 
 
+def check_query_response_gate(path: Path, text: str) -> list[str]:
+    """Specs that wait for LLM chat must be @load (or @audit/@debug)."""
+    if TAG_RE.search(text):
+        return []
+    if "waitForQueryResponse" not in text:
+        return []
+    return [
+        f"{path.name}: uses waitForQueryResponse but missing @load/@audit/@debug tag"
+    ]
+
+
 def check_live_stack_gate(path: Path, text: str) -> list[str]:
     """Chromium specs that touch the API must call skipUnlessLiveStack()."""
     if TAG_RE.search(text):
@@ -55,6 +67,7 @@ def main() -> int:
     for path in sorted(E2E.glob("*.spec.ts")):
         text = path.read_text()
         violations.extend(check_live_stack_gate(path, text))
+        violations.extend(check_query_response_gate(path, text))
         if not is_gated_spec(path, text):
             continue
         for line_no, line in enumerate(text.splitlines(), 1):

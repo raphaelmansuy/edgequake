@@ -23,7 +23,7 @@ test.beforeEach(() => {
   skipUnlessLiveStack();
 });
 
-test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
+test.describe("@load OODA-228: Workspace Embedding Dimension Fix", () => {
   // Default timeout for these tests
   test.setTimeout(60000);
 
