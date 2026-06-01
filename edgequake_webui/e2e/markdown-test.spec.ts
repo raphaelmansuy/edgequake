@@ -3,7 +3,7 @@ import { waitForAppReady, waitForQueryResponse } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-test.describe("Markdown Rendering Test", () => {
+test.describe("@load Markdown Rendering Test", () => {
   test.beforeEach(async ({ page, request }) => {
     skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "markdown-test");

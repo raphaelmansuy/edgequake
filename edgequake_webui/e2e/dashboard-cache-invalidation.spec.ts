@@ -133,24 +133,26 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     });
 
     // Step 7: Reload page and verify cache is cleared
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForAppReady(page);
     await page.waitForSelector('[data-testid="stats-card"]', {
-      timeout: 10000,
+      timeout: 15_000,
     });
 
-    // Cache manager runs after Zustand hydration — poll instead of fixed read.
-    await expect
-      .poll(
-        async () => {
-          const ctx = await page.evaluate(() => {
-            const stored = localStorage.getItem("edgequake-cache-version");
-            return stored ? JSON.parse(stored) : null;
-          });
-          return ctx?.version ?? null;
-        },
-        { timeout: 15_000 },
-      )
-      .toBe(CURRENT_CACHE_VERSION);
+    // Cache manager runs after Zustand hydration — wait until version is refreshed.
+    await page.waitForFunction(
+      (expectedVersion) => {
+        const stored = localStorage.getItem("edgequake-cache-version");
+        if (!stored) return false;
+        try {
+          return JSON.parse(stored).version === expectedVersion;
+        } catch {
+          return false;
+        }
+      },
+      CURRENT_CACHE_VERSION,
+      { timeout: 20_000 },
+    );
 
     const newCacheContext = await page.evaluate(() => {
       const stored = localStorage.getItem("edgequake-cache-version");

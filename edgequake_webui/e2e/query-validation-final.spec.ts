@@ -3,7 +3,7 @@ import { waitForAppReady, waitForQueryResponse } from "./helpers/app-ready";
 import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-test.describe("Query Page - Final Validation with Correct Selectors", () => {
+test.describe("@load Query Page - Final Validation with Correct Selectors", () => {
   test.beforeEach(async ({ page, request }) => {
     skipUnlessLiveStack();
     await bootstrapDeterministicUiContext(page, request, "query-final");

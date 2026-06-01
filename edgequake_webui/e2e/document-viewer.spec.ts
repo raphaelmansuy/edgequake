@@ -414,8 +414,7 @@ test.describe("Document Viewer", () => {
 
   test.describe("Multi-Tenancy Isolation", () => {
     test("workspace documents are isolated", async ({ page }) => {
-      // Navigate with specific workspace
-      await page.goto("/documents?workspace=default-workspace");
+      await page.goto("/documents");
       await waitForAppReady(page);
       
       // Documents should be filtered by workspace

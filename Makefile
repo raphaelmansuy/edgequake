@@ -1492,7 +1492,7 @@ test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (require
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 NEXT_PUBLIC_API_URL="$(BACKEND_URL)" \
 		EDGEQUAKE_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED=false \
 		NEXT_PUBLIC_DISABLE_DEMO_LOGIN=false PLAYWRIGHT_SKIP_STACK_CHECK=1 \
-		pnpm exec playwright test --project=chromium --reporter=line
+		pnpm exec playwright test --project=chromium --project=load --reporter=line
 
 spec013-e2e-mistral-live: db-wait ## Live Mistral document ingest (MISTRAL_API_KEY + PostgreSQL)
 	@echo "$(BLUE)SPEC-013 live Mistral ingest test (PostgreSQL)...$(RESET)"
