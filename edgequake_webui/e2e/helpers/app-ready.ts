@@ -33,6 +33,28 @@ export async function waitForAppReady(page: Page): Promise<void> {
   if (await ws.isVisible({ timeout: 8_000 }).catch(() => false)) {
     return;
   }
+  // Live stack runs can land on auth page depending on env/runtime flags.
+  // Attempt a deterministic dev login to avoid false-negative timeouts.
+  const autoLoginEnabled = process.env.E2E_AUTO_LOGIN !== "0";
+  if (autoLoginEnabled) {
+    const signInButton = page.getByRole("button", { name: /sign in/i });
+    const username = page.getByRole("textbox", { name: /username/i });
+    const password = page.getByRole("textbox", { name: /password/i });
+    if (await signInButton.isVisible({ timeout: 1_500 }).catch(() => false)) {
+      const user = process.env.E2E_USERNAME ?? "admin";
+      const pass = process.env.E2E_PASSWORD ?? "password";
+      if (await username.isVisible().catch(() => false)) {
+        await username.fill(user);
+      }
+      if (await password.isVisible().catch(() => false)) {
+        await password.fill(pass);
+      }
+      await signInButton.click();
+      if (await ws.isVisible({ timeout: 10_000 }).catch(() => false)) {
+        return;
+      }
+    }
+  }
   await page.locator("main").first().waitFor({ state: "visible", timeout: 15_000 });
 }
 
