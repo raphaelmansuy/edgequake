@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { gotoApp } from "./helpers/navigation";
 import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
@@ -20,11 +22,9 @@ test.beforeEach(() => {
 });
 
 test.describe("Document Lifecycle", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to documents page and wait for initialization
-    await page.goto("/documents");
-    await waitForAppReady(page);
-    await page.waitForTimeout(1000);
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "doc-lifecycle");
+    await gotoApp(page, "/documents");
   });
 
   test("documents page loads and shows upload button", async ({ page }) => {

@@ -1,4 +1,3 @@
-import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * Right Panel Scroll E2E Tests
  *
@@ -12,21 +11,18 @@ import { skipUnlessLiveStack } from "./helpers/live-stack";
  */
 
 import { expect, test } from "@playwright/test";
-import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
-
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "/";
-
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { gotoApp } from "./helpers/navigation";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 test.beforeEach(() => {
   skipUnlessLiveStack();
 });
 
 test.describe("Right Panel Scroll", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to the documents page and wait for it to be ready.
-    await page.goto('/documents?workspace=default-workspace');
-    await waitForAppReady(page);
-    await page.waitForTimeout(600);
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "right-panel");
+    await gotoApp(page, "/documents");
   });
 
   test("right panel opens when Preview is clicked", async ({ page }) => {

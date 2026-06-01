@@ -28,7 +28,7 @@ test.describe('SPEC-085: Entity Type Selector — Interactive UI', () => {
   });
 
   async function openDialog(page: Page): Promise<void> {
-    await openDialog(page);
+    await openCreateWorkspaceDialog(page);
     const entityTrigger = page.locator('[role="dialog"] button').filter({ hasText: /entity types/i }).first();
     if (await entityTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
       await entityTrigger.click();
