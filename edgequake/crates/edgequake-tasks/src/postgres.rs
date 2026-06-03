@@ -594,6 +594,7 @@ impl std::str::FromStr for crate::types::TaskType {
             "scan" => Ok(crate::types::TaskType::Scan),
             "reindex" => Ok(crate::types::TaskType::Reindex),
             "pdf_processing" => Ok(crate::types::TaskType::PdfProcessing),
+            "metadata_enrich" => Ok(crate::types::TaskType::MetadataEnrich),
             _ => Err(format!("Invalid task type: {}", s)),
         }
     }

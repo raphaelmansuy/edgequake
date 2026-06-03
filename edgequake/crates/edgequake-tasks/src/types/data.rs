@@ -106,13 +106,13 @@ pub struct MetadataEnrichData {
     pub document_id: String,
 
     /// PDF identifier in pdf_storage (used to load raw bytes).
-    pub pdf_id: uuid::Uuid,
+    pub pdf_id: Uuid,
 
     /// Tenant ID for multi-tenant isolation.
-    pub tenant_id: uuid::Uuid,
+    pub tenant_id: Uuid,
 
     /// Workspace ID for isolation.
-    pub workspace_id: uuid::Uuid,
+    pub workspace_id: Uuid,
 
     /// Maximum number of pages to extract text from (default 5).
     #[serde(default = "default_max_pages")]

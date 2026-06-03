@@ -506,5 +506,15 @@ mod tests {
         let back: MetadataEnrichData = serde_json::from_value(json).unwrap();
         assert_eq!(back.document_id, "doc-123");
         assert_eq!(back.max_pages, 5);
+
+        // Also verify serde default: JSON without max_pages should default to 5
+        let json_no_max = serde_json::json!({
+            "document_id": "doc-456",
+            "pdf_id": "00000000-0000-0000-0000-000000000001",
+            "tenant_id": TEST_TENANT_ID,
+            "workspace_id": TEST_WORKSPACE_ID
+        });
+        let back2: MetadataEnrichData = serde_json::from_value(json_no_max).unwrap();
+        assert_eq!(back2.max_pages, 5); // serde default applied
     }
 }
