@@ -548,19 +548,20 @@ async fn main() -> Result<()> {
     let worker_config = WorkerPoolConfig {
         num_workers,
         auto_retry: true,
-        initial_retry_delay_ms: 5000,
+        // WHY 2000ms: Pipeline tasks are IO-bound (LLM calls, embeddings). Transient
+        // failures (rate limits, brief network drops) typically resolve within 1-2s.
+        // Starting retry at 2s instead of 5s reduces idle worker time on busy queues.
+        // Backoff still caps at 60s for persistent failures.
+        initial_retry_delay_ms: 2000,
         max_retry_delay_ms: 60000,
         backoff_multiplier: 2.0,
-        // FEAT-TENANT-FAIRNESS: Per-tenant concurrency limit.
-        // Ensures no single tenant can monopolize all workers.
-        // Default: max(1, num_workers * 3/4) — IO-bound workloads benefit
-        // from higher per-tenant concurrency while still reserving 25%
-        // capacity for other tenants.
-        // Set MAX_TASKS_PER_TENANT=0 to disable.
+        // WHY 0 default: Most deployments are single-tenant. The 3/4 cap wastes
+        // 25% of workers when there is only one tenant. Set MAX_TASKS_PER_TENANT
+        // to a non-zero value in multi-tenant production to restore fairness.
         max_tasks_per_tenant: std::env::var("MAX_TASKS_PER_TENANT")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| (num_workers * 3 / 4).max(1)),
+            .unwrap_or(0),
         // WHY 2 hours (7200s): Large PDFs with vision LLM extraction can take
         // 3+ hours (1000+ pages × ~12s/page). 2 hours covers the vast majority
         // of real-world documents while still catching truly stuck tasks.

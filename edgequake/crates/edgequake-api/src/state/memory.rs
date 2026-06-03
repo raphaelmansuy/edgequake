@@ -50,7 +50,7 @@ impl AppState {
         let rbac_service = Arc::new(RbacService::new());
         let conversation_service: SharedConversationService =
             Arc::new(InMemoryConversationService::new());
-        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
 
         Self {
             kv_storage,
@@ -166,8 +166,8 @@ impl AppState {
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
-        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
-        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
+        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
 
         // Create legacy query engine (for backward compatibility)
         let query_engine = Arc::new(QueryEngine::new(
@@ -272,8 +272,8 @@ impl AppState {
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
-        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
-        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
+        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
 
         // Create legacy query engine (for backward compatibility)
         let query_config = QueryEngineConfig::default();

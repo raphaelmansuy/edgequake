@@ -304,8 +304,8 @@ impl AppState {
         let task_storage: edgequake_tasks::SharedTaskStorage = Arc::new(
             edgequake_tasks::postgres::PostgresTaskStorage::new(pool.clone()),
         );
-        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
-        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
+        let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(500));
         tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
         // Create legacy query engine (for backward compatibility)
