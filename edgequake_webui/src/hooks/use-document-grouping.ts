@@ -1,3 +1,12 @@
+/**
+ * @module useDocumentGrouping
+ * @description Groups documents by enrichment_topic for accordion display.
+ * Extracted as a separate hook for SRP compliance and independent testability.
+ *
+ * @implements Document Topic Grouping feature
+ */
+"use client";
+
 import type { Document } from "@/types";
 import { useMemo } from "react";
 
