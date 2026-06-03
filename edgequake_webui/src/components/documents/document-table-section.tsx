@@ -27,6 +27,8 @@ import type { Document } from '@/types';
 import { FileText } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useDocumentGrouping } from '@/hooks/use-document-grouping';
+import { DocumentGroupAccordion } from './document-group-accordion';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentTableStates } from './document-table-states';
 import { PaginationControls } from './pagination-controls';
@@ -89,6 +91,74 @@ export interface DocumentTableSectionProps {
   onPageSizeChange: (size: number) => void;
   /** Optional callback to clear active filters/search (shows clear button in empty state) */
   onClearFilter?: () => void;
+  /** Whether to render documents grouped by topic */
+  groupedView?: boolean;
+}
+
+/**
+ * Private helper: renders all topic groups as accordions.
+ * Keeps grouped rendering out of DocumentTableSection's main render.
+ */
+function GroupedView({
+  documents,
+  selectedIds,
+  selectedDocument,
+  searchQuery,
+  onSelectOne,
+  onRowClick,
+  onRowDoubleClick,
+  onViewDetails,
+  onViewInGraph,
+  onViewPdf,
+  onRetry,
+  onCancel,
+  onDelete,
+  isRetrying,
+  isCancelling,
+}: {
+  documents: Document[];
+  selectedIds: Set<string>;
+  selectedDocument: Document | null;
+  searchQuery: string;
+  onSelectOne: (id: string, checked: boolean) => void;
+  onRowClick: (doc: Document) => void;
+  onRowDoubleClick: (doc: Document) => void;
+  onViewDetails: (doc: Document) => void;
+  onViewInGraph: (doc: Document) => void;
+  onViewPdf: (doc: Document) => void;
+  onRetry: (id: string) => void;
+  onCancel: (trackId: string) => void;
+  onDelete: (id: string) => void;
+  isRetrying: boolean;
+  isCancelling: boolean;
+}) {
+  const groups = useDocumentGrouping(documents);
+
+  return (
+    <div className="border rounded-lg overflow-hidden shadow-sm divide-y">
+      {Array.from(groups.entries()).map(([topic, docs]) => (
+        <DocumentGroupAccordion
+          key={topic}
+          topic={topic}
+          documents={docs}
+          selectedIds={selectedIds}
+          selectedDocument={selectedDocument}
+          searchQuery={searchQuery}
+          onSelect={onSelectOne}
+          onClick={onRowClick}
+          onDoubleClick={onRowDoubleClick}
+          onViewDetails={onViewDetails}
+          onViewInGraph={onViewInGraph}
+          onViewPdf={onViewPdf}
+          onRetry={onRetry}
+          onCancel={onCancel}
+          onDelete={onDelete}
+          isRetrying={isRetrying}
+          isCancelling={isCancelling}
+        />
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -124,6 +194,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   onPageChange,
   onPageSizeChange,
   onClearFilter,
+  groupedView = false,
 }: DocumentTableSectionProps) {
   const { t } = useTranslation();
 
@@ -151,51 +222,69 @@ export const DocumentTableSection = memo(function DocumentTableSection({
           />
           
           {!isLoading && documents.length > 0 && (
-            <div className="border rounded-lg overflow-hidden shadow-sm">
-              <Table aria-label="Documents list">
-                <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead scope="col" className="w-10">
-                      <Checkbox
-                        checked={isAllSelected}
-                        onCheckedChange={(checked) => onSelectAll(!!checked)}
-                        aria-label={t('documents.bulk.selectAll', 'Select all')}
-                      />
-                    </TableHead>
-                    <TableHead scope="col">{t('documents.table.title', 'Title')}</TableHead>
-                    <TableHead scope="col">{t('documents.table.status', 'Status')}</TableHead>
-                    <TableHead scope="col" className="text-center">{t('documents.table.entities', 'Entities')}</TableHead>
-                    <TableHead scope="col" className="text-center">{t('documents.table.cost', 'Cost')}</TableHead>
-                    <TableHead scope="col">{t('documents.table.created', 'Created')}</TableHead>
-                    <TableHead scope="col">{t('documents.table.updated', 'Last Updated')}</TableHead>
-                    <TableHead scope="col" className="w-25"><span className="sr-only">{t('documents.table.actions', 'Actions')}</span></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((doc, index) => (
-                    <DocumentTableRow
-                      key={doc.id}
-                      doc={doc}
-                      index={index}
-                      isSelected={selectedIds.has(doc.id)}
-                      isActive={selectedDocument?.id === doc.id}
-                      searchQuery={searchQuery}
-                      onSelect={onSelectOne}
-                      onClick={onRowClick}
-                      onDoubleClick={onRowDoubleClick}
-                      onViewDetails={onViewDetails}
-                      onViewInGraph={onViewInGraph}
-                      onViewPdf={onViewPdf}
-                      onRetry={onRetry}
-                      onCancel={onCancel}
-                      onDelete={onDelete}
-                      isRetrying={isRetrying}
-                      isCancelling={isCancelling}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            groupedView
+              ? <GroupedView
+                  documents={documents}
+                  selectedIds={selectedIds}
+                  selectedDocument={selectedDocument}
+                  searchQuery={searchQuery}
+                  onSelectOne={onSelectOne}
+                  onRowClick={onRowClick}
+                  onRowDoubleClick={onRowDoubleClick}
+                  onViewDetails={onViewDetails}
+                  onViewInGraph={onViewInGraph}
+                  onViewPdf={onViewPdf}
+                  onRetry={onRetry}
+                  onCancel={onCancel}
+                  onDelete={onDelete}
+                  isRetrying={isRetrying}
+                  isCancelling={isCancelling}
+                />
+              : <div className="border rounded-lg overflow-hidden shadow-sm">
+                  <Table aria-label="Documents list">
+                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead scope="col" className="w-10">
+                          <Checkbox
+                            checked={isAllSelected}
+                            onCheckedChange={(checked) => onSelectAll(!!checked)}
+                            aria-label={t('documents.bulk.selectAll', 'Select all')}
+                          />
+                        </TableHead>
+                        <TableHead scope="col">{t('documents.table.title', 'Title')}</TableHead>
+                        <TableHead scope="col">{t('documents.table.status', 'Status')}</TableHead>
+                        <TableHead scope="col" className="text-center">{t('documents.table.entities', 'Entities')}</TableHead>
+                        <TableHead scope="col" className="text-center">{t('documents.table.cost', 'Cost')}</TableHead>
+                        <TableHead scope="col">{t('documents.table.created', 'Created')}</TableHead>
+                        <TableHead scope="col">{t('documents.table.updated', 'Last Updated')}</TableHead>
+                        <TableHead scope="col" className="w-25"><span className="sr-only">{t('documents.table.actions', 'Actions')}</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {documents.map((doc, index) => (
+                        <DocumentTableRow
+                          key={doc.id}
+                          doc={doc}
+                          index={index}
+                          isSelected={selectedIds.has(doc.id)}
+                          isActive={selectedDocument?.id === doc.id}
+                          searchQuery={searchQuery}
+                          onSelect={onSelectOne}
+                          onClick={onRowClick}
+                          onDoubleClick={onRowDoubleClick}
+                          onViewDetails={onViewDetails}
+                          onViewInGraph={onViewInGraph}
+                          onViewPdf={onViewPdf}
+                          onRetry={onRetry}
+                          onCancel={onCancel}
+                          onDelete={onDelete}
+                          isRetrying={isRetrying}
+                          isCancelling={isCancelling}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
           )}
         </div>
       </div>
