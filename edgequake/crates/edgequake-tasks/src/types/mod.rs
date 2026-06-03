@@ -479,4 +479,32 @@ mod tests {
         assert!(!task.circuit_breaker_tripped);
         assert!(!task.can_retry()); // max_retries exhausted
     }
+
+    #[test]
+    fn test_metadata_enrich_task_type() {
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::MetadataEnrich,
+            serde_json::json!({}),
+        );
+        assert_eq!(task.task_type, TaskType::MetadataEnrich);
+        assert!(task.track_id.starts_with("metadata_enrich-"));
+    }
+
+    #[test]
+    fn test_metadata_enrich_data_serialization() {
+        use crate::types::MetadataEnrichData;
+        let data = MetadataEnrichData {
+            document_id: "doc-123".to_string(),
+            pdf_id: uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+            tenant_id: test_tenant_id(),
+            workspace_id: test_workspace_id(),
+            max_pages: 5,
+        };
+        let json = serde_json::to_value(&data).unwrap();
+        let back: MetadataEnrichData = serde_json::from_value(json).unwrap();
+        assert_eq!(back.document_id, "doc-123");
+        assert_eq!(back.max_pages, 5);
+    }
 }

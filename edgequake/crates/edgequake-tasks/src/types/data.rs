@@ -94,3 +94,31 @@ pub struct ReindexData {
     pub workspace_id: String,
     pub reason: String,
 }
+
+/// Metadata enrichment task payload.
+///
+/// Carries everything the enrichment worker needs to extract a summary,
+/// topic, language, and keywords from the first `max_pages` of a PDF.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetadataEnrichData {
+    /// Pre-generated document ID shared with the PdfProcessing task.
+    /// The enrichment worker writes results to `{document_id}-metadata`.
+    pub document_id: String,
+
+    /// PDF identifier in pdf_storage (used to load raw bytes).
+    pub pdf_id: uuid::Uuid,
+
+    /// Tenant ID for multi-tenant isolation.
+    pub tenant_id: uuid::Uuid,
+
+    /// Workspace ID for isolation.
+    pub workspace_id: uuid::Uuid,
+
+    /// Maximum number of pages to extract text from (default 5).
+    #[serde(default = "default_max_pages")]
+    pub max_pages: usize,
+}
+
+fn default_max_pages() -> usize {
+    5
+}
