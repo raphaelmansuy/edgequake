@@ -21,8 +21,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use edgequake_storage::{
-    GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig,
-    PostgresKVStorage, VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KVStorage,
+    PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, VectorStorage,
 };
 
 /// Get PostgreSQL configuration from environment variables.

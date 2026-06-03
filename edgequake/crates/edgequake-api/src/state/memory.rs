@@ -7,20 +7,46 @@ use std::sync::Arc;
 
 use edgequake_auth::AuthConfig;
 use edgequake_core::env::apply_model_env_aliases;
-use edgequake_core::{InMemoryConversationService, InMemoryWorkspaceService};
+#[cfg(feature = "postgres")]
+use edgequake_core::ConversationServiceImpl;
+#[cfg(not(feature = "postgres"))]
+use edgequake_core::InMemoryConversationService;
+use edgequake_core::InMemoryWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
+#[cfg(feature = "postgres")]
+use edgequake_storage::adapters::memory::{MemoryConversationStorage, MemoryPdfStorage};
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
 };
+#[cfg(feature = "postgres")]
+use edgequake_storage::ConversationStorage;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
 use super::{
     create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
 };
 use crate::cache_manager::CacheManager;
+
+#[cfg(feature = "postgres")]
+fn memory_pdf_storage() -> Option<Arc<dyn edgequake_storage::PdfDocumentStorage>> {
+    Some(Arc::new(MemoryPdfStorage::new()))
+}
+
+/// Memory-mode conversation service: storage trait adapter when postgres feature is enabled.
+fn memory_conversation_service() -> SharedConversationService {
+    #[cfg(feature = "postgres")]
+    {
+        let storage: Arc<dyn ConversationStorage> = Arc::new(MemoryConversationStorage::new());
+        Arc::new(ConversationServiceImpl::from_storage(storage))
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        Arc::new(InMemoryConversationService::new())
+    }
+}
 
 impl AppState {
     /// Create a new application state.
@@ -44,8 +70,7 @@ impl AppState {
         task_queue: edgequake_tasks::SharedTaskQueue,
         workspace_service: SharedWorkspaceService,
     ) -> Self {
-        let conversation_service: SharedConversationService =
-            Arc::new(InMemoryConversationService::new());
+        let conversation_service = memory_conversation_service();
 
         Self {
             storage: StorageRuntime {
@@ -54,7 +79,7 @@ impl AppState {
                 vector_registry,
                 graph_storage,
                 #[cfg(feature = "postgres")]
-                pdf_storage: None,
+                pdf_storage: memory_pdf_storage(),
                 mode: StorageMode::Memory,
             },
             query: QueryRuntime {
@@ -136,8 +161,7 @@ impl AppState {
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
 
         // Create conversation service
-        let conversation_service: SharedConversationService =
-            Arc::new(InMemoryConversationService::new());
+        let conversation_service = memory_conversation_service();
 
         // Create pipeline with LLM and embedding providers configured
         use edgequake_pipeline::LLMExtractor;
@@ -193,7 +217,7 @@ impl AppState {
                 graph_storage: Arc::clone(&graph_storage)
                     as Arc<dyn edgequake_storage::traits::GraphStorage>,
                 #[cfg(feature = "postgres")]
-                pdf_storage: None,
+                pdf_storage: memory_pdf_storage(),
                 mode: StorageMode::Memory,
             },
             query: QueryRuntime {
@@ -236,8 +260,7 @@ impl AppState {
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
 
         // Create conversation service
-        let conversation_service: SharedConversationService =
-            Arc::new(InMemoryConversationService::new());
+        let conversation_service = memory_conversation_service();
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
@@ -281,7 +304,7 @@ impl AppState {
                 graph_storage: Arc::clone(&graph_storage)
                     as Arc<dyn edgequake_storage::traits::GraphStorage>,
                 #[cfg(feature = "postgres")]
-                pdf_storage: None,
+                pdf_storage: memory_pdf_storage(),
                 mode: StorageMode::Memory,
             },
             query: QueryRuntime {

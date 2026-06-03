@@ -22,17 +22,19 @@ use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
 /// @enforces BR0701: PostgreSQL-backed PDF storage
 #[cfg(feature = "postgres")]
 pub(super) fn get_pdf_storage(state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> {
-    state
-        .storage
-        .validate_postgres_adapters()
-        .map_err(ApiError::Internal)?;
+    if state.storage.is_postgresql() {
+        state
+            .storage
+            .validate_postgres_adapters()
+            .map_err(ApiError::Internal)?;
+    }
     state
         .storage
         .pdf_storage
         .as_ref()
         .map(Arc::clone)
         .ok_or_else(|| {
-            ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
+            ApiError::Internal("PDF storage not initialized (check storage setup)".to_string())
         })
 }
 

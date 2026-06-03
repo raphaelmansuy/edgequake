@@ -18,6 +18,7 @@ sdks/**/.build/
 *.png
 *.jpg
 *.jpeg
+!specs/017-dry-and-solid-audit/007-edgequake-storage/e2e/screenshots/*.png
 
 # Environment files
 .env
@@ -43,6 +44,8 @@ archive/
 !/specs/010-ingestion-reliability/**
 !/specs/012-performance/
 !/specs/012-performance/**
+!/specs/017-dry-and-solid-audit/
+!/specs/017-dry-and-solid-audit/**
 !/specs/edgequake-llm-update/
 !/specs/edgequake-llm-update/**
 logf/

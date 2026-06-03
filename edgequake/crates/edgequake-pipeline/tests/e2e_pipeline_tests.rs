@@ -18,8 +18,8 @@ use edgequake_pipeline::{
     SimpleExtractor,
 };
 use edgequake_storage::{
-    GraphStorage, KVStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
-    VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KVStorage,
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage,
 };
 
 /// Sample documents for testing - these represent real-world content

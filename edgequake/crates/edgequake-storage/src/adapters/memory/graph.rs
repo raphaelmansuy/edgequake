@@ -23,7 +23,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::RwLock;
 
 use crate::error::Result;
-use crate::traits::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
+use crate::traits::{
+    GraphEdge, GraphNode, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
+    GraphStorageReadOps, KnowledgeGraph,
+};
 
 /// In-memory graph storage implementation.
 ///
@@ -72,7 +75,10 @@ impl GraphStorage for MemoryGraphStorage {
     async fn finalize(&self) -> Result<()> {
         Ok(())
     }
+}
 
+#[async_trait]
+impl GraphStorageReadOps for MemoryGraphStorage {
     async fn has_node(&self, node_id: &str) -> Result<bool> {
         let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
         Ok(nodes.contains_key(node_id))
@@ -85,47 +91,6 @@ impl GraphStorage for MemoryGraphStorage {
             id: node_id.to_string(),
             properties: props.clone(),
         }))
-    }
-
-    async fn upsert_node(
-        &self,
-        node_id: &str,
-        properties: HashMap<String, serde_json::Value>,
-    ) -> Result<()> {
-        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
-        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
-
-        nodes.insert(node_id.to_string(), properties);
-        adjacency.entry(node_id.to_string()).or_default();
-
-        Ok(())
-    }
-
-    async fn delete_node(&self, node_id: &str) -> Result<()> {
-        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
-        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
-        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
-
-        nodes.remove(node_id);
-
-        // Remove all edges involving this node
-        let to_remove: Vec<(String, String)> = edges
-            .keys()
-            .filter(|(s, t)| s == node_id || t == node_id)
-            .cloned()
-            .collect();
-
-        for key in to_remove {
-            edges.remove(&key);
-        }
-
-        // Update adjacency
-        adjacency.remove(node_id);
-        for neighbors in adjacency.values_mut() {
-            neighbors.remove(node_id);
-        }
-
-        Ok(())
     }
 
     async fn node_degree(&self, node_id: &str) -> Result<usize> {
@@ -248,49 +213,6 @@ impl GraphStorage for MemoryGraphStorage {
             target: key.1.clone(),
             properties: props.clone(),
         }))
-    }
-
-    async fn upsert_edge(
-        &self,
-        source: &str,
-        target: &str,
-        properties: HashMap<String, serde_json::Value>,
-    ) -> Result<()> {
-        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
-        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
-
-        let key = Self::edge_key(source, target);
-        edges.insert(key, properties);
-
-        // Update adjacency (bidirectional)
-        adjacency
-            .entry(source.to_string())
-            .or_default()
-            .insert(target.to_string());
-        adjacency
-            .entry(target.to_string())
-            .or_default()
-            .insert(source.to_string());
-
-        Ok(())
-    }
-
-    async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
-        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
-        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
-
-        let key = Self::edge_key(source, target);
-        edges.remove(&key);
-
-        // Update adjacency
-        if let Some(neighbors) = adjacency.get_mut(source) {
-            neighbors.remove(target);
-        }
-        if let Some(neighbors) = adjacency.get_mut(target) {
-            neighbors.remove(source);
-        }
-
-        Ok(())
     }
 
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
@@ -494,62 +416,92 @@ impl GraphStorage for MemoryGraphStorage {
         let kg = self.get_knowledge_graph(node_id, depth, 1000).await?;
         Ok(kg.nodes.into_iter().filter(|n| n.id != node_id).collect())
     }
+}
 
-    async fn node_count(&self) -> Result<usize> {
-        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
-        Ok(nodes.len())
-    }
-
-    async fn edge_count(&self) -> Result<usize> {
-        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
-        Ok(edges.len())
-    }
-
-    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
-        let workspace_id_str = workspace_id.to_string();
-        Ok(nodes
-            .values()
-            .filter(|props| {
-                props
-                    .get("workspace_id")
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|ws| ws == workspace_id_str)
-            })
-            .count())
-    }
-
-    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
-        let workspace_id_str = workspace_id.to_string();
-        Ok(edges
-            .values()
-            .filter(|props| {
-                props
-                    .get("workspace_id")
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|ws| ws == workspace_id_str)
-            })
-            .count())
-    }
-
-    async fn distinct_node_type_count_by_workspace(
+#[async_trait]
+impl GraphStorageMutateOps for MemoryGraphStorage {
+    async fn upsert_node(
         &self,
-        workspace_id: &uuid::Uuid,
-    ) -> Result<usize> {
-        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
-        let workspace_id_str = workspace_id.to_string();
-        let types: std::collections::HashSet<&str> = nodes
-            .values()
-            .filter(|props| {
-                props
-                    .get("workspace_id")
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|ws| ws == workspace_id_str)
-            })
-            .filter_map(|props| props.get("entity_type").and_then(|v| v.as_str()))
+        node_id: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        nodes.insert(node_id.to_string(), properties);
+        adjacency.entry(node_id.to_string()).or_default();
+
+        Ok(())
+    }
+
+    async fn delete_node(&self, node_id: &str) -> Result<()> {
+        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        nodes.remove(node_id);
+
+        // Remove all edges involving this node
+        let to_remove: Vec<(String, String)> = edges
+            .keys()
+            .filter(|(s, t)| s == node_id || t == node_id)
+            .cloned()
             .collect();
-        Ok(types.len())
+
+        for key in to_remove {
+            edges.remove(&key);
+        }
+
+        // Update adjacency
+        adjacency.remove(node_id);
+        for neighbors in adjacency.values_mut() {
+            neighbors.remove(node_id);
+        }
+
+        Ok(())
+    }
+
+    async fn upsert_edge(
+        &self,
+        source: &str,
+        target: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        let key = Self::edge_key(source, target);
+        edges.insert(key, properties);
+
+        // Update adjacency (bidirectional)
+        adjacency
+            .entry(source.to_string())
+            .or_default()
+            .insert(target.to_string());
+        adjacency
+            .entry(target.to_string())
+            .or_default()
+            .insert(source.to_string());
+
+        Ok(())
+    }
+
+    async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        let key = Self::edge_key(source, target);
+        edges.remove(&key);
+
+        // Update adjacency
+        if let Some(neighbors) = adjacency.get_mut(source) {
+            neighbors.remove(target);
+        }
+        if let Some(neighbors) = adjacency.get_mut(target) {
+            neighbors.remove(source);
+        }
+
+        Ok(())
     }
 
     async fn clear(&self) -> Result<()> {
@@ -636,9 +588,70 @@ impl GraphStorage for MemoryGraphStorage {
     }
 }
 
+#[async_trait]
+impl GraphStorageAnalyticsOps for MemoryGraphStorage {
+    async fn node_count(&self) -> Result<usize> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        Ok(nodes.len())
+    }
+
+    async fn edge_count(&self) -> Result<usize> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        Ok(edges.len())
+    }
+
+    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let workspace_id_str = workspace_id.to_string();
+        Ok(nodes
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .count())
+    }
+
+    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        let workspace_id_str = workspace_id.to_string();
+        Ok(edges
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .count())
+    }
+
+    async fn distinct_node_type_count_by_workspace(
+        &self,
+        workspace_id: &uuid::Uuid,
+    ) -> Result<usize> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let workspace_id_str = workspace_id.to_string();
+        let types: std::collections::HashSet<&str> = nodes
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .filter_map(|props| props.get("entity_type").and_then(|v| v.as_str()))
+            .collect();
+        Ok(types.len())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::traits::{GraphStorageMutateOps, GraphStorageReadOps};
 
     #[tokio::test]
     async fn test_graph_node_operations() {

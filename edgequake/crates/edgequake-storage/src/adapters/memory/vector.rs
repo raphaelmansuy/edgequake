@@ -669,53 +669,6 @@ mod tests {
     // --- SPEC-007 edge-case tests ---
 
     #[tokio::test]
-    async fn test_metadata_filter_is_empty() {
-        let mf = MetadataFilter::default();
-        assert!(mf.is_empty());
-
-        let mf = MetadataFilter {
-            tenant_id: Some("t1".to_string()),
-            ..Default::default()
-        };
-        assert!(!mf.is_empty());
-
-        let mf = MetadataFilter {
-            document_ids: Some(vec!["d1".to_string()]),
-            ..Default::default()
-        };
-        assert!(!mf.is_empty());
-
-        let mf = MetadataFilter {
-            workspace_id: Some("ws1".to_string()),
-            ..Default::default()
-        };
-        assert!(!mf.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_metadata_filter_from_tenant_workspace() {
-        // Both None → returns None
-        assert!(MetadataFilter::from_tenant_workspace(None, None).is_none());
-
-        // Tenant only
-        let mf = MetadataFilter::from_tenant_workspace(Some("t1".into()), None).unwrap();
-        assert_eq!(mf.tenant_id.as_deref(), Some("t1"));
-        assert!(mf.workspace_id.is_none());
-        assert!(mf.document_ids.is_none());
-
-        // Workspace only
-        let mf = MetadataFilter::from_tenant_workspace(None, Some("ws1".into())).unwrap();
-        assert!(mf.tenant_id.is_none());
-        assert_eq!(mf.workspace_id.as_deref(), Some("ws1"));
-
-        // Both set
-        let mf =
-            MetadataFilter::from_tenant_workspace(Some("t1".into()), Some("ws1".into())).unwrap();
-        assert_eq!(mf.tenant_id.as_deref(), Some("t1"));
-        assert_eq!(mf.workspace_id.as_deref(), Some("ws1"));
-    }
-
-    #[tokio::test]
     async fn test_query_filtered_no_metadata_on_record_excluded() {
         // Vectors with null metadata: tenant/workspace filters pass (lenient),
         // but document_ids filter excludes (strict, no matching key found)

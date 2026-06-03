@@ -8,7 +8,9 @@
 use std::collections::HashMap;
 
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
-use edgequake_storage::traits::{GraphEdge, GraphNode, GraphStorage};
+use edgequake_storage::{
+    GraphEdge, GraphNode, GraphStorage, GraphStorageMutateOps, GraphStorageReadOps,
+};
 
 /// Helper to create a test node with properties.
 fn create_test_node(id: &str, entity_type: &str, tenant_id: Option<&str>) -> GraphNode {

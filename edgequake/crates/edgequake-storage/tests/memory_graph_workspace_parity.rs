@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
-use edgequake_storage::traits::GraphStorage;
+use edgequake_storage::{GraphStorageAnalyticsOps, GraphStorageMutateOps};
 use uuid::Uuid;
 
 fn props(map: &[(&str, &str)]) -> HashMap<String, serde_json::Value> {

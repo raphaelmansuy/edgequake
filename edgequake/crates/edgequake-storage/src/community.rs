@@ -524,6 +524,7 @@ fn calculate_modularity(
 mod tests {
     use super::*;
     use crate::adapters::memory::MemoryGraphStorage;
+    use crate::traits::GraphStorageMutateOps;
 
     #[tokio::test]
     async fn test_community_detection_empty_graph() {

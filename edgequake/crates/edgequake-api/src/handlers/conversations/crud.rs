@@ -116,6 +116,9 @@ pub async fn create_conversation(
 
     let workspace_id = tenant_ctx.workspace_id_uuid();
 
+    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
+        .await?;
+
     let mode = request
         .mode
         .as_ref()

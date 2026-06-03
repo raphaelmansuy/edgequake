@@ -25,8 +25,9 @@ use async_trait::async_trait;
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::MockProvider;
 use edgequake_storage::{
-    GraphEdge, GraphNode, GraphStorage, KnowledgeGraph, MemoryGraphStorage, MemoryKVStorage,
-    MemoryVectorStorage, StorageError, VectorStorage,
+    GraphEdge, GraphNode, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
+    GraphStorageReadOps, KnowledgeGraph, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+    StorageError, VectorStorage,
 };
 
 const EMBED_DIM: usize = 1536;
@@ -103,31 +104,16 @@ impl GraphStorage for FailingGraphStorage {
     async fn finalize(&self) -> Result<(), StorageError> {
         Ok(())
     }
+}
 
+#[async_trait]
+impl GraphStorageReadOps for FailingGraphStorage {
     async fn has_node(&self, _node_id: &str) -> Result<bool, StorageError> {
         Ok(false)
     }
 
     async fn get_node(&self, _node_id: &str) -> Result<Option<GraphNode>, StorageError> {
         Ok(None)
-    }
-
-    async fn upsert_node(
-        &self,
-        _node_id: &str,
-        _properties: HashMap<String, serde_json::Value>,
-    ) -> Result<(), StorageError> {
-        // Observe the vector store BEFORE failing: this is the heart of the SC2
-        // ordering check — chunk vectors must already be present here.
-        let seen = count_chunk_vectors(self.vector_store.as_ref()).await;
-        self.chunk_vectors_at_merge.store(seen, Ordering::SeqCst);
-        Err(StorageError::Transaction(
-            "injected graph merge failure".to_string(),
-        ))
-    }
-
-    async fn delete_node(&self, _node_id: &str) -> Result<(), StorageError> {
-        Ok(())
     }
 
     async fn node_degree(&self, _node_id: &str) -> Result<usize, StorageError> {
@@ -152,19 +138,6 @@ impl GraphStorage for FailingGraphStorage {
         _target: &str,
     ) -> Result<Option<GraphEdge>, StorageError> {
         Ok(None)
-    }
-
-    async fn upsert_edge(
-        &self,
-        _source: &str,
-        _target: &str,
-        _properties: HashMap<String, serde_json::Value>,
-    ) -> Result<(), StorageError> {
-        Ok(())
-    }
-
-    async fn delete_edge(&self, _source: &str, _target: &str) -> Result<(), StorageError> {
-        Ok(())
     }
 
     async fn get_node_edges(&self, _node_id: &str) -> Result<Vec<GraphEdge>, StorageError> {
@@ -214,17 +187,52 @@ impl GraphStorage for FailingGraphStorage {
     ) -> Result<Vec<GraphNode>, StorageError> {
         Ok(vec![])
     }
+}
 
+#[async_trait]
+impl GraphStorageMutateOps for FailingGraphStorage {
+    async fn upsert_node(
+        &self,
+        _node_id: &str,
+        _properties: HashMap<String, serde_json::Value>,
+    ) -> Result<(), StorageError> {
+        let seen = count_chunk_vectors(self.vector_store.as_ref()).await;
+        self.chunk_vectors_at_merge.store(seen, Ordering::SeqCst);
+        Err(StorageError::Transaction(
+            "injected graph merge failure".to_string(),
+        ))
+    }
+
+    async fn delete_node(&self, _node_id: &str) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    async fn upsert_edge(
+        &self,
+        _source: &str,
+        _target: &str,
+        _properties: HashMap<String, serde_json::Value>,
+    ) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    async fn delete_edge(&self, _source: &str, _target: &str) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    async fn clear(&self) -> Result<(), StorageError> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl GraphStorageAnalyticsOps for FailingGraphStorage {
     async fn node_count(&self) -> Result<usize, StorageError> {
         Ok(0)
     }
 
     async fn edge_count(&self) -> Result<usize, StorageError> {
         Ok(0)
-    }
-
-    async fn clear(&self) -> Result<(), StorageError> {
-        Ok(())
     }
 }
 

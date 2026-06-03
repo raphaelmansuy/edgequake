@@ -85,7 +85,7 @@ use crate::truncation::TruncationConfig;
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_llm::Reranker;
-use edgequake_storage::traits::{GraphStorage, VectorStorage};
+use edgequake_storage::traits::{GraphReadView, GraphStorage, VectorStorage};
 
 /// Configuration for the SOTA query engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -352,6 +352,12 @@ impl SOTAQueryEngine {
     pub fn with_reranker(mut self, reranker: Arc<dyn Reranker>) -> Self {
         self.reranker = Some(reranker);
         self
+    }
+
+    /// Read-only graph access for query paths (SPEC-017 ISP Phase 2a).
+    #[inline]
+    pub(super) fn graph_read(&self) -> GraphReadView<'_> {
+        GraphReadView::new(self.graph_storage.as_ref())
     }
 
     /// Create with mock keyword extractor (for testing).

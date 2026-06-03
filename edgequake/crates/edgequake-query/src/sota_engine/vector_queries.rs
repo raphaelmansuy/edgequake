@@ -107,9 +107,9 @@ impl SOTAQueryEngine {
                 workspace_id = ?workspace_id,
                 "OODA-231: No entity vectors found, falling back to popular entities from graph"
             );
+            let graph = self.graph_read();
             // Populate context with popular entities from graph
-            let popular = self
-                .graph_storage
+            let popular = graph
                 .get_popular_nodes_with_degree(
                     self.config.max_entities,
                     None,
@@ -129,8 +129,7 @@ impl SOTAQueryEngine {
 
             // Get edges for fallback entities
             if !fallback_entity_ids.is_empty() {
-                let edges = self
-                    .graph_storage
+                let edges = graph
                     .get_edges_for_nodes_batch(&fallback_entity_ids)
                     .await?;
                 for edge in edges.iter().take(self.config.max_relationships) {
@@ -141,10 +140,11 @@ impl SOTAQueryEngine {
             }
             // NOTE: Don't return early - continue to chunk collection below
         } else {
+            let graph = self.graph_read();
             // Step 4: Batch fetch nodes and degrees
             let (nodes_map, degrees) = tokio::join!(
-                self.graph_storage.get_nodes_batch(&entity_ids),
-                self.graph_storage.node_degrees_batch(&entity_ids),
+                graph.get_nodes_batch(&entity_ids),
+                graph.node_degrees_batch(&entity_ids),
             );
 
             let nodes_map = nodes_map?;
@@ -162,10 +162,7 @@ impl SOTAQueryEngine {
             }
 
             // Step 6: Batch fetch edges
-            let edges = self
-                .graph_storage
-                .get_edges_for_nodes_batch(&entity_ids)
-                .await?;
+            let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
 
             for edge in edges.iter().take(self.config.max_relationships) {
                 let rel =
@@ -342,9 +339,9 @@ impl SOTAQueryEngine {
                 workspace_id = ?workspace_id,
                 "OODA-231: No relationship vectors found, falling back to popular entities from graph"
             );
+            let graph = self.graph_read();
             // Populate context with popular entities from graph
-            let popular = self
-                .graph_storage
+            let popular = graph
                 .get_popular_nodes_with_degree(
                     self.config.max_entities,
                     None,
@@ -362,10 +359,7 @@ impl SOTAQueryEngine {
 
             // Get edges for fallback entities
             if !entity_ids.is_empty() {
-                let edges = self
-                    .graph_storage
-                    .get_edges_for_nodes_batch(&entity_ids)
-                    .await?;
+                let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
                 for edge in edges.iter().take(self.config.max_relationships) {
                     let rel_key = format!("{}->{}:{}", edge.source, edge.target, "RELATED_TO");
                     if seen_relationships.insert(rel_key) {
@@ -380,14 +374,15 @@ impl SOTAQueryEngine {
             }
             // NOTE: Don't return early - continue to chunk collection below
         } else {
+            let graph = self.graph_read();
             // Step 5: Batch fetch entity nodes
-            let nodes_map = self.graph_storage.get_nodes_batch(&entity_ids).await?;
+            let nodes_map = graph.get_nodes_batch(&entity_ids).await?;
 
             // WHY: Iterate entity_ids (Vec) for deterministic ordering instead of HashMap.
             // HashMap iteration order is random, causing non-deterministic results.
             for id in &entity_ids {
                 if let Some(node) = nodes_map.get(id) {
-                    let degree = self.graph_storage.node_degree(id).await?;
+                    let degree = graph.node_degree(id).await?;
                     let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
                     context.add_entity(entity);
                 }
