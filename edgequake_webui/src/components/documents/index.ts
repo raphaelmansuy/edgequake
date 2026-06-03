@@ -50,6 +50,7 @@ export { ScanDocumentsButton } from "./scan-documents-button";
 // Display components
 export { CostBadge } from "./cost-badge";
 export { CostCell } from "./cost-cell";
+export { DocumentGroupAccordion } from "./document-group-accordion";
 export { ErrorMessagePopover } from "./error-message-popover";
 export { FailedChunksCard } from "./failed-chunks-card";
 
