@@ -174,6 +174,25 @@ export interface Document {
    * @implements SPEC-002
    */
   pdf_id?: string;
+
+  // ========================================================================
+  // Metadata Enrichment Fields (PDF Metadata Enrichment Pipeline)
+  // ========================================================================
+
+  /** Enrichment pipeline status. */
+  enrichment_status?: "pending" | "processing" | "completed" | "failed" | "skipped";
+  /** Short topic phrase extracted from first 5 pages. */
+  enrichment_topic?: string;
+  /** 2-3 paragraph summary. */
+  enrichment_summary?: string;
+  /** ISO 639-1 language code detected from content. */
+  enrichment_language?: string;
+  /** Up to 10 keywords extracted from content. */
+  enrichment_keywords?: string[];
+  /** When enrichment completed. */
+  enrichment_completed_at?: string;
+  /** Error message if enrichment failed. */
+  enrichment_error?: string;
 }
 
 /** Extraction lineage information for a document. */
