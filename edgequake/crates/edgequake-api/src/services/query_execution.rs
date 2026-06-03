@@ -9,7 +9,7 @@ use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_query::{QueryContext, QueryMode, QueryRequest as EngineQueryRequest, QueryResponse};
 use edgequake_storage::traits::VectorStorage;
 use futures::stream::BoxStream;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{get_workspace_embedding_provider, get_workspace_vector_storage};
@@ -112,6 +112,44 @@ pub async fn execute_sota_query(
     result.map_err(ApiError::from)
 }
 
+/// Returns true when the LLM rejected credentials (invalid or missing API key).
+pub fn is_llm_auth_failure(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("invalid_api_key")
+        || lower.contains("incorrect api key")
+        || lower.contains("authentication error")
+        || lower.contains("invalid api key")
+        || (lower.contains("unauthorized") && lower.contains("api"))
+}
+
+/// Execute SOTA query; on auth failure with a request override, retry with server default.
+pub async fn execute_sota_query_with_auth_fallback(
+    state: &AppState,
+    request: EngineQueryRequest,
+    resources: WorkspaceQueryResources,
+    llm_override: Option<Arc<dyn LLMProvider>>,
+) -> ApiResult<QueryResponse> {
+    let had_override = llm_override.is_some();
+    match execute_sota_query(
+        state,
+        request.clone(),
+        resources.clone(),
+        llm_override,
+    )
+    .await
+    {
+        Ok(response) => Ok(response),
+        Err(e) if had_override && is_llm_auth_failure(&e.to_string()) => {
+            warn!(
+                error = %e,
+                "LLM auth failed for request override; retrying with server default"
+            );
+            execute_sota_query(state, request, resources, None).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// Execute a streaming SOTA query using the same workspace routing matrix.
 pub async fn execute_sota_query_stream(
     state: &AppState,
@@ -183,6 +221,34 @@ pub async fn execute_sota_query_stream(
     }
 }
 
+/// Streaming SOTA query with auth fallback to server default (SPEC-017 query regression).
+pub async fn execute_sota_query_stream_with_auth_fallback(
+    state: &AppState,
+    request: EngineQueryRequest,
+    resources: WorkspaceQueryResources,
+    llm_override: Option<Arc<dyn LLMProvider>>,
+) -> StreamQueryResult {
+    let had_override = llm_override.is_some();
+    match execute_sota_query_stream(
+        state,
+        request.clone(),
+        resources.clone(),
+        llm_override,
+    )
+    .await
+    {
+        Ok(stream) => Ok(stream),
+        Err(e) if had_override && is_llm_auth_failure(&e.to_string()) => {
+            warn!(
+                error = %e,
+                "LLM auth failed for streaming override; retrying with server default"
+            );
+            execute_sota_query_stream(state, request, resources, None).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// Build LLM override from explicit provider/model request fields.
 pub fn llm_override_from_request(
     provider: Option<&str>,
@@ -222,6 +288,17 @@ mod tests {
         assert!(llm_override_from_request(None, None, None)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn detects_openai_invalid_api_key_message() {
+        let msg = "LLM error: Authentication error: invalid_request_error: Incorrect API key provided (code: invalid_api_key)";
+        assert!(is_llm_auth_failure(msg));
+    }
+
+    #[test]
+    fn ignores_unrelated_query_errors() {
+        assert!(!is_llm_auth_failure("Storage error: connection refused"));
     }
 
     #[tokio::test]

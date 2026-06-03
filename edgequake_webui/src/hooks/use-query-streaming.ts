@@ -15,6 +15,7 @@ import {
   applyStreamToken,
   createStreamAccumulator,
 } from "@/lib/query/stream-accumulator";
+import { isLlmProviderAuthFailure } from "@/lib/query-model-selection";
 import { mapSourcesToContext } from "@/lib/utils/source-mapper";
 import { generateUUID } from "@/lib/utils/uuid";
 import type { useQueryUIStore } from "@/stores/use-query-ui-store";
@@ -29,6 +30,7 @@ type QueryUIStore = ReturnType<typeof useQueryUIStore.getState>;
 
 interface UseQueryStreamingOptions {
   querySettings: QuerySettings;
+  setQuerySettings: (settings: Partial<QuerySettings>) => void;
   activeConversationId: string | null;
   store: QueryUIStore;
   messages: QueryMessage[];
@@ -41,6 +43,7 @@ interface UseQueryStreamingOptions {
 /** Streaming submit, regenerate, and abort for the query interface (SPEC-017 UI-P3-006). */
 export function useQueryStreaming({
   querySettings,
+  setQuerySettings,
   activeConversationId,
   store,
   messages,
@@ -203,12 +206,26 @@ export function useQueryStreaming({
 
         const errorMessage =
           error instanceof Error ? error.message : "Query failed";
-        toast.error(errorMessage, {
-          action: {
-            label: t("common.retry", "Retry"),
-            onClick: () => {},
-          },
-        });
+
+        if (isLlmProviderAuthFailure(errorMessage)) {
+          setQuerySettings({ provider: undefined, model: undefined });
+          toast.warning(
+            t("query.modelAuthReset", "LLM provider reset"),
+            {
+              description: t(
+                "query.modelAuthResetDesc",
+                "The selected provider could not authenticate. Using the server default — submit again.",
+              ),
+            },
+          );
+        } else {
+          toast.error(errorMessage, {
+            action: {
+              label: t("common.retry", "Retry"),
+              onClick: () => {},
+            },
+          });
+        }
 
         setPendingMessage({
           ...assistantMessage,
@@ -222,7 +239,17 @@ export function useQueryStreaming({
         thinkingStartRef.current = null;
       }
     },
-    [i18n.language, querySettings, queryClient, store, setPendingMessage, setOptimisticUserMessage, setStreamingState, t],
+    [
+      i18n.language,
+      querySettings,
+      setQuerySettings,
+      queryClient,
+      store,
+      setPendingMessage,
+      setOptimisticUserMessage,
+      setStreamingState,
+      t,
+    ],
   );
 
   const submitQuery = useCallback(
@@ -289,12 +316,23 @@ export function useQueryStreaming({
         }
 
         setOptimisticUserMessage(null);
-        toast.error(t("query.failed", "Query failed"), {
-          description:
-            error instanceof Error
-              ? error.message
-              : t("common.unknownError", "Unknown error"),
-        });
+        const message =
+          error instanceof Error
+            ? error.message
+            : t("common.unknownError", "Unknown error");
+        if (isLlmProviderAuthFailure(message)) {
+          setQuerySettings({ provider: undefined, model: undefined });
+          toast.warning(t("query.modelAuthReset", "LLM provider reset"), {
+            description: t(
+              "query.modelAuthResetDesc",
+              "The selected provider could not authenticate. Using the server default — submit again.",
+            ),
+          });
+        } else {
+          toast.error(t("query.failed", "Query failed"), {
+            description: message,
+          });
+        }
         setStreamingState("error");
       }
     },
@@ -304,6 +342,7 @@ export function useQueryStreaming({
       i18n.language,
       queryClient,
       querySettings,
+      setQuerySettings,
       setOptimisticUserMessage,
       setStreamingState,
       store,

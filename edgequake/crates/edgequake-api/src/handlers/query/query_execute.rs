@@ -7,10 +7,11 @@
 use axum::{extract::State, Json};
 use tracing::debug;
 
-use crate::error::ApiResult;
+use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
-    execute_sota_query, llm_override_from_request, resolve_workspace_query_resources,
+    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
 };
 use crate::state::AppState;
 use crate::validation::validate_query;
@@ -164,18 +165,24 @@ pub async fn execute_query(
     // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
     // If workspace has custom embedding config, use workspace-specific resources
 
-    // FIX #168: Create LLM override OUTSIDE the workspace block so it's available
-    // in all code paths (with or without workspace context).
-    let llm_override = llm_override_from_request(
-        request.llm_provider.as_deref(),
-        request.llm_model.as_deref(),
-        request.extra_headers.clone(),
-    )?;
+    let resolver = WorkspaceProviderResolver::from_app_state(&state);
+    let llm_request = LlmResolutionRequest {
+        provider: request.llm_provider.clone(),
+        model: request.llm_model.clone(),
+        extra_headers: request.extra_headers.clone(),
+    };
+    let llm_override = match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
+        Ok(Some(resolved)) => Some(resolved.provider),
+        Ok(None) => None,
+        Err(e) => return Err(ApiError::from(e)),
+    };
 
     let resources =
         resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-    let result = execute_sota_query(&state, engine_request, resources, llm_override).await?;
+    let result =
+        execute_sota_query_with_auth_fallback(&state, engine_request, resources, llm_override)
+            .await?;
 
     // Convert sources from context
     let mut sources = Vec::new();

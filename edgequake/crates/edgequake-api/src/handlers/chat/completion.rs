@@ -11,7 +11,9 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace, QueryStats};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
-use crate::services::{execute_sota_query, resolve_workspace_query_resources};
+use crate::services::{
+    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
+};
 use crate::state::AppState;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageRole, UpdateMessageRequest,
@@ -194,7 +196,7 @@ pub async fn chat_completion(
     // Supports both formats:
     //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
     //   - New format: provider="provider", model="model_name"
-    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let resolver = WorkspaceProviderResolver::from_app_state(&state);
     let llm_request =
         LlmResolutionRequest::from_provider_string(request.provider.clone(), request.model.clone());
 
@@ -254,8 +256,13 @@ pub async fn chat_completion(
     let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
     let resources = resolve_workspace_query_resources(&state, workspace_id_str.as_deref()).await?;
 
-    let result =
-        execute_sota_query(&state, engine_request, resources, llm_override.clone()).await?;
+    let result = execute_sota_query_with_auth_fallback(
+        &state,
+        engine_request,
+        resources,
+        llm_override.clone(),
+    )
+    .await?;
 
     // 4. Build sources and resolve document names for chunk sources
     let mut sources = build_sources(&result.context);

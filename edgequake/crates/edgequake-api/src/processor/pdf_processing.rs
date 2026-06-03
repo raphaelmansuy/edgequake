@@ -372,6 +372,13 @@ impl DocumentTaskProcessor {
                     // Clone for linking step after process_text_insert consumes the string.
                     let stored_markdown_for_link = stored_markdown.clone();
 
+                    let doc_content_key = format!("{}-content", early_doc_id);
+                    let doc_content = json!({ "content": stored_markdown.clone() });
+                    self.kv_storage
+                        .upsert(&[(doc_content_key, doc_content)])
+                        .await
+                        .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
                     let text_data = edgequake_tasks::TextInsertData {
                         text: stored_markdown,
                         file_source: filename.clone(),
@@ -784,6 +791,15 @@ impl DocumentTaskProcessor {
 
         pdf_storage
             .update_pdf_processing(update_req.clone())
+            .await
+            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
+        // Mirror markdown into KV so GET /documents/{id} and the WebUI content pane
+        // can render without a second round-trip (pdf_documents remains canonical for PDF APIs).
+        let doc_content_key = format!("{}-content", early_doc_id);
+        let doc_content = json!({ "content": markdown.clone() });
+        self.kv_storage
+            .upsert(&[(doc_content_key, doc_content)])
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
