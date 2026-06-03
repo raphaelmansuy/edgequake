@@ -159,7 +159,15 @@ impl SOTAQueryEngine {
                     ))
                 }
             },
-            providers.embedding.embed_one(&request.query)
+            async {
+                // Skip embed_one when keywords are disabled — compute_with_query_vec
+                // batch-embeds three levels (MockProvider / LightRAG parity).
+                if self.config.use_keyword_extraction {
+                    providers.embedding.embed_one(&request.query).await
+                } else {
+                    Ok(vec![])
+                }
+            }
         );
 
         let raw_keywords = raw_keywords_result?;

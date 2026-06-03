@@ -2,7 +2,7 @@
 
 **Crate path:** `edgequake/crates/edgequake-storage`  
 **LOC:** ~15,100 (src)  
-**Last verified:** 2026-06-03 07:17 UTC — all proof runners PASSED (memory 35 + postgres 17 backend + 7 ISP + 2 conversation + Playwright 2); workspace compiles
+**Last verified:** 2026-06-03T08:28:24Z — query `run_query_e2e.sh` + Playwright `01–02` re-capture; no storage source changes; storage memory e2e PASS (prior run); PNGs `05–08` (storage) + `01–02` (query) on disk
 
 ---
 
@@ -98,6 +98,14 @@ cargo test -p edgequake-api --test spec017_conversation_http_contract  # 2
 | `e2e/005`–`015` narrative proofs | ✅ |
 | `e2e/screenshots/05–08.png` | ✅ (4 files, refreshed 07:17 UTC) |
 
+### Cross-crate (edgequake-query, 2026-06-03)
+
+| Impact on storage | Detail |
+|-------------------|--------|
+| Retrieval API | Query crate now always calls `VectorStorage::query_filtered` / graph batch ops via unified `vector_queries` — **no storage trait changes** this session |
+| Hybrid behavior | Default API path hybrid now matches workspace (local + global + naive); more vector round-trips per query — monitor postgres load |
+| Proof | `run_query_e2e.sh` + API `spec017_query_production_path_contract` (2) + Playwright `01–02`; storage memory runner re-PASS 2026-06-03T08:14Z — re-run `--with-postgres` before release |
+
 ### Not fixed (honest gaps)
 
 1. **`query_ops.rs` / `nodes_ops.rs`** — large modules; acceptable.
@@ -105,6 +113,7 @@ cargo test -p edgequake-api --test spec017_conversation_http_contract  # 2
 3. **Phase 2c** — optional `GraphReadView` at more read-only call sites.
 4. **edgequake_webui** — “New conversation” button does not call create API (Playwright proves storage via direct POST + history list).
 5. **Live Axum conversation HTTP** — only memory `TestServer` contract; production path covered by Playwright on real stack.
+6. **Query crate** — retrieval unified on `vector_queries`; triple batch embed when keywords off (`005-embedding-triple-batch-proof.md`). Re-run `run_storage_e2e.sh --with-postgres` before release. See `006-edgequake-query/001-audit.md`.
 
 ---
 
@@ -126,7 +135,9 @@ cargo test -p edgequake-api --test spec017_conversation_http_contract  # 2
 2. Crate rustdoc for `GraphStorage*Ops` on concrete types.
 
 ### P3 — product (webui)
-4. Wire history “New conversation” to `useCreateConversation`.
+3. Wire history “New conversation” to `useCreateConversation`.
+4. Query UI PNGs `01–02` captured (2026-06-03); storage PNGs `05–08` unchanged.
 
 ### P1 — CI
 5. Keep `postgres-integration.yml` SPEC-017 storage job green on push.
+6. Re-run `./e2e/run_storage_e2e.sh --with-postgres` after query merge to confirm no adapter regressions.

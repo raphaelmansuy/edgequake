@@ -48,7 +48,7 @@ pub async fn ollama_generate(
         // Streaming response
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(32);
 
-        let engine = state.query.query_engine.clone();
+        let engine = state.query.sota_engine.clone();
         let model = model_name();
         // SPEC-004: Clone system prompt for async task
         let system_prompt = request.system.clone();
@@ -159,7 +159,7 @@ pub async fn ollama_generate(
 
         let response = state
             .query
-            .query_engine
+            .sota_engine
             .query(engine_request)
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
