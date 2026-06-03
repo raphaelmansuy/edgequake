@@ -58,6 +58,12 @@ impl TaskProcessor for DocumentTaskProcessor {
 
                 self.process_pdf_processing(task, data, cancel_token).await
             }
+            TaskType::MetadataEnrich => {
+                // MetadataEnrich handler — implemented in Task 3 (metadata_enrich module)
+                Err(edgequake_tasks::TaskError::UnsupportedOperation(
+                    "MetadataEnrich not yet implemented".to_string(),
+                ))
+            }
         }
     }
 

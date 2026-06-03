@@ -82,6 +82,8 @@ mod status_updates;
 mod task_impl;
 mod text_insert;
 mod workspace_resolver;
+pub mod enrichment_config;
+pub mod metadata_enrich;
 
 use std::sync::Arc;
 
