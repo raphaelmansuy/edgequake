@@ -1,5 +1,11 @@
 # Rust build artifacts
 target/
+
+# Superpowers brainstorming session files
+.superpowers/
+
+# npm lock file (project uses pnpm)
+edgequake_webui/package-lock.json
 # WHY: Cargo.lock is committed for the application binary (edgequake/) to ensure
 # reproducible CI builds. SDK libraries ignore their Cargo.lock (standard practice).
 sdks/*/Cargo.lock
