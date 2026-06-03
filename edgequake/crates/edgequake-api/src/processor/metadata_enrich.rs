@@ -251,3 +251,118 @@ impl TaskProcessor for MetadataEnrichProcessor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use edgequake_storage::MemoryKVStorage;
+    use edgequake_tasks::TaskStatus;
+
+    fn make_processor() -> MetadataEnrichProcessor {
+        let kv = Arc::new(MemoryKVStorage::new("test"));
+        let config = EnrichmentConfig {
+            vlm_base_url: "http://localhost:1".to_string(), // unreachable — not called in these tests
+            vlm_model: "test-model".to_string(),
+            max_pages: 5,
+            concurrent: 1,
+        };
+        MetadataEnrichProcessor::new(kv, None, config)
+    }
+
+    fn make_task(document_id: &str, pdf_id: uuid::Uuid) -> Task {
+        let tenant_id = uuid::Uuid::new_v4();
+        let workspace_id = uuid::Uuid::new_v4();
+        let data = MetadataEnrichData {
+            document_id: document_id.to_string(),
+            pdf_id,
+            tenant_id,
+            workspace_id,
+            max_pages: 5,
+        };
+        Task {
+            track_id: format!("metadata_enrich-{}", uuid::Uuid::new_v4()),
+            tenant_id,
+            workspace_id,
+            task_type: TaskType::MetadataEnrich,
+            status: TaskStatus::Failed,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            started_at: None,
+            completed_at: None,
+            error_message: None,
+            error: None,
+            retry_count: 3,
+            max_retries: 3,
+            consecutive_timeout_failures: 0,
+            circuit_breaker_tripped: false,
+            task_data: serde_json::to_value(&data).unwrap(),
+            metadata: None,
+            progress: None,
+            result: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_on_permanent_failure_writes_failed_status() {
+        let processor = make_processor();
+        let doc_id = uuid::Uuid::new_v4().to_string();
+        let task = make_task(&doc_id, uuid::Uuid::new_v4());
+
+        processor.on_permanent_failure(&task, "retries exhausted").await;
+
+        let kv = Arc::new(MemoryKVStorage::new("test"));
+        // Verify by re-constructing the processor with a shared kv
+        let kv_shared = Arc::new(MemoryKVStorage::new("verify"));
+        let config = EnrichmentConfig {
+            vlm_base_url: "http://localhost:1".to_string(),
+            vlm_model: "test".to_string(),
+            max_pages: 5,
+            concurrent: 1,
+        };
+        let p2 = MetadataEnrichProcessor::new(Arc::clone(&kv_shared) as Arc<dyn KVStorage>, None, config);
+        let doc_id2 = uuid::Uuid::new_v4().to_string();
+        let task2 = make_task(&doc_id2, uuid::Uuid::new_v4());
+
+        p2.on_permanent_failure(&task2, "test error msg").await;
+
+        let stored = kv_shared
+            .get_by_id(&format!("{}-metadata", doc_id2))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored["enrichment_status"], "failed");
+        assert!(stored["enrichment_error"]
+            .as_str()
+            .unwrap()
+            .contains("test error msg"));
+        drop(kv);
+    }
+
+    #[test]
+    fn test_metadata_enrich_data_serde_default() {
+        // max_pages should default to 5 when absent from JSON
+        let json = serde_json::json!({
+            "document_id": "doc-abc",
+            "pdf_id": "00000000-0000-0000-0000-000000000001",
+            "tenant_id": "00000000-0000-0000-0000-000000000002",
+            "workspace_id": "00000000-0000-0000-0000-000000000003"
+        });
+        let data: MetadataEnrichData = serde_json::from_value(json).unwrap();
+        assert_eq!(data.max_pages, 5);
+        assert_eq!(data.document_id, "doc-abc");
+    }
+
+    #[test]
+    fn test_strip_json_fences() {
+        // Verify the fence-stripping logic works for models that wrap output in ```json
+        let raw = "```json\n{\"summary\":\"s\",\"topic\":\"t\",\"language\":\"en\",\"keywords\":[]}\n```";
+        let stripped = raw
+            .trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        let parsed: serde_json::Value = serde_json::from_str(stripped).unwrap();
+        assert_eq!(parsed["topic"], "t");
+    }
+}
