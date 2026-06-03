@@ -7,7 +7,7 @@ use tokio::runtime::Runtime;
 use edgequake_query::modes::QueryMode;
 use edgequake_query::strategies::{create_strategy, NaiveStrategy, QueryStrategy, StrategyConfig};
 use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryVectorStorage};
-use edgequake_storage::traits::{GraphStorage, VectorStorage};
+use edgequake_storage::{GraphStorage, GraphStorageMutateOps, VectorStorage};
 use serde_json::json;
 use std::collections::HashMap;
 

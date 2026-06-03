@@ -44,7 +44,8 @@ impl StorageRuntime {
 mod tests {
     use super::*;
     use edgequake_storage::adapters::memory::{
-        MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
+        MemoryGraphStorage, MemoryKVStorage, MemoryPdfStorage, MemoryVectorStorage,
+        MemoryWorkspaceVectorRegistry,
     };
 
     #[test]
@@ -93,5 +94,32 @@ mod tests {
             mode: StorageMode::PostgreSQL,
         };
         assert!(missing_pdf.validate_postgres_adapters().is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "postgres")]
+    fn memory_mode_can_wire_pdf_storage() {
+        let kv = Arc::new(MemoryKVStorage::new("test"));
+        let vector = Arc::new(MemoryVectorStorage::new("test", 1536));
+        let graph = Arc::new(MemoryGraphStorage::new("test"));
+        let registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
+            Arc::new(MemoryWorkspaceVectorRegistry::new(
+                Arc::clone(&vector) as Arc<dyn edgequake_storage::traits::VectorStorage>
+            ));
+        let pdf: Arc<dyn edgequake_storage::PdfDocumentStorage> = Arc::new(MemoryPdfStorage::new());
+
+        let storage = StorageRuntime {
+            kv_storage: Arc::clone(&kv) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            vector_storage: Arc::clone(&vector)
+                as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry: registry,
+            graph_storage: Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            pdf_storage: Some(pdf),
+            mode: StorageMode::Memory,
+        };
+
+        assert!(storage.is_memory());
+        assert!(storage.pdf_storage.is_some());
+        assert!(storage.validate_postgres_adapters().is_ok());
     }
 }

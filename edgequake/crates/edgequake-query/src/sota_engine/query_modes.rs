@@ -92,9 +92,10 @@ impl SOTAQueryEngine {
         }
 
         // Step 4: Batch fetch nodes and degrees (LightRAG optimization)
+        let graph = self.graph_read();
         let (nodes_map, degrees) = tokio::join!(
-            self.graph_storage.get_nodes_batch(&entity_ids),
-            self.graph_storage.node_degrees_batch(&entity_ids),
+            graph.get_nodes_batch(&entity_ids),
+            graph.node_degrees_batch(&entity_ids),
         );
 
         let nodes_map = nodes_map?;
@@ -130,10 +131,7 @@ impl SOTAQueryEngine {
         }
 
         // Step 6: Batch fetch edges for these entities
-        let edges = self
-            .graph_storage
-            .get_edges_for_nodes_batch(&entity_ids)
-            .await?;
+        let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
 
         for edge in edges.iter().take(self.config.max_relationships) {
             if !self.matches_tenant_filter_props(&edge.properties, &tenant_id, &workspace_id) {
@@ -312,9 +310,9 @@ impl SOTAQueryEngine {
         }
 
         // Step 4: Fallback to popular entities if no relationship vectors found
+        let graph = self.graph_read();
         if entity_ids.is_empty() {
-            let popular = self
-                .graph_storage
+            let popular = graph
                 .get_popular_nodes_with_degree(
                     self.config.max_entities,
                     Some(2), // Min degree
@@ -333,10 +331,7 @@ impl SOTAQueryEngine {
 
             // Get edges between popular entities
             if !entity_ids.is_empty() {
-                let edges = self
-                    .graph_storage
-                    .get_edges_for_nodes_batch(&entity_ids)
-                    .await?;
+                let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
                 for edge in edges.iter().take(self.config.max_relationships) {
                     let rel =
                         build_relationship_from_edge(&edge.source, &edge.target, &edge.properties);
@@ -346,8 +341,8 @@ impl SOTAQueryEngine {
         } else {
             // Step 5: Batch fetch entities from relationship endpoints
             let (nodes_map, degrees) = tokio::join!(
-                self.graph_storage.get_nodes_batch(&entity_ids),
-                self.graph_storage.node_degrees_batch(&entity_ids),
+                graph.get_nodes_batch(&entity_ids),
+                graph.node_degrees_batch(&entity_ids),
             );
 
             let nodes_map = nodes_map?;
@@ -607,8 +602,8 @@ impl SOTAQueryEngine {
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
 
-        let popular = self
-            .graph_storage
+        let graph = self.graph_read();
+        let popular = graph
             .get_popular_nodes_with_degree(
                 self.config.max_entities,
                 None,
@@ -627,10 +622,7 @@ impl SOTAQueryEngine {
 
         // Get edges
         if !entity_ids.is_empty() {
-            let edges = self
-                .graph_storage
-                .get_edges_for_nodes_batch(&entity_ids)
-                .await?;
+            let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
             for edge in edges.iter().take(self.config.max_relationships) {
                 let rel =
                     build_relationship_from_edge(&edge.source, &edge.target, &edge.properties);

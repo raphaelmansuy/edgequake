@@ -22,6 +22,7 @@
 //! - [`BR0202`]: PostgreSQL adapter for production persistence
 
 pub mod memory;
+pub mod workspace_vector_cache;
 
 #[cfg(feature = "postgres")]
 pub mod postgres;

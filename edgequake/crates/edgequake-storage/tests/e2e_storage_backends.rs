@@ -13,21 +13,34 @@
 use std::collections::{HashMap, HashSet};
 
 use edgequake_storage::{
-    GraphStorage, KVStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
-    VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KVStorage,
+    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage,
 };
+
+#[path = "support/e2e_fixtures.rs"]
+mod e2e_fixtures;
+
+#[path = "support/kv_e2e_contract.rs"]
+mod kv_e2e_contract;
+
+#[path = "support/graph_e2e_contract.rs"]
+mod graph_e2e_contract;
+
+#[path = "support/vector_e2e_contract.rs"]
+mod vector_e2e_contract;
+
+#[path = "support/graph_batch_contract.rs"]
+mod graph_batch_contract;
+
+#[cfg(feature = "postgres")]
+#[path = "support/postgres_test_config.rs"]
+mod postgres_test_config;
+
+use e2e_fixtures::{create_edge_properties, create_node_properties, generate_namespace};
 
 // ============================================================================
 // Test Helper Macros and Utilities
 // ============================================================================
-
-/// Generate random test namespace to avoid collisions
-fn generate_namespace() -> String {
-    format!(
-        "test_{}",
-        &uuid::Uuid::new_v4().to_string().replace('-', "")[..12]
-    )
-}
 
 // ============================================================================
 // Memory KV Storage Tests - Full Coverage
@@ -46,71 +59,13 @@ mod memory_kv_tests {
     #[tokio::test]
     async fn test_kv_basic_crud() {
         let storage = create_storage().await;
-
-        // Create
-        let data = vec![(
-            "key1".to_string(),
-            serde_json::json!({"name": "test", "value": 42}),
-        )];
-        storage.upsert(&data).await.expect("Failed to upsert");
-
-        // Read
-        let result = storage.get_by_id("key1").await.expect("Failed to get");
-        assert!(result.is_some());
-        let doc = result.unwrap();
-        assert_eq!(doc["name"], "test");
-        assert_eq!(doc["value"], 42);
-
-        // Update
-        let updated_data = vec![(
-            "key1".to_string(),
-            serde_json::json!({"name": "updated", "value": 100}),
-        )];
-        storage
-            .upsert(&updated_data)
-            .await
-            .expect("Failed to update");
-        let result = storage.get_by_id("key1").await.expect("Failed to get");
-        assert_eq!(result.unwrap()["name"], "updated");
-
-        // Delete
-        storage
-            .delete(&["key1".to_string()])
-            .await
-            .expect("Failed to delete");
-        let result = storage.get_by_id("key1").await.expect("Failed to get");
-        assert!(result.is_none());
+        kv_e2e_contract::assert_kv_basic_crud(&storage).await;
     }
 
     #[tokio::test]
     async fn test_kv_bulk_operations() {
         let storage = create_storage().await;
-
-        // Bulk insert
-        let data: Vec<(String, serde_json::Value)> = (0..50)
-            .map(|i| {
-                (
-                    format!("doc-{}", i),
-                    serde_json::json!({"index": i, "content": format!("Document {}", i)}),
-                )
-            })
-            .collect();
-        storage.upsert(&data).await.expect("Failed to bulk upsert");
-
-        // Bulk get
-        let ids: Vec<String> = (0..25).map(|i| format!("doc-{}", i)).collect();
-        let results = storage.get_by_ids(&ids).await.expect("Failed to bulk get");
-        assert_eq!(results.len(), 25);
-
-        // Count
-        let count = storage.count().await.expect("Failed to count");
-        assert_eq!(count, 50);
-
-        // Keys
-        let keys = storage.keys().await.expect("Failed to get keys");
-        assert_eq!(keys.len(), 50);
-        assert!(keys.contains(&"doc-0".to_string()));
-        assert!(keys.contains(&"doc-49".to_string()));
+        kv_e2e_contract::assert_kv_bulk_operations(&storage).await;
     }
 
     #[tokio::test]
@@ -307,6 +262,7 @@ mod memory_vector_tests {
             .collect()
     }
 
+    #[allow(dead_code)]
     fn create_orthogonal_embedding(cluster: usize) -> Vec<f32> {
         (0..DIMENSION)
             .map(|i| {
@@ -322,168 +278,35 @@ mod memory_vector_tests {
     #[tokio::test]
     async fn test_vector_basic_crud() {
         let storage = create_storage().await;
-
-        let embedding = create_embedding(1.0);
-
-        // Upsert
-        storage
-            .upsert(&[(
-                "vec-1".to_string(),
-                embedding.clone(),
-                serde_json::json!({"label": "first"}),
-            )])
-            .await
-            .expect("Failed to upsert");
-
-        // Get by ID
-        let result = storage.get_by_id("vec-1").await.expect("Failed to get");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), DIMENSION);
-
-        // Update
-        let new_embedding = create_embedding(2.0);
-        storage
-            .upsert(&[(
-                "vec-1".to_string(),
-                new_embedding.clone(),
-                serde_json::json!({"label": "updated"}),
-            )])
-            .await
-            .expect("Failed to update");
-
-        // Delete
-        storage
-            .delete(&["vec-1".to_string()])
-            .await
-            .expect("Failed to delete");
-        assert!(storage.get_by_id("vec-1").await.unwrap().is_none());
+        vector_e2e_contract::assert_vector_basic_crud(&storage).await;
     }
 
     #[tokio::test]
     async fn test_vector_similarity_search() {
         let storage = create_storage().await;
-
-        // Create two clusters of vectors
-        for i in 0..5 {
-            let mut embedding = create_orthogonal_embedding(0);
-            for value in embedding.iter_mut().take(DIMENSION) {
-                *value += i as f32 * 0.001;
-            }
-            storage
-                .upsert(&[(
-                    format!("cluster0-{}", i),
-                    embedding,
-                    serde_json::json!({"cluster": 0}),
-                )])
-                .await
-                .expect("Failed to upsert");
-        }
-
-        for i in 0..5 {
-            let mut embedding = create_orthogonal_embedding(1);
-            for value in embedding.iter_mut().take(DIMENSION) {
-                *value += i as f32 * 0.001;
-            }
-            storage
-                .upsert(&[(
-                    format!("cluster1-{}", i),
-                    embedding,
-                    serde_json::json!({"cluster": 1}),
-                )])
-                .await
-                .expect("Failed to upsert");
-        }
-
-        // Query with cluster 0 embedding - should find cluster 0 vectors
-        let query = create_orthogonal_embedding(0);
-        let results = storage
-            .query(&query, 3, None)
-            .await
-            .expect("Failed to query");
-        assert_eq!(results.len(), 3);
-        for result in &results {
-            assert!(
-                result.id.starts_with("cluster0"),
-                "Expected cluster0 vectors, got {}",
-                result.id
-            );
-        }
-
-        // Query with cluster 1 embedding - should find cluster 1 vectors
-        let query = create_orthogonal_embedding(1);
-        let results = storage
-            .query(&query, 3, None)
-            .await
-            .expect("Failed to query");
-        assert_eq!(results.len(), 3);
-        for result in &results {
-            assert!(
-                result.id.starts_with("cluster1"),
-                "Expected cluster1 vectors, got {}",
-                result.id
-            );
-        }
+        vector_e2e_contract::assert_vector_cluster_similarity(&storage).await;
     }
 
     #[tokio::test]
     async fn test_vector_filtered_query() {
         let storage = create_storage().await;
-
-        // Insert vectors
-        for i in 0..10 {
-            storage
-                .upsert(&[(
-                    format!("vec-{}", i),
-                    create_embedding(i as f32),
-                    serde_json::json!({"index": i}),
-                )])
-                .await
-                .expect("Failed to upsert");
-        }
-
-        // Query with filter - only search specific IDs
-        let filter_ids = vec![
-            "vec-0".to_string(),
-            "vec-1".to_string(),
-            "vec-2".to_string(),
-        ];
-        let results = storage
-            .query(&create_embedding(0.0), 5, Some(&filter_ids))
-            .await
-            .expect("Failed to query");
-
-        assert!(results.len() <= 3);
-        for result in &results {
-            assert!(filter_ids.contains(&result.id));
-        }
+        vector_e2e_contract::assert_vector_filtered_query(&storage).await;
     }
 
     #[tokio::test]
     async fn test_vector_bulk_operations() {
         let storage = create_storage().await;
+        vector_e2e_contract::assert_vector_bulk_count(&storage).await;
 
-        // Bulk insert
-        let data: Vec<(String, Vec<f32>, serde_json::Value)> = (0..50)
-            .map(|i| {
-                (
-                    format!("vec-{}", i),
-                    create_embedding(i as f32),
-                    serde_json::json!({"index": i}),
-                )
-            })
-            .collect();
-        storage.upsert(&data).await.expect("Failed to bulk upsert");
-
-        // Count
-        assert_eq!(storage.count().await.unwrap(), 50);
-
-        // Bulk get
-        let ids: Vec<String> = (0..25).map(|i| format!("vec-{}", i)).collect();
+        let ids: Vec<String> = (0..10).map(|i| format!("vec-{i}")).collect();
         let results = storage
             .get_by_ids(&ids)
             .await
             .expect("Failed to get_by_ids");
-        assert_eq!(results.len(), 25);
+        assert_eq!(results.len(), 10);
+
+        storage.delete(&ids).await.expect("Failed to bulk delete");
+        assert_eq!(storage.count().await.unwrap(), 10);
     }
 
     #[tokio::test]
@@ -589,115 +412,16 @@ mod memory_graph_tests {
         storage
     }
 
-    fn create_node_properties(
-        entity_type: &str,
-        description: &str,
-    ) -> HashMap<String, serde_json::Value> {
-        let mut props = HashMap::new();
-        props.insert("entity_type".to_string(), serde_json::json!(entity_type));
-        props.insert("description".to_string(), serde_json::json!(description));
-        props
-    }
-
-    fn create_edge_properties(rel_type: &str, weight: f32) -> HashMap<String, serde_json::Value> {
-        let mut props = HashMap::new();
-        props.insert("relationship_type".to_string(), serde_json::json!(rel_type));
-        props.insert("weight".to_string(), serde_json::json!(weight));
-        props
-    }
-
     #[tokio::test]
     async fn test_graph_node_crud() {
         let storage = create_storage().await;
-
-        // Create
-        storage
-            .upsert_node("NODE_A", create_node_properties("PERSON", "A test person"))
-            .await
-            .expect("Failed to upsert node");
-
-        // Read
-        assert!(storage.has_node("NODE_A").await.expect("Failed to check"));
-        let node = storage
-            .get_node("NODE_A")
-            .await
-            .expect("Failed to get")
-            .unwrap();
-        assert_eq!(node.id, "NODE_A");
-        assert_eq!(node.properties["entity_type"], "PERSON");
-
-        // Update
-        storage
-            .upsert_node(
-                "NODE_A",
-                create_node_properties("ORGANIZATION", "Updated to org"),
-            )
-            .await
-            .expect("Failed to update");
-        let node = storage.get_node("NODE_A").await.unwrap().unwrap();
-        assert_eq!(node.properties["entity_type"], "ORGANIZATION");
-
-        // Delete
-        storage
-            .delete_node("NODE_A")
-            .await
-            .expect("Failed to delete");
-        assert!(!storage.has_node("NODE_A").await.unwrap());
-        assert!(storage.get_node("NODE_A").await.unwrap().is_none());
+        graph_e2e_contract::assert_graph_node_crud(&storage).await;
     }
 
     #[tokio::test]
     async fn test_graph_edge_crud() {
         let storage = create_storage().await;
-
-        // Create nodes first
-        storage
-            .upsert_node("SOURCE", create_node_properties("PERSON", "Source node"))
-            .await
-            .expect("Failed to upsert source");
-        storage
-            .upsert_node("TARGET", create_node_properties("PERSON", "Target node"))
-            .await
-            .expect("Failed to upsert target");
-
-        // Create edge
-        storage
-            .upsert_edge("SOURCE", "TARGET", create_edge_properties("KNOWS", 0.8))
-            .await
-            .expect("Failed to upsert edge");
-
-        // Read
-        assert!(storage
-            .has_edge("SOURCE", "TARGET")
-            .await
-            .expect("Failed to check"));
-        let edge = storage
-            .get_edge("SOURCE", "TARGET")
-            .await
-            .expect("Failed to get")
-            .unwrap();
-        assert_eq!(edge.source, "SOURCE");
-        assert_eq!(edge.target, "TARGET");
-        assert_eq!(edge.properties["relationship_type"], "KNOWS");
-
-        // Update
-        storage
-            .upsert_edge(
-                "SOURCE",
-                "TARGET",
-                create_edge_properties("WORKS_WITH", 0.9),
-            )
-            .await
-            .expect("Failed to update");
-        let edge = storage.get_edge("SOURCE", "TARGET").await.unwrap().unwrap();
-        assert_eq!(edge.properties["relationship_type"], "WORKS_WITH");
-
-        // Delete
-        storage
-            .delete_edge("SOURCE", "TARGET")
-            .await
-            .expect("Failed to delete");
-        assert!(!storage.has_edge("SOURCE", "TARGET").await.unwrap());
+        graph_e2e_contract::assert_graph_edge_crud(&storage).await;
     }
 
     #[tokio::test]
@@ -1042,38 +766,18 @@ mod memory_graph_tests {
 
 #[cfg(feature = "postgres")]
 mod postgres_tests {
-    use super::*;
-    use std::env;
-    use std::time::Duration;
-
-    use edgequake_storage::{
-        PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage,
+    use super::{
+        graph_batch_contract, graph_e2e_contract, kv_e2e_contract, postgres_test_config,
+        vector_e2e_contract,
     };
-
-    fn get_test_config() -> Option<PostgresConfig> {
-        let password = env::var("POSTGRES_PASSWORD").ok()?;
-
-        Some(PostgresConfig {
-            host: env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
-            port: env::var("POSTGRES_PORT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(5432),
-            database: env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string()),
-            user: env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string()),
-            password,
-            namespace: generate_namespace(),
-            max_connections: 5,
-            min_connections: 1,
-            connect_timeout: Duration::from_secs(10),
-            idle_timeout: Duration::from_secs(60),
-            ..Default::default()
-        })
-    }
+    use edgequake_storage::{
+        GraphStorage, GraphStorageMutateOps, KVStorage, PgVectorStorage, PostgresAGEGraphStorage,
+        PostgresKVStorage, VectorStorage,
+    };
 
     macro_rules! require_postgres {
         () => {
-            match get_test_config() {
+            match postgres_test_config::contract_postgres_config("e2e") {
                 Some(config) => config,
                 None => {
                     eprintln!("Skipping test: POSTGRES_PASSWORD not set");
@@ -1088,52 +792,18 @@ mod postgres_tests {
         let config = require_postgres!();
         let storage = PostgresKVStorage::new(config);
         storage.initialize().await.expect("Failed to initialize");
-
-        // CRUD
-        storage
-            .upsert(&[("key1".to_string(), serde_json::json!({"test": true}))])
-            .await
-            .expect("Failed to upsert");
-
-        let result = storage.get_by_id("key1").await.expect("Failed to get");
-        assert!(result.is_some());
-
-        storage
-            .delete(&["key1".to_string()])
-            .await
-            .expect("Failed to delete");
-        assert!(storage.get_by_id("key1").await.unwrap().is_none());
-
-        // Cleanup
+        kv_e2e_contract::assert_kv_basic_crud(&storage).await;
         storage.clear().await.expect("Failed to clear");
     }
 
     #[tokio::test]
     async fn test_postgres_vector_full_coverage() {
         let config = require_postgres!();
-        let storage = PgVectorStorage::with_dimension(config, 384);
+        let storage =
+            PgVectorStorage::with_dimension(config, vector_e2e_contract::CONTRACT_DIMENSION);
         storage.initialize().await.expect("Failed to initialize");
-
-        let embedding: Vec<f32> = (0..384).map(|i| (i as f32) / 1000.0).collect();
-
-        // Insert
-        storage
-            .upsert(&[(
-                "vec1".to_string(),
-                embedding.clone(),
-                serde_json::json!({"label": "test"}),
-            )])
-            .await
-            .expect("Failed to upsert");
-
-        // Query
-        let results = storage
-            .query(&embedding, 5, None)
-            .await
-            .expect("Failed to query");
-        assert!(!results.is_empty());
-
-        // Cleanup
+        vector_e2e_contract::assert_vector_basic_crud(&storage).await;
+        vector_e2e_contract::assert_vector_query(&storage).await;
         storage.clear().await.expect("Failed to clear");
     }
 
@@ -1142,23 +812,9 @@ mod postgres_tests {
         let config = require_postgres!();
         let storage = PostgresAGEGraphStorage::new(config);
         storage.initialize().await.expect("Failed to initialize");
-
-        // Node operations
-        storage
-            .upsert_node("NODE_A", HashMap::new())
-            .await
-            .expect("Failed to upsert node");
-        assert!(storage.has_node("NODE_A").await.unwrap());
-
-        // Edge operations
-        storage.upsert_node("NODE_B", HashMap::new()).await.unwrap();
-        storage
-            .upsert_edge("NODE_A", "NODE_B", HashMap::new())
-            .await
-            .expect("Failed to upsert edge");
-        assert!(storage.has_edge("NODE_A", "NODE_B").await.unwrap());
-
-        // Cleanup
+        graph_e2e_contract::assert_graph_node_crud(&storage).await;
+        graph_e2e_contract::assert_graph_edge_crud(&storage).await;
+        graph_batch_contract::assert_graph_batch_upsert(&storage).await;
         storage.clear().await.expect("Failed to clear");
     }
 }

@@ -54,6 +54,7 @@ where
 mod tests {
     use super::*;
     use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryVectorStorage};
+    use edgequake_storage::GraphStorageMutateOps;
     use serde_json::json;
     use std::collections::HashMap;
 

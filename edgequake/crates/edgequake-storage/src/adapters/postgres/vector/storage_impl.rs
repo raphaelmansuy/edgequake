@@ -447,58 +447,12 @@ impl VectorStorage for PgVectorStorage {
         let pool = self.pool.get().await?;
         let embedding_str = Self::format_embedding(query_embedding);
 
-        // Build dynamic WHERE clause
-        // Parameter $1 is always the embedding
-        let mut conditions: Vec<String> = Vec::new();
-        let mut param_offset = 2u32; // $1 = embedding, params start at $2
-
-        // ID filter
         let has_id_filter = filter_ids.map(|ids| !ids.is_empty()).unwrap_or(false);
-        if has_id_filter {
-            conditions.push(format!("id = ANY(${}::text[])", param_offset));
-            param_offset += 1;
-        }
-
-        // Document IDs: try column first, fall back to JSONB
-        if mf.document_ids.is_some() {
-            conditions.push(format!(
-                "(document_id = ANY(${}::text[]) OR metadata->>'document_id' = ANY(${}::text[]) OR metadata->>'source_document_id' = ANY(${}::text[]))",
-                param_offset, param_offset, param_offset
-            ));
-            param_offset += 1;
-        }
-
-        // Tenant ID
-        if mf.tenant_id.is_some() {
-            conditions.push(format!(
-                "(tenant_id = ${} OR metadata->>'tenant_id' = ${})",
-                param_offset, param_offset
-            ));
-            param_offset += 1;
-        }
-
-        // Workspace ID
-        if mf.workspace_id.is_some() {
-            conditions.push(format!(
-                "(workspace_id = ${} OR metadata->>'workspace_id' = ${})",
-                param_offset, param_offset
-            ));
-            param_offset += 1;
-        }
-
-        // Vector type (e.g. "chunk", "entity", "relationship")
-        // WHY: Pushed to SQL layer so LIMIT operates on correctly-typed vectors.
-        // Without this, naive mode on large graphs returns only entity vectors
-        // in the top-k, resulting in 0 chunk results after in-memory filtering.
-        if mf.vector_type.is_some() {
-            conditions.push(format!("metadata->>'type' = ${}", param_offset));
-            param_offset += 1;
-        }
-
-        let where_clause = if conditions.is_empty() {
+        let filter_sql = mf.build_sql(has_id_filter, 2);
+        let where_clause = if filter_sql.conditions.is_empty() {
             String::new()
         } else {
-            format!("WHERE {}", conditions.join(" AND "))
+            format!("WHERE {}", filter_sql.conditions.join(" AND "))
         };
 
         let sql = format!(
@@ -509,7 +463,7 @@ impl VectorStorage for PgVectorStorage {
             ORDER BY embedding <=> $1::vector
             LIMIT ${}
             "#,
-            self.table_name, where_clause, param_offset
+            self.table_name, where_clause, filter_sql.next_param
         );
 
         // Dynamic parameter binding using raw query + manual bind chain

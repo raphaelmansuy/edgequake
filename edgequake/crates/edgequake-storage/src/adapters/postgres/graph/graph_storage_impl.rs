@@ -4,7 +4,10 @@ use async_trait::async_trait;
 
 use super::PostgresAGEGraphStorage;
 use crate::error::Result;
-use crate::traits::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
+use crate::traits::{
+    GraphEdge, GraphNode, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
+    GraphStorageReadOps, KnowledgeGraph,
+};
 
 #[async_trait]
 impl GraphStorage for PostgresAGEGraphStorage {
@@ -19,32 +22,16 @@ impl GraphStorage for PostgresAGEGraphStorage {
     async fn finalize(&self) -> Result<()> {
         self.pg_finalize().await
     }
+}
 
+#[async_trait]
+impl GraphStorageReadOps for PostgresAGEGraphStorage {
     async fn has_node(&self, node_id: &str) -> Result<bool> {
         self.pg_has_node(node_id).await
     }
 
     async fn get_node(&self, node_id: &str) -> Result<Option<GraphNode>> {
         self.pg_get_node(node_id).await
-    }
-
-    async fn upsert_node(
-        &self,
-        node_id: &str,
-        properties: HashMap<String, serde_json::Value>,
-    ) -> Result<()> {
-        self.pg_upsert_node(node_id, properties).await
-    }
-
-    async fn upsert_nodes_batch(
-        &self,
-        nodes: &[(String, HashMap<String, serde_json::Value>)],
-    ) -> Result<()> {
-        self.pg_upsert_nodes_batch(nodes).await
-    }
-
-    async fn delete_node(&self, node_id: &str) -> Result<()> {
-        self.pg_delete_node(node_id).await
     }
 
     async fn node_degree(&self, node_id: &str) -> Result<usize> {
@@ -84,26 +71,6 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
     async fn get_edge(&self, source: &str, target: &str) -> Result<Option<GraphEdge>> {
         self.pg_get_edge(source, target).await
-    }
-
-    async fn upsert_edge(
-        &self,
-        source: &str,
-        target: &str,
-        properties: HashMap<String, serde_json::Value>,
-    ) -> Result<()> {
-        self.pg_upsert_edge(source, target, properties).await
-    }
-
-    async fn upsert_edges_batch(
-        &self,
-        edges: &[(String, String, HashMap<String, serde_json::Value>)],
-    ) -> Result<()> {
-        self.pg_upsert_edges_batch(edges).await
-    }
-
-    async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
-        self.pg_delete_edge(source, target).await
     }
 
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
@@ -175,7 +142,60 @@ impl GraphStorage for PostgresAGEGraphStorage {
         self.pg_get_edges_for_node_set(node_ids, tenant_id, workspace_id)
             .await
     }
+}
 
+#[async_trait]
+impl GraphStorageMutateOps for PostgresAGEGraphStorage {
+    async fn upsert_node(
+        &self,
+        node_id: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        self.pg_upsert_node(node_id, properties).await
+    }
+
+    async fn upsert_nodes_batch(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        self.pg_upsert_nodes_batch(nodes).await
+    }
+
+    async fn delete_node(&self, node_id: &str) -> Result<()> {
+        self.pg_delete_node(node_id).await
+    }
+
+    async fn upsert_edge(
+        &self,
+        source: &str,
+        target: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        self.pg_upsert_edge(source, target, properties).await
+    }
+
+    async fn upsert_edges_batch(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        self.pg_upsert_edges_batch(edges).await
+    }
+
+    async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
+        self.pg_delete_edge(source, target).await
+    }
+
+    async fn clear(&self) -> Result<()> {
+        self.pg_clear().await
+    }
+
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
+        self.pg_clear_workspace(workspace_id).await
+    }
+}
+
+#[async_trait]
+impl GraphStorageAnalyticsOps for PostgresAGEGraphStorage {
     async fn node_count(&self) -> Result<usize> {
         self.pg_node_count().await
     }
@@ -210,13 +230,5 @@ impl GraphStorage for PostgresAGEGraphStorage {
     ) -> Result<usize> {
         self.pg_distinct_node_type_count_by_workspace(workspace_id)
             .await
-    }
-
-    async fn clear(&self) -> Result<()> {
-        self.pg_clear().await
-    }
-
-    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
-        self.pg_clear_workspace(workspace_id).await
     }
 }

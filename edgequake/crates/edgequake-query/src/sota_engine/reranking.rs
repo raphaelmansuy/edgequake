@@ -161,10 +161,11 @@ impl SOTAQueryEngine {
         let miss_futures: Vec<_> = miss_keywords
             .iter()
             .map(|kw| {
-                let storage = self.graph_storage.clone();
+                let graph = self.graph_storage.clone();
                 let kw = kw.clone();
                 async move {
-                    let exists = storage
+                    let view = edgequake_storage::GraphReadView::from_arc(&graph);
+                    let exists = view
                         .search_labels(&kw, 1)
                         .await
                         .map(|labels| !labels.is_empty())

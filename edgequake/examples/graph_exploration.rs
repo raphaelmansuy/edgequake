@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
-use edgequake_storage::GraphStorage;
+use edgequake_storage::{GraphStorageMutateOps, GraphStorageReadOps};
 use serde_json::json;
 
 #[tokio::main]

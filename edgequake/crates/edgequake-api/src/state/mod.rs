@@ -368,6 +368,53 @@ mod tests {
         assert!(state.storage.is_memory());
         assert_eq!(state.config.workspace_id, "default");
         assert_eq!(state.query.embedding_provider.dimension(), 1536);
+        #[cfg(feature = "postgres")]
+        assert!(state.storage.pdf_storage.is_some());
+    }
+
+    /// SPEC-017: memory AppState uses ConversationServiceImpl + MemoryConversationStorage.
+    #[cfg(feature = "postgres")]
+    #[tokio::test]
+    async fn test_memory_conversation_service_roundtrip() {
+        use edgequake_core::CreateConversationRequest;
+        use uuid::Uuid;
+
+        let state = AppState::test_state();
+        let tenant = Uuid::new_v4();
+        let user = Uuid::new_v4();
+
+        let conv = state
+            .conversation_service
+            .create_conversation(
+                tenant,
+                user,
+                None,
+                CreateConversationRequest {
+                    title: Some("SPEC-017 memory".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("create conversation");
+
+        let listed = state
+            .conversation_service
+            .list_conversations(
+                tenant,
+                user,
+                edgequake_core::ConversationFilter::default(),
+                edgequake_core::ConversationSortField::CreatedAt,
+                false,
+                None,
+                10,
+            )
+            .await
+            .expect("list conversations");
+
+        assert!(listed
+            .items
+            .iter()
+            .any(|c| c.conversation_id == conv.conversation_id));
     }
 
     #[tokio::test]

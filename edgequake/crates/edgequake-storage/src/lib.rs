@@ -57,7 +57,10 @@
 
 pub mod adapters;
 pub mod community;
+pub mod conversation_storage;
+pub mod conversation_types;
 pub mod error;
+pub mod metadata_filter_sql;
 pub mod pdf_storage;
 pub mod traits;
 
@@ -72,23 +75,27 @@ pub use pdf_storage::{
     PdfDocument, PdfDocumentStorage, PdfList, PdfProcessingStatus, UpdatePdfProcessingRequest,
 };
 
+pub use conversation_storage::ConversationStorage;
+pub use conversation_types::{ConversationRow, FolderRow, MessageRow};
+
 // Re-export traits
 pub use error::StorageError;
 pub use traits::{
-    kv_key_matches_like, GraphEdge, GraphNode, GraphStorage, KVStorage, KnowledgeGraph,
-    MetadataFilter, VectorSearchResult, VectorStorage, WorkspaceVectorConfig,
+    kv_key_matches_like, GraphEdge, GraphNode, GraphReadView, GraphStorage,
+    GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KVStorage,
+    KnowledgeGraph, MetadataFilter, VectorSearchResult, VectorStorage, WorkspaceVectorConfig,
     WorkspaceVectorRegistry,
 };
 
 // Re-export adapters
 pub use adapters::memory::{
-    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
+    MemoryConversationStorage, MemoryGraphStorage, MemoryKVStorage, MemoryPdfStorage,
+    MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
 };
 
 // Conditionally export PostgreSQL adapters
 #[cfg(feature = "postgres")]
 pub use adapters::postgres::{
-    ConversationRow, FolderRow, MessageRow, PgVectorStorage, PgWorkspaceVectorRegistry,
-    PostgresAGEGraphStorage, PostgresConfig, PostgresConversationStorage, PostgresKVStorage,
-    PostgresPdfStorage, PostgresPool,
+    PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage, PostgresConfig,
+    PostgresConversationStorage, PostgresKVStorage, PostgresPdfStorage, PostgresPool,
 };

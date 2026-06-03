@@ -74,25 +74,8 @@ pub async fn chat_completion(
         "Processing chat completion"
     );
 
-    // Ensure user exists in PostgreSQL (auto-create if not)
-    // This is necessary because the frontend generates random UUIDs for anonymous users
-    #[cfg(feature = "postgres")]
-    if let Some(ref pool) = state.pg_pool {
-        sqlx::query(
-            r#"
-            INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, 'anonymous', 'user', TRUE, NOW(), NOW())
-            ON CONFLICT (user_id) DO NOTHING
-            "#,
-        )
-        .bind(user_id)
-        .bind(tenant_id)
-        .bind(format!("anon_{}", &user_id.to_string()[..8]))
-        .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
-    }
+    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
+        .await?;
 
     // Fail closed when an explicit workspace header is invalid (same as /query).
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
