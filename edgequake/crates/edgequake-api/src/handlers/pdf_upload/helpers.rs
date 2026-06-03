@@ -9,7 +9,7 @@ use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_core::Workspace;
 use edgequake_storage::PdfDocumentStorage;
-use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
+use edgequake_tasks::{MetadataEnrichData, PdfProcessingData, Task, TaskStatus, TaskType};
 
 // ============================================================================
 // Helper Functions
@@ -34,14 +34,17 @@ pub(super) fn get_pdf_storage(_state: &AppState) -> ApiResult<Arc<dyn PdfDocumen
     ))
 }
 
-/// Create PDF processing background task.
+/// Create PDF processing background task and a paired metadata enrichment task.
+///
+/// Returns `(track_id, document_id)`. The `document_id` is pre-generated so both
+/// tasks share the same metadata record in KV storage.
 pub(super) async fn create_pdf_processing_task(
     state: &AppState,
     context: &TenantContext,
     pdf_id: Uuid,
     options: &PdfUploadOptions,
     workspace: Option<&Workspace>,
-) -> ApiResult<String> {
+) -> ApiResult<(String, String)> {
     let workspace_id = context
         .workspace_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
@@ -49,6 +52,10 @@ pub(super) async fn create_pdf_processing_task(
     let tenant_id = context
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Tenant ID required".to_string()))?;
+
+    // Pre-generate document_id so enrichment and processing tasks share the same
+    // metadata record. PdfProcessing uses existing_document_id to avoid duplicates on retry.
+    let document_id = Uuid::new_v4().to_string();
 
     let task_data = PdfProcessingData {
         pdf_id,
@@ -65,7 +72,7 @@ pub(super) async fn create_pdf_processing_task(
         } else {
             None
         },
-        existing_document_id: None, // Fresh upload — create new document
+        existing_document_id: Some(document_id.clone()),
         pdf_parser_backend: options.resolved_backend(workspace),
         restart_from_scratch: false,
     };
@@ -102,19 +109,72 @@ pub(super) async fn create_pdf_processing_task(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
 
-    // Queue task for background processing (critical - missing this causes tasks to stay in pending)
+    // Queue task for background processing
     state
         .task_queue
         .send(task)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
 
+    // Write initial enrichment_status so clients can poll immediately
+    let metadata_key = format!("{}-metadata", document_id);
+    let _ = state
+        .kv_storage
+        .upsert(&[(
+            metadata_key,
+            serde_json::json!({"enrichment_status": "pending"}),
+        )])
+        .await;
+
+    // Enqueue metadata enrichment task to the dedicated enrichment pool
+    let enrich_data = MetadataEnrichData {
+        document_id: document_id.clone(),
+        pdf_id,
+        tenant_id,
+        workspace_id,
+        max_pages: 5,
+    };
+    let enrich_task = Task {
+        track_id: format!("metadata_enrich-{}", Uuid::new_v4()),
+        tenant_id,
+        workspace_id,
+        task_type: TaskType::MetadataEnrich,
+        status: TaskStatus::Pending,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        started_at: None,
+        completed_at: None,
+        error_message: None,
+        error: None,
+        retry_count: 0,
+        max_retries: 3,
+        consecutive_timeout_failures: 0,
+        circuit_breaker_tripped: false,
+        task_data: serde_json::to_value(&enrich_data)
+            .map_err(|e| ApiError::Internal(format!("Failed to serialize enrich data: {}", e)))?,
+        metadata: None,
+        progress: None,
+        result: None,
+    };
+
+    state
+        .task_storage
+        .create_task(&enrich_task)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to create enrichment task: {}", e)))?;
+
+    state
+        .enrich_queue
+        .send(enrich_task)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to queue enrichment task: {}", e)))?;
+
     debug!(
-        "Created and queued PDF processing task: id={}, pdf_id={}",
-        track_id, pdf_id
+        "Created PDF processing task id={} and enrichment task, pdf_id={}, doc_id={}",
+        track_id, pdf_id, document_id
     );
 
-    Ok(track_id)
+    Ok((track_id, document_id))
 }
 
 /// Extract page count from PDF binary data.

@@ -163,6 +163,9 @@ pub struct AppState {
     /// Task queue.
     pub task_queue: SharedTaskQueue,
 
+    /// Dedicated queue for metadata enrichment tasks.
+    pub enrich_queue: SharedTaskQueue,
+
     /// Pipeline state for real-time progress tracking (Phase 3).
     pub pipeline_state: PipelineState,
 

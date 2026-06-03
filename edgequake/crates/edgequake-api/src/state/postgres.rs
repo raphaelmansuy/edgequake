@@ -305,6 +305,7 @@ impl AppState {
             edgequake_tasks::postgres::PostgresTaskStorage::new(pool.clone()),
         );
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
         tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
         // Create legacy query engine (for backward compatibility)
@@ -363,6 +364,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            enrich_queue,
             pipeline_state: PipelineState::new(),
             progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,

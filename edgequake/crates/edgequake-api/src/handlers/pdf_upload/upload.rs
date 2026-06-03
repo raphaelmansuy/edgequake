@@ -403,7 +403,7 @@ async fn process_pdf_upload_parts(
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
 
-            let task_id = create_pdf_processing_task(
+            let (task_id, _document_id) = create_pdf_processing_task(
                 state,
                 context,
                 existing.pdf_id,
@@ -533,7 +533,7 @@ async fn process_pdf_upload_parts(
         }
     };
 
-    let task_id =
+    let (task_id, document_id) =
         create_pdf_processing_task(state, context, pdf_id, &options, workspace.as_ref()).await?;
     let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
     state
@@ -544,7 +544,7 @@ async fn process_pdf_upload_parts(
     let estimated_time = estimate_processing_time(&file_data, page_count);
     Ok(PdfUploadResponse {
         pdf_id: pdf_id.to_string(),
-        document_id: None,
+        document_id: Some(document_id),
         status: "processing".to_string(),
         task_id: task_id.to_string(),
         track_id: options.track_id,

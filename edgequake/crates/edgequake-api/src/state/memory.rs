@@ -50,6 +50,7 @@ impl AppState {
         let rbac_service = Arc::new(RbacService::new());
         let conversation_service: SharedConversationService =
             Arc::new(InMemoryConversationService::new());
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
 
         Self {
             kv_storage,
@@ -64,6 +65,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            enrich_queue,
             pipeline_state: PipelineState::new(),
             progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,
@@ -215,6 +217,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            enrich_queue,
             pipeline_state: PipelineState::new(),
             progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,
@@ -269,6 +272,7 @@ impl AppState {
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
 
         // Create legacy query engine (for backward compatibility)
         let query_config = QueryEngineConfig::default();
@@ -317,6 +321,7 @@ impl AppState {
             pipeline,
             task_storage,
             task_queue,
+            enrich_queue,
             pipeline_state: PipelineState::new(),
             progress_broadcaster: ProgressBroadcaster::default(),
             workspace_service,

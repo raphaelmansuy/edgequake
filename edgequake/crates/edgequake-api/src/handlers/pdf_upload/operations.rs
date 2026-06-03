@@ -132,7 +132,8 @@ pub async fn retry_pdf_processing(
             ..Default::default()
         };
 
-        let task_id = create_pdf_processing_task(&state, &tenant, pdf_uuid, &options, None).await?;
+        let (task_id, _document_id) =
+            create_pdf_processing_task(&state, &tenant, pdf_uuid, &options, None).await?;
 
         info!(
             pdf_id = %pdf_id,

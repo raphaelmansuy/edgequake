@@ -639,6 +639,40 @@ async fn main() -> Result<()> {
     );
     worker_pool.start();
 
+    // ── Enrichment worker pool ────────────────────────────────────────────────
+    // Separate pool dedicated to MetadataEnrich tasks (fast: EdgeParser + VLM call).
+    // Keeps enrichment from competing with heavy PdfProcessing tasks.
+    let enrichment_config =
+        edgequake_api::processor::enrichment_config::EnrichmentConfig::from_env();
+    let enrich_concurrent = enrichment_config.concurrent;
+    let enrich_processor = Arc::new(
+        edgequake_api::processor::metadata_enrich::MetadataEnrichProcessor::new(
+            Arc::clone(&state.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            state.pdf_storage.as_ref().map(Arc::clone),
+            enrichment_config,
+        ),
+    );
+    let enrich_pool_config = WorkerPoolConfig {
+        num_workers: enrich_concurrent,
+        auto_retry: true,
+        initial_retry_delay_ms: 1_000,
+        max_retry_delay_ms: 10_000,
+        backoff_multiplier: 2.0,
+        max_tasks_per_tenant: enrich_concurrent,
+        processing_timeout_secs: 300, // 5 min is plenty for 5-page enrichment
+    };
+    let mut enrich_pool = WorkerPool::new(
+        enrich_pool_config,
+        Arc::clone(&state.enrich_queue) as Arc<dyn edgequake_tasks::TaskQueue>,
+        Arc::clone(&state.task_storage) as Arc<dyn edgequake_tasks::TaskStorage>,
+        enrich_processor,
+    );
+    info!(
+        "Starting enrichment worker pool with {} workers",
+        enrich_concurrent
+    );
+    enrich_pool.start();
+
     // PERIODIC ORPHAN RECOVERY: Background task that catches tasks whose heartbeat
     // stopped mid-runtime (e.g., worker panic, tokio task cancellation). Uses the
     // 10-minute updated_at threshold — safe because legitimate tasks have heartbeats
@@ -682,9 +716,10 @@ async fn main() -> Result<()> {
     let server = Server::new(config, state);
     let result = server.run().await;
 
-    // Graceful shutdown of worker pool
-    info!("Shutting down worker pool...");
+    // Graceful shutdown of worker pools
+    info!("Shutting down worker pools...");
     worker_pool.shutdown().await;
+    enrich_pool.shutdown().await;
 
     result?;
     Ok(())
