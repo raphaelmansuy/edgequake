@@ -167,6 +167,7 @@ impl AppState {
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
+        let enrich_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(200));
 
         // Create legacy query engine (for backward compatibility)
         let query_engine = Arc::new(QueryEngine::new(

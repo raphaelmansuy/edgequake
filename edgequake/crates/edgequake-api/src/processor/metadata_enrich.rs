@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use edgequake_pdf::{backend::edgeparse::EdgeParsePdfConverter, PdfConversionConfig, PdfConverter};
+use edgequake_pdf::{backend::EdgeParsePdfConverter, PdfConversionConfig, PdfConverter};
 use edgequake_storage::{traits::KVStorage, PdfDocumentStorage};
 use edgequake_tasks::{MetadataEnrichData, Task, TaskError, TaskProcessor, TaskResult};
 use reqwest::Client;
