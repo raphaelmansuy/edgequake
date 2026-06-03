@@ -96,6 +96,7 @@ function getRendererForDocument(doc: Document, highlightText?: string, startLine
   //      token-to-line mapping and wraps matching tokens in CSS-highlighted divs.
   // ---------------------------------------------------------------------------
   if (
+    doc.source_type === 'pdf' ||
     isMarkdown(mimeType) ||
     fileName.endsWith('.md') ||
     fileName.endsWith('.markdown') ||

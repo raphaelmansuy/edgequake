@@ -492,24 +492,21 @@ async fn check_provider_health(
             }
         }
         _ => {
-            // Cloud providers: check if API key is configured
-            let api_key_set = provider
+            use crate::providers::credentials::provider_credentials_configured;
+
+            let credentials_ok = provider_credentials_configured(provider);
+            let env_hint = provider
                 .api_key_env
                 .as_deref()
-                .map(|env| !env.is_empty() && std::env::var(env).is_ok())
-                .unwrap_or(false);
+                .filter(|s| !s.is_empty())
+                .unwrap_or("API key");
 
             ProviderHealthResponse {
-                available: api_key_set,
+                available: credentials_ok,
                 latency_ms: 0,
-                error: if api_key_set {
+                error: if credentials_ok {
                     None
                 } else {
-                    let env_hint = provider
-                        .api_key_env
-                        .as_deref()
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or("API key");
                     Some(format!("{} not configured", env_hint))
                 },
                 checked_at: checked_at.to_string(),

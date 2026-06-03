@@ -21,7 +21,9 @@ use crate::handlers::chat::build_sources;
 use crate::handlers::query::resolve_chunk_file_paths;
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
-use crate::services::{execute_sota_query_stream, resolve_workspace_query_resources};
+use crate::services::{
+    execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
+};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use crate::validation::validate_query;
@@ -130,7 +132,7 @@ pub async fn stream_query(
 
     // SPEC-006 + SPEC-032: Resolve LLM provider override
     let workspace_id_str = tenant_ctx.workspace_id.clone();
-    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let resolver = WorkspaceProviderResolver::from_app_state(&state);
     let llm_request = LlmResolutionRequest {
         provider: request.llm_provider.clone(),
         model: request.llm_model.clone(),
@@ -167,7 +169,12 @@ pub async fn stream_query(
             resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
         let (_, _, stream) =
-            execute_sota_query_stream(&state, engine_request, resources, llm_override.clone())
+            execute_sota_query_stream_with_auth_fallback(
+                &state,
+                engine_request,
+                resources,
+                llm_override.clone(),
+            )
                 .await
                 .map_err(ApiError::from)?;
 
@@ -209,7 +216,7 @@ pub async fn stream_query(
             }
         };
 
-        let stream_result = execute_sota_query_stream(
+        let stream_result = execute_sota_query_stream_with_auth_fallback(
             &state_clone,
             engine_request,
             resources,

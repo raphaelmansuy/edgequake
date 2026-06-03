@@ -6,6 +6,7 @@
 use edgequake_llm::model_config::{ModelType, ProviderConfig};
 use edgequake_llm::ModelsConfig;
 
+use crate::providers::credentials::provider_credentials_configured;
 use crate::provider_types::{
     AvailableProvidersResponse, ConfigRequirement, DefaultModels, ProviderInfo,
 };
@@ -111,22 +112,7 @@ fn resolve_embedding_dimension(provider: &ProviderConfig, embedding_model: &str)
 }
 
 fn provider_is_available(provider: &ProviderConfig) -> bool {
-    match provider.name.as_str() {
-        "mock" | "ollama" | "lmstudio" => true,
-        "vertexai" => {
-            std::env::var("GOOGLE_CLOUD_PROJECT").is_ok()
-                && (std::env::var("GOOGLE_ACCESS_TOKEN").is_ok()
-                    || std::env::var("GOOGLE_APPLICATION_CREDENTIALS").is_ok())
-        }
-        _ => {
-            if let Some(env) = provider.api_key_env.as_ref().filter(|s| !s.is_empty()) {
-                std::env::var(env).map(|v| !v.is_empty()).unwrap_or(false)
-            } else {
-                // OpenAI-compatible local endpoints without API keys.
-                true
-            }
-        }
-    }
+    provider_credentials_configured(provider)
 }
 
 fn build_config_requirements(provider: &ProviderConfig) -> Vec<ConfigRequirement> {

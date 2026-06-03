@@ -59,6 +59,7 @@ export function useQueryInterface() {
   const { handleStop, handleRegenerate, submitQuery, isStreamingOrLoading } =
     useQueryStreaming({
       querySettings,
+      setQuerySettings,
       activeConversationId,
       store,
       messages,
