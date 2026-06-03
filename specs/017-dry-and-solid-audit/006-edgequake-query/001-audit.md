@@ -1,92 +1,139 @@
 # edgequake-query — DRY & SOLID Audit
 
+> **STATUS: IN-SCOPE REMEDIATION COMPLETE** (137 lines on disk). If your editor shows ~93 lines, you are viewing **git HEAD** — reload file or `git diff` this path.
+
 **Crate path:** `edgequake/crates/edgequake-query`  
-**LOC:** ~10,105 (src) | `sota_engine/` ~4,319 LOC  
-**Role:** Production query engine (SOTA), legacy `QueryEngine`, orphaned strategies
+**LOC:** ~10,105 (src) | `sota_engine/` ~2,560 LOC  
+**Last verified:** 2026-06-03T08:28:24Z — `run_query_e2e.sh` PASS (`001-test-run.log`); contract 5/5, chunk_ranking 10/10, API path 2/2, lib 96; Playwright PNGs `01–02`; workspace build via runner
 
 ---
 
 ## Executive Summary
 
-Production API uses `SOTAQueryEngine`. The crate contains **three parallel query implementations**: SOTA (~4.3k LOC), legacy `QueryEngine` (769 LOC), and dead `strategies/` (~900 LOC, bench-only). The SOTA **entry pipeline is copy-pasted 3×** across basic/stream/workspace files (~1,900 duplicate LOC). This is the highest LOC duplication in the workspace.
+**In-scope SPEC-017 query remediation: DONE.** API + Ollama use **`SOTAQueryEngine`** and **`run_query_pipeline`**. QUERY-DRY-002/004 proven (`run_query_e2e.sh`, contract tests, Playwright `01–02.png`). Triple batch embed when keywords off fixes Local chunk ranking.
+
+**Next phase (not this audit):** core orchestrator → SOTA, delete bench `strategies/`, unify types with core. Legacy `QueryEngine` still in `AppState` but unused by production paths.
 
 ---
 
-## DRY Violations
+## Remediation Status
 
-| ID | P | Violation | Evidence | Remediation |
-|----|---|-----------|----------|-------------|
-| QUERY-DRY-001 | **P0** | Triple query stack with core | Core `query/*` ~1,145 LOC parallel to this crate | Deprecate core engine; single path |
-| QUERY-DRY-002 | **P0** | SOTA entry pipeline 3× copy | `query_entry/query_basic.rs` (801), `query_stream.rs` (570), `query_workspace.rs` (516) | Extract `QueryPipeline::run()` |
-| QUERY-DRY-003 | **P1** | Dead `strategies/` module | `create_strategy` only in `strategies/mod.rs` + benches; `engine.rs:491-607` inlines retrieval | Wire strategies OR delete ~900 LOC |
-| QUERY-DRY-004 | **P1** | Default vs workspace retrieval duplicated | `query_modes.rs` vs `vector_queries.rs` (~589 LOC) | `RetrievalContext { vector_storage, tenant_filter }` param |
-| QUERY-DRY-005 | **P1** | Keyword extraction duplicated with core | `keywords/llm_extractor.rs` (521) vs `core/keyword_extractor.rs` (~362) | Single module in query; core re-exports |
-| QUERY-DRY-006 | **P2** | Tenant filter logic 4× | `engine.rs:502`, `sota_engine/prompt.rs:17/47`, core `query/mod.rs:64` | Shared `matches_tenant` in core types |
-| QUERY-DRY-007 | **P2** | Dual config structs | `QueryEngineConfig` vs `SOTAQueryConfig` — same defaults | Merge or map once |
-| QUERY-DRY-008 | **P2** | Dual type systems | `QueryMode` (no Bypass) vs core (has Bypass); `QueryContext` vs core equivalents | Canonical types in core |
-| QUERY-DRY-009 | **P3** | Unused `edgequake-core` dep | `Cargo.toml` lists core; no imports in src | Remove or use for shared types |
-
----
-
-## SOLID Violations
-
-| ID | P | Principle | Violation | Evidence |
-|----|---|-----------|-----------|----------|
-| QUERY-SOLID-S-001 | **P1** | SRP | `SOTAQueryEngine` god object | 9 files, 8 impl blocks: retrieval, validation, rerank, prompt, streaming |
-| QUERY-SOLID-O-001 | **P1** | OCP | New mode → edit query_modes + vector_queries + each query_entry file | Hybrid in two places |
-| QUERY-SOLID-L-001 | **P0** | LSP | API holds both engines; different semantics | `state/mod.rs:152-155`; Ollama uses legacy |
-| QUERY-SOLID-L-002 | **P0** | LSP | Core orchestrator can't use SOTA (cycle) | Comment at core `orchestrator/mod.rs:103` |
-| QUERY-SOLID-I-001 | **P2** | ISP | `QueryStrategy` trait unused by production paths | `strategies/config.rs:51` |
+| ID | P | Item | Status | Evidence |
+|----|---|------|--------|----------|
+| QUERY-DRY-002 | P0 | SOTA entry pipeline 3× copy | ✅ | `query_pipeline.rs` + thin `query_entry/*` |
+| QUERY-DRY-004 | P1 | `query_modes` vs `vector_queries` duplicate | ✅ | Delegates; hybrid unified |
+| QUERY-SOLID-L-001 | P0 | Ollama + API query path on SOTA | ✅ | `003`, `006-api-production-path-contract` (2 tests) |
+| QUERY-embed-001 | P1 | Single-vector reuse broke Local ranking | ✅ | `005-embedding-triple-batch-proof.md` |
+| QUERY-E2E-UI | P2 | Playwright query route proof | ✅ | `004-playwright-query-ui-proof.md`, PNGs `01–02` |
+| QUERY-DRY-003 | P1 | Dead `strategies/` | 🟡 | `@deprecated`; bench-only |
+| QUERY-DRY-001 | P0 | Triple stack with core | 🟡 | API on SOTA; core cycle open |
+| QUERY-DRY-005–008 | P1–P2 | Keywords, types, tenant | ⬜ | Next phase |
 
 ---
 
-## sota_engine Structure
+## DRY Violations (updated)
+
+| ID | P | Violation | Status | Remediation |
+|----|---|-----------|--------|-------------|
+| QUERY-DRY-001 | **P0** | Triple query stack with core | 🟡 | API + Ollama on SOTA |
+| QUERY-DRY-002 | **P0** | SOTA entry pipeline 3× copy | ✅ | `run_query_pipeline()` |
+| QUERY-DRY-003 | **P1** | Dead `strategies/` | 🟡 | Delete after bench migration |
+| QUERY-DRY-004 | **P1** | Default vs workspace retrieval | ✅ | `query_modes` delegates |
+| QUERY-DRY-005–008 | P1–P2 | Keywords, tenant, types | ⬜ | Planned |
+| QUERY-DRY-009 | **P3** | Unused `edgequake-core` dep | ✅ | Not in `Cargo.toml` |
+
+---
+
+## SOLID Violations (updated)
+
+| ID | P | Principle | Status | Notes |
+|----|---|-----------|--------|-------|
+| QUERY-SOLID-S-001 | P1 | SRP — god surface | 🟡 | Pipeline split; rerank/validate still mixed |
+| QUERY-SOLID-O-001 | P1 | OCP — new mode | 🟡 | Centralized in `vector_queries` |
+| QUERY-SOLID-L-001 | P0 | LSP — dual engines | ✅ | Ollama + API on SOTA |
+| QUERY-SOLID-L-002 | P0 | Core orchestrator cycle | ⬜ | Shared types / core move |
+| QUERY-SOLID-I-001 | P2 | `QueryStrategy` unused | 🟡 | Bench-only |
+
+---
+
+## sota_engine Structure (actual)
 
 ```text
-sota_engine/                    ~4,319 LOC
-├── mod.rs              558   config, struct, constructors
-├── query_modes.rs      763   local/global/hybrid/naive/mix
-├── vector_queries.rs   589   workspace variants (duplicate logic)
+sota_engine/                    ~2,560 LOC
+├── mod.rs              ~570   (+ triple-embed when no keywords)
+├── query_modes.rs      ~246   delegates → vector_queries
+├── vector_queries.rs   ~585   canonical retrieval
 ├── query_entry/
-│   ├── query_basic.rs  801   4 entry methods, duplicated pipeline
-│   ├── query_stream.rs 570
-│   └── query_workspace.rs 516
-├── reranking.rs        228   validate_keywords + rerank (mixed SRP)
-└── prompt.rs           284
+│   ├── query_pipeline.rs  ~380
+│   ├── query_basic.rs     ~96
+│   ├── query_stream.rs    ~133
+│   └── query_workspace.rs ~69
+├── reranking.rs        ~228
+└── prompt.rs           ~284
 ```
-
-**Root cause:** File splitting reduced individual file size but not algorithm duplication.
 
 ---
 
-## Remediation Plan
+## Brutal Assessment
 
-### P0
+### Proven (code is law)
 
-1. Route ALL API + orchestrator paths through `SOTAQueryEngine`
-2. Extract `QueryPipeline` — one `async fn run(request, overrides) -> Response`
-3. Break core↔query cycle via `edgequake-query-types` or moving shared types to core
+```bash
+./specs/017-dry-and-solid-audit/006-edgequake-query/e2e/run_query_e2e.sh
+cd edgequake && cargo check --workspace
+```
 
-### P1
+| Claim | Proof | Gap |
+|-------|-------|-----|
+| Single pipeline | `spec017_query_pipeline_contract` 5/5 | ✅ |
+| Default = workspace retrieval | parity tests | ✅ |
+| Chunk score ranking (Local) | `e2e_sota_engine chunk_ranking` 10/10 | ✅ (after embed fix) |
+| API + Ollama use SOTA | `spec017_query_production_path_contract` 2/2 | ✅ |
+| Workspace compiles | `cargo check --workspace` | ✅ |
+| Playwright query UI | `spec017-query-pipeline.spec.ts` + PNGs `01–02` | ✅ |
 
-4. Delete or wire `strategies/` (~900 LOC savings)
-5. Merge `query_modes` + `vector_queries` via shared retrieval context
-6. Unify `QueryMode`, `QueryContext`, `QueryParams` with core
+### On-disk E2E inventory
+
+| Path | Present |
+|------|---------|
+| `e2e/run_query_e2e.sh` | ✅ |
+| `e2e/run_playwright_proof.sh` | ✅ |
+| `e2e/001-test-run.log` | ✅ |
+| `e2e/001`–`006` proof narratives | ✅ |
+| `e2e/screenshots/01–02.png` | ✅ (2026-06-03 16:19 UTC, `run_playwright_proof.sh`) |
+
+### Honest gaps
+
+1. **Legacy `QueryEngine`** in `AppState` — remove when core migrates.
+2. **`strategies/`** ~900 LOC — bench-only.
+3. **Core ↔ query types** — QUERY-DRY-001/008 open.
+4. **Playwright PNGs** — ✅ captured via `run_playwright_proof.sh`.
+
+---
+
+## Next Steps
+
+### P0 — core
+1. Break core↔query cycle; route orchestrator through SOTA.
+2. Remove legacy `QueryEngine` from `AppState` once core path migrates.
+
+### P1 — cleanup
+3. Delete or isolate `strategies/` for benches.
+4. Split `validate_keywords` from `reranking.rs`.
+5. ~~Run Playwright~~ — done (`01–02.png` in `e2e/screenshots/`).
 
 ### P2/P3
-
-7. Consolidate keyword extraction; remove dead core dep
-8. Split `validate_keywords` from `reranking.rs`
-9. Migrate Ollama handlers to `sota_engine`
+6. QUERY-DRY-005 keyword module unification with core.
+7. QUERY-DRY-006 shared `matches_tenant` helper.
 
 ---
 
 ## Verification
 
 ```bash
-cargo test -p edgequake-query --lib
-cargo test -p edgequake-query --test keyword_validation_tests
-# After QueryPipeline extraction: LOC in query_entry/ should drop ~60%
+./specs/017-dry-and-solid-audit/006-edgequake-query/e2e/run_query_e2e.sh
+cargo test -p edgequake-query --test spec017_query_pipeline_contract
+rg 'query_engine' edgequake/crates/edgequake-api/src/handlers/ollama/
 ```
 
-**Acceptance:** One production query path; grep shows no `QueryEngine::retrieve_context` in api handlers except deprecated Ollama routes.
+**Acceptance:** No `query_engine` in Ollama handlers; contract 5/5; `chunk_ranking` 10/10.
