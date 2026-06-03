@@ -76,6 +76,7 @@ export function DocumentManager() {
     statusFilter, setStatusFilter,
     sortField, setSortField,
     sortDirection, setSortDirection,
+    groupedView, setGroupedView,
   } = useDocumentPreferences();
 
   // Pipeline status dialog state
@@ -235,6 +236,8 @@ export function DocumentManager() {
             onSortFieldChange={setSortField}
             sortDirection={sortDirection}
             onSortDirectionChange={setSortDirection}
+            groupedView={groupedView}
+            onGroupedViewChange={setGroupedView}
             statusCounts={statusCounts}
             pipelineStatus={pipelineStatus}
             documents={documents}
@@ -286,6 +289,7 @@ export function DocumentManager() {
         pageSize={pageSize}
         onPageChange={setCurrentPage}
         onPageSizeChange={setPageSize}
+        groupedView={groupedView}
         onClearFilter={() => {
           setStatusFilter('all');
           setSearchQuery('');
