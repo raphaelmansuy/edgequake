@@ -1,7 +1,9 @@
 'use client';
 
+import { LayoutList, LayoutGrid } from 'lucide-react';
 import type { StatusCounts } from '@/hooks/use-document-filtering';
 import type { Document, PipelineStatus } from '@/types';
+import { Button } from '@/components/ui/button';
 import { BatchActionsBar } from './batch-actions-bar';
 import { DocumentDropzone, type DocumentDropzoneProps } from './document-dropzone';
 import type { DocStatus, SortField } from './document-filters';
@@ -30,6 +32,10 @@ export interface DocumentToolbarSectionProps {
   onSortFieldChange: (value: SortField) => void;
   sortDirection: 'asc' | 'desc';
   onSortDirectionChange: (value: 'asc' | 'desc') => void;
+  /** Whether documents are currently grouped by topic */
+  groupedView: boolean;
+  /** Toggle grouped view on/off */
+  onGroupedViewChange: (value: boolean) => void;
   statusCounts: StatusCounts;
   
   // Pipeline status
@@ -68,6 +74,8 @@ export function DocumentToolbarSection({
   onSortFieldChange,
   sortDirection,
   onSortDirectionChange,
+  groupedView,
+  onGroupedViewChange,
   statusCounts,
   pipelineStatus,
   documents,
@@ -105,6 +113,29 @@ export function DocumentToolbarSection({
           onSortDirectionChange={onSortDirectionChange}
           statusCounts={statusCounts}
         />
+        {/* List / Grouped toggle */}
+        <div className="flex items-center border rounded-md overflow-hidden shrink-0">
+          <Button
+            variant={!groupedView ? 'secondary' : 'ghost'}
+            size="sm"
+            className="rounded-none h-8 px-2.5 gap-1.5"
+            onClick={() => onGroupedViewChange(false)}
+            title="List view"
+          >
+            <LayoutList className="h-3.5 w-3.5" />
+            <span className="text-xs hidden sm:inline">List</span>
+          </Button>
+          <Button
+            variant={groupedView ? 'secondary' : 'ghost'}
+            size="sm"
+            className="rounded-none h-8 px-2.5 gap-1.5 border-l"
+            onClick={() => onGroupedViewChange(true)}
+            title="Grouped by topic"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span className="text-xs hidden sm:inline">Grouped</span>
+          </Button>
+        </div>
       </div>
 
       {/* Processing Status Summary */}
