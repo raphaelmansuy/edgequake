@@ -186,6 +186,7 @@ pub async fn execute_query(
 
     // FIX #168: Create LLM override OUTSIDE the workspace block so it's available
     // in all code paths (with or without workspace context).
+    // Priority: (1) request body llm_provider+llm_model, (2) workspace config, (3) system default.
     let llm_override = if let (Some(ref provider), Some(ref model)) =
         (&request.llm_provider, &request.llm_model)
     {
@@ -198,6 +199,27 @@ pub async fn execute_query(
             )
             .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
         )
+    } else if let Some(ref ws) = workspace {
+        // Fall back to workspace-configured LLM when no request-level override is given.
+        // WHY: Without this, queries always use the system default model regardless of
+        // the per-workspace llm_provider/llm_model settings stored in the database.
+        if !ws.llm_provider.is_empty() && !ws.llm_model.is_empty() {
+            debug!(
+                provider = %ws.llm_provider,
+                model = %ws.llm_model,
+                "Using workspace LLM provider (no request override)"
+            );
+            Some(
+                crate::safety_limits::create_safe_llm_provider_with_headers(
+                    &ws.llm_provider,
+                    &ws.llm_model,
+                    request.extra_headers.clone(),
+                )
+                .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
+            )
+        } else {
+            None
+        }
     } else {
         None
     };
