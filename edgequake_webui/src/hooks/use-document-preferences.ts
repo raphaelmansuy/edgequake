@@ -56,6 +56,7 @@ const DEFAULTS = {
   statusFilter: "all" as DocStatus,
   sortField: "created_at" as SortField,
   sortDirection: "desc" as SortDirection,
+  groupedView: false,
 };
 
 /**
@@ -82,6 +83,10 @@ export interface UseDocumentPreferencesReturn {
   /** Sort direction */
   sortDirection: SortDirection;
   setSortDirection: (direction: SortDirection) => void;
+
+  /** Whether documents are grouped by topic */
+  groupedView: boolean;
+  setGroupedView: (value: boolean) => void;
 }
 
 /**
@@ -93,6 +98,7 @@ function readPreferences(): Partial<{
   statusFilter: DocStatus;
   sortField: SortField;
   sortDirection: SortDirection;
+  groupedView: boolean;
 }> {
   if (typeof window === "undefined") return {};
 
@@ -150,6 +156,11 @@ export function useDocumentPreferences(): UseDocumentPreferencesReturn {
     return prefs.sortDirection || DEFAULTS.sortDirection;
   });
 
+  const [groupedView, setGroupedView] = useState<boolean>(() => {
+    const prefs = readPreferences();
+    return prefs.groupedView ?? DEFAULTS.groupedView;
+  });
+
   // Persist changes to localStorage
   useEffect(() => {
     try {
@@ -160,12 +171,13 @@ export function useDocumentPreferences(): UseDocumentPreferencesReturn {
           statusFilter,
           sortField,
           sortDirection,
+          groupedView,
         }),
       );
     } catch {
       // Ignore localStorage errors (e.g., in incognito mode)
     }
-  }, [pageSize, statusFilter, sortField, sortDirection]);
+  }, [pageSize, statusFilter, sortField, sortDirection, groupedView]);
 
   return {
     pageSize,
@@ -176,6 +188,8 @@ export function useDocumentPreferences(): UseDocumentPreferencesReturn {
     setSortField,
     sortDirection,
     setSortDirection,
+    groupedView,
+    setGroupedView,
   };
 }
 
