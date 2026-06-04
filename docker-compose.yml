@@ -1,0 +1,160 @@
+# EdgeQuake — Local Development Stack (build from source)
+#
+# Builds all three services from local source code.
+# Requires: Docker with BuildKit, ~6 GB free disk (Rust build cache)
+#
+# Usage:
+#   docker compose up -d
+#   docker compose up -d --build   # force rebuild after code changes
+#   docker compose logs -f api     # tail API logs
+#
+# Access:
+#   Web UI  → http://localhost:3000
+#   API     → http://localhost:8080
+#   Swagger → http://localhost:8080/swagger-ui
+#   Health  → http://localhost:8080/health
+#
+# LLM provider (default: Ollama on the host at port 11434)
+# To use OpenAI instead:
+#   EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... docker compose up -d
+#
+# Enrichment VLM (local OpenAI-compatible, defaults to Ollama llava:7b):
+#   ENRICHMENT_VLM_BASE_URL=http://host.docker.internal:11434/v1
+#   ENRICHMENT_VLM_MODEL=llava:7b
+
+services:
+  # ── PostgreSQL with pgvector + Apache AGE ──────────────────────────────────
+  postgres:
+    build:
+      context: edgequake/docker
+      dockerfile: Dockerfile.postgres
+    container_name: edgequake-postgres
+    restart: unless-stopped
+    shm_size: '256m'
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER:     edgequake
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edgequake_secret}
+      POSTGRES_DB:       edgequake
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./edgequake/docker/init-extensions.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - edgequake
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edgequake -d edgequake"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── EdgeQuake API ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: edgequake
+      dockerfile: docker/Dockerfile
+    container_name: edgequake-api
+    restart: unless-stopped
+    ports:
+      - "${EDGEQUAKE_PORT:-8080}:8080"
+    environment:
+      EDGEQUAKE_HOST:  0.0.0.0
+      EDGEQUAKE_PORT:  8080
+      DATABASE_URL:    postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+
+      # ── LLM Provider ──────────────────────────────────────────────────────
+      EDGEQUAKE_LLM_PROVIDER:       ${EDGEQUAKE_LLM_PROVIDER:-ollama}
+      EDGEQUAKE_LLM_MODEL:          ${EDGEQUAKE_LLM_MODEL:-}
+      EDGEQUAKE_EMBEDDING_PROVIDER: ${EDGEQUAKE_EMBEDDING_PROVIDER:-}
+      EDGEQUAKE_EMBEDDING_MODEL:    ${EDGEQUAKE_EMBEDDING_MODEL:-}
+
+      # ── Vision LLM (PDF → Markdown) ───────────────────────────────────────
+      EDGEQUAKE_VISION_PROVIDER:    ${EDGEQUAKE_VISION_PROVIDER:-${EDGEQUAKE_LLM_PROVIDER:-ollama}}
+      EDGEQUAKE_VISION_MODEL:       ${EDGEQUAKE_VISION_MODEL:-${EDGEQUAKE_LLM_MODEL:-}}
+      EDGEQUAKE_VISION_TIMEOUT_SECS: ${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
+
+      # ── API Keys ──────────────────────────────────────────────────────────
+      OPENAI_API_KEY:     ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL:    ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY:     ${GEMINI_API_KEY:-}
+      MISTRAL_API_KEY:    ${MISTRAL_API_KEY:-}
+
+      # ── Ollama (host machine via host.docker.internal) ─────────────────────
+      OLLAMA_HOST:             ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_CONTEXT_LENGTH:   ${OLLAMA_CONTEXT_LENGTH:-32768}
+      OLLAMA_MODEL:            ${OLLAMA_MODEL:-}
+      OLLAMA_EMBEDDING_MODEL:  ${OLLAMA_EMBEDDING_MODEL:-}
+
+      # ── Worker Configuration ───────────────────────────────────────────────
+      # Default: num_cpus * 4. Uncomment to cap.
+      # WORKER_THREADS: 48
+      MAX_TASKS_PER_TENANT:        ${MAX_TASKS_PER_TENANT:-0}
+      TASK_PROCESSING_TIMEOUT_SECS: ${TASK_PROCESSING_TIMEOUT_SECS:-7200}
+
+      # ── PDF Metadata Enrichment Pipeline ──────────────────────────────────
+      # Pre-pipeline enrichment: extracts summary/topic/language/keywords from
+      # the first N pages using EdgeParser text mode + a local OpenAI-compatible VLM.
+      # Runs async immediately after upload — users get metadata within seconds.
+      ENRICHMENT_CONCURRENT:    ${ENRICHMENT_CONCURRENT:-4}
+      ENRICHMENT_VLM_BASE_URL:  ${ENRICHMENT_VLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      ENRICHMENT_VLM_MODEL:     ${ENRICHMENT_VLM_MODEL:-llava:7b}
+      ENRICHMENT_MAX_PAGES:     ${ENRICHMENT_MAX_PAGES:-5}
+
+      # ── Storage / pdfium ──────────────────────────────────────────────────
+      PDFIUM_AUTO_CACHE_DIR: ${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
+
+      # ── Logging ───────────────────────────────────────────────────────────
+      RUST_LOG: ${RUST_LOG:-info,edgequake=debug}
+
+    extra_hosts:
+      # Resolves host.docker.internal → host IP on Linux (Docker Desktop does it natively)
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edgequake
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── Next.js Web UI ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: edgequake_webui/Dockerfile
+      args:
+        # Baked into the JS bundle at build time.
+        # For remote access override: NEXT_PUBLIC_API_URL=http://192.168.x.x:8080
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    container_name: edgequake-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edgequake
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  edgequake:
+    driver: bridge
