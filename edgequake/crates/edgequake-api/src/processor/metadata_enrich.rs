@@ -16,7 +16,8 @@ const ENRICHMENT_PROMPT: &str = "You are a document analyst. Given the text from
 of a document, extract structured metadata. Respond ONLY with valid JSON, no markdown, \
 no explanation:\n\
 {\n  \"summary\": \"2-3 paragraph summary written in the document's own language\",\n  \
-\"topic\": \"single short topic phrase\",\n  \"language\": \"ISO 639-1 code (e.g. en, id, fr)\",\n  \
+\"topic\": \"1-2 word broad category (e.g. Communication, Finance, Law, Healthcare, Education, Technology). Use the most general umbrella term possible — avoid adjectives or subcategories.\",\n  \
+\"language\": \"ISO 639-1 code (e.g. en, id, fr)\",\n  \
 \"keywords\": [\"up to 10 keywords\"]\n}\n\nDocument text:";
 
 #[derive(Debug, Deserialize)]
