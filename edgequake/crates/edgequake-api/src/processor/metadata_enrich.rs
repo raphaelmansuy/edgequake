@@ -12,11 +12,18 @@ use super::enrichment_config::EnrichmentConfig;
 
 const MAX_TEXT_CHARS: usize = 8_000;
 
-const ENRICHMENT_PROMPT: &str = "You are a document analyst. Given the text from the first pages \
-of a document, extract structured metadata. Respond ONLY with valid JSON, no markdown, \
-no explanation:\n\
-{\n  \"summary\": \"2-3 paragraph summary written in the document's own language\",\n  \
-\"topic\": \"1-2 word broad category (e.g. Communication, Finance, Law, Healthcare, Education, Technology). Use the most general umbrella term possible — avoid adjectives or subcategories.\",\n  \
+const ENRICHMENT_PROMPT: &str = "You are a document classifier. Given text from a document, \
+return ONLY valid JSON with no markdown, no explanation.\n\
+\n\
+RULES for \"topic\":\n\
+- MAXIMUM 2 words\n\
+- Use a generic domain label, NOT a description of the document\n\
+- Good examples: Technology, Finance, Law, Healthcare, Education, Marketing, Engineering, Science, Management, Communication\n\
+- BAD examples: \"SmartHome Hub product launch strategy\", \"Cross-Cultural Communication\", \"Workplace Communication Skills\"\n\
+- If unsure, pick the single closest domain word\n\
+\n\
+{\n  \"summary\": \"2-3 sentence summary in the document's own language\",\n  \
+\"topic\": \"1-2 word domain label\",\n  \
 \"language\": \"ISO 639-1 code (e.g. en, id, fr)\",\n  \
 \"keywords\": [\"up to 10 keywords\"]\n}\n\nDocument text:";
 
