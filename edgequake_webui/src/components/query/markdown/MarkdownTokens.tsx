@@ -151,7 +151,7 @@ const TokenRenderer = memo(function TokenRenderer({
 
     case 'math_block':
     case 'math_bracket_block':
-      return <MathTokenRenderer token={token} />;
+      return <MathTokenRenderer key={tokenId} token={token} />;
 
     case 'blockquote': {
       const blockquote = token as Tokens.Blockquote;

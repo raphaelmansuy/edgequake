@@ -26,17 +26,14 @@ function MathBlockFallback() {
 
 export interface MathTokenRendererProps {
   token: Token;
-  /** React key for inline token lists */
-  tokenId?: string;
 }
 
-export function MathTokenRenderer({ token, tokenId }: MathTokenRendererProps) {
+export function MathTokenRenderer({ token }: MathTokenRendererProps) {
   const block = isBlockMathToken(token.type);
   const math = mathContentFromToken(token);
 
   return (
     <Suspense
-      key={tokenId}
       fallback={block ? <MathBlockFallback /> : <MathInlineFallback text={math} />}
     >
       <KatexMath math={math} block={block} />
