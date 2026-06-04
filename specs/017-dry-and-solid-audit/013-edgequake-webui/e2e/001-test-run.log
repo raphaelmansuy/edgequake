@@ -1,0 +1,10 @@
+# SPEC-017 LaTeX markdown E2E — test run
+
+Date: 2026-06-04
+Command: `PLAYWRIGHT_BASE_URL=http://localhost:3000 bunx playwright test e2e/spec017-markdown-latex.spec.ts`
+
+Result: 1 passed (661ms)
+
+Screenshots:
+- screenshots/01-markdown-latex-fixture-full.png
+- screenshots/02-markdown-latex-fixture-panel.png

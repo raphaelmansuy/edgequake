@@ -5,6 +5,7 @@
 export const BACKEND_URL =
   process.env.EQ_BACKEND_URL ??
   process.env.E2E_BACKEND_URL ??
+  process.env.EDGEQUAKE_API_URL ??
   process.env.SPEC013_BACKEND_URL ??
   "http://localhost:8080";
 

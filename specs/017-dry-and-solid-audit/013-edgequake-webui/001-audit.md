@@ -35,6 +35,7 @@ The original audit overstated current debt: **`edgequake.ts` is no longer ~2,035
 | UI-DRY-005 | P2 | Missing mix/bypass | ✅ Fixed | `QUERY_MODES` + `QUERY_MODES_SELECTOR`; [002-query-mode-parity-proof](001-audit/e2e/002-query-mode-parity-proof.md) |
 | UI-DRY-006 | P2 | types monolith | ✅ Split | `types/index.ts` barrel → domain files |
 | UI-DRY-007 | P3 | Parallel query stores | ✅ Documented | Boundary in `use-query-ui-store.ts` |
+| UI-DRY-008 | P2 | Duplicate math render paths | ✅ Fixed | `MathTokenRenderer` + `math-marked-extensions` + `katex-render`; [LaTeX e2e](e2e/001-latex-rendering-proof.md) |
 
 ### SOLID
 
