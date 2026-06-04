@@ -102,10 +102,12 @@ services:
       EDGEQUAKE_EMBEDDING_API_KEY:  ${EDGEQUAKE_EMBEDDING_API_KEY:-}
 
       # ── Worker Configuration ───────────────────────────────────────────────
-      # Default: num_cpus * 4. Uncomment to cap.
-      # WORKER_THREADS: 48
+      # Default: num_cpus * 4. Set to cap below auto-calculated value.
+      WORKER_THREADS:              ${WORKER_THREADS:-}
       MAX_TASKS_PER_TENANT:        ${MAX_TASKS_PER_TENANT:-0}
       TASK_PROCESSING_TIMEOUT_SECS: ${TASK_PROCESSING_TIMEOUT_SECS:-7200}
+      # PostgreSQL connection pool size. Default 32; increase for high worker counts.
+      DATABASE_POOL_SIZE:          ${DATABASE_POOL_SIZE:-32}
 
       # ── PDF Metadata Enrichment Pipeline ──────────────────────────────────
       # Pre-pipeline enrichment: extracts summary/topic/language/keywords from
