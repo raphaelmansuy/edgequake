@@ -161,7 +161,10 @@ mod tests {
             !ctx.chunks.is_empty(),
             "query_naive returned 0 chunks — issue #208 regression"
         );
-        assert!(ctx.entities.is_empty(), "query_naive must not return entities");
+        assert!(
+            ctx.entities.is_empty(),
+            "query_naive must not return entities"
+        );
     }
 
     #[tokio::test]

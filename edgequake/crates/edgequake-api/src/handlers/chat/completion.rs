@@ -11,9 +11,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace, QueryStats};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
-use crate::services::{
-    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
-};
+use crate::services::{execute_sota_query_with_auth_fallback, resolve_workspace_query_resources};
 use crate::state::AppState;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageRole, UpdateMessageRequest,

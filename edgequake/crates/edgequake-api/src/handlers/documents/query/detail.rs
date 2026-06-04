@@ -121,9 +121,8 @@ pub async fn get_document(
                     if let Ok(pdf_uuid) = Uuid::parse_str(pdf_id_str) {
                         if let Some(ref pdf_storage) = state.storage.pdf_storage {
                             if let Ok(Some(pdf)) = pdf_storage.get_pdf(&pdf_uuid).await {
-                                if let Some(md) = pdf
-                                    .markdown_content
-                                    .filter(|s| !s.trim().is_empty())
+                                if let Some(md) =
+                                    pdf.markdown_content.filter(|s| !s.trim().is_empty())
                                 {
                                     content = Some(md);
                                 }

@@ -26,7 +26,10 @@ fn spec017_query_execution_service_uses_sota_engine_only() {
 
 #[test]
 fn spec017_ollama_handlers_use_sota_engine_only() {
-    for rel in ["src/handlers/ollama/chat.rs", "src/handlers/ollama/generate.rs"] {
+    for rel in [
+        "src/handlers/ollama/chat.rs",
+        "src/handlers/ollama/generate.rs",
+    ] {
         let src = read_crate_src(rel);
         assert!(src.contains("sota_engine"), "{rel} must use sota_engine");
         assert!(

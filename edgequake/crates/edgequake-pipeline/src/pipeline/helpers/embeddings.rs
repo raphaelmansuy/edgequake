@@ -1,137 +1,14 @@
-//! Shared helpers for pipeline processing stages.
-//!
-//! These functions eliminate duplication across `process`, `process_with_progress`,
-//! and `process_with_resilience` by extracting common logic for:
-//! - Linking entities/relationships to source chunks
-//! - Aggregating extraction statistics
-//! - Generating embeddings (chunk, entity, relationship)
-//! - Building document lineage
+//! Embedding generation helpers and token-budget batching.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::chunker::TextChunk;
 use crate::error::Result;
 use crate::extractor::ExtractionResult;
-use crate::lineage::{DocumentLineage, ExtractionMetadata, LineageBuilder, SourceSpan};
 
-use super::{
+use super::super::{
     CostBreakdownStats, EmbedProgressCallback, EmbedProgressUpdate, Pipeline, ProcessingStats,
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                       EXTRACTION POST-PROCESSING
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Link extracted entities and relationships to their source chunks.
-///
-/// WHY: Without chunk linkage, Local/Global query modes cannot find
-/// related chunks during retrieval — entities would be "orphaned" nodes
-/// in the knowledge graph with no provenance trail.
-pub(super) fn link_extractions_to_chunks(extractions: &mut [ExtractionResult]) {
-    for extraction in extractions.iter_mut() {
-        let chunk_id = extraction.source_chunk_id.clone();
-        tracing::debug!(
-            "Linking {} entities and {} relationships to chunk {}",
-            extraction.entities.len(),
-            extraction.relationships.len(),
-            chunk_id
-        );
-        for entity in &mut extraction.entities {
-            entity.add_source_chunk_id(&chunk_id);
-        }
-        for rel in &mut extraction.relationships {
-            if rel.source_chunk_id.is_none() {
-                rel.source_chunk_id = Some(chunk_id.clone());
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                       STATISTICS AGGREGATION
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Aggregate extraction statistics from all successful extractions.
-///
-/// Populates entity/relationship counts, token usage, unique types/keywords,
-/// and extraction cost in the provided `ProcessingStats`.
-///
-/// WHY UNIFIED: This logic was duplicated verbatim across `process`,
-/// `process_with_progress`, and `process_with_resilience`. Extracting it
-/// ensures consistent cost calculation and keyword collection.
-pub(super) fn aggregate_extraction_stats(
-    extractions: &[ExtractionResult],
-    extractor: &Arc<dyn crate::extractor::EntityExtractor>,
-    stats: &mut ProcessingStats,
-) {
-    let mut entity_types_set = HashSet::new();
-    let mut relationship_types_set = HashSet::new();
-    let mut keywords_set = HashSet::new();
-    let mut total_input_tokens = 0usize;
-    let mut total_output_tokens = 0usize;
-
-    // Capture LLM model and provider names
-    // @implements SPEC-032/OODA-226: Provider tracking in ProcessingStats
-    stats.llm_model = Some(extractor.model_name().to_string());
-    stats.llm_provider = Some(extractor.provider_name().to_string());
-
-    for extraction in extractions {
-        stats.entity_count += extraction.entities.len();
-        stats.relationship_count += extraction.relationships.len();
-        stats.llm_calls += 1;
-        total_input_tokens += extraction.input_tokens;
-        total_output_tokens += extraction.output_tokens;
-
-        for entity in &extraction.entities {
-            entity_types_set.insert(entity.entity_type.clone());
-        }
-        for rel in &extraction.relationships {
-            relationship_types_set.insert(rel.relation_type.clone());
-            for keyword in &rel.keywords {
-                keywords_set.insert(keyword.clone());
-            }
-        }
-    }
-
-    stats.total_tokens = total_input_tokens + total_output_tokens;
-    stats.input_tokens = total_input_tokens;
-    stats.output_tokens = total_output_tokens;
-
-    // Store collected types and keywords
-    if !entity_types_set.is_empty() {
-        stats.entity_types = Some(entity_types_set.into_iter().collect());
-    }
-    if !relationship_types_set.is_empty() {
-        stats.relationship_types = Some(relationship_types_set.into_iter().collect());
-    }
-    if !keywords_set.is_empty() {
-        let mut keywords: Vec<String> = keywords_set.into_iter().collect();
-        keywords.sort();
-        // Limit to top 50 keywords
-        keywords.truncate(50);
-        stats.keywords = Some(keywords);
-    }
-
-    // Calculate extraction cost using model pricing
-    let model_name = extractor.model_name();
-    let pricing = crate::progress::default_model_pricing();
-    let model_pricing = pricing
-        .get(model_name)
-        .cloned()
-        .unwrap_or_else(|| crate::progress::ModelPricing::new("gpt-4.1-nano", 0.00015, 0.0006));
-
-    let extraction_cost = model_pricing.calculate_cost(total_input_tokens, total_output_tokens);
-    stats.cost_usd += extraction_cost;
-
-    let cost_breakdown = CostBreakdownStats {
-        extraction_cost_usd: extraction_cost,
-        extraction_input_tokens: total_input_tokens,
-        extraction_output_tokens: total_output_tokens,
-        ..CostBreakdownStats::default()
-    };
-    stats.cost_breakdown = Some(cost_breakdown);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //                       EMBEDDING GENERATION HELPERS
@@ -380,25 +257,7 @@ fn estimate_embed_tokens(char_count: usize) -> usize {
     (char_count as f64 / EMBED_CHARS_PER_TOKEN).ceil() as usize
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//                       EMBEDDING GENERATION
-// ─────────────────────────────────────────────────────────────────────────────
-
 impl Pipeline {
-    /// Generate embeddings for chunks, entities, and relationships.
-    ///
-    /// WHY UNIFIED: All three processing methods shared identical embedding
-    /// logic (~120 lines each). This single implementation handles:
-    /// - Chunk embeddings (content → vector)
-    /// - Entity embeddings (name: description → vector)
-    /// - Relationship embeddings (keywords + source→target + description → vector)
-    /// - Embedding cost calculation
-    ///
-    /// Fire an `EmbedProgressUpdate` via the optional callback.
-    ///
-    /// WHY helper fn: keeps the embedding loop bodies readable — avoids
-    /// repeating the `if let Some(cb) = progress { cb(...) }` guard at every
-    /// call-site (DRY).
     fn emit_embed_progress(
         progress: Option<&EmbedProgressCallback>,
         stage: &'static str,
@@ -426,7 +285,7 @@ impl Pipeline {
     /// `progress` is invoked **at the start and end of each sub-stage** so
     /// callers can surface real-time progress while embeddings are generated.
     /// Pass `None` when no progress reporting is needed.
-    pub(super) async fn generate_all_embeddings(
+    pub(in crate::pipeline) async fn generate_all_embeddings(
         &self,
         chunks: &mut [TextChunk],
         extractions: &mut [ExtractionResult],
@@ -587,105 +446,7 @@ impl Pipeline {
 
         Ok(())
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    //                       LINEAGE BUILDING
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /// Build document lineage from chunks and extractions.
-    ///
-    /// Returns `None` if lineage tracking is disabled in config.
-    ///
-    /// WHY UNIFIED: All three processing methods had identical lineage
-    /// building code (~40 lines each). This single implementation ensures
-    /// consistent entity/relationship ID generation and span recording.
-    pub(super) fn build_lineage(
-        &self,
-        document_id: &str,
-        chunks: &[TextChunk],
-        extractions: &[ExtractionResult],
-        stats: &ProcessingStats,
-    ) -> Option<DocumentLineage> {
-        if !self.config.enable_lineage_tracking {
-            return None;
-        }
-
-        let job_id = uuid::Uuid::new_v4().to_string();
-        let mut builder = LineageBuilder::new(document_id, document_id, &job_id);
-
-        // Record chunks with their line numbers
-        for chunk in chunks {
-            let metadata = ExtractionMetadata::new(stats.llm_model.as_deref().unwrap_or("unknown"));
-            builder.record_chunk(
-                &chunk.id,
-                chunk.index,
-                chunk.start_line,
-                chunk.end_line,
-                chunk.start_offset,
-                chunk.end_offset,
-                metadata,
-            );
-        }
-
-        // Record entities and relationships from extractions
-        for extraction in extractions {
-            for entity in &extraction.entities {
-                let entity_id = format!("{}_{}", extraction.source_chunk_id, entity.name);
-                let span = SourceSpan::new(0, 0, 0, 0);
-                builder.record_entity(
-                    &entity_id,
-                    &entity.name,
-                    &extraction.source_chunk_id,
-                    span,
-                    &entity.description,
-                );
-            }
-
-            for rel in &extraction.relationships {
-                let rel_id = format!(
-                    "{}_{}_{}",
-                    extraction.source_chunk_id, rel.source, rel.target
-                );
-                let span = SourceSpan::new(0, 0, 0, 0);
-                builder.record_relationship(
-                    &rel_id,
-                    &rel.source,
-                    &rel.target,
-                    &rel.relation_type,
-                    &extraction.source_chunk_id,
-                    span,
-                    &rel.description,
-                );
-            }
-        }
-
-        Some(builder.build())
-    }
-
-    /// Initialize processing stats from chunked document.
-    ///
-    /// Sets chunk_count, chunking_strategy, and avg_chunk_size.
-    pub(super) fn init_chunk_stats(&self, chunks: &[TextChunk]) -> ProcessingStats {
-        let avg_chunk_size = if chunks.is_empty() {
-            None
-        } else {
-            let total_chars: usize = chunks.iter().map(|c| c.content.len()).sum();
-            Some(total_chars / chunks.len())
-        };
-
-        ProcessingStats {
-            chunk_count: chunks.len(),
-            chunking_strategy: Some(format!("sliding_window_{}", self.config.chunker.chunk_size)),
-            avg_chunk_size,
-            ..ProcessingStats::default()
-        }
-    }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                               TESTS
-// ─────────────────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;

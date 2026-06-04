@@ -181,7 +181,7 @@ async fn test_llm_extractor_with_mock() {
         !extraction.entities.is_empty(),
         "Should extract entities from JSON"
     );
-    assert_eq!(extraction.entities[0].name, "EdgeQuake");
+    assert_eq!(extraction.entities[0].name, "EDGEQUAKE");
 }
 
 #[tokio::test]
@@ -208,8 +208,8 @@ async fn test_llm_extractor_with_relationships() {
 
     assert_eq!(result.entities.len(), 2);
     assert_eq!(result.relationships.len(), 1);
-    assert_eq!(result.relationships[0].source, "EdgeQuake");
-    assert_eq!(result.relationships[0].target, "Rust");
+    assert_eq!(result.relationships[0].source, "EDGEQUAKE");
+    assert_eq!(result.relationships[0].target, "RUST");
 }
 
 // ============ Knowledge Graph Merger Tests ============

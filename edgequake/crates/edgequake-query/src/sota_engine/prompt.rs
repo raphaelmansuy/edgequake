@@ -28,6 +28,9 @@ impl SOTAQueryEngine {
     }
 
     /// Check if properties match tenant filter.
+    ///
+    /// DEPRECATED (SPEC-007): Prefer `query_filtered()` which pushes filtering to SQL.
+    #[allow(dead_code)]
     pub(super) fn matches_tenant_filter_props(
         &self,
         properties: &HashMap<String, serde_json::Value>,
