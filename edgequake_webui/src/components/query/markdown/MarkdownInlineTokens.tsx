@@ -156,7 +156,7 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
 
           case 'math_inline':
           case 'math_paren_inline':
-            return <MathTokenRenderer token={token} tokenId={tokenId} />;
+            return <MathTokenRenderer key={tokenId} token={token} />;
 
           // Custom citation extension
           case 'citation': {
