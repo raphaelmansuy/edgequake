@@ -235,12 +235,26 @@ pub async fn execute_sota_query_stream_with_auth_fallback(
     }
 }
 
+/// Validate that LLM override fields are both present or both absent (SPEC-017 P1-07).
+pub fn validate_llm_override_pair(provider: Option<&str>, model: Option<&str>) -> ApiResult<()> {
+    match (
+        provider.filter(|s| !s.is_empty()),
+        model.filter(|s| !s.is_empty()),
+    ) {
+        (Some(_), Some(_)) | (None, None) => Ok(()),
+        _ => Err(ApiError::BadRequest(
+            "Both llm_provider and llm_model must be set for LLM override".to_string(),
+        )),
+    }
+}
+
 /// Build LLM override from explicit provider/model request fields.
 pub fn llm_override_from_request(
     provider: Option<&str>,
     model: Option<&str>,
     extra_headers: Option<std::collections::HashMap<String, String>>,
 ) -> ApiResult<Option<Arc<dyn LLMProvider>>> {
+    validate_llm_override_pair(provider, model)?;
     match (provider, model) {
         (Some(provider), Some(model)) => Ok(Some(
             crate::safety_limits::create_safe_llm_provider_with_headers(
@@ -251,15 +265,21 @@ pub fn llm_override_from_request(
             .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
         )),
         (None, None) => Ok(None),
-        _ => Err(ApiError::BadRequest(
-            "Both llm_provider and llm_model must be set for LLM override".to_string(),
-        )),
+        _ => unreachable!("validate_llm_override_pair ensures both or neither"),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validate_llm_override_pair_rejects_partial() {
+        assert!(matches!(
+            validate_llm_override_pair(Some("openai"), None),
+            Err(ApiError::BadRequest(_))
+        ));
+    }
 
     #[test]
     fn llm_override_requires_both_fields() {

@@ -43,9 +43,10 @@ impl StorageRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "postgres")]
+    use edgequake_storage::adapters::memory::MemoryPdfStorage;
     use edgequake_storage::adapters::memory::{
-        MemoryGraphStorage, MemoryKVStorage, MemoryPdfStorage, MemoryVectorStorage,
-        MemoryWorkspaceVectorRegistry,
+        MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
     };
 
     #[test]

@@ -17,10 +17,7 @@ pub(super) async fn get_workspace(
     state: &AppState,
     workspace_id: &str,
 ) -> Result<Option<edgequake_core::Workspace>, ApiError> {
-    use uuid::Uuid;
-
-    let workspace_uuid = Uuid::parse_str(workspace_id)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+    let workspace_uuid = crate::middleware::parse_workspace_id(workspace_id)?;
 
     state
         .workspace_service
@@ -111,11 +108,8 @@ pub async fn get_workspace_vector_storage(
     workspace_id: &str,
 ) -> Result<Option<std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>>, ApiError> {
     use edgequake_storage::traits::WorkspaceVectorConfig;
-    use uuid::Uuid;
 
-    // Parse workspace ID
-    let workspace_uuid = Uuid::parse_str(workspace_id)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+    let workspace_uuid = crate::middleware::parse_workspace_id(workspace_id)?;
 
     // Get workspace from service
     let workspace = state
@@ -196,7 +190,6 @@ pub(super) async fn get_workspace_llm_info(
     workspace_id: Option<&str>,
 ) -> (Option<String>, Option<String>) {
     use edgequake_core::types::{DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER};
-    use uuid::Uuid;
 
     // If no workspace, return defaults
     let workspace_id = match workspace_id {
@@ -209,8 +202,7 @@ pub(super) async fn get_workspace_llm_info(
         }
     };
 
-    // Try to get workspace config
-    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+    let workspace_uuid = match crate::middleware::parse_workspace_id(workspace_id) {
         Ok(uuid) => uuid,
         Err(_) => {
             return (

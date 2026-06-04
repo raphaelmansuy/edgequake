@@ -76,6 +76,7 @@ mod memory;
 #[cfg(feature = "postgres")]
 mod postgres;
 mod provider_setup;
+mod query_bootstrap;
 mod query_runtime;
 mod storage_runtime;
 mod task_runtime;
