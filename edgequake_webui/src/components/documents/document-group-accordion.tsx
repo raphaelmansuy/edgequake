@@ -25,6 +25,7 @@ export interface DocumentGroupRowHandlers
     | 'onViewInGraph'
     | 'onViewPdf'
     | 'onRetry'
+    | 'onEnrich'
     | 'onCancel'
     | 'onDelete'
     | 'isRetrying'
@@ -61,6 +62,7 @@ export const DocumentGroupAccordion = memo(function DocumentGroupAccordion({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onEnrich,
   onCancel,
   onDelete,
   isRetrying,
@@ -112,6 +114,7 @@ export const DocumentGroupAccordion = memo(function DocumentGroupAccordion({
             onViewInGraph={onViewInGraph}
             onViewPdf={onViewPdf}
             onRetry={onRetry}
+            onEnrich={onEnrich}
             onCancel={onCancel}
             onDelete={onDelete}
             isRetrying={isRetrying}

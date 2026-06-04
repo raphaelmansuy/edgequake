@@ -8,7 +8,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Document } from '@/types';
-import { Copy, Eye, MoreVertical, RefreshCw, StopCircle, Trash2 } from 'lucide-react';
+import { Copy, Eye, MoreVertical, RefreshCw, Sparkles, StopCircle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ResetDocumentStatusButton } from './reset-document-status-button';
@@ -25,6 +25,8 @@ interface DocumentActionsMenuProps {
   onCancel: (trackId: string) => void;
   /** Callback to reprocess document */
   onReprocess: (id: string) => void;
+  /** Callback to trigger metadata enrichment */
+  onEnrich: (id: string) => void;
   /** Callback to delete document */
   onDelete: (id: string) => void;
   /** Whether a cancel operation is in progress */
@@ -52,6 +54,7 @@ export function DocumentActionsMenu({
   onViewPdf,
   onCancel,
   onReprocess,
+  onEnrich,
   onDelete,
   isCancelling = false,
 }: DocumentActionsMenuProps) {
@@ -119,6 +122,14 @@ export function DocumentActionsMenu({
           <RefreshCw className="h-4 w-4 mr-2" />
           {t('documents.actions.reprocess')}
         </DropdownMenuItem>
+
+        {/* Enrich — only for PDF documents */}
+        {doc.source_type === 'pdf' && (
+          <DropdownMenuItem onClick={() => onEnrich(doc.id)}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            {t('documents.actions.enrich', 'Extract Topic & Summary')}
+          </DropdownMenuItem>
+        )}
 
         {/* Delete */}
         <DropdownMenuItem

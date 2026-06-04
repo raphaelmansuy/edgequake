@@ -841,6 +841,19 @@ export async function reprocessDocument(
 }
 
 /**
+ * Trigger metadata enrichment for a single document.
+ * Re-runs topic/summary/language/keywords extraction via the enrichment VLM.
+ */
+export async function enrichDocument(
+  documentId: string,
+): Promise<{ document_id: string; track_id: string; message: string }> {
+  return api.post<{ document_id: string; track_id: string; message: string }>(
+    `/documents/${documentId}/enrich`,
+    {},
+  );
+}
+
+/**
  * Scan input directory for new documents.
  * Triggers background scanning and processing of new files.
  * @param path Optional path to scan (defaults to configured input directory)
@@ -1944,6 +1957,7 @@ export const edgequakeApi = {
   deleteDocument,
   deleteAllDocuments,
   reprocessDocument,
+  enrichDocument,
   scanDocuments,
   reprocessFailedDocuments,
   retryFailedChunks,

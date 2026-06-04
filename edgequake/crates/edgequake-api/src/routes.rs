@@ -294,6 +294,8 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/documents/reprocess", post(handlers::reprocess_failed))
         // Recover Stuck Processing Documents - MUST come before /documents/{document_id}
         .route("/documents/recover-stuck", post(handlers::recover_stuck))
+        // Trigger metadata enrichment for a single document - MUST come before /documents/{document_id}
+        .route("/documents/{document_id}/enrich", post(handlers::enrich_document))
         // Document deletion impact analysis - MUST come before /documents/{document_id}
         .route(
             "/documents/{document_id}/deletion-impact",

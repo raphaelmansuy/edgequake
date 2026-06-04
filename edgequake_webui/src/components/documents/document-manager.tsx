@@ -104,6 +104,7 @@ export function DocumentManager() {
   const {
     deleteMutation,
     reprocessMutation,
+    enrichMutation,
     cancelMutation,
   } = useDocumentMutations({
     onReprocessSuccess: () => setPipelineDialogOpen(true),
@@ -279,6 +280,7 @@ export function DocumentManager() {
         onViewInGraph={handleViewInGraph}
         onViewPdf={handleViewPdf}
         onRetry={(id) => reprocessMutation.mutate(id)}
+        onEnrich={(id) => enrichMutation.mutate(id)}
         onCancel={(trackId) => cancelMutation.mutate(trackId)}
         onDelete={(id) => deleteMutation.mutate(id)}
         isRetrying={reprocessMutation.isPending}

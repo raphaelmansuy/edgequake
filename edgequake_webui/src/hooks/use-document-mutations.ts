@@ -21,6 +21,7 @@ import {
     cancelTask,
     deleteAllDocuments,
     deleteDocument,
+    enrichDocument,
     reprocessDocument,
     retryTask,
 } from "@/lib/api/edgequake";
@@ -69,6 +70,17 @@ export interface UseDocumentMutationsReturn {
    */
   reprocessMutation: UseMutationResult<
     { track_id: string; message: string; count: number },
+    Error,
+    string,
+    unknown
+  >;
+
+  /**
+   * Trigger metadata enrichment for a document by ID.
+   * Re-runs topic/summary/language/keywords extraction.
+   */
+  enrichMutation: UseMutationResult<
+    { document_id: string; track_id: string; message: string },
     Error,
     string,
     unknown
@@ -275,6 +287,21 @@ export function useDocumentMutations(
     },
   });
 
+  const enrichMutation = useMutation({
+    mutationFn: (documentId: string) => enrichDocument(documentId),
+    onSuccess: () => {
+      toast.success(t("documents.enrich.success", "Enrichment task queued"), {
+        duration: 4000,
+      });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (error: Error) => {
+      toast.error(t("documents.enrich.failed", "Enrichment failed"), {
+        description: error instanceof Error ? error.message : t("common.unknownError", "Unknown error"),
+      });
+    },
+  });
+
   /**
    * WHY: Cancel mutation for stopping in-progress extraction.
    * Track ID required to identify the specific processing task.
@@ -358,6 +385,7 @@ export function useDocumentMutations(
     deleteMutation,
     deleteAllMutation,
     reprocessMutation,
+    enrichMutation,
     cancelMutation,
     retryTaskMutation,
     isAnyMutationPending,

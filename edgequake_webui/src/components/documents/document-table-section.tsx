@@ -69,6 +69,8 @@ export interface DocumentTableSectionProps {
   onViewPdf: (doc: Document) => void;
   /** Handler for retry action */
   onRetry: (id: string) => void;
+  /** Handler for enrich action */
+  onEnrich: (id: string) => void;
   /** Handler for cancel action */
   onCancel: (trackId: string) => void;
   /** Handler for delete action */
@@ -111,6 +113,7 @@ function GroupedView({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onEnrich,
   onCancel,
   onDelete,
   isRetrying,
@@ -127,6 +130,7 @@ function GroupedView({
   onViewInGraph: (doc: Document) => void;
   onViewPdf: (doc: Document) => void;
   onRetry: (id: string) => void;
+  onEnrich: (id: string) => void;
   onCancel: (trackId: string) => void;
   onDelete: (id: string) => void;
   isRetrying: boolean;
@@ -151,6 +155,7 @@ function GroupedView({
           onViewInGraph={onViewInGraph}
           onViewPdf={onViewPdf}
           onRetry={onRetry}
+          onEnrich={onEnrich}
           onCancel={onCancel}
           onDelete={onDelete}
           isRetrying={isRetrying}
@@ -183,6 +188,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onEnrich,
   onCancel,
   onDelete,
   isRetrying,
@@ -235,6 +241,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                   onViewInGraph={onViewInGraph}
                   onViewPdf={onViewPdf}
                   onRetry={onRetry}
+                  onEnrich={onEnrich}
                   onCancel={onCancel}
                   onDelete={onDelete}
                   isRetrying={isRetrying}
@@ -276,6 +283,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                           onViewInGraph={onViewInGraph}
                           onViewPdf={onViewPdf}
                           onRetry={onRetry}
+                          onEnrich={onEnrich}
                           onCancel={onCancel}
                           onDelete={onDelete}
                           isRetrying={isRetrying}

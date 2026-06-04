@@ -127,6 +127,8 @@ export interface DocumentTableRowProps {
   onViewPdf: (doc: Document) => void;
   /** Called when Retry action is triggered */
   onRetry: (docId: string) => void;
+  /** Called when Enrich action is triggered */
+  onEnrich: (docId: string) => void;
   /** Called when Cancel action is triggered */
   onCancel: (trackId: string) => void;
   /** Called when Delete action is triggered */
@@ -154,6 +156,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onEnrich,
   onCancel,
   onDelete,
   isRetrying,
@@ -295,6 +298,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
             onViewPdf={onViewPdf}
             onCancel={onCancel}
             onReprocess={onRetry}
+            onEnrich={onEnrich}
             onDelete={onDelete}
             isCancelling={isCancelling}
           />
