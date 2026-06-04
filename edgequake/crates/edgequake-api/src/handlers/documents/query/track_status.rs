@@ -136,6 +136,35 @@ pub async fn get_track_status(
                         .and_then(|v| v.as_str())
                         .map(String::from),
                     pdf_id: obj.get("pdf_id").and_then(|v| v.as_str()).map(String::from),
+                    // Enrichment fields
+                    enrichment_status: obj
+                        .get("enrichment_status")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    enrichment_topic: obj
+                        .get("enrichment_topic")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    enrichment_summary: obj
+                        .get("enrichment_summary")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    enrichment_language: obj
+                        .get("enrichment_language")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    enrichment_keywords: obj
+                        .get("enrichment_keywords")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect()
+                        }),
+                    enrichment_completed_at: obj
+                        .get("enrichment_completed_at")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                 });
             }
         }

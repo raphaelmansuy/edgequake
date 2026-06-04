@@ -199,4 +199,29 @@ pub struct DocumentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "8866e3c3-bbd6-4384-b86f-215c9844914d")]
     pub pdf_id: Option<String>,
+
+    // ── PDF Metadata Enrichment fields ──────────────────────────────────────
+    /// Enrichment pipeline status: pending | processing | completed | failed | skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_status: Option<String>,
+
+    /// Topic extracted by the enrichment pipeline (e.g. "Machine Learning").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_topic: Option<String>,
+
+    /// Short summary extracted by the enrichment pipeline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_summary: Option<String>,
+
+    /// Language detected by the enrichment pipeline (e.g. "English").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_language: Option<String>,
+
+    /// Keywords extracted by the enrichment pipeline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_keywords: Option<Vec<String>>,
+
+    /// ISO 8601 timestamp when enrichment completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_completed_at: Option<String>,
 }

@@ -129,6 +129,13 @@ pub async fn list_documents(
         stage_progress: Option<f32>,
         stage_message: Option<String>,
         pdf_id: Option<String>,
+        // Enrichment pipeline fields
+        enrichment_status: Option<String>,
+        enrichment_topic: Option<String>,
+        enrichment_summary: Option<String>,
+        enrichment_language: Option<String>,
+        enrichment_keywords: Option<Vec<String>>,
+        enrichment_completed_at: Option<String>,
     }
 
     let mut doc_metadata: std::collections::HashMap<String, DocMetadata> =
@@ -282,6 +289,36 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
+                // Enrichment pipeline fields
+                meta.enrichment_status = obj
+                    .get("enrichment_status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                meta.enrichment_topic = obj
+                    .get("enrichment_topic")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                meta.enrichment_summary = obj
+                    .get("enrichment_summary")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                meta.enrichment_language = obj
+                    .get("enrichment_language")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                meta.enrichment_keywords = obj
+                    .get("enrichment_keywords")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    });
+                meta.enrichment_completed_at = obj
+                    .get("enrichment_completed_at")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
                 doc_metadata.insert(id.to_string(), meta);
             }
         }
@@ -335,6 +372,13 @@ pub async fn list_documents(
                 stage_progress: meta.stage_progress,
                 stage_message: meta.stage_message,
                 pdf_id: meta.pdf_id,
+                // Enrichment fields
+                enrichment_status: meta.enrichment_status,
+                enrichment_topic: meta.enrichment_topic,
+                enrichment_summary: meta.enrichment_summary,
+                enrichment_language: meta.enrichment_language,
+                enrichment_keywords: meta.enrichment_keywords,
+                enrichment_completed_at: meta.enrichment_completed_at,
             })
         })
         .collect();
@@ -370,6 +414,13 @@ pub async fn list_documents(
             stage_progress: meta.stage_progress,
             stage_message: meta.stage_message,
             pdf_id: meta.pdf_id,
+            // Enrichment fields
+            enrichment_status: meta.enrichment_status,
+            enrichment_topic: meta.enrichment_topic,
+            enrichment_summary: meta.enrichment_summary,
+            enrichment_language: meta.enrichment_language,
+            enrichment_keywords: meta.enrichment_keywords,
+            enrichment_completed_at: meta.enrichment_completed_at,
         });
     }
 
