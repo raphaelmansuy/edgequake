@@ -102,6 +102,13 @@ export default defineConfig({
           url: "http://localhost:3001",
           reuseExistingServer: !process.env.CI,
           timeout: 120 * 1000,
+          env: {
+            ...process.env,
+            EDGEQUAKE_API_URL:
+              process.env.EQ_BACKEND_URL ??
+              process.env.E2E_BACKEND_URL ??
+              "http://127.0.0.1:8081",
+          },
         },
       }
     : {}),

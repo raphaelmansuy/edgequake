@@ -4,6 +4,7 @@
  */
 
 import type { APIRequestContext, Page } from '@playwright/test';
+import { waitForAppReady } from './app-ready';
 import {
   createTenantWorkspaceViaApi,
   SPEC013_FRONTEND,
@@ -43,10 +44,7 @@ export async function seedTenantStoreOnPage(
     { tenantId: ctx.tenantId, workspaceId: ctx.workspaceId }
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.getByTestId('workspace-selector').waitFor({
-    state: 'visible',
-    timeout: 30_000,
-  });
+  await waitForAppReady(page);
 }
 
 /** API bootstrap + storage seed + wait for workspace selector. */
@@ -57,10 +55,6 @@ export async function bootstrapDeterministicUiContext(
 ): Promise<Spec013BootstrapContext> {
   const ctx = await createTenantWorkspaceViaApi(request, label);
   await seedTenantStoreOnPage(page, ctx);
-  await page.getByTestId('workspace-selector').waitFor({
-    state: 'visible',
-    timeout: 30_000,
-  });
   return ctx;
 }
 
