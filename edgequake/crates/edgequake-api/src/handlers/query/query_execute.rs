@@ -10,9 +10,7 @@ use tracing::debug;
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
-use crate::services::{
-    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
-};
+use crate::services::{execute_sota_query_with_auth_fallback, resolve_workspace_query_resources};
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
@@ -171,11 +169,12 @@ pub async fn execute_query(
         model: request.llm_model.clone(),
         extra_headers: request.extra_headers.clone(),
     };
-    let llm_override = match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
-        Ok(Some(resolved)) => Some(resolved.provider),
-        Ok(None) => None,
-        Err(e) => return Err(ApiError::from(e)),
-    };
+    let llm_override =
+        match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
+            Ok(Some(resolved)) => Some(resolved.provider),
+            Ok(None) => None,
+            Err(e) => return Err(ApiError::from(e)),
+        };
 
     let resources =
         resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;

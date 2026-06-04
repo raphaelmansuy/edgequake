@@ -6,10 +6,10 @@
 use edgequake_llm::model_config::{ModelType, ProviderConfig};
 use edgequake_llm::ModelsConfig;
 
-use crate::providers::credentials::provider_credentials_configured;
 use crate::provider_types::{
     AvailableProvidersResponse, ConfigRequirement, DefaultModels, ProviderInfo,
 };
+use crate::providers::credentials::provider_credentials_configured;
 
 /// Build the available-providers response from configuration.
 pub fn build_available_providers_response(

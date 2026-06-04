@@ -168,15 +168,14 @@ pub async fn stream_query(
         let resources =
             resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-        let (_, _, stream) =
-            execute_sota_query_stream_with_auth_fallback(
-                &state,
-                engine_request,
-                resources,
-                llm_override.clone(),
-            )
-                .await
-                .map_err(ApiError::from)?;
+        let (_, _, stream) = execute_sota_query_stream_with_auth_fallback(
+            &state,
+            engine_request,
+            resources,
+            llm_override.clone(),
+        )
+        .await
+        .map_err(ApiError::from)?;
 
         let sse_stream: BoxedSseStream = Box::pin(stream.map(|res| match res {
             Ok(text) => Ok(Event::default().data(text)),

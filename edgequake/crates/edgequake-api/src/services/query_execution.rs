@@ -130,14 +130,7 @@ pub async fn execute_sota_query_with_auth_fallback(
     llm_override: Option<Arc<dyn LLMProvider>>,
 ) -> ApiResult<QueryResponse> {
     let had_override = llm_override.is_some();
-    match execute_sota_query(
-        state,
-        request.clone(),
-        resources.clone(),
-        llm_override,
-    )
-    .await
-    {
+    match execute_sota_query(state, request.clone(), resources.clone(), llm_override).await {
         Ok(response) => Ok(response),
         Err(e) if had_override && is_llm_auth_failure(&e.to_string()) => {
             warn!(
@@ -229,14 +222,7 @@ pub async fn execute_sota_query_stream_with_auth_fallback(
     llm_override: Option<Arc<dyn LLMProvider>>,
 ) -> StreamQueryResult {
     let had_override = llm_override.is_some();
-    match execute_sota_query_stream(
-        state,
-        request.clone(),
-        resources.clone(),
-        llm_override,
-    )
-    .await
-    {
+    match execute_sota_query_stream(state, request.clone(), resources.clone(), llm_override).await {
         Ok(stream) => Ok(stream),
         Err(e) if had_override && is_llm_auth_failure(&e.to_string()) => {
             warn!(

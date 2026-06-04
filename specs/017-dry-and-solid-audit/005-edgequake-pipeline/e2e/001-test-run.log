@@ -1,0 +1,315 @@
+=== edgequake-pipeline SPEC-017 E2E ===
+Date: 2026-06-04T02:14:28Z
+
+--- Compile workspace ---
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+   Compiling edgequake v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.20s
+
+--- Full pipeline integration (spec017) ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/spec017_full_pipeline_integration.rs (target/debug/deps/spec017_full_pipeline_integration-54fa0fbeffac8020)
+
+running 2 tests
+test spec017_full_pipeline_resilience_path ... ok
+test spec017_full_pipeline_chunk_extract_merge_graph ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+--- P0: pipeline contract (spec017) ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/spec017_pipeline_contract.rs (target/debug/deps/spec017_pipeline_contract-fb4a72770e378a75)
+
+running 12 tests
+test spec017_detect_format_markers_tuple_and_json ... ok
+test spec017_extraction_completion_options_reasoning_models ... ok
+test spec017_configurable_entity_schema_trait ... ok
+test spec017_merge_entity_key_matches_extracted ... ok
+test spec017_shared_stage_status_across_modules ... ok
+test spec017_stage_bridge_pipeline_to_unified ... ok
+test spec017_chunker_strategy_changes_output ... ok
+test spec017_stage_bridge_tasks_slug_to_unified ... ok
+test spec017_json_prompts_single_source ... ok
+test spec017_json_parser_filters_self_relationships ... ok
+test spec017_parse_merge_key_alignment ... ok
+test spec017_special_entity_names_consistent ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+--- P0: normalizer unit tests ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_pipeline-d7114387658a822a)
+
+running 5 tests
+test merger::tests::test_normalize_entity_name_unicode_accented ... ok
+test merger::tests::test_normalize_entity_name_case_variants_produce_same_key ... ok
+test merger::tests::test_normalize_entity_name ... ok
+test merger::tests::test_normalize_entity_name_edge_cases ... ok
+test merger::tests::test_normalize_entity_name_real_world_case_variants ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 195 filtered out; finished in 0.00s
+
+     Running tests/chunker_tests.rs (target/debug/deps/chunker_tests-16f6872834b5045b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s
+
+     Running tests/cost_integration_tests.rs (target/debug/deps/cost_integration_tests-d49762674c753c83)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+
+     Running tests/cost_tracking_tests.rs (target/debug/deps/cost_tracking_tests-381b98eb335a4213)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+
+     Running tests/e2e_pipeline_comprehensive.rs (target/debug/deps/e2e_pipeline_comprehensive-e7478e9d205eb7c7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 57 filtered out; finished in 0.00s
+
+     Running tests/e2e_pipeline_tests.rs (target/debug/deps/e2e_pipeline_tests-66f472c0f8ae1fed)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.00s
+
+     Running tests/spec017_full_pipeline_integration.rs (target/debug/deps/spec017_full_pipeline_integration-54fa0fbeffac8020)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/spec017_pipeline_contract.rs (target/debug/deps/spec017_pipeline_contract-fb4a72770e378a75)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+
+--- Lib tests (edgequake-pipeline) ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_pipeline-d7114387658a822a)
+
+running 200 tests
+test cache::tests::test_cache_key_generation ... ok
+test cache::tests::test_cache_entry_creation ... ok
+test extractor::tests::test_effective_temperature_omits_override_for_reasoning_models ... ok
+test extractor::tests::test_extracted_entity_source_tracking ... ok
+test extractor::tests::test_effective_temperature_preserves_standard_models ... ok
+test cache::tests::test_memory_cache_basic ... ok
+test cache::tests::test_cache_clear ... ok
+test cache::tests::test_memory_cache_chunk_index ... ok
+test extractor::tests::test_extraction_result ... ok
+test extractor::tests::test_extracted_entity_builder ... ok
+test cache::tests::test_memory_cache_stats ... ok
+test extractor::tests::test_extracted_relationship_source_tracking ... ok
+test extractor::tests::test_extracted_relationship_builder ... ok
+test extractor::tests::test_extracted_entity_multiple_source_chunks ... ok
+test ingestion_types::tests::test_error_creation ... ok
+test ingestion_types::tests::test_stages_for_markdown ... ok
+test ingestion_types::tests::test_progress_calculation ... ok
+test ingestion_types::tests::test_stages_for_pdf ... ok
+test lineage::tests::test_chunk_lineage ... ok
+test lineage::tests::test_document_lineage ... ok
+test lineage::tests::test_entity_lineage ... ok
+test lineage::tests::test_extraction_metadata ... ok
+test lineage::tests::test_lineage_builder ... ok
+test lineage::tests::test_source_span ... ok
+test merger::tests::test_entity_source_tracking_serialization ... ok
+test merger::tests::test_merge_stats ... ok
+test merger::tests::test_merge_descriptions ... ok
+test merger::tests::test_normalize_entity_name ... ok
+test merger::tests::test_normalize_entity_name_case_variants_produce_same_key ... ok
+test merger::tests::test_normalize_entity_name_real_world_case_variants ... ok
+test merger::tests::test_normalize_entity_name_edge_cases ... ok
+test merger::tests::test_normalize_entity_name_unicode_accented ... ok
+test merger::tests::test_truncate_description ... ok
+test merger::tests::test_relationship_source_tracking_serialization ... ok
+test merger::tests::test_parse_merge_key_alignment ... ok
+test pipeline::helpers::embeddings::tests::test_embed_budget_empty_input ... ok
+test pipeline::helpers::embeddings::tests::test_embed_budget_zero_max_tokens_fallback ... ok
+test pipeline::helpers::embeddings::tests::test_embed_budget_single_batch_when_within_limit ... ok
+test pipeline::helpers::embeddings::tests::test_embed_dual_limit_count_wins_over_token ... ok
+test pipeline::helpers::embeddings::tests::test_embed_max_chars_fallback_when_zero ... ok
+test pipeline::helpers::embeddings::tests::test_embed_max_chars_with_known_limit ... ok
+test pipeline::helpers::embeddings::tests::test_embed_budget_splits_batches_correctly ... ok
+test pipeline::helpers::embeddings::tests::test_guard_preserves_short_texts ... ok
+test pipeline::helpers::embeddings::tests::test_embed_dual_limit_token_wins_over_count ... ok
+test pipeline::helpers::embeddings::tests::test_guard_truncates_long_texts ... ok
+test pipeline::helpers::embeddings::tests::test_truncate_exact_boundary ... ok
+test pipeline::helpers::embeddings::tests::test_embed_count_limit_splits_batches ... ok
+test pipeline::helpers::embeddings::tests::test_truncate_no_op_when_within_limit ... ok
+test pipeline::helpers::embeddings::tests::test_embed_count_one_over_limit_is_two_calls ... ok
+test pipeline::helpers::embeddings::tests::test_truncate_within_multibyte_char ... ok
+test pipeline::tests::test_pipeline_config_defaults ... ok
+test pipeline::tests::test_pipeline_basic_processing ... ok
+test pipeline::helpers::embeddings::tests::test_embed_count_exactly_at_limit_is_one_call ... ok
+test pipeline::tests::test_pipeline_batch_processing ... ok
+test pipeline::tests::test_pipeline_without_lineage_tracking ... ok
+test progress::cost::tests::test_model_pricing ... ok
+test progress::cost::tests::test_cost_tracker ... ok
+test progress::tests::test_ingestion_error ... ok
+test progress::cost::tests::test_default_model_pricing ... ok
+test progress::tests::test_pipeline_stage_all ... ok
+test progress::tests::test_progress_message ... ok
+test progress::tests::test_stage_progress ... ok
+test progress::tests::test_progress_tracker ... ok
+test prompts::entity_extraction::tests::test_continue_extraction_prompt ... ok
+test prompts::entity_extraction::tests::test_user_prompt_generation ... ok
+test prompts::entity_type_policy::tests::empty_maps_to_fallback_only_when_strict ... ok
+test prompts::entity_extraction::tests::test_system_prompt_generation ... ok
+test prompts::entity_extraction::tests::test_examples_in_prompt ... ok
+test prompts::entity_type_policy::tests::json_prompt_permissive_no_other_catchall ... ok
+test prompts::entity_type_policy::tests::json_prompt_strict_mentions_only ... ok
+test prompts::entity_type_policy::tests::metadata_defaults_strict_true ... ok
+test prompts::entity_type_policy::tests::exact_match_unchanged ... ok
+test prompts::entity_type_policy::tests::metadata_reads_strict_false ... ok
+test prompts::entity_type_policy::tests::unknown_maps_to_other_when_strict ... ok
+test prompts::json_extract::tests::fenced_json_block ... ok
+test prompts::json_extract::tests::no_json_returns_empty ... ok
+test prompts::entity_type_policy::tests::unknown_passes_through_when_permissive ... ok
+test prompts::json_extract::tests::truncated_array_returns_suffix_for_recovery ... ok
+test prompts::json_extract::tests::truncated_object_returns_suffix_for_recovery ... ok
+test prompts::normalizer::tests::test_empty_and_edge_cases ... ok
+test prompts::json_prompts::tests::json_extraction_prompt_includes_types_and_format ... ok
+test prompts::json_prompts::tests::json_gleaning_prompt_lists_previous_entities ... ok
+test prompts::normalizer::tests::test_basic_normalization ... ok
+test prompts::normalizer::tests::test_normalize_for_comparison ... ok
+test prompts::normalizer::tests::test_entities_match ... ok
+test prompts::normalizer::tests::test_possessive_removal ... ok
+test prompts::normalizer::tests::test_prefix_removal ... ok
+test prompts::normalizer::tests::test_special_characters_preserved ... ok
+test prompts::normalizer::tests::test_title_case_conversion ... ok
+test prompts::normalizer::tests::test_whitespace_handling ... ok
+test prompts::parser::json_parser::tests::test_recover_already_complete_json ... ok
+test prompts::parser::json_parser::tests::test_recover_returns_none_for_unrecoverable_input ... ok
+test prompts::parser::json_parser::tests::test_recover_truncated_after_complete_entity ... ok
+test prompts::parser::json_parser::tests::test_recover_truncated_entities_array_open ... ok
+test prompts::parser::tests::test_br0004_tuple_keyword_limit_enforced ... ok
+test prompts::parser::tests::test_br0006_tuple_normalized_self_ref_filtered ... ok
+test prompts::parser::tests::test_empty_normalized_entity_name_filtered ... ok
+test prompts::parser::tests::test_br0006_tuple_self_referencing_relationship_filtered ... ok
+test prompts::parser::tests::test_empty_whitespace_entity_name_filtered ... ok
+test prompts::parser::tests::test_empty_normalized_relationship_endpoints_filtered ... ok
+test prompts::parser::tests::test_extract_json_from_response ... ok
+test prompts::parser::tests::test_hybrid_parser_tuple ... ok
+test prompts::parser::tests::test_tuple_parser_entities ... ok
+test extractor::tests::test_simple_extractor ... ok
+test prompts::parser::tests::test_tuple_parser_incomplete ... ok
+test prompts::parser::tests::test_tuple_parser_is_complete ... ok
+test prompts::parser::tests::test_tuple_parser_malformed_lines ... ok
+test prompts::parser::tests::test_tuple_parser_relationships ... ok
+test prompts::summarization::tests::test_chunk_summary_prompt ... ok
+test prompts::summarization::tests::test_entity_summary_prompt ... ok
+test prompts::summarization::tests::test_reduce_summary_prompt ... ok
+test prompts::summarization::tests::test_relationship_summary_prompt ... ok
+test prompts::tests::test_default_entity_types ... ok
+test prompts::tests::test_supported_languages ... ok
+test sanitizer::tests::test_collapse_whitespace ... ok
+test sanitizer::tests::test_directional_markers_removed ... ok
+test pipeline::tests::test_pipeline_with_lineage_tracking ... ok
+test sanitizer::tests::test_control_chars_removed ... ok
+test sanitizer::tests::test_default_config ... ok
+test sanitizer::tests::test_emoji_preserve ... ok
+test sanitizer::tests::test_emoji_remove ... ok
+test sanitizer::tests::test_emoji_replace ... ok
+test sanitizer::tests::test_unicode_normalization ... ok
+test sanitizer::tests::test_limit_newlines ... ok
+test pipeline::tests::test_pipeline_with_extractor ... ok
+test sanitizer::tests::test_zero_width_removed ... ok
+test stage_bridge::tests::pipeline_to_unified_roundtrip_for_processing_stages ... ok
+test stage_bridge::tests::tasks_slug_maps_to_unified ... ok
+test stage_bridge::tests::unified_slug_matches_frontend_contract ... ok
+test summarizer::tests::test_simple_summarizer_default ... ok
+test summarizer::tests::test_simple_summarizer_short_text ... ok
+test summarizer::tests::test_summarize_entity_description_both_empty ... ok
+test summarizer::tests::test_simple_summarizer_long_text ... ok
+test summarizer::tests::test_summarize_combined ... ok
+test summarizer::tests::test_summarize_entity_description_duplicate ... ok
+test summarizer::tests::test_summarize_entity_description_contains ... ok
+test summarizer::tests::test_summarize_entity_description_existing_empty ... ok
+test summarizer::tests::test_summarizer_config_clone ... ok
+test summarizer::tests::test_summarizer_config_custom ... ok
+test summarizer::tests::test_summarize_entity_description_new_empty ... ok
+test summarizer::tests::test_summarizer_config_debug ... ok
+test summarizer::tests::test_summarizer_config_default ... ok
+test summarizer::tests::test_summarizer_empty_text ... ok
+test summarizer::tests::test_summarizer_exclamation_split ... ok
+test table_preprocessor::tests::custom_threshold_changes_detection ... ok
+test table_preprocessor::tests::above_threshold_triggers_restructuring ... ok
+test table_preprocessor::tests::custom_title_used_in_output ... ok
+test summarizer::tests::test_summarizer_question_split ... ok
+test table_preprocessor::tests::deduplication_disabled_keeps_all_rows ... ok
+test table_preprocessor::tests::default_title_when_none_configured ... ok
+test table_preprocessor::tests::deduplication_removes_identical_rows ... ok
+test table_preprocessor::tests::extract_first_column_variants ... ok
+test table_preprocessor::tests::empty_first_column_grouped_as_general ... ok
+test table_preprocessor::tests::group_at_max_limit_not_truncated ... ok
+test table_preprocessor::tests::groups_are_alphabetically_ordered ... ok
+test table_preprocessor::tests::header_repeated_per_group ... ok
+test table_preprocessor::tests::groups_by_first_column ... ok
+test table_preprocessor::tests::mixed_content_above_threshold_restructured ... ok
+test table_preprocessor::tests::passthrough_on_empty_string ... ok
+test table_preprocessor::tests::non_separators_rejected ... ok
+test table_preprocessor::tests::passthrough_on_header_only_table ... ok
+test table_preprocessor::tests::passthrough_on_plain_text ... ok
+test table_preprocessor::tests::passthrough_on_whitespace_only ... ok
+test table_preprocessor::tests::passthrough_when_below_threshold ... ok
+test table_preprocessor::tests::passthrough_when_no_header_detected ... ok
+test table_preprocessor::tests::separator_variants_detected ... ok
+test table_preprocessor::tests::restructures_simple_table ... ok
+test table_preprocessor::tests::single_data_row_restructured ... ok
+test table_preprocessor::tests::single_group_still_restructured ... ok
+test table_preprocessor::tests::large_group_truncated ... ok
+test table_preprocessor::tests::summary_line_reflects_deduplication ... ok
+test table_preprocessor::tests::table_without_separator_still_restructured ... ok
+test table_preprocessor::tests::threshold_boundary_exact_triggers ... ok
+test table_preprocessor::tests::unicode_first_column_groups_correctly ... ok
+test validation::tests::test_convenience_validate_content ... ok
+test validation::tests::test_convenience_validate_filename ... ok
+test extractor::llm::tests::test_parse_response_empty_on_non_json ... ok
+test validation::tests::test_edge_case_1_empty_document ... ok
+test validation::tests::test_edge_case_15_not_duplicate ... ok
+test validation::tests::test_edge_case_15_duplicate_content ... ok
+test validation::tests::test_edge_case_20_small_chunk_warning ... ok
+test validation::tests::test_edge_case_2_single_char_document ... ok
+test validation::tests::test_edge_case_20_valid_chunk ... ok
+test validation::tests::test_edge_case_5_encoding_warning ... ok
+test validation::tests::test_edge_case_3_whitespace_only ... ok
+test extractor::llm::tests::test_parse_response_recovers_partial_json ... ok
+test validation::tests::test_edge_case_4_exceeds_max_size ... ok
+test validation::tests::test_edge_case_9_allowed_extension_pdf ... ok
+test validation::tests::test_edge_case_9_blocked_extension_exe ... ok
+test validation::tests::test_valid_document ... ok
+test validation::tests::test_edge_case_9_blocked_extension_sh ... ok
+test validation::tests::test_valid_filename ... ok
+test extractor::llm::tests::test_parse_response_normalizes_entity_names ... ok
+test prompts::parser::tests::test_json_empty_relationship_endpoints_filtered ... ok
+test prompts::parser::tests::test_br0006_json_self_referencing_relationship_filtered ... ok
+test prompts::parser::tests::test_hybrid_parser_json ... ok
+test prompts::parser::json_parser::tests::test_empty_on_missing_json_returns_empty_result ... ok
+test prompts::parser::tests::test_json_parser ... ok
+test prompts::parser::json_parser::tests::test_llm_options_normalizes_entity_names ... ok
+test prompts::parser::tests::test_json_empty_normalized_entity_name_filtered ... ok
+
+test result: ok. 200 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+--- Clippy (edgequake-pipeline) ---
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.13s
+
+--- Fmt check (edgequake-pipeline) ---
+
+✓ Pipeline SPEC-017 E2E complete — log: /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/005-edgequake-pipeline/e2e/001-test-run.log

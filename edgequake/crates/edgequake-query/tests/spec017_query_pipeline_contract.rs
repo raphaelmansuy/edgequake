@@ -108,7 +108,9 @@ async fn spec017_pipeline_all_modes_execute() {
     ];
 
     for mode in modes {
-        let request = QueryRequest::new("mode sweep").with_mode(mode).context_only();
+        let request = QueryRequest::new("mode sweep")
+            .with_mode(mode)
+            .context_only();
         let response = engine
             .query(request)
             .await

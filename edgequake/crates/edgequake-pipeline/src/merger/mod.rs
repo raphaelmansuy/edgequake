@@ -31,6 +31,7 @@
 //! - `relationship`: Relationship merge, update, creation, and placeholder node logic
 
 mod entity;
+mod metadata;
 mod relationship;
 
 use std::sync::Arc;

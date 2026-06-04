@@ -533,16 +533,6 @@ impl WorkspaceProviderResolver {
         }
     }
 
-    /// Create an LLM provider with safety limits.
-    fn create_llm_provider(
-        &self,
-        provider: &str,
-        model: &str,
-        source: ProviderSource,
-    ) -> Result<ResolvedLlmProvider, ProviderResolutionError> {
-        self.create_llm_provider_with_headers(provider, model, source, None)
-    }
-
     /// Create an LLM provider with safety limits and optional caller-supplied headers.
     fn create_llm_provider_with_headers(
         &self,
