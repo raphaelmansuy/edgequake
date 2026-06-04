@@ -52,6 +52,7 @@
 //! ```
 
 pub(crate) mod document_filter_resolver;
+pub(crate) mod topic_resolver;
 mod query_execute;
 mod query_stream;
 pub(crate) mod workspace_resolve;

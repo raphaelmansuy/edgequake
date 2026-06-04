@@ -179,6 +179,35 @@ pub async fn execute_query(
             );
             engine_request = engine_request.with_allowed_document_ids(allowed_ids);
         }
+    } else if request.enable_topic_scope {
+        // Topic-scoped RAG: classify query topic → restrict to relevant documents.
+        // Only runs when no explicit document_filter is set.
+        match super::topic_resolver::resolve_topic_scope(
+            state.kv_storage.as_ref(),
+            state.llm_provider.as_ref(),
+            &request.query,
+            data_tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        {
+            Ok(Some(result)) => {
+                debug!(
+                    matched_topics = ?result.matched_topics,
+                    document_count = result.document_ids.len(),
+                    "Topic scope resolved — restricting query to matched documents"
+                );
+                engine_request =
+                    engine_request.with_allowed_document_ids(result.document_ids);
+            }
+            Ok(None) => {
+                debug!("Topic scope returned no restriction — proceeding with full search");
+            }
+            Err(e) => {
+                // Non-fatal: log and continue with unscoped search
+                tracing::warn!(error = %e, "Topic scope resolution failed — proceeding without scope");
+            }
+        }
     }
 
     // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage

@@ -126,6 +126,29 @@ pub async fn stream_query(
                 )));
             }
         }
+    } else if request.enable_topic_scope {
+        match crate::handlers::query::topic_resolver::resolve_topic_scope(
+            state.kv_storage.as_ref(),
+            state.llm_provider.as_ref(),
+            &request.query,
+            data_tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        {
+            Ok(Some(result)) => {
+                tracing::debug!(
+                    matched_topics = ?result.matched_topics,
+                    document_count = result.document_ids.len(),
+                    "Topic scope resolved — restricting stream query to matched documents"
+                );
+                engine_request = engine_request.with_allowed_document_ids(result.document_ids);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(error = %e, "Topic scope resolution failed — proceeding without scope");
+            }
+        }
     }
 
     // SPEC-006 + SPEC-032: Resolve LLM provider override

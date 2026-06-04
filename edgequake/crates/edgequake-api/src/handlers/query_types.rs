@@ -122,6 +122,14 @@ pub struct QueryRequest {
     #[serde(default)]
     pub document_filter: Option<DocumentFilter>,
 
+    /// When true, automatically scope the query to documents whose enrichment_topic
+    /// matches the query. Uses the LLM to classify which topics are relevant, then
+    /// restricts retrieval to those document IDs. Falls back to full search when
+    /// fewer than 2 topics exist or classification returns no match.
+    /// Ignored when `document_filter` is already set.
+    #[serde(default)]
+    pub enable_topic_scope: bool,
+
     /// Optional HTTP headers to propagate to the upstream LLM provider call.
     ///
     /// Useful for B2B / multi-tenant deployments where the caller needs to pass
@@ -160,6 +168,11 @@ pub struct StreamQueryRequest {
     /// @implements SPEC-005 + SPEC-006: Document filters for streaming queries
     #[serde(default)]
     pub document_filter: Option<DocumentFilter>,
+
+    /// Automatic topic-based scoping for streaming queries. Same semantics as
+    /// `QueryRequest.enable_topic_scope`.
+    #[serde(default)]
+    pub enable_topic_scope: bool,
 
     /// LLM provider to use for this query (e.g., "openai", "ollama", "lmstudio").
     /// @implements SPEC-006 + SPEC-032: Provider selection in streaming queries
