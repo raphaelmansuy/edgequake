@@ -10,7 +10,10 @@ use tracing::debug;
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
-use crate::services::{execute_sota_query_with_auth_fallback, resolve_workspace_query_resources};
+use crate::services::{
+    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
+    validate_llm_override_pair,
+};
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
@@ -162,6 +165,11 @@ pub async fn execute_query(
 
     // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
     // If workspace has custom embedding config, use workspace-specific resources
+
+    validate_llm_override_pair(
+        request.llm_provider.as_deref(),
+        request.llm_model.as_deref(),
+    )?;
 
     let resolver = WorkspaceProviderResolver::from_app_state(&state);
     let llm_request = LlmResolutionRequest {

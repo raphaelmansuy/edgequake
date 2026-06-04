@@ -450,6 +450,13 @@ pub fn resolve_workspace_uuid(workspace_id: Option<&str>) -> Option<uuid::Uuid> 
     resolve_context_uuid(workspace_id, Some(default_workspace_uuid()))
 }
 
+/// Parse a workspace ID string into a UUID, honoring the `default` alias (SPEC-017 API-DRY-005).
+pub fn parse_workspace_id(workspace_id: &str) -> Result<uuid::Uuid, crate::error::ApiError> {
+    resolve_workspace_uuid(Some(workspace_id)).ok_or_else(|| {
+        crate::error::ApiError::BadRequest(format!("Invalid workspace ID: {}", workspace_id))
+    })
+}
+
 // ============================================================================
 // Tenant Context Extractor
 // ============================================================================

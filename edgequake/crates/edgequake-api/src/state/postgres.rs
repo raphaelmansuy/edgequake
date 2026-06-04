@@ -12,8 +12,6 @@ use super::{
 use crate::cache_manager::CacheManager;
 use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
-use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::{
     traits::{GraphStorage, KVStorage, VectorStorage},
@@ -283,15 +281,9 @@ impl AppState {
         let conversation_service: SharedConversationService =
             Arc::new(ConversationServiceImpl::new(pool.clone()));
 
-        // Create pipeline with LLM and embedding providers configured
-        use edgequake_pipeline::LLMExtractor;
-        let extractor = Arc::new(LLMExtractor::new(
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>
-        ));
-        let pipeline = Arc::new(
-            Pipeline::default_pipeline()
-                .with_extractor(extractor)
-                .with_embedding_provider(Arc::clone(&embedding_provider)),
+        let pipeline = super::query_bootstrap::build_ingestion_pipeline(
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&embedding_provider),
         );
 
         // Create task infrastructure (OODA-06: Use PostgreSQL for task persistence)
@@ -303,26 +295,13 @@ impl AppState {
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
         tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
-        // Create legacy query engine (for backward compatibility)
-        let query_engine = Arc::new(QueryEngine::new(
-            QueryEngineConfig::default(),
+        let reranker = create_bm25_reranker();
+        let (query_engine, sota_engine) = super::query_bootstrap::build_production_query_engines(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ));
-
-        // Create SOTA query engine with LightRAG-style enhancements
-        let reranker = create_bm25_reranker();
-        let sota_engine = Arc::new(
-            SOTAQueryEngine::new(
-                SOTAQueryConfig::default(),
-                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&embedding_provider),
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            )
-            .with_reranker(reranker),
+            reranker,
         );
 
         // Create workspace vector registry for per-workspace dimensions

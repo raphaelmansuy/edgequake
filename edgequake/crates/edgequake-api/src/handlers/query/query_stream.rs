@@ -23,6 +23,7 @@ use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
     execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
+    validate_llm_override_pair,
 };
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
@@ -131,6 +132,11 @@ pub async fn stream_query(
     }
 
     // SPEC-006 + SPEC-032: Resolve LLM provider override
+    validate_llm_override_pair(
+        request.llm_provider.as_deref(),
+        request.llm_model.as_deref(),
+    )?;
+
     let workspace_id_str = tenant_ctx.workspace_id.clone();
     let resolver = WorkspaceProviderResolver::from_app_state(&state);
     let llm_request = LlmResolutionRequest {
@@ -155,12 +161,7 @@ pub async fn stream_query(
                 )
             }
             Ok(None) => (None, None, None),
-            Err(e) => {
-                return Err(ApiError::Internal(format!(
-                    "LLM provider resolution failed: {}",
-                    e
-                )));
-            }
+            Err(e) => return Err(ApiError::from(e)),
         };
 
     // SPEC-006: v1 backward-compatible mode - raw text streaming (workspace-aware)
