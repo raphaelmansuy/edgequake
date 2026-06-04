@@ -7,10 +7,11 @@ import { request } from "@playwright/test";
  * Makefile sets EQ_BACKEND_URL / PLAYWRIGHT_BASE_URL from auto-selected ports.
  */
 export default async function globalSetup(_config: FullConfig): Promise<void> {
-  if (
-    process.env.PLAYWRIGHT_SKIP_STACK_CHECK === "1" &&
-    process.env.E2E_LIVE_STACK !== "1"
-  ) {
+  // Playwright webServer mode: backend must already be up (make dev-bg); skip 90s poll here.
+  if (process.env.PLAYWRIGHT_SKIP_STACK_CHECK === "1") {
+    return;
+  }
+  if (process.env.E2E_LIVE_STACK !== "1") {
     return;
   }
 

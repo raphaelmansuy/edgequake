@@ -1,7 +1,8 @@
 /**
  * @module QueryModeSelector
  * @description Query mode toggle for selecting RAG retrieval strategy.
- * Supports local, global, hybrid, and naive (simple) modes.
+ * Supports local, global, hybrid, and naive (simple) modes in the UI.
+ * Advanced modes `mix` and `bypass` exist in {@link QUERY_MODES} for API parity.
  * 
  * @implements FEAT0101 - Naive mode (direct LLM, no graph context)
  * @implements FEAT0102 - Local mode (neighborhood search)
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { QueryMode } from '@/types';
+import { QUERY_MODES_SELECTOR } from '@/types/query';
 import { Globe, Layers, Target, Zap } from 'lucide-react';
 
 interface QueryModeSelectorProps {
@@ -31,42 +33,50 @@ interface QueryModeSelectorProps {
   disabled?: boolean;
 }
 
-const modes: {
-  id: QueryMode;
-  name: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-}[] = [
+type SelectorMode = (typeof QUERY_MODES_SELECTOR)[number];
+
+const MODE_META: Record<
+  SelectorMode,
   {
-    id: 'local',
+    name: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+  }
+> = {
+  local: {
     name: 'Local',
-    description: 'Search within specific entity neighborhoods. Best for targeted questions about known topics.',
+    description:
+      'Search within specific entity neighborhoods. Best for targeted questions about known topics.',
     icon: Target,
     color: 'text-blue-500',
   },
-  {
-    id: 'global',
+  global: {
     name: 'Global',
-    description: 'Search the entire knowledge graph. Best for broad questions requiring comprehensive context.',
+    description:
+      'Search the entire knowledge graph. Best for broad questions requiring comprehensive context.',
     icon: Globe,
     color: 'text-green-500',
   },
-  {
-    id: 'hybrid',
+  hybrid: {
     name: 'Hybrid',
-    description: 'Combines local and global search for balanced results. Recommended for most queries.',
+    description:
+      'Combines local and global search for balanced results. Recommended for most queries.',
     icon: Layers,
     color: 'text-primary',
   },
-  {
-    id: 'naive',
+  naive: {
     name: 'Simple',
     description: 'Direct LLM query without graph context. Fastest but less accurate.',
     icon: Zap,
     color: 'text-orange-500',
   },
-];
+};
+
+const modes = QUERY_MODES_SELECTOR.map((id) => ({
+  id,
+  ...MODE_META[id],
+}));
 
 export function QueryModeSelector({ value, onChange, disabled }: QueryModeSelectorProps) {
   return (

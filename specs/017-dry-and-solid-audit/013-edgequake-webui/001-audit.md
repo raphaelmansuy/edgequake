@@ -1,86 +1,95 @@
 # edgequake-webui — DRY & SOLID Audit
 
 **Path:** `edgequake_webui/`  
-**Files:** ~361 TS/TSX | API client monolith ~2,035 LOC  
-**Role:** Next.js 15 + React 19 client for EdgeQuake REST/WebSocket API
+**Role:** Next.js 16 + React 19 client for EdgeQuake REST/WebSocket API  
+**Last verified:** 2026-06-04 23:11 UTC (vitest 614/614, Playwright 9/9, Rust fmt+clippy)
 
 ---
 
 ## Executive Summary
 
-Frontend follows reasonable patterns (central `apiClient`, React Query, Zustand stores). Main debt: **monolithic API module** (`lib/api/edgequake.ts`), **duplicate status badge components**, **partial API client bypass** (raw `fetch` in same file), and **QueryMode type drift** from backend (missing `mix`, `bypass`). No critical production bugs identified; mostly **P1-P2 maintainability**.
+| Area | Status |
+|------|--------|
+| P1 API god-module split | ✅ Done |
+| P1 status badges | ✅ Composition (base + enhanced) |
+| P2 QueryMode parity | ✅ `mix` / `bypass` in types; UI shows 4 selector modes |
+| P2 types split | ✅ Domain barrels under `src/types/` |
+| P2 raw fetch | ✅ Centralized in `client.ts` (+ PDF HEAD in viewer) |
+| E2E proof | ✅ 4/4 webui + 5/5 route smoke + sync/async pipeline (see [e2e index](001-audit/e2e/000-e2e-index.md)) |
+| Remaining debt | P2–P3: large page components, `client.ts` 507 LOC, OpenAPI codegen optional |
+
+The original audit overstated current debt: **`edgequake.ts` is no longer ~2,035 LOC** — it was split before this verification pass. Remaining work is mostly **documentation, E2E ergonomics, and incremental SRP** on pages.
 
 ---
 
-## DRY Violations
+## Remediation Status
 
-| ID | P | Violation | Evidence | Remediation |
-|----|---|-----------|----------|-------------|
-| UI-DRY-001 | **P1** | Monolithic API client ~2,035 LOC | `lib/api/edgequake.ts` — all REST endpoints in one file | Split by domain: `documents.ts`, `graph.ts`, `query.ts` (partial split exists in `chat.ts`, `models.ts`) |
-| UI-DRY-002 | **P1** | Dual status badge components | `status-badge.tsx` (304 LOC) vs `enhanced-status-badge.tsx` (173 LOC) | Merge or compose: base badge + enhancement layer |
-| UI-DRY-003 | **P2** | Raw `fetch` bypasses `apiClient` | `edgequake.ts:58, 68` uses direct fetch; rest uses `client.ts` auth/retry | Route all through `apiClient` or `streamClient` |
-| UI-DRY-004 | **P2** | QueryMode duplicated across stores | `use-query-store.ts`, `use-conversation-store.ts`, `use-settings-store.ts` | Single source in `types/index.ts` (exists) — ensure stores import, don't re-declare |
-| UI-DRY-005 | **P2** | QueryMode type incomplete vs backend | `types/index.ts:419` — `"local" \| "global" \| "hybrid" \| "naive"` only | Add `mix`, `bypass`; sync with OpenAPI/codegen |
-| UI-DRY-006 | **P2** | Types monolith | `types/index.ts` >1,100 LOC | Split by domain matching API modules |
-| UI-DRY-007 | **P3** | Parallel query UI state | `use-query-store.ts` + `use-query-ui-store.ts` | Document boundary or merge if overlap |
+### DRY
 
----
+| ID | P | Was | Now | Evidence |
+|----|---|-----|-----|----------|
+| UI-DRY-001 | P1 | Monolithic API ~2,035 LOC | ✅ Split | `lib/api/edgequake/*.ts` + barrel; [001-api-barrel-split-proof](001-audit/e2e/001-api-barrel-split-proof.md) |
+| UI-DRY-002 | P1 | Dual status badges | ✅ Compose | `EnhancedStatusBadge` wraps `StatusBadge`; [003-status-badge-dry-proof](001-audit/e2e/003-status-badge-dry-proof.md) |
+| UI-DRY-003 | P2 | Raw fetch in API | ✅ Fixed | Only `client.ts` (+ `pdf-viewer` HEAD); `server-root-client.test.ts` |
+| UI-DRY-004 | P2 | QueryMode in stores | ✅ Fixed | Stores import `@/types` |
+| UI-DRY-005 | P2 | Missing mix/bypass | ✅ Fixed | `QUERY_MODES` + `QUERY_MODES_SELECTOR`; [002-query-mode-parity-proof](001-audit/e2e/002-query-mode-parity-proof.md) |
+| UI-DRY-006 | P2 | types monolith | ✅ Split | `types/index.ts` barrel → domain files |
+| UI-DRY-007 | P3 | Parallel query stores | ✅ Documented | Boundary in `use-query-ui-store.ts` |
 
-## SOLID Violations
+### SOLID
 
-| ID | P | Principle | Violation | Evidence |
-|----|---|-----------|-----------|----------|
-| UI-SOLID-S-001 | **P1** | SRP | `edgequake.ts` god module | Documents, graph, query, auth, pipeline in one file |
-| UI-SOLID-S-002 | **P2** | SRP | Large page components | Document manager, query interface mix fetch + render + state |
-| UI-SOLID-O-001 | **P2** | OCP | New endpoint → edit 2,035 LOC file | Split API modules enable isolated extension |
-| UI-SOLID-I-001 | **P2** | ISP | Components import full stores | Prefer selector hooks / narrow subscriptions |
-| UI-SOLID-D-001 | **P2** | DIP | Some components call API directly | Prefer hooks layer (`use-document-mutations.ts` pattern) |
-
----
-
-## Alignment with Backend Audit
-
-| Backend issue | Frontend mirror |
-|---------------|-----------------|
-| Four `QueryMode` enums | UI type missing `mix`, `bypass` (UI-DRY-005) |
-| Query vs chat duplication | Separate `chat.ts` + query in `edgequake.ts` — acceptable if shared types |
-| Provider catalog hardcoded | Check `use-providers.ts` vs `/models` API |
+| ID | P | Status | Notes |
+|----|---|--------|-------|
+| UI-SOLID-S-001 | P1 | ✅ | API SRP via domain modules |
+| UI-SOLID-S-002 | P2 | ⚠️ Open | Document manager / query interface still large |
+| UI-SOLID-O-001 | P2 | ✅ | New endpoints → add domain file, not god module |
+| UI-SOLID-I-001 | P2 | ⚠️ Partial | Prefer selectors over time |
+| UI-SOLID-D-001 | P2 | ⚠️ Partial | Hooks pattern exists; not universal |
 
 ---
 
-## Remediation Plan
+## Verification (2026-06-04 23:04 UTC)
 
-### P1
-
-1. Split `edgequake.ts` into domain modules mirroring backend handlers
-2. Consolidate status badges into one component with variants
-
-### P2
-
-3. Eliminate raw `fetch` in API layer
-4. Extend `QueryMode` type; consider OpenAPI codegen (`openapi-typescript`)
-5. Split `types/index.ts` by domain
-6. Enforce hooks-as-boundary for data fetching
-
-### P3
-
-7. Review query store split; document store responsibilities
-
----
-
-## Verification
+| Check | Result |
+|-------|--------|
+| `bun run test` (vitest) | ✅ 614/614 |
+| Playwright webui + smoke | ✅ 9/9 (14.7s) via `./001-audit/e2e/run_playwright_proof.sh` |
+| `cargo fmt --check` | ✅ |
+| `cargo clippy --workspace -D warnings` | ✅ |
 
 ```bash
-cd edgequake_webui && bun test
-cd edgequake_webui && bun run build
-# After split: no file in lib/api/ > 500 LOC
+bash /tmp/edgequake-start.sh   # or make backend-bg BACKEND_PORT=8081
+cd edgequake_webui
+PLAYWRIGHT_SKIP_STACK_CHECK=1 E2E_LIVE_STACK=1 EQ_BACKEND_URL=http://127.0.0.1:8081 \
+  bunx playwright test e2e/spec017-webui-dry-solid.spec.ts e2e/spec017-barrel-smoke.spec.ts --project=chromium
 ```
+
+**LOC guard:** `api-module-size.test.ts` — no `lib/api` file > 500 LOC except `client.ts` (520 cap).
+
+**E2E ergonomics:** `playwright.config.ts` wires `EDGEQUAKE_API_URL` into `webServer`; `global-setup.ts` skips 90s poll when `PLAYWRIGHT_SKIP_STACK_CHECK=1` (backend must already be up).
 
 ---
 
-## Positive Patterns
+## E2E Proof Index
+
+See [001-audit/e2e/000-e2e-index.md](001-audit/e2e/000-e2e-index.md) and screenshots `03`–`07` with analysis in [004-playwright-route-smoke-proof.md](001-audit/e2e/004-playwright-route-smoke-proof.md).
+
+---
+
+## Brutal honesty
+
+1. **Original LOC figures are stale** — do not use “~2,035 LOC edgequake.ts” in new docs; use domain file list.
+2. **E2E is environment-sensitive** — port 8080 may be a non-EdgeQuake service; use `8081` + `make dev-bg` or `EQ_BACKEND_URL`.
+3. **`bun test` without vitest** picks up Playwright specs and fails — use `bun run test` (vitest).
+4. **`safe-build.sh` typecheck** still reports legacy errors in unrelated `e2e/*.spec.ts` files; `bun run test` and focused `tsc` on `src/` are clean for this change set.
+5. **PDF UI path** not in webui spec; use `e2e/spec017-api-query-documents.spec.ts` (API audit) for multipart PDF proof.
+6. **Sync + async text pipeline** proven in webui (`06`, `07` screenshots).
+
+---
+
+## Positive Patterns (unchanged)
 
 - Central `apiClient` with auth refresh (`client.ts`)
-- React Query for server state (`query-provider.tsx`)
-- Feature ID traceability in JSDoc (`@implements FEATxxxx`)
-- Dedicated hooks for complex flows (`use-document-mutations.ts`, `use-query-page-state.ts`)
+- React Query for server state
+- Feature ID traceability in JSDoc
+- Dedicated hooks (`use-document-mutations.ts`, `use-query-page-state.ts`)

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NetworkError,
   resolveServerRootUrl,
@@ -6,12 +6,18 @@ import {
 } from "../client";
 
 describe("serverRootClient (UI-DRY-003)", () => {
+  const originalApiUrl = process.env.EDGEQUAKE_API_URL;
+
   beforeEach(() => {
-    vi.stubEnv("EDGEQUAKE_API_URL", "http://backend.test:8080");
+    process.env.EDGEQUAKE_API_URL = "http://backend.test:8080";
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
+    if (originalApiUrl === undefined) {
+      delete process.env.EDGEQUAKE_API_URL;
+    } else {
+      process.env.EDGEQUAKE_API_URL = originalApiUrl;
+    }
     vi.restoreAllMocks();
   });
 
@@ -22,7 +28,7 @@ describe("serverRootClient (UI-DRY-003)", () => {
   });
 
   it("resolveServerRootUrl returns relative path when no base configured", () => {
-    vi.stubEnv("EDGEQUAKE_API_URL", "");
+    delete process.env.EDGEQUAKE_API_URL;
     expect(resolveServerRootUrl("/ready")).toBe("/ready");
   });
 

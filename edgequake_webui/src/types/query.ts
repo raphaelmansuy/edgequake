@@ -22,6 +22,16 @@ export function isQueryMode(value: string): value is QueryMode {
   return (QUERY_MODES as readonly string[]).includes(value);
 }
 
+/** Modes exposed in the query page mode selector (mix/bypass are API/advanced). */
+export const QUERY_MODES_SELECTOR = [
+  "local",
+  "global",
+  "hybrid",
+  "naive",
+] as const satisfies readonly QueryMode[];
+
+export type QueryModeSelectorOption = (typeof QUERY_MODES_SELECTOR)[number];
+
 /**
  * Document filter criteria for narrowing query scope.
  * @implements SPEC-005: Document date and pattern filters
