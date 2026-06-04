@@ -25,21 +25,16 @@
 services:
   # ── PostgreSQL with pgvector + Apache AGE ──────────────────────────────────
   postgres:
-    build:
-      context: edgequake/docker
-      dockerfile: Dockerfile.postgres
+    image: ghcr.io/raphaelmansuy/edgequake-postgres:${EDGEQUAKE_VERSION:-latest}
     container_name: edgequake-postgres
     restart: unless-stopped
     shm_size: '256m'
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER:     edgequake
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edgequake_secret}
       POSTGRES_DB:       edgequake
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./edgequake/docker/init-extensions.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - edgequake-pg-data:/var/lib/postgresql/data
     networks:
       - edgequake
     healthcheck:
@@ -47,7 +42,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 10s
 
   # ── EdgeQuake API ──────────────────────────────────────────────────────────
   api:
@@ -152,7 +147,7 @@ services:
       start_period: 30s
 
 volumes:
-  postgres-data:
+  edgequake-pg-data:
     driver: local
 
 networks:
