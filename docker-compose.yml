@@ -61,8 +61,6 @@ services:
       # ── LLM Provider ──────────────────────────────────────────────────────
       EDGEQUAKE_LLM_PROVIDER:       ${EDGEQUAKE_LLM_PROVIDER:-ollama}
       EDGEQUAKE_LLM_MODEL:          ${EDGEQUAKE_LLM_MODEL:-}
-      EDGEQUAKE_EMBEDDING_PROVIDER: ${EDGEQUAKE_EMBEDDING_PROVIDER:-}
-      EDGEQUAKE_EMBEDDING_MODEL:    ${EDGEQUAKE_EMBEDDING_MODEL:-}
 
       # ── Vision LLM (PDF → Markdown) ───────────────────────────────────────
       EDGEQUAKE_VISION_PROVIDER:    ${EDGEQUAKE_VISION_PROVIDER:-${EDGEQUAKE_LLM_PROVIDER:-ollama}}
