@@ -29,6 +29,10 @@ export interface QueryRequest {
   llm_model?: string;
   /** Optional system prompt to prepend to the LLM context (SPEC-004). */
   system_prompt?: string;
+  /** Filter to documents with this enrichment topic (case-insensitive). Example: "Technology", "Finance". */
+  topic?: string;
+  /** Filter to documents containing ANY of these enrichment tags (case-insensitive). Example: ["Machine Learning", "Python"]. */
+  tags?: string[];
 }
 
 export interface StreamQueryRequest {
@@ -36,6 +40,10 @@ export interface StreamQueryRequest {
   mode?: "naive" | "local" | "global" | "hybrid" | "mix";
   /** Optional system prompt to prepend to the LLM context (SPEC-004). */
   system_prompt?: string;
+  /** Filter to documents with this enrichment topic (case-insensitive). Example: "Technology", "Finance". */
+  topic?: string;
+  /** Filter to documents containing ANY of these enrichment tags (case-insensitive). Example: ["Machine Learning", "Python"]. */
+  tags?: string[];
 }
 
 // ── Shared Response Types ─────────────────────────────────────

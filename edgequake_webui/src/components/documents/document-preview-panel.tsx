@@ -51,7 +51,9 @@ import {
     Loader2,
     Network,
     RefreshCw,
+    Sparkles,
     StopCircle,
+    Tag,
     Trash2,
     Wifi,
     XCircle,
@@ -175,7 +177,10 @@ export function DocumentPreviewPanel({
   }, [document, t]);
 
   const handleCopyContent = useCallback(async () => {
-    const content = fullDocument?.content || document?.content_summary;
+    const content = fullDocument?.content
+      || document?.content_summary
+      || fullDocument?.enrichment_summary
+      || document?.enrichment_summary;
     if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
@@ -210,10 +215,20 @@ export function DocumentPreviewPanel({
   const isFailed = status === 'failed' || status === 'partial_failure';
   const isCancelled = status === 'cancelled';
 
-  const contentPreview = fullDocument?.content || document?.content_summary || '';
+  // Content: full text → summary → enrichment summary (PDF docs rarely have plain content)
+  const contentPreview = fullDocument?.content
+    || document?.content_summary
+    || fullDocument?.enrichment_summary
+    || document?.enrichment_summary
+    || '';
   const previewLength = 500;
   const hasMoreContent = contentPreview.length > previewLength;
   const displayContent = showFullContent ? contentPreview : contentPreview.slice(0, previewLength);
+
+  // Enrichment data (prefer from freshly-fetched full document)
+  const topic = fullDocument?.enrichment_topic ?? document?.enrichment_topic;
+  const tags = fullDocument?.enrichment_tags ?? document?.enrichment_tags;
+  const enrichmentLanguage = fullDocument?.enrichment_language ?? document?.enrichment_language;
 
   return (
     <article
@@ -362,6 +377,50 @@ export function DocumentPreviewPanel({
         </div>
       </div>
 
+      {/* Enrichment: Topic & Tags */}
+      {(topic || (tags && tags.length > 0)) && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('documents.preview.enrichment', 'Topic & Tags')}
+            </h4>
+            <div className="space-y-2">
+              {topic && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5" />
+                    {t('documents.preview.topic', 'Topic')}
+                  </span>
+                  <span className="text-sm font-medium">{topic}</span>
+                </div>
+              )}
+              {enrichmentLanguage && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {t('documents.preview.language', 'Language')}
+                  </span>
+                  <span className="text-sm font-medium uppercase">{enrichmentLanguage}</span>
+                </div>
+              )}
+              {tags && tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-secondary text-secondary-foreground"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Cost Information */}
       {(document.cost_usd !== undefined || document.total_tokens !== undefined) && (
         <>
@@ -485,7 +544,7 @@ export function DocumentPreviewPanel({
           <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
             {t('documents.preview.content', 'Content Preview')}
           </h4>
-          {(fullDocument?.content || document?.content_summary) && (
+          {(fullDocument?.content || document?.content_summary || fullDocument?.enrichment_summary || document?.enrichment_summary) && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCopyContent}>
               <Copy className="h-3 w-3 mr-1" />
               {t('common.copy', 'Copy')}
@@ -501,7 +560,7 @@ export function DocumentPreviewPanel({
                 <Skeleton className="h-4 w-3/4" />
                 <Skeleton className="h-4 w-1/2" />
               </div>
-            ) : (fullDocument?.content || document?.content_summary) ? (
+            ) : contentPreview ? (
               <div className="space-y-2">
                 <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto">
                   {displayContent}

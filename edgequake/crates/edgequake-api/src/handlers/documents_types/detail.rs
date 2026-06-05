@@ -99,6 +99,27 @@ pub struct DocumentDetailResponse {
     /// @implements SPEC-002
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_id: Option<String>,
+
+    // ── PDF Metadata Enrichment fields ─────────────────────────────────────
+    /// Enrichment pipeline status.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_status: Option<String>,
+
+    /// Topic label extracted by enrichment (e.g. "Technology").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_topic: Option<String>,
+
+    /// Specific subtopic tags extracted by enrichment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_tags: Option<Vec<String>>,
+
+    /// Short summary extracted by enrichment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_summary: Option<String>,
+
+    /// Language code detected by enrichment (e.g. "en").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_language: Option<String>,
 }
 
 /// Get document by ID request.

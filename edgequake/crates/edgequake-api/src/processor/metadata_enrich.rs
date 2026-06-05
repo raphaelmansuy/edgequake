@@ -22,8 +22,16 @@ RULES for \"topic\":\n\
 - BAD examples: \"SmartHome Hub product launch strategy\", \"Cross-Cultural Communication\", \"Workplace Communication Skills\"\n\
 - If unsure, pick the single closest domain word\n\
 \n\
+RULES for \"tags\":\n\
+- 3 to 6 short tags (1-3 words each)\n\
+- More specific than the topic — describe subtopics, key themes, or subject areas in the document\n\
+- Good examples for a Technology doc: [\"Machine Learning\", \"Neural Networks\", \"Python\"]\n\
+- Good examples for a Finance doc: [\"Investment\", \"Risk Management\", \"Stock Market\"]\n\
+- Use the document's own language for tags\n\
+\n\
 {\n  \"summary\": \"2-3 sentence summary in the document's own language\",\n  \
 \"topic\": \"1-2 word domain label\",\n  \
+\"tags\": [\"3-6 specific subtopic tags\"],\n  \
 \"language\": \"ISO 639-1 code (e.g. en, id, fr)\",\n  \
 \"keywords\": [\"up to 10 keywords\"]\n}\n\nDocument text:";
 
@@ -31,6 +39,8 @@ RULES for \"topic\":\n\
 struct EnrichmentResponse {
     summary: String,
     topic: String,
+    #[serde(default)]
+    tags: Vec<String>,
     language: String,
     keywords: Vec<String>,
 }
@@ -216,6 +226,7 @@ impl TaskProcessor for MetadataEnrichProcessor {
         };
 
         let keywords: Vec<String> = result.keywords.into_iter().take(10).collect();
+        let tags: Vec<String> = result.tags.into_iter().take(6).collect();
 
         self.write_metadata(
             &data.document_id,
@@ -223,6 +234,7 @@ impl TaskProcessor for MetadataEnrichProcessor {
                 "enrichment_status": "completed",
                 "enrichment_summary": result.summary,
                 "enrichment_topic": result.topic,
+                "enrichment_tags": tags,
                 "enrichment_language": result.language,
                 "enrichment_keywords": keywords,
                 "enrichment_completed_at": chrono::Utc::now().to_rfc3339(),

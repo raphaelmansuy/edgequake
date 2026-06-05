@@ -35,6 +35,18 @@ export function registerQueryTools(server: McpServer): void {
         )
         .optional()
         .describe("Prior conversation messages for multi-turn context"),
+      topic: z
+        .string()
+        .optional()
+        .describe(
+          "Filter query to documents with this enrichment topic (case-insensitive exact match). Example: 'Technology', 'Finance', 'Law'. Use this to scope questions to a specific subject area.",
+        ),
+      tags: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Filter query to documents containing ANY of these enrichment tags (case-insensitive). Example: ['Machine Learning', 'Python']. Use to narrow results to specific subtopics.",
+        ),
     },
     async (params) => {
       try {
@@ -45,6 +57,8 @@ export function registerQueryTools(server: McpServer): void {
           max_results: params.max_results,
           include_references: params.include_references ?? true,
           conversation_history: params.conversation_history,
+          topic: params.topic,
+          tags: params.tags,
         });
 
         return {

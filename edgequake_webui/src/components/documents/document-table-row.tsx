@@ -228,6 +228,19 @@ export const DocumentTableRow = memo(function DocumentTableRow({
               {t('documents.cancelled.subtitle', 'Processing was cancelled')}
             </span>
           )}
+          {/* Enrichment tags */}
+          {doc.enrichment_tags && doc.enrichment_tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {doc.enrichment_tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </TableCell>
 

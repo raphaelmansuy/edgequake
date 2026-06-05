@@ -132,6 +132,7 @@ pub async fn list_documents(
         // Enrichment pipeline fields
         enrichment_status: Option<String>,
         enrichment_topic: Option<String>,
+        enrichment_tags: Option<Vec<String>>,
         enrichment_summary: Option<String>,
         enrichment_language: Option<String>,
         enrichment_keywords: Option<Vec<String>>,
@@ -298,6 +299,14 @@ pub async fn list_documents(
                     .get("enrichment_topic")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
+                meta.enrichment_tags = obj
+                    .get("enrichment_tags")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    });
                 meta.enrichment_summary = obj
                     .get("enrichment_summary")
                     .and_then(|v| v.as_str())
@@ -375,6 +384,7 @@ pub async fn list_documents(
                 // Enrichment fields
                 enrichment_status: meta.enrichment_status,
                 enrichment_topic: meta.enrichment_topic,
+                enrichment_tags: meta.enrichment_tags,
                 enrichment_summary: meta.enrichment_summary,
                 enrichment_language: meta.enrichment_language,
                 enrichment_keywords: meta.enrichment_keywords,
@@ -417,6 +427,7 @@ pub async fn list_documents(
             // Enrichment fields
             enrichment_status: meta.enrichment_status,
             enrichment_topic: meta.enrichment_topic,
+            enrichment_tags: meta.enrichment_tags,
             enrichment_summary: meta.enrichment_summary,
             enrichment_language: meta.enrichment_language,
             enrichment_keywords: meta.enrichment_keywords,

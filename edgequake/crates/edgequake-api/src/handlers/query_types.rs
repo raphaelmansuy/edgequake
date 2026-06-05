@@ -126,9 +126,23 @@ pub struct QueryRequest {
     /// matches the query. Uses the LLM to classify which topics are relevant, then
     /// restricts retrieval to those document IDs. Falls back to full search when
     /// fewer than 2 topics exist or classification returns no match.
-    /// Ignored when `document_filter` is already set.
+    /// Ignored when `document_filter` or `topic` is already set.
     #[serde(default)]
     pub enable_topic_scope: bool,
+
+    /// Explicitly filter the query to documents with this enrichment topic.
+    /// Case-insensitive exact match against `enrichment_topic` in document metadata.
+    /// Example: "Technology", "Finance", "Law".
+    /// Takes precedence over `enable_topic_scope`. Ignored when `document_filter` is set.
+    #[serde(default)]
+    pub topic: Option<String>,
+
+    /// Filter the query to documents that contain ANY of these enrichment tags.
+    /// Case-insensitive match against `enrichment_tags` array in document metadata.
+    /// Example: ["Machine Learning", "Python"].
+    /// Applied after `topic` if both are set. Ignored when `document_filter` is set.
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
 
     /// Optional HTTP headers to propagate to the upstream LLM provider call.
     ///
@@ -173,6 +187,16 @@ pub struct StreamQueryRequest {
     /// `QueryRequest.enable_topic_scope`.
     #[serde(default)]
     pub enable_topic_scope: bool,
+
+    /// Explicitly filter the streaming query to documents with this enrichment topic.
+    /// Same semantics as `QueryRequest.topic`.
+    #[serde(default)]
+    pub topic: Option<String>,
+
+    /// Filter streaming query to documents containing ANY of these enrichment tags.
+    /// Same semantics as `QueryRequest.tags`.
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
 
     /// LLM provider to use for this query (e.g., "openai", "ollama", "lmstudio").
     /// @implements SPEC-006 + SPEC-032: Provider selection in streaming queries

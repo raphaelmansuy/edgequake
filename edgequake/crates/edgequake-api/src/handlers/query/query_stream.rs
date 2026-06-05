@@ -126,6 +126,54 @@ pub async fn stream_query(
                 )));
             }
         }
+    } else if let Some(ref topic) = request.topic {
+        match crate::handlers::query::topic_resolver::resolve_topic_filter(
+            state.kv_storage.as_ref(),
+            topic,
+            data_tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        {
+            Ok(Some(doc_ids)) => {
+                tracing::debug!(
+                    topic = %topic,
+                    document_count = doc_ids.len(),
+                    "Explicit topic filter applied to stream query"
+                );
+                engine_request = engine_request.with_allowed_document_ids(doc_ids);
+            }
+            Ok(None) => {
+                tracing::debug!(topic = %topic, "No documents matched explicit topic — stream proceeds unscoped");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Explicit topic filter failed — proceeding without scope");
+            }
+        }
+    } else if let Some(ref tags) = request.tags {
+        match crate::handlers::query::topic_resolver::resolve_tags_filter(
+            state.kv_storage.as_ref(),
+            tags,
+            data_tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        {
+            Ok(Some(doc_ids)) => {
+                tracing::debug!(
+                    tags = ?tags,
+                    document_count = doc_ids.len(),
+                    "Tags filter applied to stream query"
+                );
+                engine_request = engine_request.with_allowed_document_ids(doc_ids);
+            }
+            Ok(None) => {
+                tracing::debug!(tags = ?tags, "No documents matched tags filter — stream proceeds unscoped");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Tags filter failed — proceeding without scope");
+            }
+        }
     } else if request.enable_topic_scope {
         match crate::handlers::query::topic_resolver::resolve_topic_scope(
             state.kv_storage.as_ref(),

@@ -183,6 +183,8 @@ export interface Document {
   enrichment_status?: "pending" | "processing" | "completed" | "failed" | "skipped";
   /** Short topic phrase extracted from first 5 pages. */
   enrichment_topic?: string;
+  /** 3-6 specific subtopic tags extracted from content. */
+  enrichment_tags?: string[];
   /** 2-3 paragraph summary. */
   enrichment_summary?: string;
   /** ISO 639-1 language code detected from content. */

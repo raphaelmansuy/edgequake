@@ -179,9 +179,58 @@ pub async fn execute_query(
             );
             engine_request = engine_request.with_allowed_document_ids(allowed_ids);
         }
+    } else if let Some(ref topic) = request.topic {
+        // Explicit topic filter: restrict to documents matching the given topic.
+        match super::topic_resolver::resolve_topic_filter(
+            state.kv_storage.as_ref(),
+            topic,
+            data_tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        {
+            Ok(Some(doc_ids)) => {
+                debug!(
+                    topic = %topic,
+                    document_count = doc_ids.len(),
+                    "Explicit topic filter applied"
+                );
+                engine_request = engine_request.with_allowed_document_ids(doc_ids);
+            }
+            Ok(None) => {
+                debug!(topic = %topic, "No documents matched explicit topic — proceeding unscoped");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Explicit topic filter failed — proceeding without scope");
+            }
+        }
+    } else if let Some(ref tags) = request.tags {
+        match super::topic_resolver::resolve_tags_filter(
+            state.kv_storage.as_ref(),
+            tags,
+            data_tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        {
+            Ok(Some(doc_ids)) => {
+                debug!(
+                    tags = ?tags,
+                    document_count = doc_ids.len(),
+                    "Tags filter applied"
+                );
+                engine_request = engine_request.with_allowed_document_ids(doc_ids);
+            }
+            Ok(None) => {
+                debug!(tags = ?tags, "No documents matched tags filter — proceeding unscoped");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Tags filter failed — proceeding without scope");
+            }
+        }
     } else if request.enable_topic_scope {
         // Topic-scoped RAG: classify query topic → restrict to relevant documents.
-        // Only runs when no explicit document_filter is set.
+        // Only runs when no explicit document_filter or topic is set.
         match super::topic_resolver::resolve_topic_scope(
             state.kv_storage.as_ref(),
             state.llm_provider.as_ref(),

@@ -6,7 +6,7 @@
 use axum::extract::{Path, State};
 use axum::Json;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 

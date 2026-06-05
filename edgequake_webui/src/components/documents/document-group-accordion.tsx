@@ -95,6 +95,26 @@ export const DocumentGroupAccordion = memo(function DocumentGroupAccordion({
           <span className="ml-1.5 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
             {documents.length}
           </span>
+          {/* Show union of all tags in this group */}
+          {(() => {
+            const allTags = Array.from(
+              new Set(
+                documents.flatMap((d) => d.enrichment_tags ?? [])
+              )
+            ).slice(0, 5);
+            return allTags.length > 0 ? (
+              <div className="ml-2 flex flex-wrap gap-1">
+                {allTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary/70 text-secondary-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null;
+          })()}
         </button>
       </CollapsibleTrigger>
 

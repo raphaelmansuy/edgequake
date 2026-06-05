@@ -145,6 +145,14 @@ pub async fn get_track_status(
                         .get("enrichment_topic")
                         .and_then(|v| v.as_str())
                         .map(String::from),
+                    enrichment_tags: obj
+                        .get("enrichment_tags")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect()
+                        }),
                     enrichment_summary: obj
                         .get("enrichment_summary")
                         .and_then(|v| v.as_str())

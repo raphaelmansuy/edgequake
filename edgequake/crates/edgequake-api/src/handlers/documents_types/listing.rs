@@ -217,6 +217,10 @@ pub struct DocumentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enrichment_language: Option<String>,
 
+    /// Tags extracted by the enrichment pipeline (3-6 specific subtopic tags).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment_tags: Option<Vec<String>>,
+
     /// Keywords extracted by the enrichment pipeline.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enrichment_keywords: Option<Vec<String>>,

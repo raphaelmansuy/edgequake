@@ -411,6 +411,28 @@ pub async fn get_document(
         )
     };
 
+    // Extract enrichment fields from metadata
+    let enrichment_status = meta_obj
+        .and_then(|o| o.get("enrichment_status"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let enrichment_topic = meta_obj
+        .and_then(|o| o.get("enrichment_topic"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let enrichment_tags = meta_obj
+        .and_then(|o| o.get("enrichment_tags"))
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
+    let enrichment_summary = meta_obj
+        .and_then(|o| o.get("enrichment_summary"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let enrichment_language = meta_obj
+        .and_then(|o| o.get("enrichment_language"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
     Ok(Json(DocumentDetailResponse {
         id: document_id,
         title,
@@ -437,5 +459,10 @@ pub async fn get_document(
         metadata: custom_metadata,
         // OODA-50: Use pdf_id from metadata for PDF viewer
         pdf_id,
+        enrichment_status,
+        enrichment_topic,
+        enrichment_tags,
+        enrichment_summary,
+        enrichment_language,
     }))
 }
