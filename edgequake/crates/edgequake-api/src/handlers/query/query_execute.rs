@@ -4,15 +4,19 @@
 //! @implements FEAT0007 (Multi-Mode Query Execution)
 //! @implements FEAT0101-0106 (Query modes)
 
-use axum::{extract::State, Json};
+use axum::{extract::State, Extension, Json};
+use edgequake_audit::{AuditEvent, AuditEventType, AuditResult};
+use edgequake_observability::{
+    record_llm_request, scope_llm_provider, PropagationHeaders, QueryOutcomeGuard, RequestContext,
+};
 use tracing::debug;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
-    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
-    validate_llm_override_pair,
+    execute_sota_query_with_auth_fallback, record_audit, resolve_workspace_query_resources,
+    validate_llm_override_pair, with_request_context,
 };
 use crate::state::AppState;
 use crate::validation::validate_query;
@@ -58,14 +62,34 @@ pub use crate::handlers::query_types::{QueryRequest, QueryResponse, QueryStats, 
         (status = 400, description = "Invalid query")
     )
 )]
+#[tracing::instrument(
+    name = "query_execute",
+    skip(state, tenant_ctx, propagation, request),
+    fields(
+        request_id = %req_ctx.request_id,
+        query.mode = tracing::field::Empty,
+        otel.name = "query_execute",
+    )
+)]
 pub async fn execute_query(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Extension(req_ctx): Extension<RequestContext>,
+    Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<QueryRequest>,
 ) -> ApiResult<Json<QueryResponse>> {
+    let query_mode_label = request.mode.as_deref().unwrap_or("hybrid").to_string();
+    tracing::Span::current().record("query.mode", query_mode_label.as_str());
+    let query_obs = QueryOutcomeGuard::with_request_id(
+        &query_mode_label,
+        Some(req_ctx.request_id.clone()),
+    );
+
     debug!(
+        request_id = %req_ctx.request_id,
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
+        query.mode = %query_mode_label,
         query = %request.query,
         "Executing query with tenant context"
     );
@@ -172,10 +196,11 @@ pub async fn execute_query(
     )?;
 
     let resolver = WorkspaceProviderResolver::from_app_state(&state);
+    let extra_headers = propagation.merge_with(request.extra_headers.clone());
     let llm_request = LlmResolutionRequest {
         provider: request.llm_provider.clone(),
         model: request.llm_model.clone(),
-        extra_headers: request.extra_headers.clone(),
+        extra_headers,
     };
     let llm_override =
         match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
@@ -187,9 +212,18 @@ pub async fn execute_query(
     let resources =
         resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-    let result =
-        execute_sota_query_with_auth_fallback(&state, engine_request, resources, llm_override)
-            .await?;
+    let obs_llm_provider = request
+        .llm_provider
+        .clone()
+        .or_else(|| workspace.as_ref().map(|w| w.llm_provider.clone()))
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "default".to_string());
+
+    let result = scope_llm_provider(
+        obs_llm_provider,
+        execute_sota_query_with_auth_fallback(&state, engine_request, resources, llm_override),
+    )
+    .await?;
 
     // Convert sources from context
     let mut sources = Vec::new();
@@ -374,6 +408,34 @@ pub async fn execute_query(
         } else {
             None
         };
+
+    let tenant_for_audit = data_tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let mut audit_event = AuditEvent::new(
+        tenant_for_audit,
+        AuditEventType::DocumentQuery,
+        "execute_query".to_string(),
+        AuditResult::Success,
+    );
+    if let Some(ref ws) = tenant_ctx.workspace_id {
+        audit_event = audit_event.with_workspace(ws.clone());
+    }
+    record_audit(
+        &state,
+        with_request_context(audit_event, &req_ctx),
+    );
+
+    query_obs.mark_success(result.stats.total_time_ms as f64 / 1000.0);
+
+    if result.stats.generation_time_ms > 0 {
+        record_llm_request(
+            llm_provider.as_deref().unwrap_or("unknown"),
+            "query_generation",
+            "success",
+            result.stats.generation_time_ms as f64 / 1000.0,
+        );
+    }
 
     let response = QueryResponse {
         answer: result.answer,

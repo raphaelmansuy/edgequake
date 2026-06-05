@@ -885,9 +885,15 @@ impl DocumentTaskProcessor {
                 )
                 .await
             {
-                error!(
-                    "Failed to ensure document record: {} - continuing anyway",
-                    e
+                edgequake_observability::ErrorEvent::log_domain_warn(
+                    "task_processor",
+                    "ensure_document_record",
+                    &format!("Failed to ensure document record: {e}"),
+                    json!({
+                        "pdf_id": data.pdf_id,
+                        "document_id": data.existing_document_id,
+                        "error": e.to_string(),
+                    }),
                 );
             }
 
@@ -895,7 +901,16 @@ impl DocumentTaskProcessor {
                 .link_pdf_to_document(&data.pdf_id, &document_uuid)
                 .await
             {
-                error!("Failed to link PDF to document: {} - continuing anyway", e);
+                edgequake_observability::ErrorEvent::log_domain_warn(
+                    "task_processor",
+                    "link_pdf_to_document",
+                    &format!("Failed to link PDF to document: {e}"),
+                    json!({
+                        "pdf_id": data.pdf_id,
+                        "document_id": data.existing_document_id,
+                        "error": e.to_string(),
+                    }),
+                );
                 // Non-fatal - PDF still processed successfully
             }
         }
@@ -903,7 +918,14 @@ impl DocumentTaskProcessor {
         // 8. Status already set to Completed in step 5 via update_pdf_processing
         info!(
             pdf_id = %data.pdf_id,
+            document_id = ?data.existing_document_id,
             "PDF processing completed successfully"
+        );
+        edgequake_observability::record_document_processing(
+            "pdf_processing",
+            "conversion",
+            "success",
+            0.0,
         );
 
         // OODA-16: Clean up progress tracking (fire-and-forget)

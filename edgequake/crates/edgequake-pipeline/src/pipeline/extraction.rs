@@ -203,6 +203,14 @@ impl Pipeline {
     /// ## Implements
     /// - **FEAT0020**: Chunk-level resilience and error isolation
     /// - **UC2305**: System continues processing when individual chunks fail
+    #[tracing::instrument(
+        name = "pipeline_chunk_extraction",
+        skip(self, chunks, extractor, progress_callback, cancel_token),
+        fields(
+            chunk_count = chunks.len(),
+            error.code = tracing::field::Empty,
+        )
+    )]
     pub(super) async fn resilient_extract_parallel(
         &self,
         chunks: &[crate::chunker::TextChunk],

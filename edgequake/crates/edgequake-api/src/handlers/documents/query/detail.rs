@@ -82,7 +82,7 @@ pub async fn get_document(
         if let Some(ref filter_tid) = tenant_ctx.tenant_id {
             if let Some(doc_tid) = doc_tenant_id {
                 if doc_tid != filter_tid {
-                    return Err(ApiError::Forbidden);
+                    return Err(ApiError::forbidden());
                 }
             }
         }
@@ -91,7 +91,7 @@ pub async fn get_document(
         if let Some(ref filter_ws) = tenant_ctx.workspace_id {
             if let Some(doc_ws) = doc_workspace_id {
                 if doc_ws != filter_ws {
-                    return Err(ApiError::Forbidden);
+                    return Err(ApiError::forbidden());
                 }
             }
         }

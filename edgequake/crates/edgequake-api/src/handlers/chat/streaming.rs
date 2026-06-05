@@ -2,14 +2,16 @@
 
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::response::sse::{Event, Sse};
 use axum::Json;
 use futures::stream::StreamExt;
 use std::convert::Infallible;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, error, info, warn};
+use edgequake_observability::ErrorEvent;
+use serde_json::json;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
@@ -21,6 +23,7 @@ use crate::services::{
 };
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
+use edgequake_observability::RequestContext;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageContext, MessageRole,
     UpdateMessageRequest,
@@ -48,9 +51,19 @@ use super::{
         (status = 500, description = "Internal server error")
     )
 )]
+#[tracing::instrument(
+    name = "chat_stream",
+    skip(state, tenant_ctx, request),
+    fields(
+        request_id = %req_ctx.request_id,
+        query.mode = tracing::field::Empty,
+        otel.name = "chat_stream",
+    )
+)]
 pub async fn chat_completion_stream(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Extension(req_ctx): Extension<RequestContext>,
     Json(request): Json<ChatCompletionRequest>,
 ) -> ApiResult<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>> {
     // Validate request
@@ -67,12 +80,12 @@ pub async fn chat_completion_stream(
 
     let tenant_id = tenant_ctx
         .tenant_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid tenant ID".to_string()))?;
     let user_id = tenant_ctx
         .user_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
@@ -92,6 +105,7 @@ pub async fn chat_completion_stream(
 
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
+    tracing::Span::current().record("query.mode", format!("{mode:?}").as_str());
 
     // FEAT0505: Track whether this is a new conversation for auto-title generation
     let is_new_conversation = request.conversation_id.is_none();
@@ -105,7 +119,7 @@ pub async fn chat_completion_stream(
             .ok_or_else(|| ApiError::NotFound(format!("Conversation {} not found", id)))?;
 
         if conv.tenant_id != tenant_id {
-            return Err(ApiError::Forbidden);
+            return Err(ApiError::forbidden());
         }
         id
     } else {
@@ -162,6 +176,7 @@ pub async fn chat_completion_stream(
     let request_document_filter = request.document_filter.clone();
     // FEAT0505: Clone for auto-title generation
     let first_message_for_title = request.message.clone();
+    let stream_request_id = req_ctx.request_id.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -170,10 +185,15 @@ pub async fn chat_completion_stream(
     };
 
     // 6. Spawn background task for LLM streaming
+    let stream_request_id_spawn = stream_request_id.clone();
     tokio::spawn(async move {
         // Send initial event
         if tx.send(initial_event).await.is_err() {
-            warn!("Client disconnected before receiving initial event");
+            ErrorEvent::log_stream_disconnect(
+                &stream_request_id_spawn,
+                "chat_stream",
+                "initial_event",
+            );
             return;
         }
 
@@ -221,10 +241,17 @@ pub async fn chat_completion_stream(
                 }
                 Ok(None) => {} // No filter constraints
                 Err(e) => {
-                    error!(error = %e, "Failed to resolve document filter (streaming)");
+                    let msg = format!("Document filter resolution failed: {e}");
+                    ErrorEvent::log_stream_error(
+                        &stream_request_id_spawn,
+                        "chat_stream",
+                        "DOCUMENT_FILTER_ERROR",
+                        &msg,
+                        json!({ "phase": "document_filter_resolve" }),
+                    );
                     let _ = tx
                         .send(ChatStreamEvent::Error {
-                            message: format!("Document filter resolution failed: {}", e),
+                            message: msg,
                             code: "DOCUMENT_FILTER_ERROR".to_string(),
                         })
                         .await;
@@ -297,16 +324,21 @@ pub async fn chat_completion_stream(
                 (None, None, None)
             }
             Err(e) => {
-                // Explicit provider request failed - send error to client via SSE
-                error!(error = %e, "Failed to resolve LLM provider (streaming)");
                 let error_msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "PROVIDER_CONFIG_ERROR",
+                    &error_msg,
+                    json!({ "phase": "provider_resolve" }),
+                );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
                         message: error_msg,
                         code: "PROVIDER_CONFIG_ERROR".to_string(),
                     })
                     .await;
-                return; // Exit task early with error sent
+                return;
             }
         };
 
@@ -342,14 +374,20 @@ pub async fn chat_completion_stream(
         {
             Ok(resources) => resources,
             Err(e) => {
-                error!(
-                    workspace_id = ?workspace_id_str,
-                    error = %e,
-                    "Workspace query resolution failed for streaming chat"
+                let msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "WORKSPACE_QUERY_CONFIG_ERROR",
+                    &msg,
+                    json!({
+                        "phase": "workspace_resolve",
+                        "workspace_id": workspace_id_str,
+                    }),
                 );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
-                        message: e.to_string(),
+                        message: msg,
                         code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
                     })
                     .await;
@@ -388,7 +426,11 @@ pub async fn chat_completion_stream(
                         retrieval_time_ms: Some(retrieval_elapsed_ms),
                     };
                     if tx.send(context_event).await.is_err() {
-                        warn!("Client disconnected before receiving context event");
+                        ErrorEvent::log_stream_disconnect(
+                            &stream_request_id_spawn,
+                            "chat_stream",
+                            "context_event",
+                        );
                         return;
                     }
                     info!(
@@ -411,16 +453,26 @@ pub async fn chat_completion_stream(
                                 content: text.clone(),
                             };
                             if tx.send(event).await.is_err() {
-                                warn!("Client disconnected during streaming");
-                                // Still save the partial message
+                                ErrorEvent::log_stream_disconnect(
+                                    &stream_request_id_spawn,
+                                    "chat_stream",
+                                    "token_stream",
+                                );
                                 break;
                             }
                         }
                         Err(e) => {
-                            error!("Streaming error: {}", e);
+                            let msg = e.to_string();
+                            ErrorEvent::log_stream_error(
+                                &stream_request_id_spawn,
+                                "chat_stream",
+                                "STREAM_ERROR",
+                                &msg,
+                                json!({ "phase": "token_stream" }),
+                            );
                             let _ = tx
                                 .send(ChatStreamEvent::Error {
-                                    message: e.to_string(),
+                                    message: msg,
                                     code: "STREAM_ERROR".to_string(),
                                 })
                                 .await;
@@ -430,10 +482,17 @@ pub async fn chat_completion_stream(
                 }
             }
             Err(e) => {
-                error!("Failed to start streaming query: {}", e);
+                let msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "QUERY_FAILED",
+                    &msg,
+                    json!({ "phase": "stream_start" }),
+                );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
-                        message: e.to_string(),
+                        message: msg,
                         code: "QUERY_FAILED".to_string(),
                     })
                     .await;
@@ -555,10 +614,20 @@ pub async fn chat_completion_stream(
                 }
             }
             Err(e) => {
-                error!("Failed to save assistant message: {}", e);
+                let msg = format!("Failed to save response: {e}");
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "SAVE_FAILED",
+                    &msg,
+                    json!({
+                        "phase": "save_assistant_message",
+                        "conversation_id": conversation_id.to_string(),
+                    }),
+                );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
-                        message: format!("Failed to save response: {}", e),
+                        message: msg,
                         code: "SAVE_FAILED".to_string(),
                     })
                     .await;

@@ -97,6 +97,7 @@ pub mod error;
 pub mod file_validation;
 pub mod handlers;
 pub mod middleware;
+pub mod observability_middleware;
 pub mod openapi;
 pub mod path_validation;
 pub mod pipeline_progress_callback;

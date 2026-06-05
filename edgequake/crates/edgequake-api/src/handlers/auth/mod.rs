@@ -261,12 +261,12 @@ pub(super) fn authenticate_request(
         .auth
         .jwt
         .verify_token(&token)
-        .map_err(|_| ApiError::Unauthorized)?;
+        .map_err(|_| ApiError::unauthorized())?;
 
     Ok(Some(RequestAuthContext {
         user_id: claims
             .user_id()
-            .map_err(|_| ApiError::Unauthorized)?
+            .map_err(|_| ApiError::unauthorized())?
             .to_string(),
         role: claims.role(),
     }))
@@ -283,7 +283,7 @@ pub(super) fn require_authenticated_request(
         });
     }
 
-    authenticate_request(headers, state)?.ok_or(ApiError::Unauthorized)
+    authenticate_request(headers, state)?.ok_or(ApiError::unauthorized())
 }
 
 pub(super) fn require_admin_request(
@@ -299,7 +299,7 @@ pub(super) fn require_admin_request(
 
     let auth = require_authenticated_request(headers, state)?;
     if auth.role != Role::Admin {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden());
     }
     Ok(auth)
 }

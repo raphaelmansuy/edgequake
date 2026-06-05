@@ -102,6 +102,7 @@ impl AppState {
             pg_pool: None,
             start_time: std::time::Instant::now(),
             path_validation_config: crate::path_validation::PathValidationConfig::default(),
+            audit_logger: None,
         }
     }
 
@@ -226,6 +227,7 @@ impl AppState {
                 allow_any_path: true,
                 ..Default::default()
             },
+            audit_logger: None,
         }
     }
 
@@ -315,6 +317,7 @@ impl AppState {
                 allow_any_path: true,
                 ..Default::default()
             },
+            audit_logger: None,
         }
     }
 }

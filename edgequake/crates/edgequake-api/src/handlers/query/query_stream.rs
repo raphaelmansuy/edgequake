@@ -7,14 +7,19 @@
 use axum::{
     extract::State,
     response::sse::{Event, KeepAliveStream, Sse},
-    Json,
+    Extension, Json,
+};
+use edgequake_observability::{
+    record_llm_request, record_query_completed, scope_llm_provider, ErrorEvent, PropagationHeaders,
+    QueryFailureGuard, RequestContext,
 };
 use futures::stream::StreamExt;
+use serde_json::json;
 use std::convert::Infallible;
 use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::chat::build_sources;
@@ -51,14 +56,33 @@ type SseStream = KeepAliveStream<BoxedSseStream>;
         (status = 400, description = "Invalid query")
     )
 )]
+#[tracing::instrument(
+    name = "query_stream",
+    skip(state, tenant_ctx, propagation, request),
+    fields(
+        request_id = %req_ctx.request_id,
+        query.mode = tracing::field::Empty,
+        stream.format = tracing::field::Empty,
+        otel.name = "query_stream",
+    )
+)]
 pub async fn stream_query(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Extension(req_ctx): Extension<RequestContext>,
+    Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<StreamQueryRequest>,
 ) -> ApiResult<Sse<SseStream>> {
+    let query_mode_label = request.mode.as_deref().unwrap_or("hybrid").to_string();
+    tracing::Span::current().record("query.mode", query_mode_label.as_str());
+    let query_guard = QueryFailureGuard::new(&query_mode_label);
+    let request_id = req_ctx.request_id.clone();
+
     debug!(
+        request_id = %request_id,
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
+        query.mode = %query_mode_label,
         query = %request.query,
         "Executing streaming query with tenant context"
     );
@@ -71,6 +95,10 @@ pub async fn stream_query(
         .as_deref()
         .map(|f| f == "v1")
         .unwrap_or(false);
+    tracing::Span::current().record(
+        "stream.format",
+        if use_v1 { "v1" } else { "v2" },
+    );
 
     // Parse query mode
     let mode = request
@@ -139,10 +167,11 @@ pub async fn stream_query(
 
     let workspace_id_str = tenant_ctx.workspace_id.clone();
     let resolver = WorkspaceProviderResolver::from_app_state(&state);
+    let extra_headers = propagation.merge_with(request.extra_headers.clone());
     let llm_request = LlmResolutionRequest {
         provider: request.llm_provider.clone(),
         model: request.llm_model.clone(),
-        extra_headers: request.extra_headers.clone(),
+        extra_headers,
     };
 
     let (llm_override, used_provider, used_model) =
@@ -169,20 +198,43 @@ pub async fn stream_query(
         let resources =
             resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-        let (_, _, stream) = execute_sota_query_stream_with_auth_fallback(
-            &state,
-            engine_request,
-            resources,
-            llm_override.clone(),
+        let provider_label = used_provider
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+        let (_, _, stream) = scope_llm_provider(
+            provider_label,
+            execute_sota_query_stream_with_auth_fallback(
+                &state,
+                engine_request,
+                resources,
+                llm_override.clone(),
+            ),
         )
         .await
         .map_err(ApiError::from)?;
 
-        let sse_stream: BoxedSseStream = Box::pin(stream.map(|res| match res {
+        let v1_request_id = request_id.clone();
+        let v1_mode = query_mode_label.clone();
+        let v1_provider = used_provider
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
+        let sse_stream: BoxedSseStream = Box::pin(stream.map(move |res| match res {
             Ok(text) => Ok(Event::default().data(text)),
-            Err(e) => Ok(Event::default().data(format!("Error: {}", e))),
+            Err(e) => {
+                let msg = e.to_string();
+                record_llm_request(&v1_provider, "query_stream_v1", "failure", 0.0);
+                ErrorEvent::log_stream_error(
+                    &v1_request_id,
+                    "query_stream",
+                    "STREAM_ERROR_V1",
+                    &msg,
+                    json!({ "phase": "v1_token", "mode": v1_mode }),
+                );
+                Ok(Event::default().data(format!("Error: {msg}")))
+            }
         }));
 
+        query_guard.dismiss();
         return Ok(Sse::new(sse_stream).keep_alive(
             axum::response::sse::KeepAlive::new()
                 .interval(std::time::Duration::from_secs(15))
@@ -193,8 +245,14 @@ pub async fn stream_query(
     // SPEC-006: v2 structured event streaming
     let (tx, rx) = mpsc::channel::<QueryStreamEvent>(100);
     let state_clone = state.clone();
+    let stream_mode = query_mode_label.clone();
+    let stream_request_id = request_id.clone();
 
+    let spawn_provider = used_provider
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
     tokio::spawn(async move {
+        scope_llm_provider(spawn_provider.clone(), async {
         let retrieval_start = std::time::Instant::now();
 
         let resources = match resolve_workspace_query_resources(
@@ -205,10 +263,18 @@ pub async fn stream_query(
         {
             Ok(resources) => resources,
             Err(e) => {
-                error!(error = %e, "Workspace query resolution failed for streaming query");
+                let msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id,
+                    "query_stream",
+                    "WORKSPACE_QUERY_CONFIG_ERROR",
+                    &msg,
+                    json!({ "phase": "workspace_resolve" }),
+                );
+                record_query_completed(&stream_mode, "failure", retrieval_start.elapsed().as_secs_f64());
                 let _ = tx
                     .send(QueryStreamEvent::Error {
-                        message: e.to_string(),
+                        message: msg,
                         code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
                     })
                     .await;
@@ -240,7 +306,11 @@ pub async fn stream_query(
                     retrieval_time_ms,
                 };
                 if tx.send(context_event).await.is_err() {
-                    warn!("Client disconnected before receiving context event");
+                    ErrorEvent::log_stream_disconnect(
+                        &stream_request_id,
+                        "query_stream",
+                        "context_event",
+                    );
                     return;
                 }
 
@@ -264,15 +334,37 @@ pub async fn stream_query(
                                 content: text.clone(),
                             };
                             if tx.send(event).await.is_err() {
-                                warn!("Client disconnected during streaming");
+                                ErrorEvent::log_stream_disconnect(
+                                    &stream_request_id,
+                                    "query_stream",
+                                    "token_stream",
+                                );
                                 break;
                             }
                         }
                         Err(e) => {
-                            error!("Streaming error: {}", e);
+                            let msg = e.to_string();
+                            record_llm_request(
+                                &spawn_provider,
+                                "query_stream_token",
+                                "failure",
+                                0.0,
+                            );
+                            ErrorEvent::log_stream_error(
+                                &stream_request_id,
+                                "query_stream",
+                                "STREAM_ERROR",
+                                &msg,
+                                json!({ "phase": "token_stream" }),
+                            );
+                            record_query_completed(
+                                &stream_mode,
+                                "failure",
+                                retrieval_start.elapsed().as_secs_f64(),
+                            );
                             let _ = tx
                                 .send(QueryStreamEvent::Error {
-                                    message: e.to_string(),
+                                    message: msg,
                                     code: "STREAM_ERROR".to_string(),
                                 })
                                 .await;
@@ -290,6 +382,21 @@ pub async fn stream_query(
                 } else {
                     None
                 };
+
+                record_query_completed(
+                    &stream_mode,
+                    "success",
+                    total_time_ms as f64 / 1000.0,
+                );
+
+                if generation_time_ms > 0 {
+                    record_llm_request(
+                        used_provider.as_deref().unwrap_or("unknown"),
+                        "query_stream_generation",
+                        "success",
+                        generation_time_ms as f64 / 1000.0,
+                    );
+                }
 
                 let _ = tx
                     .send(QueryStreamEvent::Done {
@@ -311,15 +418,30 @@ pub async fn stream_query(
                     .await;
             }
             Err(e) => {
-                error!("Failed to start streaming query: {}", e);
+                let msg = e.to_string();
+                record_llm_request(&spawn_provider, "query_stream_start", "failure", 0.0);
+                ErrorEvent::log_stream_error(
+                    &stream_request_id,
+                    "query_stream",
+                    "QUERY_FAILED",
+                    &msg,
+                    json!({ "phase": "stream_start" }),
+                );
+                record_query_completed(
+                    &stream_mode,
+                    "failure",
+                    retrieval_start.elapsed().as_secs_f64(),
+                );
                 let _ = tx
                     .send(QueryStreamEvent::Error {
-                        message: e.to_string(),
+                        message: msg,
                         code: "QUERY_FAILED".to_string(),
                     })
                     .await;
             }
         }
+        })
+        .await;
     });
 
     // Convert channel to SSE stream
@@ -328,6 +450,7 @@ pub async fn stream_query(
         Ok::<_, Infallible>(Event::default().data(json))
     }));
 
+    query_guard.dismiss();
     Ok(Sse::new(sse_stream).keep_alive(
         axum::response::sse::KeepAlive::new()
             .interval(std::time::Duration::from_secs(15))

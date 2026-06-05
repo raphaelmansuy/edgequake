@@ -47,7 +47,12 @@ services:
       - EDGEQUAKE_EMBEDDING_MODEL=${EDGEQUAKE_EMBEDDING_MODEL:-}
       - EDGEQUAKE_EMBEDDING_DIMENSION=${EDGEQUAKE_EMBEDDING_DIMENSION:-}
       - EDGEQUAKE_VISION_TIMEOUT_SECS=${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
-      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_LOG=${RUST_LOG:-edgequake=info,edgequake_api=info,edgequake_query=warn,edgequake_pipeline=info,edgequake_storage=warn,tower_http=warn,sqlx=warn}
+      - EDGEQUAKE_LOG_FORMAT=${EDGEQUAKE_LOG_FORMAT:-plain}
+      - EDGEQUAKE_LOG_SPAN_EVENTS=${EDGEQUAKE_LOG_SPAN_EVENTS:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-edgequake-api}
+      - EDGEQUAKE_OTEL_ENABLED=${EDGEQUAKE_OTEL_ENABLED:-}
     # Linux only: lets host.docker.internal resolve to the Docker host IP
     extra_hosts:
       - "host.docker.internal:host-gateway"

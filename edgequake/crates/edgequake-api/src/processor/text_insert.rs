@@ -17,7 +17,14 @@ impl DocumentTaskProcessor {
                 "Task cancelled during '{}' stage for document {}",
                 stage, document_id
             );
-            warn!("{}", msg);
+            tracing::info!(
+                error.source = "task_processor",
+                error.action = "cancelled",
+                document_id = %document_id,
+                stage = %stage,
+                error.message = %msg,
+                "Task cancelled"
+            );
             self.update_document_status(document_id, "cancelled", Some(&msg))
                 .await
                 .ok(); // best-effort status update
@@ -33,6 +40,7 @@ impl DocumentTaskProcessor {
         data: TextInsertData,
         cancel_token: CancellationToken,
     ) -> TaskResult<serde_json::Value> {
+        let processing_start = std::time::Instant::now();
         let document_id = data
             .metadata
             .as_ref()
@@ -423,7 +431,20 @@ impl DocumentTaskProcessor {
                             successful_chunks = result.stats.successful_chunks,
                             failed_chunks = result.stats.failed_chunks,
                             total_chunks = result.stats.chunk_count,
+                            error.code = "EXTRACTION_PARTIAL_FAILURE",
+                            error.source = "pipeline",
                             "Document processed with partial success - some chunks failed extraction"
+                        );
+                        edgequake_observability::ErrorEvent::log_domain_warn(
+                            "pipeline",
+                            "partial_extraction",
+                            "Some chunks failed extraction",
+                            serde_json::json!({
+                                "document_id": document_id,
+                                "successful_chunks": result.stats.successful_chunks,
+                                "failed_chunks": result.stats.failed_chunks,
+                                "total_chunks": result.stats.chunk_count,
+                            }),
                         );
 
                         // Emit WebSocket events for failed chunks
@@ -452,7 +473,15 @@ impl DocumentTaskProcessor {
                         tenant_id = ?tenant_id,
                         content_length = data.text.len(),
                         error = %e,
+                        error.source = "pipeline",
+                        error.code = "PIPELINE_PROCESSING_FAILED",
                         "CRITICAL: Pipeline processing failed - document marked as failed"
+                    );
+                    edgequake_observability::record_document_processing(
+                        "text_insert",
+                        "pipeline",
+                        "failure",
+                        0.0,
                     );
 
                     // Update document status to failed with detailed error
@@ -556,7 +585,12 @@ impl DocumentTaskProcessor {
 
         if let Err(e) = self.kv_storage.upsert(&chunks).await {
             let error_msg = format!("Failed to store chunks: {}", e);
-            error!("{}", error_msg);
+            edgequake_observability::ErrorEvent::log_domain_error(
+                "task_processor",
+                "store_chunks",
+                &error_msg,
+                json!({ "document_id": document_id, "chunk_count": chunks.len() }),
+            );
 
             self.update_document_status(&document_id, "failed", Some(&error_msg))
                 .await?;
@@ -592,7 +626,15 @@ impl DocumentTaskProcessor {
                          Document ingestion aborted to prevent data isolation violation.",
                     workspace_id_meta, e
                 );
-                error!("{}", error_msg);
+                edgequake_observability::ErrorEvent::log_domain_error(
+                    "task_processor",
+                    "workspace_vector_storage",
+                    &error_msg,
+                    json!({
+                        "document_id": document_id,
+                        "workspace_id": workspace_id_meta,
+                    }),
+                );
                 edgequake_tasks::TaskError::Process(error_msg)
             })?;
 
@@ -896,7 +938,16 @@ impl DocumentTaskProcessor {
                         .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                         .await
                     {
-                        warn!("Failed to store entity embedding {}: {}", entity_id, e);
+                        edgequake_observability::ErrorEvent::log_domain_warn(
+                            "task_processor",
+                            "store_entity_embedding",
+                            &format!("Failed to store entity embedding {entity_id}: {e}"),
+                            json!({
+                                "document_id": document_id,
+                                "entity_id": entity_id,
+                                "error": e.to_string(),
+                            }),
+                        );
                         entity_embedding_failures += 1;
                     }
                 }
@@ -907,7 +958,15 @@ impl DocumentTaskProcessor {
                 "{} entity embeddings failed to store in vector DB",
                 entity_embedding_failures
             );
-            error!(document_id = %document_id, "{}", err_msg);
+            edgequake_observability::ErrorEvent::log_domain_error(
+                "task_processor",
+                "store_entity_embeddings_batch",
+                &err_msg,
+                json!({
+                    "document_id": document_id,
+                    "failure_count": entity_embedding_failures,
+                }),
+            );
             storage_errors.push(err_msg);
         }
 
@@ -1127,11 +1186,24 @@ impl DocumentTaskProcessor {
             .await;
 
         info!(
-            "Document {} processed: {} chunks, {} entities, {} relationships",
-            document_id,
-            result.stats.chunk_count,
-            result.stats.entity_count,
-            result.stats.relationship_count
+            document_id = %document_id,
+            chunk_count = result.stats.chunk_count,
+            entity_count = result.stats.entity_count,
+            relationship_count = result.stats.relationship_count,
+            failed_chunks = result.stats.failed_chunks,
+            "Document processed successfully"
+        );
+
+        let outcome = if result.stats.failed_chunks > 0 {
+            "partial"
+        } else {
+            "success"
+        };
+        edgequake_observability::record_document_processing(
+            "text_insert",
+            "pipeline",
+            outcome,
+            processing_start.elapsed().as_secs_f64(),
         );
 
         Ok(json!({

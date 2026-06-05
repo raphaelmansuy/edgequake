@@ -3,8 +3,11 @@
 //! WHY-OODA83: Extracted services follow SRP and DRY principles.
 //! Consolidates repeated logic into single, testable modules.
 
+pub mod audit;
 pub mod content_hasher;
 pub mod query_execution;
+
+pub use audit::{record_audit, record_compliance_event, with_request_context};
 
 pub use content_hasher::ContentHasher;
 pub use query_execution::{

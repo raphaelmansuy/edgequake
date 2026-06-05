@@ -6,9 +6,11 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::services::ContentHasher;
+use crate::services::{record_compliance_event, ContentHasher};
 use crate::state::AppState;
 use edgequake_pipeline::normalize_entity_name;
 
@@ -566,6 +568,21 @@ pub async fn upload_file(
             }
         }
     }
+
+    let tenant_for_audit = tenant_ctx
+        .tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    record_compliance_event(
+        &state,
+        tenant_for_audit,
+        AuditEventType::DocumentUpload,
+        "upload_file",
+        AuditResult::Success,
+        tenant_ctx.workspace_id.clone(),
+        tenant_ctx.user_id.clone(),
+        Some(("document".to_string(), document_id.clone())),
+    );
 
     Ok((
         StatusCode::CREATED,

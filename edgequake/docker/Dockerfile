@@ -44,8 +44,14 @@ COPY models.toml models.toml
 
 # Build release binary with SQLx offline mode (no database needed at build time).
 # pdfium-auto downloads and embeds the correct pdfium binary for TARGETPLATFORM.
+# Set ENABLE_OTEL=true to compile OTLP trace export (requires OTEL_EXPORTER_OTLP_ENDPOINT at runtime).
+ARG ENABLE_OTEL=false
 ENV SQLX_OFFLINE=true
-RUN cargo build --release --locked
+RUN if [ "$ENABLE_OTEL" = "true" ]; then \
+      cargo build --release --locked --features "postgres,vision,otel"; \
+    else \
+      cargo build --release --locked; \
+    fi
 
 # ============================================
 # Stage 2: Runtime
