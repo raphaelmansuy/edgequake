@@ -31,7 +31,12 @@ impl DocumentTaskProcessor {
             match (&self.workspace_service, &self.models_config) {
                 (Some(ws), Some(mc)) => (ws, mc),
                 _ => {
-                    warn!("SPEC-032: No workspace support configured, using default pipeline");
+                    edgequake_observability::ErrorEvent::log_domain_warn(
+                        "task_processor",
+                        "workspace_pipeline_fallback",
+                        "No workspace support configured, using default pipeline",
+                        json!({ "spec": "SPEC-032" }),
+                    );
                     return Arc::clone(&self.pipeline);
                 }
             };

@@ -64,7 +64,7 @@ pub async fn get_pdf_status(
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
 
     if pdf.workspace_id != workspace_id {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden());
     }
 
     let processing_duration_ms = pdf
@@ -211,7 +211,7 @@ pub async fn delete_pdf(
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
 
     if pdf.workspace_id != workspace_id {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden());
     }
 
     pdf_storage

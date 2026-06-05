@@ -6,10 +6,13 @@ use axum::{
 use uuid::Uuid;
 
 use super::helpers::{verify_workspace_tenant_access, workspace_to_response};
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::ApiError;
 use crate::handlers::documents::storage_helpers::purge_workspace_tasks;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
+use crate::services::record_compliance_event;
 use crate::state::AppState;
 use edgequake_pdf::PdfParserBackend;
 
@@ -115,6 +118,17 @@ pub async fn create_workspace(
         embedding_model = %workspace.embedding_full_id(),
         inherited_from_tenant = request.llm_model.is_none(),
         "Created workspace"
+    );
+
+    record_compliance_event(
+        &state,
+        tenant_id.to_string(),
+        AuditEventType::WorkspaceAccess,
+        "create_workspace",
+        AuditResult::Success,
+        Some(workspace.workspace_id.to_string()),
+        None,
+        None,
     );
 
     Ok((StatusCode::CREATED, Json(response)))
@@ -283,6 +297,20 @@ pub async fn update_workspace(
         .map_err(|e| ApiError::NotFound(e.to_string()))?;
 
     let response = workspace_to_response(&workspace);
+
+    record_compliance_event(
+        &state,
+        tenant_ctx
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string()),
+        AuditEventType::WorkspaceAccess,
+        "update_workspace",
+        AuditResult::Success,
+        Some(workspace_id.to_string()),
+        tenant_ctx.user_id.clone(),
+        None,
+    );
 
     Ok(Json(response))
 }
@@ -495,6 +523,20 @@ pub async fn delete_workspace(
         chunks_deleted = chunks_deleted,
         pdfs_deleted = pdfs_deleted,
         "Workspace cascade delete completed"
+    );
+
+    record_compliance_event(
+        &state,
+        tenant_ctx
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string()),
+        AuditEventType::WorkspaceAccess,
+        "delete_workspace",
+        AuditResult::Success,
+        Some(workspace_id_str),
+        tenant_ctx.user_id.clone(),
+        None,
     );
 
     Ok(StatusCode::NO_CONTENT)

@@ -27,13 +27,12 @@ use serde::{Deserialize, Serialize};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
-    trace::TraceLayer,
 };
 use tracing::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::middleware::{request_id, request_logging};
+use crate::observability_middleware::observability_middleware;
 use crate::openapi::ApiDoc;
 use crate::routes::create_router;
 use crate::state::AppState;
@@ -86,11 +85,9 @@ impl Server {
         let mut app = create_router(self.state.clone());
 
         // Add middleware
-        app = app
-            .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100 MB limit for file uploads
-            .layer(middleware::from_fn(request_logging))
-            .layer(middleware::from_fn(request_id))
-            .layer(TraceLayer::new_for_http());
+        app = app.layer(DefaultBodyLimit::max(100 * 1024 * 1024)).layer(
+            middleware::from_fn(observability_middleware),
+        );
 
         // CORS
         if self.config.enable_cors {

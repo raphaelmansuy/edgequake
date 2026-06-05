@@ -54,6 +54,8 @@ archive/
 !/specs/012-performance/**
 !/specs/017-dry-and-solid-audit/
 !/specs/017-dry-and-solid-audit/**
+!/specs/018-observability/
+!/specs/018-observability/**
 !/specs/edgequake-llm-update/
 !/specs/edgequake-llm-update/**
 logf/

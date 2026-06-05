@@ -6,10 +6,12 @@
 use axum::{extract::State, Json};
 use uuid::Uuid;
 
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
-use crate::services::ContentHasher;
+use crate::services::{record_compliance_event, ContentHasher};
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
@@ -549,6 +551,21 @@ pub async fn delete_document(
             );
         }
     }
+
+    let tenant_for_audit = tenant_ctx
+        .tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    record_compliance_event(
+        &state,
+        tenant_for_audit,
+        AuditEventType::Authorization,
+        "delete_document",
+        AuditResult::Success,
+        tenant_ctx.workspace_id.clone(),
+        tenant_ctx.user_id.clone(),
+        Some(("document".to_string(), document_id.clone())),
+    );
 
     Ok(Json(DeleteDocumentResponse {
         document_id,

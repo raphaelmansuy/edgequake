@@ -157,6 +157,9 @@ pub struct AppState {
 
     /// Path validation configuration for filesystem access security (OODA-248).
     pub path_validation_config: crate::path_validation::PathValidationConfig,
+
+    /// Compliance audit logger (PostgreSQL deployments).
+    pub audit_logger: Option<edgequake_audit::AuditLogger>,
 }
 
 // ── Operational Methods ───────────────────────────────────────────────────

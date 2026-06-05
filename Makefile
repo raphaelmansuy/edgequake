@@ -1856,6 +1856,14 @@ logs: ## Show recent logs from all services
 	@echo "$(BOLD)Docker Container Status:$(RESET)"
 	@cd $(DOCKER_DIR) && docker compose ps 2>/dev/null || echo "Docker not running"
 
+.PHONY: observability-proof observability-jaeger
+
+observability-proof: ## Run SPEC-018 observability proof suite (Rust + WebUI)
+	@./specs/018-observability/e2e/run_observability_proof.sh
+
+observability-jaeger: ## Docker stack with Jaeger OTLP + JSON logs (SPEC-018)
+	@cd $(DOCKER_DIR) && docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up --build
+
 status: ## Show status of all services
 	@echo ""
 	@echo "$(BOLD)EdgeQuake Service Status$(RESET)"

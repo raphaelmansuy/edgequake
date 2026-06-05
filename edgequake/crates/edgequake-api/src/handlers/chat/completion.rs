@@ -58,12 +58,12 @@ pub async fn chat_completion(
 
     let tenant_id = tenant_ctx
         .tenant_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid tenant ID".to_string()))?;
     let user_id = tenant_ctx
         .user_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
 
@@ -97,7 +97,7 @@ pub async fn chat_completion(
             .ok_or_else(|| ApiError::NotFound(format!("Conversation {} not found", id)))?;
 
         if conv.tenant_id != tenant_id {
-            return Err(ApiError::Forbidden);
+            return Err(ApiError::forbidden());
         }
         id
     } else {

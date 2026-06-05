@@ -105,7 +105,7 @@ pub async fn create_user(
     let auth_context = authenticate_request(&headers, &state)?;
 
     if auth_context.is_none() && !state.auth.config.allow_registration {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden());
     }
 
     // Hash password
@@ -126,7 +126,7 @@ pub async fn create_user(
                 .as_ref()
                 .is_some_and(|role| *role != default_role)
             {
-                return Err(ApiError::Forbidden);
+                return Err(ApiError::forbidden());
             }
             default_role
         }

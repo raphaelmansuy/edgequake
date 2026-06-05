@@ -127,7 +127,12 @@ impl Drop for RlsContext {
             let pool = self.pool.clone();
             tokio::spawn(async move {
                 if let Err(e) = clear_tenant_context(&pool).await {
-                    tracing::warn!("Failed to clear RLS context on drop: {}", e);
+                    tracing::warn!(
+                        error.source = "postgres_rls",
+                        error.action = "clear_context_on_drop",
+                        error.message = %e,
+                        "Failed to clear RLS context on drop"
+                    );
                 }
             });
         }

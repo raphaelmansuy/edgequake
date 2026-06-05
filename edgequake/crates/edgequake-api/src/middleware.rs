@@ -35,7 +35,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::{info, warn};
 
-/// Request logging middleware.
+/// Legacy request logging middleware.
+///
+/// **Deprecated:** use `observability_middleware` (SPEC-018) — single layer for
+/// request ID, spans, metrics, and levelled completion logs without duplicate body errors.
+#[deprecated(note = "use observability_middleware instead")]
 pub async fn request_logging(request: Request, next: Next) -> Response {
     let method = request.method().clone();
     let uri = request.uri().clone();
@@ -141,6 +145,8 @@ impl AuthConfig {
 pub struct AuthError {
     pub error: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 /// Authentication middleware state.
@@ -196,6 +202,7 @@ pub async fn api_key_auth(
                 Json(AuthError {
                     error: "unauthorized".to_string(),
                     message: "Invalid API key".to_string(),
+                    request_id: edgequake_observability::current_request_id(),
                 }),
             )
                 .into_response()
@@ -207,6 +214,7 @@ pub async fn api_key_auth(
                 Json(AuthError {
                     error: "unauthorized".to_string(),
                     message: "Missing API key. Provide via Authorization header (Bearer <key>) or X-API-Key header".to_string(),
+                    request_id: edgequake_observability::current_request_id(),
                 }),
             )
                 .into_response()
@@ -244,11 +252,24 @@ pub async fn protected_api_auth(
         }
     }
 
+    let request_id =
+        edgequake_observability::current_request_id().unwrap_or_else(|| "unknown".to_string());
+    tracing::warn!(
+        request_id = %request_id,
+        method = %method,
+        path = %path,
+        error.code = "UNAUTHORIZED",
+        http.status = 401u16,
+        error.source = "auth_middleware",
+        "Authentication required"
+    );
+
     (
         StatusCode::UNAUTHORIZED,
         Json(AuthError {
             error: "unauthorized".to_string(),
             message: "Authentication required".to_string(),
+            request_id: Some(request_id),
         }),
     )
         .into_response()
@@ -334,6 +355,10 @@ pub struct RateLimitError {
     pub error: String,
     pub message: String,
     pub retry_after_seconds: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    pub error_code: String,
+    pub retryable: bool,
 }
 
 /// Tenant-based rate limiting middleware.
@@ -361,11 +386,22 @@ pub async fn tenant_rate_limit(
     let (allowed, retry_after) = rate_state.limiter.check_rate_limit(tenant_id);
 
     if !allowed {
-        warn!(
-            tenant_id = tenant_id,
-            retry_after = ?retry_after,
-            "Rate limit exceeded"
+        let request_id =
+            edgequake_observability::current_request_id().unwrap_or_else(|| "unknown".to_string());
+
+        edgequake_observability::ErrorEvent::log_rate_limit_exceeded(
+            &request_id,
+            tenant_id,
+            retry_after,
         );
+        edgequake_observability::record_http_error(
+            429,
+            "RATE_LIMITED",
+            &format!("Too many requests for tenant '{tenant_id}'"),
+            Some("rate_limiter"),
+            Some(true),
+        );
+        edgequake_observability::record_rate_limit_exceeded("tenant");
 
         let mut response = (
             StatusCode::TOO_MANY_REQUESTS,
@@ -373,6 +409,9 @@ pub async fn tenant_rate_limit(
                 error: "rate_limit_exceeded".to_string(),
                 message: format!("Too many requests for tenant '{}'", tenant_id),
                 retry_after_seconds: retry_after,
+                request_id: Some(request_id),
+                error_code: "RATE_LIMITED".to_string(),
+                retryable: true,
             }),
         )
             .into_response();
@@ -645,6 +684,7 @@ mod tests {
         let error = AuthError {
             error: "unauthorized".to_string(),
             message: "Invalid API key".to_string(),
+            request_id: Some("test-req".to_string()),
         };
 
         let json = serde_json::to_string(&error).unwrap();
@@ -747,6 +787,7 @@ mod tests {
         let error = AuthError {
             error: "test".to_string(),
             message: "test message".to_string(),
+            request_id: None,
         };
         let debug_str = format!("{:?}", error);
         assert!(debug_str.contains("test"));

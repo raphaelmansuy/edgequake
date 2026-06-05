@@ -9,8 +9,11 @@ use edgequake_tasks::{
     Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
 };
 use std::sync::Arc;
+use edgequake_observability::{
+    init_observability, record_db_pool_stats, ErrorEvent, ObservabilityConfig,
+};
+use serde_json::json;
 use tracing::{info, warn};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Print the EdgeQuake startup banner with storage mode information.
 fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, port: u16) {
@@ -322,7 +325,12 @@ async fn recover_orphaned_documents(
                     }
                 }
                 Err(e) => {
-                    warn!("⚠️ Failed to recover orphaned document {}: {}", key, e);
+                    ErrorEvent::log_domain_warn(
+                        "startup",
+                        "recover_orphaned_document",
+                        &e.to_string(),
+                        json!({ "document_id": key, "non_fatal": true }),
+                    );
                 }
             }
         }
@@ -381,7 +389,12 @@ async fn requeue_pending_tasks(
                 requeued_count += 1;
             }
             Err(e) => {
-                warn!("⚠️ Failed to requeue task {}: {}", task.track_id, e);
+                ErrorEvent::log_domain_warn(
+                    "startup",
+                    "requeue_pending_task",
+                    &e.to_string(),
+                    json!({ "task_id": task.track_id, "non_fatal": true }),
+                );
                 failed_count += 1;
             }
         }
@@ -471,14 +484,7 @@ async fn periodic_orphan_check(task_storage: Arc<dyn TaskStorage>) -> Result<()>
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "edgequake=debug,edgequake_query=debug,edgequake_api=debug,edgequake_core=debug,edgequake_storage=debug,edgequake_llm=debug,edgequake_pipeline=debug,edgequake_tasks=debug,tower_http=debug,axum=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let _obs_guard = init_observability(ObservabilityConfig::from_env());
 
     info!("Starting EdgeQuake v{}", env!("CARGO_PKG_VERSION"));
 
@@ -504,7 +510,30 @@ async fn main() -> Result<()> {
 
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {
-        tracing::warn!("Failed to initialize defaults: {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "initialize_defaults",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
+    }
+
+    // SPEC-018: Sample DB pool gauges between Prometheus scrapes.
+    if let Some(pool) = state.pg_pool.clone() {
+        tokio::spawn(async move {
+            let interval_secs = std::env::var("EDGEQUAKE_DB_POOL_METRICS_INTERVAL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(15);
+            let interval = std::time::Duration::from_secs(interval_secs.max(5));
+            loop {
+                record_db_pool_stats(
+                    pool.size(),
+                    pool.num_idle().min(u32::MAX as usize) as u32,
+                );
+                tokio::time::sleep(interval).await;
+            }
+        });
     }
 
     // Create document task processor with workspace-specific pipeline support (SPEC-032)
@@ -588,7 +617,12 @@ async fn main() -> Result<()> {
     if let Err(e) =
         recover_orphaned_tasks(Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>).await
     {
-        warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "recover_orphaned_tasks",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
     }
 
     // Recover orphaned documents stuck in non-terminal states (uploading, pending, etc.)
@@ -598,7 +632,12 @@ async fn main() -> Result<()> {
     )
     .await
     {
-        warn!("Failed to recover orphaned documents (non-fatal): {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "recover_orphaned_documents",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
     }
 
     // Requeue pending tasks from database to in-memory queue (PRODUCTION_BUG_FIX)
@@ -609,7 +648,12 @@ async fn main() -> Result<()> {
     )
     .await
     {
-        warn!("Failed to requeue pending tasks (non-fatal): {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "requeue_pending_tasks",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
     }
 
     // CHECKPOINT-CLEANUP: Remove pipeline checkpoints older than 24 hours.
@@ -655,7 +699,12 @@ async fn main() -> Result<()> {
         loop {
             interval.tick().await;
             if let Err(e) = periodic_orphan_check(Arc::clone(&periodic_task_storage)).await {
-                warn!("Periodic orphan check failed (non-fatal): {}", e);
+                ErrorEvent::log_domain_warn(
+                    "startup",
+                    "periodic_orphan_check",
+                    &e.to_string(),
+                    json!({ "non_fatal": true }),
+                );
             }
         }
     });

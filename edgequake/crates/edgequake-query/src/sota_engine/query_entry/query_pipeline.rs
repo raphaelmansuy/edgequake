@@ -37,6 +37,18 @@ pub(crate) struct PreparedQuery {
 
 impl SOTAQueryEngine {
     /// Run the full non-streaming SOTA pipeline with explicit providers.
+    #[tracing::instrument(
+        name = "sota_query_pipeline",
+        skip(self, request, providers),
+        err(Debug, level = "warn"),
+        fields(
+            mode = ?request.mode,
+            context_only = request.context_only,
+            query_len = request.query.len(),
+            error.code = tracing::field::Empty,
+            error.message = tracing::field::Empty,
+        )
+    )]
     pub(crate) async fn run_query_pipeline(
         &self,
         request: QueryRequest,

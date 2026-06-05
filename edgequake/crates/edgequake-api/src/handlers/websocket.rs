@@ -33,7 +33,9 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
+use edgequake_observability::ErrorEvent;
+use serde_json::json;
+use tracing::{debug, info};
 
 use crate::state::AppState;
 
@@ -102,8 +104,8 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
     let connected_event = ProgressEvent::Connected {
         message: "Connected to pipeline progress stream".to_string(),
     };
-    if let Err(e) = send_event(&mut sender, &connected_event).await {
-        error!("Failed to send connected event: {}", e);
+    if let Err(e) = send_event(&mut sender, &connected_event, "pipeline_progress").await {
+        ws_log_error("send_connected", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
         return;
     }
 
@@ -117,8 +119,8 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
         current_batch: status.current_batch,
         total_batches: status.total_batches,
     };
-    if let Err(e) = send_event(&mut sender, &snapshot_event).await {
-        error!("Failed to send status snapshot: {}", e);
+    if let Err(e) = send_event(&mut sender, &snapshot_event, "pipeline_progress").await {
+        ws_log_error("send_status_snapshot", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
         return;
     }
 
@@ -147,8 +149,8 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
                                 current_batch: status.current_batch,
                                 total_batches: status.total_batches,
                             };
-                            if let Err(e) = send_event(&mut sender, &snapshot).await {
-                                error!("Failed to send status snapshot: {}", e);
+                            if let Err(e) = send_event(&mut sender, &snapshot, "pipeline_progress").await {
+                                ws_log_error("send_status_snapshot", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
                                 break;
                             }
                         }
@@ -164,7 +166,7 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
                         break;
                     }
                     Err(e) => {
-                        warn!("WebSocket error: {}", e);
+                        ws_log_warn("receive_error", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
                         break;
                     }
                     _ => {}
@@ -175,17 +177,24 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
             result = progress_rx.recv() => {
                 match result {
                     Ok(event) => {
-                        if let Err(e) = send_event(&mut sender, &event).await {
-                            error!("Failed to send progress event: {}", e);
+                        if let Err(e) = send_event(&mut sender, &event, "pipeline_progress").await {
+                            ws_log_error("send_progress_event", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
                             break;
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        warn!("WebSocket client lagged behind {} events", n);
-                        // Continue processing, but client missed some events
+                        ws_log_warn(
+                            "client_lagged",
+                            "WebSocket client lagged behind broadcast",
+                            json!({ "endpoint": "pipeline_progress", "lagged_events": n }),
+                        );
                     }
                     Err(broadcast::error::RecvError::Closed) => {
-                        warn!("Progress broadcast channel closed");
+                        ws_log_warn(
+                            "broadcast_closed",
+                            "Progress broadcast channel closed",
+                            json!({ "endpoint": "pipeline_progress" }),
+                        );
                         break;
                     }
                 }
@@ -196,8 +205,8 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
                 let heartbeat = ProgressEvent::Heartbeat {
                     timestamp: chrono::Utc::now().to_rfc3339(),
                 };
-                if let Err(e) = send_event(&mut sender, &heartbeat).await {
-                    error!("Failed to send heartbeat: {}", e);
+                if let Err(e) = send_event(&mut sender, &heartbeat, "pipeline_progress").await {
+                    ws_log_error("send_heartbeat", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
                     break;
                 }
             }
@@ -207,13 +216,26 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
     info!("WebSocket connection closed for pipeline progress");
 }
 
+fn ws_log_error(action: &str, message: &str, details: serde_json::Value) {
+    ErrorEvent::log_domain_error("websocket", action, message, details);
+}
+
+fn ws_log_warn(action: &str, message: &str, details: serde_json::Value) {
+    ErrorEvent::log_domain_warn("websocket", action, message, details);
+}
+
 /// Send a progress event as JSON over the WebSocket.
 async fn send_event(
     sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
     event: &ProgressEvent,
+    endpoint: &str,
 ) -> Result<(), axum::Error> {
     let json = serde_json::to_string(event).map_err(|e| {
-        error!("Failed to serialize event: {}", e);
+        ws_log_error(
+            "serialize_event",
+            &e.to_string(),
+            json!({ "endpoint": endpoint }),
+        );
         axum::Error::new(e)
     })?;
     sender
@@ -290,8 +312,12 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
     let connected_event = ProgressEvent::Connected {
         message: format!("Connected to progress stream for {}", track_id),
     };
-    if let Err(e) = send_event(&mut sender, &connected_event).await {
-        error!("Failed to send connected event: {}", e);
+    if let Err(e) = send_event(&mut sender, &connected_event, &track_id).await {
+        ws_log_error(
+            "send_connected",
+            &e.to_string(),
+            json!({ "endpoint": "progress_by_track", "track_id": track_id }),
+        );
         return;
     }
 
@@ -305,7 +331,11 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
             });
             if let Ok(json_str) = serde_json::to_string(&snapshot_msg) {
                 if sender.send(Message::Text(json_str.into())).await.is_err() {
-                    error!("Failed to send progress snapshot");
+                    ws_log_error(
+                        "send_progress_snapshot",
+                        "Failed to send progress snapshot",
+                        json!({ "endpoint": "progress_by_track", "track_id": track_id }),
+                    );
                     return;
                 }
             }
@@ -355,7 +385,11 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
                         break;
                     }
                     Err(e) => {
-                        warn!("WebSocket error for track_id={}: {}", track_id, e);
+                        ws_log_warn(
+                            "receive_error",
+                            &e.to_string(),
+                            json!({ "endpoint": "progress_by_track", "track_id": track_id }),
+                        );
                         break;
                     }
                     _ => {}
@@ -368,17 +402,33 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
                     Ok(event) => {
                         // Only forward events matching this track_id
                         if matches_track_id(&event, &track_id) {
-                            if let Err(e) = send_event(&mut sender, &event).await {
-                                error!("Failed to send progress event: {}", e);
+                            if let Err(e) = send_event(&mut sender, &event, &track_id).await {
+                                ws_log_error(
+                                    "send_progress_event",
+                                    &e.to_string(),
+                                    json!({ "endpoint": "progress_by_track", "track_id": track_id }),
+                                );
                                 break;
                             }
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        warn!("WebSocket client lagged behind {} events for track_id={}", n, track_id);
+                        ws_log_warn(
+                            "client_lagged",
+                            "WebSocket client lagged behind broadcast",
+                            json!({
+                                "endpoint": "progress_by_track",
+                                "track_id": track_id,
+                                "lagged_events": n,
+                            }),
+                        );
                     }
                     Err(broadcast::error::RecvError::Closed) => {
-                        warn!("Progress broadcast channel closed for track_id={}", track_id);
+                        ws_log_warn(
+                            "broadcast_closed",
+                            "Progress broadcast channel closed",
+                            json!({ "endpoint": "progress_by_track", "track_id": track_id }),
+                        );
                         break;
                     }
                 }
@@ -389,8 +439,12 @@ async fn handle_filtered_progress_socket(socket: WebSocket, state: AppState, tra
                 let heartbeat = ProgressEvent::Heartbeat {
                     timestamp: chrono::Utc::now().to_rfc3339(),
                 };
-                if let Err(e) = send_event(&mut sender, &heartbeat).await {
-                    error!("Failed to send heartbeat: {}", e);
+                if let Err(e) = send_event(&mut sender, &heartbeat, &track_id).await {
+                    ws_log_error(
+                        "send_heartbeat",
+                        &e.to_string(),
+                        json!({ "endpoint": "progress_by_track", "track_id": track_id }),
+                    );
                     break;
                 }
             }

@@ -9,6 +9,7 @@ description = "REST API server for EdgeQuake"
 
 [features]
 default = []
+otel = ["edgequake-observability/otel"]
 postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
 # Vision mode for PDF extraction using edgequake-pdf2md (bundled pdfium, no system deps)
 vision = []
@@ -24,6 +25,7 @@ edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }
+edgequake-observability = { path = "../edgequake-observability", features = ["metrics"] }
 # Direct dependency kept because the API crate implements the progress callback type.
 edgequake-pdf2md = "=0.9.2"
 

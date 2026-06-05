@@ -12,6 +12,7 @@ use super::{
 use crate::cache_manager::CacheManager;
 use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
+use edgequake_audit::AuditLogger;
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::{
     traits::{GraphStorage, KVStorage, VectorStorage},
@@ -182,16 +183,31 @@ impl AppState {
                 if exts.contains(&"vector".to_string()) {
                     tracing::info!("✓ pgvector extension available");
                 } else {
-                    tracing::warn!("⚠ pgvector extension not found - vector search may not work");
+                    tracing::warn!(
+                        error.source = "postgres_init",
+                        error.action = "extension_check",
+                        extension = "pgvector",
+                        "pgvector extension not found — vector search may not work"
+                    );
                 }
                 if exts.contains(&"uuid-ossp".to_string()) {
                     tracing::info!("✓ uuid-ossp extension available");
                 } else {
-                    tracing::warn!("⚠ uuid-ossp extension not found");
+                    tracing::warn!(
+                        error.source = "postgres_init",
+                        error.action = "extension_check",
+                        extension = "uuid-ossp",
+                        "uuid-ossp extension not found"
+                    );
                 }
             }
             Err(e) => {
-                tracing::warn!("Could not check extensions: {}", e);
+                tracing::warn!(
+                    error.source = "postgres_init",
+                    error.action = "extension_check",
+                    error.message = %e,
+                    "Could not check PostgreSQL extensions"
+                );
             }
         }
 
@@ -332,6 +348,8 @@ impl AppState {
         };
         storage.validate_postgres_adapters()?;
 
+        let audit_logger = AuditLogger::new(pool.clone());
+
         Ok(Self {
             storage,
             query: QueryRuntime {
@@ -354,6 +372,7 @@ impl AppState {
             pg_pool: Some(pool),
             start_time: std::time::Instant::now(),
             path_validation_config: Self::load_path_validation_config(),
+            audit_logger: Some(audit_logger),
         })
     }
 }

@@ -132,7 +132,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                     }
                     Err(e) => {
                         stats.errors += 1;
-                        tracing::warn!("Failed to merge entity: {}", e);
+                        tracing::warn!(
+                            error.source = "pipeline_merger",
+                            error.action = "merge_entity",
+                            error.message = %e,
+                            "Failed to merge entity"
+                        );
                     }
                 }
             }
@@ -149,7 +154,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                     }
                     Err(e) => {
                         stats.errors += 1;
-                        tracing::warn!("Failed to merge relationship: {}", e);
+                        tracing::warn!(
+                            error.source = "pipeline_merger",
+                            error.action = "merge_relationship",
+                            error.message = %e,
+                            "Failed to merge relationship"
+                        );
                     }
                 }
             }

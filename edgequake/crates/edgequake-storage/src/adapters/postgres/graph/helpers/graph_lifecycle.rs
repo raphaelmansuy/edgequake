@@ -163,7 +163,13 @@ impl PostgresAGEGraphStorage {
                             err_str
                         );
                     } else {
-                        tracing::warn!("Failed to create index {}: {}", name, e);
+                        tracing::warn!(
+                            error.source = "postgres_graph",
+                            error.action = "create_index",
+                            index = %name,
+                            error.message = %e,
+                            "Failed to create graph index"
+                        );
                     }
                 }
             }
