@@ -174,6 +174,19 @@ pub async fn run_postgres_migrations(
 }
 
 async fn fetch_applied_versions(pool: &PgPool) -> Result<HashSet<i64>, sqlx::Error> {
+    let table_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = '_sqlx_migrations'
+        )",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if !table_exists {
+        return Ok(HashSet::new());
+    }
+
     let rows: Vec<i64> = sqlx::query_scalar(
         "SELECT version FROM _sqlx_migrations WHERE success = true ORDER BY version",
     )
