@@ -22,11 +22,24 @@ cargo test -p edgequake-api --test migration_readiness_proof --features postgres
 echo "== SPEC-006: e2e_document_deletion shared-entity smoke =="
 cargo test -p edgequake-api test_delete_preserves_shared_entities --quiet
 
-if [[ -n "${DATABASE_URL:-}" ]] || [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+postgres_bootstrap_ready() {
+  if [[ -z "${DATABASE_URL:-}" && -z "${POSTGRES_PASSWORD:-}" ]]; then
+    return 1
+  fi
+  local host="${POSTGRES_HOST:-localhost}"
+  local port="${POSTGRES_PORT:-5432}"
+  if command -v pg_isready >/dev/null 2>&1; then
+    pg_isready -h "$host" -p "$port" -q 2>/dev/null
+  else
+    timeout 2 bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null
+  fi
+}
+
+if postgres_bootstrap_ready; then
   echo "== SPEC-006: migration bootstrap postgres e2e =="
   cargo test -p edgequake-api --test migration_bootstrap_proof --features postgres --quiet
 else
-  echo "== SPEC-006: migration bootstrap postgres e2e (skipped — no DATABASE_URL) =="
+  echo "== SPEC-006: migration bootstrap postgres e2e (skipped — no reachable Postgres) =="
 fi
 
 echo "== SPEC-006: static gates =="
