@@ -66,7 +66,19 @@ Resource safety runbook: [`specifications/006-ensure-perf/009_operator_runbook.m
 
 ```bash
 make observability-proof   # SPEC-018
-make resource-proof        # SPEC-006 P0–P9
+make resource-proof        # SPEC-006 P0–P9 (mock; Postgres e2e in postgres-age-tests job)
+```
+
+### CD / Docker publication (v0.12.7+)
+
+```bash
+git tag v0.12.7 && git push origin v0.12.7
+# → release-docker.yml publishes ghcr.io/raphaelmansuy/edgequake:{version}
+# → ghcr.io/raphaelmansuy/edgequake-frontend:{version}
+# → ghcr.io/raphaelmansuy/edgequake-postgres:{version}
+
+make stack-pull   # pull prebuilt GHCR images
+make stack        # start API + UI + DB
 ```
 
 ---

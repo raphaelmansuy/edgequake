@@ -4,8 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [0.12.7] — 2026-06-06
+
 ### Added
 
+- **SPEC-018 observability** — `edgequake-observability` crate: structured JSON logs, Prometheus metrics, W3C `traceparent` + `X-Request-ID` correlation, OTLP export (opt-in via `ENABLE_OTEL=true`), audit helpers. Docker overlay: `docker-compose.observability.yml` + Jaeger. Proofs: `make observability-proof`.
 - **P9 production delivery (SPEC-006)** — Bounded orchestrator `delete_document` via `GraphScanOps` (no `get_all_*`); memory adapter `get_edges_for_node_set`; runbook env sync lint (`spec006_runbook_env_sync.sh`); production GO/NO-GO checklist (`specifications/006-ensure-perf/012_production_delivery.md`); E2E proof 019; HTTP test `GET /api/v1/graph` → 503 when materialization slots full.
 - **P8 graph materialization guard (SPEC-006)** — DRY `services/graph_materialization.rs`: `try_acquire_owned` fail-fast 503 + query timeout from `resource_budget()`. Wired to graph traversal, popular labels, node search, and SSE stream. Server upload limit SSOT via `state.resource_budget().max_upload_bytes`. Lint: `spec006_no_adhoc_resource_budget.sh`.
 - **P7 resource budget authority (SPEC-006)** — `ResourceGuard` + `GraphMaterializationSemaphore` on `AppState` via `state/resource_runtime.rs`; handlers use `state.resource_budget()` instead of ad-hoc `ResourceBudgetConfig::default()`.
@@ -24,6 +29,12 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Auxiliary migration 038 files moved from `edgequake/migrations/038_*.sql` to `edgequake/migrations/support/038/` so only the canonical sqlx migration remains at the top level.
+- **Docker compose** — SPEC-006 resource env vars wired (`WORKER_THREADS`, `MAX_TASKS_PER_TENANT`, graph materialization caps, upload limit). Default `mem_limit: 4g`.
+
+### Operations
+
+- **CD:** Tag `v0.12.7` triggers [release-docker.yml](.github/workflows/release-docker.yml) → GHCR multi-arch images (`edgequake`, `edgequake-frontend`, `edgequake-postgres`).
+- **CI:** `make resource-proof` (mock) + `postgres-age-tests` (bootstrap e2e) gates on every PR.
 
 ---
 
