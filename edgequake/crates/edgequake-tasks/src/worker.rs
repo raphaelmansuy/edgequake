@@ -398,7 +398,7 @@ impl WorkerPool {
                                         config.processing_timeout_secs,
                                     );
                                     let span_task_id = task.track_id.clone();
-                                    let span_tenant_id = task.tenant_id.clone();
+                                    let span_tenant_id = task.tenant_id;
                                     let span_task_type = task.task_type;
                                     let process_result = tokio::time::timeout(
                                         timeout_duration,

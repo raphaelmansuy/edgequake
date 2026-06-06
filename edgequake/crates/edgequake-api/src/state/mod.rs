@@ -74,10 +74,13 @@ pub(crate) mod bundled_models;
 mod config;
 mod memory;
 #[cfg(feature = "postgres")]
+pub mod migration_bootstrap;
+#[cfg(feature = "postgres")]
 mod postgres;
 mod provider_setup;
 mod query_bootstrap;
 mod query_runtime;
+mod resource_runtime;
 mod storage_runtime;
 mod task_runtime;
 
@@ -88,6 +91,8 @@ pub use storage_runtime::StorageRuntime;
 pub use task_runtime::TaskRuntime;
 
 use std::sync::Arc;
+
+use edgequake_core::{GraphMaterializationSemaphore, ResourceBudgetConfig, ResourceGuard};
 
 use crate::cache_manager::CacheManager;
 use edgequake_pipeline::Pipeline;
@@ -160,11 +165,27 @@ pub struct AppState {
 
     /// Compliance audit logger (PostgreSQL deployments).
     pub audit_logger: Option<edgequake_audit::AuditLogger>,
+
+    /// SPEC-006: centralized admission guard (DRY — single budget authority).
+    pub resource_guard: ResourceGuard,
+
+    /// SPEC-006: caps concurrent graph materialization queries.
+    pub graph_materialize: Arc<GraphMaterializationSemaphore>,
+
+    /// Bootstrap migration report (PostgreSQL only).
+    #[cfg(feature = "postgres")]
+    pub migration_bootstrap: Option<crate::state::migration_bootstrap::MigrationBootstrapReport>,
 }
 
 // ── Operational Methods ───────────────────────────────────────────────────
 
 impl AppState {
+    /// SPEC-006 SSOT accessor — handlers must use this instead of ad-hoc `default()` / `from_env()`.
+    #[inline]
+    pub fn resource_budget(&self) -> &ResourceBudgetConfig {
+        self.resource_guard.budget()
+    }
+
     /// Initialize default tenant and workspace for non-authenticated mode.
     /// This ensures that the system is usable without authentication.
     ///

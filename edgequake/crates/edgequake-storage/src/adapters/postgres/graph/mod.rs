@@ -176,6 +176,7 @@ mod graph_storage_impl;
 mod lifecycle_ops;
 mod nodes_ops;
 mod query_ops;
+mod scan_ops;
 
 impl std::fmt::Debug for PostgresAGEGraphStorage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

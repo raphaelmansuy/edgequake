@@ -2,7 +2,9 @@
 
 use std::sync::OnceLock;
 
-use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram, Unit};
+use metrics::{
+    counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram, Unit,
+};
 
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 
@@ -30,10 +32,7 @@ fn describe_http_metrics() {
         Unit::Seconds,
         "HTTP request duration in seconds"
     );
-    describe_counter!(
-        QUERY_REQUESTS,
-        "Total RAG query executions"
-    );
+    describe_counter!(QUERY_REQUESTS, "Total RAG query executions");
     describe_histogram!(
         QUERY_DURATION,
         Unit::Seconds,
@@ -43,12 +42,11 @@ fn describe_http_metrics() {
         RATE_LIMIT_EXCEEDED,
         "HTTP requests rejected due to rate limiting"
     );
-    describe_counter!(LLM_REQUESTS, "LLM provider calls (query generation and errors)");
-    describe_histogram!(
-        LLM_DURATION,
-        Unit::Seconds,
-        "LLM call duration in seconds"
+    describe_counter!(
+        LLM_REQUESTS,
+        "LLM provider calls (query generation and errors)"
     );
+    describe_histogram!(LLM_DURATION, Unit::Seconds, "LLM call duration in seconds");
     describe_counter!(
         DOCUMENT_PROCESSING,
         "Document and PDF processing outcomes by task type and stage"
@@ -105,8 +103,7 @@ pub fn init_metrics() {
             "outcome" => "success"
         )
         .increment(0);
-        histogram!(LLM_DURATION, "provider" => "bootstrap", "operation" => "query")
-            .record(0.0);
+        histogram!(LLM_DURATION, "provider" => "bootstrap", "operation" => "query").record(0.0);
         counter!(
             DOCUMENT_PROCESSING,
             "task_type" => "bootstrap",
@@ -171,12 +168,7 @@ pub fn record_db_pool_stats(size: u32, idle: u32) {
 }
 
 /// Record document/PDF pipeline processing (task processor layer).
-pub fn record_document_processing(
-    task_type: &str,
-    stage: &str,
-    outcome: &str,
-    duration_secs: f64,
-) {
+pub fn record_document_processing(task_type: &str, stage: &str, outcome: &str, duration_secs: f64) {
     init_metrics();
     counter!(
         DOCUMENT_PROCESSING,
@@ -194,12 +186,7 @@ pub fn record_document_processing(
 }
 
 /// Record an LLM provider call.
-pub fn record_llm_request(
-    provider: &str,
-    operation: &str,
-    outcome: &str,
-    duration_secs: f64,
-) {
+pub fn record_llm_request(provider: &str, operation: &str, outcome: &str, duration_secs: f64) {
     init_metrics();
     let provider = if provider.is_empty() {
         "unknown".to_string()
@@ -276,9 +263,10 @@ pub fn normalize_route(path: &str) -> String {
     let normalized: Vec<String> = parts
         .iter()
         .map(|p| {
-            if p.len() == 36 && p.chars().filter(|c| *c == '-').count() == 4 {
-                ":id".to_string()
-            } else if p.len() > 20 && p.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+            let looks_like_uuid = p.len() == 36 && p.chars().filter(|c| *c == '-').count() == 4;
+            let looks_like_hex_id =
+                p.len() > 20 && p.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+            if looks_like_uuid || looks_like_hex_id {
                 ":id".to_string()
             } else {
                 (*p).to_string()

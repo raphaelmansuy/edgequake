@@ -24,6 +24,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::MockProvider;
+use edgequake_storage::traits::{EdgeListFilter, GraphScanOps, NodeListFilter, PagedGraphResult};
 use edgequake_storage::{
     GraphEdge, GraphNode, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
     GraphStorageReadOps, KnowledgeGraph, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
@@ -222,6 +223,51 @@ impl GraphStorageMutateOps for FailingGraphStorage {
 
     async fn clear(&self) -> Result<(), StorageError> {
         Ok(())
+    }
+}
+
+#[async_trait]
+impl GraphScanOps for FailingGraphStorage {
+    async fn list_nodes_filtered(
+        &self,
+        _filter: &NodeListFilter,
+        _offset: usize,
+        _limit: usize,
+    ) -> Result<PagedGraphResult<GraphNode>, StorageError> {
+        Ok(PagedGraphResult::empty(0, 0))
+    }
+
+    async fn list_edges_filtered(
+        &self,
+        _filter: &EdgeListFilter,
+        _offset: usize,
+        _limit: usize,
+    ) -> Result<PagedGraphResult<GraphEdge>, StorageError> {
+        Ok(PagedGraphResult::empty(0, 0))
+    }
+
+    async fn find_nodes_by_source_prefixes(
+        &self,
+        _filter: &NodeListFilter,
+        _source_prefixes: &[String],
+    ) -> Result<Vec<GraphNode>, StorageError> {
+        Ok(vec![])
+    }
+
+    async fn find_edges_by_source_prefixes(
+        &self,
+        _filter: &EdgeListFilter,
+        _source_prefixes: &[String],
+    ) -> Result<Vec<GraphEdge>, StorageError> {
+        Ok(vec![])
+    }
+
+    async fn find_edge_by_relationship_id(
+        &self,
+        _filter: &EdgeListFilter,
+        _relationship_id: &str,
+    ) -> Result<Option<GraphEdge>, StorageError> {
+        Ok(None)
     }
 }
 

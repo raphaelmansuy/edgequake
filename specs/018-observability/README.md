@@ -1,6 +1,6 @@
 # Spec 018 — Observability & OTEL
 
-**Date:** 2026-06-05 (post-implementation)  
+**Date:** 2026-06-06 (post-implementation)  
 **Status:** Implemented — see [015-brutal-post-implementation.md](./015-brutal-post-implementation.md)
 
 ---
@@ -16,8 +16,11 @@
 | **Metrics** | A | HTTP, query, LLM, document, storage, pipeline, db pool gauges |
 | **OTLP export** | A- | `docker-compose.observability.yml` + `--profile observability` |
 | **Audit** | B+ | Auth, query, upload, PDF, delete, workspace CRUD |
+| **Resource pressure signals** | A | 503 `ServiceUnavailable` with `retry_after_secs`; correlated via `request_id` / `traceparent` |
 
 Run proofs: [`e2e/run_observability_proof.sh`](./e2e/run_observability_proof.sh)
+
+**Related:** [SPEC-006 resource safety](../../specifications/006-ensure-perf/000-index.md) — graph 503s (`graph_materialization_busy`, `graph_query_timeout`) surface via `ApiError` diagnostics + structured logs (`request_id`, `http.status=503`, `Retry-After`). CI: `make resource-proof` alongside `make observability-proof`.
 
 ---
 
@@ -56,7 +59,15 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317
 export RUST_LOG=edgequake_api=info,edgequake_storage=warn
 ```
 
-Operator guide: [`docs/OBSERVABILITY.md`](../../docs/OBSERVABILITY.md)
+Operator guide: [`docs/OBSERVABILITY.md`](../../docs/OBSERVABILITY.md)  
+Resource safety runbook: [`specifications/006-ensure-perf/009_operator_runbook.md`](../../specifications/006-ensure-perf/009_operator_runbook.md)
+
+### CI gates (release pipeline)
+
+```bash
+make observability-proof   # SPEC-018
+make resource-proof        # SPEC-006 P0–P9
+```
 
 ---
 

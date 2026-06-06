@@ -95,10 +95,7 @@ pub async fn stream_query(
         .as_deref()
         .map(|f| f == "v1")
         .unwrap_or(false);
-    tracing::Span::current().record(
-        "stream.format",
-        if use_v1 { "v1" } else { "v2" },
-    );
+    tracing::Span::current().record("stream.format", if use_v1 { "v1" } else { "v2" });
 
     // Parse query mode
     let mode = request
@@ -253,193 +250,191 @@ pub async fn stream_query(
         .unwrap_or_else(|| "default".to_string());
     tokio::spawn(async move {
         scope_llm_provider(spawn_provider.clone(), async {
-        let retrieval_start = std::time::Instant::now();
+            let retrieval_start = std::time::Instant::now();
 
-        let resources = match resolve_workspace_query_resources(
-            &state_clone,
-            workspace_id_str.as_deref(),
-        )
-        .await
-        {
-            Ok(resources) => resources,
-            Err(e) => {
-                let msg = e.to_string();
-                ErrorEvent::log_stream_error(
-                    &stream_request_id,
-                    "query_stream",
-                    "WORKSPACE_QUERY_CONFIG_ERROR",
-                    &msg,
-                    json!({ "phase": "workspace_resolve" }),
-                );
-                record_query_completed(&stream_mode, "failure", retrieval_start.elapsed().as_secs_f64());
-                let _ = tx
-                    .send(QueryStreamEvent::Error {
-                        message: msg,
-                        code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
-                    })
-                    .await;
-                return;
-            }
-        };
-
-        let stream_result = execute_sota_query_stream_with_auth_fallback(
-            &state_clone,
-            engine_request,
-            resources,
-            llm_override.clone(),
-        )
-        .await;
-
-        match stream_result {
-            Ok((context, used_mode, mut stream)) => {
-                let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
-
-                // Build and enrich sources
-                let mut sources = build_sources(&context);
-                resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
-                    .await;
-
-                // SPEC-006 FR-001: Emit context event BEFORE tokens
-                let context_event = QueryStreamEvent::Context {
-                    sources,
-                    query_mode: used_mode.to_string(),
-                    retrieval_time_ms,
+            let resources =
+                match resolve_workspace_query_resources(&state_clone, workspace_id_str.as_deref())
+                    .await
+                {
+                    Ok(resources) => resources,
+                    Err(e) => {
+                        let msg = e.to_string();
+                        ErrorEvent::log_stream_error(
+                            &stream_request_id,
+                            "query_stream",
+                            "WORKSPACE_QUERY_CONFIG_ERROR",
+                            &msg,
+                            json!({ "phase": "workspace_resolve" }),
+                        );
+                        record_query_completed(
+                            &stream_mode,
+                            "failure",
+                            retrieval_start.elapsed().as_secs_f64(),
+                        );
+                        let _ = tx
+                            .send(QueryStreamEvent::Error {
+                                message: msg,
+                                code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
+                            })
+                            .await;
+                        return;
+                    }
                 };
-                if tx.send(context_event).await.is_err() {
-                    ErrorEvent::log_stream_disconnect(
-                        &stream_request_id,
-                        "query_stream",
-                        "context_event",
+
+            let stream_result = execute_sota_query_stream_with_auth_fallback(
+                &state_clone,
+                engine_request,
+                resources,
+                llm_override.clone(),
+            )
+            .await;
+
+            match stream_result {
+                Ok((context, used_mode, mut stream)) => {
+                    let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
+
+                    // Build and enrich sources
+                    let mut sources = build_sources(&context);
+                    resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
+                        .await;
+
+                    // SPEC-006 FR-001: Emit context event BEFORE tokens
+                    let context_event = QueryStreamEvent::Context {
+                        sources,
+                        query_mode: used_mode.to_string(),
+                        retrieval_time_ms,
+                    };
+                    if tx.send(context_event).await.is_err() {
+                        ErrorEvent::log_stream_disconnect(
+                            &stream_request_id,
+                            "query_stream",
+                            "context_event",
+                        );
+                        return;
+                    }
+
+                    info!(
+                        entities = context.entities.len(),
+                        relationships = context.relationships.len(),
+                        chunks = context.chunks.len(),
+                        mode = %used_mode,
+                        "Sent context event for streaming query"
                     );
-                    return;
-                }
 
-                info!(
-                    entities = context.entities.len(),
-                    relationships = context.relationships.len(),
-                    chunks = context.chunks.len(),
-                    mode = %used_mode,
-                    "Sent context event for streaming query"
-                );
+                    // Stream tokens
+                    let gen_start = std::time::Instant::now();
+                    let mut accumulator = StreamAccumulator::new();
 
-                // Stream tokens
-                let gen_start = std::time::Instant::now();
-                let mut accumulator = StreamAccumulator::new();
-
-                while let Some(chunk_result) = stream.next().await {
-                    match chunk_result {
-                        Ok(text) => {
-                            accumulator.append_content(&text);
-                            let event = QueryStreamEvent::Token {
-                                content: text.clone(),
-                            };
-                            if tx.send(event).await.is_err() {
-                                ErrorEvent::log_stream_disconnect(
+                    while let Some(chunk_result) = stream.next().await {
+                        match chunk_result {
+                            Ok(text) => {
+                                accumulator.append_content(&text);
+                                let event = QueryStreamEvent::Token {
+                                    content: text.clone(),
+                                };
+                                if tx.send(event).await.is_err() {
+                                    ErrorEvent::log_stream_disconnect(
+                                        &stream_request_id,
+                                        "query_stream",
+                                        "token_stream",
+                                    );
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                let msg = e.to_string();
+                                record_llm_request(
+                                    &spawn_provider,
+                                    "query_stream_token",
+                                    "failure",
+                                    0.0,
+                                );
+                                ErrorEvent::log_stream_error(
                                     &stream_request_id,
                                     "query_stream",
-                                    "token_stream",
+                                    "STREAM_ERROR",
+                                    &msg,
+                                    json!({ "phase": "token_stream" }),
                                 );
-                                break;
+                                record_query_completed(
+                                    &stream_mode,
+                                    "failure",
+                                    retrieval_start.elapsed().as_secs_f64(),
+                                );
+                                let _ = tx
+                                    .send(QueryStreamEvent::Error {
+                                        message: msg,
+                                        code: "STREAM_ERROR".to_string(),
+                                    })
+                                    .await;
+                                return;
                             }
                         }
-                        Err(e) => {
-                            let msg = e.to_string();
-                            record_llm_request(
-                                &spawn_provider,
-                                "query_stream_token",
-                                "failure",
-                                0.0,
-                            );
-                            ErrorEvent::log_stream_error(
-                                &stream_request_id,
-                                "query_stream",
-                                "STREAM_ERROR",
-                                &msg,
-                                json!({ "phase": "token_stream" }),
-                            );
-                            record_query_completed(
-                                &stream_mode,
-                                "failure",
-                                retrieval_start.elapsed().as_secs_f64(),
-                            );
-                            let _ = tx
-                                .send(QueryStreamEvent::Error {
-                                    message: msg,
-                                    code: "STREAM_ERROR".to_string(),
-                                })
-                                .await;
-                            return;
-                        }
                     }
+
+                    // SPEC-006 FR-003: Emit done event with stats
+                    let generation_time_ms = gen_start.elapsed().as_millis() as u64;
+                    let tokens_used = accumulator.estimated_tokens();
+                    let total_time_ms = retrieval_time_ms + generation_time_ms;
+                    let tokens_per_second = if generation_time_ms > 0 {
+                        Some(tokens_used as f32 / (generation_time_ms as f32 / 1000.0))
+                    } else {
+                        None
+                    };
+
+                    record_query_completed(&stream_mode, "success", total_time_ms as f64 / 1000.0);
+
+                    if generation_time_ms > 0 {
+                        record_llm_request(
+                            used_provider.as_deref().unwrap_or("unknown"),
+                            "query_stream_generation",
+                            "success",
+                            generation_time_ms as f64 / 1000.0,
+                        );
+                    }
+
+                    let _ = tx
+                        .send(QueryStreamEvent::Done {
+                            stats: QueryStreamStats {
+                                embedding_time_ms: 0, // Included in retrieval_time_ms
+                                retrieval_time_ms,
+                                generation_time_ms,
+                                total_time_ms,
+                                sources_retrieved: context.chunks.len()
+                                    + context.entities.len()
+                                    + context.relationships.len(),
+                                tokens_used,
+                                tokens_per_second,
+                                query_mode: used_mode.to_string(),
+                            },
+                            llm_provider: used_provider,
+                            llm_model: used_model,
+                        })
+                        .await;
                 }
-
-                // SPEC-006 FR-003: Emit done event with stats
-                let generation_time_ms = gen_start.elapsed().as_millis() as u64;
-                let tokens_used = accumulator.estimated_tokens();
-                let total_time_ms = retrieval_time_ms + generation_time_ms;
-                let tokens_per_second = if generation_time_ms > 0 {
-                    Some(tokens_used as f32 / (generation_time_ms as f32 / 1000.0))
-                } else {
-                    None
-                };
-
-                record_query_completed(
-                    &stream_mode,
-                    "success",
-                    total_time_ms as f64 / 1000.0,
-                );
-
-                if generation_time_ms > 0 {
-                    record_llm_request(
-                        used_provider.as_deref().unwrap_or("unknown"),
-                        "query_stream_generation",
-                        "success",
-                        generation_time_ms as f64 / 1000.0,
+                Err(e) => {
+                    let msg = e.to_string();
+                    record_llm_request(&spawn_provider, "query_stream_start", "failure", 0.0);
+                    ErrorEvent::log_stream_error(
+                        &stream_request_id,
+                        "query_stream",
+                        "QUERY_FAILED",
+                        &msg,
+                        json!({ "phase": "stream_start" }),
                     );
+                    record_query_completed(
+                        &stream_mode,
+                        "failure",
+                        retrieval_start.elapsed().as_secs_f64(),
+                    );
+                    let _ = tx
+                        .send(QueryStreamEvent::Error {
+                            message: msg,
+                            code: "QUERY_FAILED".to_string(),
+                        })
+                        .await;
                 }
-
-                let _ = tx
-                    .send(QueryStreamEvent::Done {
-                        stats: QueryStreamStats {
-                            embedding_time_ms: 0, // Included in retrieval_time_ms
-                            retrieval_time_ms,
-                            generation_time_ms,
-                            total_time_ms,
-                            sources_retrieved: context.chunks.len()
-                                + context.entities.len()
-                                + context.relationships.len(),
-                            tokens_used,
-                            tokens_per_second,
-                            query_mode: used_mode.to_string(),
-                        },
-                        llm_provider: used_provider,
-                        llm_model: used_model,
-                    })
-                    .await;
             }
-            Err(e) => {
-                let msg = e.to_string();
-                record_llm_request(&spawn_provider, "query_stream_start", "failure", 0.0);
-                ErrorEvent::log_stream_error(
-                    &stream_request_id,
-                    "query_stream",
-                    "QUERY_FAILED",
-                    &msg,
-                    json!({ "phase": "stream_start" }),
-                );
-                record_query_completed(
-                    &stream_mode,
-                    "failure",
-                    retrieval_start.elapsed().as_secs_f64(),
-                );
-                let _ = tx
-                    .send(QueryStreamEvent::Error {
-                        message: msg,
-                        code: "QUERY_FAILED".to_string(),
-                    })
-                    .await;
-            }
-        }
         })
         .await;
     });

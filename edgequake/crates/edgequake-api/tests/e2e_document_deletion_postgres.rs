@@ -216,6 +216,8 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
             allow_any_path: true,
             ..Default::default()
         },
+        audit_logger: None,
+        migration_bootstrap: None,
     }
 }
 

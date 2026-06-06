@@ -80,10 +80,8 @@ pub async fn execute_query(
 ) -> ApiResult<Json<QueryResponse>> {
     let query_mode_label = request.mode.as_deref().unwrap_or("hybrid").to_string();
     tracing::Span::current().record("query.mode", query_mode_label.as_str());
-    let query_obs = QueryOutcomeGuard::with_request_id(
-        &query_mode_label,
-        Some(req_ctx.request_id.clone()),
-    );
+    let query_obs =
+        QueryOutcomeGuard::with_request_id(&query_mode_label, Some(req_ctx.request_id.clone()));
 
     debug!(
         request_id = %req_ctx.request_id,
@@ -421,10 +419,7 @@ pub async fn execute_query(
     if let Some(ref ws) = tenant_ctx.workspace_id {
         audit_event = audit_event.with_workspace(ws.clone());
     }
-    record_audit(
-        &state,
-        with_request_context(audit_event, &req_ctx),
-    );
+    record_audit(&state, with_request_context(audit_event, &req_ctx));
 
     query_obs.mark_success(result.stats.total_time_ms as f64 / 1000.0);
 

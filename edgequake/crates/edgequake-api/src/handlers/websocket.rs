@@ -30,11 +30,11 @@ use axum::{
     },
     response::IntoResponse,
 };
+use edgequake_observability::ErrorEvent;
 use futures_util::{SinkExt, StreamExt};
+use serde_json::json;
 use std::time::Duration;
 use tokio::sync::broadcast;
-use edgequake_observability::ErrorEvent;
-use serde_json::json;
 use tracing::{debug, info};
 
 use crate::state::AppState;
@@ -105,7 +105,11 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
         message: "Connected to pipeline progress stream".to_string(),
     };
     if let Err(e) = send_event(&mut sender, &connected_event, "pipeline_progress").await {
-        ws_log_error("send_connected", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
+        ws_log_error(
+            "send_connected",
+            &e.to_string(),
+            json!({ "endpoint": "pipeline_progress" }),
+        );
         return;
     }
 
@@ -120,7 +124,11 @@ async fn handle_pipeline_socket(socket: WebSocket, state: AppState) {
         total_batches: status.total_batches,
     };
     if let Err(e) = send_event(&mut sender, &snapshot_event, "pipeline_progress").await {
-        ws_log_error("send_status_snapshot", &e.to_string(), json!({ "endpoint": "pipeline_progress" }));
+        ws_log_error(
+            "send_status_snapshot",
+            &e.to_string(),
+            json!({ "endpoint": "pipeline_progress" }),
+        );
         return;
     }
 

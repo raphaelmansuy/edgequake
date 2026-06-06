@@ -41,11 +41,10 @@ pub trait GraphStorageAnalyticsOps: GraphStorageReadOps {
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
         let _ = workspace_id;
-        let nodes = self.get_all_nodes().await?;
-        let types: std::collections::HashSet<&str> = nodes
-            .iter()
-            .filter_map(|n| n.properties.get("entity_type").and_then(|v| v.as_str()))
-            .collect();
-        Ok(types.len())
+        Err(crate::error::StorageError::InvalidQuery(
+            "distinct_node_type_count_by_workspace requires adapter-specific implementation \
+             (SPEC-006: no get_all_nodes fallback)"
+                .into(),
+        ))
     }
 }

@@ -25,6 +25,10 @@ pub trait GraphStorageReadOps: Send + Sync {
         Ok(results)
     }
 
+    /// Legacy full-graph load — **not for API hot paths** (SPEC-006). Prefer `GraphScanOps`.
+    #[deprecated(
+        note = "SPEC-006: use bounded GraphScanOps / list_nodes_filtered instead of full-graph load"
+    )]
     async fn get_all_nodes(&self) -> Result<Vec<GraphNode>>;
 
     async fn get_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>>;
@@ -63,6 +67,8 @@ pub trait GraphStorageReadOps: Send + Sync {
 
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
 
+    /// Legacy full-graph load — **not for API hot paths** (SPEC-006).
+    #[deprecated(note = "SPEC-006: use bounded edge queries instead of full-graph load")]
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>>;
 
     async fn get_knowledge_graph(
@@ -151,6 +157,7 @@ pub trait GraphStorageReadOps: Send + Sync {
         Ok(results)
     }
 
+    #[allow(deprecated)]
     async fn get_edges_for_node_set(
         &self,
         node_ids: &[String],

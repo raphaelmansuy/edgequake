@@ -24,8 +24,10 @@ use std::sync::RwLock;
 
 use crate::error::Result;
 use crate::traits::{
-    GraphEdge, GraphNode, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
-    GraphStorageReadOps, KnowledgeGraph,
+    edge_matches_list_filter, edge_matches_relationship_id, node_matches_list_filter,
+    sources_match_prefixes, EdgeListFilter, GraphEdge, GraphNode, GraphScanOps, GraphStorage,
+    GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KnowledgeGraph,
+    NodeListFilter, PagedGraphResult,
 };
 
 /// In-memory graph storage implementation.
@@ -78,6 +80,7 @@ impl GraphStorage for MemoryGraphStorage {
 }
 
 #[async_trait]
+#[allow(deprecated)]
 impl GraphStorageReadOps for MemoryGraphStorage {
     async fn has_node(&self, node_id: &str) -> Result<bool> {
         let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
@@ -238,6 +241,56 @@ impl GraphStorageReadOps for MemoryGraphStorage {
                 source: s.clone(),
                 target: t.clone(),
                 properties: props.clone(),
+            })
+            .collect())
+    }
+
+    async fn get_edges_for_node_set(
+        &self,
+        node_ids: &[String],
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphEdge>> {
+        use std::collections::HashSet;
+
+        let node_set: HashSet<&str> = node_ids.iter().map(|s| s.as_str()).collect();
+        if node_set.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        Ok(edges
+            .iter()
+            .filter_map(|((source, target), props)| {
+                if !node_set.contains(source.as_str()) || !node_set.contains(target.as_str()) {
+                    return None;
+                }
+                let edge = GraphEdge {
+                    source: source.clone(),
+                    target: target.clone(),
+                    properties: props.clone(),
+                };
+                if let Some(tid) = tenant_id {
+                    let edge_tenant = edge
+                        .properties
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !edge_tenant.is_empty() && edge_tenant != tid {
+                        return None;
+                    }
+                }
+                if let Some(wid) = workspace_id {
+                    let edge_workspace = edge
+                        .properties
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !edge_workspace.is_empty() && edge_workspace != wid {
+                        return None;
+                    }
+                }
+                Some(edge)
             })
             .collect())
     }
@@ -645,6 +698,158 @@ impl GraphStorageAnalyticsOps for MemoryGraphStorage {
             .filter_map(|props| props.get("entity_type").and_then(|v| v.as_str()))
             .collect();
         Ok(types.len())
+    }
+}
+
+#[async_trait]
+impl GraphScanOps for MemoryGraphStorage {
+    async fn list_nodes_filtered(
+        &self,
+        filter: &NodeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedGraphResult<GraphNode>> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+
+        let mut matching_ids: Vec<String> = nodes
+            .iter()
+            .filter_map(|(id, props)| {
+                let node = GraphNode {
+                    id: id.clone(),
+                    properties: props.clone(),
+                };
+                node_matches_list_filter(&node, filter).then_some(id.clone())
+            })
+            .collect();
+
+        matching_ids.sort();
+        let total = matching_ids.len();
+        let page_ids: Vec<String> = matching_ids.into_iter().skip(offset).take(limit).collect();
+
+        let items: Vec<GraphNode> = page_ids
+            .iter()
+            .filter_map(|id| {
+                nodes.get(id).map(|props| GraphNode {
+                    id: id.clone(),
+                    properties: props.clone(),
+                })
+            })
+            .collect();
+
+        Ok(PagedGraphResult {
+            items,
+            total,
+            offset,
+            limit,
+        })
+    }
+
+    async fn list_edges_filtered(
+        &self,
+        filter: &EdgeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedGraphResult<GraphEdge>> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+
+        let mut matching: Vec<GraphEdge> = edges
+            .iter()
+            .map(|((source, target), props)| GraphEdge {
+                source: source.clone(),
+                target: target.clone(),
+                properties: props.clone(),
+            })
+            .filter(|edge| edge_matches_list_filter(edge, filter))
+            .collect();
+
+        matching.sort_by(|a, b| {
+            let a_id = format!("{}_{}", a.source, a.target);
+            let b_id = format!("{}_{}", b.source, b.target);
+            a_id.cmp(&b_id)
+        });
+
+        let total = matching.len();
+        let items: Vec<GraphEdge> = matching.into_iter().skip(offset).take(limit).collect();
+
+        Ok(PagedGraphResult {
+            items,
+            total,
+            offset,
+            limit,
+        })
+    }
+
+    async fn find_nodes_by_source_prefixes(
+        &self,
+        filter: &NodeListFilter,
+        source_prefixes: &[String],
+    ) -> Result<Vec<GraphNode>> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let mut matched: Vec<GraphNode> = nodes
+            .iter()
+            .filter_map(|(id, props)| {
+                let node = GraphNode {
+                    id: id.clone(),
+                    properties: props.clone(),
+                };
+                if node_matches_list_filter(&node, filter)
+                    && sources_match_prefixes(&node.properties, source_prefixes)
+                {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        matched.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(matched)
+    }
+
+    async fn find_edges_by_source_prefixes(
+        &self,
+        filter: &EdgeListFilter,
+        source_prefixes: &[String],
+    ) -> Result<Vec<GraphEdge>> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        let mut matched: Vec<GraphEdge> = edges
+            .iter()
+            .map(|((source, target), props)| GraphEdge {
+                source: source.clone(),
+                target: target.clone(),
+                properties: props.clone(),
+            })
+            .filter(|edge| {
+                edge_matches_list_filter(edge, filter)
+                    && sources_match_prefixes(&edge.properties, source_prefixes)
+            })
+            .collect();
+        matched.sort_by(|a, b| {
+            let a_id = format!("{}_{}", a.source, a.target);
+            let b_id = format!("{}_{}", b.source, b.target);
+            a_id.cmp(&b_id)
+        });
+        Ok(matched)
+    }
+
+    async fn find_edge_by_relationship_id(
+        &self,
+        filter: &EdgeListFilter,
+        relationship_id: &str,
+    ) -> Result<Option<GraphEdge>> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        for ((source, target), props) in edges.iter() {
+            let edge = GraphEdge {
+                source: source.clone(),
+                target: target.clone(),
+                properties: props.clone(),
+            };
+            if edge_matches_list_filter(&edge, filter)
+                && edge_matches_relationship_id(&edge, relationship_id)
+            {
+                return Ok(Some(edge));
+            }
+        }
+        Ok(None)
     }
 }
 

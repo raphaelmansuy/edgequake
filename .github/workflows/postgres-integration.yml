@@ -265,6 +265,17 @@ jobs:
           cargo test -p edgequake-storage --test graph_isp_contract --features postgres -- --test-threads=1
         continue-on-error: false
 
+      - name: Run SPEC-006 migration bootstrap postgres e2e
+        working-directory: edgequake
+        env:
+          DATABASE_URL: postgresql://edgequake_test:test_password_123@localhost:5432/edgequake_test
+          POSTGRES_PASSWORD: test_password_123
+        run: |
+          echo "Running SPEC-006 migration bootstrap + readiness battle tests..."
+          cargo test -p edgequake-api --test migration_bootstrap_proof --features postgres -- --test-threads=1
+          cargo test -p edgequake-api --test migration_readiness_proof --features postgres -- --test-threads=1
+        continue-on-error: false
+
       - name: Run PostgreSQL AGE Graph Tests
         working-directory: edgequake
         run: |

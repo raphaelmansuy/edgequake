@@ -1856,7 +1856,24 @@ logs: ## Show recent logs from all services
 	@echo "$(BOLD)Docker Container Status:$(RESET)"
 	@cd $(DOCKER_DIR) && docker compose ps 2>/dev/null || echo "Docker not running"
 
-.PHONY: observability-proof observability-jaeger
+.PHONY: observability-proof observability-jaeger resource-proof resource-proof-postgres
+
+resource-proof: ## Run SPEC-006 resource safety proof suite
+	@chmod +x specifications/006-ensure-perf/e2e/run_resource_proof.sh scripts/spec006_no_get_all_api.sh scripts/spec006_budget_catalog_sync.sh scripts/spec006_source_ids_migration.sh scripts/spec006_no_unguarded_community_api.sh scripts/spec006_no_adhoc_resource_budget.sh scripts/spec006_apply_migration_038.sh edgequake/scripts/migrations/apply_038.sh
+	@./specifications/006-ensure-perf/e2e/run_resource_proof.sh
+
+resource-proof-postgres: test-postgres-start ## SPEC-006 battle test with live Postgres (migration bootstrap e2e)
+	@echo "$(BLUE)Running SPEC-006 Postgres battle tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT=5433 \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test -p edgequake-api --test migration_bootstrap_proof --test migration_readiness_proof --features postgres --quiet
+	@./specifications/006-ensure-perf/e2e/run_resource_proof.sh
+	@echo "$(GREEN)✓ SPEC-006 resource-proof-postgres complete$(RESET)"
 
 observability-proof: ## Run SPEC-018 observability proof suite (Rust + WebUI)
 	@./specs/018-observability/e2e/run_observability_proof.sh

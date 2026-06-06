@@ -4,10 +4,15 @@ use axum::extract::{Path, State};
 use axum::Json;
 
 use super::cache::cached_kv_get;
+use edgequake_storage::traits::collect_source_references;
+
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::isolation::{properties_match_tenant_context, verify_document_access};
 use crate::handlers::lineage_types::*;
 use crate::middleware::TenantContext;
+use crate::services::{
+    find_document_edges, find_document_nodes, sources_for_document, DocumentSourceScope,
+};
 use crate::state::AppState;
 
 /// Get lineage for an entity (all source documents).
@@ -148,68 +153,50 @@ pub async fn get_document_lineage(
         )));
     }
 
-    // Find all entities sourced from this document
-    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
+    // SPEC-006 P1: bounded document-scoped lineage (no full graph scan)
+    let scope = DocumentSourceScope::from_document_id(document_id.clone());
     let mut entities: Vec<EntitySummaryResponse> = Vec::new();
 
-    for node in &all_nodes {
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let doc_sources: Vec<String> = sources
-                .iter()
-                .filter(|s| s.starts_with(&chunk_prefix) || *s == &document_id)
-                .map(|s| s.to_string())
-                .collect();
-
-            if !doc_sources.is_empty() {
-                let entity_type = node
-                    .properties
-                    .get("entity_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-
-                let is_shared = sources.len() > doc_sources.len();
-
-                entities.push(EntitySummaryResponse {
-                    name: node.id.clone(),
-                    entity_type,
-                    source_chunks: doc_sources,
-                    is_shared,
-                });
-            }
+    for node in find_document_nodes(&state.storage.graph_storage, Some(&tenant_ctx), &scope).await?
+    {
+        let doc_sources = sources_for_document(&node.properties, &scope);
+        if doc_sources.is_empty() {
+            continue;
         }
+        let all_sources = collect_source_references(&node.properties);
+        let entity_type = node
+            .properties
+            .get("entity_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        entities.push(EntitySummaryResponse {
+            name: node.id.clone(),
+            entity_type,
+            source_chunks: doc_sources,
+            is_shared: all_sources.len() > 1,
+        });
     }
 
-    // Find all relationships sourced from this document
-    let all_edges = state.storage.graph_storage.get_all_edges().await?;
     let mut relationships: Vec<RelationshipSummaryResponse> = Vec::new();
-
-    for edge in all_edges {
-        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let doc_sources: Vec<String> = sources
-                .iter()
-                .filter(|s| s.starts_with(&chunk_prefix) || *s == &document_id)
-                .map(|s| s.to_string())
-                .collect();
-
-            if !doc_sources.is_empty() {
-                let keywords = edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                relationships.push(RelationshipSummaryResponse {
-                    source: edge.source.clone(),
-                    target: edge.target.clone(),
-                    keywords,
-                    source_chunks: doc_sources,
-                });
-            }
+    for edge in find_document_edges(&state.storage.graph_storage, Some(&tenant_ctx), &scope).await?
+    {
+        let doc_sources = sources_for_document(&edge.properties, &scope);
+        if doc_sources.is_empty() {
+            continue;
         }
+        let keywords = edge
+            .properties
+            .get("keywords")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        relationships.push(RelationshipSummaryResponse {
+            source: edge.source.clone(),
+            target: edge.target.clone(),
+            keywords,
+            source_chunks: doc_sources,
+        });
     }
 
     Ok(Json(DocumentGraphLineageResponse {
@@ -339,29 +326,23 @@ pub async fn get_chunk_lineage(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    // Count entities and relationships from this chunk
-    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
-    let mut entity_names: Vec<String> = Vec::new();
-
-    for node in &all_nodes {
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            if source_id.contains(&chunk_id) {
-                entity_names.push(node.id.clone());
-            }
-        }
-    }
-
-    let all_edges = state.storage.graph_storage.get_all_edges().await?;
-    let mut relationship_count = 0usize;
-    for edge in &all_edges {
-        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-            if source_id.contains(&chunk_id) {
-                relationship_count += 1;
-            }
-        }
-    }
-
+    // SPEC-006 P1: chunk-scoped prefix query (bounded)
+    let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
+    let chunk_nodes = find_document_nodes(
+        &state.storage.graph_storage,
+        Some(&tenant_ctx),
+        &chunk_scope,
+    )
+    .await?;
+    let entity_names: Vec<String> = chunk_nodes.iter().map(|n| n.id.clone()).collect();
+    let chunk_edges = find_document_edges(
+        &state.storage.graph_storage,
+        Some(&tenant_ctx),
+        &chunk_scope,
+    )
+    .await?;
     let entity_count = entity_names.len();
+    let relationship_count = chunk_edges.len();
 
     Ok(Json(ChunkLineageResponse {
         chunk_id,

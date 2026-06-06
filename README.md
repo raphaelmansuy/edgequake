@@ -783,7 +783,28 @@ make test             # Run all tests
 make lint             # Lint all code
 make format           # Format all code
 make clean            # Clean build artifacts
+
+# Resource safety (SPEC-006)
+make resource-proof   # Bounded graph ops + migration 038 package gates
 ```
+
+### Database Migrations & Resource Safety (SPEC-006)
+
+PostgreSQL migrations auto-apply on backend start (sqlx). For production index rollout and verification:
+
+```bash
+export DATABASE_URL="postgres://edgequake:edgequake@localhost/edgequake"
+./edgequake/scripts/migrations/apply_038.sh --dry-run    # preflight
+./edgequake/scripts/migrations/apply_038.sh --apply --yes
+./edgequake/scripts/migrations/apply_038.sh --verify
+```
+
+| Doc | Purpose |
+|-----|---------|
+| [edgequake/docs/migrations.md](edgequake/docs/migrations.md) | Migration overview & troubleshooting |
+| [edgequake/docs/migrations/038-source-ids-indexes.md](edgequake/docs/migrations/038-source-ids-indexes.md) | Migration 038 FAQ & edge cases |
+| [edgequake/docs/migrations/bootstrap-first-principles.md](edgequake/docs/migrations/bootstrap-first-principles.md) | Bootstrap migration design |
+| [specifications/006-ensure-perf/](specifications/006-ensure-perf/000-index.md) | Resource safety spec & brutal assessment |
 
 ### Agent Workflow
 

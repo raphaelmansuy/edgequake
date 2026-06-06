@@ -227,9 +227,10 @@ impl Default for EdgeQuakeConfig {
             response_model_name: None,
             embedding_model_name: "text-embedding-3-small".to_string(),
             embedding_dim: 1536,
-            max_token_for_text_unit: 100000, // Very large budget (user request)
-            max_token_for_global_context: 100000, // Very large budget (user request)
-            max_token_for_local_context: 100000, // Very large budget (user request)
+            // SPEC-006 RB-LLM-008: align with SOTA/LightRAG 30k (ResourceBudget SSOT)
+            max_token_for_text_unit: crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS,
+            max_token_for_global_context: crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS,
+            max_token_for_local_context: crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS,
             chunk_token_size: 1200,
             chunk_overlap_token_size: 100,
             log_level: LogLevel::Info,
@@ -635,6 +636,15 @@ mod tests {
         assert!(eq.health_check().await.unwrap());
 
         eq.finalize().await.unwrap();
+    }
+
+    #[test]
+    fn default_token_budget_matches_resource_ssot() {
+        let cfg = EdgeQuakeConfig::default();
+        let cap = crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS;
+        assert_eq!(cfg.max_token_for_text_unit, cap);
+        assert_eq!(cfg.max_token_for_global_context, cap);
+        assert_eq!(cfg.max_token_for_local_context, cap);
     }
 
     #[tokio::test]

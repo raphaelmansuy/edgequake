@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use super::PostgresAGEGraphStorage;
 use crate::error::Result;
 use crate::traits::{
-    GraphEdge, GraphNode, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
-    GraphStorageReadOps, KnowledgeGraph,
+    EdgeListFilter, GraphEdge, GraphNode, GraphScanOps, GraphStorage, GraphStorageAnalyticsOps,
+    GraphStorageMutateOps, GraphStorageReadOps, KnowledgeGraph, NodeListFilter, PagedGraphResult,
 };
 
 #[async_trait]
@@ -25,6 +25,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
 }
 
 #[async_trait]
+#[allow(deprecated)]
 impl GraphStorageReadOps for PostgresAGEGraphStorage {
     async fn has_node(&self, node_id: &str) -> Result<bool> {
         self.pg_has_node(node_id).await
@@ -229,6 +230,54 @@ impl GraphStorageAnalyticsOps for PostgresAGEGraphStorage {
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
         self.pg_distinct_node_type_count_by_workspace(workspace_id)
+            .await
+    }
+}
+
+#[async_trait]
+impl GraphScanOps for PostgresAGEGraphStorage {
+    async fn list_nodes_filtered(
+        &self,
+        filter: &NodeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedGraphResult<GraphNode>> {
+        self.pg_list_nodes_filtered(filter, offset, limit).await
+    }
+
+    async fn list_edges_filtered(
+        &self,
+        filter: &EdgeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedGraphResult<GraphEdge>> {
+        self.pg_list_edges_filtered(filter, offset, limit).await
+    }
+
+    async fn find_nodes_by_source_prefixes(
+        &self,
+        filter: &NodeListFilter,
+        source_prefixes: &[String],
+    ) -> Result<Vec<GraphNode>> {
+        self.pg_find_nodes_by_source_prefixes(filter, source_prefixes)
+            .await
+    }
+
+    async fn find_edges_by_source_prefixes(
+        &self,
+        filter: &EdgeListFilter,
+        source_prefixes: &[String],
+    ) -> Result<Vec<GraphEdge>> {
+        self.pg_find_edges_by_source_prefixes(filter, source_prefixes)
+            .await
+    }
+
+    async fn find_edge_by_relationship_id(
+        &self,
+        filter: &EdgeListFilter,
+        relationship_id: &str,
+    ) -> Result<Option<GraphEdge>> {
+        self.pg_find_edge_by_relationship_id(filter, relationship_id)
             .await
     }
 }

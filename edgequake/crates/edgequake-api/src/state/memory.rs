@@ -71,6 +71,7 @@ impl AppState {
         workspace_service: SharedWorkspaceService,
     ) -> Self {
         let conversation_service = memory_conversation_service();
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
         Self {
             storage: StorageRuntime {
@@ -103,6 +104,10 @@ impl AppState {
             start_time: std::time::Instant::now(),
             path_validation_config: crate::path_validation::PathValidationConfig::default(),
             audit_logger: None,
+            resource_guard,
+            graph_materialize,
+            #[cfg(feature = "postgres")]
+            migration_bootstrap: None,
         }
     }
 
@@ -190,6 +195,7 @@ impl AppState {
 
         // Create auth services
         let auth = AuthRuntime::from_env();
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
         Self {
             storage: StorageRuntime {
@@ -228,6 +234,10 @@ impl AppState {
                 ..Default::default()
             },
             audit_logger: None,
+            resource_guard,
+            graph_materialize,
+            #[cfg(feature = "postgres")]
+            migration_bootstrap: None,
         }
     }
 
@@ -278,6 +288,7 @@ impl AppState {
 
         // Create auth services with test configuration
         let auth = AuthRuntime::new(AuthConfig::default());
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
         Self {
             storage: StorageRuntime {
@@ -318,6 +329,10 @@ impl AppState {
                 ..Default::default()
             },
             audit_logger: None,
+            resource_guard,
+            graph_materialize,
+            #[cfg(feature = "postgres")]
+            migration_bootstrap: None,
         }
     }
 }

@@ -255,10 +255,7 @@ impl AuditLogRow {
         let event_type = parse_event_type(&self.event_type);
         let result = parse_result(&self.result);
         let severity = parse_severity(&self.severity);
-        let ip_address = self
-            .ip_address
-            .as_deref()
-            .and_then(|ip| ip.parse().ok());
+        let ip_address = self.ip_address.as_deref().and_then(|ip| ip.parse().ok());
 
         Ok(AuditEvent {
             id: self.id,

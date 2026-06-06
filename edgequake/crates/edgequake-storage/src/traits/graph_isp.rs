@@ -6,9 +6,10 @@
 pub use super::graph_analytics_ops::GraphStorageAnalyticsOps;
 pub use super::graph_mutate_ops::GraphStorageMutateOps;
 pub use super::graph_read_ops::GraphStorageReadOps;
+pub use super::graph_scan_ops::GraphScanOps;
 
 /// Read-only graph access.
-pub trait GraphStorageReader: GraphStorageReadOps {}
+pub trait GraphStorageReader: GraphStorageReadOps + GraphScanOps {}
 
 /// Graph mutation.
 pub trait GraphStorageMutator: GraphStorageMutateOps {}
@@ -16,7 +17,7 @@ pub trait GraphStorageMutator: GraphStorageMutateOps {}
 /// Analytics and counts.
 pub trait GraphStorageAnalyticsCap: GraphStorageAnalyticsOps {}
 
-impl<T: GraphStorageReadOps> GraphStorageReader for T {}
+impl<T: GraphStorageReadOps + GraphScanOps> GraphStorageReader for T {}
 impl<T: GraphStorageMutateOps> GraphStorageMutator for T {}
 impl<T: GraphStorageAnalyticsOps> GraphStorageAnalyticsCap for T {}
 

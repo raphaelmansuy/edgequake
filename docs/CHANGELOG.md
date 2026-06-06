@@ -10,7 +10,8 @@ All notable changes to the EdgeQuake documentation are tracked here. See the roo
 
 ### Added
 
-- CHANGELOG.md for documentation directory.
+- **edgequake/docs/migrations.md** — SQLx migration overview, immutability rules, troubleshooting.
+- **edgequake/docs/migrations/038-source-ids-indexes.md** — Migration 038 rollout, FAQ, edge-case matrix, verification commands.
 
 ### Changed
 

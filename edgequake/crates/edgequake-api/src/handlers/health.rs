@@ -26,7 +26,7 @@
 //! - Fast startup (ready before all caches warm)
 //! - Detailed debugging via `/health` response
 
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
 
 use crate::error::ApiResult;
 use crate::state::AppState;
@@ -34,7 +34,7 @@ use crate::state::AppState;
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{
     BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth,
-    ProvidersHealth, SchemaHealth,
+    ProvidersHealth, SchemaHealth, SourceIdsIndexHealth,
 };
 
 /// Deep health check with component status.
@@ -85,6 +85,15 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     // Query schema health (PostgreSQL only)
     // WHY: OODA-14 - Mission requires schema version verification
     let schema = get_schema_health(&state).await;
+    let status = if schema
+        .as_ref()
+        .and_then(|s| s.source_ids_indexes.as_ref())
+        .is_some_and(|m| !m.ready)
+    {
+        "degraded"
+    } else {
+        "healthy"
+    };
 
     // WHY: OODA-11 - Mission requirement: "know all parts of the applied configuration
     // (llm provider, embedding provider, models used)".
@@ -109,7 +118,7 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     let pdf_storage_enabled: Option<bool> = None;
 
     let response = HealthResponse {
-        status: "healthy".to_string(),
+        status: status.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         build_info: Some(BuildInfo {
             git_hash: env!("EDGEQUAKE_GIT_HASH").to_string(),
@@ -160,10 +169,31 @@ async fn get_schema_health(state: &AppState) -> Option<SchemaHealth> {
         .ok()?;
 
         let stats = stats?;
+        let source_ids_indexes = state.migration_bootstrap.as_ref().map(|report| {
+            let m = &report.migration_038;
+            crate::handlers::health_types::SourceIdsIndexHealth {
+                ready: m.indexes_ready,
+                graphs_checked: m.graphs_checked,
+                indexes_repaired_at_bootstrap: m.indexes_repaired_inline,
+                deferred_large_graphs: if m.deferred_large_graphs.is_empty() {
+                    None
+                } else {
+                    Some(m.deferred_large_graphs.clone())
+                },
+                missing_indexes: if m.missing_indexes.is_empty() {
+                    None
+                } else {
+                    Some(m.missing_indexes.clone())
+                },
+                operator_action: m.operator_action.clone(),
+            }
+        });
+
         Some(SchemaHealth {
             latest_version: stats.latest_version,
             migrations_applied: stats.applied_count as usize,
             last_applied_at: stats.last_applied_at.map(|dt| dt.to_rfc3339()),
+            source_ids_indexes,
         })
     }
 
@@ -174,16 +204,32 @@ async fn get_schema_health(state: &AppState) -> Option<SchemaHealth> {
 }
 
 /// Readiness check (for Kubernetes).
+///
+/// Returns 503 when migration 038 indexes are required but missing on a large graph
+/// (AGE present, indexes not ready). Prevents routing traffic to slow-prefix nodes.
 #[utoipa::path(
     get,
     path = "/ready",
     tag = "Health",
     responses(
-        (status = 200, description = "Service is ready")
+        (status = 200, description = "Service is ready"),
+        (status = 503, description = "Migration 038 indexes pending — not ready for traffic")
     )
 )]
-pub async fn readiness_check() -> &'static str {
-    "OK"
+pub async fn readiness_check(State(state): State<AppState>) -> StatusCode {
+    #[cfg(feature = "postgres")]
+    {
+        if crate::state::migration_bootstrap::is_ready_for_traffic(&state.migration_bootstrap) {
+            StatusCode::OK
+        } else {
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = state;
+        StatusCode::OK
+    }
 }
 
 /// Liveness check (for Kubernetes).

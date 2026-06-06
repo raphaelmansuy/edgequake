@@ -137,6 +137,14 @@ pub enum ApiError {
     #[error("Request timeout: {0}")]
     Timeout(String),
 
+    /// Service temporarily unavailable (resource or upstream pressure).
+    /// SPEC-006: BR-006-014 — graph timeout must not fall back to full-graph load.
+    #[error("Service unavailable: {message}")]
+    ServiceUnavailable {
+        message: String,
+        retry_after_secs: u64,
+    },
+
     /// Not implemented.
     #[error("Not implemented: {feature}")]
     NotImplemented {
@@ -178,6 +186,7 @@ impl ApiError {
             Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Timeout(_) => StatusCode::REQUEST_TIMEOUT,
+            Self::ServiceUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::ConfigError(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -190,7 +199,7 @@ impl ApiError {
     /// Whether clients should retry (rate limits, timeouts, transient upstream errors).
     pub fn is_retryable(&self) -> bool {
         match self {
-            Self::RateLimited | Self::Timeout(_) => true,
+            Self::RateLimited | Self::Timeout(_) | Self::ServiceUnavailable { .. } => true,
             Self::Storage(e) => storage_error_retryable(e),
             Self::Llm(e) => llm_error_retryable(e),
             Self::Pipeline(e) => pipeline_error_retryable(e),
@@ -250,6 +259,15 @@ impl ApiError {
             Self::ValidationError(msg) => json!({ "kind": "validation", "message": msg }),
             Self::RateLimited => json!({ "kind": "rate_limited", "retryable": true }),
             Self::Timeout(msg) => json!({ "kind": "timeout", "message": msg, "retryable": true }),
+            Self::ServiceUnavailable {
+                message,
+                retry_after_secs,
+            } => json!({
+                "kind": "service_unavailable",
+                "message": message,
+                "retry_after_secs": retry_after_secs,
+                "retryable": true,
+            }),
             Self::NotImplemented { feature } => {
                 json!({ "kind": "not_implemented", "feature": feature })
             }
@@ -296,6 +314,7 @@ impl ApiError {
             Self::ValidationError(_) => "VALIDATION_ERROR",
             Self::RateLimited => "RATE_LIMITED",
             Self::Timeout(_) => "REQUEST_TIMEOUT",
+            Self::ServiceUnavailable { .. } => "SERVICE_UNAVAILABLE",
             Self::NotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::Internal(_) => "INTERNAL_ERROR",
             Self::ConfigError(_) => "CONFIG_ERROR",
@@ -325,10 +344,7 @@ impl IntoResponse for ApiError {
         );
 
         if let Self::Storage(e) = &self {
-            edgequake_observability::record_storage_error(
-                storage_error_category(e),
-                self.code(),
-            );
+            edgequake_observability::record_storage_error(storage_error_category(e), self.code());
         }
 
         if let Self::Pipeline(e) = &self {
@@ -363,7 +379,51 @@ impl IntoResponse for ApiError {
         let mut error = ErrorResponse::new(self.code(), self.to_string());
         error.details = Some(event.into_api_details());
 
+        if let Self::ServiceUnavailable {
+            retry_after_secs, ..
+        } = &self
+        {
+            return (
+                status,
+                [(
+                    axum::http::header::RETRY_AFTER,
+                    retry_after_secs.to_string(),
+                )],
+                Json(error),
+            )
+                .into_response();
+        }
+
         (status, Json(error)).into_response()
+    }
+}
+
+impl ApiError {
+    /// SPEC-006: graph popular-nodes query exceeded budget — never fall back to full scan.
+    pub fn graph_query_timeout() -> Self {
+        Self::ServiceUnavailable {
+            message: "Graph query exceeded time budget. Retry later.".into(),
+            retry_after_secs: 30,
+        }
+    }
+
+    /// SPEC-006 P3: full-graph operation rejected at admission (community detection, etc.).
+    pub fn graph_too_large(node_count: usize, threshold: usize) -> Self {
+        Self::ServiceUnavailable {
+            message: format!(
+                "Graph has {node_count} nodes, exceeding scan threshold of {threshold}. \
+                 Operation requires bounded graph size."
+            ),
+            retry_after_secs: 60,
+        }
+    }
+
+    /// SPEC-006 P1: concurrent graph materialization cap reached.
+    pub fn graph_materialization_busy() -> Self {
+        Self::ServiceUnavailable {
+            message: "Graph materialization capacity reached. Retry shortly.".into(),
+            retry_after_secs: 5,
+        }
     }
 }
 

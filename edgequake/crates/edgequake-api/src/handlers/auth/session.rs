@@ -77,9 +77,7 @@ pub async fn login(
         .auth
         .password
         .verify_password(&request.password, &user.password_hash)
-        .map_err(|e| {
-            ApiError::Internal(format!("password_verify failed: {e}"))
-        })?;
+        .map_err(|e| ApiError::Internal(format!("password_verify failed: {e}")))?;
 
     if !password_valid {
         record_compliance_event(
@@ -181,7 +179,11 @@ pub async fn refresh_token(
         Ok(Some(value)) => serde_json::from_value::<RefreshTokenRecord>(value)
             .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?,
         Ok(None) => {
-            return Err(ApiError::auth_unauthorized("refresh", "token_not_found", None));
+            return Err(ApiError::auth_unauthorized(
+                "refresh",
+                "token_not_found",
+                None,
+            ));
         }
         Err(e) => {
             return Err(ApiError::Internal(format!("Storage error: {}", e)));
@@ -190,18 +192,31 @@ pub async fn refresh_token(
 
     // Check if token is revoked
     if record.revoked {
-        return Err(ApiError::auth_unauthorized("refresh", "token_revoked", None));
+        return Err(ApiError::auth_unauthorized(
+            "refresh",
+            "token_revoked",
+            None,
+        ));
     }
 
     // Check if token is expired
     if record.expires_at < Utc::now() {
-        return Err(ApiError::auth_unauthorized("refresh", "token_expired", None));
+        return Err(ApiError::auth_unauthorized(
+            "refresh",
+            "token_expired",
+            None,
+        ));
     }
 
     // Get user
-    let user = get_user_by_id(&state, &record.user_id)
-        .await?
-        .ok_or(ApiError::auth_unauthorized("refresh", "user_not_found", None))?;
+    let user =
+        get_user_by_id(&state, &record.user_id)
+            .await?
+            .ok_or(ApiError::auth_unauthorized(
+                "refresh",
+                "user_not_found",
+                None,
+            ))?;
 
     // Generate new access token
     let user_uuid = Uuid::parse_str(&user.user_id)

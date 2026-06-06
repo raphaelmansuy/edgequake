@@ -2,9 +2,13 @@
 //!
 //! Normalization, type extraction, and edge-to-response conversion.
 
+use edgequake_storage::traits::{EdgeListFilter, GraphStorage};
 use edgequake_storage::GraphEdge;
+use std::sync::Arc;
 
+use crate::error::{ApiError, ApiResult};
 use crate::handlers::relationships_types::RelationshipResponse;
+use crate::middleware::TenantContext;
 
 /// Normalize entity name to UPPERCASE with underscores.
 pub(super) fn normalize_entity_name(name: &str) -> String {
@@ -21,6 +25,24 @@ pub(super) fn extract_relation_type(keywords: &str) -> String {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_uppercase().replace(' ', "_"))
         .unwrap_or_else(|| "RELATED_TO".to_string())
+}
+
+/// SPEC-006 P2: bounded relationship lookup (no get_all_nodes scan).
+pub(super) async fn find_relationship_edge(
+    graph_storage: &Arc<dyn GraphStorage>,
+    tenant_ctx: &TenantContext,
+    relationship_id: &str,
+) -> ApiResult<GraphEdge> {
+    let filter = EdgeListFilter {
+        tenant_id: tenant_ctx.tenant_id.clone(),
+        workspace_id: tenant_ctx.workspace_id.clone(),
+        relationship_type: None,
+    };
+    graph_storage
+        .find_edge_by_relationship_id(&filter, relationship_id)
+        .await
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::NotFound(format!("Relationship '{}' not found", relationship_id)))
 }
 
 /// Convert [`GraphEdge`] to [`RelationshipResponse`].

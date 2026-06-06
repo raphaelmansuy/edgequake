@@ -148,36 +148,32 @@ pub async fn get_entity_provenance(
         });
     }
 
-    // Find related entities
-    let all_edges = state.storage.graph_storage.get_all_edges().await?;
+    // SPEC-006 P1: O(degree) lookup via get_node_edges (no full graph scan)
+    let node_edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&normalized_id)
+        .await?;
     let mut related: Vec<RelatedEntityInfo> = Vec::new();
-
-    for edge in all_edges {
-        if edge.source == normalized_id {
-            related.push(RelatedEntityInfo {
-                entity_id: edge.target.clone(),
-                entity_name: edge.target.clone(),
-                relationship_type: edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("related_to")
-                    .to_string(),
-                shared_documents: 1,
-            });
+    for edge in node_edges {
+        let (other_id, _) = if edge.source == normalized_id {
+            (edge.target.clone(), true)
         } else if edge.target == normalized_id {
-            related.push(RelatedEntityInfo {
-                entity_id: edge.source.clone(),
-                entity_name: edge.source.clone(),
-                relationship_type: edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("related_to")
-                    .to_string(),
-                shared_documents: 1,
-            });
-        }
+            (edge.source.clone(), false)
+        } else {
+            continue;
+        };
+        related.push(RelatedEntityInfo {
+            entity_id: other_id.clone(),
+            entity_name: other_id,
+            relationship_type: edge
+                .properties
+                .get("keywords")
+                .and_then(|v| v.as_str())
+                .unwrap_or("related_to")
+                .to_string(),
+            shared_documents: 1,
+        });
     }
 
     Ok(Json(EntityProvenanceResponse {
