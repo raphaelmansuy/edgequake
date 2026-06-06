@@ -11,6 +11,11 @@ if [[ ! -f "$ALLOWLIST" ]]; then
   exit 1
 fi
 
+if ! command -v rg >/dev/null 2>&1; then
+  echo "SPEC-006 violation: ripgrep (rg) required for static gates"
+  exit 1
+fi
+
 MATCHES=$(rg 'get_all_nodes\(\)|get_all_edges\(\)' "$API_SRC" 2>/dev/null || true)
 
 if [[ -z "$MATCHES" ]]; then

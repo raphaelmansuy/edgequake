@@ -110,6 +110,9 @@ jobs:
           workspaces: edgequake
           key: resource-proof
 
+      - name: Install ripgrep (static gate scripts)
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - name: Run SPEC-006 resource-proof (P0–P9)
         # Mock-only gate: no Postgres service on this job (bootstrap e2e runs in postgres-age-tests).
         env:
