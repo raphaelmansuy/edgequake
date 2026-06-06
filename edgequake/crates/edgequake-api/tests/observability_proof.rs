@@ -1,5 +1,6 @@
 //! SPEC-018 observability proof tests.
 
+use axum::http::HeaderMap;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -10,17 +11,13 @@ use edgequake_observability::{
     init_metrics, parse_trace_id_from_traceparent, resolve_request_id, trace_id_from_request_id,
     REQUEST_ID_HEADER, TRACEPARENT_HEADER,
 };
-use axum::http::HeaderMap;
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn spec018_honors_inbound_request_id_header() {
     init_metrics();
     let app = Router::new()
-        .route(
-            "/health",
-            get(|| async { (StatusCode::OK, "ok") }),
-        )
+        .route("/health", get(|| async { (StatusCode::OK, "ok") }))
         .layer(axum::middleware::from_fn(
             edgequake_api::observability_middleware::observability_middleware,
         ));
@@ -87,10 +84,7 @@ async fn spec018_api_error_includes_explicit_details() {
 async fn spec018_synthesizes_traceparent_from_request_id() {
     init_metrics();
     let app = Router::new()
-        .route(
-            "/health",
-            get(|| async { (StatusCode::OK, "ok") }),
-        )
+        .route("/health", get(|| async { (StatusCode::OK, "ok") }))
         .layer(axum::middleware::from_fn(
             edgequake_api::observability_middleware::observability_middleware,
         ));
@@ -253,7 +247,8 @@ async fn spec018_auth_failure_includes_action_and_reason() {
         .route(
             "/auth-fail",
             get(|| async {
-                ApiError::auth_unauthorized("login", "invalid_password", Some("alice")).into_response()
+                ApiError::auth_unauthorized("login", "invalid_password", Some("alice"))
+                    .into_response()
             }),
         )
         .layer(axum::middleware::from_fn(

@@ -137,10 +137,12 @@ pub fn synthesize_traceparent_from_request_id(request_id: &str) -> Option<String
 /// Parse W3C `trace-id` (32 hex chars) from a `traceparent` header value.
 pub fn parse_trace_id_from_traceparent(traceparent: &str) -> Option<String> {
     let parts: Vec<&str> = traceparent.trim().split('-').collect();
-    if parts.len() >= 4 && parts[0] == "00" && parts[1].len() == 32 {
-        if parts[1].chars().all(|c| c.is_ascii_hexdigit()) {
-            return Some(parts[1].to_string());
-        }
+    if parts.len() >= 4
+        && parts[0] == "00"
+        && parts[1].len() == 32
+        && parts[1].chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Some(parts[1].to_string());
     }
     None
 }
@@ -193,10 +195,7 @@ mod tests {
 
     #[tokio::test]
     async fn scope_llm_provider_is_visible_in_task() {
-        let seen = scope_llm_provider("ollama".to_string(), async {
-            current_llm_provider()
-        })
-        .await;
+        let seen = scope_llm_provider("ollama".to_string(), async { current_llm_provider() }).await;
         assert_eq!(seen, Some("ollama".to_string()));
     }
 

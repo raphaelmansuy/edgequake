@@ -1,11 +1,6 @@
 //! Unified HTTP observability middleware (DRY: request ID + spans + logs + metrics).
 
-use axum::{
-    extract::Request,
-    http::HeaderValue,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, http::HeaderValue, middleware::Next, response::Response};
 use edgequake_observability::{
     harvest_propagation_headers, record_http_request, record_http_status, resolve_request_id,
     scope_request_id, synthesize_traceparent_from_request_id, with_http_span, RequestContext,
@@ -37,9 +32,7 @@ pub async fn observability_middleware(mut request: Request, next: Next) -> Respo
     request.extensions_mut().insert(propagation);
 
     if let Ok(value) = HeaderValue::from_str(&request_id) {
-        request
-            .headers_mut()
-            .insert(REQUEST_ID_HEADER, value);
+        request.headers_mut().insert(REQUEST_ID_HEADER, value);
     }
 
     let start = Instant::now();
@@ -90,9 +83,7 @@ pub async fn observability_middleware(mut request: Request, next: Next) -> Respo
     }
 
     if let Ok(value) = HeaderValue::from_str(&request_id) {
-        response
-            .headers_mut()
-            .insert(REQUEST_ID_HEADER, value);
+        response.headers_mut().insert(REQUEST_ID_HEADER, value);
     }
 
     // Echo inbound traceparent or inject server span context for downstream clients

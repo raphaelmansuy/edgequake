@@ -65,9 +65,7 @@ pub mod pdf_storage;
 pub mod traits;
 
 // Re-export community detection
-pub use community::{
-    detect_communities, Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult,
-};
+pub use community::{Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult};
 
 // Re-export PDF storage types
 pub use pdf_storage::{

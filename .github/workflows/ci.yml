@@ -91,6 +91,28 @@ jobs:
           # Use mock LLM provider for tests (no API key needed)
           RUST_LOG: warn
 
+  resource-proof:
+    name: SPEC-006 Resource Proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: migration-checksum-guard
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: resource-proof
+
+      - name: Run SPEC-006 resource-proof (P0–P9)
+        run: make resource-proof
+
   build:
     name: Build
     runs-on: ubuntu-latest

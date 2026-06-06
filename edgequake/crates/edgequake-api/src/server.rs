@@ -85,9 +85,11 @@ impl Server {
         let mut app = create_router(self.state.clone());
 
         // Add middleware
-        app = app.layer(DefaultBodyLimit::max(100 * 1024 * 1024)).layer(
-            middleware::from_fn(observability_middleware),
-        );
+        // SPEC-006: RB-MEM-005 — body limit from AppState resource SSOT (honors EDGEQUAKE_MAX_UPLOAD_BYTES)
+        let max_upload = self.state.resource_budget().max_upload_bytes;
+        app = app
+            .layer(DefaultBodyLimit::max(max_upload))
+            .layer(middleware::from_fn(observability_middleware));
 
         // CORS
         if self.config.enable_cors {

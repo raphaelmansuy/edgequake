@@ -38,11 +38,7 @@ impl QueryOutcomeGuard {
 impl Drop for QueryOutcomeGuard {
     fn drop(&mut self) {
         if !self.finished.get() {
-            record_query_completed(
-                &self.mode,
-                "failure",
-                self.started.elapsed().as_secs_f64(),
-            );
+            record_query_completed(&self.mode, "failure", self.started.elapsed().as_secs_f64());
         }
     }
 }
@@ -82,11 +78,7 @@ impl QueryFailureGuard {
 impl Drop for QueryFailureGuard {
     fn drop(&mut self) {
         if !self.dismissed.get() {
-            record_query_completed(
-                &self.mode,
-                "failure",
-                self.started.elapsed().as_secs_f64(),
-            );
+            record_query_completed(&self.mode, "failure", self.started.elapsed().as_secs_f64());
         }
     }
 }

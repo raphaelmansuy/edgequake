@@ -44,6 +44,7 @@ pub mod graph_mapping;
 pub mod keyword_extractor;
 #[cfg(feature = "pipeline")]
 pub mod orchestrator;
+pub mod resource;
 pub mod sota_bridge;
 #[cfg(feature = "pipeline")]
 pub mod tenant_manager;
@@ -90,6 +91,13 @@ pub use conversation_service::{ConversationService, InMemoryConversationService}
 
 // Re-export token budget
 pub use token_budget::{BudgetAllocation, BudgetSource, ContextSource, TokenBudget};
+
+// SPEC-006: Resource safety SSOT
+pub use resource::{
+    AdmissionDecision, GraphMaterializationSemaphore, GraphOperation, ResourceBudgetConfig,
+    ResourceGuard, MAX_GRAPH_DEPTH, MAX_GRAPH_NODES, MAX_ORCHESTRATOR_CONTEXT_TOKENS,
+    MAX_UPLOAD_BYTES,
+};
 
 // Re-export commonly used types
 pub use config::Config;

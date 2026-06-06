@@ -43,6 +43,7 @@ impl<'a> GraphReadView<'a> {
         self.inner.node_degrees_batch(node_ids).await
     }
 
+    #[allow(deprecated)]
     pub async fn get_all_nodes(&self) -> Result<Vec<GraphNode>> {
         self.inner.get_all_nodes().await
     }
@@ -78,6 +79,7 @@ impl<'a> GraphReadView<'a> {
         self.inner.get_node_edges(node_id).await
     }
 
+    #[allow(deprecated)]
     pub async fn get_all_edges(&self) -> Result<Vec<GraphEdge>> {
         self.inner.get_all_edges().await
     }
@@ -177,6 +179,26 @@ impl<'a> GraphReadView<'a> {
         self.inner
             .distinct_node_type_count_by_workspace(workspace_id)
             .await
+    }
+
+    /// SPEC-006: bounded node listing (push-down pagination).
+    pub async fn list_nodes_filtered(
+        &self,
+        filter: &super::graph_scan_ops::NodeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<super::graph_scan_ops::PagedGraphResult<super::graph::GraphNode>> {
+        self.inner.list_nodes_filtered(filter, offset, limit).await
+    }
+
+    /// SPEC-006: bounded edge listing (push-down pagination).
+    pub async fn list_edges_filtered(
+        &self,
+        filter: &super::graph_scan_ops::EdgeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<super::graph_scan_ops::PagedGraphResult<super::graph::GraphEdge>> {
+        self.inner.list_edges_filtered(filter, offset, limit).await
     }
 }
 

@@ -197,8 +197,7 @@ mod tests {
         };
 
         let (ctx, propagation) = test_extensions();
-        let result =
-            execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_err());
     }
 
@@ -226,8 +225,7 @@ mod tests {
         };
 
         let (ctx, propagation) = test_extensions();
-        let result =
-            execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_ok());
     }
 
@@ -248,8 +246,7 @@ mod tests {
         };
 
         let (ctx, propagation) = test_extensions();
-        let result =
-            stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_ok());
     }
 
@@ -315,8 +312,7 @@ mod tests {
         };
 
         let (ctx, propagation) = test_extensions();
-        let result =
-            execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_ok());
     }
 
@@ -344,8 +340,7 @@ mod tests {
         };
 
         let (ctx, propagation) = test_extensions();
-        let result =
-            execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_err());
     }
 
@@ -366,8 +361,7 @@ mod tests {
         };
 
         let (ctx, propagation) = test_extensions();
-        let result =
-            stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_err());
     }
 }

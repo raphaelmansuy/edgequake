@@ -475,6 +475,7 @@ pub struct CleanupStats {
 /// Handles two formats for backward compatibility:
 /// - `source_ids`: JSON array of strings (current format)
 /// - `source_id`: Pipe-separated string (legacy format)
+#[allow(dead_code)] // retained for legacy handler migration; cascade uses `collect_source_references`
 pub(super) fn extract_source_docs(
     properties: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Vec<String> {
@@ -536,121 +537,32 @@ pub(crate) async fn cleanup_document_graph_data(
     graph_storage: &Arc<dyn edgequake_storage::traits::GraphStorage>,
     vector_storage: Option<&Arc<dyn VectorStorage>>,
 ) -> Result<CleanupStats, ApiError> {
-    let mut stats = CleanupStats::default();
-
-    // Build chunk prefix for source matching
-    let chunk_prefix = format!("{}-chunk-", document_id);
-
-    // Process graph entities - remove document sources
-    let all_nodes = graph_storage.get_all_nodes().await?;
-    for node in all_nodes {
-        let sources = extract_source_docs(&node.properties);
-        if sources.is_empty() {
-            continue;
-        }
-
-        // Filter out sources that belong to this document
-        let remaining_sources: Vec<String> = sources
-            .iter()
-            .filter(|s| {
-                !s.starts_with(&chunk_prefix) && *s != document_id && !s.starts_with(document_id)
-            })
-            .cloned()
-            .collect();
-
-        if remaining_sources.is_empty() {
-            // No sources left - delete the entity entirely
-            graph_storage.delete_node(&node.id).await?;
-            // Delete entity embedding if vector storage provided
-            if let Some(vs) = vector_storage {
-                let _ = vs.delete_entity(&node.id).await;
-                stats.embeddings_deleted += 1;
-            }
-            stats.entities_removed += 1;
-        } else if remaining_sources.len() < sources.len() {
-            // Some sources were removed - update the entity
-            let mut updated_props = node.properties.clone();
-            updated_props.insert(
-                "source_ids".to_string(),
-                serde_json::json!(remaining_sources),
-            );
-            graph_storage.upsert_node(&node.id, updated_props).await?;
-            stats.entities_updated += 1;
-        }
-    }
-
-    // Process graph edges - remove document sources and orphaned edges
-    let all_edges = graph_storage.get_all_edges().await?;
-
-    // Get current node IDs for orphan detection
-    let existing_nodes = graph_storage.get_all_nodes().await?;
-    let existing_node_ids: std::collections::HashSet<String> =
-        existing_nodes.iter().map(|n| n.id.clone()).collect();
-
-    for edge in all_edges {
-        // Check if edge is orphaned (connects to deleted node)
-        let is_orphaned =
-            !existing_node_ids.contains(&edge.source) || !existing_node_ids.contains(&edge.target);
-
-        if is_orphaned {
-            // Edge connects to a deleted node - delete it
-            graph_storage
-                .delete_edge(&edge.source, &edge.target)
-                .await?;
-            stats.relationships_removed += 1;
-            tracing::debug!(
-                source = %edge.source,
-                target = %edge.target,
-                "Deleted orphaned edge (connects to deleted node)"
-            );
-            continue;
-        }
-
-        let sources = extract_source_docs(&edge.properties);
-        if sources.is_empty() {
-            continue;
-        }
-
-        // Filter out sources that belong to this document
-        let remaining_sources: Vec<String> = sources
-            .iter()
-            .filter(|s| {
-                !s.starts_with(&chunk_prefix) && *s != document_id && !s.starts_with(document_id)
-            })
-            .cloned()
-            .collect();
-
-        if remaining_sources.is_empty() {
-            // No sources left - delete the relationship
-            graph_storage
-                .delete_edge(&edge.source, &edge.target)
-                .await?;
-            stats.relationships_removed += 1;
-        } else if remaining_sources.len() < sources.len() {
-            // Some sources were removed - update the relationship
-            let mut updated_props = edge.properties.clone();
-            updated_props.insert(
-                "source_ids".to_string(),
-                serde_json::json!(remaining_sources),
-            );
-            graph_storage
-                .upsert_edge(&edge.source, &edge.target, updated_props)
-                .await?;
-            stats.relationships_updated += 1;
-        }
-    }
+    let scope = crate::services::DocumentSourceScope::from_document_id(document_id);
+    let cascade_stats = crate::services::cascade_remove_document_sources(
+        graph_storage,
+        vector_storage,
+        None,
+        &scope,
+    )
+    .await?;
 
     tracing::info!(
         document_id = %document_id,
-        entities_removed = stats.entities_removed,
-        entities_updated = stats.entities_updated,
-        relationships_removed = stats.relationships_removed,
-        relationships_updated = stats.relationships_updated,
-        embeddings_deleted = stats.embeddings_deleted,
+        entities_removed = cascade_stats.entities_removed,
+        entities_updated = cascade_stats.entities_updated,
+        relationships_removed = cascade_stats.relationships_removed,
+        relationships_updated = cascade_stats.relationships_updated,
+        embeddings_deleted = cascade_stats.embeddings_deleted,
         "Document graph data cleanup completed"
     );
 
-    Ok(stats)
+    Ok(CleanupStats {
+        entities_removed: cascade_stats.entities_removed,
+        entities_updated: cascade_stats.entities_updated,
+        relationships_removed: cascade_stats.relationships_removed,
+        relationships_updated: cascade_stats.relationships_updated,
+        embeddings_deleted: cascade_stats.embeddings_deleted,
+    })
 }
 
 /// Delete all document data for re-ingestion.

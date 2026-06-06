@@ -22,8 +22,6 @@ pub use error_context::ErrorEvent;
 pub use http_span::{record_http_error, record_http_status, with_http_span};
 pub use query_guard::{QueryFailureGuard, QueryOutcomeGuard};
 
-#[cfg(feature = "otel")]
-pub use trace_context::{extract_from_headers, inject_current_context};
 pub use propagation::{harvest_propagation_headers, PropagationHeaders};
 pub use request_context::{
     current_llm_provider, current_request_id, parse_trace_id_from_traceparent, resolve_request_id,
@@ -32,6 +30,8 @@ pub use request_context::{
     TRACEPARENT_HEADER, TRACESTATE_HEADER,
 };
 pub use subscriber::{init_observability, ObservabilityConfig, ObservabilityGuard};
+#[cfg(feature = "otel")]
+pub use trace_context::{extract_from_headers, inject_current_context};
 
 #[cfg(feature = "metrics")]
 pub use metrics::{

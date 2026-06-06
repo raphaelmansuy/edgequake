@@ -156,12 +156,7 @@ impl ErrorEvent {
     }
 
     /// Log a non-HTTP domain failure (pipeline, tasks) at `warn` with explicit fields.
-    pub fn log_domain_warn(
-        source: &str,
-        action: &str,
-        message: &str,
-        details: Value,
-    ) {
+    pub fn log_domain_warn(source: &str, action: &str, message: &str, details: Value) {
         let request_id = crate::request_context::current_request_id()
             .unwrap_or_else(|| "background".to_string());
         tracing::warn!(
@@ -175,12 +170,7 @@ impl ErrorEvent {
     }
 
     /// Log a non-HTTP domain failure at `error` (storage, permanent task failure).
-    pub fn log_domain_error(
-        source: &str,
-        action: &str,
-        message: &str,
-        details: Value,
-    ) {
+    pub fn log_domain_error(source: &str, action: &str, message: &str, details: Value) {
         let request_id = crate::request_context::current_request_id()
             .unwrap_or_else(|| "background".to_string());
         tracing::error!(

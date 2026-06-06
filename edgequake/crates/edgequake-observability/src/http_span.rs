@@ -44,7 +44,10 @@ where
 
     #[cfg(feature = "otel")]
     if let Some(hdrs) = headers {
-        if hdrs.get(crate::request_context::TRACEPARENT_HEADER).is_some() {
+        if hdrs
+            .get(crate::request_context::TRACEPARENT_HEADER)
+            .is_some()
+        {
             use tracing_opentelemetry::OpenTelemetrySpanExt;
             let parent = crate::trace_context::extract_from_headers(hdrs);
             let _ = span.set_parent(parent);

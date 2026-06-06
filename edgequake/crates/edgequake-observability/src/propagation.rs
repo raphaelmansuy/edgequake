@@ -15,7 +15,10 @@ impl PropagationHeaders {
         self.0
     }
 
-    pub fn merge_with(mut self, other: Option<HashMap<String, String>>) -> Option<HashMap<String, String>> {
+    pub fn merge_with(
+        mut self,
+        other: Option<HashMap<String, String>>,
+    ) -> Option<HashMap<String, String>> {
         if let Some(extra) = other {
             for (k, v) in extra {
                 self.0.entry(k).or_insert(v);

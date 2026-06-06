@@ -179,6 +179,7 @@ impl Default for KnowledgeGraph {
 #[async_trait]
 pub trait GraphStorage:
     super::graph_read_ops::GraphStorageReadOps
+    + super::graph_scan_ops::GraphScanOps
     + super::graph_mutate_ops::GraphStorageMutateOps
     + super::graph_analytics_ops::GraphStorageAnalyticsOps
 {

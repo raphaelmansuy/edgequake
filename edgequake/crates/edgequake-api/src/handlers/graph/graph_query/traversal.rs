@@ -7,13 +7,13 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use std::time::Duration;
 use tracing::{debug, warn};
 
 use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
 use crate::handlers::isolation::properties_match_tenant_context;
 use crate::middleware::TenantContext;
+use crate::services::{admit_graph_materialization, run_timed_graph_query};
 use crate::state::AppState;
 
 /// Get knowledge graph with traversal from optional starting node.
@@ -73,12 +73,19 @@ pub async fn get_graph(
         }));
     }
 
+    let _materialize_guard = admit_graph_materialization(&state)?;
+
     let (nodes, edges, is_truncated) = if let Some(start) = &params.start_node {
-        let kg = state
-            .storage
-            .graph_storage
-            .get_knowledge_graph(start, params.depth, params.max_nodes)
-            .await?;
+        let start = start.clone();
+        let depth = params.depth;
+        let max_nodes = params.max_nodes;
+        let graph_storage = state.storage.graph_storage.clone();
+        let kg = run_timed_graph_query(&state, "knowledge_graph", async move {
+            graph_storage
+                .get_knowledge_graph(&start, depth, max_nodes)
+                .await
+        })
+        .await?;
 
         let nodes: Vec<GraphNodeResponse> = kg
             .nodes
@@ -134,70 +141,22 @@ pub async fn get_graph(
 
         (nodes, edges, kg.is_truncated)
     } else {
-        // OPTIMIZED: Use batch query to get popular nodes with degrees
-        // This eliminates the N+1 query pattern (was 400+ queries, now 2)
-        // Added 15-second timeout to prevent indefinite hangs on large graphs
-
-        const QUERY_TIMEOUT_SECS: u64 = 15;
-
-        let query_future = state.storage.graph_storage.get_popular_nodes_with_degree(
-            params.max_nodes,
-            None, // No min_degree filter
-            None, // No entity_type filter
-            tenant_ctx.tenant_id.as_deref(),
-            tenant_ctx.workspace_id.as_deref(),
-        );
-
-        let nodes_with_degrees =
-            match tokio::time::timeout(Duration::from_secs(QUERY_TIMEOUT_SECS), query_future).await
-            {
-                Ok(Ok(nodes)) => nodes,
-                Ok(Err(e)) => {
-                    // Check if this is a statement timeout - if so, fall back
-                    let error_msg = format!("{}", e);
-                    if error_msg.contains("statement timeout")
-                        || error_msg.contains("canceling statement")
-                    {
-                        warn!(
-                            max_nodes = params.max_nodes,
-                            "Database query timed out, falling back to simple node fetch"
-                        );
-
-                        // Fall back to simple node list
-                        state
-                            .storage
-                            .graph_storage
-                            .get_all_nodes()
-                            .await?
-                            .into_iter()
-                            .filter(|n| properties_match_tenant_context(&n.properties, &tenant_ctx))
-                            .take(params.max_nodes)
-                            .map(|n| (n, 0usize)) // Degree unknown in fallback
-                            .collect()
-                    } else {
-                        return Err(e.into());
-                    }
-                }
-                Err(_) => {
-                    // Tokio timeout: Fall back to simple node list without degree calculation
-                    warn!(
-                        timeout_secs = QUERY_TIMEOUT_SECS,
-                        max_nodes = params.max_nodes,
-                        "Graph query timed out (tokio), falling back to simple node fetch"
-                    );
-
-                    // Use get_all_nodes with limit as fallback (no degree calculation)
-                    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
-                    let filtered_nodes: Vec<_> = all_nodes
-                        .into_iter()
-                        .filter(|n| properties_match_tenant_context(&n.properties, &tenant_ctx))
-                        .take(params.max_nodes)
-                        .map(|n| (n, 0usize)) // Degree unknown, use 0
-                        .collect();
-
-                    filtered_nodes
-                }
-            };
+        let max_nodes = params.max_nodes;
+        let tenant_id = tenant_ctx.tenant_id.clone();
+        let workspace_id = tenant_ctx.workspace_id.clone();
+        let graph_storage = state.storage.graph_storage.clone();
+        let nodes_with_degrees = run_timed_graph_query(&state, "popular_nodes", async move {
+            graph_storage
+                .get_popular_nodes_with_degree(
+                    max_nodes,
+                    None,
+                    None,
+                    tenant_id.as_deref(),
+                    workspace_id.as_deref(),
+                )
+                .await
+        })
+        .await?;
 
         // Convert to response format
         let nodes: Vec<GraphNodeResponse> = nodes_with_degrees

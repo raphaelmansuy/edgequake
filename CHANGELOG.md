@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **P9 production delivery (SPEC-006)** — Bounded orchestrator `delete_document` via `GraphScanOps` (no `get_all_*`); memory adapter `get_edges_for_node_set`; runbook env sync lint (`spec006_runbook_env_sync.sh`); production GO/NO-GO checklist (`specifications/006-ensure-perf/012_production_delivery.md`); E2E proof 019; HTTP test `GET /api/v1/graph` → 503 when materialization slots full.
+- **P8 graph materialization guard (SPEC-006)** — DRY `services/graph_materialization.rs`: `try_acquire_owned` fail-fast 503 + query timeout from `resource_budget()`. Wired to graph traversal, popular labels, node search, and SSE stream. Server upload limit SSOT via `state.resource_budget().max_upload_bytes`. Lint: `spec006_no_adhoc_resource_budget.sh`.
+- **P7 resource budget authority (SPEC-006)** — `ResourceGuard` + `GraphMaterializationSemaphore` on `AppState` via `state/resource_runtime.rs`; handlers use `state.resource_budget()` instead of ad-hoc `ResourceBudgetConfig::default()`.
+- **P6 community detection seal** — `detect_communities_unchecked` internal to storage module; removed from crate root re-export; readiness battle tests; `make resource-proof-postgres`.
+- **P5 size-aware migration 038** — sqlx 038 is a non-blocking marker; index DDL SSOT in `support/038/apply.sql` with vertex threshold gate. `/ready` returns 503 when AGE indexes missing on large graphs. Postgres E2E: `migration_bootstrap_proof.rs`.
+- **Migration bootstrap integration** — `migration_bootstrap::run_postgres_migrations()` replaces bare sqlx call at PostgreSQL startup: progression logs (`edgequake.migration` target), migration 038 index audit/repair for small graphs, defer + `/health` degraded signal for large graphs. Docs: `edgequake/docs/migrations/bootstrap-first-principles.md`.
+- **SPEC-006 resource safety (P0–P9)** — Bounded graph operations: zero `get_all_*` on API hot paths, document-scoped delete cascade, SQL prefix push-down, community detection admission guard, orchestrator 30k token SSOT, graph materialization semaphore, production delivery proofs. CI gate: `make resource-proof` (job in `.github/workflows/ci.yml`).
+- **Migration 038 production package** — `source_id` btree + `source_ids` GIN indexes for AGE graph prefix queries. Ops tooling: `edgequake/scripts/migrations/apply_038.sh` (`--dry-run`, `--apply`, `--concurrent`, `--verify`, `--rollback`). Support SQL under `edgequake/migrations/support/038/` (not scanned by sqlx).
+- **Migration documentation** — `edgequake/docs/migrations.md`, `edgequake/docs/migrations/038-source-ids-indexes.md` (rollout procedure, FAQ, edge cases).
+
+### Fixed
+
+- **Graph materialization semaphore blocking** — `admit_graph_materialization` uses `try_acquire_owned()` (immediate 503) instead of `acquire_owned().await` (indefinite queue) when slots are full.
+- **Legacy `source_id` shadowing on partial delete** — Document cascade now removes pipe-format `source_id` when updating `source_ids`, preventing re-matching of deleted document sources.
+
+### Changed
+
+- Auxiliary migration 038 files moved from `edgequake/migrations/038_*.sql` to `edgequake/migrations/support/038/` so only the canonical sqlx migration remains at the top level.
+
 ---
 
 ## [0.12.6] — 2026-05-29

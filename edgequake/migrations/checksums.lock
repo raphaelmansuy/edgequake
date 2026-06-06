@@ -1,5 +1,5 @@
 # Migration Immutability Lockfile
-# Generated: 2026-04-28 (v0.11.1)
+# Updated: 2026-06-06
 #
 # PURPOSE: Every line records the SHA-384 of a migration file at the time it was
 # declared stable. This file is the source of truth for the migration-guard CI
@@ -50,3 +50,5 @@ d9a575c647a1c934920ae190c368040b51c80a5edefe66a826a91754eb9a8d70eeab5f278631ad4f
 7f4b3cedf8a047a1cc6f84555965c0aef383e78a147a26d4a3de37dba63dfa5417d1d6c3dca67a2c418075bcd8074621  035_harden_task_compatibility_defaults.sql
 fa8b8c346e384ceab9dd1ecd30529edfa344a49e24e31010b0689da7cf31f7e093dffdfeddb3b6c48810159a725e5d4f  036_add_edge_property_indexes.sql
 5130438d9c41ca00e9d5fb0fb692b10a15097543b51510b1fa151a7f398f26188fc6c46eaf7fc007be700b3ba33661a9  037_backfill_vector_tenant_workspace_columns.sql
+4e2d383f31c46e161ee2da816f9fd637527bc8f6dbdc9845e36a78e09b88dd03fcf99fbb02b906bc0ae0eac17c362f5b  038_add_source_ids_gin_indexes.sql
+

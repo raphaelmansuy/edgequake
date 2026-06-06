@@ -18,6 +18,7 @@ pub fn with_request_context(event: AuditEvent, ctx: &RequestContext) -> AuditEve
 }
 
 /// Record a compliance event using task-local request ID from observability middleware.
+#[allow(clippy::too_many_arguments)]
 pub fn record_compliance_event(
     state: &AppState,
     tenant_id: impl Into<String>,

@@ -14,6 +14,8 @@ use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
+use crate::services::{cascade_remove_document_sources, DocumentSourceScope};
+
 use super::super::storage_helpers::{
     metadata_matches_tenant_context, purge_persisted_tasks_for_document,
 };
@@ -189,6 +191,29 @@ pub async fn delete_all_documents(
             }
         }
 
+        // SPEC-006 P1: per-document bounded graph cascade (no post-hoc full scan)
+        let scope = DocumentSourceScope::from_document_id(document_id.clone());
+        match cascade_remove_document_sources(
+            &state.storage.graph_storage,
+            None,
+            Some(&tenant_ctx),
+            &scope,
+        )
+        .await
+        {
+            Ok(stats) => {
+                total_entities_removed += stats.entities_removed;
+                total_relationships_removed += stats.relationships_removed;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    document_id = %document_id,
+                    error = %e,
+                    "Failed graph cascade during bulk delete"
+                );
+            }
+        }
+
         total_chunks_deleted += chunk_ids.len();
         deleted_count += 1;
 
@@ -197,67 +222,6 @@ pub async fn delete_all_documents(
             chunks = chunk_ids.len(),
             "Deleted document in bulk operation"
         );
-    }
-
-    // Clean up orphaned graph entities (entities with no remaining source documents)
-    // This is a simplified cleanup - full cascade is done per-document for precision
-    let all_nodes = state.storage.graph_storage.get_all_nodes().await?;
-    for node in all_nodes {
-        // Check if node has any source references
-        let has_sources = node
-            .properties
-            .get("source_ids")
-            .and_then(|v| v.as_array())
-            .map(|arr| !arr.is_empty())
-            .unwrap_or(false);
-
-        if !has_sources {
-            // Node has no sources, check source_id too
-            let has_legacy_source = node
-                .properties
-                .get("source_id")
-                .and_then(|v| v.as_str())
-                .map(|s| !s.is_empty())
-                .unwrap_or(false);
-
-            if !has_legacy_source {
-                // No sources at all, delete the orphaned entity
-                if let Err(e) = state.storage.graph_storage.delete_node(&node.id).await {
-                    tracing::warn!(node_id = %node.id, error = %e, "Failed to delete orphaned node");
-                } else {
-                    total_entities_removed += 1;
-                }
-            }
-        }
-    }
-
-    // Clean up orphaned edges
-    let all_edges = state.storage.graph_storage.get_all_edges().await?;
-    let remaining_nodes = state.storage.graph_storage.get_all_nodes().await?;
-    let remaining_node_ids: std::collections::HashSet<String> =
-        remaining_nodes.iter().map(|n| n.id.clone()).collect();
-
-    for edge in all_edges {
-        let is_orphaned = !remaining_node_ids.contains(&edge.source)
-            || !remaining_node_ids.contains(&edge.target);
-
-        if is_orphaned {
-            if let Err(e) = state
-                .storage
-                .graph_storage
-                .delete_edge(&edge.source, &edge.target)
-                .await
-            {
-                tracing::warn!(
-                    source = %edge.source,
-                    target = %edge.target,
-                    error = %e,
-                    "Failed to delete orphaned edge"
-                );
-            } else {
-                total_relationships_removed += 1;
-            }
-        }
     }
 
     // Clean up PDF documents table

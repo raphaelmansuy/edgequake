@@ -554,7 +554,7 @@ async fn process_pdf_upload_parts(
         .clone()
         .unwrap_or_else(|| "default".to_string());
     record_compliance_event(
-        &state,
+        state,
         tenant_for_audit,
         AuditEventType::DocumentUpload,
         "upload_pdf",

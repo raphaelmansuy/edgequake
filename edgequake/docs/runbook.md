@@ -6,10 +6,11 @@ This document provides operational procedures for maintaining EdgeQuake in produ
 
 1. [Health Monitoring](#health-monitoring)
 2. [Common Issues](#common-issues)
-3. [Scaling Procedures](#scaling-procedures)
-4. [Backup and Recovery](#backup-and-recovery)
-5. [Performance Tuning](#performance-tuning)
-6. [Security Procedures](#security-procedures)
+3. [Database Migrations](#database-migrations)
+4. [Scaling Procedures](#scaling-procedures)
+5. [Backup and Recovery](#backup-and-recovery)
+6. [Performance Tuning](#performance-tuning)
+7. [Security Procedures](#security-procedures)
 
 ---
 
@@ -133,6 +134,31 @@ psql -c "SELECT count(*), state FROM pg_stat_activity GROUP BY state;"
 2. Check for connection leaks
 3. Implement connection timeouts
 4. Restart service to reset pool
+
+---
+
+## Database Migrations
+
+See [migrations.md](migrations.md) for the full guide.
+
+### Migration 038 (source_ids indexes) — production rollout
+
+```bash
+export DATABASE_URL="postgres://..."
+./scripts/migrations/apply_038.sh --dry-run
+./scripts/migrations/apply_038.sh --apply --yes          # normal graphs
+./scripts/migrations/apply_038.sh --apply --concurrent --yes  # large graphs
+./scripts/migrations/apply_038.sh --verify
+```
+
+FAQ and edge cases: [migrations/038-source-ids-indexes.md](migrations/038-source-ids-indexes.md).
+
+### OOM / exit 137 on large workspaces
+
+1. Run `make resource-proof` from repo root (regression gate).
+2. Verify migration 038 indexes: `apply_038.sh --verify`.
+3. Ensure container memory limits (`EDGEQUAKE_MEM_LIMIT` / Docker `mem_limit`).
+4. See [SPEC-006 brutal assessment](../../specifications/006-ensure-perf/010-brutal-assessment.md).
 
 ---
 

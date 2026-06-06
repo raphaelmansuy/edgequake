@@ -10,9 +10,9 @@ use super::{
     create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
 };
 use crate::cache_manager::CacheManager;
+use edgequake_audit::AuditLogger;
 use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
-use edgequake_audit::AuditLogger;
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::{
     traits::{GraphStorage, KVStorage, VectorStorage},
@@ -211,11 +211,9 @@ impl AppState {
             }
         }
 
-        // Run migrations from the workspace root migrations directory
-        // SQLx migrations will create all required tables automatically
-        tracing::info!("Running database migrations...");
-        sqlx::migrate!("../../migrations").run(&pool).await?;
-        tracing::info!("✓ Database migrations completed successfully");
+        // SPEC-006: migration bootstrap with progression logs + migration 038 verify/repair
+        let migration_bootstrap =
+            super::migration_bootstrap::run_postgres_migrations(&pool).await?;
 
         // Auto-configure vector dimension from embedding provider
         let embedding_dim = embedding_provider.dimension();
@@ -349,6 +347,7 @@ impl AppState {
         storage.validate_postgres_adapters()?;
 
         let audit_logger = AuditLogger::new(pool.clone());
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
         Ok(Self {
             storage,
@@ -373,6 +372,9 @@ impl AppState {
             start_time: std::time::Instant::now(),
             path_validation_config: Self::load_path_validation_config(),
             audit_logger: Some(audit_logger),
+            resource_guard,
+            graph_materialize,
+            migration_bootstrap: Some(migration_bootstrap),
         })
     }
 }

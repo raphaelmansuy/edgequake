@@ -48,8 +48,8 @@ impl ObservabilityConfig {
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);
 
-        let service_name = std::env::var("OTEL_SERVICE_NAME")
-            .unwrap_or_else(|_| "edgequake-api".to_string());
+        let service_name =
+            std::env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| "edgequake-api".to_string());
 
         let default_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
             "edgequake=info,edgequake_api=info,edgequake_query=info,edgequake_pipeline=info,edgequake_storage=warn,tower_http=warn,sqlx=warn".into()
@@ -95,8 +95,8 @@ pub fn init_observability(config: ObservabilityConfig) -> ObservabilityGuard {
     #[cfg(feature = "metrics")]
     crate::metrics::init_metrics();
 
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.default_filter));
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(&config.default_filter));
 
     #[cfg(feature = "otel")]
     let (tracer_provider, otel_layer) = if config.otel_enabled {
@@ -194,8 +194,8 @@ fn init_otel_layers(
     Option<opentelemetry_sdk::trace::SdkTracerProvider>,
     Option<OtelLayer>,
 ) {
-    use opentelemetry::KeyValue;
     use opentelemetry::trace::TracerProvider;
+    use opentelemetry::KeyValue;
     use opentelemetry_otlp::WithExportConfig;
     use opentelemetry_sdk::{trace::SdkTracerProvider, Resource};
 

@@ -5,12 +5,12 @@ use std::sync::Arc;
 use axum::extract::{Extension, State};
 use axum::response::sse::{Event, Sse};
 use axum::Json;
+use edgequake_observability::ErrorEvent;
 use futures::stream::StreamExt;
+use serde_json::json;
 use std::convert::Infallible;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use edgequake_observability::ErrorEvent;
-use serde_json::json;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -23,11 +23,11 @@ use crate::services::{
 };
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
-use edgequake_observability::RequestContext;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageContext, MessageRole,
     UpdateMessageRequest,
 };
+use edgequake_observability::RequestContext;
 use edgequake_query::QueryRequest as EngineQueryRequest;
 
 use super::{

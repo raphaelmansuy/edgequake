@@ -161,6 +161,24 @@ edgequake/
 | `OPENAI_BASE_URL` | Custom API base URL | OpenAI default |
 | `LOG_LEVEL`       | Logging level       | `info`         |
 
+## Database Migrations
+
+Migrations live in `migrations/` and apply automatically at bootstrap via `migration_bootstrap` (sqlx + progression logs + migration 038 verify). See [docs/migrations/bootstrap-first-principles.md](docs/migrations/bootstrap-first-principles.md).
+
+| Task | Command |
+|------|---------|
+| Migration overview | [docs/migrations.md](docs/migrations.md) |
+| Migration 038 (source_ids indexes) | [docs/migrations/038-source-ids-indexes.md](docs/migrations/038-source-ids-indexes.md) |
+| Prod apply / verify / rollback | `./scripts/migrations/apply_038.sh --help` |
+| Resource safety CI gate | `make resource-proof` (from repo root) |
+
+```bash
+export DATABASE_URL="postgres://edgequake:edgequake@localhost/edgequake"
+./scripts/migrations/apply_038.sh --dry-run
+./scripts/migrations/apply_038.sh --apply --yes
+./scripts/migrations/apply_038.sh --verify
+```
+
 ## Development
 
 ```bash

@@ -5,14 +5,14 @@
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
-use edgequake_tasks::{
-    Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
-};
-use std::sync::Arc;
 use edgequake_observability::{
     init_observability, record_db_pool_stats, ErrorEvent, ObservabilityConfig,
 };
+use edgequake_tasks::{
+    Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
+};
 use serde_json::json;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 /// Print the EdgeQuake startup banner with storage mode information.
@@ -508,6 +508,33 @@ async fn main() -> Result<()> {
             format!("failed to initialize PostgreSQL storage at {redacted_database_url}")
         })?;
 
+    if let Some(ref bootstrap) = state.migration_bootstrap {
+        if bootstrap.migration_038.is_degraded() {
+            tracing::warn!(
+                target: "edgequake.migration",
+                missing = ?bootstrap.migration_038.missing_indexes,
+                action = bootstrap.migration_038.operator_action.as_deref().unwrap_or("none"),
+                "/ready will return 503 until migration 038 indexes are applied (use apply_038.sh --concurrent for large graphs)"
+            );
+        }
+    }
+
+    info!(
+        target: "edgequake.resource",
+        graph_scan_threshold = state.resource_budget().graph_scan_threshold_nodes,
+        graph_materialize_concurrent = state.graph_materialize.max_concurrent(),
+        graph_query_timeout_secs = state.resource_budget().graph_query_timeout_secs,
+        max_page_size = state.resource_budget().max_page_size,
+        "SPEC-006 resource budget active"
+    );
+
+    if std::env::var("EDGEQUAKE_MEM_LIMIT").is_err() && std::env::var("DOCKER_MEM_LIMIT").is_err() {
+        tracing::warn!(
+            target: "edgequake.resource",
+            "No EDGEQUAKE_MEM_LIMIT/Docker mem_limit detected — bare-metal dev may OOM on large workspaces; use docker compose or set EDGEQUAKE_MEM_LIMIT"
+        );
+    }
+
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {
         ErrorEvent::log_domain_warn(
@@ -527,10 +554,7 @@ async fn main() -> Result<()> {
                 .unwrap_or(15);
             let interval = std::time::Duration::from_secs(interval_secs.max(5));
             loop {
-                record_db_pool_stats(
-                    pool.size(),
-                    pool.num_idle().min(u32::MAX as usize) as u32,
-                );
+                record_db_pool_stats(pool.size(), pool.num_idle().min(u32::MAX as usize) as u32);
                 tokio::time::sleep(interval).await;
             }
         });
