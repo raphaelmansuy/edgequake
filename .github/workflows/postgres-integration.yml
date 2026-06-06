@@ -201,7 +201,8 @@ jobs:
 
     services:
       postgres-age:
-        image: apache/age:latest
+        # WHY: storage_backend_contract + migration bootstrap need pgvector + AGE (apache/age has AGE only).
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -244,9 +245,10 @@ jobs:
       - name: Install PostgreSQL client tools
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Setup AGE extension
+      - name: Setup database extensions
         run: |
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
+            CREATE EXTENSION IF NOT EXISTS vector;
             CREATE EXTENSION IF NOT EXISTS age;
             LOAD 'age';
             SET search_path = ag_catalog, "$user", public;

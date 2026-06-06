@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { waitForAppReady } from "./helpers/app-ready";
 import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
-import { skipUnlessLiveStack } from "./helpers/live-stack";
+import {
+  liveStackSkipReason,
+  requiresLiveStack,
+  skipUnlessLiveStack,
+} from "./helpers/live-stack";
 
 /**
  * Cost Tracking E2E Tests
@@ -20,10 +24,15 @@ test.beforeEach(() => {
 });
 
 test.describe("Cost Tracking API", () => {
+  test.describe.configure({ skip: !requiresLiveStack, reason: liveStackSkipReason });
+
   let tenantId: string;
   let workspaceId: string;
 
   test.beforeAll(async ({ request }) => {
+    if (!requiresLiveStack) {
+      return;
+    }
     // Get tenant and workspace
     const tenantsResponse = await request.get(`${API_BASE}/api/v1/tenants`);
     const tenants = await tenantsResponse.json();
