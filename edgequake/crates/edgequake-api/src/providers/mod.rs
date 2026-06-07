@@ -56,9 +56,14 @@
 //!
 //! @implements OODA-226: Unified provider resolution module
 
+pub mod credentials;
 mod error;
 mod resolver;
 
+pub use credentials::{
+    llm_provider_credentials_configured, llm_provider_credentials_configured_by_name,
+    provider_credentials_configured,
+};
 pub use error::ProviderResolutionError;
 pub use resolver::{
     LlmResolutionRequest, ProviderSource, ResolvedEmbeddingProvider, ResolvedLlmProvider,

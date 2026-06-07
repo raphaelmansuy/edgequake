@@ -5,12 +5,15 @@
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
+use edgequake_observability::{
+    init_observability, record_db_pool_stats, ErrorEvent, ObservabilityConfig,
+};
 use edgequake_tasks::{
     Pagination, TaskFilter, TaskQueue, TaskStatus, TaskStorage, WorkerPool, WorkerPoolConfig,
 };
+use serde_json::json;
 use std::sync::Arc;
 use tracing::{info, warn};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Print the EdgeQuake startup banner with storage mode information.
 fn print_startup_banner(version: &str, storage_mode: &StorageMode, host: &str, port: u16) {
@@ -322,7 +325,12 @@ async fn recover_orphaned_documents(
                     }
                 }
                 Err(e) => {
-                    warn!("⚠️ Failed to recover orphaned document {}: {}", key, e);
+                    ErrorEvent::log_domain_warn(
+                        "startup",
+                        "recover_orphaned_document",
+                        &e.to_string(),
+                        json!({ "document_id": key, "non_fatal": true }),
+                    );
                 }
             }
         }
@@ -381,7 +389,12 @@ async fn requeue_pending_tasks(
                 requeued_count += 1;
             }
             Err(e) => {
-                warn!("⚠️ Failed to requeue task {}: {}", task.track_id, e);
+                ErrorEvent::log_domain_warn(
+                    "startup",
+                    "requeue_pending_task",
+                    &e.to_string(),
+                    json!({ "task_id": task.track_id, "non_fatal": true }),
+                );
                 failed_count += 1;
             }
         }
@@ -471,14 +484,7 @@ async fn periodic_orphan_check(task_storage: Arc<dyn TaskStorage>) -> Result<()>
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "edgequake=debug,edgequake_query=debug,edgequake_api=debug,edgequake_core=debug,edgequake_storage=debug,edgequake_llm=debug,edgequake_pipeline=debug,edgequake_tasks=debug,tower_http=debug,axum=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let _obs_guard = init_observability(ObservabilityConfig::from_env());
 
     info!("Starting EdgeQuake v{}", env!("CARGO_PKG_VERSION"));
 
@@ -502,9 +508,56 @@ async fn main() -> Result<()> {
             format!("failed to initialize PostgreSQL storage at {redacted_database_url}")
         })?;
 
+    if let Some(ref bootstrap) = state.migration_bootstrap {
+        if bootstrap.migration_038.is_degraded() {
+            tracing::warn!(
+                target: "edgequake.migration",
+                missing = ?bootstrap.migration_038.missing_indexes,
+                action = bootstrap.migration_038.operator_action.as_deref().unwrap_or("none"),
+                "/ready will return 503 until migration 038 indexes are applied (use apply_038.sh --concurrent for large graphs)"
+            );
+        }
+    }
+
+    info!(
+        target: "edgequake.resource",
+        graph_scan_threshold = state.resource_budget().graph_scan_threshold_nodes,
+        graph_materialize_concurrent = state.graph_materialize.max_concurrent(),
+        graph_query_timeout_secs = state.resource_budget().graph_query_timeout_secs,
+        max_page_size = state.resource_budget().max_page_size,
+        "SPEC-006 resource budget active"
+    );
+
+    if std::env::var("EDGEQUAKE_MEM_LIMIT").is_err() && std::env::var("DOCKER_MEM_LIMIT").is_err() {
+        tracing::warn!(
+            target: "edgequake.resource",
+            "No EDGEQUAKE_MEM_LIMIT/Docker mem_limit detected — bare-metal dev may OOM on large workspaces; use docker compose or set EDGEQUAKE_MEM_LIMIT"
+        );
+    }
+
     // Initialize default tenant and workspace for non-authenticated mode
     if let Err(e) = state.initialize_defaults().await {
-        tracing::warn!("Failed to initialize defaults: {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "initialize_defaults",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
+    }
+
+    // SPEC-018: Sample DB pool gauges between Prometheus scrapes.
+    if let Some(pool) = state.pg_pool.clone() {
+        tokio::spawn(async move {
+            let interval_secs = std::env::var("EDGEQUAKE_DB_POOL_METRICS_INTERVAL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(15);
+            let interval = std::time::Duration::from_secs(interval_secs.max(5));
+            loop {
+                record_db_pool_stats(pool.size(), pool.num_idle().min(u32::MAX as usize) as u32);
+                tokio::time::sleep(interval).await;
+            }
+        });
     }
 
     // Create document task processor with workspace-specific pipeline support (SPEC-032)
@@ -516,20 +569,20 @@ async fn main() -> Result<()> {
     // OODA-10: Also attach progress broadcaster for WebSocket event delivery.
     info!("🔒 Using STRICT workspace isolation mode (PostgreSQL storage)");
     let mut processor = DocumentTaskProcessor::with_workspace_support_strict(
-        Arc::clone(&state.pipeline),
-        Arc::clone(&state.llm_provider),
-        Arc::clone(&state.kv_storage),
-        Arc::clone(&state.vector_storage),
-        Arc::clone(&state.vector_registry),
-        Arc::clone(&state.graph_storage),
-        state.pipeline_state.clone(),
+        Arc::clone(&state.query.pipeline),
+        Arc::clone(&state.query.llm_provider),
+        Arc::clone(&state.storage.kv_storage),
+        Arc::clone(&state.storage.vector_storage),
+        Arc::clone(&state.storage.vector_registry),
+        Arc::clone(&state.storage.graph_storage),
+        state.tasks.pipeline_state.clone(),
         Arc::clone(&state.workspace_service),
-        Arc::clone(&state.models_config),
+        Arc::clone(&state.query.models_config),
     )
-    .with_progress_broadcaster(state.progress_broadcaster.clone());
+    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone());
 
     // CRITICAL: Attach PDF storage for PDF processing tasks
-    if let Some(ref pdf_storage) = state.pdf_storage {
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
         processor = processor.with_pdf_storage(Arc::clone(pdf_storage));
         info!("📄 PDF storage attached to task processor");
     }
@@ -586,44 +639,61 @@ async fn main() -> Result<()> {
     // Recover orphaned tasks from previous backend session (PRODUCTION_BUG_FIX)
     // MUST run BEFORE starting workers to prevent race conditions
     if let Err(e) =
-        recover_orphaned_tasks(Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>).await
+        recover_orphaned_tasks(Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>).await
     {
-        warn!("Failed to recover orphaned tasks (non-fatal): {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "recover_orphaned_tasks",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
     }
 
     // Recover orphaned documents stuck in non-terminal states (uploading, pending, etc.)
     // MUST run BEFORE starting workers to avoid race with new uploads
     if let Err(e) = recover_orphaned_documents(
-        Arc::clone(&state.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>
+        Arc::clone(&state.storage.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>
     )
     .await
     {
-        warn!("Failed to recover orphaned documents (non-fatal): {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "recover_orphaned_documents",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
     }
 
     // Requeue pending tasks from database to in-memory queue (PRODUCTION_BUG_FIX)
     // MUST run BEFORE starting workers so tasks are available when workers start polling
     if let Err(e) = requeue_pending_tasks(
-        Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>,
-        Arc::clone(&state.task_queue) as Arc<dyn TaskQueue>,
+        Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>,
+        Arc::clone(&state.tasks.queue) as Arc<dyn TaskQueue>,
     )
     .await
     {
-        warn!("Failed to requeue pending tasks (non-fatal): {}", e);
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "requeue_pending_tasks",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
     }
 
     // CHECKPOINT-CLEANUP: Remove pipeline checkpoints older than 24 hours.
     // WHY: Stale checkpoints reference outdated provider configs or content
     // that may have been re-uploaded. Cleaning on startup keeps storage lean
     // and prevents stale data from being reloaded.
-    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(&state.kv_storage)
-        .await;
+    edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(
+        &state.storage.kv_storage,
+    )
+    .await;
 
     // Create and start worker pool
     let mut worker_pool = WorkerPool::new(
         worker_config.clone(),
-        Arc::clone(&state.task_queue) as Arc<dyn edgequake_tasks::TaskQueue>,
-        Arc::clone(&state.task_storage) as Arc<dyn edgequake_tasks::TaskStorage>,
+        Arc::clone(&state.tasks.queue) as Arc<dyn edgequake_tasks::TaskQueue>,
+        Arc::clone(&state.tasks.storage) as Arc<dyn edgequake_tasks::TaskStorage>,
         processor,
     );
 
@@ -631,7 +701,7 @@ async fn main() -> Result<()> {
     // on AppState.  The worker loop registers/checks tokens via the registry
     // in WorkerPool.  Both must point to the *same* underlying Arc so that a
     // cancel request from the HTTP handler is visible to the running worker.
-    state.cancellation_registry = worker_pool.cancellation_registry();
+    state.tasks.cancellation_registry = worker_pool.cancellation_registry();
 
     info!(
         "Starting worker pool with {} workers (task timeout: {}s)",
@@ -644,7 +714,7 @@ async fn main() -> Result<()> {
     // 10-minute updated_at threshold — safe because legitimate tasks have heartbeats
     // updating every 60s. This complements startup recovery (which is unconditional)
     // and the processing timeout (which catches hung tasks with active heartbeats).
-    let periodic_task_storage = Arc::clone(&state.task_storage) as Arc<dyn TaskStorage>;
+    let periodic_task_storage = Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>;
     tokio::spawn(async move {
         // WHY 5 minutes: Frequent enough to catch dead-heartbeat tasks within
         // ~15 minutes (10 min threshold + up to 5 min wait for the next check).
@@ -653,7 +723,12 @@ async fn main() -> Result<()> {
         loop {
             interval.tick().await;
             if let Err(e) = periodic_orphan_check(Arc::clone(&periodic_task_storage)).await {
-                warn!("Periodic orphan check failed (non-fatal): {}", e);
+                ErrorEvent::log_domain_warn(
+                    "startup",
+                    "periodic_orphan_check",
+                    &e.to_string(),
+                    json!({ "non_fatal": true }),
+                );
             }
         }
     });
@@ -673,7 +748,7 @@ async fn main() -> Result<()> {
     // Print startup banner with storage mode
     print_startup_banner(
         env!("CARGO_PKG_VERSION"),
-        &state.storage_mode,
+        &state.storage.mode,
         &config.host,
         config.port,
     );

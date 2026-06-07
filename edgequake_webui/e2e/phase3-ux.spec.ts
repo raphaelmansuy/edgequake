@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit Phase 3 UX Improvements - Polish & Accessibility", () => {
   // =========================================================================
   // Settings Import/Export Tests
   // =========================================================================
@@ -8,7 +15,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
   test.describe("Settings Import/Export", () => {
     test("settings page should have export button", async ({ page }) => {
       await page.goto("/settings");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for Export button
       const exportButton = page.getByRole("button", { name: /export/i });
@@ -17,7 +24,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("settings page should have import button", async ({ page }) => {
       await page.goto("/settings");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for Import button (it's actually a label)
       const importLabel = page.getByText(/import/i).first();
@@ -26,7 +33,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("clicking export should download JSON file", async ({ page }) => {
       await page.goto("/settings");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Start waiting for download before clicking
       const downloadPromise = page.waitForEvent("download");
@@ -45,7 +52,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("data management section should be visible", async ({ page }) => {
       await page.goto("/settings");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for Data Management section
       const dataManagement = page.getByText(/Data Management/i);
@@ -60,7 +67,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
   test.describe("Skip Navigation Link", () => {
     test("skip link should exist in DOM", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // The skip link is sr-only (screen reader only) by default
       const skipLink = page.locator('a[href="#main-content"]');
@@ -69,7 +76,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("main content area should have correct ID", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Main content should have id="main-content"
       const mainContent = page.locator("main#main-content");
@@ -78,7 +85,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("skip link should be visible when focused", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Tab to focus the skip link
       await page.keyboard.press("Tab");
@@ -120,7 +127,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Page should still be usable - check main content area
       const mainContent = page.locator("main#main-content");
@@ -131,7 +138,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       // Set tablet viewport
       await page.setViewportSize({ width: 768, height: 1024 });
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Page should still be usable - check main content area
       const mainContent = page.locator("main#main-content");
@@ -142,7 +149,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       // Set desktop viewport
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Page should still be usable - check main content area
       const mainContent = page.locator("main#main-content");
@@ -159,7 +166,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       page,
     }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Navigation should exist
       const nav = page.locator("nav");
@@ -168,7 +175,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("main content should have proper landmark role", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Main should exist
       const main = page.locator("main");
@@ -177,7 +184,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("page should have only one h1", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Count visible h1 elements
       const h1Count = await page.locator("h1:visible").count();
@@ -190,7 +197,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       page,
     }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Tab through the page
       await page.keyboard.press("Tab");
@@ -214,7 +221,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
     }) => {
       // This is a code structure test - verify hook exists by checking the page loads
       await page.goto("/query");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Textarea should be present (uses auto-resize)
       const textarea = page.locator("textarea");
@@ -231,7 +238,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       page,
     }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for the theme toggle button (sr-only text "Toggle theme")
       const themeButton = page.getByRole("button", { name: /toggle theme/i });
@@ -240,7 +247,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("theme toggle should open dropdown menu", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Click theme toggle button
       const themeButton = page.getByRole("button", { name: /toggle theme/i });
@@ -258,7 +265,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("clicking light theme should apply light mode", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Click theme toggle button
       const themeButton = page.getByRole("button", { name: /toggle theme/i });
@@ -277,7 +284,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
 
     test("clicking dark theme should apply dark mode", async ({ page }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Click theme toggle button
       const themeButton = page.getByRole("button", { name: /toggle theme/i });
@@ -298,7 +305,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       page,
     }) => {
       await page.goto("/");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Check that globals.css has theme transition styles
       // The html element should have transition defined
@@ -321,7 +328,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
     }) => {
       // Navigate to settings page which has toast-triggering actions
       await page.goto("/settings");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for export button - it may or may not be present
       const exportButton = page.getByRole("button", { name: /export/i });
@@ -347,7 +354,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       // Set desktop viewport
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto("/documents");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Page should load
       const main = page.locator("main");
@@ -358,7 +365,7 @@ test.describe("Phase 3 UX Improvements - Polish & Accessibility", () => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto("/documents");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Page should load on mobile
       const main = page.locator("main");

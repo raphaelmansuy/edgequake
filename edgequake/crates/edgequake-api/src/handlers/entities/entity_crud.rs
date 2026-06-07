@@ -10,11 +10,11 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use edgequake_storage::traits::NodeListFilter;
 use edgequake_storage::GraphNode;
 use std::collections::HashMap;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::isolation::filter_nodes_by_tenant_context;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
@@ -50,74 +50,38 @@ pub async fn list_entities(
     tenant_ctx: TenantContext,
     Query(query): Query<ListEntitiesQuery>,
 ) -> ApiResult<Json<ListEntitiesResponse>> {
-    // Clamp page_size to range [1, 100]
-    let page_size = query.page_size.clamp(1, 100);
+    // SPEC-006: BR-006-010 — page size from AppState resource SSOT
+    let page_size = state.resource_budget().clamp_page_size(query.page_size);
     let page = query.page.max(1);
     let offset = ((page - 1) * page_size) as usize;
 
-    // Get all nodes from graph storage
-    // WHY: We need to fetch all nodes and filter in memory because the storage
-    // interface doesn't support pagination/filtering yet. Future optimization
-    // would push these filters down to the storage layer.
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    // SPEC-006: TR-006-001 — push-down filtered pagination (no get_all_nodes)
+    let filter = NodeListFilter {
+        tenant_id: tenant_ctx.tenant_id.clone(),
+        workspace_id: tenant_ctx.workspace_id.clone(),
+        entity_type: query.entity_type.clone(),
+        search: query.search.clone(),
+    };
 
-    // WHY: Apply tenant isolation first to ensure multi-tenancy is respected
-    // This filters out nodes belonging to other tenants/workspaces
-    let tenant_filtered_nodes = filter_nodes_by_tenant_context(all_nodes, &tenant_ctx);
+    let page_result = state
+        .storage
+        .graph_storage
+        .list_nodes_filtered(&filter, offset, page_size as usize)
+        .await?;
 
-    // Apply additional filters (entity_type, search)
-    let mut filtered_nodes: Vec<_> = tenant_filtered_nodes
-        .into_iter()
-        .filter(|node| {
-            // Filter by entity_type if specified
-            if let Some(ref entity_type) = query.entity_type {
-                let node_type = node
-                    .properties
-                    .get("entity_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                if !node_type.eq_ignore_ascii_case(entity_type) {
-                    return false;
-                }
-            }
-
-            // Filter by search term if specified
-            if let Some(ref search) = query.search {
-                let search_lower = search.to_lowercase();
-                let name_matches = node.id.to_lowercase().contains(&search_lower);
-                let desc_matches = node
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_lowercase()
-                    .contains(&search_lower);
-                if !name_matches && !desc_matches {
-                    return false;
-                }
-            }
-
-            true
-        })
-        .collect();
-
-    // Sort by entity name for consistent ordering
-    filtered_nodes.sort_by(|a, b| a.id.cmp(&b.id));
-
-    let total = filtered_nodes.len();
+    let total = page_result.total;
     let total_pages = ((total as f64) / (page_size as f64)).ceil() as u32;
-
-    // Apply pagination
-    let page_nodes: Vec<_> = filtered_nodes
-        .into_iter()
-        .skip(offset)
-        .take(page_size as usize)
-        .collect();
+    let page_nodes = page_result.items;
 
     // Convert to response format
     let mut items = Vec::with_capacity(page_nodes.len());
     for node in page_nodes {
-        let degree = state.graph_storage.node_degree(&node.id).await.unwrap_or(0);
+        let degree = state
+            .storage
+            .graph_storage
+            .node_degree(&node.id)
+            .await
+            .unwrap_or(0);
         items.push(node_to_entity_response(node, degree));
     }
 
@@ -153,7 +117,13 @@ pub async fn create_entity(
     let entity_name = normalize_entity_name(&req.entity_name);
 
     // Check if entity already exists
-    if state.graph_storage.get_node(&entity_name).await?.is_some() {
+    if state
+        .storage
+        .graph_storage
+        .get_node(&entity_name)
+        .await?
+        .is_some()
+    {
         return Err(ApiError::Conflict(format!(
             "Entity '{}' already exists",
             entity_name
@@ -181,6 +151,7 @@ pub async fn create_entity(
 
     // Create node using upsert_node
     state
+        .storage
         .graph_storage
         .upsert_node(&entity_name, properties.clone())
         .await?;
@@ -221,16 +192,25 @@ pub async fn get_entity(
 
     // Get entity node
     let node = state
+        .storage
         .graph_storage
         .get_node(&entity_name)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_name)))?;
 
-    let degree = state.graph_storage.node_degree(&entity_name).await?;
+    let degree = state
+        .storage
+        .graph_storage
+        .node_degree(&entity_name)
+        .await?;
     let entity = node_to_entity_response(node, degree);
 
     // Get relationships (outgoing and incoming)
-    let edges = state.graph_storage.get_node_edges(&entity_name).await?;
+    let edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&entity_name)
+        .await?;
 
     let mut outgoing = Vec::new();
     let mut incoming = Vec::new();
@@ -305,6 +285,7 @@ pub async fn update_entity(
 
     // Get existing entity
     let mut node = state
+        .storage
         .graph_storage
         .get_node(&entity_name)
         .await?
@@ -342,11 +323,16 @@ pub async fn update_entity(
 
     // Update node in storage using upsert_node
     state
+        .storage
         .graph_storage
         .upsert_node(&entity_name, node.properties.clone())
         .await?;
 
-    let degree = state.graph_storage.node_degree(&entity_name).await?;
+    let degree = state
+        .storage
+        .graph_storage
+        .node_degree(&entity_name)
+        .await?;
     let entity = node_to_entity_response(node, degree);
 
     let changes = ChangesSummary {
@@ -393,7 +379,13 @@ pub async fn delete_entity(
     }
 
     // Check if entity exists
-    if state.graph_storage.get_node(&entity_name).await?.is_none() {
+    if state
+        .storage
+        .graph_storage
+        .get_node(&entity_name)
+        .await?
+        .is_none()
+    {
         return Err(ApiError::NotFound(format!(
             "Entity '{}' not found",
             entity_name
@@ -401,7 +393,11 @@ pub async fn delete_entity(
     }
 
     // Get affected entities (neighbors)
-    let edges = state.graph_storage.get_node_edges(&entity_name).await?;
+    let edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&entity_name)
+        .await?;
 
     let mut affected_entities = Vec::new();
     for edge in &edges {
@@ -414,7 +410,11 @@ pub async fn delete_entity(
     let deleted_relationships = edges.len();
 
     // Delete node (edges will be deleted automatically)
-    state.graph_storage.delete_node(&entity_name).await?;
+    state
+        .storage
+        .graph_storage
+        .delete_node(&entity_name)
+        .await?;
 
     Ok(Json(DeleteEntityResponse {
         status: "success".to_string(),

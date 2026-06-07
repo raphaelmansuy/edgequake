@@ -10,12 +10,13 @@
 //! - [`HybridExtractionParser`]: Auto-detects format with fallback
 
 mod json_parser;
+mod registry;
 mod tuple_parser;
 
-pub use json_parser::JsonExtractionParser;
+pub use json_parser::{JsonExtractionParser, JsonParseOptions};
+pub use registry::{detect_format_markers, ExtractionResultParser};
 pub use tuple_parser::TupleParser;
 
-use super::DEFAULT_TUPLE_DELIMITER;
 use crate::error::Result;
 use crate::extractor::ExtractionResult;
 
@@ -57,14 +58,7 @@ impl HybridExtractionParser {
 
     /// Parse extraction result, auto-detecting format.
     pub fn parse(&self, response: &str, chunk_id: &str) -> Result<ExtractionResult> {
-        // Detect format by content
-        let has_tuple_markers = response.contains(DEFAULT_TUPLE_DELIMITER)
-            || response.contains("entity<|")
-            || response.contains("relation<|");
-        let has_json_markers = response.trim_start().starts_with('{')
-            || response.contains("```json")
-            || response.contains("\"entities\"")
-            || response.contains("\"relationships\"");
+        let (has_tuple_markers, has_json_markers) = detect_format_markers(response);
 
         tracing::debug!(
             has_tuple = has_tuple_markers,
@@ -174,7 +168,7 @@ impl HybridExtractionParser {
 
 #[cfg(test)]
 mod tests {
-    use super::json_parser::extract_json_from_response;
+    use super::super::json_extract::extract_json_from_response;
     use super::*;
 
     #[test]

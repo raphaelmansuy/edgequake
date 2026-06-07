@@ -1835,7 +1835,11 @@ mod tests {
             .await;
         let client = test_client(&mock_server).await;
         let ids = vec!["c1".to_string(), "c2".to_string()];
-        let val = client.conversations().bulk_archive(&ids, true).await.unwrap();
+        let val = client
+            .conversations()
+            .bulk_archive(&ids, true)
+            .await
+            .unwrap();
         assert_eq!(val.affected, 2);
     }
 

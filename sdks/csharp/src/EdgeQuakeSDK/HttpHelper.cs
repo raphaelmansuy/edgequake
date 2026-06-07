@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Net.Http.Headers;
+using System.IO;
 
 namespace EdgeQuakeSDK;
 
@@ -120,6 +122,30 @@ public class HttpHelper
         var resp = await _client.GetAsync(path);
         await EnsureSuccess(resp);
         return await resp.Content.ReadAsStringAsync();
+    }
+
+    public async Task<T> UploadManyAsync<T>(string path, IEnumerable<string> filePaths, string fieldName = "files", Dictionary<string, string>? extraFields = null) where T : class
+    {
+        using var form = new MultipartFormDataContent();
+        foreach (var filePath in filePaths)
+        {
+            var stream = File.OpenRead(filePath);
+            var content = new StreamContent(stream);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            form.Add(content, fieldName, Path.GetFileName(filePath));
+        }
+
+        if (extraFields is not null)
+        {
+            foreach (var (k, v) in extraFields)
+            {
+                form.Add(new StringContent(v), k);
+            }
+        }
+
+        var req = new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
+        var resp = await _client.SendAsync(req);
+        return await HandleResponse<T>(resp);
     }
 
     private async Task<T> HandleResponse<T>(HttpResponseMessage resp) where T : class

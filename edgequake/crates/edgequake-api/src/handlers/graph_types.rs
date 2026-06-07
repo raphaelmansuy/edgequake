@@ -88,12 +88,8 @@ pub struct GraphQueryParams {
     pub max_nodes: usize,
 }
 
-/// WHY: Maximum allowed nodes per graph request - prevents performance issues
-/// even if frontend validation is bypassed. Matches frontend MAX_DISPLAY_NODES.
-pub const MAX_GRAPH_NODES: usize = 500;
-
-/// Maximum traversal depth to prevent exponential explosion.
-pub const MAX_GRAPH_DEPTH: usize = 5;
+/// SPEC-006: DRY re-export from `edgequake_core::resource` SSOT.
+pub use edgequake_core::{MAX_GRAPH_DEPTH, MAX_GRAPH_NODES};
 
 /// Default traversal depth.
 pub fn default_depth() -> usize {

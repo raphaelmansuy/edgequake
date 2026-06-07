@@ -37,14 +37,26 @@ pub async fn create_relationship(
     let tgt_id = normalize_entity_name(&req.tgt_id);
 
     // Verify both entities exist
-    if state.graph_storage.get_node(&src_id).await?.is_none() {
+    if state
+        .storage
+        .graph_storage
+        .get_node(&src_id)
+        .await?
+        .is_none()
+    {
         return Err(ApiError::NotFound(format!(
             "Source entity '{}' not found",
             src_id
         )));
     }
 
-    if state.graph_storage.get_node(&tgt_id).await?.is_none() {
+    if state
+        .storage
+        .graph_storage
+        .get_node(&tgt_id)
+        .await?
+        .is_none()
+    {
         return Err(ApiError::NotFound(format!(
             "Target entity '{}' not found",
             tgt_id
@@ -81,6 +93,7 @@ pub async fn create_relationship(
 
     // Create edge using upsert_edge
     state
+        .storage
         .graph_storage
         .upsert_edge(&src_id, &tgt_id, properties.clone())
         .await?;

@@ -5,14 +5,14 @@ use axum::{
     Json,
 };
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::ApiResult;
 use crate::handlers::relationships_types::DeleteRelationshipResponse;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
+use super::helpers::find_relationship_edge;
+
 /// Delete a relationship.
-///
-/// Note: This implementation searches through all relationships.
-/// In production, you'd want an indexed lookup by relationship ID.
 #[utoipa::path(
     delete,
     path = "/api/v1/graph/relationships/{relationship_id}",
@@ -27,41 +27,26 @@ use crate::state::AppState;
 )]
 pub async fn delete_relationship(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(relationship_id): Path<String>,
 ) -> ApiResult<Json<DeleteRelationshipResponse>> {
-    // Search through all edges to find matching relationship ID
-    let nodes = state.graph_storage.get_all_nodes().await?;
+    let edge =
+        find_relationship_edge(&state.storage.graph_storage, &tenant_ctx, &relationship_id).await?;
 
-    for node in nodes {
-        let edges = state.graph_storage.get_node_edges(&node.id).await?;
+    let src_id = edge.source.clone();
+    let tgt_id = edge.target.clone();
 
-        for edge in edges {
-            let edge_id = edge
-                .properties
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+    state
+        .storage
+        .graph_storage
+        .delete_edge(&src_id, &tgt_id)
+        .await?;
 
-            if edge_id == relationship_id {
-                // Found the relationship - delete it
-                let src_id = edge.source.clone();
-                let tgt_id = edge.target.clone();
-
-                state.graph_storage.delete_edge(&src_id, &tgt_id).await?;
-
-                return Ok(Json(DeleteRelationshipResponse {
-                    status: "success".to_string(),
-                    message: "Relationship deleted successfully".to_string(),
-                    deleted_relationship_id: relationship_id,
-                    src_id,
-                    tgt_id,
-                }));
-            }
-        }
-    }
-
-    Err(ApiError::NotFound(format!(
-        "Relationship '{}' not found",
-        relationship_id
-    )))
+    Ok(Json(DeleteRelationshipResponse {
+        status: "success".to_string(),
+        message: "Relationship deleted successfully".to_string(),
+        deleted_relationship_id: relationship_id,
+        src_id,
+        tgt_id,
+    }))
 }

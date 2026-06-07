@@ -28,7 +28,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Install Rust
               uses: dtolnay/rust-toolchain@master
@@ -64,7 +64,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Install Rust
               uses: dtolnay/rust-toolchain@master
@@ -103,7 +103,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Install Rust
               uses: dtolnay/rust-toolchain@master
@@ -136,7 +136,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Install Rust
               uses: dtolnay/rust-toolchain@master
@@ -184,7 +184,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Install Rust
               uses: dtolnay/rust-toolchain@master
@@ -217,10 +217,52 @@ jobs:
                   
                   echo "✅ Test count gate passed: ${TOTAL_PASSED} >= ${MIN_TESTS}"
 
+    # E2E static flake lint — no Playwright/browser required
+    e2e-flake-lint:
+        name: E2E Flake Lint (chromium gate)
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        steps:
+            - uses: actions/checkout@v6
+            - name: Validate chromium gate anti-patterns
+              run: make test-e2e-lint
+
+    # UI-only Playwright gate — no backend; skips integration specs
+    e2e-ui:
+        name: E2E UI Gate (chromium, no backend)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.13.1
+
+            - name: Install Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Install frontend dependencies
+              working-directory: edgequake_webui
+              run: pnpm install
+
+            - name: Install Playwright Chromium
+              working-directory: edgequake_webui
+              run: pnpm exec playwright install chromium
+
+            - name: Run UI-only chromium gate
+              run: make test-e2e-ui
+
     # Summary job
     quality-summary:
         name: Quality Gate Summary
-        needs: [unit-tests, invariant-tests, api-tests, optimized-tests, test-count-gate]
+        needs: [unit-tests, invariant-tests, api-tests, optimized-tests, test-count-gate, e2e-flake-lint, e2e-ui]
         runs-on: ubuntu-latest
         if: always()
         steps:
@@ -235,6 +277,8 @@ jobs:
                   echo "| API Tests (<30s) | ${{ needs.api-tests.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Optimized Tests | ${{ needs.optimized-tests.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Test Count (>900) | ${{ needs.test-count-gate.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| E2E Flake Lint | ${{ needs.e2e-flake-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| E2E UI Gate | ${{ needs.e2e-ui.result }} |" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### Timing Targets" >> $GITHUB_STEP_SUMMARY
                   echo "- Unit tests: <30s" >> $GITHUB_STEP_SUMMARY
@@ -245,5 +289,13 @@ jobs:
                   # Fail if any required job failed
                   if [ "${{ needs.invariant-tests.result }}" == "failure" ]; then
                     echo "::error::CRITICAL: Invariant tests failed - reliability violation!"
+                    exit 1
+                  fi
+                  if [ "${{ needs.e2e-flake-lint.result }}" == "failure" ]; then
+                    echo "::error::E2E flake lint failed — fix anti-patterns in chromium gate specs"
+                    exit 1
+                  fi
+                  if [ "${{ needs.e2e-ui.result }}" == "failure" ]; then
+                    echo "::error::E2E UI gate failed — run make test-e2e-ui locally"
                     exit 1
                   fi

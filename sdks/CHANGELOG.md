@@ -4,6 +4,18 @@ All notable changes to the EdgeQuake SDKs directory are tracked here. See the ro
 
 ## [Unreleased]
 
+### Added
+
+- Issue #236: SDK batch ingestion support for new API routes:
+  - `POST /api/v1/documents/upload/batch`
+  - `POST /api/v1/documents/pdf/batch`
+- TypeScript: `client.documents.pdf.uploadBatch(files, options?)` + `PdfBatchUploadResponse`.
+- Python: true multipart batch requests (sync/async) for `documents.upload_batch(...)` and `documents.pdf.upload_batch(...)`.
+- Rust: `PdfResource::upload_batch(...)` + typed `PdfBatchUploadResponse`.
+- Go: `Documents.UploadBatch(...)` and `PDF.UploadBatch(...)`.
+- PHP: `DocumentService::uploadFilesBatch(...)` and `DocumentService::uploadPdfBatch(...)`.
+- C#: `Documents.UploadBatchAsync(...)` and `Documents.UploadPdfBatchAsync(...)`.
+
 ## [0.4.0] - 2025-07-15
 
 ### Added

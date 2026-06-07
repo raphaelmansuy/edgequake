@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-041: Tenant Vision LLM Configuration E2E Tests
  *
@@ -16,15 +17,20 @@
  * @implements SPEC-041: Tenant-level vision LLM configuration defaults
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "/";
 
 test.setTimeout(90000);
 
 // ---------------------------------------------------------------------------
 // API-level tests (no UI required)
 // ---------------------------------------------------------------------------
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("SPEC-041: Tenant Vision LLM – API", () => {
   const uniqueName = () => `spec041-${Date.now()}`;
 

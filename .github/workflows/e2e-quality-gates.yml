@@ -36,7 +36,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -80,7 +80,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: E2E flake lint (chromium gate)
+        run: make test-e2e-lint
 
       - name: Download backend
         uses: actions/download-artifact@v4
@@ -169,7 +172,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download backend
         uses: actions/download-artifact@v4
@@ -239,7 +242,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download backend
         uses: actions/download-artifact@v4

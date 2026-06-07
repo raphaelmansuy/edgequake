@@ -1,79 +1,53 @@
 import { expect, test } from "@playwright/test";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+async function readDashboardStat(page: import("@playwright/test").Page, label: string) {
+  const text = await page
+    .locator(`[data-testid="stats-card"]:has-text("${label}")`)
+    .locator('[data-testid="stats-value"]')
+    .textContent();
+  return parseInt(text?.replace(/,/g, "") ?? "0", 10);
+}
+
+async function readWorkspaceStat(page: import("@playwright/test").Page, label: string) {
+  const card = page.locator("div.rounded-lg.border").filter({ hasText: new RegExp(label, "i") });
+  const text = await card.locator(".text-2xl.font-bold").first().textContent();
+  return parseInt(text?.replace(/,/g, "") ?? "0", 10);
+}
 
 test.describe("Dashboard and Workspace Stats Consistency", () => {
   test("Dashboard and Workspace page should show identical stats", async ({
     page,
+    request,
   }) => {
-    // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    skipUnlessLiveStack();
+    await bootstrapDeterministicUiContext(page, request, "dash-ws-consistency");
 
-    // Wait for the page to load
-    await page.waitForSelector("main", { timeout: 10000 });
+    await page.goto("/");
+    await waitForAppReady(page);
+    await page.waitForSelector('[data-testid="stats-card"]', { timeout: 15_000 });
 
-    // Wait a bit for stats to load
-    await page.waitForTimeout(2000);
+    const labels = ["Documents", "Entities", "Relationships", "Chunks"] as const;
+    const dashboardStats: Record<(typeof labels)[number], number> = {
+      Documents: 0,
+      Entities: 0,
+      Relationships: 0,
+      Chunks: 0,
+    };
+    for (const label of labels) {
+      dashboardStats[label] = await readDashboardStat(page, label);
+    }
 
-    // Extract stats from Dashboard
-    const dashboardStats = await page.evaluate(() => {
-      // Find all stat cards on the page
-      const statsText = document.body.innerText;
-
-      // Extract numbers using patterns
-      const docMatch = statsText.match(/(\d+)\s+Documents?/);
-      const entMatch = statsText.match(/(\d+)\s+Entities/);
-      const relMatch = statsText.match(/(\d+)\s+Relationships?/);
-      const chunkMatch = statsText.match(/(\d+)\s+Chunks?/);
-
-      return {
-        documents: docMatch ? parseInt(docMatch[1]) : null,
-        entities: entMatch ? parseInt(entMatch[1]) : null,
-        relationships: relMatch ? parseInt(relMatch[1]) : null,
-        chunks: chunkMatch ? parseInt(chunkMatch[1]) : null,
-      };
+    await page.goto("/workspace");
+    await waitForAppReady(page);
+    await expect(page.locator(".text-2xl.font-bold").first()).toBeVisible({
+      timeout: 15_000,
     });
 
-    console.log("Dashboard stats:", dashboardStats);
-
-    // Navigate to Workspace page
-    await page.goto("http://localhost:3000/workspace");
-
-    // Wait for the page to load
-    await page.waitForSelector("main", { timeout: 10000 });
-
-    // Wait a bit for stats to load
-    await page.waitForTimeout(2000);
-
-    // Extract stats from Workspace page
-    const workspaceStats = await page.evaluate(() => {
-      // Find all stat cards on the page
-      const statsText = document.body.innerText;
-
-      // Extract numbers using patterns
-      const docMatch = statsText.match(/(\d+)\s+Documents?/);
-      const entMatch = statsText.match(/(\d+)\s+Entities/);
-      const relMatch = statsText.match(/(\d+)\s+Relationships?/);
-      const chunkMatch = statsText.match(/(\d+)\s+Chunks?/);
-
-      return {
-        documents: docMatch ? parseInt(docMatch[1]) : null,
-        entities: entMatch ? parseInt(entMatch[1]) : null,
-        relationships: relMatch ? parseInt(relMatch[1]) : null,
-        chunks: chunkMatch ? parseInt(chunkMatch[1]) : null,
-      };
-    });
-
-    console.log("Workspace stats:", workspaceStats);
-
-    // Verify stats match
-    expect(dashboardStats.documents).toBe(workspaceStats.documents);
-    expect(dashboardStats.entities).toBe(workspaceStats.entities);
-    expect(dashboardStats.relationships).toBe(workspaceStats.relationships);
-    expect(dashboardStats.chunks).toBe(workspaceStats.chunks);
-
-    // Verify expected values (from TenantZZ / Default Workspace)
-    expect(dashboardStats.documents).toBe(1);
-    expect(dashboardStats.entities).toBe(13);
-    expect(dashboardStats.relationships).toBe(9);
-    expect(dashboardStats.chunks).toBe(1);
+    for (const label of labels) {
+      expect(await readWorkspaceStat(page, label)).toBe(dashboardStats[label]);
+    }
   });
 });

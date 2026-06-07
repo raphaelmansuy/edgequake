@@ -40,10 +40,7 @@ impl<'a> WorkspacesResource<'a> {
     }
 
     /// `POST /api/v1/workspaces/{id}/metrics-snapshot`
-    pub async fn trigger_metrics_snapshot(
-        &self,
-        workspace_id: &str,
-    ) -> Result<serde_json::Value> {
+    pub async fn trigger_metrics_snapshot(&self, workspace_id: &str) -> Result<serde_json::Value> {
         self.client
             .post::<(), serde_json::Value>(
                 &format!("/api/v1/workspaces/{workspace_id}/metrics-snapshot"),
@@ -181,9 +178,7 @@ impl<'a> WorkspacesResource<'a> {
     ) -> Result<serde_json::Value> {
         self.client
             .patch(
-                &format!(
-                    "/api/v1/workspaces/{workspace_id}/injections/{injection_id}"
-                ),
+                &format!("/api/v1/workspaces/{workspace_id}/injections/{injection_id}"),
                 Some(body),
             )
             .await

@@ -8,7 +8,9 @@ use tokio::runtime::Runtime;
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
-use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, KVStorage, VectorStorage,
+};
 use serde_json::json;
 
 fn create_runtime() -> Runtime {

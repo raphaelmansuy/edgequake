@@ -19,8 +19,8 @@ use crate::state::AppState;
 
 use super::{require_authenticated_request, ApiKeyRecord, API_KEY_PREFIX};
 pub use crate::handlers::auth_types::{
-    CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery, ListApiKeysResponse,
-    RevokeApiKeyResponse,
+    ApiKeySummary, CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery,
+    ListApiKeysResponse, RevokeApiKeyResponse,
 };
 
 /// Create a new API key.
@@ -54,7 +54,8 @@ pub async fn create_api_key(
 
     // Hash the key for storage
     let key_hash = state
-        .password_service
+        .auth
+        .password
         .hash_password(&full_key)
         .map_err(|e| ApiError::Internal(format!("Key hashing error: {}", e)))?;
 
@@ -86,6 +87,7 @@ pub async fn create_api_key(
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
     state
+        .storage
         .kv_storage
         .upsert(&[(key, value)])
         .await
@@ -137,17 +139,67 @@ pub async fn list_api_keys(
     headers: HeaderMap,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-    require_authenticated_request(&headers, &state)?;
-    // TODO: Implement listing with prefix scan when KV storage supports it
+    let auth = require_authenticated_request(&headers, &state)?;
+    let user_id = auth.user_id;
+
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
 
+    let key_ids = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(API_KEY_PREFIX)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+
+    let mut summaries: Vec<ApiKeySummary> = Vec::new();
+    for key in key_ids {
+        let value = state
+            .storage
+            .kv_storage
+            .get_by_id(&key)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+
+        let Some(value) = value else {
+            continue;
+        };
+
+        let record: ApiKeyRecord = serde_json::from_value(value)
+            .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
+
+        if record.user_id != user_id {
+            continue;
+        }
+
+        summaries.push(ApiKeySummary {
+            key_id: record.key_id,
+            prefix: record.prefix,
+            name: record.name,
+            scopes: record.scopes,
+            is_active: record.is_active,
+            last_used_at: record.last_used_at.map(|t| t.to_rfc3339()),
+            expires_at: record.expires_at.map(|t| t.to_rfc3339()),
+            created_at: record.created_at.to_rfc3339(),
+        });
+    }
+
+    summaries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    let total = summaries.len();
+    let total_pages = total.div_ceil(page_size as usize) as u32;
+    let start = ((page - 1) * page_size) as usize;
+    let page_keys: Vec<ApiKeySummary> = summaries
+        .into_iter()
+        .skip(start)
+        .take(page_size as usize)
+        .collect();
+
     Ok(Json(ListApiKeysResponse {
-        keys: vec![],
-        total: 0,
+        keys: page_keys,
+        total,
         page,
         page_size,
-        total_pages: 0,
+        total_pages,
     }))
 }
 
@@ -178,6 +230,7 @@ pub async fn revoke_api_key(
 
     // Get the existing record
     let value = state
+        .storage
         .kv_storage
         .get_by_id(&key)
         .await
@@ -194,6 +247,7 @@ pub async fn revoke_api_key(
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
     state
+        .storage
         .kv_storage
         .upsert(&[(key, new_value)])
         .await

@@ -81,6 +81,12 @@ var docs = await client.Documents.ListAsync(page: 1, pageSize: 20);
 // Upload text
 var doc = await client.Documents.UploadTextAsync("Title", "Content", "txt");
 
+// Upload multiple files in one request
+var batch = await client.Documents.UploadBatchAsync(new[] { "a.txt", "b.md" });
+
+// Upload multiple PDFs in one request
+var pdfBatch = await client.Documents.UploadPdfBatchAsync(new[] { "a.pdf", "b.pdf" });
+
 // Delete
 await client.Documents.DeleteAsync("doc-id");
 ```

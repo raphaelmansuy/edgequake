@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Comprehensive Provider/Model Selection E2E Tests
  *
@@ -18,13 +19,18 @@
  * @iteration OODA 59
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
 
 // Increase timeout for E2E tests
 test.setTimeout(90000);
 
-test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -331,7 +337,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for provider selector
       const providerSelector = page.locator('[role="combobox"]').first();
@@ -376,7 +381,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Click provider selector to open dropdown
       const providerSelector = page.locator('[role="combobox"]').first();
@@ -776,7 +780,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for configuration sections
       const pageContent = await page.content();
@@ -822,7 +825,6 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for rebuild buttons/sections
       const rebuildText = page.getByText(/rebuild/i);
@@ -1235,7 +1237,7 @@ test.describe("SPEC-032 Focus 25: Comprehensive Provider/Model Selection", () =>
  *
  * Critical E2E tests for provider switching workflow.
  */
-test.describe("SPEC-032 Focus 25: Provider Switching Critical Path", () => {
+test.describe("@load SPEC-032 Focus 25: Provider Switching Critical Path", () => {
   test.setTimeout(120000);
 
   test("full workflow: create workspace with ollama, switch to openai, rebuild", async ({
@@ -1421,7 +1423,7 @@ test.describe("SPEC-032 Focus 25: Provider Switching Critical Path", () => {
  *
  * Verifies health endpoints for all providers.
  */
-test.describe("SPEC-032: Provider Health Verification", () => {
+test.describe("@load SPEC-032: Provider Health Verification", () => {
   test("health endpoint includes provider status", async ({ request }) => {
     const response = await request.get(`${BACKEND_URL}/health`);
     expect(response.ok()).toBe(true);

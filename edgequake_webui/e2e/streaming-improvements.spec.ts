@@ -13,15 +13,24 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import {
+  waitForAppReady,
+  waitForQueryResponse,
+  waitForStreamingComplete,
+} from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 // Increase timeout for streaming tests
-test.setTimeout(60000);
+test.setTimeout(60_000);
 
-test.describe("Streaming Improvements E2E", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to query page
+test.describe("@load Streaming Improvements E2E", () => {
+  test.beforeEach(async ({ page, request }) => {
+    skipUnlessLiveStack();
+    await bootstrapDeterministicUiContext(page, request, "streaming");
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("StreamAccumulator: Content displays correctly without concatenation", async ({
@@ -42,42 +51,9 @@ test.describe("Streaming Improvements E2E", () => {
       .first();
     await submitButton.click();
 
-    // Wait for streaming to complete - look for the textarea to be enabled again
-    // which indicates the response is complete
-    console.log("⏳ Waiting for streaming to complete...");
-    try {
-      // First wait for streaming to start (textarea becomes disabled)
-      await page.waitForTimeout(1000);
+    await waitForQueryResponse(page);
+    await waitForStreamingComplete(page);
 
-      // Then wait for streaming to complete (textarea becomes enabled OR stop button disappears)
-      await Promise.race([
-        page.waitForFunction(
-          () => {
-            const textarea = document.querySelector("textarea");
-            return textarea && !textarea.hasAttribute("disabled");
-          },
-          { timeout: 30000 }
-        ),
-        page.waitForFunction(
-          () => {
-            // Wait for "Stop" button to disappear (streaming complete)
-            return !document.querySelector(
-              'button[aria-label*="Stop"], button:has-text("Stop")'
-            );
-          },
-          { timeout: 30000 }
-        ),
-      ]);
-    } catch {
-      // If timeout, just continue - the content might still be there
-      console.log("⚠️ Timeout waiting for streaming, continuing...");
-    }
-    console.log("✅ Streaming completed");
-
-    // Give a moment for the DOM to settle
-    await page.waitForTimeout(500);
-
-    // Get page content
     const pageText = await page.textContent("body");
     console.log("📄 Page text length:", pageText?.length);
 
@@ -109,7 +85,7 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Take screenshot for debugging
     await page.screenshot({
-      path: "test-results/streaming-accumulator-test.png",
+      path: e2eScreenshot("streaming", "streaming-accumulator-test.png"),
       fullPage: true,
     });
   });
@@ -169,7 +145,7 @@ test.describe("Streaming Improvements E2E", () => {
     await submitButton.click();
 
     // Wait for response to complete
-    await page.waitForTimeout(10000);
+    await waitForQueryResponse(page);
 
     // Capture page content before refresh
     const contentBefore = await page.textContent("body");
@@ -177,14 +153,14 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Take screenshot before refresh
     await page.screenshot({
-      path: "test-results/persistence-before-refresh.png",
+      path: e2eScreenshot("streaming", "persistence-before-refresh.png"),
       fullPage: true,
     });
 
     // Refresh the page
     await page.reload();
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(3000);
+    await waitForAppReady(page);
+    await waitForAppReady(page);
 
     // Capture page content after refresh
     const contentAfter = await page.textContent("body");
@@ -192,7 +168,7 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Take screenshot after refresh
     await page.screenshot({
-      path: "test-results/persistence-after-refresh.png",
+      path: e2eScreenshot("streaming", "persistence-after-refresh.png"),
       fullPage: true,
     });
 
@@ -224,7 +200,7 @@ test.describe("Streaming Improvements E2E", () => {
     await submitButton.click();
 
     // Wait for response
-    await page.waitForTimeout(8000);
+    await waitForQueryResponse(page);
 
     // Get the response content from the page
     const bodyText = await page.textContent("body");
@@ -236,7 +212,7 @@ test.describe("Streaming Improvements E2E", () => {
     // Try to get conversation from API to check token storage
     try {
       const workspacesResponse = await request.get(
-        "http://localhost:8080/api/v1/workspaces"
+        `${API_V1_URL}/workspaces`
       );
       if (workspacesResponse.ok()) {
         const workspaces = await workspacesResponse.json();
@@ -274,7 +250,7 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Submit and verify response
     await submitButton.click();
-    await page.waitForTimeout(5000);
+    await waitForQueryResponse(page);
 
     const bodyText = await page.textContent("body");
     const hasResponse =
@@ -302,12 +278,12 @@ test.describe("Streaming Improvements E2E", () => {
       .getByRole("button", { name: /send|submit/i })
       .first();
     await submitButton.click();
-    await page.waitForTimeout(6000);
+    await waitForQueryResponse(page);
 
     // Second message
     await textarea.fill("What number did I ask you to remember?");
     await submitButton.click();
-    await page.waitForTimeout(6000);
+    await waitForQueryResponse(page);
 
     // Get page content
     const bodyText = await page.textContent("body");
@@ -319,7 +295,7 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/multi-turn-conversation.png",
+      path: e2eScreenshot("streaming", "multi-turn-conversation.png"),
       fullPage: true,
     });
 
@@ -342,7 +318,7 @@ test.describe("Streaming Improvements E2E", () => {
     await submitButton.click();
 
     // Wait longer for large response
-    await page.waitForTimeout(15000);
+    await waitForQueryResponse(page, 120_000);
 
     // Get page content
     const bodyText = await page.textContent("body");
@@ -368,7 +344,7 @@ test.describe("Streaming Improvements E2E", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/large-response.png",
+      path: e2eScreenshot("streaming", "large-response.png"),
       fullPage: true,
     });
   });

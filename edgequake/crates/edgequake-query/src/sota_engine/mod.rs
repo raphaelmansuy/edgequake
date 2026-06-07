@@ -85,7 +85,7 @@ use crate::truncation::TruncationConfig;
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_llm::Reranker;
-use edgequake_storage::traits::{GraphStorage, VectorStorage};
+use edgequake_storage::traits::{GraphReadView, GraphStorage, VectorStorage};
 
 /// Configuration for the SOTA query engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -272,9 +272,21 @@ impl QueryEmbeddings {
             keywords.low_level.join(", ")
         };
 
-        // Fast path: if both keyword texts equal the query, reuse the query vector.
-        // WHY: Avoids an extra embedding call when keyword extraction returned nothing.
+        // When keyword extraction is off, high/low texts equal the query string.
+        // Batch-embed three slots so providers (e.g. MockProvider queue) can supply
+        // distinct query / high_level / low_level vectors — required for Local/Global
+        // mode ranking (SPEC-017 / e2e_sota_engine chunk-ranking contract).
         if high_level_text == query && low_level_text == query {
+            let texts = vec![query.to_string(), query.to_string(), query.to_string()];
+            let embeds = embedder.embed(&texts).await.map_err(QueryError::from)?;
+            if embeds.len() >= 3 {
+                return Ok(Self {
+                    query: embeds[0].clone(),
+                    high_level: embeds[1].clone(),
+                    low_level: embeds[2].clone(),
+                });
+            }
+            // Fallback: reuse parallel embed_one result when provider returns fewer.
             return Ok(Self {
                 query: query_vec.clone(),
                 high_level: query_vec.clone(),
@@ -352,6 +364,12 @@ impl SOTAQueryEngine {
     pub fn with_reranker(mut self, reranker: Arc<dyn Reranker>) -> Self {
         self.reranker = Some(reranker);
         self
+    }
+
+    /// Read-only graph access for query paths (SPEC-017 ISP Phase 2a).
+    #[inline]
+    pub(super) fn graph_read(&self) -> GraphReadView<'_> {
+        GraphReadView::new(self.graph_storage.as_ref())
     }
 
     /// Create with mock keyword extractor (for testing).

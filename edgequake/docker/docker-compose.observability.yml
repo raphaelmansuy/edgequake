@@ -1,0 +1,21 @@
+# SPEC-018 observability overlay — merge with docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml \
+#     --profile observability up --build
+#
+# Jaeger UI: http://localhost:16686
+
+services:
+  edgequake:
+    build:
+      args:
+        ENABLE_OTEL: "true"
+    environment:
+      EDGEQUAKE_LOG_FORMAT: json
+      EDGEQUAKE_LOG_SPAN_EVENTS: "1"
+      EDGEQUAKE_OTEL_ENABLED: "1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      EDGEQUAKE_DB_POOL_METRICS_INTERVAL_SECS: "15"
+    depends_on:
+      jaeger:
+        condition: service_started

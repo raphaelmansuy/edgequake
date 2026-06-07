@@ -36,6 +36,12 @@ class DocumentService
         ]);
     }
 
+    /** Upload multiple text/document files in one request: POST /api/v1/documents/upload/batch */
+    public function uploadFilesBatch(array $filePaths): array
+    {
+        return $this->http->uploadMany('/api/v1/documents/upload/batch', $filePaths, 'files');
+    }
+
     public function delete(string $id): array
     {
         return $this->http->delete("/api/v1/documents/{$id}");
@@ -82,6 +88,12 @@ class DocumentService
     public function uploadPdf(string $filePath, ?string $title = null): array
     {
         return $this->http->upload('/api/v1/documents/pdf', $filePath, 'file', $title ? ['title' => $title] : []);
+    }
+
+    /** Upload multiple PDFs in one request: POST /api/v1/documents/pdf/batch */
+    public function uploadPdfBatch(array $filePaths, ?string $title = null): array
+    {
+        return $this->http->uploadMany('/api/v1/documents/pdf/batch', $filePaths, 'files', $title ? ['title' => $title] : []);
     }
 
     /** PDF job status: GET /api/v1/documents/pdf/{pdf_id} */

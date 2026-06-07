@@ -15,7 +15,9 @@ use std::sync::Arc;
 
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, QueryMode, StorageBackend, StorageConfig};
 use edgequake_llm::MockProvider;
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+};
 
 /// Sample document for testing retrieval.
 const RETRIEVAL_TEST_DOCUMENT: &str = r#"

@@ -6,10 +6,13 @@
 
 use axum::{extract::State, http::StatusCode, Json};
 use chrono::{Duration, Utc};
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::ApiError;
+use crate::services::record_compliance_event;
 use crate::state::AppState;
 
 use super::{
@@ -46,32 +49,52 @@ pub async fn login(
     let user = match user {
         Some(u) => u,
         None => {
-            warn!("Login failed: user not found: {}", request.username);
-            return Err(ApiError::Unauthorized);
+            record_compliance_event(
+                &state,
+                "default",
+                AuditEventType::Authentication,
+                "login",
+                AuditResult::Failure,
+                None,
+                None,
+                None,
+            );
+            return Err(ApiError::auth_unauthorized(
+                "login",
+                "user_not_found",
+                Some(&request.username),
+            ));
         }
     };
 
     // Check if account is active
     if !user.is_active {
-        warn!("Login failed: account inactive: {}", request.username);
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden_reason("account_inactive"));
     }
 
     // Verify password
     let password_valid = state
-        .password_service
+        .auth
+        .password
         .verify_password(&request.password, &user.password_hash)
-        .map_err(|e| {
-            warn!("Password verification error: {}", e);
-            ApiError::Internal("Authentication error".to_string())
-        })?;
+        .map_err(|e| ApiError::Internal(format!("password_verify failed: {e}")))?;
 
     if !password_valid {
-        warn!(
-            "Login failed: invalid password for user: {}",
-            request.username
+        record_compliance_event(
+            &state,
+            "default",
+            AuditEventType::Authentication,
+            "login",
+            AuditResult::Failure,
+            None,
+            Some(user.user_id.clone()),
+            None,
         );
-        return Err(ApiError::Unauthorized);
+        return Err(ApiError::auth_unauthorized(
+            "login",
+            "invalid_password",
+            Some(&request.username),
+        ));
     }
 
     // Generate JWT access token
@@ -79,12 +102,10 @@ pub async fn login(
         .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
 
     let access_token = state
-        .jwt_service
+        .auth
+        .jwt
         .generate_token(user_uuid, user.role.clone())
-        .map_err(|e| {
-            warn!("Token generation error: {}", e);
-            ApiError::Internal("Failed to generate token".to_string())
-        })?;
+        .map_err(|e| ApiError::Internal(format!("token_generation failed: {e}")))?;
 
     // Generate refresh token
     let refresh_token = Uuid::new_v4().to_string();
@@ -104,14 +125,26 @@ pub async fn login(
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
     state
+        .storage
         .kv_storage
         .upsert(&[(key, value)])
         .await
         .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
 
-    let expires_in = state.jwt_service.expiry_duration().as_secs() as i64;
+    let expires_in = state.auth.jwt.expiry_duration().as_secs() as i64;
 
     info!("Login successful for user: {}", user.username);
+
+    record_compliance_event(
+        &state,
+        "default",
+        AuditEventType::Authentication,
+        "login",
+        AuditResult::Success,
+        None,
+        Some(user.user_id.clone()),
+        None,
+    );
 
     Ok(Json(LoginResponse {
         access_token,
@@ -142,11 +175,15 @@ pub async fn refresh_token(
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, request.refresh_token);
 
     // Look up refresh token
-    let record = match state.kv_storage.get_by_id(&key).await {
+    let record = match state.storage.kv_storage.get_by_id(&key).await {
         Ok(Some(value)) => serde_json::from_value::<RefreshTokenRecord>(value)
             .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?,
         Ok(None) => {
-            return Err(ApiError::Unauthorized);
+            return Err(ApiError::auth_unauthorized(
+                "refresh",
+                "token_not_found",
+                None,
+            ));
         }
         Err(e) => {
             return Err(ApiError::Internal(format!("Storage error: {}", e)));
@@ -155,29 +192,43 @@ pub async fn refresh_token(
 
     // Check if token is revoked
     if record.revoked {
-        return Err(ApiError::Unauthorized);
+        return Err(ApiError::auth_unauthorized(
+            "refresh",
+            "token_revoked",
+            None,
+        ));
     }
 
     // Check if token is expired
     if record.expires_at < Utc::now() {
-        return Err(ApiError::Unauthorized);
+        return Err(ApiError::auth_unauthorized(
+            "refresh",
+            "token_expired",
+            None,
+        ));
     }
 
     // Get user
-    let user = get_user_by_id(&state, &record.user_id)
-        .await?
-        .ok_or(ApiError::Unauthorized)?;
+    let user =
+        get_user_by_id(&state, &record.user_id)
+            .await?
+            .ok_or(ApiError::auth_unauthorized(
+                "refresh",
+                "user_not_found",
+                None,
+            ))?;
 
     // Generate new access token
     let user_uuid = Uuid::parse_str(&user.user_id)
         .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
 
     let access_token = state
-        .jwt_service
+        .auth
+        .jwt
         .generate_token(user_uuid, user.role)
         .map_err(|e| ApiError::Internal(format!("Token generation error: {}", e)))?;
 
-    let expires_in = state.jwt_service.expiry_duration().as_secs() as i64;
+    let expires_in = state.auth.jwt.expiry_duration().as_secs() as i64;
 
     Ok(Json(RefreshTokenResponse {
         access_token,
@@ -204,9 +255,11 @@ pub async fn logout(
     Json(request): Json<RefreshTokenRequest>,
 ) -> Result<StatusCode, ApiError> {
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, request.refresh_token);
+    let mut user_id: Option<String> = None;
 
     // Look up and revoke the refresh token
     if let Some(value) = state
+        .storage
         .kv_storage
         .get_by_id(&key)
         .await
@@ -215,17 +268,30 @@ pub async fn logout(
         let mut record: RefreshTokenRecord = serde_json::from_value(value)
             .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
 
+        user_id = Some(record.user_id.clone());
         record.revoked = true;
 
         let new_value = serde_json::to_value(&record)
             .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
         state
+            .storage
             .kv_storage
             .upsert(&[(key, new_value)])
             .await
             .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
     }
+
+    record_compliance_event(
+        &state,
+        "default",
+        AuditEventType::Authentication,
+        "logout",
+        AuditResult::Success,
+        None,
+        user_id,
+        None,
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -251,7 +317,7 @@ pub async fn get_me(
     let auth_header = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
-        .ok_or(ApiError::Unauthorized)?;
+        .ok_or(ApiError::unauthorized())?;
 
     // Parse the Bearer token
     let token = auth_header
@@ -262,7 +328,8 @@ pub async fn get_me(
 
     // Verify the JWT and extract claims
     let claims = state
-        .jwt_service
+        .auth
+        .jwt
         .verify_token(token)
         .map_err(|e| ApiError::BadRequest(format!("Invalid token: {}", e)))?;
 
@@ -275,6 +342,7 @@ pub async fn get_me(
     let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
 
     let user_value = state
+        .storage
         .kv_storage
         .get_by_id(&user_key)
         .await
@@ -286,7 +354,7 @@ pub async fn get_me(
 
     // Check if user is active
     if !user_record.is_active {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden_reason("account_inactive"));
     }
 
     Ok(Json(GetMeResponse {

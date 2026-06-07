@@ -73,6 +73,7 @@ mod postgres_tests {
         // Store a test vector (1536 dimensions)
         let test_vector = vec![0.1f32; 1536];
         state1
+            .storage
             .vector_storage
             .upsert(&[(
                 "test_doc".to_string(),
@@ -83,7 +84,7 @@ mod postgres_tests {
             .expect("Failed to store test vector");
 
         // Verify storage is not empty
-        assert!(!state1.vector_storage.is_empty().await.unwrap());
+        assert!(!state1.storage.vector_storage.is_empty().await.unwrap());
 
         // Step 2: Try to create AppState with Ollama (768 dimensions)
         std::env::remove_var("OPENAI_API_KEY");
@@ -148,6 +149,7 @@ mod postgres_tests {
 
         // Store vector
         state1
+            .storage
             .vector_storage
             .upsert(&[("test".to_string(), vec![0.0; 1536], serde_json::json!({}))])
             .await

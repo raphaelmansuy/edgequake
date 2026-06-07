@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * @file E2E Test: WebSocket-based PDF Upload with Real-time Status Updates
  * @description Tests document upload with WebSocket (no polling) for OpenAI tenant
@@ -15,6 +16,8 @@
 
 import { expect, test } from "@playwright/test";
 import path from "path";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
 // OpenAI Tenant Configuration
 const ACTIVE_UPLOAD_STATUSES = /Pending|Processing|Converting PDF|Chunking|Extracting/;
@@ -27,10 +30,15 @@ const TEST_PDF = path.join(
   "../../zz_test_docs/academic_papers/lighrag_2410.05779v3.pdf",
 );
 
-test.describe("WebSocket Document Upload (OpenAI Tenant)", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load WebSocket Document Upload (OpenAI Tenant)", () => {
   test.beforeEach(async ({ page }) => {
     // Intercept all API requests and inject tenant headers
-    await page.route("http://localhost:8080/api/**", async (route) => {
+    await page.route(`${BACKEND_URL}/api/**`, async (route) => {
       const headers = {
         ...route.request().headers(),
         "X-Tenant-ID": OPENAI_TENANT_ID,
@@ -40,10 +48,10 @@ test.describe("WebSocket Document Upload (OpenAI Tenant)", () => {
     });
 
     // Navigate to documents page
-    await page.goto("http://localhost:3000/documents");
+    await page.goto("/documents");
 
     // Wait for page to load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("should upload PDF and track status via WebSocket (no polling)", async ({

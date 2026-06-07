@@ -7,10 +7,8 @@
 
 import { cn } from '@/lib/utils';
 import type { Token, Tokens } from 'marked';
-import { lazy, memo, Suspense } from 'react';
-
-// Lazy load KaTeX for performance
-const KatexMath = lazy(() => import('./KatexMath'));
+import { memo } from 'react';
+import { MathTokenRenderer } from './MathTokenRenderer';
 
 interface MarkdownInlineTokensProps {
   id: string;
@@ -156,22 +154,9 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
           case 'br':
             return <br key={tokenId} />;
 
-          // Custom math inline extension
-          case 'math_inline': {
-            const mathToken = token as unknown as { text: string };
-            return (
-              <Suspense
-                key={tokenId}
-                fallback={
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
-                    {mathToken.text}
-                  </code>
-                }
-              >
-                <KatexMath math={mathToken.text} block={false} />
-              </Suspense>
-            );
-          }
+          case 'math_inline':
+          case 'math_paren_inline':
+            return <MathTokenRenderer key={tokenId} token={token} />;
 
           // Custom citation extension
           case 'citation': {

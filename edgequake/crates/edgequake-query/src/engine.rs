@@ -144,7 +144,7 @@ pub struct QueryRequest {
     /// Optional images to include with the query (multimodal vision queries).
     /// Each entry is a base64-encoded image with its MIME type.
     /// When set, the SOTA engine forwards images to the vision-capable LLM.
-    /// @implements FEAT0203: Image attachment in chat
+    /// @implements FEAT0240: Image attachment in chat
     #[serde(default)]
     pub images: Option<Vec<edgequake_llm::traits::ImageData>>,
 }
@@ -294,7 +294,6 @@ impl QueryRequest {
     }
 
     /// Attach images for a multimodal (vision) query.
-    /// @implements FEAT0203: Image attachment in chat
     pub fn with_images(mut self, images: Vec<edgequake_llm::traits::ImageData>) -> Self {
         self.images = Some(images);
         self
@@ -498,37 +497,8 @@ Provide a clear, accurate answer based on the context above. If the context does
         workspace_id: Option<String>,
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
-
-        // Helper closure to check if properties match tenant context
-        let matches_tenant = |properties: &std::collections::HashMap<String, serde_json::Value>| {
-            // If no tenant context is set, allow all
-            if tenant_id.is_none() {
-                return true;
-            }
-
-            // Check if properties have matching tenant_id
-            if let Some(ref ctx_tenant_id) = tenant_id {
-                if let Some(prop_tenant_id) = properties.get("tenant_id").and_then(|v| v.as_str()) {
-                    if prop_tenant_id != ctx_tenant_id {
-                        return false;
-                    }
-                }
-                // If no tenant_id in properties but context has one, still include for backward compatibility
-            }
-
-            // Check workspace_id if set
-            if let Some(ref ctx_workspace_id) = workspace_id {
-                if let Some(prop_workspace_id) =
-                    properties.get("workspace_id").and_then(|v| v.as_str())
-                {
-                    if prop_workspace_id != ctx_workspace_id {
-                        return false;
-                    }
-                }
-            }
-
-            true
-        };
+        let tenant_id = tenant_id.clone();
+        let workspace_id = workspace_id.clone();
 
         // Vector search for chunks
         if mode.uses_vector_search() {
@@ -546,7 +516,11 @@ Provide a clear, accurate answer based on the context above. If the context does
                         .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                         .unwrap_or_default();
 
-                    if !matches_tenant(&metadata_map) {
+                    if !edgequake_storage::MetadataFilter::matches_tenant_workspace_properties(
+                        &metadata_map,
+                        &tenant_id,
+                        &workspace_id,
+                    ) {
                         continue;
                     }
 
@@ -577,7 +551,11 @@ Provide a clear, accurate answer based on the context above. If the context does
                 }
                 if let Some(node) = self.graph_storage.get_node(entity_id).await? {
                     // Filter by tenant context
-                    if !matches_tenant(&node.properties) {
+                    if !edgequake_storage::MetadataFilter::matches_tenant_workspace_properties(
+                        &node.properties,
+                        &tenant_id,
+                        &workspace_id,
+                    ) {
                         continue;
                     }
 
@@ -607,7 +585,11 @@ Provide a clear, accurate answer based on the context above. If the context does
                     let edges = self.graph_storage.get_node_edges(entity_id).await?;
                     for edge in edges.iter().take(5) {
                         // Filter edges by tenant context
-                        if !matches_tenant(&edge.properties) {
+                        if !edgequake_storage::MetadataFilter::matches_tenant_workspace_properties(
+                            &edge.properties,
+                            &tenant_id,
+                            &workspace_id,
+                        ) {
                             continue;
                         }
 

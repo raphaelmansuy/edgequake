@@ -19,7 +19,9 @@ use std::sync::Arc;
 
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, QueryMode, StorageBackend, StorageConfig};
 use edgequake_llm::MockProvider;
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+};
 
 /// Complex multi-document scenario for testing advanced features.
 const COMPLEX_DOCUMENT_1: &str = r#"

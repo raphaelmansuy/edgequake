@@ -43,6 +43,7 @@ pub async fn get_entity_provenance(
 
     // Look up entity
     let node = state
+        .storage
         .graph_storage
         .get_node(&normalized_id)
         .await?
@@ -112,20 +113,21 @@ pub async fn get_entity_provenance(
     for (doc_id, mut chunks) in doc_map {
         // Resolve document name from metadata
         let metadata_key = format!("{}-metadata", doc_id);
-        let doc_name =
-            if let Ok(Some(meta)) = cached_kv_get(state.kv_storage.as_ref(), &metadata_key).await {
-                meta.get("title")
-                    .or_else(|| meta.get("file_name"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            };
+        let doc_name = if let Ok(Some(meta)) =
+            cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key).await
+        {
+            meta.get("title")
+                .or_else(|| meta.get("file_name"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        } else {
+            None
+        };
 
         // Resolve chunk line positions from KV storage
         for chunk in &mut chunks {
             if let Ok(Some(chunk_data)) =
-                cached_kv_get(state.kv_storage.as_ref(), &chunk.chunk_id).await
+                cached_kv_get(state.storage.kv_storage.as_ref(), &chunk.chunk_id).await
             {
                 chunk.start_line = chunk_data
                     .get("start_line")
@@ -146,36 +148,32 @@ pub async fn get_entity_provenance(
         });
     }
 
-    // Find related entities
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    // SPEC-006 P1: O(degree) lookup via get_node_edges (no full graph scan)
+    let node_edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&normalized_id)
+        .await?;
     let mut related: Vec<RelatedEntityInfo> = Vec::new();
-
-    for edge in all_edges {
-        if edge.source == normalized_id {
-            related.push(RelatedEntityInfo {
-                entity_id: edge.target.clone(),
-                entity_name: edge.target.clone(),
-                relationship_type: edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("related_to")
-                    .to_string(),
-                shared_documents: 1,
-            });
+    for edge in node_edges {
+        let (other_id, _) = if edge.source == normalized_id {
+            (edge.target.clone(), true)
         } else if edge.target == normalized_id {
-            related.push(RelatedEntityInfo {
-                entity_id: edge.source.clone(),
-                entity_name: edge.source.clone(),
-                relationship_type: edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("related_to")
-                    .to_string(),
-                shared_documents: 1,
-            });
-        }
+            (edge.source.clone(), false)
+        } else {
+            continue;
+        };
+        related.push(RelatedEntityInfo {
+            entity_id: other_id.clone(),
+            entity_name: other_id,
+            relationship_type: edge
+                .properties
+                .get("keywords")
+                .and_then(|v| v.as_str())
+                .unwrap_or("related_to")
+                .to_string(),
+            shared_documents: 1,
+        });
     }
 
     Ok(Json(EntityProvenanceResponse {

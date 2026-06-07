@@ -8,8 +8,11 @@ use super::helpers::{
     extract_page_count, get_pdf_storage,
 };
 use super::types::*;
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::services::record_compliance_event;
 use crate::state::AppState;
 use edgequake_pdf::PdfParserBackend;
 use edgequake_storage::{
@@ -57,6 +60,10 @@ use edgequake_storage::{
 #[utoipa::path(
     post,
     path = "/api/v1/documents/pdf",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded PDFs"),
+    ),
     request_body(content_type = "multipart/form-data"),
     responses(
         (status = 200, description = "PDF uploaded successfully", body = PdfUploadResponse),
@@ -155,39 +162,191 @@ pub async fn upload_pdf_document(
         }
     }
 
-    // 2. Validate file data
     let file_data = file_data.ok_or_else(|| {
         ApiError::BadRequest("Missing 'file' field in multipart request".to_string())
     })?;
+    let response = process_pdf_upload_parts(&state, &context, filename, file_data, options).await?;
+    Ok(Json(response))
+}
 
+/// Upload multiple PDFs in a single multipart request.
+#[utoipa::path(
+    post,
+    path = "/api/v1/documents/pdf/batch",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded PDFs"),
+    ),
+    request_body(content_type = "multipart/form-data"),
+    responses(
+        (status = 200, description = "Batch PDF upload accepted", body = PdfBatchUploadResponse),
+        (status = 400, description = "Invalid multipart payload"),
+    ),
+    tag = "Documents"
+)]
+pub async fn upload_pdf_batch_document(
+    State(state): State<AppState>,
+    context: TenantContext,
+    mut multipart: Multipart,
+) -> ApiResult<Json<PdfBatchUploadResponse>> {
+    let mut options = PdfUploadOptions {
+        enable_vision: true,
+        vision_provider: None,
+        vision_model: None,
+        title: None,
+        metadata: None,
+        track_id: None,
+        force_reindex: false,
+        pdf_parser_backend: None,
+    };
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse multipart: {}", e)))?
+    {
+        match field.name() {
+            Some("file") | Some("files") => {
+                let filename = field.file_name().unwrap_or("document.pdf").to_string();
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::BadRequest(format!("Failed to read file: {}", e)))?
+                    .to_vec();
+                files.push((filename, bytes));
+            }
+            Some("enable_vision") => {
+                if let Ok(text) = field.text().await {
+                    options.enable_vision = text.parse().unwrap_or(true);
+                }
+            }
+            Some("vision_provider") => {
+                if let Ok(text) = field.text().await {
+                    options.vision_provider = Some(text);
+                }
+            }
+            Some("vision_model") => {
+                if let Ok(text) = field.text().await {
+                    options.vision_model = Some(text);
+                }
+            }
+            Some("title") => {
+                if let Ok(text) = field.text().await {
+                    options.title = Some(text);
+                }
+            }
+            Some("metadata") => {
+                if let Ok(text) = field.text().await {
+                    if let Ok(json) = serde_json::from_str(&text) {
+                        options.metadata = Some(json);
+                    }
+                }
+            }
+            Some("track_id") => {
+                if let Ok(text) = field.text().await {
+                    options.track_id = Some(text);
+                }
+            }
+            Some("force_reindex") => {
+                if let Ok(text) = field.text().await {
+                    options.force_reindex = text.parse().unwrap_or(false);
+                }
+            }
+            Some("pdf_parser_backend") => {
+                if let Ok(text) = field.text().await {
+                    options.pdf_parser_backend = PdfParserBackend::from_env_str(&text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if files.is_empty() {
+        return Err(ApiError::BadRequest(
+            "Missing 'file' or 'files' field in multipart request".to_string(),
+        ));
+    }
+
+    let mut results = Vec::new();
+    let mut accepted = 0usize;
+    let mut duplicates = 0usize;
+    let mut failed = 0usize;
+
+    for (filename, file_data) in files {
+        let result = process_pdf_upload_parts(
+            &state,
+            &context,
+            filename.clone(),
+            file_data,
+            options.clone(),
+        )
+        .await;
+        match result {
+            Ok(resp) => {
+                if resp.status == "duplicate" {
+                    duplicates += 1;
+                } else {
+                    accepted += 1;
+                }
+                results.push(PdfBatchFileResult {
+                    filename,
+                    status: resp.status,
+                    pdf_id: Some(resp.pdf_id),
+                    task_id: if resp.task_id.is_empty() {
+                        None
+                    } else {
+                        Some(resp.task_id)
+                    },
+                    duplicate_of: resp.duplicate_of,
+                    error: None,
+                });
+            }
+            Err(err) => {
+                failed += 1;
+                results.push(PdfBatchFileResult {
+                    filename,
+                    status: "failed".to_string(),
+                    pdf_id: None,
+                    task_id: None,
+                    duplicate_of: None,
+                    error: Some(err.to_string()),
+                });
+            }
+        }
+    }
+
+    Ok(Json(PdfBatchUploadResponse {
+        total_files: accepted + duplicates + failed,
+        accepted,
+        duplicates,
+        failed,
+        results,
+    }))
+}
+
+async fn process_pdf_upload_parts(
+    state: &AppState,
+    context: &TenantContext,
+    filename: String,
+    file_data: Vec<u8>,
+    mut options: PdfUploadOptions,
+) -> ApiResult<PdfUploadResponse> {
     validate_pdf_data(&file_data)
         .map_err(|e| ApiError::BadRequest(format!("Invalid PDF: {}", e)))?;
 
-    // 3. Calculate checksum
     let checksum = calculate_pdf_checksum(&file_data);
-
     debug!(
         "PDF validation passed: size={}, checksum={}",
         file_data.len(),
         checksum
     );
 
-    // 4. Get PDF storage (platform-specific)
-    let pdf_storage = get_pdf_storage(&state)?;
-
-    // 5. Extract workspace_id as UUID
+    let pdf_storage = get_pdf_storage(state)?;
     let workspace_id = context
         .workspace_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
 
-    // 5b. SPEC-040: Apply workspace-level vision LLM config as defaults.
-    // Priority: form explicit > workspace config > server default.
-    // WHY: Workspace can pin a specific vision provider/model for all PDF uploads,
-    // avoiding the need for callers to pass vision_provider/vision_model every time.
-    // 5b. SPEC-040: Apply workspace-level vision LLM config as defaults.
-    // Priority: form explicit > workspace vision config > workspace main LLM > server env default.
-    // WHY: When vision_llm_provider is not set in the workspace, fall back to the workspace's
-    // main llm_provider so that Ollama users don't silently hit the "openai" hard-coded default.
     let workspace = state
         .workspace_service
         .get_workspace(workspace_id)
@@ -219,33 +378,22 @@ pub async fn upload_pdf_document(
                     );
                     options.vision_model = Some(wm.clone());
                 }
-                // Note: if ws.vision_llm_model is also None, resolved_vision_provider() +
-                // default_vision_model_for_provider() will derive the right default at task creation.
             }
         }
     }
 
-    // 6. Check for duplicates
     if let Some(existing) = pdf_storage
         .find_pdf_by_checksum(&workspace_id, &checksum)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to check for duplicates: {}", e)))?
     {
-        // OODA-08: Handle force_reindex parameter
-        // WHY: When user explicitly requests re-indexing, we should:
-        //      1. Clear existing graph/vector data for this document
-        //      2. Reset PDF processing status
-        //      3. Create new processing task
         if options.force_reindex {
             info!(
                 "OODA-08: Force re-indexing requested for existing PDF: id={}, document_id={:?}",
                 existing.pdf_id, existing.document_id
             );
-
-            // Clear existing document data if document_id exists
             if let Some(document_id) = existing.document_id {
-                if let Err(e) = clear_document_derived_data(&state, &document_id.to_string()).await
-                {
+                if let Err(e) = clear_document_derived_data(state, &document_id.to_string()).await {
                     warn!(
                         "Failed to clear document data during re-index: {} (continuing anyway)",
                         e
@@ -253,29 +401,23 @@ pub async fn upload_pdf_document(
                 }
             }
 
-            // Reset PDF processing status to pending
             pdf_storage
                 .update_pdf_status(&existing.pdf_id, PdfProcessingStatus::Processing)
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
 
-            // Create new processing task
             let task_id = create_pdf_processing_task(
-                &state,
-                &context,
+                state,
+                context,
                 existing.pdf_id,
                 &options,
                 workspace.as_ref(),
             )
             .await?;
 
-            // Initialize progress tracking
             let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
-            info!(
-                "OODA-08: Re-indexing PDF progress for track_id={}, pdf_id={}, filename={}",
-                effective_track_id, existing.pdf_id, existing.filename
-            );
             state
+                .tasks
                 .pipeline_state
                 .start_pdf_progress(
                     &effective_track_id,
@@ -283,12 +425,10 @@ pub async fn upload_pdf_document(
                     &existing.filename,
                 )
                 .await;
-
             let estimated_time = estimate_processing_time(&[], existing.page_count);
-
-            return Ok(Json(PdfUploadResponse {
+            return Ok(PdfUploadResponse {
                 pdf_id: existing.pdf_id.to_string(),
-                document_id: None, // Will be set after re-processing
+                document_id: None,
                 status: "reindexing".to_string(),
                 task_id: task_id.to_string(),
                 track_id: options.track_id.clone(),
@@ -306,37 +446,20 @@ pub async fn upload_pdf_document(
                         None
                     },
                 },
-                duplicate_of: None, // Re-indexing = already decided to replace
-            }));
+                duplicate_of: None,
+            });
         }
 
-        // Default: Return duplicate status (no re-indexing)
-        warn!(
-            "Duplicate PDF upload detected: existing_id={}",
-            existing.pdf_id
-        );
-
-        // OODA-01 FIX: Initialize progress even for duplicates
-        //
-        // WHY: Frontend polls /pdf/progress/{track_id} immediately after upload.
-        //      Even for duplicates, we need to return a valid progress entry
-        //      so the frontend doesn't get a 404 error.
-        //
-        // The duplicate response tells the frontend it's already processed,
-        // but the progress entry needs to exist for the initial poll.
         if let Some(ref track_id) = options.track_id {
-            info!(
-                "OODA-01: Initializing PDF progress for duplicate, track_id={}, pdf_id={}, filename={}",
-                track_id, existing.pdf_id, existing.filename
-            );
             state
+                .tasks
                 .pipeline_state
                 .start_pdf_progress(track_id, &existing.pdf_id.to_string(), &existing.filename)
                 .await;
         }
 
         let existing_pdf_id = existing.pdf_id.to_string();
-        return Ok(Json(PdfUploadResponse {
+        return Ok(PdfUploadResponse {
             pdf_id: existing_pdf_id.clone(),
             document_id: existing.document_id.map(|id| id.to_string()),
             status: "duplicate".to_string(),
@@ -352,22 +475,16 @@ pub async fn upload_pdf_document(
                 vision_enabled: options.enable_vision,
                 vision_model: existing.vision_model,
             },
-            // WHY: This field is what the frontend checks to trigger the
-            // DuplicateUploadDialog, enabling the user to reprocess or skip.
             duplicate_of: Some(existing_pdf_id),
-        }));
+        });
     }
 
-    // 6. Extract page count (simple PDF parse)
     let page_count = extract_page_count(&file_data);
-
-    // 7. Store raw PDF
     let vision_model = if resolved_backend == PdfParserBackend::Vision && options.enable_vision {
         Some(options.vision_model())
     } else {
         None
     };
-
     let pdf_id = match pdf_storage
         .create_pdf(CreatePdfRequest {
             workspace_id,
@@ -383,10 +500,6 @@ pub async fn upload_pdf_document(
     {
         Ok(id) => id,
         Err(e) => {
-            // FIX-DUPLICATE-BUG: Handle concurrent upload race condition gracefully.
-            // WHY: If the unique constraint fires (two uploads of the same PDF arrived
-            // simultaneously), re-fetch the existing PDF and return a duplicate response
-            // instead of a 500 error.
             let err_msg = format!("{}", e);
             if err_msg.contains("already exists") || err_msg.contains("concurrent upload") {
                 warn!(
@@ -398,7 +511,7 @@ pub async fn upload_pdf_document(
                     .await
                 {
                     let existing_pdf_id = existing.pdf_id.to_string();
-                    return Ok(Json(PdfUploadResponse {
+                    return Ok(PdfUploadResponse {
                         pdf_id: existing_pdf_id.clone(),
                         document_id: existing.document_id.map(|id| id.to_string()),
                         status: "duplicate".to_string(),
@@ -418,46 +531,40 @@ pub async fn upload_pdf_document(
                             vision_model: existing.vision_model,
                         },
                         duplicate_of: Some(existing_pdf_id),
-                    }));
+                    });
                 }
             }
             return Err(ApiError::Internal(format!("Failed to store PDF: {}", e)));
         }
     };
 
-    info!(
-        "PDF stored: id={}, size={}, pages={:?}",
-        pdf_id,
-        file_data.len(),
-        page_count
-    );
-
-    // 8. Create background task
     let task_id =
-        create_pdf_processing_task(&state, &context, pdf_id, &options, workspace.as_ref()).await?;
-
-    // 9. OODA-01: Initialize progress tracking immediately
-    //
-    // WHY: Frontend polls /pdf/progress/{track_id} immediately after upload.
-    //      Previously, progress was only initialized when the task callback
-    //      fired (on_extraction_start), causing a race condition → 404 errors.
-    //
-    // FIX: Initialize progress here, before returning. The callback will
-    //      update phases as processing proceeds, but the entry now exists.
+        create_pdf_processing_task(state, context, pdf_id, &options, workspace.as_ref()).await?;
     let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
-    info!(
-        "OODA-01: Initializing PDF progress for track_id={}, pdf_id={}, filename={}",
-        effective_track_id, pdf_id, filename
-    );
     state
+        .tasks
         .pipeline_state
         .start_pdf_progress(&effective_track_id, &pdf_id.to_string(), &filename)
         .await;
 
-    // 10. Estimate processing time (rough heuristic)
     let estimated_time = estimate_processing_time(&file_data, page_count);
 
-    Ok(Json(PdfUploadResponse {
+    let tenant_for_audit = context
+        .tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    record_compliance_event(
+        state,
+        tenant_for_audit,
+        AuditEventType::DocumentUpload,
+        "upload_pdf",
+        AuditResult::Success,
+        context.workspace_id.clone(),
+        context.user_id.clone(),
+        Some(("pdf".to_string(), pdf_id.to_string())),
+    );
+
+    Ok(PdfUploadResponse {
         pdf_id: pdf_id.to_string(),
         document_id: None,
         status: "processing".to_string(),
@@ -474,5 +581,5 @@ pub async fn upload_pdf_document(
             vision_model,
         },
         duplicate_of: None,
-    }))
+    })
 }

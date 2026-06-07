@@ -4,6 +4,7 @@ import io.edgequake.sdk.internal.HttpHelper;
 import io.edgequake.sdk.models.DocumentModels.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Document operations at /api/v1/documents. */
@@ -83,5 +84,17 @@ public class DocumentService {
     /** Retry failed chunks for a document. */
     public StatusResponse retryChunks(String id) {
         return http.post("/api/v1/documents/" + id + "/retry-chunks", null, StatusResponse.class);
+    }
+
+    /** Upload multiple files in one request: POST /api/v1/documents/upload/batch */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> uploadBatch(List<String> filePaths) {
+        return http.uploadMany("/api/v1/documents/upload/batch", filePaths, "files", Map.of(), Map.class);
+    }
+
+    /** Upload multiple PDFs in one request: POST /api/v1/documents/pdf/batch */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> uploadPdfBatch(List<String> filePaths) {
+        return http.uploadMany("/api/v1/documents/pdf/batch", filePaths, "files", Map.of(), Map.class);
     }
 }

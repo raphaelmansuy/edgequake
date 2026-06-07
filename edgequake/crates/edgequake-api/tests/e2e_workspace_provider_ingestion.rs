@@ -78,6 +78,8 @@ async fn create_test_workspace(
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     state

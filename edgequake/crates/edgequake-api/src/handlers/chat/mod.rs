@@ -572,16 +572,52 @@ mod tests {
     #[test]
     fn test_language_code_to_name_region_tagged_codes() {
         // Most common region-tagged locales that browsers send
-        assert_eq!(language_code_to_name("fr-FR"), "French", "fr-FR must resolve to French");
-        assert_eq!(language_code_to_name("fr-BE"), "French", "fr-BE (Belgian French)");
-        assert_eq!(language_code_to_name("fr-CA"), "French", "fr-CA (Canadian French)");
-        assert_eq!(language_code_to_name("de-DE"), "German", "de-DE must resolve to German");
-        assert_eq!(language_code_to_name("de-AT"), "German", "de-AT (Austrian German)");
+        assert_eq!(
+            language_code_to_name("fr-FR"),
+            "French",
+            "fr-FR must resolve to French"
+        );
+        assert_eq!(
+            language_code_to_name("fr-BE"),
+            "French",
+            "fr-BE (Belgian French)"
+        );
+        assert_eq!(
+            language_code_to_name("fr-CA"),
+            "French",
+            "fr-CA (Canadian French)"
+        );
+        assert_eq!(
+            language_code_to_name("de-DE"),
+            "German",
+            "de-DE must resolve to German"
+        );
+        assert_eq!(
+            language_code_to_name("de-AT"),
+            "German",
+            "de-AT (Austrian German)"
+        );
         assert_eq!(language_code_to_name("es-ES"), "Spanish");
-        assert_eq!(language_code_to_name("es-MX"), "Spanish", "es-MX (Mexican Spanish)");
-        assert_eq!(language_code_to_name("zh-TW"), "Chinese", "zh-TW must resolve to Chinese");
-        assert_eq!(language_code_to_name("zh-CN"), "Chinese", "zh-CN must resolve to Chinese");
-        assert_eq!(language_code_to_name("pt-BR"), "Portuguese", "pt-BR must resolve to Portuguese");
+        assert_eq!(
+            language_code_to_name("es-MX"),
+            "Spanish",
+            "es-MX (Mexican Spanish)"
+        );
+        assert_eq!(
+            language_code_to_name("zh-TW"),
+            "Chinese",
+            "zh-TW must resolve to Chinese"
+        );
+        assert_eq!(
+            language_code_to_name("zh-CN"),
+            "Chinese",
+            "zh-CN must resolve to Chinese"
+        );
+        assert_eq!(
+            language_code_to_name("pt-BR"),
+            "Portuguese",
+            "pt-BR must resolve to Portuguese"
+        );
         assert_eq!(language_code_to_name("pt-PT"), "Portuguese");
         assert_eq!(language_code_to_name("en-US"), "English");
         assert_eq!(language_code_to_name("en-GB"), "English");

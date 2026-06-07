@@ -69,7 +69,11 @@ async fn audit_worker(pool: Pool<Postgres>, mut receiver: mpsc::UnboundedReceive
         }
     }
 
-    warn!("Audit worker stopped");
+    warn!(
+        error.source = "audit",
+        error.action = "worker_stopped",
+        "Audit worker stopped"
+    );
 }
 
 /// Write a single audit event to the database
@@ -160,19 +164,23 @@ impl Default for AuditQuery {
 }
 
 /// Query audit logs from the database
-pub async fn query_audit_logs(
-    _pool: &Pool<Postgres>,
-    query: AuditQuery,
-) -> Result<Vec<AuditEvent>> {
-    let mut sql = String::from(
+pub async fn query_audit_logs(pool: &Pool<Postgres>, query: AuditQuery) -> Result<Vec<AuditEvent>> {
+    use sqlx::QueryBuilder;
+
+    let limit = query.limit.clamp(1, 1000);
+
+    let mut builder = QueryBuilder::<Postgres>::new(
         r#"
-        SELECT 
+        SELECT
             id, timestamp,
             tenant_id, workspace_id, user_id,
-            event_type, event_category, event_action,
+            event_type::text AS event_type,
+            event_category, event_action,
             resource_type, resource_id,
-            result, severity,
-            ip_address, user_agent, request_id, session_id,
+            result::text AS result,
+            severity::text AS severity,
+            ip_address::text AS ip_address,
+            user_agent, request_id, session_id,
             metadata, error_message,
             retention_days, duration_ms
         FROM audit_logs
@@ -180,30 +188,138 @@ pub async fn query_audit_logs(
         "#,
     );
 
-    if query.tenant_id.is_some() {
-        sql.push_str(" AND tenant_id = $1");
+    if let Some(tenant_id) = &query.tenant_id {
+        builder.push(" AND tenant_id = ");
+        builder.push_bind(tenant_id);
     }
-    if query.workspace_id.is_some() {
-        sql.push_str(" AND workspace_id = $2");
+    if let Some(workspace_id) = &query.workspace_id {
+        builder.push(" AND workspace_id = ");
+        builder.push_bind(workspace_id);
     }
-    if query.user_id.is_some() {
-        sql.push_str(" AND user_id = $3");
+    if let Some(user_id) = &query.user_id {
+        builder.push(" AND user_id = ");
+        builder.push_bind(user_id);
     }
-    if query.event_type.is_some() {
-        sql.push_str(" AND event_type::text = $4");
+    if let Some(event_type) = &query.event_type {
+        builder.push(" AND event_type::text = ");
+        builder.push_bind(event_type);
     }
-    if query.result.is_some() {
-        sql.push_str(" AND result::text = $5");
+    if let Some(result) = &query.result {
+        builder.push(" AND result::text = ");
+        builder.push_bind(result);
     }
-    if query.severity.is_some() {
-        sql.push_str(" AND severity::text = $6");
+    if let Some(severity) = &query.severity {
+        builder.push(" AND severity::text = ");
+        builder.push_bind(severity);
     }
 
-    sql.push_str(" ORDER BY timestamp DESC LIMIT $7");
+    builder.push(" ORDER BY timestamp DESC LIMIT ");
+    builder.push_bind(limit);
 
-    // TODO: Implement actual query execution with dynamic parameters
-    // For now, return empty vec as placeholder
-    Ok(Vec::new())
+    let rows = builder
+        .build_query_as::<AuditLogRow>()
+        .fetch_all(pool)
+        .await?;
+
+    rows.into_iter()
+        .map(AuditLogRow::into_event)
+        .collect::<Result<Vec<_>>>()
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct AuditLogRow {
+    id: uuid::Uuid,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    tenant_id: String,
+    workspace_id: Option<String>,
+    user_id: Option<String>,
+    event_type: String,
+    event_category: String,
+    event_action: String,
+    resource_type: Option<String>,
+    resource_id: Option<String>,
+    result: String,
+    severity: String,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+    request_id: Option<String>,
+    session_id: Option<String>,
+    metadata: serde_json::Value,
+    error_message: Option<String>,
+    retention_days: i32,
+    duration_ms: Option<i32>,
+}
+
+impl AuditLogRow {
+    fn into_event(self) -> Result<AuditEvent> {
+        let event_type = parse_event_type(&self.event_type);
+        let result = parse_result(&self.result);
+        let severity = parse_severity(&self.severity);
+        let ip_address = self.ip_address.as_deref().and_then(|ip| ip.parse().ok());
+
+        Ok(AuditEvent {
+            id: self.id,
+            timestamp: self.timestamp,
+            tenant_id: self.tenant_id,
+            workspace_id: self.workspace_id,
+            user_id: self.user_id,
+            event_type,
+            event_category: self.event_category,
+            event_action: self.event_action,
+            resource_type: self.resource_type,
+            resource_id: self.resource_id,
+            result,
+            severity,
+            ip_address,
+            user_agent: self.user_agent,
+            request_id: self.request_id,
+            session_id: self.session_id,
+            metadata: self.metadata,
+            error_message: self.error_message,
+            retention_days: self.retention_days,
+            duration_ms: self.duration_ms,
+        })
+    }
+}
+
+fn parse_event_type(raw: &str) -> crate::event::AuditEventType {
+    use crate::event::AuditEventType;
+    match raw.to_ascii_lowercase().as_str() {
+        "authentication" => AuditEventType::Authentication,
+        "authorization" => AuditEventType::Authorization,
+        "documentupload" => AuditEventType::DocumentUpload,
+        "documentquery" => AuditEventType::DocumentQuery,
+        "graphtraversal" => AuditEventType::GraphTraversal,
+        "tenantaccess" => AuditEventType::TenantAccess,
+        "workspaceaccess" => AuditEventType::WorkspaceAccess,
+        "ratelimitexceeded" => AuditEventType::RateLimitExceeded,
+        "securityviolation" => AuditEventType::SecurityViolation,
+        "dataexport" => AuditEventType::DataExport,
+        "configchange" => AuditEventType::ConfigChange,
+        _ => AuditEventType::SecurityViolation,
+    }
+}
+
+fn parse_result(raw: &str) -> crate::event::AuditResult {
+    use crate::event::AuditResult;
+    match raw.to_ascii_lowercase().as_str() {
+        "success" => AuditResult::Success,
+        "failure" => AuditResult::Failure,
+        "blocked" => AuditResult::Blocked,
+        "warning" => AuditResult::Warning,
+        _ => AuditResult::Failure,
+    }
+}
+
+fn parse_severity(raw: &str) -> crate::event::AuditSeverity {
+    use crate::event::AuditSeverity;
+    match raw.to_ascii_lowercase().as_str() {
+        "low" => AuditSeverity::Low,
+        "medium" => AuditSeverity::Medium,
+        "high" => AuditSeverity::High,
+        "critical" => AuditSeverity::Critical,
+        _ => AuditSeverity::Medium,
+    }
 }
 
 #[cfg(test)]

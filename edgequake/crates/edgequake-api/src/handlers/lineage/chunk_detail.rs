@@ -15,6 +15,7 @@ use crate::handlers::lineage_types::{
     CharRange, ChunkDetailResponse, ExtractedEntityInfo, ExtractedRelationshipInfo,
 };
 use crate::middleware::TenantContext;
+use crate::services::{find_document_edges, find_document_nodes, DocumentSourceScope};
 use crate::state::AppState;
 
 /// Get chunk detail.
@@ -37,6 +38,7 @@ pub async fn get_chunk_detail(
 ) -> ApiResult<Json<ChunkDetailResponse>> {
     // Look up chunk in KV storage
     let chunk_data = state
+        .storage
         .kv_storage
         .get_by_id(&chunk_id)
         .await?
@@ -98,7 +100,8 @@ pub async fn get_chunk_detail(
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     // Returns 404 (not 403) to avoid leaking cross-tenant document IDs.
     let doc_metadata =
-        verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+            .await?;
 
     // Get document name from already-fetched metadata
     let doc_name = doc_metadata
@@ -106,62 +109,61 @@ pub async fn get_chunk_detail(
         .and_then(|v: &serde_json::Value| v.as_str())
         .map(|s| s.to_string());
 
-    // Find entities extracted from this chunk
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    // SPEC-006 P1: chunk-scoped prefix query (bounded)
+    let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
+    let chunk_nodes = find_document_nodes(
+        &state.storage.graph_storage,
+        Some(&tenant_ctx),
+        &chunk_scope,
+    )
+    .await?;
     let mut entities: Vec<ExtractedEntityInfo> = Vec::new();
-
-    for node in &all_nodes {
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            if source_id.contains(&chunk_id) {
-                let entity_type = node
-                    .properties
-                    .get("entity_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-                let description = node
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                entities.push(ExtractedEntityInfo {
-                    id: node.id.clone(),
-                    name: node.id.clone(),
-                    entity_type,
-                    description,
-                });
-            }
-        }
+    for node in &chunk_nodes {
+        let entity_type = node
+            .properties
+            .get("entity_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let description = node
+            .properties
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        entities.push(ExtractedEntityInfo {
+            id: node.id.clone(),
+            name: node.id.clone(),
+            entity_type,
+            description,
+        });
     }
 
-    // Find relationships from this chunk
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    let chunk_edges = find_document_edges(
+        &state.storage.graph_storage,
+        Some(&tenant_ctx),
+        &chunk_scope,
+    )
+    .await?;
     let mut relationships: Vec<ExtractedRelationshipInfo> = Vec::new();
+    for edge in chunk_edges {
+        let relation_type = edge
+            .properties
+            .get("keywords")
+            .and_then(|v| v.as_str())
+            .unwrap_or("related_to")
+            .to_string();
+        let description = edge
+            .properties
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
-    for edge in all_edges {
-        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-            if source_id.contains(&chunk_id) {
-                let relation_type = edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("related_to")
-                    .to_string();
-                let description = edge
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                relationships.push(ExtractedRelationshipInfo {
-                    source_name: edge.source.clone(),
-                    target_name: edge.target.clone(),
-                    relation_type,
-                    description,
-                });
-            }
-        }
+        relationships.push(ExtractedRelationshipInfo {
+            source_name: edge.source.clone(),
+            target_name: edge.target.clone(),
+            relation_type,
+            description,
+        });
     }
 
     Ok(Json(ChunkDetailResponse {

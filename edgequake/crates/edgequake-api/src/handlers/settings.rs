@@ -422,10 +422,14 @@ pub async fn get_provider_status(
 pub async fn list_available_providers(
     State(app_state): State<AppState>,
 ) -> Result<Json<AvailableProvidersResponse>, ApiError> {
-    let active_llm = app_state.llm_provider.name();
-    let active_embedding = app_state.embedding_provider.name();
+    let active_llm = app_state.query.llm_provider.name();
+    let active_embedding = app_state.query.embedding_provider.name();
 
-    let response = AvailableProvidersResponse::build(active_llm, active_embedding);
+    let response = AvailableProvidersResponse::from_models_config(
+        app_state.query.models_config.as_ref(),
+        active_llm,
+        active_embedding,
+    );
 
     tracing::debug!(
         llm_count = response.llm_providers.len(),
@@ -544,9 +548,9 @@ mod tests {
             .find(|p| p.id == "mock")
             .unwrap();
         assert!(mock.available);
-        assert_eq!(mock.default_models.embedding_dimension, 1536);
+        assert_eq!(mock.default_models.embedding_dimension, 768);
 
-        // Assert: LM Studio defaults
+        // Assert: LM Studio defaults (from bundled models.toml)
         let lmstudio = response
             .llm_providers
             .iter()
@@ -555,7 +559,7 @@ mod tests {
         assert_eq!(lmstudio.default_models.chat_model, "gemma-3n-e4b-it");
         assert_eq!(
             lmstudio.default_models.embedding_model,
-            "nomic-embed-text-v1.5"
+            "text-embedding-nomic-embed-text-v1.5"
         );
         assert_eq!(lmstudio.default_models.embedding_dimension, 768);
     }

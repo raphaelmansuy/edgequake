@@ -92,7 +92,7 @@ pub async fn download_pdf(
     // If workspace header IS provided, verify it matches for defense-in-depth.
     if let Some(workspace_id) = context.workspace_id_uuid() {
         if pdf.workspace_id != workspace_id {
-            return Err(ApiError::Forbidden);
+            return Err(ApiError::forbidden());
         }
     }
 
@@ -172,7 +172,7 @@ pub async fn get_pdf_content(
     // If workspace header IS provided, verify it matches for defense-in-depth.
     if let Some(workspace_id) = context.workspace_id_uuid() {
         if pdf.workspace_id != workspace_id {
-            return Err(ApiError::Forbidden);
+            return Err(ApiError::forbidden());
         }
     }
 

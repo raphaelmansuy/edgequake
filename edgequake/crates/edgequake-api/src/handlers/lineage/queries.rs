@@ -4,10 +4,15 @@ use axum::extract::{Path, State};
 use axum::Json;
 
 use super::cache::cached_kv_get;
+use edgequake_storage::traits::collect_source_references;
+
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::isolation::{properties_match_tenant_context, verify_document_access};
 use crate::handlers::lineage_types::*;
 use crate::middleware::TenantContext;
+use crate::services::{
+    find_document_edges, find_document_nodes, sources_for_document, DocumentSourceScope,
+};
 use crate::state::AppState;
 
 /// Get lineage for an entity (all source documents).
@@ -33,6 +38,7 @@ pub async fn get_entity_lineage(
 
     // Look up entity in graph storage
     let node = state
+        .storage
         .graph_storage
         .get_node(&normalized_name)
         .await?
@@ -122,90 +128,75 @@ pub async fn get_document_lineage(
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<DocumentGraphLineageResponse>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace first.
-    verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
-    // WHY: We scan KV keys by prefix rather than querying a separate index.
-    // This is correct for in-memory and moderate-scale PostgreSQL KV stores.
-    // For very large datasets (>100K documents), consider adding a dedicated
-    // chunk-count index to avoid full key scan.
-    let keys = state.kv_storage.keys().await?;
+    // SPEC-011: prefix scan for document chunks; point lookup for metadata
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids: Vec<String> = keys
-        .iter()
-        .filter(|k| k.starts_with(&chunk_prefix))
-        .cloned()
-        .collect();
+    let chunk_ids = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
 
     let metadata_key = format!("{}-metadata", document_id);
-    if chunk_ids.is_empty() && !keys.contains(&metadata_key) {
+    if chunk_ids.is_empty()
+        && state
+            .storage
+            .kv_storage
+            .get_by_id(&metadata_key)
+            .await?
+            .is_none()
+    {
         return Err(ApiError::NotFound(format!(
             "Document '{}' not found",
             document_id
         )));
     }
 
-    // Find all entities sourced from this document
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
+    // SPEC-006 P1: bounded document-scoped lineage (no full graph scan)
+    let scope = DocumentSourceScope::from_document_id(document_id.clone());
     let mut entities: Vec<EntitySummaryResponse> = Vec::new();
 
-    for node in &all_nodes {
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let doc_sources: Vec<String> = sources
-                .iter()
-                .filter(|s| s.starts_with(&chunk_prefix) || *s == &document_id)
-                .map(|s| s.to_string())
-                .collect();
-
-            if !doc_sources.is_empty() {
-                let entity_type = node
-                    .properties
-                    .get("entity_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-
-                let is_shared = sources.len() > doc_sources.len();
-
-                entities.push(EntitySummaryResponse {
-                    name: node.id.clone(),
-                    entity_type,
-                    source_chunks: doc_sources,
-                    is_shared,
-                });
-            }
+    for node in find_document_nodes(&state.storage.graph_storage, Some(&tenant_ctx), &scope).await?
+    {
+        let doc_sources = sources_for_document(&node.properties, &scope);
+        if doc_sources.is_empty() {
+            continue;
         }
+        let all_sources = collect_source_references(&node.properties);
+        let entity_type = node
+            .properties
+            .get("entity_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        entities.push(EntitySummaryResponse {
+            name: node.id.clone(),
+            entity_type,
+            source_chunks: doc_sources,
+            is_shared: all_sources.len() > 1,
+        });
     }
 
-    // Find all relationships sourced from this document
-    let all_edges = state.graph_storage.get_all_edges().await?;
     let mut relationships: Vec<RelationshipSummaryResponse> = Vec::new();
-
-    for edge in all_edges {
-        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let doc_sources: Vec<String> = sources
-                .iter()
-                .filter(|s| s.starts_with(&chunk_prefix) || *s == &document_id)
-                .map(|s| s.to_string())
-                .collect();
-
-            if !doc_sources.is_empty() {
-                let keywords = edge
-                    .properties
-                    .get("keywords")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                relationships.push(RelationshipSummaryResponse {
-                    source: edge.source.clone(),
-                    target: edge.target.clone(),
-                    keywords,
-                    source_chunks: doc_sources,
-                });
-            }
+    for edge in find_document_edges(&state.storage.graph_storage, Some(&tenant_ctx), &scope).await?
+    {
+        let doc_sources = sources_for_document(&edge.properties, &scope);
+        if doc_sources.is_empty() {
+            continue;
         }
+        let keywords = edge
+            .properties
+            .get("keywords")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        relationships.push(RelationshipSummaryResponse {
+            source: edge.source.clone(),
+            target: edge.target.clone(),
+            keywords,
+            source_chunks: doc_sources,
+        });
     }
 
     Ok(Json(DocumentGraphLineageResponse {
@@ -253,6 +244,7 @@ pub async fn get_chunk_lineage(
 ) -> ApiResult<Json<ChunkLineageResponse>> {
     // Look up chunk in KV storage
     let chunk_data = state
+        .storage
         .kv_storage
         .get_by_id(&chunk_id)
         .await?
@@ -321,7 +313,8 @@ pub async fn get_chunk_lineage(
 
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     let doc_metadata =
-        verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+            .await?;
 
     let document_name = doc_metadata
         .get("title")
@@ -333,29 +326,23 @@ pub async fn get_chunk_lineage(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    // Count entities and relationships from this chunk
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
-    let mut entity_names: Vec<String> = Vec::new();
-
-    for node in &all_nodes {
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            if source_id.contains(&chunk_id) {
-                entity_names.push(node.id.clone());
-            }
-        }
-    }
-
-    let all_edges = state.graph_storage.get_all_edges().await?;
-    let mut relationship_count = 0usize;
-    for edge in &all_edges {
-        if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-            if source_id.contains(&chunk_id) {
-                relationship_count += 1;
-            }
-        }
-    }
-
+    // SPEC-006 P1: chunk-scoped prefix query (bounded)
+    let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
+    let chunk_nodes = find_document_nodes(
+        &state.storage.graph_storage,
+        Some(&tenant_ctx),
+        &chunk_scope,
+    )
+    .await?;
+    let entity_names: Vec<String> = chunk_nodes.iter().map(|n| n.id.clone()).collect();
+    let chunk_edges = find_document_edges(
+        &state.storage.graph_storage,
+        Some(&tenant_ctx),
+        &chunk_scope,
+    )
+    .await?;
     let entity_count = entity_names.len();
+    let relationship_count = chunk_edges.len();
 
     Ok(Json(ChunkLineageResponse {
         chunk_id,
@@ -405,11 +392,11 @@ pub async fn get_document_full_lineage(
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace.
-    verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // OADA-23: Use cached KV lookup for sub-millisecond cache hits
     let lineage_key = format!("{}-lineage", document_id);
-    let lineage_data = cached_kv_get(state.kv_storage.as_ref(), &lineage_key)
+    let lineage_data = cached_kv_get(state.storage.kv_storage.as_ref(), &lineage_key)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -422,7 +409,7 @@ pub async fn get_document_full_lineage(
     // can render both the hierarchy and document context without a second API call.
     // This satisfies F5: "Single API call retrieves complete document lineage tree."
     let metadata_key = format!("{}-metadata", document_id);
-    let metadata = cached_kv_get(state.kv_storage.as_ref(), &metadata_key)
+    let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id, "status": "unknown"}));
     Ok(Json(serde_json::json!({
@@ -457,7 +444,8 @@ pub async fn get_document_metadata(
     // SECURITY: verify_document_access already fetches and checks metadata,
     // so we reuse its return value directly.
     let metadata =
-        verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+            .await?;
 
     Ok(Json(metadata))
 }

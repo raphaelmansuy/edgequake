@@ -1,0 +1,773 @@
+=== edgequake-api SPEC-017 E2E ===
+Date: 2026-06-04T05:57:06Z
+
+--- Compile workspace ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+   Compiling edgequake v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.79s
+
+--- P0: API DRY/SOLID source contract (8) ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.81s
+     Running tests/spec017_api_contract.rs (target/debug/deps/spec017_api_contract-871a886d2c240ba9)
+
+running 8 tests
+test spec017_app_state_composed_substates ... ok
+test spec017_no_duplicate_pipeline_builder_bodies ... ok
+test spec017_query_error_semantic_mapping ... ok
+test spec017_enqueue_task_centralized ... ok
+test spec017_query_and_chat_share_execution_service ... ok
+test spec017_single_workspace_pipeline_factory ... ok
+test spec017_shared_query_bootstrap ... ok
+test spec017_parse_workspace_id_unified ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P0: query production path (SOTA only) ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.51s
+     Running tests/spec017_query_production_path_contract.rs (target/debug/deps/spec017_query_production_path_contract-dd7ec4b20c570154)
+
+running 2 tests
+test spec017_query_execution_service_uses_sota_engine_only ... ok
+test spec017_ollama_handlers_use_sota_engine_only ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P0: workspace pipeline integration ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.83s
+     Running tests/e2e_workspace_pipeline_integration.rs (target/debug/deps/e2e_workspace_pipeline_integration-de446790a526f9ab)
+
+running 9 tests
+test test_openai_workspace_without_key_fallback ... ok
+test test_workspace_pipeline_nonexistent_workspace ... ok
+test test_workspace_pipeline_default_alias ... ok
+test test_workspace_pipeline_invalid_uuid ... ok
+test test_workspace_pipeline_with_mock ... ok
+test test_workspace_pipeline_with_ollama ... ok
+test test_pipeline_changes_after_provider_switch ... ok
+test test_workspace_pipeline_with_lmstudio ... ok
+test test_isolated_pipelines_per_workspace ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+
+--- P1: query/chat routing parity ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.73s
+     Running tests/e2e_query_routing_parity.rs (target/debug/deps/e2e_query_routing_parity-081536d535a930ef)
+
+running 3 tests
+test test_query_invalid_workspace_fails_closed ... ok
+test test_chat_invalid_workspace_fails_closed ... ok
+test test_query_and_chat_share_workspace_routing ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+--- P1: workspace provider ingestion ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.82s
+     Running tests/e2e_workspace_provider_ingestion.rs (target/debug/deps/e2e_workspace_provider_ingestion-952bb7cef9e9569c)
+
+running 11 tests
+test test_workspace_openai_without_api_key_behavior ... ok
+test test_provider_factory_openai_fails_without_key ... ok
+test test_multiple_workspaces_provider_isolation ... ok
+test test_provider_factory_openai_succeeds_with_key ... ok
+test test_provider_factory_mock_creation ... ok
+test test_workspace_pipeline_uses_configured_mock_provider ... ok
+test test_workspace_pipeline_handles_invalid_provider ... ok
+test test_safe_provider_factory_openai_fails_without_key ... ok
+test test_safe_provider_factory_mock ... ok
+test test_provider_factory_ollama_creation ... ok
+test test_provider_factory_unknown_provider_fails ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+
+--- P1: query error mapping smoke ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.89s
+     Running tests/e2e_query.rs (target/debug/deps/e2e_query-75e58ad9b179c9db)
+
+running 1 test
+test test_query_partial_llm_override_returns_bad_request ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.03s
+
+
+--- P3: conversation HTTP contract ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.91s
+     Running tests/spec017_conversation_http_contract.rs (target/debug/deps/spec017_conversation_http_contract-e625ff5bb4f542bc)
+
+running 2 tests
+test spec017_conversation_http_requires_tenant_headers ... ok
+test spec017_conversation_http_create_and_list_contract ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+--- Lib unit tests (edgequake-api) ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.44s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_api-9e038221c05c4149)
+
+running 596 tests
+test cache_manager::tests::test_cache_config_custom ... ok
+test cache_manager::tests::test_cache_config_default ... ok
+test error::tests::test_all_error_codes ... ok
+test error::tests::test_all_error_status_codes ... ok
+test error::tests::test_api_error_debug ... ok
+test error::tests::test_all_error_variants_have_status_code ... ok
+test error::tests::test_api_result_type_alias ... ok
+test error::tests::test_api_result_error ... ok
+test error::tests::test_core_config_maps_to_config_error ... ok
+test cache_manager::tests::test_cache_manager_default_trait ... ok
+test cache_manager::tests::test_cache_manager_clone ... ok
+test cache_manager::tests::test_cache_manager_with_custom_config ... ok
+test cache_manager::tests::test_message_list_overwrite ... ok
+test cache_manager::tests::test_cache_overwrite ... ok
+test cache_manager::tests::test_invalidate_nonexistent_entry ... ok
+test cache_manager::tests::test_conversation_cache ... ok
+test cache_manager::tests::test_message_list_cache ... ok
+test cache_manager::tests::test_cache_miss_returns_none ... ok
+test cache_manager::tests::test_stats_tracks_message_cache ... ok
+test cache_manager::tests::test_clear ... ok
+test cache_manager::tests::test_conversation_invalidation_clears_messages ... ok
+test cache_manager::tests::test_stats ... ok
+test error::tests::test_core_validation_maps_to_422 ... ok
+test error::tests::test_core_not_found_maps_to_404 ... ok
+test error::tests::test_error_display ... ok
+test error::tests::test_core_internal_maps_to_500 ... ok
+test error::tests::test_core_not_initialized_maps_to_500 ... ok
+test error::tests::test_error_status_codes ... ok
+test error::tests::test_error_response_debug ... ok
+test error::tests::test_not_implemented_error ... ok
+test error::tests::test_provider_error_service_error ... ok
+test error::tests::test_provider_error_workspace_not_found ... ok
+test error::tests::test_llm_error_status_code ... ok
+test error::tests::test_provider_error_api_key_missing ... ok
+test error::tests::test_provider_error_invalid_workspace_id ... ok
+test error::tests::test_query_error_status_code ... ok
+test error::tests::test_provider_error_creation_failed_not_api_key ... ok
+test error::tests::test_storage_error_status_code ... ok
+test error::tests::test_pipeline_error_status_code ... ok
+test error::tests::test_error_response_serialization ... ok
+test error::tests::test_error_response_with_details_serialization ... ok
+test file_validation::tests::test_validate_extension_txt ... ok
+test file_validation::tests::test_validate_file_size_exact ... ok
+test file_validation::tests::test_get_mime_type ... ok
+test file_validation::tests::test_validate_extension_md ... ok
+test file_validation::tests::test_validate_file_size_exceeded ... ok
+test file_validation::tests::test_validate_file_size_ok ... ok
+test error::tests::test_error_response_builder_pattern ... ok
+test error::tests::test_error_response ... ok
+test file_validation::tests::test_validate_extension_invalid ... ok
+test file_validation::tests::test_validate_extension_no_extension ... ok
+test error::tests::test_error_response_without_details ... ok
+test file_validation::tests::test_validate_utf8_valid ... ok
+test file_validation::tests::test_validate_file_too_large ... ok
+test file_validation::tests::test_validate_file_bad_extension ... ok
+test error::tests::test_error_response_clone ... ok
+test file_validation::tests::test_validate_utf8_invalid ... ok
+test handlers::auth::tests::test_login_request_deserialize ... ok
+test handlers::auth::tests::test_refresh_token_request_deserialize ... ok
+test handlers::auth::tests::test_create_user_request_deserialize ... ok
+test handlers::auth_types::tests::test_create_user_request_with_optional_role ... ok
+test file_validation::tests::test_validate_file_empty ... ok
+test file_validation::tests::test_validate_file_success ... ok
+test handlers::auth_types::tests::test_login_request_deserialization ... ok
+test handlers::auth::tests::test_create_api_key_request_defaults ... ok
+test handlers::auth_types::tests::test_refresh_token_request_deserialization ... ok
+test error::tests::test_error_response_deserialization ... ok
+test handlers::auth_types::tests::test_revoke_api_key_response_serialization ... ok
+test handlers::auth_types::tests::test_create_api_key_request_minimal ... ok
+test handlers::auth_types::tests::test_user_info_serialization ... ok
+test handlers::auth_types::tests::test_login_response_serialization ... ok
+test handlers::auth::tests::test_user_info_from_user ... ok
+test handlers::auth::tests::test_create_user_request_with_role ... ok
+test handlers::chat::tests::test_enrich_query_no_language_unchanged ... ok
+test handlers::auth_types::tests::test_create_user_request_with_role ... ok
+test handlers::chat::tests::test_enrich_query_with_language_bare_code ... ok
+test handlers::chat::tests::test_enrich_query_with_language_region_tagged ... ok
+test handlers::auth_types::tests::test_list_users_response_serialization ... ok
+test handlers::chat::tests::test_language_code_to_name_bare_codes ... ok
+test handlers::chat::tests::test_language_code_to_name_case_insensitive ... ok
+test handlers::chat::tests::test_language_code_to_name_region_tagged_codes ... ok
+test handlers::chat::tests::test_language_code_to_name_unknown_falls_back_to_english ... ok
+test handlers::auth_types::tests::test_api_key_summary_serialization ... ok
+test handlers::auth::tests::test_login_response_serialize ... ok
+test handlers::chat::tests::test_chat_stream_event_error ... ok
+test handlers::chat::tests::test_chat_completion_request_defaults ... ok
+test handlers::chat::tests::test_chat_completion_request_with_conversation ... ok
+test handlers::chat::tests::test_parse_mode ... ok
+test handlers::chat::validation::tests::empty_slice_is_valid ... ok
+test handlers::auth::tests::test_list_users_response_serialization ... ok
+test handlers::chat::tests::test_chat_stream_event_serialization ... ok
+test handlers::chat::tests::test_chat_stream_event_context ... ok
+test handlers::chat::validation::tests::valid_single_jpeg ... ok
+test handlers::chat_types::tests::test_chat_default_stream ... ok
+test handlers::chat_types::tests::test_chat_request_minimal ... ok
+test handlers::chat::validation::tests::rejects_bad_mime ... ok
+test handlers::auth::tests::test_api_key_summary_serialization ... ok
+test handlers::chat::validation::tests::accepts_exactly_max_images ... ok
+test handlers::auth_types::tests::test_create_api_key_request_full ... ok
+test handlers::chat::tests::test_sources_to_message_context_no_chunk_title ... ok
+test handlers::chat::tests::test_sources_to_message_context_fallback_to_document_id ... ok
+test handlers::chat::tests::test_sources_to_message_context_uses_file_path_for_title ... ok
+test handlers::chat_types::tests::test_chat_stream_event_done ... ok
+test handlers::chat_types::tests::test_chat_stream_event_conversation ... ok
+test handlers::chat_types::tests::test_chat_request_without_images ... ok
+test handlers::chat_types::tests::test_chat_stream_event_done_no_provider ... ok
+test handlers::chat_types::tests::test_chat_stream_event_error ... ok
+test handlers::chat::validation::tests::rejects_too_many ... ok
+test handlers::chat_types::tests::test_chat_stream_event_thinking ... ok
+test handlers::chat_types::tests::test_chat_stream_event_title_update ... ok
+test handlers::chat_types::tests::test_chat_request_with_images ... ok
+test handlers::chat_types::tests::test_chat_stream_event_token ... ok
+test handlers::chat_types::tests::test_image_attachment_deserialization ... ok
+test handlers::auth::tests::test_generate_api_key ... ok
+test handlers::chat_types::tests::test_image_attachment_accepted_mime_types ... ok
+test handlers::conversations_types::tests::test_conversations_default_limit ... ok
+test handlers::conversations_types::tests::test_default_messages_limit ... ok
+test handlers::conversations_types::tests::test_bulk_operation_response_serialization ... ok
+test handlers::conversations_types::tests::test_default_order ... ok
+test handlers::conversations_types::tests::test_conversations_default_stream ... ok
+test handlers::conversations::tests::test_list_conversations_params_defaults ... ok
+test handlers::conversations_types::tests::test_create_conversation_request_deserialization ... ok
+test handlers::conversations_types::tests::test_default_sort ... ok
+test handlers::conversations_types::tests::test_import_error_response_serialization ... ok
+test handlers::conversations::tests::test_folder_response_serialization ... ok
+test handlers::conversations_types::tests::test_share_response_serialization ... ok
+test handlers::conversations::tests::test_conversation_response_serialization ... ok
+test handlers::conversations::tests::test_message_response_serialization ... ok
+test handlers::conversations_types::tests::test_pagination_meta_serialization ... ok
+test handlers::chat_types::tests::test_chat_request_full ... ok
+test handlers::conversations::tests::test_create_conversation_request_deserialization ... ok
+test handlers::conversations_types::tests::test_create_message_request_defaults ... ok
+test handlers::costs::tests::test_estimate_cost_request_deserialization ... ok
+test handlers::costs::tests::test_operation_cost_response_serialization ... ok
+test handlers::costs::tests::test_estimate_cost_response_serialization ... ok
+test handlers::costs_types::tests::test_cost_history_query_full ... ok
+test handlers::costs::tests::test_model_pricing_response_serialization ... ok
+test handlers::costs_types::tests::test_estimate_cost_request ... ok
+test handlers::costs_types::tests::test_cost_history_point ... ok
+test handlers::costs_types::tests::test_budget_info ... ok
+test handlers::costs_types::tests::test_cost_history_query_minimal ... ok
+test handlers::costs_types::tests::test_model_pricing_response ... ok
+test handlers::costs_types::tests::test_estimate_cost_response ... ok
+test handlers::conversations_types::tests::test_bulk_archive_request_deserialization ... ok
+test handlers::costs::tests::test_cost_summary_response_serialization ... ok
+test handlers::costs_types::tests::test_operation_breakdown ... ok
+test handlers::costs_types::tests::test_cost_summary_response ... ok
+test handlers::costs_types::tests::test_operation_cost_response ... ok
+test handlers::costs::tests::test_available_pricing_response_empty ... ok
+test handlers::costs_types::tests::test_workspace_cost_summary ... ok
+test error::tests::test_error_into_response ... ok
+test handlers::documents::tests::test_default_page ... ok
+test handlers::documents::tests::test_default_page_size ... ok
+test handlers::documents::tests::test_delete_document_response_serialization ... ok
+test handlers::documents::tests::test_upload_request_serialization ... ok
+test handlers::documents::tests::test_list_documents_response_serialization ... ok
+test handlers::documents::tests::test_upload_request_minimal ... ok
+test handlers::documents::tests::test_track_status_response_serialization ... ok
+test handlers::documents::tests::test_upload_request_validation ... ok
+test handlers::documents::tests::test_document_detail_response_serialization ... ok
+test handlers::documents::tests::test_list_documents_request_custom ... ok
+test handlers::documents::tests::test_list_documents_request_defaults ... ok
+test handlers::documents::tests::test_document_summary_serialization ... ok
+test handlers::documents::tests::test_upload_response_serialization ... ok
+test handlers::documents::upload::image_extract::tests::test_base64_encoding_non_empty ... ok
+test handlers::documents_types::tests::test_document_detail_response_serialization ... ok
+test handlers::documents_types::tests::test_list_documents_request_custom ... ok
+test handlers::documents_types::tests::test_list_documents_request_defaults ... ok
+test handlers::documents_types::tests::test_default_page_size ... ok
+test handlers::documents_types::tests::test_default_page ... ok
+test handlers::documents_types::tests::test_delete_document_response_serialization ... ok
+test handlers::documents_types::tests::test_document_summary_serialization ... ok
+test handlers::documents_types::tests::test_list_documents_response_serialization ... ok
+test handlers::documents_types::tests::test_upload_request_minimal ... ok
+test handlers::documents_types::tests::test_track_status_response_serialization ... ok
+test handlers::documents_types::tests::test_upload_request_serialization ... ok
+test handlers::documents_types::tests::test_upload_request_validation ... ok
+test handlers::documents_types::tests::test_upload_response_serialization ... ok
+test handlers::entities::tests::test_entity_response_serialization ... ok
+test handlers::entities::tests::test_entity_statistics_serialization ... ok
+test handlers::entities::tests::test_update_entity_request_partial ... ok
+test handlers::entities::tests::test_normalize_entity_name_edge_cases ... ok
+test handlers::entities::tests::test_merge_entities_request_deserialization ... ok
+test handlers::entities::tests::test_normalize_entity_name ... ok
+test handlers::entities::tests::test_create_entity_request_deserialization ... ok
+test handlers::entities::tests::test_delete_entity_query_deserialization ... ok
+test handlers::entities_types::tests::test_create_entity_request_deserialization ... ok
+test handlers::entities_types::tests::test_changes_summary_serialization ... ok
+test handlers::entities_types::tests::test_entity_exists_response_not_found ... ok
+test handlers::entities_types::tests::test_default_merge_strategy ... ok
+test handlers::entities_types::tests::test_entity_exists_response_serialization ... ok
+test handlers::entities_types::tests::test_entities_default_true ... ok
+test handlers::entities_types::tests::test_entity_statistics_serialization ... ok
+test handlers::entities_types::tests::test_merge_request_with_default_strategy ... ok
+test handlers::entities_types::tests::test_merge_details_serialization ... ok
+test handlers::entities_types::tests::test_delete_query_with_defaults ... ok
+test handlers::entities_types::tests::test_relationship_summary_serialization ... ok
+test handlers::graph_types::tests::test_graph_node_response_serialization ... ok
+test handlers::graph_types::tests::test_graph_edge_response_serialization ... ok
+test handlers::graph_types::tests::test_graph_query_params_defaults ... ok
+test handlers::graph_types::tests::test_graph_stream_event_serialization ... ok
+test handlers::graph_types::tests::test_batch_degree_request_deserialization ... ok
+test handlers::graph_types::tests::test_graph_stream_query_params_defaults ... ok
+test handlers::graph_types::tests::test_popular_labels_query_defaults ... ok
+test handlers::graph_types::tests::test_search_labels_query_defaults ... ok
+test handlers::chat::validation::tests::rejects_oversized ... ok
+test handlers::graph_types::tests::test_knowledge_graph_response_serialization ... ok
+test handlers::health_types::tests::test_component_health_all_true ... ok
+test handlers::health_types::tests::test_component_health_all_false ... ok
+test handlers::health_types::tests::test_health_response_serialization ... ok
+test handlers::health_types::tests::test_health_response_skip_none_llm ... ok
+test handlers::health_types::tests::test_health_response_with_schema ... ok
+test handlers::health_types::tests::test_health_response_with_providers ... ok
+test handlers::health_types::tests::test_providers_health_serialization ... ok
+test handlers::lineage::tests::test_description_version_response ... ok
+test handlers::health_types::tests::test_schema_health_serialization ... ok
+test handlers::lineage::tests::test_document_graph_lineage_response_serialization ... ok
+test handlers::lineage::tests::test_export_params_default_format ... ok
+test handlers::lineage::tests::test_export_params_csv_format ... ok
+test handlers::lineage::tests::test_entity_lineage_response_serialization ... ok
+test handlers::lineage::tests::test_extraction_stats_response_serialization ... ok
+test handlers::lineage::tests::test_line_range_info_serialization ... ok
+test handlers::lineage::tests::test_lineage_cache_ttl_is_reasonable ... ok
+test handlers::lineage::tests::test_lineage_to_csv_basic ... ok
+test handlers::lineage::tests::test_lineage_to_csv_empty_chunks ... ok
+test handlers::lineage::tests::test_invalidate_lineage_cache ... ok
+test handlers::lineage::tests::test_lineage_to_csv_escapes_quotes ... ok
+test handlers::lineage::tests::test_lineage_to_csv_no_chunks_key ... ok
+test handlers::lineage_types::tests::test_char_range_serialization ... ok
+test handlers::lineage_types::tests::test_chunk_detail_omits_none_lines ... ok
+test handlers::lineage_types::tests::test_chunk_detail_response_serialization ... ok
+test handlers::lineage_types::tests::test_chunk_detail_start_end_line_serialization ... ok
+test handlers::lineage_types::tests::test_chunk_lineage_response_omits_none_fields ... ok
+test handlers::lineage_types::tests::test_chunk_lineage_response_serialization ... ok
+test handlers::lineage_types::tests::test_chunk_source_info_serialization ... ok
+test handlers::lineage_types::tests::test_document_graph_lineage_response_serialization ... ok
+test cache_manager::tests::test_purge_expired ... ok
+test handlers::lineage_types::tests::test_description_version_response_serialization ... ok
+test handlers::lineage_types::tests::test_entity_lineage_response_serialization ... ok
+test handlers::lineage_types::tests::test_entity_provenance_response_serialization ... ok
+test handlers::lineage_types::tests::test_entity_source_info_serialization ... ok
+test handlers::lineage_types::tests::test_entity_summary_response_serialization ... ok
+test handlers::lineage_types::tests::test_extracted_entity_info_serialization ... ok
+test handlers::lineage_types::tests::test_extracted_relationship_info_serialization ... ok
+test handlers::lineage_types::tests::test_extraction_stats_response_serialization ... ok
+test handlers::lineage_types::tests::test_extraction_metadata_info_serialization ... ok
+test handlers::lineage_types::tests::test_line_range_info_serialization ... ok
+test handlers::lineage_types::tests::test_related_entity_info_serialization ... ok
+test handlers::lineage_types::tests::test_relationship_summary_response_serialization ... ok
+test handlers::lineage_types::tests::test_source_document_info_serialization ... ok
+test handlers::graph::tests::test_search_labels_empty ... ok
+test handlers::documents::delete::single::tests::test_resolve_key_prefix_fast_path ... ok
+test handlers::documents::delete::single::tests::test_delete_truly_nonexistent_returns_404 ... ok
+test handlers::documents::delete::single::tests::test_resolve_key_prefix_mismatch ... ok
+test handlers::health::tests::test_health_check ... ok
+test handlers::graph::tests::test_get_graph_empty ... ok
+test handlers::metrics_types::tests::test_prometheus_metrics_creation ... ok
+test handlers::documents::delete::single::tests::test_resolve_key_prefix_not_found ... ok
+test handlers::metrics::tests::test_metrics_format ... ok
+test handlers::graph::tests::test_get_graph_with_depth ... ok
+test handlers::graph::tests::test_get_node_not_found ... ok
+test handlers::metrics_types::tests::test_prometheus_metrics_into_response ... ok
+test handlers::metrics::tests::test_get_metrics ... ok
+test handlers::models::tests::test_model_card_to_response ... ok
+test handlers::graph::tests::test_get_popular_labels ... ok
+test handlers::ollama::tests::test_estimate_tokens ... ok
+test handlers::ollama::tests::test_model_name ... ok
+test handlers::ollama::tests::test_ollama_constants ... ok
+test handlers::models::tests::test_filter_providers_with_none_returns_all_enabled ... ok
+test handlers::models_types::tests::test_models_list_response_serialization ... ok
+test handlers::ollama::tests::test_search_mode_parsing ... ok
+test handlers::ollama::tests::test_search_mode_naive ... ok
+test handlers::documents::delete::single::tests::test_delete_document_with_key_id_mismatch ... ok
+test handlers::documents::delete::single::tests::test_delete_mismatch_cleans_lineage_and_alt_prefix_keys ... ok
+test handlers::ollama::tests::test_search_mode_mix ... ok
+test handlers::ollama_types::tests::test_ollama_chat_request_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_chat_response_serialization ... ok
+test handlers::models::tests::test_active_provider_names_star_returns_none ... ok
+test handlers::models::tests::test_filter_providers_with_allowed_set ... ok
+test handlers::models::tests::test_active_provider_names_no_env_returns_all ... ok
+test handlers::ollama_types::tests::test_ollama_generate_request_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_message_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_model_details_serialization ... ok
+test handlers::models::tests::test_active_provider_names_explicit_list ... ok
+test handlers::ollama_types::tests::test_ollama_generate_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_model_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_ps_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_running_model_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_search_mode_from_query ... ok
+test handlers::ollama_types::tests::test_ollama_tags_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_version_response_serialization ... ok
+test handlers::pdf_upload::helpers::tests::test_estimate_time_small_pdf ... ok
+test handlers::pdf_upload::helpers::tests::test_estimate_time_large_file ... ok
+test handlers::pdf_upload::helpers::tests::test_estimate_time_unknown_page_count ... ok
+test handlers::pdf_upload::helpers::tests::test_estimate_time_zero_pages ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_empty_data ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_count_without_digits ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_large_page_count ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_binary_content_around ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_multiple_count_entries ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_needle_at_end_of_data ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_no_count_token ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_normal_pdf ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_single_page ... ok
+test handlers::pdf_upload::helpers::tests::test_extract_page_count_zero_pages ... ok
+test handlers::pdf_upload::tests::test_estimate_processing_time ... ok
+test handlers::pdf_upload::tests::test_pdf_operation_response_serialization ... ok
+test handlers::pdf_upload::tests::test_pdf_upload_options_backend_resolution_defaults_to_vision ... ok
+test handlers::pipeline_types::tests::test_cancel_pipeline_response_serialization ... ok
+test handlers::pipeline_types::tests::test_enhanced_pipeline_status_serialization ... ok
+test handlers::pipeline_types::tests::test_pipeline_message_serialization ... ok
+test handlers::pdf_upload::tests::test_pdf_upload_options_vision_model ... ok
+test handlers::pipeline_types::tests::test_queue_metrics_response_serialization ... ok
+test handlers::query::document_filter_resolver::tests::test_all_none_returns_none ... ok
+test handlers::query::document_filter_resolver::tests::test_date_range_filter ... ok
+test handlers::query::document_filter_resolver::tests::test_no_matching_documents ... ok
+test handlers::query::document_filter_resolver::tests::test_date_from_filter ... ok
+test handlers::query::document_filter_resolver::tests::test_tenant_scoping ... ok
+test handlers::query::document_filter_resolver::tests::test_pattern_filter_case_insensitive ... ok
+test handlers::query::document_filter_resolver::tests::test_combined_date_and_pattern ... ok
+test handlers::query_types::tests::test_default_enable_rerank ... ok
+test handlers::query_types::tests::test_conversation_message ... ok
+test handlers::query::document_filter_resolver::tests::test_pattern_filter_comma_separated_or ... ok
+test handlers::query_types::tests::test_query_response_serialization ... ok
+test handlers::query_types::tests::test_query_request_minimal ... ok
+test handlers::query_types::tests::test_query_stats_serialization ... ok
+test handlers::query_types::tests::test_source_reference_minimal ... ok
+test handlers::query_types::tests::test_query_request_full ... ok
+test handlers::query_types::tests::test_stream_query_request ... ok
+test handlers::query::tests::test_query_whitespace_only_fails ... ok
+test handlers::query::tests::test_query_validation ... ok
+test handlers::query_types::tests::test_source_reference_serialization ... ok
+test handlers::relationships::tests::test_extract_relation_type ... ok
+test handlers::relationships::tests::test_normalize_entity_name ... ok
+test handlers::query::tests::test_stream_query_empty_fails ... ok
+test handlers::relationships::tests::test_default_weight ... ok
+test handlers::relationships_types::tests::test_default_weight ... ok
+test handlers::relationships_types::tests::test_create_relationship_request ... ok
+test handlers::relationships_types::tests::test_create_relationship_response ... ok
+test handlers::relationships::tests::test_create_relationship_request_defaults ... ok
+test handlers::relationships::tests::test_update_relationship_request_partial ... ok
+test handlers::relationships::tests::test_create_relationship_request_custom_weight ... ok
+test handlers::relationships_types::tests::test_delete_relationship_response ... ok
+test handlers::relationships_types::tests::test_create_relationship_request_custom_weight ... ok
+test handlers::relationships_types::tests::test_entity_summary ... ok
+test handlers::relationships_types::tests::test_relationship_changes_summary ... ok
+test handlers::relationships_types::tests::test_relationship_entities ... ok
+test handlers::relationships_types::tests::test_relationship_response ... ok
+test handlers::relationships_types::tests::test_update_relationship_request ... ok
+test handlers::tasks::tests::test_parse_sort_field_valid ... ok
+test handlers::tasks::tests::test_parse_sort_field_invalid ... ok
+test handlers::tasks::tests::test_parse_sort_order_invalid ... ok
+test handlers::tasks::tests::test_pagination_info_serialization ... ok
+test handlers::tasks::tests::test_parse_sort_order_valid ... ok
+test handlers::tasks::tests::test_parse_task_status_invalid ... ok
+test handlers::tasks::tests::test_parse_task_status_valid ... ok
+test handlers::tasks::tests::test_parse_task_type_invalid ... ok
+test handlers::tasks::tests::test_parse_task_type_valid ... ok
+test handlers::tasks::tests::test_list_tasks_query_defaults ... ok
+test handlers::tasks::tests::test_statistics_info_serialization ... ok
+test handlers::tasks_types::tests::test_list_tasks_query_minimal ... ok
+test handlers::tasks_types::tests::test_statistics_info ... ok
+test handlers::tasks_types::tests::test_pagination_info ... ok
+test handlers::tasks_types::tests::test_list_tasks_query_partial ... ok
+test handlers::tasks_types::tests::test_list_tasks_query_full ... ok
+test handlers::tasks_types::tests::test_task_error_response ... ok
+test handlers::tasks_types::tests::test_task_list_response ... ok
+test handlers::tasks_types::tests::test_task_response_serialization ... ok
+test handlers::tasks_types::tests::test_task_response_with_error ... ok
+test handlers::title_generator::tests::test_clean_title_removes_backticks ... ok
+test handlers::title_generator::tests::test_clean_title_removes_prefix ... ok
+test handlers::title_generator::tests::test_clean_title_removes_single_quotes ... ok
+test handlers::title_generator::tests::test_clean_title_trims_whitespace ... ok
+test handlers::title_generator::tests::test_clean_title_removes_double_quotes ... ok
+test handlers::title_generator::tests::test_clean_title_preserves_normal_title ... ok
+test handlers::title_generator::tests::test_fallback_title_long_message ... ok
+test handlers::title_generator::tests::test_clean_title_limits_length ... ok
+test handlers::title_generator::tests::test_fallback_title_short_message ... ok
+test handlers::title_generator::tests::test_fallback_title_unicode ... ok
+test handlers::title_generator::tests::test_clean_title_empty_returns_empty ... ok
+test handlers::title_generator::tests::test_fallback_title_exactly_50_chars ... ok
+test handlers::websocket_types::tests::test_progress_broadcaster_creation ... ok
+test handlers::websocket_types::tests::test_progress_broadcaster_multiple_subscribers ... ok
+test handlers::websocket_types::tests::test_progress_event_heartbeat_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_connected_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_job_started_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_job_finished_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_batch_completed_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_document_failed_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_document_progress_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_pdf_page_progress_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_cancellation_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_pdf_page_progress_with_error ... ok
+test handlers::websocket_types::tests::test_progress_event_message_serialization ... ok
+test handlers::websocket_types::tests::test_progress_event_status_snapshot_serialization ... ok
+test handlers::workspaces::tests::test_generate_slug_edge_cases ... ok
+test handlers::workspaces::tests::test_generate_slug ... ok
+test handlers::workspaces_types::tests::test_create_tenant_request_serialization ... ok
+test handlers::workspaces::tests::test_create_workspace_request_deserialization ... ok
+test handlers::workspaces::tests::test_workspace_stats_response_serialization ... ok
+test handlers::workspaces_types::tests::test_create_workspace_api_request_serialization ... ok
+test handlers::workspaces_types::tests::test_tenant_list_response_serialization ... ok
+test handlers::workspaces::tests::test_create_tenant_request_deserialization ... ok
+test handlers::workspaces::tests::test_tenant_response_serialization ... ok
+test handlers::workspaces_types::tests::test_tenant_response_serialization ... ok
+test handlers::workspaces::tests::test_pagination_params_defaults ... ok
+test handlers::workspaces_types::tests::test_pagination_params_defaults ... ok
+test handlers::workspaces_types::tests::test_update_tenant_request_serialization ... ok
+test handlers::workspaces_types::tests::test_workspace_list_response_serialization ... ok
+test handlers::workspaces_types::tests::test_update_workspace_api_request_serialization ... ok
+test handlers::workspaces::tests::test_update_tenant_request_partial ... ok
+test handlers::workspaces_types::tests::test_workspace_response_serialization ... ok
+test handlers::workspaces_types::tests::test_workspace_stats_response_serialization ... ok
+test middleware::tests::test_auth_config_clone ... ok
+test middleware::tests::test_auth_config_default ... ok
+test middleware::tests::test_auth_config_empty_keys ... ok
+test middleware::tests::test_auth_config_multiple_keys ... ok
+test middleware::tests::test_auth_config_with_keys ... ok
+test middleware::tests::test_auth_config_debug ... ok
+test middleware::tests::test_auth_error_debug ... ok
+test middleware::tests::test_auth_error_deserialization ... ok
+test middleware::tests::test_auth_error_serialization ... ok
+test middleware::tests::test_auth_state_creation ... ok
+test middleware::tests::test_public_paths ... ok
+test middleware::tests::test_public_paths_variations ... ok
+test middleware::tests::test_rate_limit_config_clone ... ok
+test middleware::tests::test_rate_limit_config_custom ... ok
+test middleware::tests::test_rate_limit_config_default ... ok
+test middleware::tests::test_resolve_workspace_uuid_maps_default_alias ... ok
+test middleware::tests::test_tenant_context_uuid_helpers_handle_default_aliases ... ok
+test middleware::tests::test_rate_limit_config_debug ... ok
+test path_validation::tests::test_validate_path_rejects_depth ... ok
+test path_validation::tests::test_traversal_pattern_detection ... ok
+test path_validation::tests::test_validate_path_rejects_traversal ... ok
+test path_validation::tests::test_default_config_rejects_all ... ok
+test handlers::query::tests::test_stream_query_success ... ok
+test pipeline_progress_callback::tests::test_broadcaster_receives_errors ... ok
+test pipeline_progress_callback::tests::test_all_pages_fail ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_complete ... ok
+test pipeline_progress_callback::tests::test_out_of_order_page_completion ... ok
+test handlers::query::tests::test_query_success ... ok
+test handlers::query::tests::test_query_with_context_only ... ok
+test pipeline_progress_callback::tests::test_completed_pages_counter ... ok
+test pipeline_progress_callback::tests::test_page_error_event_data ... ok
+test pipeline_progress_callback::tests::test_interleaved_errors_and_successes ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_page_complete ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_page_error ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_partial_complete ... ok
+test pipeline_progress_callback::tests::test_single_page_document ... ok
+test processor::pipeline_checkpoint::tests::test_checkpoint_key_format ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_with_broadcaster ... ok
+test processor::pipeline_checkpoint::tests::test_content_hash_deterministic ... ok
+test path_validation::tests::test_validate_path_outside_allowed_rejected ... ok
+test pipeline_progress_callback::tests::test_zero_page_document ... ok
+test processor::pipeline_checkpoint::tests::test_content_hash_differs_for_different_content ... ok
+test handlers::query::tests::test_query_modes ... ok
+test processor::pipeline_checkpoint::tests::test_no_checkpoint_returns_none ... ok
+test processor::pipeline_checkpoint::tests::test_corrupt_checkpoint_returns_none ... ok
+test path_validation::tests::test_validate_path_within_allowed ... ok
+test processor::pipeline_checkpoint::tests::test_pipeline_checkpoint_serialization_roundtrip ... ok
+test processor::pipeline_checkpoint::tests::test_load_checkpoint_workspace_mismatch ... ok
+test processor::pipeline_checkpoint::tests::test_load_checkpoint_provider_mismatch ... ok
+test processor::pipeline_checkpoint::tests::test_load_checkpoint_content_changed ... ok
+test processor::pipeline_checkpoint::tests::test_clear_checkpoint ... ok
+test processor::pipeline_checkpoint::tests::test_save_and_load_checkpoint ... ok
+test processor::tests::test_document_task_processor_new ... ok
+test processor::tests::test_processor_fields_are_arc ... ok
+test processor::tests::test_process_reindex_task_returns_unsupported ... ok
+test processor::tests::test_process_insert_with_invalid_payload ... ok
+test processor::tests::test_process_scan_task_returns_unsupported ... ok
+test processor::tests::test_processor_trait_implementation ... ok
+test processor::tests::test_task_types_are_distinct ... ok
+test processor::tests::test_update_document_status_with_error_message ... ok
+test providers::credentials::tests::mock_always_configured ... ok
+test processor::tests::test_update_document_status_nonexistent_doc ... ok
+test processor::tests::test_update_document_status ... ok
+test providers::credentials::tests::openai_requires_non_empty_key_env ... ok
+test providers::error::tests::test_api_key_detection ... ok
+test providers::error::tests::test_non_api_key_error ... ok
+test providers::error::tests::test_api_key_missing_constructor ... ok
+test providers::credentials::tests::uses_models_config_when_present ... ok
+test providers::error::tests::test_workspace_not_found ... ok
+test providers::resolver::tests::integration::test_no_workspace_no_provider ... ok
+test providers::resolver::tests::integration::test_invalid_workspace_id ... ok
+test providers::resolver::tests::test_empty_provider ... ok
+test providers::resolver::tests::test_no_provider ... ok
+test providers::resolver::tests::test_parse_legacy_format ... ok
+test providers::resolver::tests::test_parse_new_format ... ok
+test providers::resolver::tests::integration::test_explicit_overrides_workspace ... ok
+test providers::resolver::tests::integration::test_resolve_explicit_provider ... ok
+test providers::resolver::tests::integration::test_resolve_from_workspace ... ok
+test server::tests::test_server_config_default ... ok
+test services::content_hasher::tests::test_different_content_different_hash ... ok
+test services::content_hasher::tests::test_empty_content ... ok
+test services::content_hasher::tests::test_hash_bytes_consistency ... ok
+test services::content_hasher::tests::test_hash_bytes_equals_hash_str ... ok
+test services::content_hasher::tests::test_hash_length ... ok
+test services::content_hasher::tests::test_hash_lowercase ... ok
+test services::content_hasher::tests::test_hash_str_consistency ... ok
+test services::content_hasher::tests::test_workspace_hash_key_format ... ok
+test services::query_execution::tests::detects_openai_invalid_api_key_message ... ok
+test services::query_execution::tests::ignores_unrelated_query_errors ... ok
+test services::query_execution::tests::llm_override_none_when_unset ... ok
+test services::query_execution::tests::llm_override_requires_both_fields ... ok
+test services::query_execution::tests::resolve_resources_default_without_workspace ... ok
+test services::query_execution::tests::validate_llm_override_pair_rejects_partial ... ok
+test state::auth_runtime::tests::auth_runtime_from_default_config ... ok
+test processor::pipeline_checkpoint::tests::test_content_hash_long_text_uses_prefix ... ok
+test routes::tests::test_ready_route ... ok
+test state::provider_setup::tests::apply_chat_env_aliases_populates_missing_standard_vars ... ok
+test state::provider_setup::tests::apply_chat_env_aliases_preserves_explicit_standard_vars ... ok
+test routes::tests::test_health_route ... ok
+test state::provider_setup::tests::embedding_dimension_env_override_wins_over_table ... ok
+test state::provider_setup::tests::embedding_dimension_for_model_uses_known_table ... ok
+test state::provider_setup::tests::embedding_dimension_from_env_default ... ok
+test state::provider_setup::tests::embedding_dimension_from_env_invalid_falls_back ... ok
+test state::provider_setup::tests::embedding_dimension_from_env_parses_value ... ok
+test state::provider_setup::tests::embedding_model_for_provider_falls_back_to_workspace_default ... ok
+test state::provider_setup::tests::embedding_model_for_provider_generic_override ... ok
+test state::provider_setup::tests::embedding_model_for_provider_mistral_specific_key_wins ... ok
+test state::provider_setup::tests::embedding_model_from_env_default ... ok
+test state::provider_setup::tests::embedding_model_from_env_reads_edgequake_fallback ... ok
+test state::provider_setup::tests::embedding_model_from_env_reads_ollama_first ... ok
+test state::provider_setup::tests::ollama_embedding_host_overrides_provider ... ok
+test state::provider_setup::tests::ollama_embedding_model_does_not_bleed_into_mistral ... ok
+test state::provider_setup::tests::returns_fallback_on_unknown_provider ... ok
+test state::provider_setup::tests::returns_fallback_when_no_env_vars ... ok
+test state::storage_runtime::tests::memory_mode_flags ... ok
+test state::query_runtime::tests::query_runtime_wires_engines ... ok
+test state::tests::test_app_config_custom ... ok
+test state::tests::test_app_config_default ... ok
+test state::task_runtime::tests::enqueue_persists_and_queues ... ok
+test state::tests::test_storage_mode_as_str ... ok
+test state::tests::test_app_state_test_state ... ok
+test state::tests::test_storage_mode_deserialization ... ok
+test state::tests::test_storage_mode_is_memory ... ok
+test state::tests::test_enqueue_task_persists_and_queues ... ok
+test state::tests::test_storage_mode_is_postgresql ... ok
+test state::tests::test_storage_mode_serialization ... ok
+test streaming::accumulator::tests::test_accumulator_basic ... ok
+test streaming::accumulator::tests::test_actual_tokens_preferred ... ok
+test streaming::accumulator::tests::test_completion_state ... ok
+test streaming::accumulator::tests::test_content_length ... ok
+test streaming::accumulator::tests::test_empty_accumulator ... ok
+test streaming::accumulator::tests::test_estimated_tokens ... ok
+test streaming::accumulator::tests::test_into_content ... ok
+test streaming::accumulator::tests::test_metadata_setting ... ok
+test server::tests::test_build_router ... ok
+test provider_catalog::tests::mock_provider_always_available ... ok
+test provider_catalog::tests::catalog_uses_models_toml_defaults_for_lmstudio ... ok
+test provider_catalog::tests::catalog_includes_vertexai_from_models_toml ... ok
+test provider_catalog::tests::providers_sorted_by_priority ... ok
+test validation::tests::test_generate_content_summary_201_chars ... ok
+test validation::tests::test_generate_content_summary_empty ... ok
+test validation::tests::test_generate_content_summary_exactly_200 ... ok
+test validation::tests::test_generate_content_summary_short ... ok
+test state::bundled_models::tests::bundled_models_config_parses_and_has_core_providers ... ok
+test validation::tests::test_generate_content_summary_truncated ... ok
+test validation::tests::test_generate_content_summary_unicode ... ok
+test validation::tests::test_validate_content_empty ... ok
+test validation::tests::test_validate_content_error_includes_max_size ... ok
+test validation::tests::test_validate_content_exactly_max_size ... ok
+test validation::tests::test_validate_content_one_over_max_size ... ok
+test validation::tests::test_validate_content_only_newlines ... ok
+test validation::tests::test_validate_content_success ... ok
+test validation::tests::test_validate_content_too_large ... ok
+test validation::tests::test_validate_content_whitespace_only ... ok
+test validation::tests::test_validate_content_with_newlines ... ok
+test validation::tests::test_validate_non_empty_empty_string ... ok
+test validation::tests::test_validate_non_empty_error_includes_field_name ... ok
+test validation::tests::test_validate_non_empty_success ... ok
+test validation::tests::test_validate_non_empty_whitespace ... ok
+test validation::tests::test_validate_non_empty_with_inner_whitespace ... ok
+test validation::tests::test_validate_query_empty ... ok
+test validation::tests::test_validate_query_exactly_max_length ... ok
+test validation::tests::test_validate_query_one_over_max_length ... ok
+test validation::tests::test_validate_query_success ... ok
+test validation::tests::test_validate_query_too_long ... ok
+test validation::tests::test_validate_query_whitespace_only ... ok
+test workspace_pipeline_factory::tests::lenient_mode_falls_back_on_invalid_workspace_id ... ok
+test workspace_pipeline_factory::tests::strict_mode_fails_on_invalid_workspace_id ... ok
+test workspace_pipeline_factory::tests::strict_mode_fails_when_workspace_missing ... ok
+test workspace_pipeline_factory::tests::resolves_workspace_with_mock_providers ... ok
+test streaming::accumulator::tests::test_duration_tracking ... ok
+test streaming::accumulator::tests::test_ttft_tracking ... ok
+test pipeline_progress_callback::tests::test_time_based_debounce ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_persists_progress ... ok
+test streaming::flush_manager::tests::test_abort_saves_partial ... ok
+test streaming::flush_manager::tests::test_complete_flushes_pending ... ok
+test pipeline_progress_callback::tests::test_completion_metadata_reaches_100_percent ... ok
+test pipeline_progress_callback::tests::test_pipeline_progress_callback_completes_phase ... ok
+test pipeline_progress_callback::tests::test_large_document_progress ... ok
+test streaming::flush_manager::tests::test_forced_flush_on_size ... ok
+test handlers::settings::tests::test_get_provider_status_structure ... ok
+test handlers::settings::tests::test_list_available_providers ... ok
+test streaming::flush_manager::tests::test_debounce_coalesces_writes ... ok
+
+test result: ok. 596 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+--- Clippy (workspace) ---
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+   Compiling edgequake v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.94s
+
+--- Fmt check (workspace) ---
+
+--- Playwright API UI proof ---
+→ Starting backend (nohup for agent-shell reliability)
+[34mStarting PostgreSQL...[0m
+[33m⚠  Port 5432 is occupied by a PostgreSQL instance that does not accept our credentials.[0m
+[33m   Root cause: another service (infrastructure-postgres, k8s, etc.) is using that port.[0m
+[33m   Auto-detecting a free port for edgequake-postgres...[0m
+[33m→ Will start edgequake-postgres on port 5433 instead[0m
+[33m→ Removing stale edgequake-postgres container to rebind on port 5433...[0m
+ Container edgequake-postgres Creating 
+ Container edgequake-postgres Created 
+ Container edgequake-postgres Starting 
+ Container edgequake-postgres Started 
+[32m✓ PostgreSQL container started on port 5433[0m
+[33mWaiting for database to be ready...[0m
+Waiting...
+[32m✓ Database is ready[0m
+[32m✓ Effective DATABASE_URL written to /tmp/edgequake-db-url[0m
+[33mWaiting for database to be ready...[0m
+[32m✓ Database is ready (auth verified on localhost:5433)[0m
+[34mStarting backend in background...[0m
+[33m→ MISTRAL_API_KEY detected - using Mistral as default provider[0m
+[32m✓ Backend starting in background. Log: /tmp/edgequake-backend.log[0m
+→ Starting frontend
+[34mStarting frontend in background...[0m
+[32m✓ Frontend starting in background. Log: /tmp/edgequake-frontend.log[0m
+{"status":"healthy","version":"0.12.6","build_info":{"git_hash":"3eef04f2","git_branch":"feature/016-datalayer-improvements","build_timestamp":"2026-06-04T05:57:07Z","build_number":"20260604.055707"},"storage_mode":"postgresql","workspace_id":"default","components":{"kv_storage":true,"vector_storage":true,"graph_storage":true,"llm_provider":true},"llm_provider_name":"mistral","schema":{"latest_version":37,"migrations_applied":36,"last_applied_at":"2026-05-29T07:41:24.313507+00:00"},"providers":{"llm":{"name":"mistral","model":"mistral-small-latest"},"embedding":{"name":"mistral","model":"mistral-embed","dimension":1024}},"pdf_storage_enabled":true}
+
+Running 6 tests using 1 worker
+
+  ✓  1 [audit] › e2e/spec017-api-query-documents.spec.ts:124:7 › @audit SPEC-017 API query + documents UI @audit › health endpoint returns healthy JSON (17ms)
+  ✓  2 [audit] › e2e/spec017-api-query-documents.spec.ts:134:7 › @audit SPEC-017 API query + documents UI @audit › query page renders SOTA query UI (1.1s)
+  ✓  3 [audit] › e2e/spec017-api-query-documents.spec.ts:154:7 › @audit SPEC-017 API query + documents UI @audit › documents page renders upload zone (ingestion API entry) (887ms)
+  ✓  4 [audit] › e2e/spec017-api-query-documents.spec.ts:178:7 › @audit SPEC-017 API query + documents UI @audit › sync document upload completes via API pipeline (7.0s)
+  ✓  5 [audit] › e2e/spec017-api-query-documents.spec.ts:219:7 › @audit SPEC-017 API query + documents UI @audit › async API upload polls to Completed (background task pipeline) (5.8s)
+  ✓  6 [audit] › e2e/spec017-api-query-documents.spec.ts:272:7 › @audit SPEC-017 API query + documents UI @audit › PDF upload via text parser reaches Completed (pdf_conversion → text_insert) (3.1s)
+
+  6 passed (19.2s)
+-rw-r--r--@ 1 raphaelmansuy  staff  100787 Jun  4 13:58 ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/screenshots/01-query-page-header.png
+-rw-r--r--@ 1 raphaelmansuy  staff   57564 Jun  4 13:58 ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/screenshots/02-query-main-panel.png
+-rw-r--r--@ 1 raphaelmansuy  staff   80057 Jun  4 13:58 ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/screenshots/03-documents-page-header.png
+-rw-r--r--@ 1 raphaelmansuy  staff   48943 Jun  4 13:58 ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/screenshots/04-documents-main-panel.png
+-rw-r--r--@ 1 raphaelmansuy  staff   91341 Jun  4 13:58 ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/screenshots/05-sync-upload-completed.png
+-rw-r--r--@ 1 raphaelmansuy  staff   91063 Jun  4 13:58 ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/screenshots/06-async-pipeline-completed.png
+✓ Playwright API proof complete
+
+✓ edgequake-api SPEC-017 E2E complete — log: ./specs/017-dry-and-solid-audit/003-edgequake-api/001-audit/e2e/001-test-run.log

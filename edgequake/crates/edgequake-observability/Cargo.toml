@@ -1,0 +1,38 @@
+[package]
+name = "edgequake-observability"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Centralized tracing, metrics, and correlation for EdgeQuake"
+
+[features]
+default = ["metrics"]
+# OTLP: enable at build time AND set OTEL_EXPORTER_OTLP_ENDPOINT at runtime
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+otel = [
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:tracing-opentelemetry",
+]
+
+[dependencies]
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
+serde_json.workspace = true
+http = "1"
+uuid.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+metrics = { version = "0.24", optional = true }
+metrics-exporter-prometheus = { version = "0.17", optional = true }
+
+opentelemetry = { version = "0.31", optional = true }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic"], optional = true }
+tracing-opentelemetry = { version = "0.32", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

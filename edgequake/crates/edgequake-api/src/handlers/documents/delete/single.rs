@@ -6,15 +6,19 @@
 use axum::{extract::State, Json};
 use uuid::Uuid;
 
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
-use crate::services::ContentHasher;
+use crate::services::{
+    cascade_remove_document_sources, record_compliance_event, ContentHasher, DocumentSourceScope,
+};
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
 use super::super::storage_helpers::{
-    extract_source_docs, get_workspace_vector_storage_for_delete, metadata_matches_tenant_context,
+    get_workspace_vector_storage_for_delete, metadata_matches_tenant_context,
     purge_persisted_tasks_for_document,
 };
 
@@ -41,7 +45,7 @@ async fn resolve_kv_key_prefix(
     // Slow path: scan ALL metadata keys and check if any has a JSON `id` field
     // that matches `document_id`. This handles key/id mismatch cases.
     for key in keys.iter().filter(|k| k.ends_with("-metadata")) {
-        if let Ok(Some(val)) = state.kv_storage.get_by_id(key).await {
+        if let Ok(Some(val)) = state.storage.kv_storage.get_by_id(key).await {
             if let Some(json_id) = val.get("id").and_then(|v| v.as_str()) {
                 if json_id == document_id {
                     // Found it! Extract the real key prefix.
@@ -74,7 +78,7 @@ pub async fn delete_document(
     axum::extract::Path(document_id): axum::extract::Path<String>,
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<DeleteDocumentResponse>> {
-    let keys = state.kv_storage.keys().await?;
+    let keys = state.storage.kv_storage.keys().await?;
 
     // Resolve the actual KV key prefix for this document.
     //
@@ -117,21 +121,12 @@ pub async fn delete_document(
         )));
     }
 
-    // Build list of prefixes to match when filtering graph sources.
-    // WHY: In mismatch cases, graph sources may reference either the KV key
-    // prefix or the JSON id. We must filter both to avoid orphaned graph data.
-    let source_prefixes: Vec<String> = if key_id_mismatch {
-        vec![actual_key_prefix.clone(), document_id.clone()]
-    } else {
-        vec![document_id.clone()]
-    };
-
     // SPEC-033: Get workspace_id from document metadata for vector storage isolation
     // OADA-90: Extract content_hash for hash key cleanup
     // FIX-ISSUE-73: Extract pdf_id for pdf_documents cleanup
     let (workspace_id_for_storage, document_status, content_hash_opt, _pdf_id_opt, track_id_opt) =
         if has_metadata {
-            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&metadata_key).await {
+            if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(&metadata_key).await {
                 // WHY: document IDs must not be enough to delete across workspace
                 // boundaries. If the request carries workspace context, the stored
                 // document metadata must match that scope or we fail closed.
@@ -200,7 +195,7 @@ pub async fn delete_document(
     if matches!(document_status.as_str(), "pending" | "processing") {
         match &track_id_opt {
             Some(track_id) => {
-                let cancelled = state.cancellation_registry.cancel(track_id).await;
+                let cancelled = state.tasks.cancellation_registry.cancel(track_id).await;
                 tracing::info!(
                     document_id = %document_id,
                     track_id = %track_id,
@@ -240,10 +235,6 @@ pub async fn delete_document(
         get_workspace_vector_storage_for_delete(&state, &workspace_id_for_storage).await;
 
     let chunks_deleted = chunk_ids.len();
-    let mut entities_removed = 0usize;
-    let mut entities_updated = 0usize;
-    let mut relationships_removed = 0usize;
-    let mut relationships_updated = 0usize;
     let mut embeddings_deleted = 0usize;
 
     // SPEC-028: Delete chunk embeddings from vector storage first
@@ -266,135 +257,21 @@ pub async fn delete_document(
         }
     }
 
-    // Cascade delete: Process graph entities - remove document sources
-    let all_nodes = state.graph_storage.get_all_nodes().await?;
-    for node in all_nodes {
-        let sources = extract_source_docs(&node.properties);
-        if sources.is_empty() {
-            continue;
-        }
-
-        // Filter out sources that belong to this document.
-        // WHY: Use source_prefixes to match both JSON id and KV key prefix
-        // in case of historical key/id mismatch.
-        let remaining_sources: Vec<String> = sources
-            .iter()
-            .filter(|s| {
-                !source_prefixes
-                    .iter()
-                    .any(|prefix| s.starts_with(prefix.as_str()))
-            })
-            .cloned()
-            .collect();
-
-        if remaining_sources.is_empty() {
-            // No sources left - delete the entity entirely
-
-            // WHY-OODA01: DO NOT delete edges here!
-            // Edges have their own source_ids tracking and will be processed
-            // independently in the edge processing loop below (line ~1500).
-            // Deleting them here would cause data loss if the edge has other
-            // source documents that are not being deleted.
-            //
-            // Example bug scenario (fixed):
-            //   Document A: "Alice works at Google"
-            //   Document B: "Alice graduated from MIT"
-            //   DELETE Document A:
-            //     - ALICE entity sources: [doc_a, doc_b] → [doc_b] (update)
-            //     - GOOGLE entity sources: [doc_a] → [] (delete entity)
-            //     - OLD BUG: Deleted ALL edges from GOOGLE, including MIT edge!
-            //     - FIXED: Edges are processed separately based on their own sources
-
-            // Delete the node (backend may cascade edges, but we handle explicitly below)
-            state.graph_storage.delete_node(&node.id).await?;
-            // SPEC-033: Use workspace-specific vector storage for entity deletion
-            let _ = workspace_vector_storage.delete_entity(&node.id).await;
-            entities_removed += 1;
-        } else if remaining_sources.len() < sources.len() {
-            // Some sources were removed - update the entity
-            let mut updated_props = node.properties.clone();
-            // Use source_ids (JSON array) format for updates
-            updated_props.insert(
-                "source_ids".to_string(),
-                serde_json::json!(remaining_sources),
-            );
-            state
-                .graph_storage
-                .upsert_node(&node.id, updated_props)
-                .await?;
-            entities_updated += 1;
-        }
-    }
-
-    // Process graph edges - remove document sources
-    // WHY-OODA01: We must also check for orphaned edges (edges connecting to deleted nodes)
-    // This handles the case where a node was deleted above but edges still reference it.
-    let all_edges = state.graph_storage.get_all_edges().await?;
-
-    // Get current node IDs for orphan detection
-    let existing_nodes = state.graph_storage.get_all_nodes().await?;
-    let existing_node_ids: std::collections::HashSet<String> =
-        existing_nodes.iter().map(|n| n.id.clone()).collect();
-
-    for edge in all_edges {
-        // Check if edge is orphaned (connects to deleted node)
-        let is_orphaned =
-            !existing_node_ids.contains(&edge.source) || !existing_node_ids.contains(&edge.target);
-
-        if is_orphaned {
-            // Edge connects to a deleted node - delete it
-            state
-                .graph_storage
-                .delete_edge(&edge.source, &edge.target)
-                .await?;
-            relationships_removed += 1;
-            tracing::debug!(
-                source = %edge.source,
-                target = %edge.target,
-                "Deleted orphaned edge (connects to deleted node)"
-            );
-            continue;
-        }
-
-        let sources = extract_source_docs(&edge.properties);
-        if sources.is_empty() {
-            continue;
-        }
-
-        // Filter out sources that belong to this document.
-        // WHY: Use source_prefixes (same as entity loop) for key/id mismatch safety.
-        let remaining_sources: Vec<String> = sources
-            .iter()
-            .filter(|s| {
-                !source_prefixes
-                    .iter()
-                    .any(|prefix| s.starts_with(prefix.as_str()))
-            })
-            .cloned()
-            .collect();
-
-        if remaining_sources.is_empty() {
-            // No sources left - delete the relationship
-            state
-                .graph_storage
-                .delete_edge(&edge.source, &edge.target)
-                .await?;
-            relationships_removed += 1;
-        } else if remaining_sources.len() < sources.len() {
-            // Some sources were removed - update the relationship
-            let mut updated_props = edge.properties.clone();
-            // Use source_ids (JSON array) format for updates
-            updated_props.insert(
-                "source_ids".to_string(),
-                serde_json::json!(remaining_sources),
-            );
-            state
-                .graph_storage
-                .upsert_edge(&edge.source, &edge.target, updated_props)
-                .await?;
-            relationships_updated += 1;
-        }
-    }
+    // SPEC-006 P1: bounded document-scoped cascade (no get_all_nodes/edges)
+    let scope =
+        DocumentSourceScope::with_key_prefix(document_id.clone(), actual_key_prefix.clone());
+    let cascade_stats = cascade_remove_document_sources(
+        &state.storage.graph_storage,
+        Some(&workspace_vector_storage),
+        Some(&tenant_ctx),
+        &scope,
+    )
+    .await?;
+    let entities_removed = cascade_stats.entities_removed;
+    let entities_updated = cascade_stats.entities_updated;
+    let relationships_removed = cascade_stats.relationships_removed;
+    let relationships_updated = cascade_stats.relationships_updated;
+    embeddings_deleted += cascade_stats.embeddings_deleted;
 
     // Collect all keys to delete from KV storage
     let mut keys_to_delete = keys_to_delete_for_vectors;
@@ -454,14 +331,14 @@ pub async fn delete_document(
     }
 
     // Delete all document data from KV storage
-    state.kv_storage.delete(&keys_to_delete).await?;
+    state.storage.kv_storage.delete(&keys_to_delete).await?;
 
     // FIX-ISSUE-73: Cascade delete pdf_documents, chunks, and the documents row.
     // WHY: Previously only KV/graph/vector data was cleaned up, leaving orphaned rows
     // in pdf_documents, chunks, and documents tables (GitHub Issue #73).
     #[cfg(feature = "postgres")]
     {
-        if let Some(ref pdf_storage) = state.pdf_storage {
+        if let Some(ref pdf_storage) = state.storage.pdf_storage {
             // 1. Delete from pdf_documents if this is a PDF document
             if let Some(ref pid) = _pdf_id_opt {
                 if let Ok(pdf_uuid) = Uuid::parse_str(pid) {
@@ -546,6 +423,21 @@ pub async fn delete_document(
         }
     }
 
+    let tenant_for_audit = tenant_ctx
+        .tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    record_compliance_event(
+        &state,
+        tenant_for_audit,
+        AuditEventType::Authorization,
+        "delete_document",
+        AuditResult::Success,
+        tenant_ctx.workspace_id.clone(),
+        tenant_ctx.user_id.clone(),
+        Some(("document".to_string(), document_id.clone())),
+    );
+
     Ok(Json(DeleteDocumentResponse {
         document_id,
         deleted: true,
@@ -569,6 +461,7 @@ mod tests {
 
         // Store metadata with matching key and id
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 metadata_key.clone(),
@@ -577,7 +470,7 @@ mod tests {
             .await
             .unwrap();
 
-        let keys = state.kv_storage.keys().await.unwrap();
+        let keys = state.storage.kv_storage.keys().await.unwrap();
         let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &keys, &state).await;
 
         assert_eq!(prefix, doc_id);
@@ -595,6 +488,7 @@ mod tests {
 
         // Store metadata with MISMATCHED key/id
         state
+            .storage
             .kv_storage
             .upsert(&[(
                 metadata_key.clone(),
@@ -603,7 +497,7 @@ mod tests {
             .await
             .unwrap();
 
-        let keys = state.kv_storage.keys().await.unwrap();
+        let keys = state.storage.kv_storage.keys().await.unwrap();
         let (prefix, key, has_metadata) = resolve_kv_key_prefix(json_id, &keys, &state).await;
 
         // Should resolve to the KV key prefix, not the JSON id
@@ -618,7 +512,7 @@ mod tests {
         let state = AppState::test_state();
         let doc_id = "nonexistent-doc-9999";
 
-        let keys = state.kv_storage.keys().await.unwrap();
+        let keys = state.storage.kv_storage.keys().await.unwrap();
         let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &keys, &state).await;
 
         assert_eq!(prefix, doc_id);
@@ -644,6 +538,7 @@ mod tests {
         let chunk_1_key = format!("{}-chunk-1", kv_prefix);
 
         state
+            .storage
             .kv_storage
             .upsert(&[
                 (
@@ -664,7 +559,7 @@ mod tests {
             .unwrap();
 
         // Verify all 4 keys exist
-        let keys_before = state.kv_storage.keys().await.unwrap();
+        let keys_before = state.storage.kv_storage.keys().await.unwrap();
         assert!(keys_before.contains(&metadata_key));
         assert!(keys_before.contains(&content_key));
         assert!(keys_before.contains(&chunk_0_key));
@@ -684,7 +579,7 @@ mod tests {
         assert_eq!(response.chunks_deleted, 2);
 
         // Verify all keys were deleted
-        let keys_after = state.kv_storage.keys().await.unwrap();
+        let keys_after = state.storage.kv_storage.keys().await.unwrap();
         assert!(
             !keys_after.contains(&metadata_key),
             "metadata should be deleted"
@@ -735,6 +630,7 @@ mod tests {
         let alt_lineage_key = format!("{}-lineage", json_id);
 
         state
+            .storage
             .kv_storage
             .upsert(&[
                 (
@@ -763,7 +659,7 @@ mod tests {
         assert!(response.deleted);
 
         // ALL keys under BOTH prefixes must be cleaned
-        let keys_after = state.kv_storage.keys().await.unwrap();
+        let keys_after = state.storage.kv_storage.keys().await.unwrap();
         assert!(!keys_after.contains(&metadata_key), "metadata");
         assert!(
             !keys_after.contains(&lineage_key),

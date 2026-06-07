@@ -10,6 +10,7 @@ use axum::{
 
 use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
+use crate::services::{admit_graph_materialization, run_timed_graph_query};
 use crate::state::AppState;
 
 /// Get popular entities/labels sorted by connection count.
@@ -30,19 +31,22 @@ pub async fn get_popular_labels(
     State(state): State<AppState>,
     Query(params): Query<PopularLabelsQuery>,
 ) -> ApiResult<Json<PopularLabelsResponse>> {
-    let total_entities = state.graph_storage.node_count().await?;
+    let _materialize_guard = admit_graph_materialization(&state)?;
 
-    // OPTIMIZED: Use get_popular_nodes_with_degree for single-query performance
-    let popular_nodes = state
-        .graph_storage
-        .get_popular_nodes_with_degree(
-            params.limit,
-            params.min_degree,
-            params.entity_type.as_deref(),
-            None, // tenant_id filtering done by middleware
-            None, // workspace_id filtering done by middleware
-        )
-        .await?;
+    // SPEC-011 iter 02 Fix B: total_entities feeds a dashboard counter — the
+    // planner estimate is O(1) and accurate within autovacuum's threshold.
+    let total_entities = state.storage.graph_storage.node_count_fast().await?;
+
+    let limit = params.limit;
+    let min_degree = params.min_degree;
+    let entity_type = params.entity_type.clone();
+    let graph_storage = state.storage.graph_storage.clone();
+    let popular_nodes = run_timed_graph_query(&state, "popular_labels", async move {
+        graph_storage
+            .get_popular_nodes_with_degree(limit, min_degree, entity_type.as_deref(), None, None)
+            .await
+    })
+    .await?;
 
     let labels: Vec<PopularLabel> = popular_nodes
         .into_iter()
@@ -104,6 +108,7 @@ pub async fn get_degrees_batch(
 
     // OPTIMIZED: Single query for all degrees (50x faster than N queries)
     let degrees_result = state
+        .storage
         .graph_storage
         .node_degrees_batch(&request.node_ids)
         .await?;
