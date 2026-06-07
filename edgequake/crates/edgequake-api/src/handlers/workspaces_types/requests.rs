@@ -180,6 +180,10 @@ pub struct CreateWorkspaceApiRequest {
     /// Maximum 20 types.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_types: Option<Vec<String>>,
+
+    /// When true (default), limit extraction to listed types; unknown → OTHER.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_types_strict: Option<bool>,
 }
 
 /// Request to update a workspace.
@@ -237,4 +241,12 @@ pub struct UpdateWorkspaceApiRequest {
     /// Default PDF parser backend for this workspace ("vision" or "edgeparse").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_parser_backend: Option<String>,
+
+    /// Entity types for future ingestions (does not rewrite existing graph nodes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_types: Option<Vec<String>>,
+
+    /// Strict entity type limit (default true). Set false to allow free-form types.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_types_strict: Option<bool>,
 }

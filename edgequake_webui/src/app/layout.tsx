@@ -14,6 +14,12 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
+// Force per-request rendering so getRuntimeConfig() reads container env vars
+// (EDGEQUAKE_API_URL, NEXT_PUBLIC_AUTH_ENABLED, NEXT_PUBLIC_DISABLE_DEMO_LOGIN)
+// at request time instead of baking build-time defaults into a static HTML shell.
+// @implements SPEC-013 / GitHub #218
+export const dynamic = 'force-dynamic';
+
 const inter = Inter({
   variable: '--font-inter',
   subsets: ['latin'],

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 
-test.describe("Query Streaming Test", () => {
+test.describe("@debug Query Streaming Test", () => {
   test("should properly handle streaming text without concatenation issues", async ({
     page,
   }) => {
@@ -29,7 +30,7 @@ test.describe("Query Streaming Test", () => {
 
     // Take a screenshot to see what's actually on the page
     await page.screenshot({
-      path: "test-results/query-response.png",
+      path: e2eScreenshot("debug", "query-response.png"),
       fullPage: true,
     });
 

@@ -21,7 +21,9 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::{QueryMode, QueryRequest, SOTAQueryConfig, SOTAQueryEngine};
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorage, GraphStorageMutateOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+};
 use metrics::{ResponseQuality, TestSuiteMetrics};
 use serde_json::json;
 use test_queries::{TestQuery, TEST_QUERIES};

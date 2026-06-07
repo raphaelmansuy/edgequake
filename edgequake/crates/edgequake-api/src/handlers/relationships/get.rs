@@ -9,14 +9,12 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::relationships_types::{
     EntitySummary, GetRelationshipResponse, RelationshipEntities,
 };
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-use super::helpers::edge_to_relationship_response;
+use super::helpers::{edge_to_relationship_response, find_relationship_edge};
 
 /// Get a relationship by ID.
-///
-/// Note: This implementation searches through all relationships.
-/// In production, you'd want an indexed lookup by relationship ID.
 #[utoipa::path(
     get,
     path = "/api/v1/graph/relationships/{relationship_id}",
@@ -31,73 +29,51 @@ use super::helpers::edge_to_relationship_response;
 )]
 pub async fn get_relationship(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(relationship_id): Path<String>,
 ) -> ApiResult<Json<GetRelationshipResponse>> {
-    // Search through all edges to find matching relationship ID
-    // This is inefficient but works for the prototype
-    // In production, maintain a separate index for relationship IDs
+    let edge =
+        find_relationship_edge(&state.storage.graph_storage, &tenant_ctx, &relationship_id).await?;
 
-    // Get all nodes and search their edges
-    let nodes = state.graph_storage.get_all_nodes().await?;
+    let relationship = edge_to_relationship_response(edge.clone(), &relationship_id);
 
-    for node in nodes {
-        let edges = state.graph_storage.get_node_edges(&node.id).await?;
+    let source_node = state
+        .storage
+        .graph_storage
+        .get_node(&edge.source)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Source entity not found".to_string()))?;
 
-        for edge in edges {
-            let edge_id = edge
+    let target_node = state
+        .storage
+        .graph_storage
+        .get_node(&edge.target)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Target entity not found".to_string()))?;
+
+    let entities = RelationshipEntities {
+        source: EntitySummary {
+            id: edge.source.clone(),
+            entity_type: source_node
                 .properties
-                .get("id")
+                .get("entity_type")
                 .and_then(|v| v.as_str())
-                .unwrap_or("");
+                .unwrap_or("UNKNOWN")
+                .to_string(),
+        },
+        target: EntitySummary {
+            id: edge.target.clone(),
+            entity_type: target_node
+                .properties
+                .get("entity_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("UNKNOWN")
+                .to_string(),
+        },
+    };
 
-            if edge_id == relationship_id {
-                // Found the relationship
-                let relationship = edge_to_relationship_response(edge.clone(), &relationship_id);
-
-                // Get entity summaries
-                let source_node = state
-                    .graph_storage
-                    .get_node(&edge.source)
-                    .await?
-                    .ok_or_else(|| ApiError::NotFound("Source entity not found".to_string()))?;
-
-                let target_node = state
-                    .graph_storage
-                    .get_node(&edge.target)
-                    .await?
-                    .ok_or_else(|| ApiError::NotFound("Target entity not found".to_string()))?;
-
-                let entities = RelationshipEntities {
-                    source: EntitySummary {
-                        id: edge.source.clone(),
-                        entity_type: source_node
-                            .properties
-                            .get("entity_type")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("UNKNOWN")
-                            .to_string(),
-                    },
-                    target: EntitySummary {
-                        id: edge.target.clone(),
-                        entity_type: target_node
-                            .properties
-                            .get("entity_type")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("UNKNOWN")
-                            .to_string(),
-                    },
-                };
-
-                return Ok(Json(GetRelationshipResponse {
-                    relationship,
-                    entities,
-                }));
-            }
-        }
-    }
-
-    Err(ApiError::NotFound(format!(
-        "Relationship '{}' not found",
-        relationship_id
-    )))
+    Ok(Json(GetRelationshipResponse {
+        relationship,
+        entities,
+    }))
 }

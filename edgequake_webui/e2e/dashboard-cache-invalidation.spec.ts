@@ -12,20 +12,29 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, clearAppStorage } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { ZUSTAND_TENANT_KEY } from "./helpers/storage-keys";
+import { getDocumentsFileInput } from "./helpers/upload";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+const CURRENT_CACHE_VERSION = "v1.0.0";
 
 test.describe("Dashboard Stats Cache Invalidation", () => {
   test.beforeEach(async ({ page }) => {
-    // Clear all storage before each test
     await page.context().clearCookies();
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
+    await clearAppStorage(page);
   });
 
-  test("should invalidate cache when workspace changes", async ({ page }) => {
+  test("should invalidate cache when workspace changes", async ({
+    page,
+    request,
+  }) => {
+    skipUnlessLiveStack();
+    await bootstrapDeterministicUiContext(page, request, "dash-cache");
+
     // Step 1: Go to dashboard
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
 
     // Wait for onboarding to complete (if needed)
     await page.waitForTimeout(1000);
@@ -67,10 +76,10 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     console.log("Initial entity count:", initialEntityCount);
 
     // Step 3: Get current workspace context from localStorage
-    const tenantStore = await page.evaluate(() => {
-      const stored = localStorage.getItem("edgequake-tenant-store");
+    const tenantStore = await page.evaluate((key) => {
+      const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : null;
-    });
+    }, ZUSTAND_TENANT_KEY);
 
     expect(tenantStore).not.toBeNull();
     expect(tenantStore.state).toBeDefined();
@@ -84,24 +93,19 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     });
 
     // Step 4: Upload a document to ensure stats change
-    await page.goto("http://localhost:3000/documents");
-    await page.waitForSelector('[data-testid="upload-button"]', {
-      timeout: 5000,
-    });
-
-    // Create a test file
+    const fileInput = await getDocumentsFileInput(page);
     const testContent = "Test document content for cache invalidation test";
-    await page.setInputFiles('input[type="file"]', {
+    await fileInput.setInputFiles({
       name: "cache-test.txt",
       mimeType: "text/plain",
       buffer: Buffer.from(testContent),
     });
 
-    // Wait for upload to complete
-    await page.waitForTimeout(2000);
+    await expect(page.getByText("cache-test.txt").first()).toBeVisible({
+      timeout: 30_000,
+    });
 
-    // Step 5: Go back to dashboard and check stats updated
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
     await page.waitForSelector('[data-testid="stats-card"]', {
       timeout: 10000,
     });
@@ -129,12 +133,27 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     });
 
     // Step 7: Reload page and verify cache is cleared
-    await page.reload();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForAppReady(page);
     await page.waitForSelector('[data-testid="stats-card"]', {
-      timeout: 10000,
+      timeout: 15_000,
     });
 
-    // Check that cache version was updated
+    // Cache manager runs after Zustand hydration — wait until version is refreshed.
+    await page.waitForFunction(
+      (expectedVersion) => {
+        const stored = localStorage.getItem("edgequake-cache-version");
+        if (!stored) return false;
+        try {
+          return JSON.parse(stored).version === expectedVersion;
+        } catch {
+          return false;
+        }
+      },
+      CURRENT_CACHE_VERSION,
+      { timeout: 20_000 },
+    );
+
     const newCacheContext = await page.evaluate(() => {
       const stored = localStorage.getItem("edgequake-cache-version");
       return stored ? JSON.parse(stored) : null;
@@ -142,8 +161,6 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
 
     console.log("New cache context:", newCacheContext);
 
-    // Verify cache version was updated to current version
-    expect(newCacheContext.version).toBe("v1.0.0");
     expect(newCacheContext.tenantId).toBe(originalTenantId);
     expect(newCacheContext.workspaceId).toBe(originalWorkspaceId);
 
@@ -159,9 +176,14 @@ test.describe("Dashboard Stats Cache Invalidation", () => {
     expect(finalEntityCount).toBe(updatedEntityCount);
   });
 
-  test("should fetch fresh stats on every page load", async ({ page }) => {
+  test("should fetch fresh stats on every page load", async ({
+    page,
+    request,
+  }) => {
+    skipUnlessLiveStack();
+    await bootstrapDeterministicUiContext(page, request, "dash-cache-fresh");
     // Step 1: Go to dashboard
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
     await page.waitForTimeout(1000);
 
     // Handle onboarding if needed

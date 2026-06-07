@@ -59,6 +59,15 @@ func (s *DocumentService) UploadText(ctx context.Context, body map[string]interf
 	return &out, nil
 }
 
+// UploadBatch uploads multiple files in one multipart request.
+func (s *DocumentService) UploadBatch(ctx context.Context, filePaths []string) (*BatchUploadResponse, error) {
+	var out BatchUploadResponse
+	if err := s.c.postMultipartMany(ctx, "/api/v1/documents/upload/batch", "files", filePaths, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (s *DocumentService) Delete(ctx context.Context, id string) error {
 	return s.c.delNoContent(ctx, fmt.Sprintf("/api/v1/documents/%s", id))
 }
@@ -741,6 +750,15 @@ func (s *EffectiveConfigService) Get(ctx context.Context) (map[string]interface{
 // PDFService handles /api/v1/documents/pdf endpoints.
 // WHY: PDF endpoints are nested under /documents/pdf/ in the real API.
 type PDFService struct{ c *Client }
+
+// UploadBatch uploads multiple PDFs in one multipart request.
+func (s *PDFService) UploadBatch(ctx context.Context, filePaths []string) (*PdfBatchUploadResponse, error) {
+	var out PdfBatchUploadResponse
+	if err := s.c.postMultipartMany(ctx, "/api/v1/documents/pdf/batch", "files", filePaths, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 func (s *PDFService) Progress(ctx context.Context, trackID string) (*PdfProgressResponse, error) {
 	var out PdfProgressResponse

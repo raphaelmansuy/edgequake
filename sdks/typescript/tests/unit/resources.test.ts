@@ -332,6 +332,7 @@ describe("DocumentsResource.pdf", () => {
   beforeEach(() => {
     mock = createMockTransport({
       "POST /api/v1/documents/pdf": { body: { pdf_id: "p1" } },
+      "POST /api/v1/documents/pdf/batch": { body: { total_files: 2, results: [] } },
       "GET /api/v1/documents/pdf": { body: [{ id: "p1" }] },
       "GET /api/v1/documents/pdf/p1": { body: { status: "completed" } },
       "GET /api/v1/documents/pdf/p1/content": { body: { markdown: "# Title" } },
@@ -347,6 +348,12 @@ describe("DocumentsResource.pdf", () => {
   it("pdf.upload → transport.upload", async () => {
     const res = await docs.pdf.upload(new Blob(["pdf"]));
     expect(res.pdf_id).toBe("p1");
+  });
+
+  it("pdf.uploadBatch → POST /api/v1/documents/pdf/batch", async () => {
+    const res = await docs.pdf.uploadBatch([new Blob(["a"]), new Blob(["b"])]);
+    expect(res.total_files).toBe(2);
+    expect(mock.lastRequest?.path).toBe("/api/v1/documents/pdf/batch");
   });
 
   it("pdf.list → GET /api/v1/documents/pdf", async () => {

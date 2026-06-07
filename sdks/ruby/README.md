@@ -88,6 +88,12 @@ doc = client.documents.get(id: "doc-id")
 # Upload text
 doc = client.documents.upload_text(title: "Title", content: "Body", file_type: "txt")
 
+# Upload multiple files in one request
+batch = client.documents.upload_batch(file_paths: ["a.txt", "b.md"])
+
+# Upload multiple PDFs in one request
+pdf_batch = client.documents.upload_pdf_batch(file_paths: ["a.pdf", "b.pdf"])
+
 # Delete
 client.documents.delete(id: "doc-id")
 ```

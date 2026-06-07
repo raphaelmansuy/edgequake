@@ -4,43 +4,29 @@
 //! @implements FEAT0007 (Multi-Mode Query Execution)
 //! @implements FEAT0101-0106 (Query modes)
 
-use axum::{extract::State, Json};
-use tracing::{debug, error};
+use axum::{extract::State, Extension, Json};
+use edgequake_audit::{AuditEvent, AuditEventType, AuditResult};
+use edgequake_observability::{
+    record_llm_request, scope_llm_provider, PropagationHeaders, QueryOutcomeGuard, RequestContext,
+};
+use tracing::debug;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
+use crate::services::{
+    execute_sota_query_with_auth_fallback, record_audit, resolve_workspace_query_resources,
+    validate_llm_override_pair, with_request_context,
+};
 use crate::state::AppState;
 use crate::validation::validate_query;
 use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
 use super::{
     resolve_chunk_file_paths,
-    workspace_resolve::{
-        get_workspace_embedding_provider, get_workspace_llm_info, get_workspace_vector_storage,
-        resolve_query_workspace,
-    },
+    workspace_resolve::{get_workspace_llm_info, resolve_query_workspace},
 };
 pub use crate::handlers::query_types::{QueryRequest, QueryResponse, QueryStats, SourceReference};
-
-async fn run_query_with_optional_llm_override(
-    state: &AppState,
-    engine_request: EngineQueryRequest,
-    llm_override: Option<std::sync::Arc<dyn edgequake_llm::LLMProvider>>,
-) -> Result<edgequake_query::QueryResponse, ApiError> {
-    if let Some(llm) = llm_override {
-        state
-            .sota_engine
-            .query_with_llm_provider(engine_request, llm)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))
-    } else {
-        state
-            .sota_engine
-            .query(engine_request)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))
-    }
-}
 
 /// Execute a RAG query with multi-mode retrieval.
 ///
@@ -76,14 +62,32 @@ async fn run_query_with_optional_llm_override(
         (status = 400, description = "Invalid query")
     )
 )]
+#[tracing::instrument(
+    name = "query_execute",
+    skip(state, tenant_ctx, propagation, request),
+    fields(
+        request_id = %req_ctx.request_id,
+        query.mode = tracing::field::Empty,
+        otel.name = "query_execute",
+    )
+)]
 pub async fn execute_query(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Extension(req_ctx): Extension<RequestContext>,
+    Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<QueryRequest>,
 ) -> ApiResult<Json<QueryResponse>> {
+    let query_mode_label = request.mode.as_deref().unwrap_or("hybrid").to_string();
+    tracing::Span::current().record("query.mode", query_mode_label.as_str());
+    let query_obs =
+        QueryOutcomeGuard::with_request_id(&query_mode_label, Some(req_ctx.request_id.clone()));
+
     debug!(
+        request_id = %req_ctx.request_id,
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
+        query.mode = %query_mode_label,
         query = %request.query,
         "Executing query with tenant context"
     );
@@ -166,7 +170,7 @@ pub async fn execute_query(
     // SPEC-005: Resolve document filter → allowed_document_ids
     if let Some(ref filter) = request.document_filter {
         if let Some(allowed_ids) = super::document_filter_resolver::resolve_document_filter(
-            state.kv_storage.as_ref(),
+            state.storage.kv_storage.as_ref(),
             filter,
             &data_tenant_id,
             &tenant_ctx.workspace_id,
@@ -184,111 +188,40 @@ pub async fn execute_query(
     // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
     // If workspace has custom embedding config, use workspace-specific resources
 
-    // FIX #168: Create LLM override OUTSIDE the workspace block so it's available
-    // in all code paths (with or without workspace context).
-    let llm_override = if let (Some(ref provider), Some(ref model)) =
-        (&request.llm_provider, &request.llm_model)
-    {
-        debug!(provider = %provider, model = %model, "Creating LLM provider override from request");
-        Some(
-            crate::safety_limits::create_safe_llm_provider_with_headers(
-                provider,
-                model,
-                request.extra_headers.clone(),
-            )
-            .map_err(|e| ApiError::Internal(format!("Failed to create LLM provider: {}", e)))?,
-        )
-    } else {
-        None
-    };
+    validate_llm_override_pair(
+        request.llm_provider.as_deref(),
+        request.llm_model.as_deref(),
+    )?;
 
-    let result = if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        // Try to get workspace embedding and vector storage configuration
-        let embedding_result = get_workspace_embedding_provider(&state, workspace_id).await;
-        let vector_result = get_workspace_vector_storage(&state, workspace_id).await;
-
-        match (embedding_result, vector_result) {
-            (Ok(Some(embedding_provider)), Ok(Some(vector_storage))) => {
-                // Full workspace isolation: use both workspace-specific embedding and vector storage.
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using workspace-specific embedding provider AND vector storage for query"
-                );
-                state
-                    .sota_engine
-                    .query_with_full_config(
-                        engine_request,
-                        embedding_provider,
-                        vector_storage,
-                        llm_override.clone(),
-                    )
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-            (Ok(Some(embedding_provider)), Ok(None)) => {
-                // WHY: A workspace may intentionally share the default vector table while
-                // still overriding its embedding provider. This path is only allowed when
-                // the resolver explicitly confirms there is no workspace vector override.
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using workspace-specific embedding provider for query"
-                );
-                state
-                    .sota_engine
-                    .query_with_full_config(
-                        engine_request,
-                        embedding_provider,
-                        state.sota_engine.default_vector_storage(),
-                        llm_override.clone(),
-                    )
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-            (Ok(None), Ok(Some(vector_storage))) => {
-                // Workspace uses default embedding model but has its own vector storage table.
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using default embedding + workspace-specific vector storage for query"
-                );
-                state
-                    .sota_engine
-                    .query_with_full_config(
-                        engine_request,
-                        state.sota_engine.default_embedding_provider(),
-                        vector_storage,
-                        llm_override.clone(),
-                    )
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-            (Ok(None), Ok(None)) => {
-                debug!(
-                    workspace_id = %workspace_id,
-                    has_llm_override = llm_override.is_some(),
-                    "Using default embedding provider for query (no workspace vector storage)"
-                );
-                run_query_with_optional_llm_override(&state, engine_request, llm_override.clone())
-                    .await?
-            }
-            (Err(e), _) | (_, Err(e)) => {
-                // WHY: Once a request is explicitly scoped to a workspace, silently
-                // degrading to the server default would query a different isolation
-                // boundary. That is more dangerous than failing fast.
-                error!(
-                    workspace_id = %workspace_id,
-                    error = %e,
-                    "Workspace-specific query resolution failed - returning error instead of falling back"
-                );
-                return Err(e);
-            }
-        }
-    } else {
-        // No workspace context, use the default config while preserving any explicit LLM override.
-        run_query_with_optional_llm_override(&state, engine_request, llm_override.clone()).await?
+    let resolver = WorkspaceProviderResolver::from_app_state(&state);
+    let extra_headers = propagation.merge_with(request.extra_headers.clone());
+    let llm_request = LlmResolutionRequest {
+        provider: request.llm_provider.clone(),
+        model: request.llm_model.clone(),
+        extra_headers,
     };
+    let llm_override =
+        match resolver.resolve_llm_provider_with_workspace(workspace.as_ref(), &llm_request) {
+            Ok(Some(resolved)) => Some(resolved.provider),
+            Ok(None) => None,
+            Err(e) => return Err(ApiError::from(e)),
+        };
+
+    let resources =
+        resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
+
+    let obs_llm_provider = request
+        .llm_provider
+        .clone()
+        .or_else(|| workspace.as_ref().map(|w| w.llm_provider.clone()))
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "default".to_string());
+
+    let result = scope_llm_provider(
+        obs_llm_provider,
+        execute_sota_query_with_auth_fallback(&state, engine_request, resources, llm_override),
+    )
+    .await?;
 
     // Convert sources from context
     let mut sources = Vec::new();
@@ -344,7 +277,7 @@ pub async fn execute_query(
         .collect();
 
     // Resolve document_id → file_path (document title) for chunk sources
-    resolve_chunk_file_paths(state.kv_storage.as_ref(), &mut chunk_sources).await;
+    resolve_chunk_file_paths(state.storage.kv_storage.as_ref(), &mut chunk_sources).await;
 
     // SPEC-0002: Exclude injection artifacts from cited sources.
     // Injection chunks enrich LLM context but must NOT appear as source citations.
@@ -473,6 +406,31 @@ pub async fn execute_query(
         } else {
             None
         };
+
+    let tenant_for_audit = data_tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let mut audit_event = AuditEvent::new(
+        tenant_for_audit,
+        AuditEventType::DocumentQuery,
+        "execute_query".to_string(),
+        AuditResult::Success,
+    );
+    if let Some(ref ws) = tenant_ctx.workspace_id {
+        audit_event = audit_event.with_workspace(ws.clone());
+    }
+    record_audit(&state, with_request_context(audit_event, &req_ctx));
+
+    query_obs.mark_success(result.stats.total_time_ms as f64 / 1000.0);
+
+    if result.stats.generation_time_ms > 0 {
+        record_llm_request(
+            llm_provider.as_deref().unwrap_or("unknown"),
+            "query_generation",
+            "success",
+            result.stats.generation_time_ms as f64 / 1000.0,
+        );
+    }
 
     let response = QueryResponse {
         answer: result.answer,

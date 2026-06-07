@@ -9,6 +9,7 @@
  * - Collapsible details blocks
  */
 import { marked } from "marked";
+import { MATH_MARKED_EXTENSIONS } from "./math-marked-extensions";
 
 let isConfigured = false;
 
@@ -30,57 +31,9 @@ export function configureMarked(): void {
     async: false,
   });
 
-  // Add custom math extension for KaTeX (inline and block)
   marked.use({
     extensions: [
-      // Block math: $$...$$
-      {
-        name: "math_block",
-        level: "block",
-        start(src: string) {
-          return src.match(/\$\$/)?.index;
-        },
-        tokenizer(src: string) {
-          const rule = /^\$\$([\s\S]+?)\$\$/;
-          const match = rule.exec(src);
-          if (match) {
-            return {
-              type: "math_block",
-              raw: match[0],
-              text: match[1].trim(),
-            };
-          }
-          return undefined;
-        },
-        renderer(token) {
-          // Placeholder - actual rendering done in React component
-          return `<math-block>${token.text}</math-block>`;
-        },
-      },
-      // Inline math: $...$
-      {
-        name: "math_inline",
-        level: "inline",
-        start(src: string) {
-          return src.match(/\$/)?.index;
-        },
-        tokenizer(src: string) {
-          // Match $...$ but not $$
-          const rule = /^\$([^\$\n]+?)\$/;
-          const match = rule.exec(src);
-          if (match) {
-            return {
-              type: "math_inline",
-              raw: match[0],
-              text: match[1].trim(),
-            };
-          }
-          return undefined;
-        },
-        renderer(token) {
-          return `<math-inline>${token.text}</math-inline>`;
-        },
-      },
+      ...MATH_MARKED_EXTENSIONS,
       // GitHub-style alerts: > [!NOTE], > [!TIP], > [!WARNING], > [!CAUTION], > [!IMPORTANT]
       {
         name: "github_alert",
@@ -195,6 +148,16 @@ declare module "marked" {
     }
     interface MathInline {
       type: "math_inline";
+      raw: string;
+      text: string;
+    }
+    interface MathBracketBlock {
+      type: "math_bracket_block";
+      raw: string;
+      text: string;
+    }
+    interface MathParenInline {
+      type: "math_paren_inline";
       raw: string;
       text: string;
     }

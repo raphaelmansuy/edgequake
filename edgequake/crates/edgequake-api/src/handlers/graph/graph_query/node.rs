@@ -27,12 +27,13 @@ pub async fn get_node(
     Path(node_id): Path<String>,
 ) -> ApiResult<Json<GraphNodeResponse>> {
     let node = state
+        .storage
         .graph_storage
         .get_node(&node_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", node_id)))?;
 
-    let degree = state.graph_storage.node_degree(&node_id).await?;
+    let degree = state.storage.graph_storage.node_degree(&node_id).await?;
 
     Ok(Json(GraphNodeResponse {
         id: node.id.clone(),

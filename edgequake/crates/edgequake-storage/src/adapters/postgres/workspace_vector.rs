@@ -15,13 +15,13 @@
 //! with the correct vector dimension for each workspace.
 
 use async_trait::async_trait;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use super::config::{PostgresConfig, VectorIndexType};
+use super::connection::PostgresPool;
 use super::vector::PgVectorStorage;
+use crate::adapters::workspace_vector_cache::WorkspaceVectorInstanceCache;
 use crate::error::{Result, StorageError};
 use crate::traits::{VectorStorage, WorkspaceVectorConfig, WorkspaceVectorRegistry};
 
@@ -34,8 +34,9 @@ use crate::traits::{VectorStorage, WorkspaceVectorConfig, WorkspaceVectorRegistr
 pub struct PgWorkspaceVectorRegistry {
     /// Base PostgreSQL configuration
     config: PostgresConfig,
-    /// Cached workspace vector storage instances
-    instances: RwLock<HashMap<Uuid, Arc<dyn VectorStorage>>>,
+    /// Shared connection pool (SPEC-011) — avoids per-workspace pools and search_path races
+    shared_pool: PostgresPool,
+    cache: WorkspaceVectorInstanceCache,
     /// Default vector storage for backward compatibility
     default_storage: Arc<dyn VectorStorage>,
     /// Default dimension for new workspaces
@@ -52,12 +53,14 @@ impl PgWorkspaceVectorRegistry {
     /// * `default_dimension` - Default dimension for new workspaces
     pub fn new(
         config: PostgresConfig,
+        shared_pool: PostgresPool,
         default_storage: Arc<dyn VectorStorage>,
         default_dimension: usize,
     ) -> Self {
         Self {
             config,
-            instances: RwLock::new(HashMap::new()),
+            shared_pool,
+            cache: WorkspaceVectorInstanceCache::new(),
             default_storage,
             default_dimension,
         }
@@ -71,7 +74,8 @@ impl PgWorkspaceVectorRegistry {
     /// a different dimension than the new provider expects. This method ensures the
     /// vector table is recreated with the correct dimension if necessary.
     async fn create_workspace_storage(
-        &self,
+        base_config: &PostgresConfig,
+        shared_pool: &PostgresPool,
         config: &WorkspaceVectorConfig,
     ) -> Result<Arc<dyn VectorStorage>> {
         // Create PostgreSQL config with workspace-specific namespace
@@ -79,19 +83,21 @@ impl PgWorkspaceVectorRegistry {
         let namespace = format!("{}_ws_{}", config.namespace, short_id);
 
         let pg_config = PostgresConfig::new(
-            self.config.host.clone(),
-            self.config.port,
-            self.config.database.clone(),
-            self.config.user.clone(),
-            self.config.password.clone(),
+            base_config.host.clone(),
+            base_config.port,
+            base_config.database.clone(),
+            base_config.user.clone(),
+            base_config.password.clone(),
         )
         .with_namespace(&namespace)
-        .with_max_connections(self.config.max_connections)
         .with_vector_index(VectorIndexType::HNSW);
-        // WHY: HNSW config defaults (m=16, ef_construction=64) are already optimal
 
-        // Create storage with workspace-specific dimension
-        let storage = PgVectorStorage::with_dimension(pg_config, config.dimension);
+        // Create storage with workspace-specific dimension on the shared pool
+        let storage = PgVectorStorage::with_pool_and_dimension(
+            shared_pool.clone(),
+            pg_config,
+            config.dimension,
+        );
 
         // OODA-228: Ensure table has correct dimension BEFORE initialize
         // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),
@@ -128,61 +134,47 @@ impl PgWorkspaceVectorRegistry {
 #[async_trait]
 impl WorkspaceVectorRegistry for PgWorkspaceVectorRegistry {
     async fn get_or_create(&self, config: WorkspaceVectorConfig) -> Result<Arc<dyn VectorStorage>> {
-        // Check cache first (read lock)
-        {
-            let instances = self.instances.read().await;
-            if let Some(storage) = instances.get(&config.workspace_id) {
-                // Validate dimension matches
-                let cached_dim = storage.dimension();
-                if cached_dim != config.dimension {
-                    return Err(StorageError::InvalidQuery(format!(
-                        "Dimension mismatch for workspace {}: cached={}, requested={}. \
-                         Clear cache with evict() to reinitialize.",
-                        config.workspace_id, cached_dim, config.dimension
-                    )));
-                }
-                return Ok(Arc::clone(storage));
+        let workspace_id = config.workspace_id;
+        let requested_dimension = config.dimension;
+        let base_config = self.config.clone();
+        let shared_pool = self.shared_pool.clone();
+
+        let validate = move |storage: &Arc<dyn VectorStorage>| {
+            let cached_dim = storage.dimension();
+            if cached_dim != requested_dimension {
+                return Err(StorageError::InvalidQuery(format!(
+                    "Dimension mismatch for workspace {workspace_id}: cached={cached_dim}, \
+                     requested={requested_dimension}. Clear cache with evict() to reinitialize."
+                )));
             }
-        }
+            Ok(())
+        };
 
-        // Create new storage (write lock)
-        let mut instances = self.instances.write().await;
-
-        // Double-check after acquiring write lock
-        if let Some(storage) = instances.get(&config.workspace_id) {
-            return Ok(Arc::clone(storage));
-        }
-
-        // Create and cache new storage
-        let storage = self.create_workspace_storage(&config).await?;
-        instances.insert(config.workspace_id, Arc::clone(&storage));
-
-        Ok(storage)
+        self.cache
+            .get_or_create(workspace_id, validate, || async move {
+                Self::create_workspace_storage(&base_config, &shared_pool, &config).await
+            })
+            .await
     }
 
     async fn get(&self, workspace_id: &Uuid) -> Option<Arc<dyn VectorStorage>> {
-        let instances = self.instances.read().await;
-        instances.get(workspace_id).cloned()
+        self.cache.get(workspace_id).await
     }
 
     async fn has_storage(&self, workspace_id: &Uuid) -> bool {
-        let instances = self.instances.read().await;
-        instances.contains_key(workspace_id)
+        self.cache.has(workspace_id).await
     }
 
     async fn get_dimension(&self, workspace_id: &Uuid) -> Option<usize> {
-        let instances = self.instances.read().await;
-        instances.get(workspace_id).map(|s| s.dimension())
+        self.cache.get_dimension(workspace_id).await
     }
 
     async fn list_workspaces(&self) -> Vec<Uuid> {
-        let instances = self.instances.read().await;
-        instances.keys().copied().collect()
+        self.cache.list_workspaces().await
     }
 
     async fn evict(&self, workspace_id: &Uuid) {
-        let mut instances = self.instances.write().await;
-        instances.remove(workspace_id);
+        self.cache.evict(workspace_id).await;
         tracing::debug!(
             workspace_id = %workspace_id,
             "Evicted workspace vector storage from cache"
@@ -190,9 +182,8 @@ impl WorkspaceVectorRegistry for PgWorkspaceVectorRegistry {
     }
 
     async fn clear_cache(&self) {
-        let mut instances = self.instances.write().await;
-        let count = instances.len();
-        instances.clear();
+        let count = self.cache.list_workspaces().await.len();
+        self.cache.clear().await;
         tracing::info!(
             count = count,
             "Cleared all workspace vector storage instances from cache"

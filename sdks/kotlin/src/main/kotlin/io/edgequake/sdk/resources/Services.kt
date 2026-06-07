@@ -32,6 +32,9 @@ class DocumentService(private val http: HttpHelper) {
         return http.mapper.readValue(json, UploadResponse::class.java)
     }
 
+    fun uploadBatch(filePaths: List<String>): Map<String, Any?> =
+        http.postMultipartMany("/api/v1/documents/upload/batch", filePaths, "files")
+
     /** WHY: DELETE may return 204 No Content — use deleteRaw to avoid deserialization of empty body. */
     fun delete(id: String) { http.deleteRaw("/api/v1/documents/$id") }
 
@@ -387,6 +390,9 @@ class WorkspaceService(private val http: HttpHelper) {
 }
 
 class PdfService(private val http: HttpHelper) {
+    fun uploadBatch(filePaths: List<String>): Map<String, Any?> =
+        http.postMultipartMany("/api/v1/documents/pdf/batch", filePaths, "files")
+
     fun progress(trackId: String): PdfProgressResponse =
         http.get("/api/v1/documents/pdf/progress/$trackId")
 

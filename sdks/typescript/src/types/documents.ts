@@ -315,6 +315,23 @@ export interface PdfUploadResponse {
   message?: string;
 }
 
+export interface PdfBatchFileResult {
+  filename: string;
+  status: "processing" | "duplicate" | "reindexing" | "failed";
+  pdf_id?: string;
+  task_id?: string;
+  duplicate_of?: string;
+  error?: string;
+}
+
+export interface PdfBatchUploadResponse {
+  total_files: number;
+  accepted: number;
+  duplicates: number;
+  failed: number;
+  results: PdfBatchFileResult[];
+}
+
 export interface ListPdfsQuery {
   limit?: number;
   offset?: number;

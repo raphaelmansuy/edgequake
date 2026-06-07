@@ -91,6 +91,11 @@ pub(super) fn workspace_to_response(workspace: &Workspace) -> WorkspaceResponse 
             .metadata
             .get("entity_types")
             .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok()),
+        entity_types_strict: workspace
+            .metadata
+            .get("entity_types_strict")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
         created_at: workspace.created_at.to_rfc3339(),
         updated_at: workspace.updated_at.to_rfc3339(),
     }

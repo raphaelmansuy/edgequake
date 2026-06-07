@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 
-test.describe("Source Citations Visual Verification", () => {
+test.describe("@audit Source Citations Visual Verification", () => {
   test("verify improved source citations UX", async ({ page }) => {
     // Navigate to query page
     await page.goto("/query");
@@ -19,7 +20,7 @@ test.describe("Source Citations Visual Verification", () => {
     
     // Take screenshot of the result showing source citations
     await page.screenshot({ 
-      path: "test-results/source-citations-ux-improved.png",
+      path: e2eScreenshot("citations", "source-citations-ux-improved.png"),
       fullPage: true 
     });
     
@@ -27,6 +28,6 @@ test.describe("Source Citations Visual Verification", () => {
     const pageText = await page.textContent("body");
     expect(pageText?.length).toBeGreaterThan(500);
     
-    console.log("✅ Screenshot saved: test-results/source-citations-ux-improved.png");
+    console.log("✅ Screenshot saved: e2e/screenshots/citations/source-citations-ux-improved.png");
   });
 });

@@ -38,7 +38,7 @@ pub async fn list_conversations(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     // Parse filter modes
     let filter_modes = params.filter_mode.map(|s| {
@@ -112,9 +112,12 @@ pub async fn create_conversation(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let workspace_id = tenant_ctx.workspace_id_uuid();
+
+    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
+        .await?;
 
     let mode = request
         .mode
@@ -206,7 +209,7 @@ pub async fn update_conversation(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let mode = request
         .mode

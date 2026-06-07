@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { liveStackSkipReason, requiresLiveStack, skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Multi-Tenant Isolation E2E Tests
@@ -9,7 +12,7 @@ import { expect, test } from "@playwright/test";
  * 3. API requests require proper tenant context
  */
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = `${BACKEND_URL}`;
 
 test.describe("Multi-Tenant Isolation", () => {
   let tenantA: { id: string; name: string };
@@ -17,7 +20,12 @@ test.describe("Multi-Tenant Isolation", () => {
   let workspaceA: { id: string; name: string };
   let workspaceB: { id: string; name: string };
 
+  test.beforeEach(() => {
+    skipUnlessLiveStack();
+  });
+
   test.beforeAll(async ({ request }) => {
+    if (!requiresLiveStack) return;
     // Create or get two test tenants
     const tenantsResponse = await request.get(`${API_BASE}/api/v1/tenants`);
     const tenantsBody = await tenantsResponse.json();
@@ -212,9 +220,13 @@ test.describe("Multi-Tenant Isolation", () => {
 });
 
 test.describe("Workspace Switching in UI", () => {
+  test.beforeEach(() => {
+    skipUnlessLiveStack();
+  });
+
   test("switching workspace changes document list", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get workspace selector
     const selector = page.getByTestId("workspace-selector");
@@ -247,7 +259,7 @@ test.describe("Workspace Switching in UI", () => {
   }) => {
     // Start on documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get workspace selector text
     const selector = page.getByTestId("workspace-selector");
@@ -255,7 +267,7 @@ test.describe("Workspace Switching in UI", () => {
 
     // Navigate to query page
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Workspace should still be selected
     const selectorAfter = page.getByTestId("workspace-selector");
@@ -268,7 +280,7 @@ test.describe("Workspace Switching in UI", () => {
   test("workspace context persists after page reload", async ({ page }) => {
     // Go to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Get workspace selector
     const selector = page.getByTestId("workspace-selector");
@@ -277,7 +289,7 @@ test.describe("Workspace Switching in UI", () => {
 
     // Reload page
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Workspace should still be selected (from localStorage)
     const selectorAfter = page.getByTestId("workspace-selector");

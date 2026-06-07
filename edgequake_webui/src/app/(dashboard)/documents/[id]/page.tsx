@@ -137,10 +137,15 @@ export default function DocumentViewPage() {
 
   // OODA-91: Fetch PDF content (markdown) separately for PDF documents
   // WHY: PDF markdown content is stored in pdf_documents table, not in regular document content
-  const { data: pdfContent, isLoading: isPdfContentLoading } = useQuery({
-    queryKey: ['pdfContent', pdfIdForContent],
+  const {
+    data: pdfContent,
+    isLoading: isPdfContentLoading,
+    isError: isPdfContentError,
+    refetch: refetchPdfContent,
+  } = useQuery({
+    queryKey: ['pdfContent', pdfIdForContent, selectedWorkspaceId],
     queryFn: () => getPdfContent(pdfIdForContent!),
-    enabled: !!pdfIdForContent,
+    enabled: !!pdfIdForContent && !!selectedWorkspaceId,
     staleTime: 60 * 1000,
   });
 
@@ -164,11 +169,24 @@ export default function DocumentViewPage() {
   // NOTE: Must be called before early returns to satisfy React Rules of Hooks
   const documentWithContent = useMemo(() => {
     if (!document) return null;
-    if (isPdfDocument && pdfContent?.markdown_content) {
-      return { ...document, content: pdfContent.markdown_content };
+    const markdown =
+      (pdfContent?.markdown_content?.trim() || document.content?.trim() || '') as string;
+    if (isPdfDocument && markdown) {
+      return {
+        ...document,
+        content: markdown,
+        // WHY: PDF mime routes to plain-text path; markdown path needs text/markdown or signatures.
+        mime_type: 'text/markdown',
+        source_type: 'pdf' as const,
+      };
     }
     return document;
   }, [document, isPdfDocument, pdfContent?.markdown_content]);
+
+  const pdfMarkdownMissing =
+    isPdfDocument &&
+    !isPdfContentLoading &&
+    !documentWithContent?.content?.trim();
 
   // Derived status values (safe to compute even if document is null)
   const status = (document?.status || 'completed') as DocumentStatus;
@@ -302,6 +320,14 @@ export default function DocumentViewPage() {
                     <div className="flex items-center justify-center h-full">
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
+                  ) : pdfMarkdownMissing ? (
+                    <PdfMarkdownEmptyState
+                      isError={isPdfContentError}
+                      onRetry={() => {
+                        void refetchPdfContent();
+                        void refetch();
+                      }}
+                    />
                   ) : (
                     <ContentRenderer 
                       document={documentWithContent} 
@@ -367,6 +393,14 @@ export default function DocumentViewPage() {
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
+              ) : pdfMarkdownMissing ? (
+                <PdfMarkdownEmptyState
+                  isError={isPdfContentError}
+                  onRetry={() => {
+                    void refetchPdfContent();
+                    void refetch();
+                  }}
+                />
               ) : (
                 <ContentRenderer 
                   document={documentWithContent} 
@@ -387,6 +421,44 @@ export default function DocumentViewPage() {
           </Tabs>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PdfMarkdownEmptyState({
+  isError,
+  onRetry,
+}: {
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
+      <AlertCircle className="h-10 w-10 text-muted-foreground" />
+      <div className="space-y-2 max-w-md">
+        <p className="text-sm font-medium">
+          {t(
+            'documents.pdf.markdownUnavailable',
+            'Extracted markdown is not available yet',
+          )}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {isError
+            ? t(
+                'documents.pdf.markdownLoadError',
+                'Could not load markdown from the server. Retry or reprocess the document.',
+              )
+            : t(
+                'documents.pdf.markdownPending',
+                'Processing may still be running, or markdown was not stored. Try refresh or reprocess from the documents list.',
+              )}
+        </p>
+      </div>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+        {t('common.retry', 'Retry')}
+      </Button>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Rebuild Operations Provider E2E Tests
  *
@@ -11,12 +12,17 @@
  * @iteration OODA 59
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
 
 test.setTimeout(120000);
 
-test.describe("SPEC-032: Rebuild Operations", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load SPEC-032: Rebuild Operations", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -305,7 +311,6 @@ test.describe("SPEC-032: Rebuild Operations", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for rebuild buttons
       const pageContent = await page.content();
@@ -348,7 +353,6 @@ test.describe("SPEC-032: Rebuild Operations", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Find rebuild knowledge graph button
       const rebuildKgButton = page.getByRole("button", {
@@ -396,7 +400,6 @@ test.describe("SPEC-032: Rebuild Operations", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Find rebuild embeddings button
       const rebuildEmbedButton = page.getByRole("button", {
@@ -419,7 +422,7 @@ test.describe("SPEC-032: Rebuild Operations", () => {
   });
 });
 
-test.describe("SPEC-032: Provider Switching and Rebuild", () => {
+test.describe("@load SPEC-032: Provider Switching and Rebuild", () => {
   test.describe("Focus 19+20: Provider Switch Workflow", () => {
     test("can switch LLM provider and trigger rebuild", async ({ request }) => {
       // Get workspace
@@ -612,7 +615,7 @@ test.describe("SPEC-032: Provider Switching and Rebuild", () => {
   });
 });
 
-test.describe("SPEC-032: Rebuild Status Tracking", () => {
+test.describe("@load SPEC-032: Rebuild Status Tracking", () => {
   test("workspace stats endpoint available", async ({ request }) => {
     // Get workspace
     const tenantsResponse = await request.get(`${BACKEND_URL}/api/v1/tenants`);

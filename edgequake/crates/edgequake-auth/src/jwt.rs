@@ -201,7 +201,7 @@ impl JwtService {
         let token_data: TokenData<Claims> = decode(token, &self.decoding_key, &self.validation)
             .map_err(|e| {
                 use jsonwebtoken::errors::ErrorKind;
-                match e.kind() {
+                let auth_err = match e.kind() {
                     ErrorKind::ExpiredSignature => AuthError::TokenExpired,
                     ErrorKind::InvalidToken => AuthError::InvalidToken {
                         reason: "Malformed token".to_string(),
@@ -215,7 +215,14 @@ impl JwtService {
                     _ => AuthError::InvalidToken {
                         reason: e.to_string(),
                     },
-                }
+                };
+                tracing::warn!(
+                    error.code = %auth_err.error_code(),
+                    error.source = "jwt",
+                    error.message = %auth_err,
+                    "JWT verification failed"
+                );
+                auth_err
             })?;
 
         Ok(token_data.claims)

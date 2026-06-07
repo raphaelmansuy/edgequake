@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Tests for source citations overflow and navigation fixes.
@@ -13,8 +16,8 @@ async function submitQueryAndGetCitations(
   page: import("@playwright/test").Page
 ): Promise<boolean> {
   // Navigate to query page with workspace
-  await page.goto("http://localhost:3000/query?workspace=default-workspace");
-  await page.waitForLoadState("networkidle");
+  await page.goto("/query?workspace=default-workspace");
+  await waitForAppReady(page);
 
   // Submit a query to get citations - use regex to match different placeholder variations
   const input = page.getByPlaceholder(/ask.*question/i);
@@ -34,7 +37,12 @@ async function submitQueryAndGetCitations(
   }
 }
 
-test.describe("Source Citations Overflow & Navigation Fixes", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit Source Citations Overflow & Navigation Fixes", () => {
   test("Issue #1: Documents tab chunks should not overflow container", async ({
     page,
   }) => {
@@ -69,7 +77,7 @@ test.describe("Source Citations Overflow & Navigation Fixes", () => {
 
     // Screenshot verification
     await page.screenshot({
-      path: "test-results/issue1-documents-no-overflow.png",
+      path: e2eScreenshot("citations", "issue1-documents-no-overflow.png"),
       fullPage: false,
     });
   });
@@ -108,7 +116,7 @@ test.describe("Source Citations Overflow & Navigation Fixes", () => {
 
     // Screenshot
     await page.screenshot({
-      path: "test-results/issue2-knowledge-no-overflow.png",
+      path: e2eScreenshot("citations", "issue2-knowledge-no-overflow.png"),
       fullPage: false,
     });
   });
@@ -144,7 +152,7 @@ test.describe("Source Citations Overflow & Navigation Fixes", () => {
 
     // Screenshot
     await page.screenshot({
-      path: "test-results/issue3-title-truncate.png",
+      path: e2eScreenshot("citations", "issue3-title-truncate.png"),
       fullPage: false,
     });
   });
@@ -190,7 +198,7 @@ test.describe("Source Citations Overflow & Navigation Fixes", () => {
       if (await highlight.isVisible({ timeout: 3000 })) {
         // Screenshot the highlighted content
         await page.screenshot({
-          path: "test-results/issue3-line-highlight.png",
+          path: e2eScreenshot("citations", "issue3-line-highlight.png"),
           fullPage: true,
         });
       } else {
@@ -217,13 +225,13 @@ test.describe("Source Citations Overflow & Navigation Fixes", () => {
   });
 });
 
-test.describe("Document Detail Page", () => {
+test.describe("@audit Document Detail Page", () => {
   test("Issue #4: Right sidebar should be scrollable", async ({ page }) => {
     // Navigate to documents list
     await page.goto(
-      "http://localhost:3000/documents?workspace=default-workspace"
+      "/documents?workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Click first document
@@ -284,7 +292,7 @@ test.describe("Document Detail Page", () => {
 
       // Screenshot
       await page.screenshot({
-        path: "test-results/issue4-sidebar-scrollable.png",
+        path: e2eScreenshot("citations", "issue4-sidebar-scrollable.png"),
         fullPage: true,
       });
     } else {
@@ -297,9 +305,9 @@ test.describe("Document Detail Page", () => {
   }) => {
     // Create a direct URL with line numbers
     await page.goto(
-      "http://localhost:3000/documents?workspace=default-workspace"
+      "/documents?workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Get first document ID
@@ -322,7 +330,7 @@ test.describe("Document Detail Page", () => {
     if (docId) {
       // Navigate with line parameters
       await page.goto(
-        `http://localhost:3000/documents/${docId}?workspace=default-workspace&start_line=5&end_line=15`
+        `/documents/${docId}?workspace=default-workspace&start_line=5&end_line=15`
       );
       await page.waitForTimeout(1500);
 
@@ -343,7 +351,7 @@ test.describe("Document Detail Page", () => {
 
         // Screenshot
         await page.screenshot({
-          path: "test-results/issue3-stabilo-highlight.png",
+          path: e2eScreenshot("citations", "issue3-stabilo-highlight.png"),
           fullPage: true,
         });
       } else {
@@ -355,10 +363,10 @@ test.describe("Document Detail Page", () => {
   });
 });
 
-test.describe("Visual Regression Tests", () => {
+test.describe("@audit Visual Regression Tests", () => {
   test("Source Citations panel visual snapshot", async ({ page }) => {
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/query?workspace=default-workspace");
+    await waitForAppReady(page);
 
     // Submit query - use regex to match different placeholder variations
     await page
@@ -384,14 +392,14 @@ test.describe("Visual Regression Tests", () => {
     await page.getByRole("tab", { name: /documents/i }).click();
     await page.waitForTimeout(300);
     await page.screenshot({
-      path: "test-results/visual-documents-tab.png",
+      path: e2eScreenshot("citations", "visual-documents-tab.png"),
     });
 
     // Knowledge tab
     await page.getByRole("tab", { name: /knowledge/i }).click();
     await page.waitForTimeout(300);
     await page.screenshot({
-      path: "test-results/visual-knowledge-tab.png",
+      path: e2eScreenshot("citations", "visual-knowledge-tab.png"),
     });
   });
 });

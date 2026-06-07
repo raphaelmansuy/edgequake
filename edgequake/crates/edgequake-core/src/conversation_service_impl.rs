@@ -51,13 +51,13 @@ use crate::{
     },
 };
 #[cfg(feature = "postgres")]
-use edgequake_storage::PostgresConversationStorage;
+use edgequake_storage::{ConversationStorage, PostgresConversationStorage};
 
 /// PostgreSQL implementation of ConversationService.
 #[cfg(feature = "postgres")]
 #[derive(Clone)]
 pub struct ConversationServiceImpl {
-    storage: Arc<PostgresConversationStorage>,
+    storage: Arc<dyn ConversationStorage>,
 }
 
 #[cfg(feature = "postgres")]
@@ -69,8 +69,13 @@ impl ConversationServiceImpl {
         }
     }
 
-    /// Create from an existing storage instance.
-    pub fn from_storage(storage: PostgresConversationStorage) -> Self {
+    /// Create from any conversation storage adapter (memory or postgres).
+    pub fn from_storage(storage: Arc<dyn ConversationStorage>) -> Self {
+        Self { storage }
+    }
+
+    /// Create from a postgres storage instance.
+    pub fn from_postgres_storage(storage: PostgresConversationStorage) -> Self {
         Self {
             storage: Arc::new(storage),
         }

@@ -21,13 +21,75 @@
 //! - [`BR0250`]: RLS-based user isolation
 //! - [`BR0251`]: Message ordering by timestamp
 
-use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use super::rls::set_tenant_context;
+use crate::conversation_types::{ConversationRow, FolderRow, MessageRow};
 use crate::error::{Result, StorageError};
+
+#[cfg(feature = "postgres")]
+mod sqlx_rows {
+    use super::{ConversationRow, FolderRow, MessageRow};
+    use sqlx::Row;
+
+    impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for ConversationRow {
+        fn from_row(row: &sqlx::postgres::PgRow) -> sqlx::Result<Self> {
+            Ok(Self {
+                conversation_id: row.try_get("conversation_id")?,
+                tenant_id: row.try_get("tenant_id")?,
+                workspace_id: row.try_get("workspace_id")?,
+                user_id: row.try_get("user_id")?,
+                title: row.try_get("title")?,
+                mode: row.try_get("mode")?,
+                is_pinned: row.try_get("is_pinned")?,
+                is_archived: row.try_get("is_archived")?,
+                folder_id: row.try_get("folder_id")?,
+                share_id: row.try_get("share_id")?,
+                meta: row.try_get("meta")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            })
+        }
+    }
+
+    impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for MessageRow {
+        fn from_row(row: &sqlx::postgres::PgRow) -> sqlx::Result<Self> {
+            Ok(Self {
+                message_id: row.try_get("message_id")?,
+                conversation_id: row.try_get("conversation_id")?,
+                parent_id: row.try_get("parent_id")?,
+                role: row.try_get("role")?,
+                content: row.try_get("content")?,
+                mode: row.try_get("mode")?,
+                tokens_used: row.try_get("tokens_used")?,
+                duration_ms: row.try_get("duration_ms")?,
+                thinking_time_ms: row.try_get("thinking_time_ms")?,
+                context: row.try_get("context")?,
+                is_error: row.try_get("is_error")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            })
+        }
+    }
+
+    impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for FolderRow {
+        fn from_row(row: &sqlx::postgres::PgRow) -> sqlx::Result<Self> {
+            Ok(Self {
+                folder_id: row.try_get("folder_id")?,
+                tenant_id: row.try_get("tenant_id")?,
+                workspace_id: row.try_get("workspace_id")?,
+                user_id: row.try_get("user_id")?,
+                name: row.try_get("name")?,
+                parent_id: row.try_get("parent_id")?,
+                position: row.try_get("position")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            })
+        }
+    }
+}
 
 /// PostgreSQL conversation storage.
 #[derive(Debug, Clone)]
@@ -82,56 +144,6 @@ impl PostgresConversationStorage {
             .as_millis();
         format!("share_{}", ts)
     }
-}
-
-/// Conversation data structure for PostgreSQL storage.
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct ConversationRow {
-    pub conversation_id: Uuid,
-    pub tenant_id: Uuid,
-    pub workspace_id: Option<Uuid>,
-    pub user_id: Uuid,
-    pub title: String,
-    pub mode: String,
-    pub is_pinned: bool,
-    pub is_archived: bool,
-    pub folder_id: Option<Uuid>,
-    pub share_id: Option<String>,
-    pub meta: serde_json::Value,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-/// Message data structure for PostgreSQL storage.
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct MessageRow {
-    pub message_id: Uuid,
-    pub conversation_id: Uuid,
-    pub parent_id: Option<Uuid>,
-    pub role: String,
-    pub content: String,
-    pub mode: Option<String>,
-    pub tokens_used: Option<i32>,
-    pub duration_ms: Option<i32>,
-    pub thinking_time_ms: Option<i32>,
-    pub context: Option<serde_json::Value>,
-    pub is_error: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-/// Folder data structure for PostgreSQL storage.
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct FolderRow {
-    pub folder_id: Uuid,
-    pub tenant_id: Uuid,
-    pub workspace_id: Option<Uuid>,
-    pub user_id: Uuid,
-    pub name: String,
-    pub parent_id: Option<Uuid>,
-    pub position: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 impl PostgresConversationStorage {
@@ -946,6 +958,222 @@ impl PostgresConversationStorage {
         .map_err(|e| StorageError::Database(format!("Failed to get last message: {}", e)))?;
 
         Ok(preview.map(|(p,)| p))
+    }
+}
+
+use crate::conversation_storage::ConversationStorage;
+use async_trait::async_trait;
+
+#[async_trait]
+impl ConversationStorage for PostgresConversationStorage {
+    async fn create_conversation(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        workspace_id: Option<Uuid>,
+        title: String,
+        mode: String,
+        folder_id: Option<Uuid>,
+    ) -> Result<ConversationRow> {
+        PostgresConversationStorage::create_conversation(
+            self,
+            tenant_id,
+            user_id,
+            workspace_id,
+            title,
+            mode,
+            folder_id,
+        )
+        .await
+    }
+
+    async fn get_conversation(&self, conversation_id: Uuid) -> Result<Option<ConversationRow>> {
+        PostgresConversationStorage::get_conversation(self, conversation_id).await
+    }
+
+    async fn update_conversation(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        conversation_id: Uuid,
+        title: Option<String>,
+        mode: Option<String>,
+        is_pinned: Option<bool>,
+        is_archived: Option<bool>,
+        folder_id: Option<Option<Uuid>>,
+    ) -> Result<ConversationRow> {
+        PostgresConversationStorage::update_conversation(
+            self,
+            tenant_id,
+            user_id,
+            conversation_id,
+            title,
+            mode,
+            is_pinned,
+            is_archived,
+            folder_id,
+        )
+        .await
+    }
+
+    async fn delete_conversation(&self, conversation_id: Uuid) -> Result<()> {
+        PostgresConversationStorage::delete_conversation(self, conversation_id).await
+    }
+
+    async fn list_conversations(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        archived: Option<bool>,
+        pinned: Option<bool>,
+        folder_id: Option<Uuid>,
+        unfiled: Option<bool>,
+        search: Option<&str>,
+        sort_field: &str,
+        sort_desc: bool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<ConversationRow>, i64)> {
+        PostgresConversationStorage::list_conversations(
+            self, tenant_id, user_id, archived, pinned, folder_id, unfiled, search, sort_field,
+            sort_desc, limit, offset,
+        )
+        .await
+    }
+
+    async fn share_conversation(&self, conversation_id: Uuid) -> Result<String> {
+        PostgresConversationStorage::share_conversation(self, conversation_id).await
+    }
+
+    async fn unshare_conversation(&self, conversation_id: Uuid) -> Result<()> {
+        PostgresConversationStorage::unshare_conversation(self, conversation_id).await
+    }
+
+    async fn get_shared_conversation(&self, share_id: &str) -> Result<Option<ConversationRow>> {
+        PostgresConversationStorage::get_shared_conversation(self, share_id).await
+    }
+
+    async fn create_message(
+        &self,
+        conversation_id: Uuid,
+        parent_id: Option<Uuid>,
+        role: &str,
+        content: &str,
+        mode: Option<&str>,
+        tokens_used: Option<i32>,
+        duration_ms: Option<i32>,
+        thinking_time_ms: Option<i32>,
+        context: Option<serde_json::Value>,
+        is_error: bool,
+    ) -> Result<MessageRow> {
+        PostgresConversationStorage::create_message(
+            self,
+            conversation_id,
+            parent_id,
+            role,
+            content,
+            mode,
+            tokens_used,
+            duration_ms,
+            thinking_time_ms,
+            context,
+            is_error,
+        )
+        .await
+    }
+
+    async fn update_message(
+        &self,
+        message_id: Uuid,
+        content: Option<&str>,
+        tokens_used: Option<i32>,
+        duration_ms: Option<i32>,
+        thinking_time_ms: Option<i32>,
+        context: Option<serde_json::Value>,
+        is_error: Option<bool>,
+    ) -> Result<MessageRow> {
+        PostgresConversationStorage::update_message(
+            self,
+            message_id,
+            content,
+            tokens_used,
+            duration_ms,
+            thinking_time_ms,
+            context,
+            is_error,
+        )
+        .await
+    }
+
+    async fn delete_message(&self, message_id: Uuid) -> Result<()> {
+        PostgresConversationStorage::delete_message(self, message_id).await
+    }
+
+    async fn list_messages(
+        &self,
+        conversation_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<MessageRow>, i64)> {
+        PostgresConversationStorage::list_messages(self, conversation_id, limit, offset).await
+    }
+
+    async fn create_folder(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        workspace_id: Option<Uuid>,
+        name: &str,
+        parent_id: Option<Uuid>,
+    ) -> Result<FolderRow> {
+        PostgresConversationStorage::create_folder(
+            self,
+            tenant_id,
+            user_id,
+            workspace_id,
+            name,
+            parent_id,
+        )
+        .await
+    }
+
+    async fn list_folders(&self, tenant_id: Uuid, user_id: Uuid) -> Result<Vec<FolderRow>> {
+        PostgresConversationStorage::list_folders(self, tenant_id, user_id).await
+    }
+
+    async fn update_folder(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        folder_id: Uuid,
+        name: Option<&str>,
+        parent_id: Option<Uuid>,
+        position: Option<i32>,
+    ) -> Result<FolderRow> {
+        PostgresConversationStorage::update_folder(
+            self, tenant_id, user_id, folder_id, name, parent_id, position,
+        )
+        .await
+    }
+
+    async fn delete_folder(&self, tenant_id: Uuid, user_id: Uuid, folder_id: Uuid) -> Result<()> {
+        PostgresConversationStorage::delete_folder(self, tenant_id, user_id, folder_id).await
+    }
+
+    async fn bulk_delete(&self, conversation_ids: &[Uuid]) -> Result<usize> {
+        PostgresConversationStorage::bulk_delete(self, conversation_ids).await
+    }
+
+    async fn bulk_archive(&self, conversation_ids: &[Uuid], archive: bool) -> Result<usize> {
+        PostgresConversationStorage::bulk_archive(self, conversation_ids, archive).await
+    }
+
+    async fn bulk_move_to_folder(
+        &self,
+        conversation_ids: &[Uuid],
+        folder_id: Option<Uuid>,
+    ) -> Result<usize> {
+        PostgresConversationStorage::bulk_move_to_folder(self, conversation_ids, folder_id).await
     }
 }
 

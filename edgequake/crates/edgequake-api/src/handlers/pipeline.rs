@@ -48,14 +48,15 @@ pub async fn get_pipeline_status(
     State(state): State<AppState>,
 ) -> ApiResult<Json<EnhancedPipelineStatusResponse>> {
     // Get pipeline state snapshot
-    let snapshot = state.pipeline_state.get_status().await;
+    let snapshot = state.tasks.pipeline_state.get_status().await;
 
     // Get task statistics
     // WHY: Pipeline status shows global statistics across all tenants.
     // This is intentional as pipeline is a shared resource.
     // Per-tenant statistics are available via /api/v1/tasks endpoint.
     let stats = state
-        .task_storage
+        .tasks
+        .storage
         .get_statistics(edgequake_tasks::storage::TaskFilter::default())
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
@@ -101,14 +102,14 @@ pub async fn cancel_pipeline(
     // WHY: Cancellation is an idempotent user action. If the pipeline already
     // finished between dialog open and confirm click, the desired state is
     // already achieved, so return success instead of surfacing a noisy 409.
-    if !state.pipeline_state.is_busy().await {
+    if !state.tasks.pipeline_state.is_busy().await {
         return Ok(Json(CancelPipelineResponse {
             status: "already_idle".to_string(),
             message: "Pipeline is already idle; there is nothing left to cancel.".to_string(),
         }));
     }
 
-    state.pipeline_state.request_cancellation().await;
+    state.tasks.pipeline_state.request_cancellation().await;
 
     Ok(Json(CancelPipelineResponse {
         status: "cancellation_requested".to_string(),
@@ -193,7 +194,8 @@ pub async fn get_queue_metrics(
         });
 
     let metrics = state
-        .task_storage
+        .tasks
+        .storage
         .get_queue_metrics_filtered(tenant_id, workspace_id)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get queue metrics: {}", e)))?;

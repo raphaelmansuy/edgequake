@@ -67,6 +67,44 @@ impl<'a> PdfResource<'a> {
             .await
     }
 
+    /// Upload multiple PDFs in a single multipart request.
+    ///
+    /// `POST /api/v1/documents/pdf/batch`
+    pub async fn upload_batch(
+        &self,
+        files: Vec<(Vec<u8>, String)>,
+        options: PdfUploadOptions,
+    ) -> Result<PdfBatchUploadResponse> {
+        let mut fields: HashMap<String, String> = HashMap::new();
+        if options.enable_vision {
+            fields.insert("enable_vision".into(), "true".into());
+        }
+        if let Some(vp) = options.vision_provider {
+            fields.insert("vision_provider".into(), vp);
+        }
+        if let Some(vm) = options.vision_model {
+            fields.insert("vision_model".into(), vm);
+        }
+        if let Some(title) = options.title {
+            fields.insert("title".into(), title);
+        }
+        if let Some(tid) = options.track_id {
+            fields.insert("track_id".into(), tid);
+        }
+        if options.force_reindex {
+            fields.insert("force_reindex".into(), "true".into());
+        }
+        self.client
+            .upload_multipart_many(
+                "/api/v1/documents/pdf/batch",
+                files,
+                "files",
+                "application/pdf",
+                fields,
+            )
+            .await
+    }
+
     /// List all uploaded PDFs.
     ///
     /// GET /api/v1/documents/pdf

@@ -1,6 +1,5 @@
 import { Page, expect, test } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import { auditScreenshot } from "./helpers/screenshot-paths";
 
 /**
  * Audit Fixes Verification Test
@@ -9,18 +8,6 @@ import * as path from "path";
  *
  * Date: December 25, 2025
  */
-
-const VERIFICATION_DIR = path.join(
-  process.cwd(),
-  "../audit_ui/screenshots/verification"
-);
-
-// Ensure directory exists
-function ensureDir(dirPath: string) {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-}
 
 // Breakpoints for responsive testing
 const BREAKPOINTS = {
@@ -37,9 +24,8 @@ async function captureScreenshot(
   fileName: string,
   fullPage: boolean = true
 ) {
-  ensureDir(VERIFICATION_DIR);
   await page.screenshot({
-    path: path.join(VERIFICATION_DIR, fileName),
+    path: auditScreenshot("verification", fileName),
     fullPage,
   });
 }
@@ -53,7 +39,7 @@ async function captureAllBreakpoints(page: Page, baseName: string) {
   }
 }
 
-test.describe("Audit Fixes Verification", () => {
+test.describe("@audit Audit Fixes Verification", () => {
   test.beforeEach(async ({ page }) => {
     // Set desktop viewport as default
     await page.setViewportSize(BREAKPOINTS["desktop"]);

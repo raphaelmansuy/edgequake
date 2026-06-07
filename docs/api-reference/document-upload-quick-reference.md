@@ -169,6 +169,47 @@ curl -X POST http://localhost:8080/api/v1/documents/upload/batch \
 
 ---
 
+## Method 3b: Batch PDF Upload
+
+**Endpoint**: `POST /api/v1/documents/pdf/batch`  
+**Content-Type**: `multipart/form-data`  
+**Use When**: Uploading multiple PDFs in one request while preserving PDF-specific processing semantics
+
+### Example: Multiple PDFs
+
+```bash
+curl -X POST http://localhost:8080/api/v1/documents/pdf/batch \
+  -F "files=@paper1.pdf" \
+  -F "files=@paper2.pdf" \
+  -F "enable_vision=true"
+```
+
+### Response Format
+
+```json
+{
+  "total_files": 2,
+  "accepted": 1,
+  "duplicates": 1,
+  "failed": 0,
+  "results": [
+    {
+      "filename": "paper1.pdf",
+      "status": "processing",
+      "pdf_id": "pdf-uuid-1",
+      "task_id": "task-uuid-1"
+    },
+    {
+      "filename": "paper2.pdf",
+      "status": "duplicate",
+      "duplicate_of": "pdf-uuid-existing"
+    }
+  ]
+}
+```
+
+---
+
 ## Method 4: Directory Scan
 
 **Endpoint**: `POST /api/v1/documents/scan`  

@@ -42,6 +42,8 @@
 use crate::progress::PipelineStage;
 use serde::{Deserialize, Serialize};
 
+pub use crate::progress::StageStatus;
+
 /// Source type for ingestion.
 ///
 /// Determines which conversion steps are needed:
@@ -183,43 +185,13 @@ impl UnifiedStage {
     }
 
     /// Convert from internal PipelineStage to UnifiedStage.
-    ///
-    /// Maps the internal pipeline stages to the frontend-facing unified stages.
-    /// Note: PipelineStage doesn't have Uploading or Converting stages.
     pub fn from_pipeline_stage(stage: PipelineStage) -> Self {
-        match stage {
-            PipelineStage::Preprocessing => UnifiedStage::Preprocessing,
-            PipelineStage::Chunking => UnifiedStage::Chunking,
-            PipelineStage::Extracting => UnifiedStage::Extracting,
-            PipelineStage::Gleaning => UnifiedStage::Gleaning,
-            PipelineStage::Merging => UnifiedStage::Merging,
-            PipelineStage::Summarizing => UnifiedStage::Summarizing,
-            PipelineStage::Embedding => UnifiedStage::Embedding,
-            PipelineStage::Storing => UnifiedStage::Storing,
-            PipelineStage::Finalizing => UnifiedStage::Storing, // Map finalizing to storing
-        }
+        crate::stage_bridge::pipeline_stage_to_unified(stage)
     }
 
     /// Convert to internal PipelineStage.
-    ///
-    /// Returns None for stages that don't map to PipelineStage
-    /// (Uploading, Converting, Completed, Failed).
     pub fn to_pipeline_stage(&self) -> Option<PipelineStage> {
-        match self {
-            UnifiedStage::Preprocessing => Some(PipelineStage::Preprocessing),
-            UnifiedStage::Chunking => Some(PipelineStage::Chunking),
-            UnifiedStage::Extracting => Some(PipelineStage::Extracting),
-            UnifiedStage::Gleaning => Some(PipelineStage::Gleaning),
-            UnifiedStage::Merging => Some(PipelineStage::Merging),
-            UnifiedStage::Summarizing => Some(PipelineStage::Summarizing),
-            UnifiedStage::Embedding => Some(PipelineStage::Embedding),
-            UnifiedStage::Storing => Some(PipelineStage::Storing),
-            // These stages don't exist in PipelineStage
-            UnifiedStage::Uploading
-            | UnifiedStage::Converting
-            | UnifiedStage::Completed
-            | UnifiedStage::Failed => None,
-        }
+        crate::stage_bridge::unified_to_pipeline_stage(*self)
     }
 }
 
@@ -229,24 +201,7 @@ impl std::fmt::Display for UnifiedStage {
     }
 }
 
-/// Status of a single pipeline stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum StageStatus {
-    /// Not started yet
-    #[default]
-    Pending,
-    /// Currently running
-    Running,
-    /// Successfully completed
-    Completed,
-    /// Skipped (not applicable for this source type)
-    Skipped,
-    /// Failed with error
-    Failed,
-}
-
-/// Progress for a single ingestion stage.
+/// Progress for a single ingestion stage (unified API / frontend).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StageProgress {
     /// The stage this progress applies to

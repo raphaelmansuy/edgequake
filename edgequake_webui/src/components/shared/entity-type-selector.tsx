@@ -15,7 +15,9 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     ENTITY_PRESETS,
@@ -58,6 +60,10 @@ export interface EntityTypeSelectorProps {
   onChange: (types: string[]) => void;
   /** When true, disable all interactions (read-only display). */
   readOnly?: boolean;
+  /** Strict mode: limit to listed types and remap unknowns to OTHER. */
+  strictLimit?: boolean;
+  /** Called when strict-limit checkbox changes (omit to hide checkbox). */
+  onStrictLimitChange?: (strict: boolean) => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -77,6 +83,8 @@ export function EntityTypeSelector({
   value,
   onChange,
   readOnly = false,
+  strictLimit = true,
+  onStrictLimitChange,
 }: EntityTypeSelectorProps) {
   const { t } = useTranslation();
   const [customInput, setCustomInput] = useState('');
@@ -255,6 +263,37 @@ export function EntityTypeSelector({
               ))}
             </div>
           </div>
+
+          {onStrictLimitChange && (
+            <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
+              <Checkbox
+                id="entity-types-strict-limit"
+                checked={strictLimit}
+                onCheckedChange={(checked) =>
+                  onStrictLimitChange(checked === true)
+                }
+                disabled={readOnly}
+                data-testid="entity-types-strict-checkbox"
+              />
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="entity-types-strict-limit"
+                  className="text-xs font-medium leading-snug cursor-pointer"
+                >
+                  {t(
+                    'entityTypes.strictLimitLabel',
+                    'Limit extraction to listed types (classify others as OTHER)'
+                  )}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t(
+                    'entityTypes.strictLimitHint',
+                    'When off, the model may use additional type labels; unknown types are not forced into OTHER.'
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Add custom type */}
           {!readOnly && (

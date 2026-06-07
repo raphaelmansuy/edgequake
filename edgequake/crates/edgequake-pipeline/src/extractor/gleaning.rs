@@ -5,12 +5,10 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    extract_json_from_response, EntityExtractor, ExtractedEntity, ExtractedRelationship,
-    ExtractionResult,
-};
+use super::{EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
+use crate::prompts::JsonExtractionParser;
 
 /// Configuration for gleaning (re-extraction).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,89 +85,17 @@ impl GleaningExtractor {
 
     /// Build the gleaning prompt.
     fn build_gleaning_prompt(&self, text: &str, previous_entities: &[String]) -> String {
-        let prev_entities_str = previous_entities.join(", ");
-
-        format!(
-            r#"MANY entities and relationships were missed in the last extraction. 
-Please identify any ADDITIONAL entities and relationships that were not already captured.
-
-## Already Identified Entities
-{prev_entities_str}
-
-## Instructions
-Look for entities and relationships that were missed in the previous extraction.
-Focus on:
-- Implicit entities (mentioned indirectly)
-- Additional relationships between known entities
-- Contextual entities (dates, locations, concepts)
-
-## Output Format
-Respond with valid JSON in this exact format:
-{{
-  "entities": [
-    {{"name": "Entity Name", "type": "ENTITY_TYPE", "description": "Brief description"}}
-  ],
-  "relationships": [
-    {{"source": "Source Entity", "target": "Target Entity", "type": "RELATIONSHIP_TYPE", "description": "Brief description"}}
-  ]
-}}
-
-## Text to Re-Analyze
-{text}
-
-## JSON Response"#
-        )
+        crate::prompts::json_gleaning_prompt(text, previous_entities)
     }
 
-    /// Parse gleaning response.
+    /// Parse gleaning response via shared JSON parser (normalization + BR0006 filters).
     fn parse_gleaning_response(
         &self,
         response: &str,
+        chunk_id: &str,
     ) -> Result<(Vec<ExtractedEntity>, Vec<ExtractedRelationship>)> {
-        let json_str = extract_json_from_response(response);
-
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).map_err(|e| {
-            PipelineError::ExtractionError(format!("Invalid JSON in gleaning: {}", e))
-        })?;
-
-        let mut entities = Vec::new();
-        let mut relationships = Vec::new();
-
-        // Extract entities
-        if let Some(entity_arr) = parsed.get("entities").and_then(|v| v.as_array()) {
-            for entity_val in entity_arr {
-                if let (Some(name), Some(entity_type), Some(description)) = (
-                    entity_val.get("name").and_then(|v| v.as_str()),
-                    entity_val.get("type").and_then(|v| v.as_str()),
-                    entity_val.get("description").and_then(|v| v.as_str()),
-                ) {
-                    entities.push(ExtractedEntity::new(name, entity_type, description));
-                }
-            }
-        }
-
-        // Extract relationships
-        if let Some(rel_arr) = parsed.get("relationships").and_then(|v| v.as_array()) {
-            for rel_val in rel_arr {
-                if let (Some(source), Some(target), Some(rel_type)) = (
-                    rel_val.get("source").and_then(|v| v.as_str()),
-                    rel_val.get("target").and_then(|v| v.as_str()),
-                    rel_val.get("type").and_then(|v| v.as_str()),
-                ) {
-                    let description = rel_val
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-
-                    relationships.push(
-                        ExtractedRelationship::new(source, target, rel_type)
-                            .with_description(description),
-                    );
-                }
-            }
-        }
-
-        Ok((entities, relationships))
+        let parsed = JsonExtractionParser::new().parse(response, chunk_id)?;
+        Ok((parsed.entities, parsed.relationships))
     }
 
     /// Merge gleaning results with original results.
@@ -181,10 +107,11 @@ Respond with valid JSON in this exact format:
     ) {
         // For entities: compare descriptions and keep the better (longer) one
         for glean_entity in glean_entities {
+            let glean_key = crate::prompts::normalize_entity_name(&glean_entity.name);
             let existing = original
                 .entities
                 .iter_mut()
-                .find(|e| e.name.to_uppercase() == glean_entity.name.to_uppercase());
+                .find(|e| crate::prompts::normalize_entity_name(&e.name) == glean_key);
 
             if let Some(existing) = existing {
                 // Keep the entity with the longer description
@@ -200,9 +127,11 @@ Respond with valid JSON in this exact format:
 
         // For relationships: compare and keep better descriptions
         for glean_rel in glean_relationships {
+            let source_key = crate::prompts::normalize_entity_name(&glean_rel.source);
+            let target_key = crate::prompts::normalize_entity_name(&glean_rel.target);
             let existing = original.relationships.iter_mut().find(|r| {
-                r.source.to_uppercase() == glean_rel.source.to_uppercase()
-                    && r.target.to_uppercase() == glean_rel.target.to_uppercase()
+                crate::prompts::normalize_entity_name(&r.source) == source_key
+                    && crate::prompts::normalize_entity_name(&r.target) == target_key
             });
 
             if let Some(existing) = existing {
@@ -256,7 +185,7 @@ impl EntityExtractor for GleaningExtractor {
             result.output_tokens += response.completion_tokens;
 
             // Parse gleaning results
-            match self.parse_gleaning_response(&response.content) {
+            match self.parse_gleaning_response(&response.content, &chunk.id) {
                 Ok((glean_entities, glean_relationships)) => {
                     let new_entities = glean_entities.len();
                     let new_relationships = glean_relationships.len();

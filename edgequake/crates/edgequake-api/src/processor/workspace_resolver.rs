@@ -20,8 +20,6 @@ impl DocumentTaskProcessor {
     /// Kept for backward compatibility in test/memory mode where strict workspace
     /// isolation isn't required. Production (PostgreSQL mode) always uses strict.
     pub(super) async fn get_workspace_pipeline(&self, workspace_id: Option<&str>) -> Arc<Pipeline> {
-        use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
-
         info!(
             workspace_id = ?workspace_id,
             has_workspace_service = self.workspace_service.is_some(),
@@ -29,12 +27,16 @@ impl DocumentTaskProcessor {
             "[PIPELINE] SPEC-032: Getting pipeline for workspace"
         );
 
-        // If no workspace support configured, use default pipeline
         let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
             match (&self.workspace_service, &self.models_config) {
                 (Some(ws), Some(mc)) => (ws, mc),
                 _ => {
-                    warn!("SPEC-032: No workspace support configured, using default pipeline");
+                    edgequake_observability::ErrorEvent::log_domain_warn(
+                        "task_processor",
+                        "workspace_pipeline_fallback",
+                        "No workspace support configured, using default pipeline",
+                        json!({ "spec": "SPEC-032" }),
+                    );
                     return Arc::clone(&self.pipeline);
                 }
             };
@@ -47,137 +49,24 @@ impl DocumentTaskProcessor {
             return Arc::clone(&self.pipeline);
         };
 
-        // Parse workspace_id to UUID, preserving the legacy `default` alias.
-        let workspace_uuid = match crate::middleware::resolve_workspace_uuid(Some(workspace_id)) {
-            Some(uuid) => uuid,
-            None => {
-                warn!(
-                    workspace_id = workspace_id,
-                    "Invalid workspace ID format, using default pipeline"
-                );
-                return Arc::clone(&self.pipeline);
-            }
-        };
-
-        // Look up workspace configuration
-        match workspace_service.get_workspace(workspace_uuid).await {
-            Ok(Some(ws)) => {
-                // Try to create workspace-specific LLM provider with safety limits
-                // @implements OODA-189: Explicit error logging for provider failures
-                // @implements FEAT0780: Safety limits for LLM calls (DocumentTaskProcessor)
-                let llm_provider_result = create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
-
-                // Try to create workspace-specific embedding provider with safety limits
-                let embedding_provider_result = create_safe_embedding_provider(
-                    &ws.embedding_provider,
-                    &ws.embedding_model,
-                    ws.embedding_dimension,
-                );
-
-                // Check for provider creation failures and log explicit errors
-                match (&llm_provider_result, &embedding_provider_result) {
-                    (Ok(llm), Ok(embedding)) => {
-                        // SUCCESS: Both providers created
-                        info!(
-                            workspace_id = workspace_id,
-                            llm_provider = %ws.llm_provider,
-                            llm_model = %ws.llm_model,
-                            embedding_provider = %ws.embedding_provider,
-                            embedding_model = %ws.embedding_model,
-                            "[PIPELINE] SPEC-032: Using workspace-specific providers for document processing"
-                        );
-
-                        // SPEC-085: Read workspace entity types; fall back to defaults
-                        let entity_types = workspace_entity_types(&ws);
-                        let extractor = Arc::new(
-                            LLMExtractor::new(Arc::clone(llm)).with_entity_types(entity_types),
-                        );
-                        return Arc::new(
-                            Pipeline::default_pipeline()
-                                .with_extractor(extractor)
-                                .with_embedding_provider(Arc::clone(embedding)),
-                        );
-                    }
-                    (Err(llm_err), Ok(_)) => {
-                        // LLM provider failed - this is a CRITICAL issue
-                        error!(
-                            workspace_id = workspace_id,
-                            llm_provider = %ws.llm_provider,
-                            llm_model = %ws.llm_model,
-                            error = %llm_err,
-                            "CRITICAL: Failed to create workspace LLM provider. \
-                             Document extraction will use DEFAULT provider instead of workspace config. \
-                             This may result in unexpected extraction results."
-                        );
-                    }
-                    (Ok(_), Err(embed_err)) => {
-                        // Embedding provider failed - this is a CRITICAL issue
-                        error!(
-                            workspace_id = workspace_id,
-                            embedding_provider = %ws.embedding_provider,
-                            embedding_model = %ws.embedding_model,
-                            error = %embed_err,
-                            "CRITICAL: Failed to create workspace embedding provider. \
-                             Document embeddings will use DEFAULT provider instead of workspace config. \
-                             This may result in dimension mismatches or unexpected query results."
-                        );
-                    }
-                    (Err(llm_err), Err(embed_err)) => {
-                        // Both providers failed - this is a CRITICAL issue
-                        error!(
-                            workspace_id = workspace_id,
-                            llm_provider = %ws.llm_provider,
-                            llm_model = %ws.llm_model,
-                            llm_error = %llm_err,
-                            embedding_provider = %ws.embedding_provider,
-                            embedding_model = %ws.embedding_model,
-                            embedding_error = %embed_err,
-                            "CRITICAL: Failed to create BOTH workspace providers. \
-                             Document processing will use DEFAULT pipeline instead of workspace config. \
-                             Check API keys and provider configuration."
-                        );
-                    }
-                }
-
-                // Fallback to default pipeline (but with explicit ERROR logging above)
-                warn!(
-                    workspace_id = workspace_id,
-                    llm_config = %ws.llm_full_id(),
-                    embedding_config = %ws.embedding_full_id(),
-                    "Falling back to default pipeline due to provider creation failure. \
-                     WHY: This means document extraction will use the SERVER DEFAULT provider (likely Ollama) \
-                     instead of the workspace-configured provider. Check API keys and provider config."
-                );
-            }
-            Ok(None) => {
-                warn!(
-                    workspace_id = workspace_id,
-                    "Workspace not found, using default pipeline"
-                );
-            }
-            Err(e) => {
-                warn!(
-                    workspace_id = workspace_id,
-                    error = %e,
-                    "Failed to lookup workspace, using default pipeline"
-                );
-            }
-        }
-
-        Arc::clone(&self.pipeline)
+        let factory = crate::workspace_pipeline_factory::WorkspacePipelineFactory::new(
+            Arc::clone(workspace_service),
+            Arc::clone(&self.pipeline),
+        );
+        factory
+            .resolve(
+                workspace_id,
+                crate::workspace_pipeline_factory::PipelineFallbackPolicy::LenientGlobal,
+            )
+            .await
+            .unwrap_or_else(|_| Arc::clone(&self.pipeline))
     }
 
     /// OODA-16: Strict variant that returns error instead of falling back.
-    ///
-    /// WHY: In production, silent fallback to default pipeline causes data to be
-    /// processed with wrong providers (e.g., Ollama 768-dim instead of OpenAI 1536-dim).
-    /// This strict method ensures tasks fail clearly when workspace providers can't be created.
     pub(super) async fn get_workspace_pipeline_strict(
         &self,
         workspace_id: Option<&str>,
     ) -> Result<Arc<Pipeline>, String> {
-        use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
-
         info!(
             workspace_id = ?workspace_id,
             has_workspace_service = self.workspace_service.is_some(),
@@ -185,7 +74,6 @@ impl DocumentTaskProcessor {
             "[PIPELINE] OODA-16: Getting pipeline for workspace (STRICT mode)"
         );
 
-        // If no workspace support configured, fail explicitly
         let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
             match (&self.workspace_service, &self.models_config) {
                 (Some(ws), Some(mc)) => (ws, mc),
@@ -201,75 +89,16 @@ impl DocumentTaskProcessor {
             ));
         };
 
-        // Parse workspace_id to UUID, preserving the legacy `default` alias.
-        let workspace_uuid = crate::middleware::resolve_workspace_uuid(Some(workspace_id))
-            .ok_or_else(|| {
-                format!(
-                    "OODA-16: Invalid workspace ID format '{}': could not resolve to a UUID",
-                    workspace_id
-                )
-            })?;
-
-        // Look up workspace configuration
-        let ws = workspace_service
-            .get_workspace(workspace_uuid)
-            .await
-            .map_err(|e| {
-                format!(
-                    "OODA-16: Failed to lookup workspace '{}': {}",
-                    workspace_id, e
-                )
-            })?
-            .ok_or_else(|| {
-                format!(
-                    "OODA-16: Workspace '{}' not found in database",
-                    workspace_id
-                )
-            })?;
-
-        // Create workspace-specific LLM provider - FAIL on error
-        let llm_provider =
-            create_safe_llm_provider(&ws.llm_provider, &ws.llm_model).map_err(|e| {
-                format!(
-                    "OODA-16: Failed to create LLM provider '{}' with model '{}': {}. \
-                     Check if OPENAI_API_KEY is set for OpenAI providers.",
-                    ws.llm_provider, ws.llm_model, e
-                )
-            })?;
-
-        // Create workspace-specific embedding provider - FAIL on error
-        let embedding_provider = create_safe_embedding_provider(
-            &ws.embedding_provider,
-            &ws.embedding_model,
-            ws.embedding_dimension,
-        )
-        .map_err(|e| {
-            format!(
-                "OODA-16: Failed to create embedding provider '{}' with model '{}': {}. \
-                 Check if OPENAI_API_KEY is set for OpenAI providers.",
-                ws.embedding_provider, ws.embedding_model, e
-            )
-        })?;
-
-        // SUCCESS: Both providers created
-        info!(
-            workspace_id = workspace_id,
-            llm_provider = %ws.llm_provider,
-            llm_model = %ws.llm_model,
-            embedding_provider = %ws.embedding_provider,
-            embedding_model = %ws.embedding_model,
-            "[PIPELINE] OODA-16: Successfully created workspace-specific providers (STRICT mode)"
+        let factory = crate::workspace_pipeline_factory::WorkspacePipelineFactory::new(
+            Arc::clone(workspace_service),
+            Arc::clone(&self.pipeline),
         );
-
-        // SPEC-085: Read workspace entity types; fall back to defaults
-        let entity_types = workspace_entity_types(&ws);
-        let extractor =
-            Arc::new(LLMExtractor::new(Arc::clone(&llm_provider)).with_entity_types(entity_types));
-        Ok(Arc::new(
-            Pipeline::default_pipeline()
-                .with_extractor(extractor)
-                .with_embedding_provider(Arc::clone(&embedding_provider)),
-        ))
+        factory
+            .resolve(
+                workspace_id,
+                crate::workspace_pipeline_factory::PipelineFallbackPolicy::Strict,
+            )
+            .await
     }
 
     /// Get workspace-specific vector storage using the registry.
@@ -498,18 +327,4 @@ impl DocumentTaskProcessor {
             _ => default_lineage,
         }
     }
-}
-
-/// SPEC-085: Read entity types from workspace metadata.
-///
-/// Returns the workspace-configured entity types, or the pipeline defaults
-/// if the workspace has no custom configuration.
-///
-/// WHY module-level function: Both `get_workspace_pipeline` and
-/// `get_workspace_pipeline_strict` share this logic (DRY).
-fn workspace_entity_types(ws: &edgequake_core::types::Workspace) -> Vec<String> {
-    ws.metadata
-        .get("entity_types")
-        .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok())
-        .unwrap_or_else(edgequake_pipeline::prompts::default_entity_types)
 }

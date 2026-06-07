@@ -1,0 +1,47 @@
+→ Starting backend on port 8081
+[34mStarting PostgreSQL...[0m
+[33m⚠  Port 5432 is occupied by a PostgreSQL instance that does not accept our credentials.[0m
+[33m   Root cause: another service (infrastructure-postgres, k8s, etc.) is using that port.[0m
+[33m   Auto-detecting a free port for edgequake-postgres...[0m
+[33m→ Will start edgequake-postgres on port 5434 instead[0m
+[33m→ Removing stale edgequake-postgres container to rebind on port 5434...[0m
+ Container edgequake-postgres Creating 
+ Container edgequake-postgres Created 
+ Container edgequake-postgres Starting 
+ Container edgequake-postgres Started 
+[32m✓ PostgreSQL container started on port 5434[0m
+[33mWaiting for database to be ready...[0m
+Waiting...
+[32m✓ Database is ready[0m
+[32m✓ Effective DATABASE_URL written to /tmp/edgequake-db-url[0m
+[33mWaiting for database to be ready...[0m
+[32m✓ Database is ready (auth verified on localhost:5434)[0m
+[34mStarting backend in background...[0m
+[33m→ MISTRAL_API_KEY detected - using Mistral as default provider[0m
+[32m✓ Backend starting in background. Log: /tmp/edgequake-backend.log[0m
+Using backend: http://127.0.0.1:8081
+→ Starting frontend
+[34mStarting frontend in background...[0m
+[32m✓ Frontend starting in background. Log: /tmp/edgequake-frontend.log[0m
+{"status":"healthy","version":"0.12.6","build_info":{"git_hash":"3eef04f2","git_branch":"feature/016-datalayer-improvements","build_timestamp":"2026-06-04T07:05:08Z","build_number":"20260604.070508"},"storage_mode":"postgresql","workspace_id":"default","components":{"kv_storage":true,"vector_storage":true,"graph_storage":true,"llm_provider":true},"llm_provider_name":"mistral","schema":{"latest_version":37,"migrations_applied":36,"last_applied_at":"2026-05-29T07:41:24.313507+00:00"},"providers":{"llm":{"name":"mistral","model":"mistral-small-latest"},"embedding":{"name":"mistral","model":"mistral-embed","dimension":1024}},"pdf_storage_enabled":true}
+→ Route smoke + live stack (Playwright starts Next on 3001 with EDGEQUAKE_API_URL)
+
+Running 9 tests using 1 worker
+
+  ✓  1 [chromium] › e2e/spec017-barrel-smoke.spec.ts:11:7 › SPEC-017 route smoke › login page renders sign-in form (411ms)
+  ✓  2 [chromium] › e2e/spec017-barrel-smoke.spec.ts:26:7 › SPEC-017 route smoke › documents route loads without crash (558ms)
+  ✓  3 [chromium] › e2e/spec017-barrel-smoke.spec.ts:33:7 › SPEC-017 route smoke › query route loads without crash (263ms)
+  ✓  4 [chromium] › e2e/spec017-barrel-smoke.spec.ts:41:7 › SPEC-017 route smoke › pipeline route loads without crash (229ms)
+  ✓  5 [chromium] › e2e/spec017-barrel-smoke.spec.ts:49:7 › SPEC-017 route smoke › workspace route loads without crash (237ms)
+  ✓  6 [chromium] › e2e/spec017-webui-dry-solid.spec.ts:73:7 › SPEC-017 webui DRY/SOLID proof › query page shows mode selector chips (live stack) (589ms)
+  ✓  7 [chromium] › e2e/spec017-webui-dry-solid.spec.ts:99:7 › SPEC-017 webui DRY/SOLID proof › documents page shows upload zone (live stack) (457ms)
+  ✓  8 [chromium] › e2e/spec017-webui-dry-solid.spec.ts:113:7 › SPEC-017 webui DRY/SOLID proof › sync upload shows Completed badge via EnhancedStatusBadge (live stack) (5.8s)
+  ✓  9 [chromium] › e2e/spec017-webui-dry-solid.spec.ts:156:7 › SPEC-017 webui DRY/SOLID proof › async upload polls to Completed (background task pipeline) (5.8s)
+
+  9 passed (15.8s)
+-rw-r--r--@ 1 raphaelmansuy  staff  103902 Jun  4 23:04 /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/013-edgequake-webui/001-audit/e2e/screenshots/03-query-mode-selector.png
+-rw-r--r--@ 1 raphaelmansuy  staff   70743 Jun  4 23:04 /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/013-edgequake-webui/001-audit/e2e/screenshots/04-query-main-panel.png
+-rw-r--r--@ 1 raphaelmansuy  staff   76416 Jun  4 23:04 /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/013-edgequake-webui/001-audit/e2e/screenshots/05-documents-upload-zone.png
+-rw-r--r--@ 1 raphaelmansuy  staff  104675 Jun  4 23:04 /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/013-edgequake-webui/001-audit/e2e/screenshots/06-sync-pipeline-completed.png
+-rw-r--r--@ 1 raphaelmansuy  staff   91278 Jun  4 23:04 /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/013-edgequake-webui/001-audit/e2e/screenshots/07-async-pipeline-completed.png
+✓ Playwright webui proof complete

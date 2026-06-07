@@ -96,6 +96,8 @@ async fn test_rebuild_embeddings_returns_updated_provider_config() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -197,6 +199,8 @@ async fn test_rebuild_embeddings_requires_force_if_unchanged() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -271,6 +275,8 @@ async fn test_rebuild_knowledge_graph_returns_updated_provider_config() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -366,6 +372,8 @@ async fn test_rebuild_knowledge_graph_requires_force_if_unchanged() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -439,6 +447,8 @@ async fn test_rebuild_workspace_isolation() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace_a = state
@@ -462,6 +472,8 @@ async fn test_rebuild_workspace_isolation() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace_b = state
@@ -560,6 +572,8 @@ async fn test_pipeline_uses_updated_config_after_rebuild() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -686,6 +700,8 @@ async fn test_rebuild_embeddings_response_fields() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -792,6 +808,8 @@ async fn test_rebuild_knowledge_graph_response_fields() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state

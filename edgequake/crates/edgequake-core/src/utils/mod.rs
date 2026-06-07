@@ -4,8 +4,6 @@
 
 pub mod hash;
 pub mod locks;
-pub mod text;
 
 pub use hash::*;
 pub use locks::*;
-pub use text::*;

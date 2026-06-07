@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Phase 3 Optional Enhancements E2E Tests
@@ -11,7 +14,12 @@ import { expect, test } from "@playwright/test";
  * 5. Onboarding tour component
  * 6. Reduced motion support
  */
-test.describe("Phase 3 Optional Enhancements", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit Phase 3 Optional Enhancements", () => {
   // =========================================================================
   // Graph Empty State Illustration Tests
   // =========================================================================
@@ -22,7 +30,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
     }) => {
       // Navigate to graph page
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // If graph has no data, check for the illustration
       const emptyStateIllustration = page.locator('[data-tour="graph-canvas"]');
@@ -38,7 +46,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
       page,
     }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Verify the graph container exists
       const graphContainer = page.locator("[data-graph-container]");
@@ -53,7 +61,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
   test.describe("Drag-to-Resize Panels", () => {
     test("right panel should have resize handle", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for resize handle with ARIA attributes
       const resizeHandle = page.locator(
@@ -69,7 +77,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("resize handle should be keyboard accessible", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for resize handle
       const resizeHandle = page
@@ -88,7 +96,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("resize handle should respond to keyboard", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       const resizeHandle = page
         .locator('[role="separator"][aria-orientation="vertical"]')
@@ -120,7 +128,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
       page,
     }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Find zoom in button
       const zoomInButton = page
@@ -147,7 +155,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("layout control should have tooltip", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Find layout control button
       const layoutButton = page
@@ -167,7 +175,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("search button should show keyboard shortcut", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Find search button (shows ⌘K shortcut)
       const searchButton = page.locator('[data-tour="graph-search"] button');
@@ -189,7 +197,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
   test.describe("Keyboard Navigation for Graph", () => {
     test("keyboard shortcuts help button should exist", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Find keyboard shortcuts help button
       const keyboardButton = page.locator('[data-tour="keyboard-help"] button');
@@ -198,7 +206,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("keyboard shortcuts dialog should open on click", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Click keyboard shortcuts button
       const keyboardButton = page.locator('[data-tour="keyboard-help"] button');
@@ -216,7 +224,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("Cmd+K should open search", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Press Cmd+K (Meta+K on Mac, Ctrl+K on Windows)
       await page.keyboard.press("Meta+k");
@@ -231,7 +239,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("Escape should close popups", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Open keyboard shortcuts dialog
       const keyboardButton = page.locator('[data-tour="keyboard-help"] button');
@@ -255,7 +263,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
   test.describe("Onboarding Tour Component", () => {
     test("tour trigger button should exist", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Look for tour trigger button (help icon)
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
@@ -268,7 +276,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("clicking tour button should start the tour", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Find and click tour trigger
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
@@ -287,7 +295,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("tour should have navigation buttons", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
 
@@ -310,7 +318,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("tour should be closeable with Escape", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       const tourButton = page.locator('button[aria-label="Start guided tour"]');
 
@@ -341,7 +349,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.emulateMedia({ reducedMotion: "reduce" });
 
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Check that CSS respects reduced motion
       const hasReducedMotionStyles = await page.evaluate(() => {
@@ -360,7 +368,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
       await page.emulateMedia({ reducedMotion: "reduce" });
 
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Page should load and be interactive
       const header = page.locator('[data-tour="graph-header"]');
@@ -381,7 +389,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
   test.describe("Integration", () => {
     test("all Phase 3 enhancements should coexist", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Verify key elements exist together
       const header = page.locator('[data-tour="graph-header"]');
@@ -399,7 +407,7 @@ test.describe("Phase 3 Optional Enhancements", () => {
 
     test("graph page should have proper ARIA landmarks", async ({ page }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Check for proper ARIA attributes on interactive elements
       const toolbar = page.locator('[role="toolbar"]');
@@ -418,12 +426,12 @@ test.describe("Phase 3 Optional Enhancements", () => {
       page,
     }) => {
       await page.goto("/graph");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       await page.waitForTimeout(1000);
 
       // Take screenshot
       await page.screenshot({
-        path: "e2e/screenshots/phase3-enhancements-graph.png",
+        path: e2eScreenshot("phase3", "phase3-enhancements-graph.png"),
         fullPage: false,
       });
     });

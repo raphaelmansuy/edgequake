@@ -20,57 +20,28 @@ impl SOTAQueryEngine {
         tenant_id: &Option<String>,
         workspace_id: &Option<String>,
     ) -> bool {
-        if tenant_id.is_none() && workspace_id.is_none() {
-            return true;
-        }
-
-        if let Some(tid) = tenant_id {
-            if let Some(meta_tid) = metadata.get("tenant_id").and_then(|v| v.as_str()) {
-                if meta_tid != tid {
-                    return false;
-                }
-            }
-        }
-
-        if let Some(wid) = workspace_id {
-            if let Some(meta_wid) = metadata.get("workspace_id").and_then(|v| v.as_str()) {
-                if meta_wid != wid {
-                    return false;
-                }
-            }
-        }
-
-        true
+        edgequake_storage::MetadataFilter::matches_tenant_workspace_value(
+            metadata,
+            tenant_id,
+            workspace_id,
+        )
     }
 
     /// Check if properties match tenant filter.
+    ///
+    /// DEPRECATED (SPEC-007): Prefer `query_filtered()` which pushes filtering to SQL.
+    #[allow(dead_code)]
     pub(super) fn matches_tenant_filter_props(
         &self,
         properties: &HashMap<String, serde_json::Value>,
         tenant_id: &Option<String>,
         workspace_id: &Option<String>,
     ) -> bool {
-        if tenant_id.is_none() && workspace_id.is_none() {
-            return true;
-        }
-
-        if let Some(tid) = tenant_id {
-            if let Some(prop_tid) = properties.get("tenant_id").and_then(|v| v.as_str()) {
-                if prop_tid != tid {
-                    return false;
-                }
-            }
-        }
-
-        if let Some(wid) = workspace_id {
-            if let Some(prop_wid) = properties.get("workspace_id").and_then(|v| v.as_str()) {
-                if prop_wid != wid {
-                    return false;
-                }
-            }
-        }
-
-        true
+        edgequake_storage::MetadataFilter::matches_tenant_workspace_properties(
+            properties,
+            tenant_id,
+            workspace_id,
+        )
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
@@ -257,11 +228,15 @@ Generate a comprehensive, well-structured answer that integrates observations fr
                 Ok(r) => r,
                 Err(e) => {
                     tracing::warn!(error = %e, "Vision chat failed; retrying as text-only query");
-                    provider.complete(&self.build_prompt(query, context, system_prompt_extension)).await?
+                    provider
+                        .complete(&self.build_prompt(query, context, system_prompt_extension))
+                        .await?
                 }
             }
         } else {
-            provider.complete(&self.build_prompt(query, context, system_prompt_extension)).await?
+            provider
+                .complete(&self.build_prompt(query, context, system_prompt_extension))
+                .await?
         };
 
         Ok((response.content, response.completion_tokens))

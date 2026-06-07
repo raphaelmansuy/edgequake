@@ -24,7 +24,9 @@ This guide covers monitoring, logging, and alerting for EdgeQuake in production 
 │         │                                                       │
 │         ├─────────▶ /health endpoints                           │
 │         │                                                       │
-│         ├─────────▶ /metrics (planned)                          │
+│         ├─────────▶ GET /metrics (Prometheus, live)             │
+│         │              edgequake_http_* / edgequake_query_*     │
+│         │              OTLP traces: optional `--features otel` │
 │         │                                                       │
 │         └─────────▶ PostgreSQL metrics                          │
 │                                                                 │
@@ -288,20 +290,36 @@ groups:
 
 ---
 
-## Tracing (Future)
+## Distributed tracing (SPEC-018)
 
-OpenTelemetry integration is planned:
+EdgeQuake ships with OpenTelemetry-compatible tracing via `edgequake-observability`:
 
-```rust
-// Future: Distributed tracing
-#[tracing::instrument]
-async fn process_query(query: &str) -> Result<Response> {
-    // Automatic span creation
-    let chunks = retrieve_chunks(query).await?;
-    let response = generate_response(chunks).await?;
-    Ok(response)
-}
+| Capability | How |
+|------------|-----|
+| HTTP spans | `http_request` with `request_id`, `trace_id`, semantic error fields |
+| Pipeline spans | `pipeline_chunk_extraction`, `sota_query_pipeline` |
+| OTLP export | Build with `--features otel` or Docker `ENABLE_OTEL=true` |
+| Correlation | `X-Request-ID` + W3C `traceparent` (API + WebUI) |
+| Error context | `ErrorEvent` levelled logs + API `details.diagnostics` |
+
+**Docker + Jaeger (one command):**
+
+```bash
+cd edgequake/docker
+docker compose -f docker-compose.yml -f docker-compose.observability.yml \
+  --profile observability up --build
+# Jaeger UI: http://localhost:16686
 ```
+
+**Production env:**
+
+```bash
+export EDGEQUAKE_LOG_FORMAT=json
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317
+export RUST_LOG=edgequake_api=info,edgequake_storage=warn
+```
+
+Full operator guide: [OBSERVABILITY.md](../OBSERVABILITY.md)
 
 ---
 

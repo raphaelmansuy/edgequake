@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-test.describe("Comprehensive Chat UX Test", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit Comprehensive Chat UX Test", () => {
   test("should have perfect chat UX with all features working", async ({
     page,
   }) => {
@@ -8,11 +16,11 @@ test.describe("Comprehensive Chat UX Test", () => {
 
     // Navigate to query page
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take initial screenshot
     await page.screenshot({
-      path: "test-results/chat-ux-initial.png",
+      path: e2eScreenshot("chat", "chat-ux-initial.png"),
       fullPage: true,
     });
 
@@ -58,7 +66,7 @@ test.describe("Comprehensive Chat UX Test", () => {
     console.log("📊 Analyzing response quality...");
 
     await page.screenshot({
-      path: "test-results/chat-ux-after-query.png",
+      path: e2eScreenshot("chat", "chat-ux-after-query.png"),
       fullPage: true,
     });
 
@@ -179,7 +187,7 @@ test.describe("Comprehensive Chat UX Test", () => {
 
     // Screenshots for manual review
     await page.screenshot({
-      path: "test-results/chat-ux-final.png",
+      path: e2eScreenshot("chat", "chat-ux-final.png"),
       fullPage: true,
     });
 

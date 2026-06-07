@@ -317,7 +317,11 @@ pub async fn put_injection(
     // WHY: Resolve workspace-specific vector storage BEFORE the spawn so injection
     // vectors land in the same table the query engine searches (SPEC-033).
     let meta_key = injection_meta_key(&workspace_id, &injection_id);
-    state.kv_storage.upsert(&[(meta_key.clone(), meta)]).await?;
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(meta_key.clone(), meta)])
+        .await?;
 
     info!(
         workspace_id = %workspace_id,
@@ -334,9 +338,9 @@ pub async fn put_injection(
     let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
     spawn_injection_processing(InjectionTaskContext {
         pipeline: workspace_pipeline,
-        graph_storage: state.graph_storage.clone(),
+        graph_storage: state.storage.graph_storage.clone(),
         vector_storage: inj_ctx.vector_storage,
-        kv_storage: state.kv_storage.clone(),
+        kv_storage: state.storage.kv_storage.clone(),
         doc_id,
         content: request.content,
         workspace_id: workspace_id.clone(),
@@ -380,14 +384,14 @@ pub async fn list_injections(
 ) -> ApiResult<Json<ListInjectionsResponse>> {
     let workspace_id = workspace_id_from_tenant(&tenant_ctx);
     let prefix = format!("injection::{}", workspace_id);
-    let keys = state.kv_storage.keys().await?;
+    let keys = state.storage.kv_storage.keys().await?;
 
     let mut items: Vec<InjectionSummary> = Vec::new();
     for key in keys
         .iter()
         .filter(|k| k.starts_with(&prefix) && k.ends_with("-metadata"))
     {
-        if let Ok(Some(val)) = state.kv_storage.get_by_id(key).await {
+        if let Ok(Some(val)) = state.storage.kv_storage.get_by_id(key).await {
             items.push(summary_from_meta(&val));
         }
     }
@@ -419,6 +423,7 @@ pub async fn get_injection(
     let workspace_id = workspace_id_from_tenant(&tenant_ctx);
     let meta_key = injection_meta_key(&workspace_id, &injection_id);
     let val = state
+        .storage
         .kv_storage
         .get_by_id(&meta_key)
         .await?
@@ -450,6 +455,7 @@ pub async fn delete_injection(
 
     // Load metadata first — needed for chunk_ids before KV deletion.
     let meta_val = state
+        .storage
         .kv_storage
         .get_by_id(&meta_key)
         .await?
@@ -469,7 +475,7 @@ pub async fn delete_injection(
     //    This reuses the same cleanup path as document deletion (SRP/DRY).
     if let Err(e) = crate::handlers::documents::storage_helpers::cleanup_document_graph_data(
         &doc_id,
-        &state.graph_storage,
+        &state.storage.graph_storage,
         Some(&vector_storage),
     )
     .await
@@ -497,7 +503,7 @@ pub async fn delete_injection(
     }
 
     // 3. Delete all KV entries (metadata + chunks + content).
-    let keys = state.kv_storage.keys().await?;
+    let keys = state.storage.kv_storage.keys().await?;
     let kv_ids_to_delete: Vec<String> = keys
         .into_iter()
         .filter(|k| k.starts_with(&doc_id) || *k == meta_key)
@@ -507,7 +513,7 @@ pub async fn delete_injection(
             count = kv_ids_to_delete.len(),
             "Deleting injection KV entries"
         );
-        let _ = state.kv_storage.delete(&kv_ids_to_delete).await;
+        let _ = state.storage.kv_storage.delete(&kv_ids_to_delete).await;
     }
 
     info!(
@@ -547,6 +553,7 @@ pub async fn update_injection(
     let meta_key = injection_meta_key(&workspace_id, &injection_id);
 
     let existing = state
+        .storage
         .kv_storage
         .get_by_id(&meta_key)
         .await?
@@ -611,7 +618,11 @@ pub async fn update_injection(
         &now,
         None,
     );
-    state.kv_storage.upsert(&[(meta_key.clone(), meta)]).await?;
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(meta_key.clone(), meta)])
+        .await?;
 
     info!(injection_id = %injection_id, content_changed, new_version, "Updated injection entry");
 
@@ -623,9 +634,9 @@ pub async fn update_injection(
         let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
         spawn_injection_processing(InjectionTaskContext {
             pipeline: workspace_pipeline,
-            graph_storage: state.graph_storage.clone(),
+            graph_storage: state.storage.graph_storage.clone(),
             vector_storage: inj_ctx.vector_storage,
-            kv_storage: state.kv_storage.clone(),
+            kv_storage: state.storage.kv_storage.clone(),
             doc_id,
             content: new_content,
             workspace_id: workspace_id.clone(),
@@ -782,7 +793,11 @@ pub async fn put_injection_file(
         &now,
         None,
     );
-    state.kv_storage.upsert(&[(meta_key.clone(), meta)]).await?;
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(meta_key.clone(), meta)])
+        .await?;
 
     info!(
         workspace_id = %workspace_id,
@@ -798,9 +813,9 @@ pub async fn put_injection_file(
     let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
     spawn_injection_processing(InjectionTaskContext {
         pipeline: workspace_pipeline,
-        graph_storage: state.graph_storage.clone(),
+        graph_storage: state.storage.graph_storage.clone(),
         vector_storage: inj_ctx.vector_storage,
-        kv_storage: state.kv_storage.clone(),
+        kv_storage: state.storage.kv_storage.clone(),
         doc_id,
         content,
         workspace_id: workspace_id.clone(),
@@ -865,7 +880,7 @@ async fn resolve_injection_context(
     use edgequake_storage::traits::WorkspaceVectorConfig;
 
     let fallback = InjectionWorkspaceContext {
-        vector_storage: state.vector_storage.clone(),
+        vector_storage: state.storage.vector_storage.clone(),
         data_tenant_id: None,
     };
 
@@ -902,7 +917,7 @@ async fn resolve_injection_context(
         namespace: "default".to_string(),
     };
 
-    let vector_storage = match state.vector_registry.get_or_create(config).await {
+    let vector_storage = match state.storage.vector_registry.get_or_create(config).await {
         Ok(storage) => {
             debug!(
                 workspace_id,
@@ -917,7 +932,7 @@ async fn resolve_injection_context(
                 error = %e,
                 "Failed to get workspace vector storage; using global fallback"
             );
-            state.vector_storage.clone()
+            state.storage.vector_storage.clone()
         }
     };
 

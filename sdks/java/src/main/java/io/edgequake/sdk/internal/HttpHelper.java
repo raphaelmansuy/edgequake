@@ -7,13 +7,17 @@ import io.edgequake.sdk.EdgeQuakeConfig;
 import io.edgequake.sdk.EdgeQuakeException;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -105,6 +109,16 @@ public class HttpHelper {
         return deserialize(body, type);
     }
 
+    public <T> T uploadMany(String path, List<String> filePaths, String fieldName, Map<String, String> extraFields, Class<T> type) {
+        String boundary = "----edgequake-sdk-" + System.currentTimeMillis();
+        byte[] body = buildMultipartBody(boundary, filePaths, fieldName, extraFields);
+        var req = baseRequest(url(path, null))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                .build();
+        return deserialize(doRequest(req), type);
+    }
+
     // ── Internal ─────────────────────────────────────────────────────────
 
     private String url(String path, Map<String, String> params) {
@@ -188,6 +202,32 @@ public class HttpHelper {
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new EdgeQuakeException("HTTP request failed: " + e.getMessage(), e);
+        }
+    }
+
+    private byte[] buildMultipartBody(String boundary, List<String> filePaths, String fieldName, Map<String, String> extraFields) {
+        try {
+            var out = new ByteArrayOutputStream();
+            for (String filePath : filePaths) {
+                var filename = Paths.get(filePath).getFileName().toString();
+                out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+                out.write(("Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + filename + "\"\r\n").getBytes(StandardCharsets.UTF_8));
+                out.write("Content-Type: application/octet-stream\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+                out.write(Files.readAllBytes(Paths.get(filePath)));
+                out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            }
+            if (extraFields != null) {
+                for (var e : extraFields.entrySet()) {
+                    out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+                    out.write(("Content-Disposition: form-data; name=\"" + e.getKey() + "\"\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                    out.write(e.getValue().getBytes(StandardCharsets.UTF_8));
+                    out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+                }
+            }
+            out.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new EdgeQuakeException("Multipart build failed: " + e.getMessage(), e);
         }
     }
 

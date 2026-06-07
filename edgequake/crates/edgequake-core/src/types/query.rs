@@ -1,28 +1,8 @@
 use crate::types::DocumentStatus;
 use serde::{Deserialize, Serialize};
 
-/// Query mode for retrieval.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub enum QueryMode {
-    /// Local mode: Focus on entity-centric retrieval.
-    Local,
-
-    /// Global mode: Use high-level graph structure.
-    Global,
-
-    /// Hybrid mode: Combine local and global.
-    #[default]
-    Hybrid,
-
-    /// Mix mode: Adaptive selection based on query.
-    Mix,
-
-    /// Naive mode: Simple vector search only.
-    Naive,
-
-    /// Bypass mode: Skip retrieval, direct LLM query.
-    Bypass,
-}
+/// Canonical query mode — re-exported from `edgequake-query` (SPEC-017 P1-05).
+pub use edgequake_query::QueryMode;
 
 /// Query parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -331,4 +311,18 @@ pub struct EntityDeletionResult {
 
     /// Number of relationships deleted.
     pub relationships_deleted: usize,
+}
+
+#[cfg(test)]
+mod query_mode_tests {
+    use super::QueryMode;
+
+    #[test]
+    fn parse_all_modes_including_bypass() {
+        assert_eq!(QueryMode::parse("bypass"), Some(QueryMode::Bypass));
+        assert_eq!(QueryMode::parse("mix"), Some(QueryMode::Mix));
+        assert_eq!(QueryMode::parse("HYBRID"), Some(QueryMode::Hybrid));
+        assert!(QueryMode::Bypass.is_bypass());
+        assert!(!QueryMode::Hybrid.is_bypass());
+    }
 }

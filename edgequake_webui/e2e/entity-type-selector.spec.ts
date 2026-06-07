@@ -10,15 +10,22 @@
  * 5. Workspace created with manufacturing preset has entity_types in response
  */
 import { expect, test } from '@playwright/test';
+import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:8080';
+const BASE_URL = '/';
+const API_URL = `${BACKEND_URL}`;
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe('SPEC-085: Entity Type Selector', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the homepage (workspace dashboard)
     await page.goto(BASE_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
   });
 
   test('workspace creation dialog shows entity type section', async ({ page }) => {

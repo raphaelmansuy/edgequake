@@ -1,24 +1,15 @@
 import { expect, test } from "@playwright/test";
+import { gotoApp } from "./helpers/navigation";
+import { waitForAppReady } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-/**
- * E2E tests for issue #91: display link type (relation) in the graph view.
- *
- * This suite verifies that:
- * 1. The "Show Edge Labels" toggle exists in Settings → Graph
- * 2. When enabled, sigma renders edge labels (forceLabel=true) so relation
- *    types appear on graph edges regardless of node-label visibility
- * 3. The sigma edgeLabels canvas layer is present and non-empty when the
- *    setting is active
- *
- * @see https://github.com/raphaelmansuy/edgequake/issues/91
- */
-
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
   test("Settings page has Show Edge Labels toggle", async ({ page }) => {
-    await page.goto(`${BASE_URL}/settings`);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/settings");
 
     // Scroll down to the Graph section
     const edgeLabelLabel = page.getByText(/show edge labels/i).first();
@@ -30,8 +21,8 @@ test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
     page,
   }) => {
     // 1. Enable edge labels via localStorage (simulates the settings store)
-    await page.goto(`${BASE_URL}/settings`);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, '/settings');
+    await waitForAppReady(page);
 
     // Toggle the "Show Edge Labels" switch on via click
     const toggle = page.locator('button[role="switch"]').filter({
@@ -62,8 +53,8 @@ test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
     });
 
     // 2. Navigate to graph page
-    await page.goto(`${BASE_URL}/graph`);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, '/graph');
+    await waitForAppReady(page);
 
     // 3. Check if sigma renders a canvas (any sigma canvas will do)
     //    If graph has no data the canvas simply won't be present → skip
@@ -87,7 +78,7 @@ test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
     page,
   }) => {
     // Enable edge labels via localStorage
-    await page.goto(`${BASE_URL}/settings`);
+    await gotoApp(page, '/settings');
     await page.evaluate(() => {
       try {
         const raw = localStorage.getItem("settings-storage");
@@ -103,8 +94,8 @@ test.describe("Issue #91 – edge labels (relation type) in graph view", () => {
       }
     });
 
-    await page.goto(`${BASE_URL}/graph`);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, '/graph');
+    await waitForAppReady(page);
 
     const sigmaCanvas = page.locator("canvas").first();
     const hasCanvas = await sigmaCanvas

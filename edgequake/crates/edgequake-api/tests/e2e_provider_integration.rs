@@ -43,19 +43,19 @@ async fn test_appstate_default_mock_provider() {
 
     // Verify Mock provider selected
     assert_eq!(
-        state.llm_provider.name(),
+        state.query.llm_provider.name(),
         "mock",
         "AppState should use Mock provider by default"
     );
     assert_eq!(
-        state.embedding_provider.name(),
+        state.query.embedding_provider.name(),
         "mock",
         "AppState should use Mock embedding by default"
     );
 
     // Verify Mock uses 1536 dimensions (OpenAI-compatible)
     assert_eq!(
-        state.embedding_provider.dimension(),
+        state.query.embedding_provider.dimension(),
         1536,
         "Mock provider should have 1536 dimensions"
     );
@@ -70,8 +70,8 @@ async fn test_appstate_explicit_mock_selection() {
 
     let state = AppState::new_memory(None::<String>);
 
-    assert_eq!(state.llm_provider.name(), "mock");
-    assert_eq!(state.embedding_provider.dimension(), 1536);
+    assert_eq!(state.query.llm_provider.name(), "mock");
+    assert_eq!(state.query.embedding_provider.dimension(), 1536);
 
     // Cleanup
     clear_provider_detection_env();
@@ -88,8 +88,8 @@ async fn test_appstate_model_provider_alias_selection() {
 
     let state = AppState::new_memory(None::<String>);
 
-    assert_eq!(state.llm_provider.name(), "mock");
-    assert_eq!(state.embedding_provider.name(), "mock");
+    assert_eq!(state.query.llm_provider.name(), "mock");
+    assert_eq!(state.query.embedding_provider.name(), "mock");
     assert_eq!(std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap(), "mock");
     assert_eq!(std::env::var("EDGEQUAKE_LLM_MODEL").unwrap(), "gpt-5-mini");
     assert_eq!(
@@ -108,7 +108,7 @@ async fn test_provider_dimension_matrix() {
     clear_provider_detection_env();
 
     let state_mock = AppState::new_memory(None::<String>);
-    let mock_dimension = state_mock.embedding_provider.dimension();
+    let mock_dimension = state_mock.query.embedding_provider.dimension();
     assert_eq!(mock_dimension, 1536, "Mock should have 1536 dimensions");
 
     // Test 2: Check Ollama dimension would be different

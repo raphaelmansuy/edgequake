@@ -28,7 +28,7 @@ pub async fn import_conversations(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let result = state
         .conversation_service
