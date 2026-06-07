@@ -2,6 +2,7 @@
 
 pub mod batch_upload;
 pub mod file_upload;
+pub mod image_extract;
 pub mod text_upload;
 
 pub use batch_upload::*;

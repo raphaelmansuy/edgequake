@@ -17,10 +17,7 @@ pub(super) async fn get_workspace(
     state: &AppState,
     workspace_id: &str,
 ) -> Result<Option<edgequake_core::Workspace>, ApiError> {
-    use uuid::Uuid;
-
-    let workspace_uuid = Uuid::parse_str(workspace_id)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+    let workspace_uuid = crate::middleware::parse_workspace_id(workspace_id)?;
 
     state
         .workspace_service
@@ -36,7 +33,7 @@ pub(super) async fn get_workspace(
 /// back to the server default would silently turn a scoped query into an
 /// unscoped one. Query handlers should therefore fail closed for explicit
 /// workspace requests and only use default behavior when no workspace was sent.
-pub(super) async fn resolve_query_workspace(
+pub async fn resolve_query_workspace(
     state: &AppState,
     workspace_id: Option<&str>,
 ) -> Result<Option<edgequake_core::Workspace>, ApiError> {
@@ -111,11 +108,8 @@ pub async fn get_workspace_vector_storage(
     workspace_id: &str,
 ) -> Result<Option<std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>>, ApiError> {
     use edgequake_storage::traits::WorkspaceVectorConfig;
-    use uuid::Uuid;
 
-    // Parse workspace ID
-    let workspace_uuid = Uuid::parse_str(workspace_id)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid workspace ID: {}", e)))?;
+    let workspace_uuid = crate::middleware::parse_workspace_id(workspace_id)?;
 
     // Get workspace from service
     let workspace = state
@@ -143,7 +137,12 @@ pub async fn get_workspace_vector_storage(
     // WHY: When embedding provider changes (e.g., Ollama 768 → OpenAI 1536), the cached
     // vector storage instance may hold the old dimension. If get_or_create fails due to
     // dimension mismatch, we evict the cache and retry with the new dimension.
-    let storage = match state.vector_registry.get_or_create(config.clone()).await {
+    let storage = match state
+        .storage
+        .vector_registry
+        .get_or_create(config.clone())
+        .await
+    {
         Ok(s) => s,
         Err(e) => {
             let error_msg = e.to_string();
@@ -154,11 +153,11 @@ pub async fn get_workspace_vector_storage(
                     error = %error_msg,
                     "Dimension mismatch detected, evicting cache and retrying"
                 );
-                state.vector_registry.evict(&workspace_uuid).await;
+                state.storage.vector_registry.evict(&workspace_uuid).await;
 
                 // Retry after eviction
                 state
-                    .vector_registry
+                    .storage.vector_registry
                     .get_or_create(config)
                     .await
                     .map_err(|e2| {
@@ -191,7 +190,6 @@ pub(super) async fn get_workspace_llm_info(
     workspace_id: Option<&str>,
 ) -> (Option<String>, Option<String>) {
     use edgequake_core::types::{DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER};
-    use uuid::Uuid;
 
     // If no workspace, return defaults
     let workspace_id = match workspace_id {
@@ -204,8 +202,7 @@ pub(super) async fn get_workspace_llm_info(
         }
     };
 
-    // Try to get workspace config
-    let workspace_uuid = match Uuid::parse_str(workspace_id) {
+    let workspace_uuid = match crate::middleware::parse_workspace_id(workspace_id) {
         Ok(uuid) => uuid,
         Err(_) => {
             return (

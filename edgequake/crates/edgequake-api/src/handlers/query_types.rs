@@ -121,6 +121,22 @@ pub struct QueryRequest {
     /// @implements SPEC-005: Document date and pattern filters
     #[serde(default)]
     pub document_filter: Option<DocumentFilter>,
+
+    /// Optional HTTP headers to propagate to the upstream LLM provider call.
+    ///
+    /// Useful for B2B / multi-tenant deployments where the caller needs to pass
+    /// tracing or identity metadata (e.g. `x-request-id`, `x-tenant-id`,
+    /// `x-correlation-id`, `traceparent`, HMAC tokens) through to the LLM API.
+    ///
+    /// Reserved headers (`authorization`, `x-api-key`, `anthropic-version`,
+    /// `content-type`, `content-length`, `host`, `user-agent`) are silently
+    /// dropped by the provider to prevent accidental credential overrides.
+    ///
+    /// Only providers that support `with_extra_headers()` will forward these
+    /// (openai-compatible, anthropic, gemini, vertexai, mistral, nvidia).
+    /// Other providers silently ignore this field.
+    #[serde(default)]
+    pub extra_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 /// Streaming query request.
@@ -159,6 +175,14 @@ pub struct StreamQueryRequest {
     /// @implements SPEC-006: Backward compatibility
     #[serde(default)]
     pub stream_format: Option<String>,
+
+    /// Optional HTTP headers to propagate to the upstream LLM provider call.
+    ///
+    /// Enables B2B / multi-tenant metadata (`x-request-id`, `x-tenant-id`,
+    /// `x-correlation-id`, `traceparent`, HMAC tokens) to flow through to the
+    /// LLM API on streaming queries. Same semantics as `QueryRequest.extra_headers`.
+    #[serde(default)]
+    pub extra_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 // ============================================================================

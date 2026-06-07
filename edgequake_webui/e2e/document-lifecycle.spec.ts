@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { gotoApp } from "./helpers/navigation";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Document Lifecycle E2E Tests
@@ -11,12 +16,15 @@ import { expect, test } from "@playwright/test";
  * 5. Delete document
  */
 
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("Document Lifecycle", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to documents page and wait for initialization
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "doc-lifecycle");
+    await gotoApp(page, "/documents");
   });
 
   test("documents page loads and shows upload button", async ({ page }) => {
@@ -140,7 +148,7 @@ test.describe("Document Lifecycle", () => {
 test.describe("Graph Integration", () => {
   test("graph page shows nodes after document processing", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Graph container should be visible
     const graphContainer = page.locator(
@@ -163,7 +171,7 @@ test.describe("Graph Integration", () => {
 
   test("graph controls are visible", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for graph controls (zoom, pan, etc.)
     const controls = page.locator(
@@ -184,7 +192,7 @@ test.describe("Graph Integration", () => {
 test.describe("Query with Documents", () => {
   test("query page accepts questions", async ({ page }) => {
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Find the query input
     const queryInput = page
@@ -204,7 +212,7 @@ test.describe("Query with Documents", () => {
 
   test("query submit button is visible", async ({ page }) => {
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Find submit button
     const submitButton = page
@@ -220,7 +228,7 @@ test.describe("Query with Documents", () => {
 test.describe("Lineage Tracking", () => {
   test("lineage information is accessible", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for lineage tab or section
     const lineageTab = page.locator(
@@ -243,7 +251,7 @@ test.describe("Lineage Tracking", () => {
 
 test.describe("API Health", () => {
   test("backend API is healthy", async ({ page }) => {
-    const response = await page.request.get("http://localhost:8080/health");
+    const response = await page.request.get(`${BACKEND_URL}/health`);
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
@@ -253,7 +261,7 @@ test.describe("API Health", () => {
 
   test("tenants API returns data", async ({ page }) => {
     const response = await page.request.get(
-      "http://localhost:8080/api/v1/tenants"
+      `${API_V1_URL}/tenants`
     );
     expect(response.ok()).toBeTruthy();
 
@@ -267,7 +275,7 @@ test.describe("API Health", () => {
   test("documents API accepts requests", async ({ page }) => {
     // Get tenant and workspace IDs first
     const tenantsResponse = await page.request.get(
-      "http://localhost:8080/api/v1/tenants"
+      `${API_V1_URL}/tenants`
     );
     const tenants = await tenantsResponse.json();
 
@@ -276,7 +284,7 @@ test.describe("API Health", () => {
 
       // Get workspaces
       const workspacesResponse = await page.request.get(
-        `http://localhost:8080/api/v1/tenants/${tenantId}/workspaces`
+        `${API_V1_URL}/tenants/${tenantId}/workspaces`
       );
       const workspaces = await workspacesResponse.json();
 
@@ -285,7 +293,7 @@ test.describe("API Health", () => {
 
         // Try to list documents
         const response = await page.request.get(
-          "http://localhost:8080/api/v1/documents",
+          `${API_V1_URL}/documents`,
           {
             headers: {
               "X-Tenant-ID": tenantId,

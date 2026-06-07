@@ -6,17 +6,21 @@ use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
 
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::services::ContentHasher;
+use crate::services::{record_compliance_event, ContentHasher};
 use crate::state::AppState;
+use edgequake_pipeline::normalize_entity_name;
 
-use crate::file_validation::validate_file;
+use crate::file_validation::{image_mime_type, is_image_extension, validate_file};
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
 use crate::handlers::documents::storage_helpers::{
     delete_document_for_reingestion, get_workspace_vector_storage_strict,
 };
+use crate::handlers::documents::upload::image_extract::extract_text_from_image;
 use crate::handlers::documents_types::*;
 use axum_extra::extract::Multipart;
 
@@ -27,6 +31,10 @@ use axum_extra::extract::Multipart;
     post,
     path = "/api/v1/documents/upload",
     tag = "Documents",
+    params(
+        ("X-Tenant-ID" = Option<String>, Header, description = "Tenant UUID for multi-tenant isolation"),
+        ("X-Workspace-ID" = Option<String>, Header, description = "Workspace UUID — scopes uploaded documents"),
+    ),
     request_body(content_type = "multipart/form-data", description = "File to upload"),
     responses(
         (status = 201, description = "File uploaded successfully", body = FileUploadResponse),
@@ -97,9 +105,46 @@ pub async fn upload_file(
         return Err(ApiError::BadRequest("No file provided".to_string()));
     }
 
-    // Validate file (size, extension, UTF-8, non-empty)
-    let (_extension, text_content, mime_type) =
-        validate_file(&filename, &content, state.config.max_document_size)?;
+    // Determine if this is an image or a text-based document.
+    let raw_ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+    let (text_content, mime_type) = if is_image_extension(&raw_ext) {
+        // ── Image path: extract text via the workspace vision LLM ────────────
+        // WHY: Images are binary; the standard UTF-8 validation path would
+        // reject them.  Instead we call the vision LLM once to extract all
+        // readable text/structure, then treat the result as the document body.
+        let mime = image_mime_type(&raw_ext).unwrap_or("image/png");
+        // WHY: If the configured LLM doesn't support vision (e.g. Mistral text-only),
+        // we still ingest the image as a document with a descriptive placeholder rather
+        // than returning a hard error to the user.
+        let extracted = match extract_text_from_image(
+            &content,
+            mime,
+            &filename,
+            state.query.llm_provider.as_ref(),
+        )
+        .await
+        {
+            Ok(text) => text,
+            Err(e) => {
+                tracing::warn!(
+                    filename = %filename,
+                    error = %e,
+                    "Vision extraction failed; storing image with placeholder text"
+                );
+                format!(
+                    "# Image Document: {filename}\n\n\
+                     *Automatic text extraction failed: {e}*\n\n\
+                     Configure a vision-capable LLM (e.g., gpt-4o, gemma3:12b, llava) \
+                     to enable OCR/text extraction from image uploads."
+                )
+            }
+        };
+        (extracted, mime)
+    } else {
+        // ── Text path: validate size, extension, and UTF-8 ───────────────────
+        let (_, text, mt) = validate_file(&filename, &content, state.config.max_document_size)?;
+        (text, mt)
+    };
 
     // WHY-OODA83: Use ContentHasher service for consistent hash computation (DRY)
     let content_hash = ContentHasher::hash_bytes(&content);
@@ -115,7 +160,7 @@ pub async fn upload_file(
     // FIX-4: Duplicates now trigger re-ingestion instead of rejection
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
     debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
-    if let Some(existing_doc_id) = state.kv_storage.get_by_id(&hash_key).await? {
+    if let Some(existing_doc_id) = state.storage.kv_storage.get_by_id(&hash_key).await? {
         debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
         if let Some(doc_id_str) = existing_doc_id.as_str() {
             // FIX-4: Try to delete old document data for re-ingestion
@@ -172,6 +217,7 @@ pub async fn upload_file(
 
     // Store hash mapping for deduplication (workspace-scoped)
     state
+        .storage
         .kv_storage
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
@@ -206,6 +252,7 @@ pub async fn upload_file(
         "custom_metadata": metadata,
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(doc_metadata_key.clone(), doc_metadata)])
         .await?;
@@ -216,6 +263,7 @@ pub async fn upload_file(
         "content": text_content,
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(doc_content_key, doc_content)])
         .await?;
@@ -256,7 +304,7 @@ pub async fn upload_file(
         })
         .collect();
 
-    state.kv_storage.upsert(&chunks).await?;
+    state.storage.kv_storage.upsert(&chunks).await?;
 
     // SPEC-033: Get workspace-specific vector storage for file embeddings
     // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
@@ -351,9 +399,14 @@ pub async fn upload_file(
                 serde_json::json!(&workspace_id_for_storage),
             );
 
+            // WHY: Normalize entity names to UPPERCASE_UNDERSCORE before storage.
+            // Without this, variants like "Systems Thinking" and "systems thinking"
+            // are stored as separate nodes, bypassing deduplication in the merger.
+            let entity_key = normalize_entity_name(&entity.name);
             match state
+                .storage
                 .graph_storage
-                .upsert_node(&entity.name, properties)
+                .upsert_node(&entity_key, properties)
                 .await
             {
                 Ok(_) => {
@@ -386,8 +439,8 @@ pub async fn upload_file(
                 }
                 metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-                // Use entity name as vector ID for dedup
-                let entity_id = format!("entity:{}", entity.name);
+                // Use normalized entity key as vector ID for dedup (matches graph node ID)
+                let entity_id = format!("entity:{}", entity_key);
                 if let Err(e) = workspace_vector_storage
                     .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
                     .await
@@ -435,6 +488,7 @@ pub async fn upload_file(
             );
 
             let _ = state
+                .storage
                 .graph_storage
                 .upsert_edge(&relationship.source, &relationship.target, properties)
                 .await;
@@ -474,6 +528,7 @@ pub async fn upload_file(
         "processing_duration_ms": result.stats.processing_time_ms,
     });
     state
+        .storage
         .kv_storage
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
@@ -482,7 +537,7 @@ pub async fn upload_file(
     // WHY: Without this, file uploads only write to KV storage. The PostgreSQL
     // `documents` table stays incomplete, causing Dashboard KPI mismatch.
     #[cfg(feature = "postgres")]
-    if let Some(ref pdf_storage) = state.pdf_storage {
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
         if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
             if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
                 let tenant_uuid = tenant_id_for_storage
@@ -513,6 +568,21 @@ pub async fn upload_file(
             }
         }
     }
+
+    let tenant_for_audit = tenant_ctx
+        .tenant_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    record_compliance_event(
+        &state,
+        tenant_for_audit,
+        AuditEventType::DocumentUpload,
+        "upload_file",
+        AuditResult::Success,
+        tenant_ctx.workspace_id.clone(),
+        tenant_ctx.user_id.clone(),
+        Some(("document".to_string(), document_id.clone())),
+    );
 
     Ok((
         StatusCode::CREATED,

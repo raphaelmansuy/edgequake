@@ -144,6 +144,7 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/users", get(handlers::list_users))
         .route("/users/{user_id}", get(handlers::get_user))
         .route("/users/{user_id}", delete(handlers::delete_user))
+        .route("/users/{user_id}", patch(handlers::update_user))
         // API Keys (Phase 3)
         .route("/api-keys", post(handlers::create_api_key))
         .route("/api-keys", get(handlers::list_api_keys))
@@ -252,6 +253,10 @@ fn api_v1_routes() -> Router<AppState> {
         )
         // PDF Upload (SPEC-007) - MUST come before /documents/{document_id}
         .route("/documents/pdf", post(handlers::upload_pdf_document))
+        .route(
+            "/documents/pdf/batch",
+            post(handlers::upload_pdf_batch_document),
+        )
         .route("/documents/pdf", get(handlers::list_pdfs))
         // OODA-14: PDF progress endpoint - before /documents/pdf/{pdf_id}
         .route(

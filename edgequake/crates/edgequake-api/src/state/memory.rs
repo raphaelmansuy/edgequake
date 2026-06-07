@@ -5,22 +5,48 @@
 
 use std::sync::Arc;
 
-use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+use edgequake_auth::AuthConfig;
 use edgequake_core::env::apply_model_env_aliases;
-use edgequake_core::{InMemoryConversationService, InMemoryWorkspaceService};
+#[cfg(feature = "postgres")]
+use edgequake_core::ConversationServiceImpl;
+#[cfg(not(feature = "postgres"))]
+use edgequake_core::InMemoryConversationService;
+use edgequake_core::InMemoryWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
+#[cfg(feature = "postgres")]
+use edgequake_storage::adapters::memory::{MemoryConversationStorage, MemoryPdfStorage};
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
 };
-use edgequake_tasks::PipelineState;
+#[cfg(feature = "postgres")]
+use edgequake_storage::ConversationStorage;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{create_bm25_reranker, AppState};
+use super::{
+    create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
+};
 use crate::cache_manager::CacheManager;
-use crate::handlers::ProgressBroadcaster;
+
+#[cfg(feature = "postgres")]
+fn memory_pdf_storage() -> Option<Arc<dyn edgequake_storage::PdfDocumentStorage>> {
+    Some(Arc::new(MemoryPdfStorage::new()))
+}
+
+/// Memory-mode conversation service: storage trait adapter when postgres feature is enabled.
+fn memory_conversation_service() -> SharedConversationService {
+    #[cfg(feature = "postgres")]
+    {
+        let storage: Arc<dyn ConversationStorage> = Arc::new(MemoryConversationStorage::new());
+        Arc::new(ConversationServiceImpl::from_storage(storage))
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        Arc::new(InMemoryConversationService::new())
+    }
+}
 
 impl AppState {
     /// Create a new application state.
@@ -44,49 +70,44 @@ impl AppState {
         task_queue: edgequake_tasks::SharedTaskQueue,
         workspace_service: SharedWorkspaceService,
     ) -> Self {
-        let auth_config = AuthConfig::from_env();
-        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
-        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
-        let rbac_service = Arc::new(RbacService::new());
-        let conversation_service: SharedConversationService =
-            Arc::new(InMemoryConversationService::new());
+        let conversation_service = memory_conversation_service();
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
         Self {
-            kv_storage,
-            vector_storage,
-            vector_registry,
-            graph_storage,
-            llm_provider,
-            embedding_provider,
-            query_engine,
-            sota_engine,
-            pipeline,
-            task_storage,
-            task_queue,
-            pipeline_state: PipelineState::new(),
-            progress_broadcaster: ProgressBroadcaster::default(),
+            storage: StorageRuntime {
+                kv_storage,
+                vector_storage,
+                vector_registry,
+                graph_storage,
+                #[cfg(feature = "postgres")]
+                pdf_storage: memory_pdf_storage(),
+                mode: StorageMode::Memory,
+            },
+            query: QueryRuntime {
+                llm_provider,
+                vision_llm_provider: None,
+                embedding_provider,
+                query_engine,
+                sota_engine,
+                pipeline,
+                models_config: super::bundled_models::bundled_models_config(),
+            },
+            auth: AuthRuntime::from_env(),
+            tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
-            auth_config,
-            jwt_service,
-            password_service,
-            rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
-            storage_mode: StorageMode::Memory, // Default to memory for generic constructor
-            models_config: Arc::new(
-                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
-            ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
-            #[cfg(feature = "postgres")]
-            pdf_storage: None,
             start_time: std::time::Instant::now(),
-            // SECURITY (OODA-248): Default to secure config (no paths allowed).
-            // Production deployments should configure allowed_paths.
             path_validation_config: crate::path_validation::PathValidationConfig::default(),
-            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
+            audit_logger: None,
+            resource_guard,
+            graph_materialize,
+            #[cfg(feature = "postgres")]
+            migration_bootstrap: None,
         }
     }
 
@@ -146,42 +167,24 @@ impl AppState {
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
 
         // Create conversation service
-        let conversation_service: SharedConversationService =
-            Arc::new(InMemoryConversationService::new());
+        let conversation_service = memory_conversation_service();
 
-        // Create pipeline with LLM and embedding providers configured
-        use edgequake_pipeline::LLMExtractor;
-        let extractor = Arc::new(LLMExtractor::new(Arc::clone(&llm_provider)));
-        let pipeline = Arc::new(
-            Pipeline::default_pipeline()
-                .with_extractor(extractor)
-                .with_embedding_provider(Arc::clone(&embedding_provider)),
+        let pipeline = super::query_bootstrap::build_ingestion_pipeline(
+            Arc::clone(&llm_provider),
+            Arc::clone(&embedding_provider),
         );
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
-        // Create legacy query engine (for backward compatibility)
-        let query_engine = Arc::new(QueryEngine::new(
-            QueryEngineConfig::default(),
+        let reranker = create_bm25_reranker();
+        let (query_engine, sota_engine) = super::query_bootstrap::build_production_query_engines(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider),
-        ));
-
-        // Create SOTA query engine with LightRAG-style enhancements
-        let reranker = create_bm25_reranker();
-        let sota_engine = Arc::new(
-            SOTAQueryEngine::new(
-                SOTAQueryConfig::default(),
-                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&embedding_provider),
-                Arc::clone(&llm_provider),
-            )
-            .with_reranker(reranker),
+            reranker,
         );
 
         // Create workspace vector registry for per-workspace dimensions
@@ -191,53 +194,50 @@ impl AppState {
             ));
 
         // Create auth services
-        let auth_config = AuthConfig::from_env();
-        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
-        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
-        let rbac_service = Arc::new(RbacService::new());
+        let auth = AuthRuntime::from_env();
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
         Self {
-            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
-            vector_storage: Arc::clone(&vector_storage)
-                as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            vector_registry,
-            graph_storage: Arc::clone(&graph_storage)
-                as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            llm_provider: Arc::clone(&llm_provider),
-            embedding_provider: Arc::clone(&embedding_provider),
-            query_engine,
-            sota_engine,
-            pipeline,
-            task_storage,
-            task_queue,
-            pipeline_state: PipelineState::new(),
-            progress_broadcaster: ProgressBroadcaster::default(),
+            storage: StorageRuntime {
+                kv_storage: Arc::clone(&kv_storage)
+                    as Arc<dyn edgequake_storage::traits::KVStorage>,
+                vector_storage: Arc::clone(&vector_storage)
+                    as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                vector_registry,
+                graph_storage: Arc::clone(&graph_storage)
+                    as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                #[cfg(feature = "postgres")]
+                pdf_storage: memory_pdf_storage(),
+                mode: StorageMode::Memory,
+            },
+            query: QueryRuntime {
+                llm_provider: Arc::clone(&llm_provider),
+                vision_llm_provider: None,
+                embedding_provider: Arc::clone(&embedding_provider),
+                query_engine,
+                sota_engine,
+                pipeline,
+                models_config: super::bundled_models::bundled_models_config(),
+            },
+            auth,
+            tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
-            auth_config,
-            jwt_service,
-            password_service,
-            rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
-            storage_mode: StorageMode::Memory,
-            models_config: Arc::new(
-                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
-            ),
             #[cfg(feature = "postgres")]
             pg_pool: None,
-            // PDF storage not available in memory mode
-            #[cfg(feature = "postgres")]
-            pdf_storage: None,
             start_time: std::time::Instant::now(),
-            // SECURITY (OODA-248): Memory mode uses permissive config for dev/testing.
-            // Production should use PostgreSQL mode with explicit allowed_paths.
             path_validation_config: crate::path_validation::PathValidationConfig {
-                allow_any_path: true, // Permissive for memory/dev mode
+                allow_any_path: true,
                 ..Default::default()
             },
-            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
+            audit_logger: None,
+            resource_guard,
+            graph_materialize,
+            #[cfg(feature = "postgres")]
+            migration_bootstrap: None,
         }
     }
 
@@ -255,8 +255,7 @@ impl AppState {
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
 
         // Create conversation service
-        let conversation_service: SharedConversationService =
-            Arc::new(InMemoryConversationService::new());
+        let conversation_service = memory_conversation_service();
 
         // Create task infrastructure
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
@@ -281,58 +280,59 @@ impl AppState {
             Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         ));
 
-        // Create auth services with test configuration
-        let auth_config = AuthConfig::default();
-        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
-        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
-        let rbac_service = Arc::new(RbacService::new());
-
         // Create workspace vector registry for per-workspace dimensions
         let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
             Arc::new(MemoryWorkspaceVectorRegistry::new(
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             ));
 
+        // Create auth services with test configuration
+        let auth = AuthRuntime::new(AuthConfig::default());
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
+
         Self {
-            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
-            vector_storage: Arc::clone(&vector_storage)
-                as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            vector_registry,
-            graph_storage: Arc::clone(&graph_storage)
-                as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            embedding_provider: Arc::clone(&mock_provider)
-                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            query_engine,
-            sota_engine,
-            pipeline,
-            task_storage,
-            task_queue,
-            pipeline_state: PipelineState::new(),
-            progress_broadcaster: ProgressBroadcaster::default(),
+            storage: StorageRuntime {
+                kv_storage: Arc::clone(&kv_storage)
+                    as Arc<dyn edgequake_storage::traits::KVStorage>,
+                vector_storage: Arc::clone(&vector_storage)
+                    as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                vector_registry,
+                graph_storage: Arc::clone(&graph_storage)
+                    as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                #[cfg(feature = "postgres")]
+                pdf_storage: memory_pdf_storage(),
+                mode: StorageMode::Memory,
+            },
+            query: QueryRuntime {
+                llm_provider: Arc::clone(&mock_provider)
+                    as Arc<dyn edgequake_llm::traits::LLMProvider>,
+                vision_llm_provider: None,
+                embedding_provider: Arc::clone(&mock_provider)
+                    as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+                query_engine,
+                sota_engine,
+                pipeline,
+                models_config: Arc::new(ModelsConfig::builtin_defaults()),
+            },
+            auth,
+            tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
-            auth_config,
-            jwt_service,
-            password_service,
-            rbac_service,
             cache_manager: CacheManager::with_defaults(),
-            rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)), // Strict limits for testing
-            storage_mode: StorageMode::Memory,
-            models_config: Arc::new(ModelsConfig::builtin_defaults()), // Use builtins for testing
+            rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)),
             #[cfg(feature = "postgres")]
             pg_pool: None,
-            // PDF storage not available in test mode
-            #[cfg(feature = "postgres")]
-            pdf_storage: None,
             start_time: std::time::Instant::now(),
-            // SECURITY (OODA-248): Test state is permissive for testing
             path_validation_config: crate::path_validation::PathValidationConfig {
                 allow_any_path: true,
                 ..Default::default()
             },
-            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
+            audit_logger: None,
+            resource_guard,
+            graph_materialize,
+            #[cfg(feature = "postgres")]
+            migration_bootstrap: None,
         }
     }
 }

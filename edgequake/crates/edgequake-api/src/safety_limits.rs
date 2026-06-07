@@ -50,6 +50,26 @@ pub const MINIMUM_TIMEOUT_SECS: u64 = 10;
 /// pipeline layer; this is the HTTP-level safety backstop.
 pub const MAXIMUM_TIMEOUT_SECS: u64 = 3600;
 
+/// Default safe maximum embedding batch count (512).
+///
+/// WHY 512: Mistral's `mistral-embed` API enforces a hard limit on the NUMBER
+/// of input strings per embedding request, independent of total token count.
+/// Exceeding this limit returns HTTP 400 error code 3210:
+///   "Too many inputs in request, split into more batches."
+///
+/// Evidence: EU AI Act (231 764 chars) extracts 1 000+ short legal entities.
+/// With token budget 6 963 and entities averaging 10 tokens each, the token-
+/// based splitter builds sub-batches of 696 items — exceeding Mistral's 256
+/// input limit (empirically confirmed: n=256→OK, n=257→HTTP 400 code 3210).
+///
+/// NOTE: The Mistral hard limit is 256 (not 512 as previously assumed). This
+/// cap is used as a ceiling for all providers; provider-specific limits in
+/// edgequake-llm further constrain the effective batch size via min().
+///
+/// OpenAI and Ollama support larger batches; this cap can be raised via
+/// `EDGEQUAKE_EMBEDDING_BATCH_SIZE` environment variable.
+pub const DEFAULT_SAFE_EMBED_BATCH_SIZE: usize = 256;
+
 /// Configuration for safety limits.
 #[derive(Debug, Clone)]
 pub struct SafetyLimitsConfig {
@@ -59,6 +79,13 @@ pub struct SafetyLimitsConfig {
     pub timeout: Duration,
     /// Whether to log when limits are enforced.
     pub log_enforcement: bool,
+    /// Maximum number of inputs per embedding request.
+    ///
+    /// Acts as a safety cap on `EmbeddingProvider::max_batch_size()`. The inner
+    /// provider value is clamped to `min(inner, max_embed_batch_size)` so that
+    /// providers that advertise a large batch size (e.g. Mistral returning 2048)
+    /// are still limited to the provider's actual API input count limit.
+    pub max_embed_batch_size: usize,
 }
 
 impl Default for SafetyLimitsConfig {
@@ -67,11 +94,21 @@ impl Default for SafetyLimitsConfig {
             max_tokens: DEFAULT_MAX_TOKENS,
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
             log_enforcement: true,
+            max_embed_batch_size: Self::env_embed_batch_size(),
         }
     }
 }
 
 impl SafetyLimitsConfig {
+    /// Read max_embed_batch_size from env, falling back to DEFAULT_SAFE_EMBED_BATCH_SIZE.
+    fn env_embed_batch_size() -> usize {
+        std::env::var("EDGEQUAKE_EMBEDDING_BATCH_SIZE")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_SAFE_EMBED_BATCH_SIZE)
+            .max(1) // must be at least 1
+    }
+
     /// Create a new config with custom limits.
     pub fn new(max_tokens: usize, timeout_secs: u64) -> Self {
         Self {
@@ -80,6 +117,7 @@ impl SafetyLimitsConfig {
                 timeout_secs.clamp(MINIMUM_TIMEOUT_SECS, MAXIMUM_TIMEOUT_SECS),
             ),
             log_enforcement: true,
+            max_embed_batch_size: Self::env_embed_batch_size(),
         }
     }
 
@@ -101,6 +139,7 @@ impl SafetyLimitsConfig {
             max_tokens,
             timeout: Duration::from_secs(timeout_secs),
             log_enforcement: true,
+            max_embed_batch_size: Self::env_embed_batch_size(),
         }
     }
 
@@ -110,6 +149,7 @@ impl SafetyLimitsConfig {
             max_tokens: 1024,
             timeout: Duration::from_secs(30),
             log_enforcement: true,
+            max_embed_batch_size: DEFAULT_SAFE_EMBED_BATCH_SIZE,
         }
     }
 
@@ -119,6 +159,7 @@ impl SafetyLimitsConfig {
             max_tokens: ABSOLUTE_MAX_TOKENS,
             timeout: Duration::from_secs(MAXIMUM_TIMEOUT_SECS),
             log_enforcement: true,
+            max_embed_batch_size: DEFAULT_SAFE_EMBED_BATCH_SIZE,
         }
     }
 
@@ -307,7 +348,25 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
     }
 
     fn max_batch_size(&self) -> usize {
-        self.inner.max_batch_size()
+        // Clamp the inner provider's batch size to the configured safety cap.
+        //
+        // WHY: Providers like Mistral advertise `max_batch_size()` = 2048 (the
+        // trait default) but their actual API enforces a 512-input limit per
+        // request. Sending more inputs returns HTTP 400 code 3210
+        // "Too many inputs in request". By clamping here, `embed_with_token_budget`
+        // (which reads this value) produces sub-batches that satisfy both
+        // the token-count AND input-count limits.
+        let inner = self.inner.max_batch_size();
+        let cap = self.config.max_embed_batch_size;
+        let effective = inner.min(cap);
+        if effective < inner && self.config.log_enforcement {
+            tracing::debug!(
+                inner_batch_size = inner,
+                effective_batch_size = effective,
+                "Safety limit: embedding batch size clamped"
+            );
+        }
+        effective
     }
 
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
@@ -382,6 +441,54 @@ pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<
         max_tokens = config.max_tokens,
         timeout_secs = config.timeout.as_secs(),
         "Creating safety-limited LLM provider"
+    );
+
+    Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
+}
+
+/// Create a safety-limited LLM provider with optional caller-supplied HTTP headers.
+///
+/// Headers are forwarded to the upstream LLM API call so that B2B / multi-tenant
+/// metadata (`x-request-id`, `x-tenant-id`, `x-correlation-id`, `traceparent`,
+/// HMAC tokens) flows through from the incoming API request to the LLM provider.
+///
+/// If `extra_headers` is `None` or empty this is identical to
+/// [`create_safe_llm_provider`].
+pub fn create_safe_llm_provider_with_headers(
+    provider_name: &str,
+    model: &str,
+    extra_headers: Option<std::collections::HashMap<String, String>>,
+) -> Result<Arc<dyn LLMProvider>> {
+    check_api_key(provider_name)?;
+
+    let effective_model = if is_model_provider_mismatch(provider_name, model) {
+        let corrected = default_model_for_provider(provider_name);
+        tracing::warn!(
+            provider = provider_name,
+            requested_model = model,
+            corrected_model = corrected,
+            "COMPAT-GUARD: LLM model/provider mismatch — auto-correcting to provider default."
+        );
+        corrected
+    } else {
+        model
+    };
+
+    let headers = extra_headers.unwrap_or_default();
+    let header_count = headers.len();
+
+    let inner =
+        ProviderFactory::create_llm_provider_with_headers(provider_name, effective_model, headers)?;
+
+    let config = SafetyLimitsConfig::from_env();
+
+    tracing::info!(
+        provider = provider_name,
+        model = effective_model,
+        max_tokens = config.max_tokens,
+        timeout_secs = config.timeout.as_secs(),
+        extra_header_count = header_count,
+        "Creating safety-limited LLM provider with extra headers"
     );
 
     Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
@@ -562,6 +669,7 @@ pub fn create_safe_vision_provider(
         max_tokens: DEFAULT_MAX_TOKENS,
         timeout: Duration::from_secs(timeout_secs),
         log_enforcement: true,
+        max_embed_batch_size: SafetyLimitsConfig::env_embed_batch_size(),
     };
 
     tracing::info!(

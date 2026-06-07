@@ -11,7 +11,8 @@ pub struct ConversationsResource<'a> {
 impl<'a> ConversationsResource<'a> {
     /// `GET /api/v1/conversations` — paginated (`items` + `pagination`), server defaults.
     pub async fn list(&self) -> Result<PaginatedConversations> {
-        self.list_with_query(&ConversationListQuery::default()).await
+        self.list_with_query(&ConversationListQuery::default())
+            .await
     }
 
     /// `GET /api/v1/conversations` with cursor, `filter[…]`, `sort`, and `order` query params.
@@ -77,10 +78,7 @@ impl<'a> ConversationsResource<'a> {
         let path = if qs.is_empty() {
             format!("/api/v1/conversations/{conversation_id}/messages")
         } else {
-            format!(
-                "/api/v1/conversations/{conversation_id}/messages?{}",
-                qs
-            )
+            format!("/api/v1/conversations/{conversation_id}/messages?{}", qs)
         };
         self.client.get(&path).await
     }
@@ -169,10 +167,7 @@ impl<'a> ConversationsResource<'a> {
         req: &UpdateMessageRequest,
     ) -> Result<Message> {
         self.client
-            .patch(
-                &format!("/api/v1/messages/{message_id}"),
-                Some(req),
-            )
+            .patch(&format!("/api/v1/messages/{message_id}"), Some(req))
             .await
     }
 

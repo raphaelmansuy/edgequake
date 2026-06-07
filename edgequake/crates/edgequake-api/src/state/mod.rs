@@ -69,24 +69,34 @@
 //! All state components use Arc for shared ownership and are designed
 //! for concurrent access across multiple request handlers.
 
+mod auth_runtime;
+pub(crate) mod bundled_models;
 mod config;
 mod memory;
 #[cfg(feature = "postgres")]
+pub mod migration_bootstrap;
+#[cfg(feature = "postgres")]
 mod postgres;
 mod provider_setup;
+mod query_bootstrap;
+mod query_runtime;
+mod resource_runtime;
+mod storage_runtime;
+mod task_runtime;
 
+pub use auth_runtime::AuthRuntime;
 pub use config::*;
+pub use query_runtime::QueryRuntime;
+pub use storage_runtime::StorageRuntime;
+pub use task_runtime::TaskRuntime;
 
 use std::sync::Arc;
 
+use edgequake_core::{GraphMaterializationSemaphore, ResourceBudgetConfig, ResourceGuard};
+
 use crate::cache_manager::CacheManager;
-use crate::handlers::ProgressBroadcaster;
-use edgequake_auth::AuthConfig;
-use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngine, SOTAQueryEngine};
 use edgequake_rate_limiter::RateLimiter;
-use edgequake_tasks::{PipelineState, SharedTaskQueue, SharedTaskStorage};
 
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
@@ -116,49 +126,17 @@ fn create_bm25_reranker() -> Arc<dyn edgequake_llm::Reranker> {
 /// Application state shared across handlers.
 #[derive(Clone)]
 pub struct AppState {
-    /// KV storage.
-    pub kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
+    /// Storage adapters (KV, vector, graph, PDF).
+    pub storage: StorageRuntime,
 
-    /// Vector storage (default, for backward compatibility).
-    pub vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
+    /// Query engines, pipeline, and default LLM providers.
+    pub query: QueryRuntime,
 
-    /// Workspace vector registry for per-workspace vector storage.
-    /// Each workspace can have its own dimension based on its embedding provider.
-    pub vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry>,
+    /// Authentication services (JWT, password, RBAC).
+    pub auth: AuthRuntime,
 
-    /// Graph storage.
-    pub graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
-
-    /// PDF document storage (SPEC-007).
-    #[cfg(feature = "postgres")]
-    pub pdf_storage: Option<Arc<dyn edgequake_storage::PdfDocumentStorage>>,
-
-    /// LLM provider.
-    pub llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
-
-    /// Embedding provider.
-    pub embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-
-    /// Query engine.
-    pub query_engine: Arc<QueryEngine>,
-
-    /// SOTA Query engine with LightRAG-style enhancements.
-    pub sota_engine: Arc<SOTAQueryEngine>,
-
-    /// Processing pipeline.
-    pub pipeline: Arc<Pipeline>,
-
-    /// Task storage.
-    pub task_storage: SharedTaskStorage,
-
-    /// Task queue.
-    pub task_queue: SharedTaskQueue,
-
-    /// Pipeline state for real-time progress tracking (Phase 3).
-    pub pipeline_state: PipelineState,
-
-    /// Progress broadcaster for WebSocket clients (Phase 5).
-    pub progress_broadcaster: ProgressBroadcaster,
+    /// Background task runtime (queue, storage, progress, cancellation).
+    pub tasks: TaskRuntime,
 
     /// Workspace service for tenant/workspace management.
     pub workspace_service: SharedWorkspaceService,
@@ -169,29 +147,11 @@ pub struct AppState {
     /// Configuration.
     pub config: AppConfig,
 
-    /// Auth configuration.
-    pub auth_config: AuthConfig,
-
-    /// JWT service.
-    pub jwt_service: Arc<edgequake_auth::JwtService>,
-
-    /// Password service.
-    pub password_service: Arc<edgequake_auth::PasswordService>,
-
-    /// RBAC service.
-    pub rbac_service: Arc<edgequake_auth::RbacService>,
-
     /// Cache manager for conversations and messages.
     pub cache_manager: CacheManager,
 
     /// Rate limiter for tenant-based rate limiting.
     pub rate_limiter: RateLimiter,
-
-    /// Storage mode indicator (memory or postgresql).
-    pub storage_mode: StorageMode,
-
-    /// Models configuration (providers, model cards, capabilities).
-    pub models_config: Arc<ModelsConfig>,
 
     /// PostgreSQL pool (only available when using postgres feature).
     #[cfg(feature = "postgres")]
@@ -201,19 +161,31 @@ pub struct AppState {
     pub start_time: std::time::Instant,
 
     /// Path validation configuration for filesystem access security (OODA-248).
-    /// WHY: Prevents directory traversal attacks in scan_directory endpoint.
     pub path_validation_config: crate::path_validation::PathValidationConfig,
 
-    /// Per-task cancellation registry.
-    /// WHY: The cancel_task handler triggers cooperative cancellation of in-flight
-    /// tasks by signalling the token registered here. Workers check the token
-    /// at every pipeline stage boundary to stop processing promptly.
-    pub cancellation_registry: edgequake_tasks::CancellationRegistry,
+    /// Compliance audit logger (PostgreSQL deployments).
+    pub audit_logger: Option<edgequake_audit::AuditLogger>,
+
+    /// SPEC-006: centralized admission guard (DRY — single budget authority).
+    pub resource_guard: ResourceGuard,
+
+    /// SPEC-006: caps concurrent graph materialization queries.
+    pub graph_materialize: Arc<GraphMaterializationSemaphore>,
+
+    /// Bootstrap migration report (PostgreSQL only).
+    #[cfg(feature = "postgres")]
+    pub migration_bootstrap: Option<crate::state::migration_bootstrap::MigrationBootstrapReport>,
 }
 
 // ── Operational Methods ───────────────────────────────────────────────────
 
 impl AppState {
+    /// SPEC-006 SSOT accessor — handlers must use this instead of ad-hoc `default()` / `from_env()`.
+    #[inline]
+    pub fn resource_budget(&self) -> &ResourceBudgetConfig {
+        self.resource_guard.budget()
+    }
+
     /// Initialize default tenant and workspace for non-authenticated mode.
     /// This ensures that the system is usable without authentication.
     ///
@@ -329,81 +301,22 @@ impl AppState {
     /// let result = workspace_pipeline.process(&doc_id, &content).await?;
     /// ```
     pub async fn create_workspace_pipeline(&self, workspace_id: &str) -> Arc<Pipeline> {
-        use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
-        use edgequake_pipeline::LLMExtractor;
+        let factory = crate::workspace_pipeline_factory::WorkspacePipelineFactory::new(
+            Arc::clone(&self.workspace_service),
+            Arc::clone(&self.query.pipeline),
+        );
+        factory
+            .resolve(
+                workspace_id,
+                crate::workspace_pipeline_factory::PipelineFallbackPolicy::LenientGlobal,
+            )
+            .await
+            .unwrap_or_else(|_| Arc::clone(&self.query.pipeline))
+    }
 
-        // Resolve legacy aliases like `default` before falling back.
-        let workspace_uuid = match crate::middleware::resolve_workspace_uuid(Some(workspace_id)) {
-            Some(uuid) => uuid,
-            None => {
-                tracing::warn!(
-                    workspace_id = workspace_id,
-                    "Invalid workspace ID format, using global pipeline"
-                );
-                return Arc::clone(&self.pipeline);
-            }
-        };
-
-        // Lookup workspace configuration
-        let workspace_result = self.workspace_service.get_workspace(workspace_uuid).await;
-
-        match workspace_result {
-            Ok(Some(ws)) => {
-                // Try to create workspace-specific LLM provider with safety limits
-                // @implements FEAT0779: Safety limits for LLM calls (AppState)
-                // @implements BR0777: Hard max_tokens limit enforcement
-                // @implements BR0778: Request timeout enforcement
-                let llm_provider = create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
-
-                // Try to create workspace-specific embedding provider with safety limits
-                let embedding_provider = create_safe_embedding_provider(
-                    &ws.embedding_provider,
-                    &ws.embedding_model,
-                    ws.embedding_dimension,
-                );
-
-                // If both providers were created successfully, use them
-                if let (Ok(llm), Ok(embedding)) = (llm_provider, embedding_provider) {
-                    tracing::info!(
-                        workspace_id = workspace_id,
-                        llm_model = %ws.llm_full_id(),
-                        embedding_model = %ws.embedding_full_id(),
-                        "Using workspace-specific LLM configuration for pipeline (with safety limits)"
-                    );
-
-                    let extractor = Arc::new(LLMExtractor::new(llm));
-                    return Arc::new(
-                        Pipeline::default_pipeline()
-                            .with_extractor(extractor)
-                            .with_embedding_provider(embedding),
-                    );
-                }
-
-                // Log warning and fall back to global pipeline
-                tracing::warn!(
-                    workspace_id = workspace_id,
-                    llm_config = %ws.llm_full_id(),
-                    embedding_config = %ws.embedding_full_id(),
-                    "Failed to create workspace-specific providers, using global pipeline"
-                );
-            }
-            Ok(None) => {
-                tracing::warn!(
-                    workspace_id = workspace_id,
-                    "Workspace not found, using global pipeline"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    workspace_id = workspace_id,
-                    error = %e,
-                    "Failed to lookup workspace, using global pipeline"
-                );
-            }
-        }
-
-        // Fall back to global pipeline
-        Arc::clone(&self.pipeline)
+    /// Persist a task and enqueue it for background processing (SPEC-017 P2-01).
+    pub async fn enqueue_task(&self, task: edgequake_tasks::Task) -> crate::error::ApiResult<()> {
+        self.tasks.enqueue(task).await
     }
 }
 
@@ -477,7 +390,87 @@ mod tests {
     #[tokio::test]
     async fn test_app_state_test_state() {
         let state = AppState::test_state();
-        assert!(state.storage_mode.is_memory());
+        assert!(state.storage.is_memory());
         assert_eq!(state.config.workspace_id, "default");
+        assert_eq!(state.query.embedding_provider.dimension(), 1536);
+        #[cfg(feature = "postgres")]
+        assert!(state.storage.pdf_storage.is_some());
+    }
+
+    /// SPEC-017: memory AppState uses ConversationServiceImpl + MemoryConversationStorage.
+    #[cfg(feature = "postgres")]
+    #[tokio::test]
+    async fn test_memory_conversation_service_roundtrip() {
+        use edgequake_core::CreateConversationRequest;
+        use uuid::Uuid;
+
+        let state = AppState::test_state();
+        let tenant = Uuid::new_v4();
+        let user = Uuid::new_v4();
+
+        let conv = state
+            .conversation_service
+            .create_conversation(
+                tenant,
+                user,
+                None,
+                CreateConversationRequest {
+                    title: Some("SPEC-017 memory".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("create conversation");
+
+        let listed = state
+            .conversation_service
+            .list_conversations(
+                tenant,
+                user,
+                edgequake_core::ConversationFilter::default(),
+                edgequake_core::ConversationSortField::CreatedAt,
+                false,
+                None,
+                10,
+            )
+            .await
+            .expect("list conversations");
+
+        assert!(listed
+            .items
+            .iter()
+            .any(|c| c.conversation_id == conv.conversation_id));
+    }
+
+    #[tokio::test]
+    async fn test_enqueue_task_persists_and_queues() {
+        use edgequake_tasks::{Task, TaskType};
+        use uuid::Uuid;
+
+        let state = AppState::test_state();
+        let tenant_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+
+        let task = Task::new(
+            tenant_id,
+            workspace_id,
+            TaskType::Insert,
+            serde_json::json!({"content": "enqueue test"}),
+        );
+        let track_id = task.track_id.clone();
+
+        state
+            .enqueue_task(task)
+            .await
+            .expect("enqueue should succeed");
+
+        let stored = state
+            .tasks
+            .storage
+            .get_task(&track_id)
+            .await
+            .expect("storage read")
+            .expect("task must exist");
+        assert_eq!(stored.track_id, track_id);
     }
 }

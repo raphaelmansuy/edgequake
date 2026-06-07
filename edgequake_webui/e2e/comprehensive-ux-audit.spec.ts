@@ -1,6 +1,9 @@
 import { Page, test } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import fs from "node:fs";
+import {
+  resolveAuditPath,
+  SCREENSHOT_ROOT,
+} from "./helpers/screenshot-paths";
 
 /**
  * Comprehensive UX/UI Audit Script
@@ -8,23 +11,13 @@ import * as path from "path";
  * Following specs/12-ux-ui-audit.md
  */
 
-const AUDIT_DIR = path.join(process.cwd(), "../audit_ui/screenshots");
-
-// Ensure audit directory exists
-function ensureDir(dir: string) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 // Helper to save screenshots
 async function captureScreenshot(
   page: Page,
   filename: string,
   fullPage = false
 ) {
-  ensureDir(AUDIT_DIR);
-  const filepath = path.join(AUDIT_DIR, filename);
+  const filepath = resolveAuditPath(undefined, filename);
   await page.screenshot({ path: filepath, fullPage });
   console.log(`📸 Captured: ${filename}`);
   return filepath;
@@ -38,8 +31,7 @@ async function captureElementScreenshot(
 ): Promise<string | null> {
   const element = page.locator(selector).first();
   if ((await element.count()) > 0) {
-    ensureDir(AUDIT_DIR);
-    const filepath = path.join(AUDIT_DIR, filename);
+    const filepath = resolveAuditPath(undefined, filename);
     await element.screenshot({ path: filepath });
     console.log(`📸 Captured element: ${filename}`);
     return filepath;
@@ -62,7 +54,7 @@ async function logLayoutMetrics(page: Page, container: string) {
   }
 }
 
-test.describe("UX/UI Comprehensive Audit - All Screens", () => {
+test.describe("@audit UX/UI Comprehensive Audit - All Screens", () => {
   test.beforeEach(async ({ page }) => {
     // Set standard desktop viewport
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -107,7 +99,7 @@ test.describe("UX/UI Comprehensive Audit - All Screens", () => {
       .first();
     if ((await breadcrumb.count()) > 0) {
       await breadcrumb.screenshot({
-        path: path.join(AUDIT_DIR, "01-dashboard-breadcrumb.png"),
+        path: resolveAuditPath(undefined, "01-dashboard-breadcrumb.png"),
       });
     }
 
@@ -476,11 +468,11 @@ test.describe("UX/UI Comprehensive Audit - All Screens", () => {
           const title = await titleElement.textContent({ timeout: 2000 });
           if (title) {
             await card.screenshot({
-              path: path.join(
-                AUDIT_DIR,
+              path: resolveAuditPath(
+                undefined,
                 `11-settings-section-${i + 1}-${title
                   .slice(0, 20)
-                  .replace(/\s/g, "-")}.png`
+                  .replace(/\s/g, "-")}.png`,
               ),
             });
             console.log(`  📸 Captured section: ${title}`);
@@ -855,15 +847,16 @@ test.describe("UX/UI Comprehensive Audit - All Screens", () => {
 });
 
 // Summary test that runs after all audits
-test("99 - Audit Summary", async ({ page }) => {
+test("@audit 99 - Audit Summary", async ({ page }) => {
   console.log("\n" + "═".repeat(60));
   console.log("📊 UX/UI AUDIT COMPLETE");
   console.log("═".repeat(60));
 
   // Count screenshots captured
-  const files = fs.existsSync(AUDIT_DIR) ? fs.readdirSync(AUDIT_DIR) : [];
+  const auditDir = SCREENSHOT_ROOT.audit;
+  const files = fs.existsSync(auditDir) ? fs.readdirSync(auditDir) : [];
   console.log(`\n📸 Screenshots captured: ${files.length}`);
-  console.log(`📁 Location: ${AUDIT_DIR}`);
+  console.log(`📁 Location: ${auditDir}`);
 
   // List all files
   files.forEach((f) => console.log(`   - ${f}`));

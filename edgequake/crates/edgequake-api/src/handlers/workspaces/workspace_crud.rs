@@ -6,10 +6,13 @@ use axum::{
 use uuid::Uuid;
 
 use super::helpers::{verify_workspace_tenant_access, workspace_to_response};
+use edgequake_audit::{AuditEventType, AuditResult};
+
 use crate::error::ApiError;
 use crate::handlers::documents::storage_helpers::purge_workspace_tasks;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
+use crate::services::record_compliance_event;
 use crate::state::AppState;
 use edgequake_pdf::PdfParserBackend;
 
@@ -96,6 +99,7 @@ pub async fn create_workspace(
             .and_then(PdfParserBackend::from_env_str),
         // SPEC-085: Pass entity_types from HTTP request body if provided
         entity_types: request.entity_types.clone(),
+        entity_types_strict: request.entity_types_strict,
     };
 
     // Store workspace via workspace service
@@ -114,6 +118,17 @@ pub async fn create_workspace(
         embedding_model = %workspace.embedding_full_id(),
         inherited_from_tenant = request.llm_model.is_none(),
         "Created workspace"
+    );
+
+    record_compliance_event(
+        &state,
+        tenant_id.to_string(),
+        AuditEventType::WorkspaceAccess,
+        "create_workspace",
+        AuditResult::Success,
+        Some(workspace.workspace_id.to_string()),
+        None,
+        None,
     );
 
     Ok((StatusCode::CREATED, Json(response)))
@@ -271,6 +286,8 @@ pub async fn update_workspace(
         vision_llm_provider: request.vision_llm_provider,
         vision_llm_model: request.vision_llm_model,
         pdf_parser_backend: request.pdf_parser_backend,
+        entity_types: request.entity_types,
+        entity_types_strict: request.entity_types_strict,
     };
 
     let workspace = state
@@ -280,6 +297,20 @@ pub async fn update_workspace(
         .map_err(|e| ApiError::NotFound(e.to_string()))?;
 
     let response = workspace_to_response(&workspace);
+
+    record_compliance_event(
+        &state,
+        tenant_ctx
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string()),
+        AuditEventType::WorkspaceAccess,
+        "update_workspace",
+        AuditResult::Success,
+        Some(workspace_id.to_string()),
+        tenant_ctx.user_id.clone(),
+        None,
+    );
 
     Ok(Json(response))
 }
@@ -333,7 +364,12 @@ pub async fn delete_workspace(
 
     // 1. Clear vector storage for this workspace
     // WHY: Remove all embeddings (chunks + entities) before deleting workspace
-    let vectors_cleared = match state.vector_storage.clear_workspace(&workspace_id).await {
+    let vectors_cleared = match state
+        .storage
+        .vector_storage
+        .clear_workspace(&workspace_id)
+        .await
+    {
         Ok(count) => {
             tracing::info!(workspace_id = %workspace_id, vectors_cleared = count, "Cleared vector storage");
             count
@@ -347,6 +383,7 @@ pub async fn delete_workspace(
     // 2. Clear graph storage for this workspace (entities and relationships)
     // WHY: Remove all knowledge graph nodes and edges
     let (nodes_cleared, edges_cleared) = match state
+        .storage
         .graph_storage
         .clear_workspace(&workspace_id)
         .await
@@ -371,7 +408,10 @@ pub async fn delete_workspace(
     let mut documents_deleted = 0;
     let mut chunks_deleted = 0;
 
-    if let Ok(all_keys) = state.kv_storage.keys().await {
+    // NOTE (SPEC-012): keep the `kv.keys()` scan here \u2014 deletion needs the full key
+    // universe to find chunk keys per document. This is *not* a polled hotspot
+    // (delete workspace is a rare admin op), so a full scan is acceptable.
+    if let Ok(all_keys) = state.storage.kv_storage.keys().await {
         // Find metadata keys and check workspace membership
         let metadata_keys: Vec<String> = all_keys
             .iter()
@@ -382,7 +422,7 @@ pub async fn delete_workspace(
         let mut keys_to_delete: Vec<String> = Vec::new();
 
         for key in metadata_keys {
-            if let Ok(Some(metadata)) = state.kv_storage.get_by_id(&key).await {
+            if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(&key).await {
                 // Check if document belongs to this workspace
                 let doc_workspace = metadata
                     .get("workspace_id")
@@ -412,7 +452,7 @@ pub async fn delete_workspace(
 
         // Delete all queued keys
         if !keys_to_delete.is_empty() {
-            if let Err(e) = state.kv_storage.delete(&keys_to_delete).await {
+            if let Err(e) = state.storage.kv_storage.delete(&keys_to_delete).await {
                 tracing::warn!(
                     workspace_id = %workspace_id,
                     error = %e,
@@ -438,7 +478,7 @@ pub async fn delete_workspace(
             use edgequake_storage::ListPdfFilter;
 
             let mut deleted = 0usize;
-            if let Some(ref pdf_storage) = state.pdf_storage {
+            if let Some(ref pdf_storage) = state.storage.pdf_storage {
                 let filter = ListPdfFilter {
                     workspace_id: Some(workspace_id),
                     processing_status: None,
@@ -464,7 +504,7 @@ pub async fn delete_workspace(
 
     // 4. Evict workspace from vector registry cache
     // WHY: Ensure cached storage instances are cleaned up
-    state.vector_registry.evict(&workspace_id).await;
+    state.storage.vector_registry.evict(&workspace_id).await;
 
     // 5. Finally delete the workspace record from database
     state
@@ -483,6 +523,20 @@ pub async fn delete_workspace(
         chunks_deleted = chunks_deleted,
         pdfs_deleted = pdfs_deleted,
         "Workspace cascade delete completed"
+    );
+
+    record_compliance_event(
+        &state,
+        tenant_ctx
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string()),
+        AuditEventType::WorkspaceAccess,
+        "delete_workspace",
+        AuditResult::Success,
+        Some(workspace_id_str),
+        tenant_ctx.user_id.clone(),
+        None,
     );
 
     Ok(StatusCode::NO_CONTENT)

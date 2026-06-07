@@ -47,6 +47,14 @@ pub struct UserInfo {
     pub email: String,
     /// User role.
     pub role: String,
+    /// Whether the account is active.
+    pub is_active: bool,
+    /// Account creation timestamp (RFC 3339).
+    pub created_at: String,
+    /// Last update timestamp (RFC 3339).
+    pub updated_at: String,
+    /// Last login timestamp (RFC 3339), if any.
+    pub last_login_at: Option<String>,
 }
 
 impl From<&User> for UserInfo {
@@ -56,6 +64,10 @@ impl From<&User> for UserInfo {
             username: user.username.clone(),
             email: user.email.clone(),
             role: user.role.to_string(),
+            is_active: user.is_active,
+            created_at: user.created_at.to_rfc3339(),
+            updated_at: user.updated_at.to_rfc3339(),
+            last_login_at: user.last_login_at.map(|t| t.to_rfc3339()),
         }
     }
 }
@@ -151,6 +163,30 @@ pub struct ListUsersResponse {
 pub struct GetMeResponse {
     /// User information.
     pub user: UserInfo,
+}
+
+/// Update user request (PATCH /api/v1/users/{id}).
+///
+/// All fields are optional; only provided fields are updated.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct UpdateUserRequest {
+    /// New role for the user (`admin`, `developer`, `viewer`).
+    pub role: Option<String>,
+    /// Whether the account should be active.
+    pub is_active: Option<bool>,
+    /// New display name.
+    pub display_name: Option<String>,
+    /// New email address.
+    pub email: Option<String>,
+}
+
+/// Update user response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct UpdateUserResponse {
+    /// Updated user information.
+    pub user: UserInfo,
+    /// Update timestamp.
+    pub updated_at: String,
 }
 
 // ============================================================================
@@ -270,6 +306,10 @@ mod tests {
                 username: "admin".to_string(),
                 email: "admin@example.com".to_string(),
                 role: "admin".to_string(),
+                is_active: true,
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+                updated_at: "2024-01-01T00:00:00Z".to_string(),
+                last_login_at: None,
             },
         };
         let json = serde_json::to_value(&resp).unwrap();
@@ -284,6 +324,10 @@ mod tests {
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
             role: "user".to_string(),
+            is_active: true,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            last_login_at: None,
         };
         let json = serde_json::to_value(&info).unwrap();
         assert_eq!(json["user_id"], "u123");

@@ -38,12 +38,13 @@ mod kv;
 mod pdf_list_query;
 mod pdf_storage_impl;
 pub mod rls;
+mod row_count_stats;
 mod vector;
 mod workspace_vector;
 
 pub use config::PostgresConfig;
 pub use connection::PostgresPool;
-pub use conversation::{ConversationRow, FolderRow, MessageRow, PostgresConversationStorage};
+pub use conversation::PostgresConversationStorage;
 pub use graph::PostgresAGEGraphStorage;
 pub use kv::PostgresKVStorage;
 pub use pdf_storage_impl::PostgresPdfStorage;

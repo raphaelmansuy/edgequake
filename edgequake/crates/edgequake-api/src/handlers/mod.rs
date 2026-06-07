@@ -82,6 +82,7 @@ pub mod ollama_types;
 pub mod pdf_upload;
 pub mod pipeline;
 pub mod pipeline_types;
+pub mod postgres_user_bootstrap;
 pub mod query;
 pub mod query_types;
 pub mod relationships;

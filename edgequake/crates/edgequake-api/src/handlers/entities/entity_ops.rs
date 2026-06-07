@@ -173,17 +173,23 @@ async fn resolve_entity_node(
 ) -> ApiResult<Option<edgequake_storage::GraphNode>> {
     let normalized_name = normalize_entity_name(entity_name);
 
-    if let Some(node) = state.graph_storage.get_node(&normalized_name).await? {
+    if let Some(node) = state
+        .storage
+        .graph_storage
+        .get_node(&normalized_name)
+        .await?
+    {
         return Ok(Some(node));
     }
 
     if normalized_name != entity_name {
-        if let Some(node) = state.graph_storage.get_node(entity_name).await? {
+        if let Some(node) = state.storage.graph_storage.get_node(entity_name).await? {
             return Ok(Some(node));
         }
     }
 
     let search_results = state
+        .storage
         .graph_storage
         .search_nodes(entity_name, 10, None, None, None)
         .await
@@ -215,7 +221,7 @@ pub async fn entity_exists(
     Query(params): Query<EntityExistsQuery>,
 ) -> ApiResult<Json<EntityExistsResponse>> {
     if let Some(node) = resolve_entity_node(&state, &params.entity_name).await? {
-        let degree = state.graph_storage.node_degree(&node.id).await?;
+        let degree = state.storage.graph_storage.node_degree(&node.id).await?;
         let entity_type = node
             .properties
             .get("entity_type")
@@ -321,7 +327,11 @@ pub async fn merge_entities(
 
     // Rewire source relationships to the target entity before deleting the source node.
     // WHY: A merge must preserve graph semantics, not just delete the duplicate label.
-    let source_edges = state.graph_storage.get_node_edges(&source_entity).await?;
+    let source_edges = state
+        .storage
+        .graph_storage
+        .get_node_edges(&source_entity)
+        .await?;
 
     let mut relationships_merged = 0;
     let mut duplicate_relationships_removed = 0;
@@ -340,6 +350,7 @@ pub async fn merge_entities(
         }
 
         let existing_edge = state
+            .storage
             .graph_storage
             .get_edge(&new_source, &new_target)
             .await?;
@@ -354,6 +365,7 @@ pub async fn merge_entities(
         );
 
         state
+            .storage
             .graph_storage
             .upsert_edge(&new_source, &new_target, merged_properties)
             .await?;
@@ -367,14 +379,23 @@ pub async fn merge_entities(
         .properties
         .insert("updated_at".to_string(), now.into());
     state
+        .storage
         .graph_storage
         .upsert_node(&target_entity, target_node.properties.clone())
         .await?;
 
     // Delete source node
-    state.graph_storage.delete_node(&source_entity).await?;
+    state
+        .storage
+        .graph_storage
+        .delete_node(&source_entity)
+        .await?;
 
-    let degree = state.graph_storage.node_degree(&target_entity).await?;
+    let degree = state
+        .storage
+        .graph_storage
+        .node_degree(&target_entity)
+        .await?;
     let merged_entity = node_to_entity_response(target_node, degree);
 
     let merge_details = MergeDetails {
@@ -433,7 +454,7 @@ pub async fn get_entity_neighborhood(
         let mut next_frontier = Vec::new();
 
         for node_id in &frontier {
-            let edges = state.graph_storage.get_node_edges(node_id).await?;
+            let edges = state.storage.graph_storage.get_node_edges(node_id).await?;
 
             for edge in edges {
                 // Check both directions
@@ -466,8 +487,13 @@ pub async fn get_entity_neighborhood(
     // Build response nodes
     let mut nodes = Vec::with_capacity(visited_nodes.len());
     for node_id in &visited_nodes {
-        if let Some(node) = state.graph_storage.get_node(node_id).await? {
-            let degree = state.graph_storage.node_degree(node_id).await.unwrap_or(0);
+        if let Some(node) = state.storage.graph_storage.get_node(node_id).await? {
+            let degree = state
+                .storage
+                .graph_storage
+                .node_degree(node_id)
+                .await
+                .unwrap_or(0);
             nodes.push(NeighborhoodNode {
                 id: node.id.clone(),
                 entity_type: node

@@ -2,9 +2,242 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] — 0.11.2
+## [Unreleased]
+
+---
+
+## [0.12.7] — 2026-06-06
+
+### Added
+
+- **SPEC-018 observability** — `edgequake-observability` crate: structured JSON logs, Prometheus metrics, W3C `traceparent` + `X-Request-ID` correlation, OTLP export (opt-in via `ENABLE_OTEL=true`), audit helpers. Docker overlay: `docker-compose.observability.yml` + Jaeger. Proofs: `make observability-proof`.
+- **P9 production delivery (SPEC-006)** — Bounded orchestrator `delete_document` via `GraphScanOps` (no `get_all_*`); memory adapter `get_edges_for_node_set`; runbook env sync lint (`spec006_runbook_env_sync.sh`); production GO/NO-GO checklist (`specifications/006-ensure-perf/012_production_delivery.md`); E2E proof 019; HTTP test `GET /api/v1/graph` → 503 when materialization slots full.
+- **P8 graph materialization guard (SPEC-006)** — DRY `services/graph_materialization.rs`: `try_acquire_owned` fail-fast 503 + query timeout from `resource_budget()`. Wired to graph traversal, popular labels, node search, and SSE stream. Server upload limit SSOT via `state.resource_budget().max_upload_bytes`. Lint: `spec006_no_adhoc_resource_budget.sh`.
+- **P7 resource budget authority (SPEC-006)** — `ResourceGuard` + `GraphMaterializationSemaphore` on `AppState` via `state/resource_runtime.rs`; handlers use `state.resource_budget()` instead of ad-hoc `ResourceBudgetConfig::default()`.
+- **P6 community detection seal** — `detect_communities_unchecked` internal to storage module; removed from crate root re-export; readiness battle tests; `make resource-proof-postgres`.
+- **P5 size-aware migration 038** — sqlx 038 is a non-blocking marker; index DDL SSOT in `support/038/apply.sql` with vertex threshold gate. `/ready` returns 503 when AGE indexes missing on large graphs. Postgres E2E: `migration_bootstrap_proof.rs`.
+- **Migration bootstrap integration** — `migration_bootstrap::run_postgres_migrations()` replaces bare sqlx call at PostgreSQL startup: progression logs (`edgequake.migration` target), migration 038 index audit/repair for small graphs, defer + `/health` degraded signal for large graphs. Docs: `edgequake/docs/migrations/bootstrap-first-principles.md`.
+- **SPEC-006 resource safety (P0–P9)** — Bounded graph operations: zero `get_all_*` on API hot paths, document-scoped delete cascade, SQL prefix push-down, community detection admission guard, orchestrator 30k token SSOT, graph materialization semaphore, production delivery proofs. CI gate: `make resource-proof` (job in `.github/workflows/ci.yml`).
+- **Migration 038 production package** — `source_id` btree + `source_ids` GIN indexes for AGE graph prefix queries. Ops tooling: `edgequake/scripts/migrations/apply_038.sh` (`--dry-run`, `--apply`, `--concurrent`, `--verify`, `--rollback`). Support SQL under `edgequake/migrations/support/038/` (not scanned by sqlx).
+- **Migration documentation** — `edgequake/docs/migrations.md`, `edgequake/docs/migrations/038-source-ids-indexes.md` (rollout procedure, FAQ, edge cases).
 
 ### Fixed
+
+- **Graph materialization semaphore blocking** — `admit_graph_materialization` uses `try_acquire_owned()` (immediate 503) instead of `acquire_owned().await` (indefinite queue) when slots are full.
+- **Legacy `source_id` shadowing on partial delete** — Document cascade now removes pipe-format `source_id` when updating `source_ids`, preventing re-matching of deleted document sources.
+
+### Changed
+
+- Auxiliary migration 038 files moved from `edgequake/migrations/038_*.sql` to `edgequake/migrations/support/038/` so only the canonical sqlx migration remains at the top level.
+- **Docker compose** — SPEC-006 resource env vars wired (`WORKER_THREADS`, `MAX_TASKS_PER_TENANT`, graph materialization caps, upload limit). Default `mem_limit: 4g`.
+
+### Operations
+
+- **CD:** Tag `v0.12.7` triggers [release-docker.yml](.github/workflows/release-docker.yml) → GHCR multi-arch images (`edgequake`, `edgequake-frontend`, `edgequake-postgres`).
+- **CI:** `make resource-proof` (mock) + `postgres-age-tests` (bootstrap e2e) gates on every PR.
+
+---
+
+## [0.12.6] — 2026-05-29
+
+### Performance
+
+- **QW1 — Batch AGE session setup** (`graph/helpers.rs`) — AGE `SET search_path` and `LOAD 'age'` are now issued once per connection rather than once per query. Eliminates repeated round-trips on every graph read/write.
+- **QW2 — UNNEST batch vector upsert** (`postgres/vector.rs`) — Chunk-vector inserts now use a single `INSERT … SELECT UNNEST($1::text[], …) ON CONFLICT DO UPDATE` statement inside one transaction instead of N individual upserts. Includes full deduplication and validate-all logic. Caller reduced to one batched call per chunk.
+- **QW3 — pgvector search recall tuning** (`postgres/vector.rs`) — `ef_search` / `probes` hints always emitted; `hnsw.iterative_scan` and `hnsw.max_scan_tuples` now gated behind a pgvector ≥ 0.8.0 version check (cached `OnceCell`) so the server is compatible with pgvector 0.7.x deployments without crashing.
+- **QW4 — Neighbor depth/limit clamping** (`graph/mod.rs`) — Unbounded depth and neighbor-limit parameters are clamped to safe maxima before AGE query generation, preventing runaway graph traversals.
+- **QW5 — Connection pool sizing** (`config.rs`) — `DATABASE_POOL_SIZE` default raised from 25 → 32; pool-prefix sanitization added. AGE session setup batched (complements QW1).
+- **QW6 — `clear_workspace` column-first fallback** (`postgres/vector.rs`) — Workspace wipe now tries an explicit column list first and falls back to JSONB field removal, making it robust against schema drift.
+
+### Fixed
+
+- **SC1 — Single-MERGE edge upsert + UNWIND batch node/edge overrides** (`graph/mod.rs`) — Edge upsert collapsed to one `MERGE` Cypher pattern; node and edge batch overrides use `UNWIND` instead of repeated per-element merges, cutting graph write latency significantly.
+- **SC2 — Cross-store saga rollback** (`ingestion.rs`) — When graph merge reports errors (merge results with `errors > 0`), chunk vectors are now rolled back via `compensate_orphan_chunk_vectors`. Two previously divergent failure-mode paths unified into `fail_with_chunk_vector_rollback`; the two call sites cannot drift in cleanup behaviour or error messaging.
+- **SC5 — Bounded-concurrency ordered `insert_batch`** (`ingestion.rs`) — Concurrent chunk ingestion is now bounded by a semaphore and results are collected in insertion order, preventing out-of-order graph edges and unbounded task spawning under large documents.
+- **F8 — Dollar-quote injection fix** (`graph/helpers.rs`) — Graph property values containing `$` characters no longer break AGE dollar-quoted string literals; values are now escaped before interpolation.
+- **Migration 037** — Defensive `ADD COLUMN IF NOT EXISTS` + per-column `COALESCE` backfill closes the schema gap left by migration 028. Fully idempotent; checksum locked.
+
+### Added
+
+- **Latest model catalog** — `models.toml` updated with flagship models released through May 2026:
+  - **OpenAI**: `gpt-5.5` (1M context, $5/$30 per MTok input/output)
+  - **Anthropic**: `claude-opus-4-8` (1M context, 128K output, $5/$25 per MTok); `claude-opus-4-6` marked deprecated
+  - **xAI**: `grok-4.3` (flagship, 1M context, vision-capable, $1.25/$2.50 per MTok; aliases: `grok-4`, `grok-4-0709`); `grok-build-0.1` (coding-optimised, 256K context); stale aliases (`grok-4-1-fast`, `grok-3`, `grok-3-mini`) marked deprecated
+  - **Google**: `gemini-3.5-flash` (stable May 2026, 1M context, $0.00015/$0.0006 per MTok); `gemini-2.0-flash` marked deprecated
+- **Bundled model catalog** — `models.toml` is now embedded in the binary via `include_str!` at compile time. The server no longer requires `models.toml` to be present in the working directory. Fallback chain: bundled TOML → runtime file (`ModelsConfig::load()`) → hardcoded defaults.
+
+### Changed
+
+- Workspace server defaults switched from Ollama → OpenAI (`gpt-4.1-mini` / `text-embedding-3-small`).
+- Makefile `backend-bg` targets propagate `ANTHROPIC_API_KEY` and `MISTRAL_API_KEY` to the background server process.
+
+### Fixed (continued)
+
+- **Model visibility in workspace/tenant creation** — All enabled providers were previously invisible in the model-selection dropdowns unless the `EDGEQUAKE_ALLOWED_PROVIDERS` env var was explicitly set. The default is now to show all enabled providers; set `EDGEQUAKE_ALLOWED_PROVIDERS` to a comma-separated list to restrict to named providers only.
+- **Env-var test race** — `workspace_model_update` tests that mutate process env vars now carry `#[serial_test::serial]` to prevent flaky failures under parallel test execution.
+
+---
+
+## [0.12.5] — 2026-05-28
+
+### Release readiness
+
+- **2026-05-28 verification** — Local release gates are green (`spec013-proof-pr`, strict clippy on touched crates, WebUI `tsc --noEmit`, `spec013-proof-ui` with dashboard + deeplink entity strict coverage). Latest `SPEC-013 Proof` workflow run on `edgequake-main` is successful.
+
+### Fixed
+
+- **GitHub #218** — Root layout now uses `export const dynamic = 'force-dynamic'` so `EDGEQUAKE_API_URL`, `NEXT_PUBLIC_AUTH_ENABLED`, and `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` are read at request time in container deployments (not baked into static HTML).
+- **GitHub #232** — `GET /api/v1/api-keys` lists keys via `keys_with_prefix("auth:api_key:")` filtered by authenticated user (was a TODO stub returning empty).
+- **GitHub #231** — Document/PDF/text upload OpenAPI specs document `X-Tenant-ID` and `X-Workspace-ID` headers; batch upload respects `TenantContext` workspace instead of hardcoded `"default"`.
+- **GitHub #233** — Workspace creation UI collapses model configuration when server defaults exist (`WorkspaceCreateModelSection` + `/api/v1/models`); create works without manual LLM/embedding/vision picks.
+- **GitHub #217** — Entity extraction enforces workspace schema post-parse (`enforce_entity_type`) and uses stricter prompts; unknown types remap to `OTHER` / closest allowed type when strict mode is on. **Existing graph nodes are unchanged** until re-ingest or rebuild — see `specs/013-fix-issues-05-2026/issue-217/003-historical-cleanup-runbook.md`.
+- **GitHub #216** — `PUT /api/v1/workspaces/{id}` accepts `entity_types`; in-memory and Postgres workspace services persist updates; workspace settings page allows editing entity types for future ingestions.
+- **GitHub #236** — Batch upload contract is now explicit and complete: OpenAPI exposes `/api/v1/documents/upload/batch`, and API adds `/api/v1/documents/pdf/batch` for multi-PDF uploads in a single request (with per-file status reporting).
+- **Workspace server-default reset** — Saving workspace model settings with “Server default” (empty LLM/embedding fields) clears workspace-level overrides (including stale `mock`) and applies `Workspace::server_runtime_llm_config()` / `server_runtime_embedding_config()` so reset matches the **running** server provider (`EDGEQUAKE_LLM_PROVIDER`), not only static `EDGEQUAKE_DEFAULT_*` vars.
+- **Entity extraction strict toggle** — Workspace supports `entity_types_strict` (default `true`); checked keeps strict remap-to-`OTHER` behavior, unchecked allows permissive free-form type labels without forced `OTHER` fallback.
+
+### Added
+
+- **SPEC-013 proof gates** — `make spec013-proof-pr` (mock LLM + Postgres API tests + vector stats), `make spec013-proof-ui` (Playwright with `spec013-wait-stack`), and GitHub Actions workflows `spec013-proof-pr.yml` / `spec013-proof.yml`. Shared Postgres harness lives at `edgequake-api/tests/common/spec013_postgres.rs`.
+- **SPEC-013 entity extraction UX** — Entity Types “limit to listed types” checkbox on workspace settings (dashboard `/workspace` and deeplink `/w/[slug]/workspace`); shared `WorkspaceEntityTypesCard`; Playwright `entity-types-strict-limit.spec.ts` (API + dashboard + deeplink save); API test `spec013_entity_types_strict_persist_and_defaults`.
+- **SPEC-013 documentation** — Per-issue proof folders, implementation evidence logs, entity-extraction design pack, and release assessment `specs/013-fix-issues-05-2026/009-brutal-assessment.md`.
+- **SPEC-014 SDK parity for batch upload** — SDKs now expose the new batch APIs for text/files and PDFs:
+  - `POST /api/v1/documents/upload/batch`
+  - `POST /api/v1/documents/pdf/batch`
+  Implemented across TypeScript, Python (sync + async), Rust, Go, PHP, C#, Java, Kotlin, Swift, and Ruby.
+
+### Documentation
+
+- Updated release-facing docs to reflect canonical batch ingestion contracts and examples:
+  - `README.md` (batch endpoint callouts)
+  - `docs/api-reference/document-upload-quick-reference.md` (PDF batch endpoint + response schema)
+  - `docs/tutorials/document-ingestion.md` (replaced legacy `/api/v1/batches` flow with current `/api/v1/documents/*/batch`)
+  - `docs/sdks/README.md` (SDK parity note for batch upload)
+
+### Changed
+
+- **Workspace model update logic** — Extracted to `edgequake-core::workspace_model_update` (clear-override contract shared by in-memory and Postgres services).
+- **WebUI workspace entity types** — `WorkspaceEntityTypesCard` shared between dashboard and deeplink workspace routes; deeplink page resolves slug via `useWorkspaceSlugResolver`.
+- **Entity extraction pipeline** — `EntityExtractionSchema` centralizes strict/permissive prompts and `enforce_entity_type` policy (DRY across LLM and SOTA extractors).
+
+### Known limitations (SPEC-013)
+
+- Release scope is the **documented** fixes (#216–#218, #231–#233, server-default reset, entity strict mode), not every issue numbered 219–230 unless separately proven.
+- PR CI does not run Mistral live ingest; use `make spec013-proof` with `MISTRAL_API_KEY` before production promotion.
+
+---
+
+## [0.12.3] — 2026-05-21
+
+### Performance
+
+- **SPEC-012 — Production-CSV-driven storage optimisations** (`9b4f3f90`):
+  - **KV `count()` — O(1) stats table** (`eq_*_kv_stats`): replaces full
+    `COUNT(*)` scan with a maintained counter updated by AFTER INSERT/DELETE
+    triggers. Self-heals on missing stats row for backward compatibility.
+  - **Vector `count()` — O(1) stats table** (`eq_*_vectors_stats`): same
+    pattern as KV; dimension-mismatch (e.g. 768→1024) detected at startup with
+    an automatic table-recreation warning.
+  - **`keys_with_suffix` trait + reverse-key expression index**: new
+    `KvStorage::keys_with_suffix()` backed by a `reverse(key) text_pattern_ops`
+    expression index enabling O(log N) suffix lookups. All callers that
+    previously fetched all keys and filtered client-side have been migrated
+    (tasks, workspace stats, costs ×2, bulk-delete, user-management prefix scan).
+  - **`node_count_fast` / `edge_count_fast` O(1) graph traits**: new trait
+    methods that default to exact `COUNT(*)` but are overridden with O(1)
+    `pg_class.reltuples` estimates in the Postgres adapter. Used by
+    `graph/stream`, `popular`, and `traversal` endpoints.
+
+### Fixed
+
+- **Fix B' — AGE `reltuples` via `pg_inherits` SUM** (`3ad41c2a`):
+  - Root cause: `reltuples_estimate()` queried Apache AGE's parent abstract
+    tables (`_ag_label_vertex` / `_ag_label_edge`) which always hold 0 rows.
+    Data lives in labelled child tables (`Node`, `EDGE`) registered in
+    `pg_inherits`.
+  - Fix: SUM `pg_class.reltuples` across all `pg_inherits` children of the
+    parent label. Gives correct O(1) estimates post-ANALYZE without a full scan.
+  - Verified: estimated 22,652 == actual `COUNT(*)` 22,652 (vertex);
+    27,191 == 27,191 (edge).
+
+---
+
+## [0.12.1] — 2026-05-06
+
+### Fixed
+
+- **Issue #214 — Graph visualisation fails with "operator does not exist: ag_catalog.graphid = ag_catalog.graphid"**
+  - Root cause (regression from v0.12.0): `get_nodes_with_degrees_batch` used
+    direct `graphid = graphid` comparisons in four JOIN / GROUP BY clauses
+    (`deg_out`, `deg_in`, and two `LEFT JOIN` clauses).  Apache AGE does **not**
+    register an equality operator for the `graphid` type in the PostgreSQL type
+    system, so these comparisons produced the above error.
+  - Secondary fix: `get_popular_nodes_with_degree` was updated from the
+    `::text::bigint` two-step cast (introduced in v0.12.0) to the simpler and
+    universally supported `::text` cast, matching the established pattern used by
+    `node_degree()` and `node_degrees_batch()`.  The `::bigint` step is
+    unnecessary and unreliable across AGE versions.
+  - Six new regression tests added to `graph_optimized_tests.rs` covering empty
+    input, non-existent nodes, mixed IDs, isolated nodes, and degree-consistency.
+
+---
+
+## [0.12.0] — 2026-05-06
+
+### Fixed
+
+- **Issue #203 — Image attachment support for vision-capable models**
+  - Added `images` field to `ChatCompletionRequest` (backend and frontend).
+  - Backend validates attachments: max 4 images, ≤ 20 MiB each, accepted MIME types `image/jpeg`, `image/png`, `image/gif`, `image/webp`.
+  - Frontend query interface now has an image attachment button (📎), drag-and-drop on textarea, Ctrl+V clipboard paste, per-image preview strip with remove button.
+
+- **Issue #204 — Auth token expiry / model visibility**
+  - **(#204a)** `AuthGuard` now checks JWT expiry on mount and listens for `auth:logout-required` events dispatched by the API client on failed token refresh. Users are redirected to `/login` instead of silently hanging.
+  - **(#204b)** `GET /api/models` and `GET /api/models/llm` now filter providers by the active runtime LLM/embedding providers. Set `EDGEQUAKE_ALLOWED_PROVIDERS=*` to expose all, or a comma-separated list to restrict further.
+
+- **Bugfix — Knowledge Graph `graphid` cast error**
+  - Fixed `cannot cast type graphid to bigint` on the Knowledge Graph page and Hybrid/Local query mode.
+  - Root cause: Apache AGE's `graphid` type has no direct cast to `bigint` — must use `::text::bigint`.
+
+- **Issue #205 — User management API and admin UI**
+  - `GET /v1/users` now performs a real KV prefix scan to list all users (was a `TODO` returning an empty array).
+  - New `PATCH /v1/users/{user_id}` endpoint to update `role`, `is_active`, `display_name`, and `email`. Guards demotion of the last admin.
+  - New `UserManagementCard` admin UI in the Settings page (visible to admins only): table with role selector, active toggle, delete confirmation, create-user dialog, and pagination.
+
+---
+
+## [0.11.3] — 2026-05-06
+
+### Added
+
+- **Embedding progress reporting via `EmbedProgressCallback`** ([#197](https://github.com/raphaelmansuy/edgequake/issues/197)):
+  Large document ingestion previously froze the UI at 99% for 30–120 seconds while
+  batch embeddings were generated silently. The root cause: `generate_all_embeddings()`
+  ran three sequential embedding passes (chunks, entities, relationships) with no
+  progress signals reaching the pipeline status API.
+  Fix:
+  - New `EmbedProgressUpdate` struct and `EmbedProgressCallback = Arc<dyn Fn(EmbedProgressUpdate) + Send + Sync>` type in `edgequake-pipeline`.
+  - `generate_all_embeddings()` accepts `progress: Option<&EmbedProgressCallback>` and fires stage events for "chunks", "entities", and "relationships" at start, every 10 items, and on completion.
+  - `process_text_insert()` in `edgequake-api` creates a callback that writes `current_stage: "embedding"` and `stage_message: "Embedding entities: X/Y (Z%)"` to KV metadata. Progress value: `0.99 + (0.01 * pct/100)`.
+  - The UI now shows real-time embedding progress instead of freezing at 99%.
+
+- **Issue #132 — B2B header propagation via `with_extra_headers()`** ([#132](https://github.com/raphaelmansuy/edgequake/issues/132)):
+  Multi-tenant deployments that need to propagate `x-request-id`, `x-tenant-id`,
+  `x-correlation-id`, `traceparent`, or HMAC tokens into outgoing LLM API calls can
+  now use the `with_extra_headers()` builder available on all five major providers:
+  `OpenAICompatibleProvider`, `MistralProvider`, `AnthropicProvider`, `GeminiProvider`,
+  and `NvidiaProvider`. Reserved headers (`authorization`, `x-api-key`, `content-type`,
+  `content-length`, `host`, `user-agent`) are silently dropped to prevent accidental
+  credential overrides. Shipped in `edgequake-llm` v0.6.17.
+
+### Fixed
+
+- **Mistral embedding batch size limit** — `edgequake-llm` v0.6.20 corrects
+  `MISTRAL_EMBED_MAX_BATCH_SIZE` from 512 to **256** (the true Mistral API hard limit).
+  Sending more than 256 inputs per embedding request triggered HTTP 400 code 3210
+  "Too many inputs in request", causing large-document ingestion to fail permanently
+  with no retry possible. The fix is transparent: `embed_batched()` automatically
+  splits into chunks of ≤256.
 
 - **Issue #194 — Configurable pipeline timeouts / concurrency** ([#194](https://github.com/raphaelmansuy/edgequake/issues/194)):
   Hardcoded 180-second per-chunk timeout and 600-second HTTP safety cap prevented
@@ -22,6 +255,11 @@ All notable changes to this project will be documented in this file.
   - Startup tracing log emits effective timeout/concurrency configuration
   - 14 E2E tests prove all env-var overrides work correctly, including boundary clamping
     and non-numeric fallback
+
+### Dependencies
+
+- **`edgequake-llm` bumped `0.6.18` → `0.6.20`** — picks up the Mistral batch size fix and B2B header propagation feature.
+- **`edgequake-pdf2md` bumped `0.9.0` → `0.9.2`** — tracks the `edgequake-llm` 0.6.20 update; v0.9.2 also fixes a SIGBUS crash at process exit on Linux (pdfium singleton pattern).
 
 ## [0.11.1] - 2026-04-28
 

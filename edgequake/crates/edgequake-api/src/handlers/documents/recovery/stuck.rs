@@ -53,7 +53,7 @@ pub async fn recover_stuck(
     let cutoff_time = Utc::now() - threshold;
 
     // Get all metadata keys
-    let all_keys: Vec<String> = state.kv_storage.keys().await?;
+    let all_keys: Vec<String> = state.storage.kv_storage.keys().await?;
 
     let mut stuck_docs = Vec::new();
     let mut requeued_ids = Vec::new();
@@ -65,7 +65,7 @@ pub async fn recover_stuck(
             break;
         }
 
-        if let Some(value) = state.kv_storage.get_by_id(key).await? {
+        if let Some(value) = state.storage.kv_storage.get_by_id(key).await? {
             if !metadata_matches_tenant_context(&value, &tenant_ctx) {
                 continue;
             }
@@ -117,7 +117,7 @@ pub async fn recover_stuck(
         //
         // A "stuck" document may have partially created entities before the process
         // died or timed out. Without cleanup, reprocessing would create duplicates.
-        match cleanup_document_graph_data(doc_id, &state.graph_storage, None).await {
+        match cleanup_document_graph_data(doc_id, &state.storage.graph_storage, None).await {
             Ok(stats) => {
                 tracing::info!(
                     document_id = %doc_id,
@@ -138,11 +138,13 @@ pub async fn recover_stuck(
 
         // Get document content
         let content_key = format!("{}-content", doc_id);
-        if let Some(content_value) = state.kv_storage.get_by_id(&content_key).await? {
+        if let Some(content_value) = state.storage.kv_storage.get_by_id(&content_key).await? {
             if let Some(content) = content_value.get("content").and_then(|v| v.as_str()) {
                 // Update status back to pending
                 let metadata_key = format!("{}-metadata", doc_id);
-                if let Some(mut metadata) = state.kv_storage.get_by_id(&metadata_key).await? {
+                if let Some(mut metadata) =
+                    state.storage.kv_storage.get_by_id(&metadata_key).await?
+                {
                     if let Some(obj) = metadata.as_object_mut() {
                         obj.insert("status".to_string(), serde_json::json!("pending"));
                         obj.insert("track_id".to_string(), serde_json::json!(new_track_id));
@@ -155,7 +157,11 @@ pub async fn recover_stuck(
                             serde_json::json!("stuck_in_processing"),
                         );
 
-                        state.kv_storage.upsert(&[(metadata_key, metadata)]).await?;
+                        state
+                            .storage
+                            .kv_storage
+                            .upsert(&[(metadata_key, metadata)])
+                            .await?;
                     }
                 }
 
@@ -196,17 +202,7 @@ pub async fn recover_stuck(
                     serde_json::to_value(task_data).unwrap(),
                 );
 
-                state
-                    .task_storage
-                    .create_task(&task)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
-
-                state
-                    .task_queue
-                    .send(task)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+                state.enqueue_task(task).await?;
 
                 requeued_ids.push(doc_id.clone());
                 requeued_titles.push(doc_title.clone());

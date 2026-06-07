@@ -22,8 +22,13 @@ use async_trait::async_trait;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::RwLock;
 
-use crate::error::{Result, StorageError};
-use crate::traits::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
+use crate::error::Result;
+use crate::traits::{
+    edge_matches_list_filter, edge_matches_relationship_id, node_matches_list_filter,
+    sources_match_prefixes, EdgeListFilter, GraphEdge, GraphNode, GraphScanOps, GraphStorage,
+    GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KnowledgeGraph,
+    NodeListFilter, PagedGraphResult,
+};
 
 /// In-memory graph storage implementation.
 ///
@@ -72,20 +77,18 @@ impl GraphStorage for MemoryGraphStorage {
     async fn finalize(&self) -> Result<()> {
         Ok(())
     }
+}
 
+#[async_trait]
+#[allow(deprecated)]
+impl GraphStorageReadOps for MemoryGraphStorage {
     async fn has_node(&self, node_id: &str) -> Result<bool> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
         Ok(nodes.contains_key(node_id))
     }
 
     async fn get_node(&self, node_id: &str) -> Result<Option<GraphNode>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
         Ok(nodes.get(node_id).map(|props| GraphNode {
             id: node_id.to_string(),
@@ -93,76 +96,14 @@ impl GraphStorage for MemoryGraphStorage {
         }))
     }
 
-    async fn upsert_node(
-        &self,
-        node_id: &str,
-        properties: HashMap<String, serde_json::Value>,
-    ) -> Result<()> {
-        let mut nodes = self
-            .nodes
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut adjacency = self
-            .adjacency
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-
-        nodes.insert(node_id.to_string(), properties);
-        adjacency.entry(node_id.to_string()).or_default();
-
-        Ok(())
-    }
-
-    async fn delete_node(&self, node_id: &str) -> Result<()> {
-        let mut nodes = self
-            .nodes
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut edges = self
-            .edges
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut adjacency = self
-            .adjacency
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-
-        nodes.remove(node_id);
-
-        // Remove all edges involving this node
-        let to_remove: Vec<(String, String)> = edges
-            .keys()
-            .filter(|(s, t)| s == node_id || t == node_id)
-            .cloned()
-            .collect();
-
-        for key in to_remove {
-            edges.remove(&key);
-        }
-
-        // Update adjacency
-        adjacency.remove(node_id);
-        for neighbors in adjacency.values_mut() {
-            neighbors.remove(node_id);
-        }
-
-        Ok(())
-    }
-
     async fn node_degree(&self, node_id: &str) -> Result<usize> {
-        let adjacency = self
-            .adjacency
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         Ok(adjacency.get(node_id).map(|n| n.len()).unwrap_or(0))
     }
 
     async fn node_degrees_batch(&self, node_ids: &[String]) -> Result<Vec<(String, usize)>> {
-        let adjacency = self
-            .adjacency
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         Ok(node_ids
             .iter()
@@ -174,10 +115,7 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_all_nodes(&self) -> Result<Vec<GraphNode>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
         Ok(nodes
             .iter()
@@ -189,10 +127,7 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
         Ok(node_ids
             .iter()
@@ -207,10 +142,7 @@ impl GraphStorage for MemoryGraphStorage {
 
     /// Optimized batch node retrieval returning HashMap for O(1) lookups.
     async fn get_nodes_batch(&self, node_ids: &[String]) -> Result<HashMap<String, GraphNode>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
         let mut result = HashMap::new();
         for id in node_ids {
@@ -229,10 +161,7 @@ impl GraphStorage for MemoryGraphStorage {
 
     /// Get edges where both endpoints are in the specified node set.
     async fn get_edges_for_nodes_batch(&self, node_ids: &[String]) -> Result<Vec<GraphEdge>> {
-        let edges = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
 
         let node_set: HashSet<&str> = node_ids.iter().map(|s| s.as_str()).collect();
 
@@ -252,14 +181,8 @@ impl GraphStorage for MemoryGraphStorage {
         &self,
         node_ids: &[String],
     ) -> Result<Vec<(GraphNode, usize, usize)>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let adjacency = self
-            .adjacency
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         let mut result = Vec::new();
         for id in node_ids {
@@ -279,19 +202,13 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn has_edge(&self, source: &str, target: &str) -> Result<bool> {
-        let edges = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
         let key = Self::edge_key(source, target);
         Ok(edges.contains_key(&key))
     }
 
     async fn get_edge(&self, source: &str, target: &str) -> Result<Option<GraphEdge>> {
-        let edges = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
         let key = Self::edge_key(source, target);
 
         Ok(edges.get(&key).map(|props| GraphEdge {
@@ -301,66 +218,8 @@ impl GraphStorage for MemoryGraphStorage {
         }))
     }
 
-    async fn upsert_edge(
-        &self,
-        source: &str,
-        target: &str,
-        properties: HashMap<String, serde_json::Value>,
-    ) -> Result<()> {
-        let mut edges = self
-            .edges
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut adjacency = self
-            .adjacency
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-
-        let key = Self::edge_key(source, target);
-        edges.insert(key, properties);
-
-        // Update adjacency (bidirectional)
-        adjacency
-            .entry(source.to_string())
-            .or_default()
-            .insert(target.to_string());
-        adjacency
-            .entry(target.to_string())
-            .or_default()
-            .insert(source.to_string());
-
-        Ok(())
-    }
-
-    async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
-        let mut edges = self
-            .edges
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut adjacency = self
-            .adjacency
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-
-        let key = Self::edge_key(source, target);
-        edges.remove(&key);
-
-        // Update adjacency
-        if let Some(neighbors) = adjacency.get_mut(source) {
-            neighbors.remove(target);
-        }
-        if let Some(neighbors) = adjacency.get_mut(target) {
-            neighbors.remove(source);
-        }
-
-        Ok(())
-    }
-
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
-        let edges = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
 
         Ok(edges
             .iter()
@@ -374,10 +233,7 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>> {
-        let edges = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
 
         Ok(edges
             .iter()
@@ -389,24 +245,65 @@ impl GraphStorage for MemoryGraphStorage {
             .collect())
     }
 
+    async fn get_edges_for_node_set(
+        &self,
+        node_ids: &[String],
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphEdge>> {
+        use std::collections::HashSet;
+
+        let node_set: HashSet<&str> = node_ids.iter().map(|s| s.as_str()).collect();
+        if node_set.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        Ok(edges
+            .iter()
+            .filter_map(|((source, target), props)| {
+                if !node_set.contains(source.as_str()) || !node_set.contains(target.as_str()) {
+                    return None;
+                }
+                let edge = GraphEdge {
+                    source: source.clone(),
+                    target: target.clone(),
+                    properties: props.clone(),
+                };
+                if let Some(tid) = tenant_id {
+                    let edge_tenant = edge
+                        .properties
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !edge_tenant.is_empty() && edge_tenant != tid {
+                        return None;
+                    }
+                }
+                if let Some(wid) = workspace_id {
+                    let edge_workspace = edge
+                        .properties
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !edge_workspace.is_empty() && edge_workspace != wid {
+                        return None;
+                    }
+                }
+                Some(edge)
+            })
+            .collect())
+    }
+
     async fn get_knowledge_graph(
         &self,
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
     ) -> Result<KnowledgeGraph> {
-        let nodes_map = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let edges_map = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let adjacency = self
-            .adjacency
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes_map = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let edges_map = self.edges.read().map_err(super::lock::map_lock_err)?;
+        let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         let mut visited: HashSet<String> = HashSet::new();
         let mut result_nodes: Vec<GraphNode> = Vec::new();
@@ -457,10 +354,7 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>> {
-        let adjacency = self
-            .adjacency
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         let mut node_degrees: Vec<(String, usize)> = adjacency
             .iter()
@@ -477,10 +371,7 @@ impl GraphStorage for MemoryGraphStorage {
     }
 
     async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
         let query_lower = query.to_lowercase();
 
@@ -500,15 +391,9 @@ impl GraphStorage for MemoryGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<(GraphNode, usize)>> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
-        let adjacency = self
-            .adjacency
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         let query_lower = query.to_lowercase();
 
@@ -584,36 +469,98 @@ impl GraphStorage for MemoryGraphStorage {
         let kg = self.get_knowledge_graph(node_id, depth, 1000).await?;
         Ok(kg.nodes.into_iter().filter(|n| n.id != node_id).collect())
     }
+}
 
-    async fn node_count(&self) -> Result<usize> {
-        let nodes = self
-            .nodes
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        Ok(nodes.len())
+#[async_trait]
+impl GraphStorageMutateOps for MemoryGraphStorage {
+    async fn upsert_node(
+        &self,
+        node_id: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        nodes.insert(node_id.to_string(), properties);
+        adjacency.entry(node_id.to_string()).or_default();
+
+        Ok(())
     }
 
-    async fn edge_count(&self) -> Result<usize> {
-        let edges = self
-            .edges
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        Ok(edges.len())
+    async fn delete_node(&self, node_id: &str) -> Result<()> {
+        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        nodes.remove(node_id);
+
+        // Remove all edges involving this node
+        let to_remove: Vec<(String, String)> = edges
+            .keys()
+            .filter(|(s, t)| s == node_id || t == node_id)
+            .cloned()
+            .collect();
+
+        for key in to_remove {
+            edges.remove(&key);
+        }
+
+        // Update adjacency
+        adjacency.remove(node_id);
+        for neighbors in adjacency.values_mut() {
+            neighbors.remove(node_id);
+        }
+
+        Ok(())
+    }
+
+    async fn upsert_edge(
+        &self,
+        source: &str,
+        target: &str,
+        properties: HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        let key = Self::edge_key(source, target);
+        edges.insert(key, properties);
+
+        // Update adjacency (bidirectional)
+        adjacency
+            .entry(source.to_string())
+            .or_default()
+            .insert(target.to_string());
+        adjacency
+            .entry(target.to_string())
+            .or_default()
+            .insert(source.to_string());
+
+        Ok(())
+    }
+
+    async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+
+        let key = Self::edge_key(source, target);
+        edges.remove(&key);
+
+        // Update adjacency
+        if let Some(neighbors) = adjacency.get_mut(source) {
+            neighbors.remove(target);
+        }
+        if let Some(neighbors) = adjacency.get_mut(target) {
+            neighbors.remove(source);
+        }
+
+        Ok(())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut nodes = self
-            .nodes
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut edges = self
-            .edges
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut adjacency = self
-            .adjacency
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
 
         nodes.clear();
         edges.clear();
@@ -627,18 +574,9 @@ impl GraphStorage for MemoryGraphStorage {
     /// Filters by `workspace_id` property in node/edge data.
     /// Returns (nodes_deleted, edges_deleted).
     async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
-        let mut nodes = self
-            .nodes
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut edges = self
-            .edges
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut adjacency = self
-            .adjacency
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
 
         let workspace_id_str = workspace_id.to_string();
 
@@ -703,9 +641,222 @@ impl GraphStorage for MemoryGraphStorage {
     }
 }
 
+#[async_trait]
+impl GraphStorageAnalyticsOps for MemoryGraphStorage {
+    async fn node_count(&self) -> Result<usize> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        Ok(nodes.len())
+    }
+
+    async fn edge_count(&self) -> Result<usize> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        Ok(edges.len())
+    }
+
+    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let workspace_id_str = workspace_id.to_string();
+        Ok(nodes
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .count())
+    }
+
+    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        let workspace_id_str = workspace_id.to_string();
+        Ok(edges
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .count())
+    }
+
+    async fn distinct_node_type_count_by_workspace(
+        &self,
+        workspace_id: &uuid::Uuid,
+    ) -> Result<usize> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let workspace_id_str = workspace_id.to_string();
+        let types: std::collections::HashSet<&str> = nodes
+            .values()
+            .filter(|props| {
+                props
+                    .get("workspace_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|ws| ws == workspace_id_str)
+            })
+            .filter_map(|props| props.get("entity_type").and_then(|v| v.as_str()))
+            .collect();
+        Ok(types.len())
+    }
+}
+
+#[async_trait]
+impl GraphScanOps for MemoryGraphStorage {
+    async fn list_nodes_filtered(
+        &self,
+        filter: &NodeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedGraphResult<GraphNode>> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+
+        let mut matching_ids: Vec<String> = nodes
+            .iter()
+            .filter_map(|(id, props)| {
+                let node = GraphNode {
+                    id: id.clone(),
+                    properties: props.clone(),
+                };
+                node_matches_list_filter(&node, filter).then_some(id.clone())
+            })
+            .collect();
+
+        matching_ids.sort();
+        let total = matching_ids.len();
+        let page_ids: Vec<String> = matching_ids.into_iter().skip(offset).take(limit).collect();
+
+        let items: Vec<GraphNode> = page_ids
+            .iter()
+            .filter_map(|id| {
+                nodes.get(id).map(|props| GraphNode {
+                    id: id.clone(),
+                    properties: props.clone(),
+                })
+            })
+            .collect();
+
+        Ok(PagedGraphResult {
+            items,
+            total,
+            offset,
+            limit,
+        })
+    }
+
+    async fn list_edges_filtered(
+        &self,
+        filter: &EdgeListFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PagedGraphResult<GraphEdge>> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+
+        let mut matching: Vec<GraphEdge> = edges
+            .iter()
+            .map(|((source, target), props)| GraphEdge {
+                source: source.clone(),
+                target: target.clone(),
+                properties: props.clone(),
+            })
+            .filter(|edge| edge_matches_list_filter(edge, filter))
+            .collect();
+
+        matching.sort_by(|a, b| {
+            let a_id = format!("{}_{}", a.source, a.target);
+            let b_id = format!("{}_{}", b.source, b.target);
+            a_id.cmp(&b_id)
+        });
+
+        let total = matching.len();
+        let items: Vec<GraphEdge> = matching.into_iter().skip(offset).take(limit).collect();
+
+        Ok(PagedGraphResult {
+            items,
+            total,
+            offset,
+            limit,
+        })
+    }
+
+    async fn find_nodes_by_source_prefixes(
+        &self,
+        filter: &NodeListFilter,
+        source_prefixes: &[String],
+    ) -> Result<Vec<GraphNode>> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+        let mut matched: Vec<GraphNode> = nodes
+            .iter()
+            .filter_map(|(id, props)| {
+                let node = GraphNode {
+                    id: id.clone(),
+                    properties: props.clone(),
+                };
+                if node_matches_list_filter(&node, filter)
+                    && sources_match_prefixes(&node.properties, source_prefixes)
+                {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        matched.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(matched)
+    }
+
+    async fn find_edges_by_source_prefixes(
+        &self,
+        filter: &EdgeListFilter,
+        source_prefixes: &[String],
+    ) -> Result<Vec<GraphEdge>> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        let mut matched: Vec<GraphEdge> = edges
+            .iter()
+            .map(|((source, target), props)| GraphEdge {
+                source: source.clone(),
+                target: target.clone(),
+                properties: props.clone(),
+            })
+            .filter(|edge| {
+                edge_matches_list_filter(edge, filter)
+                    && sources_match_prefixes(&edge.properties, source_prefixes)
+            })
+            .collect();
+        matched.sort_by(|a, b| {
+            let a_id = format!("{}_{}", a.source, a.target);
+            let b_id = format!("{}_{}", b.source, b.target);
+            a_id.cmp(&b_id)
+        });
+        Ok(matched)
+    }
+
+    async fn find_edge_by_relationship_id(
+        &self,
+        filter: &EdgeListFilter,
+        relationship_id: &str,
+    ) -> Result<Option<GraphEdge>> {
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+        for ((source, target), props) in edges.iter() {
+            let edge = GraphEdge {
+                source: source.clone(),
+                target: target.clone(),
+                properties: props.clone(),
+            };
+            if edge_matches_list_filter(&edge, filter)
+                && edge_matches_relationship_id(&edge, relationship_id)
+            {
+                return Ok(Some(edge));
+            }
+        }
+        Ok(None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::traits::{GraphStorageMutateOps, GraphStorageReadOps};
 
     #[tokio::test]
     async fn test_graph_node_operations() {

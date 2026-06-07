@@ -109,12 +109,10 @@ fn create_pg_config(namespace: &str) -> PostgresConfig {
 /// Uses a unique namespace for test isolation.
 async fn create_postgres_test_state(pool: &PgPool) -> AppState {
     use edgequake_api::cache_manager::CacheManager;
-    use edgequake_api::handlers::websocket_types::ProgressBroadcaster;
     use edgequake_api::state::StorageMode;
-    use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+    use edgequake_auth::AuthConfig;
     use edgequake_llm::ModelsConfig;
     use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
-    use edgequake_tasks::PipelineState;
 
     // Generate unique namespace for this test run
     let namespace = format!(
@@ -179,55 +177,47 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
 
     // Auth services
     let auth_config = AuthConfig::default();
-    let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
-    let password_service = Arc::new(PasswordService::new(auth_config.clone()));
-    let rbac_service = Arc::new(RbacService::new());
-
-    // Vector registry
     let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
         Arc::new(MemoryWorkspaceVectorRegistry::new(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
         ));
 
     AppState {
-        kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
-        vector_storage: Arc::clone(&vector_storage)
-            as Arc<dyn edgequake_storage::traits::VectorStorage>,
-        vector_registry,
-        graph_storage: Arc::clone(&graph_storage)
-            as Arc<dyn edgequake_storage::traits::GraphStorage>,
-        llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        embedding_provider: Arc::clone(&mock_provider)
-            as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-        query_engine,
-        sota_engine,
-        pipeline,
-        task_storage,
-        task_queue,
-        pipeline_state: PipelineState::new(),
-        progress_broadcaster: ProgressBroadcaster::default(),
+        storage: edgequake_api::state::StorageRuntime {
+            kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            vector_storage: Arc::clone(&vector_storage)
+                as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            vector_registry,
+            graph_storage: Arc::clone(&graph_storage)
+                as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            pdf_storage: None,
+            mode: StorageMode::Memory,
+        },
+        query: edgequake_api::state::QueryRuntime {
+            llm_provider: Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            vision_llm_provider: None,
+            embedding_provider: Arc::clone(&mock_provider)
+                as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            query_engine,
+            sota_engine,
+            pipeline,
+            models_config: Arc::new(ModelsConfig::builtin_defaults()),
+        },
+        auth: edgequake_api::state::AuthRuntime::new(auth_config),
+        tasks: edgequake_api::state::TaskRuntime::new(task_storage, task_queue),
         workspace_service,
         conversation_service,
         config: edgequake_api::state::AppConfig::default(),
-        auth_config,
-        jwt_service,
-        password_service,
-        rbac_service,
         cache_manager: CacheManager::with_defaults(),
         rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)),
-        // WHY: Use Memory mode to allow workspace fallback, while still using PostgreSQL storage backends
-        // The workspace validation is orthogonal to deletion logic - we're testing storage backends
-        storage_mode: StorageMode::Memory,
-        models_config: Arc::new(ModelsConfig::builtin_defaults()),
         pg_pool: Some(pool.clone()),
-        // PDF storage not available in this test
-        pdf_storage: None,
-        cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
         start_time: std::time::Instant::now(),
         path_validation_config: edgequake_api::path_validation::PathValidationConfig {
             allow_any_path: true,
             ..Default::default()
         },
+        audit_logger: None,
+        migration_bootstrap: None,
     }
 }
 
@@ -514,6 +504,7 @@ async fn test_delete_failed_document_cleans_partial_entities_pg() {
     });
 
     state
+        .storage
         .kv_storage
         .upsert(&[(metadata_key.clone(), metadata)])
         .await
@@ -526,6 +517,7 @@ async fn test_delete_failed_document_cleans_partial_entities_pg() {
     entity_props.insert("source_chunk_ids".to_string(), json!([]));
 
     state
+        .storage
         .graph_storage
         .upsert_node("PARTIAL_ENTITY_PG", entity_props)
         .await
@@ -546,6 +538,7 @@ async fn test_delete_failed_document_cleans_partial_entities_pg() {
 
     // Verify entity was cleaned up
     let entity_after = state
+        .storage
         .graph_storage
         .get_node("PARTIAL_ENTITY_PG")
         .await

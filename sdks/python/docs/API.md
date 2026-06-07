@@ -122,6 +122,34 @@ with open("research.pdf", "rb") as f:
 
 ---
 
+### `client.documents.upload_batch(files, metadata=None)`
+
+Upload multiple files in one request (`POST /api/v1/documents/upload/batch`).
+
+```python
+result = client.documents.upload_batch([
+    Path("a.txt"),
+    Path("b.md"),
+])
+print(result.total_files, result.processed, result.failed)
+```
+
+---
+
+### `client.documents.pdf.upload_batch(files, ...)`
+
+Upload multiple PDFs in one request (`POST /api/v1/documents/pdf/batch`).
+
+```python
+result = client.documents.pdf.upload_batch([
+    Path("a.pdf"),
+    Path("b.pdf"),
+], enable_vision=True)
+print(result.total_files, result.accepted, result.duplicates)
+```
+
+---
+
 ### `client.documents.list(...)`
 
 List documents (`GET /api/v1/documents`). Query parameters match the API’s `ListDocumentsRequest`: `page`, `page_size`, `date_from`, `date_to`, `document_pattern`. Omit arguments to let the server apply defaults.

@@ -3,7 +3,13 @@ target/
 # WHY: Cargo.lock is committed for the application binary (edgequake/) to ensure
 # reproducible CI builds. SDK libraries ignore their Cargo.lock (standard practice).
 sdks/*/Cargo.lock
+
+# Swift SDK build artifacts (SPM) — must stay untracked even if built locally
+sdks/swift/.build/
+sdks/swift/.swiftpm/
 sdks/**/.build/
+sdks/**/.swiftpm/
+
 **/*.rs.bk
 *.pdb
 
@@ -18,6 +24,9 @@ sdks/**/.build/
 *.png
 *.jpg
 *.jpeg
+!specs/017-dry-and-solid-audit/005-edgequake-pipeline/e2e/screenshots/*.png
+!specs/017-dry-and-solid-audit/006-edgequake-query/e2e/screenshots/*.png
+!specs/017-dry-and-solid-audit/007-edgequake-storage/e2e/screenshots/*.png
 
 # Environment files
 .env
@@ -41,6 +50,14 @@ archive/
 !/specs/01-fix-195/**
 !/specs/010-ingestion-reliability/
 !/specs/010-ingestion-reliability/**
+!/specs/012-performance/
+!/specs/012-performance/**
+!/specs/017-dry-and-solid-audit/
+!/specs/017-dry-and-solid-audit/**
+!/specs/018-observability/
+!/specs/018-observability/**
+!/specs/edgequake-llm-update/
+!/specs/edgequake-llm-update/**
 logf/
 zz_test_docs/
 zz-explore/

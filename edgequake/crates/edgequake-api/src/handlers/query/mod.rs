@@ -153,7 +153,9 @@ pub(crate) async fn resolve_chunk_file_paths(
 }
 
 // Re-export workspace resolve functions for other modules
-pub use workspace_resolve::{get_workspace_embedding_provider, get_workspace_vector_storage};
+pub use workspace_resolve::{
+    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_query_workspace,
+};
 
 #[cfg(test)]
 mod tests {
@@ -161,7 +163,15 @@ mod tests {
     use crate::middleware::TenantContext;
     use crate::state::AppState;
     use axum::extract::State;
-    use axum::Json;
+    use axum::{Extension, Json};
+    use edgequake_observability::{PropagationHeaders, RequestContext};
+
+    fn test_extensions() -> (Extension<RequestContext>, Extension<PropagationHeaders>) {
+        (
+            Extension(RequestContext::new(uuid::Uuid::new_v4().to_string())),
+            Extension(PropagationHeaders::default()),
+        )
+    }
 
     #[tokio::test]
     async fn test_query_validation() {
@@ -183,9 +193,11 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
-        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        let (ctx, propagation) = test_extensions();
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_err());
     }
 
@@ -209,9 +221,11 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
-        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        let (ctx, propagation) = test_extensions();
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_ok());
     }
 
@@ -228,9 +242,11 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             stream_format: None,
+            extra_headers: None,
         };
 
-        let result = stream_query(State(state), tenant_ctx, Json(request)).await;
+        let (ctx, propagation) = test_extensions();
+        let result = stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_ok());
     }
 
@@ -256,9 +272,18 @@ mod tests {
                 llm_model: None,
                 system_prompt: None,
                 document_filter: None,
+                extra_headers: None,
             };
 
-            let result = execute_query(State(state.clone()), tenant_ctx, Json(request)).await;
+            let (ctx, propagation) = test_extensions();
+            let result = execute_query(
+                State(state.clone()),
+                tenant_ctx,
+                ctx,
+                propagation,
+                Json(request),
+            )
+            .await;
             assert!(result.is_ok(), "Mode '{}' should succeed", mode);
         }
     }
@@ -283,9 +308,11 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
-        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        let (ctx, propagation) = test_extensions();
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_ok());
     }
 
@@ -309,9 +336,11 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            extra_headers: None,
         };
 
-        let result = execute_query(State(state), tenant_ctx, Json(request)).await;
+        let (ctx, propagation) = test_extensions();
+        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_err());
     }
 
@@ -328,9 +357,11 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             stream_format: None,
+            extra_headers: None,
         };
 
-        let result = stream_query(State(state), tenant_ctx, Json(request)).await;
+        let (ctx, propagation) = test_extensions();
+        let result = stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
         assert!(result.is_err());
     }
 }

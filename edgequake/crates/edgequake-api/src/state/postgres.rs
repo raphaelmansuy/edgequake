@@ -5,24 +5,19 @@
 
 use std::sync::Arc;
 
-use edgequake_auth::{AuthConfig, JwtService, PasswordService, RbacService};
+use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
+use super::{
+    create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
+};
+use crate::cache_manager::CacheManager;
+use edgequake_audit::AuditLogger;
 use edgequake_core::env::apply_model_env_aliases;
 use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
-use edgequake_llm::ModelsConfig;
-use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 use edgequake_storage::{
     traits::{GraphStorage, KVStorage, VectorStorage},
     PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage, PostgresKVStorage,
 };
-use edgequake_tasks::PipelineState;
-
-use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{create_bm25_reranker, AppState};
-use crate::cache_manager::CacheManager;
-use crate::handlers::ProgressBroadcaster;
-
 impl AppState {
     /// Load path validation configuration from environment.
     ///
@@ -126,11 +121,22 @@ impl AppState {
         let password = url.password().unwrap_or("").to_string();
 
         // Create PostgreSQL configuration
+        // WHY 32 connections (env-configurable via DATABASE_POOL_SIZE):
+        // The frontend polls ~8 concurrent endpoints every 2s. Pipeline workers
+        // hold connections for the full processing duration (embedding = minutes).
+        // 10 connections are exhausted instantly under any real load, causing
+        // "pool timed out" 500s → polling feedback loop. QW5: raised 25→32 to
+        // match PostgresConfig::default max_connections and absorb the new
+        // bounded-concurrency batch ingestion (EDGEQUAKE_INGEST_CONCURRENCY).
+        let db_pool_size: u32 = std::env::var("DATABASE_POOL_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(32);
         let pg_config = edgequake_storage::adapters::postgres::PostgresConfig::new(
             host, port, database, user, password,
         )
         .with_namespace("default")
-        .with_max_connections(10);
+        .with_max_connections(db_pool_size);
 
         // Create PostgreSQL connection pool for conversation service.
         //
@@ -144,8 +150,12 @@ impl AppState {
         // _sqlx_migrations_pkey" → panic on every restart.
         // Using after_connect guarantees ALL pool connections always use public,
         // so _sqlx_migrations is consistently read/written in the correct schema.
+        //
+        // acquire_timeout(5s): fail fast instead of queuing 30s — callers get
+        // a quick 500 and back off, rather than stacking up 30s waiters.
         let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(10)
+            .max_connections(db_pool_size)
+            .acquire_timeout(std::time::Duration::from_secs(5))
             .after_connect(|conn, _| {
                 Box::pin(async move {
                     sqlx::query("SET search_path TO public")
@@ -173,24 +183,37 @@ impl AppState {
                 if exts.contains(&"vector".to_string()) {
                     tracing::info!("✓ pgvector extension available");
                 } else {
-                    tracing::warn!("⚠ pgvector extension not found - vector search may not work");
+                    tracing::warn!(
+                        error.source = "postgres_init",
+                        error.action = "extension_check",
+                        extension = "pgvector",
+                        "pgvector extension not found — vector search may not work"
+                    );
                 }
                 if exts.contains(&"uuid-ossp".to_string()) {
                     tracing::info!("✓ uuid-ossp extension available");
                 } else {
-                    tracing::warn!("⚠ uuid-ossp extension not found");
+                    tracing::warn!(
+                        error.source = "postgres_init",
+                        error.action = "extension_check",
+                        extension = "uuid-ossp",
+                        "uuid-ossp extension not found"
+                    );
                 }
             }
             Err(e) => {
-                tracing::warn!("Could not check extensions: {}", e);
+                tracing::warn!(
+                    error.source = "postgres_init",
+                    error.action = "extension_check",
+                    error.message = %e,
+                    "Could not check PostgreSQL extensions"
+                );
             }
         }
 
-        // Run migrations from the workspace root migrations directory
-        // SQLx migrations will create all required tables automatically
-        tracing::info!("Running database migrations...");
-        sqlx::migrate!("../../migrations").run(&pool).await?;
-        tracing::info!("✓ Database migrations completed successfully");
+        // SPEC-006: migration bootstrap with progression logs + migration 038 verify/repair
+        let migration_bootstrap =
+            super::migration_bootstrap::run_postgres_migrations(&pool).await?;
 
         // Auto-configure vector dimension from embedding provider
         let embedding_dim = embedding_provider.dimension();
@@ -200,13 +223,22 @@ impl AppState {
             std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
         );
 
-        // Create PostgreSQL-backed storages
-        let kv_storage = Arc::new(PostgresKVStorage::new(pg_config.clone()));
-        let vector_storage = Arc::new(PgVectorStorage::with_dimension(
+        // Create PostgreSQL-backed storages (SPEC-011: single shared pool)
+        use edgequake_storage::adapters::postgres::PostgresPool;
+        let storage_pool = PostgresPool::from_existing(pool.clone(), pg_config.clone());
+        let kv_storage = Arc::new(PostgresKVStorage::with_pool(
+            storage_pool.clone(),
+            pg_config.clone(),
+        ));
+        let vector_storage = Arc::new(PgVectorStorage::with_pool_and_dimension(
+            storage_pool.clone(),
             pg_config.clone(),
             embedding_dim,
         ));
-        let graph_storage = Arc::new(PostgresAGEGraphStorage::new(pg_config.clone()));
+        let graph_storage = Arc::new(PostgresAGEGraphStorage::with_pool(
+            storage_pool.clone(),
+            pg_config.clone(),
+        ));
 
         // OODA-228: Ensure default vector storage has correct dimension BEFORE initialize
         // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),
@@ -263,15 +295,9 @@ impl AppState {
         let conversation_service: SharedConversationService =
             Arc::new(ConversationServiceImpl::new(pool.clone()));
 
-        // Create pipeline with LLM and embedding providers configured
-        use edgequake_pipeline::LLMExtractor;
-        let extractor = Arc::new(LLMExtractor::new(
-            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>
-        ));
-        let pipeline = Arc::new(
-            Pipeline::default_pipeline()
-                .with_extractor(extractor)
-                .with_embedding_provider(Arc::clone(&embedding_provider)),
+        let pipeline = super::query_bootstrap::build_ingestion_pipeline(
+            Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&embedding_provider),
         );
 
         // Create task infrastructure (OODA-06: Use PostgreSQL for task persistence)
@@ -283,82 +309,72 @@ impl AppState {
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
         tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
-        // Create legacy query engine (for backward compatibility)
-        let query_engine = Arc::new(QueryEngine::new(
-            QueryEngineConfig::default(),
+        let reranker = create_bm25_reranker();
+        let (query_engine, sota_engine) = super::query_bootstrap::build_production_query_engines(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ));
-
-        // Create SOTA query engine with LightRAG-style enhancements
-        let reranker = create_bm25_reranker();
-        let sota_engine = Arc::new(
-            SOTAQueryEngine::new(
-                SOTAQueryConfig::default(),
-                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-                Arc::clone(&embedding_provider),
-                Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            )
-            .with_reranker(reranker),
+            reranker,
         );
 
         // Create workspace vector registry for per-workspace dimensions
         let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =
             Arc::new(PgWorkspaceVectorRegistry::new(
                 pg_config,
+                storage_pool.clone(),
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
                 embedding_dim,
             ));
 
         // Create auth services
-        let auth_config = AuthConfig::from_env();
-        let jwt_service = Arc::new(JwtService::new(auth_config.clone()));
-        let password_service = Arc::new(PasswordService::new(auth_config.clone()));
-        let rbac_service = Arc::new(RbacService::new());
+        let auth = AuthRuntime::from_env();
 
         // Create PDF storage (SPEC-007) - uses the connection pool
         let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
             Arc::new(edgequake_storage::PostgresPdfStorage::new(pool.clone()));
 
-        Ok(Self {
+        let storage = StorageRuntime {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage)
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
             vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            llm_provider: Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            embedding_provider: Arc::clone(&embedding_provider),
-            query_engine,
-            sota_engine,
-            pipeline,
-            task_storage,
-            task_queue,
-            pipeline_state: PipelineState::new(),
-            progress_broadcaster: ProgressBroadcaster::default(),
+            pdf_storage: Some(pdf_storage),
+            mode: StorageMode::PostgreSQL,
+        };
+        storage.validate_postgres_adapters()?;
+
+        let audit_logger = AuditLogger::new(pool.clone());
+        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
+
+        Ok(Self {
+            storage,
+            query: QueryRuntime {
+                llm_provider: Arc::clone(&llm_provider)
+                    as Arc<dyn edgequake_llm::traits::LLMProvider>,
+                vision_llm_provider: super::provider_setup::resolve_vision_llm_provider(),
+                embedding_provider: Arc::clone(&embedding_provider),
+                query_engine,
+                sota_engine,
+                pipeline,
+                models_config: super::bundled_models::bundled_models_config(),
+            },
+            auth,
+            tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
             config: AppConfig::default(),
-            auth_config,
-            jwt_service,
-            password_service,
-            rbac_service,
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
-            storage_mode: StorageMode::PostgreSQL,
-            models_config: Arc::new(
-                ModelsConfig::load().unwrap_or_else(|_| ModelsConfig::builtin_defaults()),
-            ),
             pg_pool: Some(pool),
-            pdf_storage: Some(pdf_storage),
             start_time: std::time::Instant::now(),
-            // SECURITY (OODA-248): PostgreSQL mode defaults to secure config.
-            // Administrators should configure ALLOWED_SCAN_PATHS environment variable.
             path_validation_config: Self::load_path_validation_config(),
-            cancellation_registry: edgequake_tasks::CancellationRegistry::new(),
+            audit_logger: Some(audit_logger),
+            resource_guard,
+            graph_materialize,
+            migration_bootstrap: Some(migration_bootstrap),
         })
     }
 }

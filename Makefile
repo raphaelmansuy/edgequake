@@ -130,7 +130,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory stop clean build test lint format \
+.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory kill-app stop clean build test lint format \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
         db-start db-stop db-wait db-logs db-shell docker-network-diagnose stop-docker-services \
@@ -138,7 +138,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
         test-quality test-invariants test-timing test-count test-flaky \
-        test-e2e-critical test-e2e-full test-stability-report \
+        test-e2e-critical test-e2e-full test-e2e-lint test-stability-report \
         sdk-e2e sdk-e2e-with-stack sdk-csharp-test-unit
 
 # ============================================================================
@@ -334,6 +334,7 @@ help: ## Show this help message
 	@echo "  $(GREEN)make test-count$(RESET)       Verify test count (>=2600)"
 	@echo "  $(GREEN)make test-flaky$(RESET)       Detect flaky tests"
 	@echo "  $(GREEN)make test-e2e-critical$(RESET) Run E2E critical path"
+	@echo "  $(GREEN)make test-e2e-lint$(RESET)      Validate chromium gate for flake anti-patterns"
 	@echo "  $(GREEN)make test-e2e-full$(RESET)    Run full E2E suite"
 	@echo "  $(GREEN)make sdk-e2e$(RESET)          Run Rust/Python/TS SDK E2E vs SDK_E2E_URL (needs healthy API)"
 	@echo "  $(GREEN)make sdk-e2e-with-stack$(RESET)  $(GREEN)make stack$(RESET) then SDK E2E (Docker quickstart)"
@@ -421,10 +422,10 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: check-deps check-ports ## Start full development stack without authentication
+dev: kill-app check-deps check-ports ## Start full development stack without authentication
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
-	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; nothing is killed blindly$(RESET)"
+	@echo "$(YELLOW)→ Previous app processes killed; starting fresh$(RESET)"
 	@# OODA-09: Dynamically select provider based on OPENAI_API_KEY
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider (OPENAI_API_KEY detected)$(RESET)"; \
@@ -432,9 +433,6 @@ dev: check-deps check-ports ## Start full development stack without authenticati
 		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
 	fi
 	@echo ""
-	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
-		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
-	fi
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
 	@echo ""
@@ -455,43 +453,32 @@ dev: check-deps check-ports ## Start full development stack without authenticati
 	@trap 'echo ""; echo "$(YELLOW)Stopping only the processes started by this make dev session...$(RESET)"; [ -n "$$BACKEND_PID" ] && kill "$$BACKEND_PID" 2>/dev/null || true; [ -n "$$FRONTEND_PID" ] && kill "$$FRONTEND_PID" 2>/dev/null || true; echo "$(GREEN)✓ App processes stopped. PostgreSQL is left running for faster restarts.$(RESET)"; exit 0' INT; \
 	BACKEND_PID=""; \
 	FRONTEND_PID=""; \
-	if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
-		echo "$(GREEN)✓ Reusing running backend on port $(BACKEND_PORT)$(RESET)"; \
+	$(LOAD_EFF_DB_URL); \
+	echo "$(YELLOW)→ Starting backend (DATABASE_URL port: $$(printf '%s' $$_EFF_DB_URL | sed -E 's|.*:([0-9]+)/.*|\1|'))...$(RESET)"; \
+	if [ -n "$(OPENAI_API_KEY)" ]; then \
+		(cd $(BACKEND_DIR) && \
+			PORT="$(BACKEND_PORT)" \
+			DATABASE_URL="$$_EFF_DB_URL" \
+			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+			EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			cargo run 2>&1 | sed 's/^/[backend] /') & \
+		BACKEND_PID=$$!; \
 	else \
-		echo "$(YELLOW)→ Starting backend...$(RESET)"; \
-		if [ -n "$(OPENAI_API_KEY)" ]; then \
-			(cd $(BACKEND_DIR) && \
-				PORT="$(BACKEND_PORT)" \
-				DATABASE_URL="$(DATABASE_URL)" \
-				OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				cargo run 2>&1 | sed 's/^/[backend] /') & \
-			BACKEND_PID=$$!; \
-		else \
-			(cd $(BACKEND_DIR) && \
-				PORT="$(BACKEND_PORT)" \
-				DATABASE_URL="$(DATABASE_URL)" \
-				EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-				OLLAMA_HOST="http://localhost:11434" \
-				OLLAMA_MODEL="gemma4:latest" \
-				OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
-				cargo run 2>&1 | sed 's/^/[backend] /') & \
-			BACKEND_PID=$$!; \
-		fi; \
+		(cd $(BACKEND_DIR) && \
+			PORT="$(BACKEND_PORT)" \
+			DATABASE_URL="$$_EFF_DB_URL" \
+			EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			OLLAMA_HOST="http://localhost:11434" \
+			OLLAMA_MODEL="gemma4:latest" \
+			OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
+			cargo run 2>&1 | sed 's/^/[backend] /') & \
+		BACKEND_PID=$$!; \
 	fi; \
-	if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
-		echo "$(GREEN)✓ Reusing running frontend on port $(FRONTEND_PORT)$(RESET)"; \
-	else \
-		echo "$(YELLOW)→ Starting frontend on port $(FRONTEND_PORT)...$(RESET)"; \
-		(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
-		FRONTEND_PID=$$!; \
-	fi; \
-	if [ -z "$$BACKEND_PID$$FRONTEND_PID" ]; then \
-		echo "$(GREEN)✓ Stack already running; nothing new to start$(RESET)"; \
-		exit 0; \
-	fi; \
+	echo "$(YELLOW)→ Starting frontend on port $(FRONTEND_PORT)...$(RESET)"; \
+	(sleep 2 && cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
+	FRONTEND_PID=$$!; \
 	echo "$(GREEN)✓ Startup in progress$(RESET)"; \
 	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
 	wait
@@ -533,16 +520,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
 	fi
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
-	@$(MAKE) db-start --no-print-directory
-	@echo ""
-	@echo "$(YELLOW)→ Waiting for database...$(RESET)"
-	@DB_READY_CMD='pg_isready -h localhost -p 5432'; \
-	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq '@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; then \
-		DB_READY_CMD='pg_isready -d "$(DATABASE_URL)"'; \
-	fi; \
-	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		eval "$$DB_READY_CMD" >/dev/null 2>&1 && break || sleep 2; \
-	done
+	@$(MAKE) db-wait --no-print-directory
 	@echo ""
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
 		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
@@ -636,6 +614,20 @@ stop-docker-services: ## Stop Docker/OrbStack-backed EdgeQuake containers if the
 		echo "$(YELLOW)→ Docker daemon unavailable; skipping container stop$(RESET)"; \
 	fi
 
+kill-app: ## Kill backend and frontend processes (leaves PostgreSQL running)
+	@echo "$(YELLOW)→ Killing existing backend processes...$(RESET)"
+	@-if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; rm -f /tmp/edgequake-backend.pid; fi
+	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
+	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
+	@-BPID=$$(lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	[ -n "$$BPID" ] && kill -9 "$$BPID" 2>/dev/null || true
+	@echo "$(YELLOW)→ Killing existing frontend processes...$(RESET)"
+	@-if [ -f /tmp/edgequake-frontend.pid ]; then kill -9 $$(cat /tmp/edgequake-frontend.pid) 2>/dev/null || true; rm -f /tmp/edgequake-frontend.pid; fi
+	@-pkill -f "node.*edgequake_webui" 2>/dev/null || true
+	@-FPID=$$(lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	[ -n "$$FPID" ] && kill -9 "$$FPID" 2>/dev/null || true
+	@echo "$(GREEN)✓ App processes cleared (PostgreSQL left running)$(RESET)"
+
 stop: ## Stop all development services
 	@echo "$(YELLOW)Stopping services...$(RESET)"
 	@echo "$(BLUE)→ Stopping backend processes started by this workspace...$(RESET)"
@@ -683,6 +675,20 @@ ifeq ($(strip $(DATABASE_URL)),)
 endif
 export DATABASE_URL
 
+# DRY: Single shell snippet to read the effective DATABASE_URL resolved by db-start.
+#
+# WHY: db-start detects when another PostgreSQL instance occupies the default port
+# (e.g. infrastructure-postgres, k8s) and starts edgequake-postgres on a free port
+# instead, writing the corrected URL to /tmp/edgequake-db-url.
+# pg_isready alone cannot catch this case — it only checks TCP socket liveness,
+# not credentials.  All backend-launching recipes MUST read from this file so they
+# pass the correct port to the backend binary.
+#
+# Usage in any recipe:
+#   @$(LOAD_EFF_DB_URL); \
+#     DATABASE_URL="$$_EFF_DB_URL" cargo run ...
+LOAD_EFF_DB_URL = _EFF_DB_URL=$$(cat /tmp/edgequake-db-url 2>/dev/null); [ -z "$$_EFF_DB_URL" ] && _EFF_DB_URL="$(DATABASE_URL)"
+
 # SPEC-040 v0.4.1: pdfium is now EMBEDDED in the edgequake-pdf2md 0.4.1 binary
 # via pdfium-auto at compile time. No external libpdfium.dylib, no env vars needed.
 
@@ -691,9 +697,10 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 	@if [ -n "$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" ]; then \
 		echo "$(GREEN)✓ LLM Provider: $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))$(RESET)"; \
 	fi
-	@cd $(BACKEND_DIR) && \
+	@$(LOAD_EFF_DB_URL); \
+	cd $(BACKEND_DIR) && \
 		PORT="$(BACKEND_PORT)" \
-		DATABASE_URL="$(DATABASE_URL)" \
+		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -714,9 +721,10 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 	@if [ -n "$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" ]; then \
 		echo "$(GREEN)✓ LLM Provider: $(EDGEQUAKE_DEFAULT_LLM_PROVIDER) ($(EDGEQUAKE_DEFAULT_LLM_MODEL))$(RESET)"; \
 	fi
-	@cd $(BACKEND_DIR) && \
+	@$(LOAD_EFF_DB_URL); \
+	cd $(BACKEND_DIR) && \
 		PORT="$(BACKEND_PORT)" \
-		DATABASE_URL="$(DATABASE_URL)" \
+		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -753,14 +761,20 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		exit 0; \
 	fi
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
-	@if [ -n "$$MISTRAL_API_KEY" ] || [ -n "$(MISTRAL_API_KEY)" ]; then \
+	@# Read the effective DATABASE_URL resolved by db-start (may differ in port
+	@# when another PostgreSQL occupies the default 5432).
+	@$(LOAD_EFF_DB_URL); \
+	_BIN="$(BACKEND_DIR)/target/debug/edgequake"; \
+	if [ -x "$$_BIN" ]; then _RUN="exec $$_BIN"; else _RUN="cd $(BACKEND_DIR) && exec cargo run"; fi; \
+	if [ -n "$$MISTRAL_API_KEY" ] || [ -n "$(MISTRAL_API_KEY)" ]; then \
 		_MISTRAL_KEY="$${MISTRAL_API_KEY:-$(MISTRAL_API_KEY)}"; \
 		echo "$(YELLOW)→ MISTRAL_API_KEY detected - using Mistral as default provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export MISTRAL_API_KEY=\"$$_MISTRAL_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$(OPENAI_API_KEY)" ] && printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
+		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
@@ -769,33 +783,38 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export EDGEQUAKE_VISION_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_VISION_MODEL=\"pixtral-large-latest\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_EMBEDDING_BATCH_SIZE=\"16\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	elif [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "$(YELLOW)→ OPENAI_API_KEY detected - using OpenAI as default provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
+		[ -n "$$MISTRAL_API_KEY" ] && printf '%s\n' "export MISTRAL_API_KEY=\"$$MISTRAL_API_KEY\"" >> /tmp/edgequake-start.sh; \
+		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	else \
-		echo "$(YELLOW)→ No OPENAI_API_KEY, using Ollama provider$(RESET)"; \
+		echo "$(YELLOW)→ No API key detected, using Ollama provider$(RESET)"; \
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export DATABASE_URL=\"$(DATABASE_URL)\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_MODEL=\"gemma4:latest\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"embeddinggemma:latest\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "cd $(BACKEND_DIR) && exec cargo run" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
 		chmod +x /tmp/edgequake-start.sh; \
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	fi
@@ -885,18 +904,32 @@ frontend-test: ## Run frontend tests
 # Database
 # ============================================================================
 
-db-wait: db-start ## Wait for database to be ready (used by other targets)
+db-wait: db-start ## Wait for database to be ready with credential verification (used by other targets)
 	@echo "$(YELLOW)Waiting for database to be ready...$(RESET)"
-	@DB_READY_CMD='pg_isready -h localhost -p 5432'; \
-	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq '@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; then \
-		DB_READY_CMD='pg_isready -d "$(DATABASE_URL)"'; \
-	fi; \
+	@# WHY auth probe (not just pg_isready):
+	@# db-start may have started edgequake-postgres on a non-default port to avoid
+	@# a port conflict.  We read the effective URL it wrote, parse credentials, and
+	@# verify that a psql connection actually succeeds — not just that a socket is
+	@# open.  This catches the "wrong PostgreSQL instance" failure mode early.
+	@$(LOAD_EFF_DB_URL); \
+	_DBWAIT_HOST=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^@]+@([^:/]+).*|\1|'); \
+	_DBWAIT_PORT=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^@]+@[^:]+:([0-9]+)/.*|\1|'); \
+	_DBWAIT_PORT=$${_DBWAIT_PORT:-5432}; \
+	_DBWAIT_USER=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://([^:]+):.*|\1|'); \
+	_DBWAIT_PASS=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^:]+:([^@]+)@.*|\1|'); \
+	_DBWAIT_NAME=$$(printf '%s' "$$_EFF_DB_URL" | sed -E 's|^[^:]+://[^/]+/([^?]*).*|\1|'); \
 	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		eval "$$DB_READY_CMD" >/dev/null 2>&1 && break || sleep 2; \
+		if pg_isready -h "$$_DBWAIT_HOST" -p "$$_DBWAIT_PORT" >/dev/null 2>&1 && \
+		   PGPASSWORD="$$_DBWAIT_PASS" psql -h "$$_DBWAIT_HOST" -p "$$_DBWAIT_PORT" \
+		       -U "$$_DBWAIT_USER" -d "$$_DBWAIT_NAME" -c '\q' >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ Database is ready (auth verified on $$_DBWAIT_HOST:$$_DBWAIT_PORT)$(RESET)"; \
+			exit 0; \
+		fi; \
+		sleep 2; \
 	done; \
-	eval "$$DB_READY_CMD" >/dev/null 2>&1 && \
-		echo "$(GREEN)✓ Database is ready$(RESET)" || \
-		(echo "$(RED)✗ Database failed to start$(RESET)" && exit 1)
+	echo "$(RED)✗ Database failed to start or authentication failed on $$_DBWAIT_HOST:$$_DBWAIT_PORT$(RESET)"; \
+	echo "$(YELLOW)  Tip: run 'make db-start' manually to see detailed diagnostics$(RESET)"; \
+	exit 1
 
 docker-network-diagnose: ## Diagnose common OrbStack/Docker network route conflicts
 	@ROUTES=$$(netstat -rn 2>/dev/null | egrep '(^10[[:space:]]|^172\.16/12|^192\.168\.0/16)' || true); \
@@ -912,40 +945,85 @@ docker-network-diagnose: ## Diagnose common OrbStack/Docker network route confli
 
 db-start: ## Start PostgreSQL container
 	@echo "$(BLUE)Starting PostgreSQL...$(RESET)"
-	@# WHY: Prefer a single lightweight probe before touching Docker. When
-	@# OrbStack/Docker is down, repeated docker exec/compose retries can amplify
-	@# the failure and make the local environment feel unstable.
+	@# WHY: All pg_isready probes are paired with a credential auth probe.
+	@# pg_isready only checks if *any* PostgreSQL is listening on a port.
+	@# When other services (infrastructure-postgres, k8s, etc.) occupy port 5432,
+	@# the socket check passes but authentication fails — crashing the backend with
+	@# "password authentication failed for user 'edgequake'".
+	@#
+	@# Fix strategy:
+	@#   1. Parse credentials from DATABASE_URL.
+	@#   2. After pg_isready succeeds, run a psql auth probe.
+	@#   3. If auth fails → port conflict → auto-detect a free port (5433…5437).
+	@#   4. Start edgequake-postgres on that free port via POSTGRES_PORT env var.
+	@#   5. Write the effective DATABASE_URL (with correct port) to
+	@#      /tmp/edgequake-db-url for consumption by make dev / make dev-bg / etc.
 	@LOCAL_DB_PATTERN='@(localhost|127\.0\.0\.1)(:|/)|://(localhost|127\.0\.0\.1)(:|/)'; \
 	if ! printf '%s' "$(DATABASE_URL)" | grep -Eiq "$$LOCAL_DB_PATTERN"; then \
 		echo "$(GREEN)✓ Using external PostgreSQL from DATABASE_URL; skipping Docker startup$(RESET)"; \
+		printf '%s' "$(DATABASE_URL)" > /tmp/edgequake-db-url; \
 		exit 0; \
 	fi; \
-	if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
-		echo "$(GREEN)✓ PostgreSQL already reachable on port 5432$(RESET)"; \
-		exit 0; \
+	_DB_USER=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://([^:]+):.*|\1|'); \
+	_DB_PASS=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^:]+:([^@]+)@.*|\1|'); \
+	_DB_HOST=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^@]+@([^:/]+).*|\1|'); \
+	_DB_PORT=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^@]+@[^:]+:([0-9]+)/.*|\1|'); \
+	_DB_PORT=$${_DB_PORT:-5432}; \
+	_DB_NAME=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^/]+/([^?]*).*|\1|'); \
+	if pg_isready -h "$$_DB_HOST" -p "$$_DB_PORT" >/dev/null 2>&1; then \
+		if PGPASSWORD="$$_DB_PASS" psql -h "$$_DB_HOST" -p "$$_DB_PORT" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ PostgreSQL already reachable on port $$_DB_PORT (credentials verified)$(RESET)"; \
+			printf '%s' "$(DATABASE_URL)" > /tmp/edgequake-db-url; \
+			exit 0; \
+		else \
+			echo "$(YELLOW)⚠  Port $$_DB_PORT is occupied by a PostgreSQL instance that does not accept our credentials.$(RESET)"; \
+			echo "$(YELLOW)   Root cause: another service (infrastructure-postgres, k8s, etc.) is using that port.$(RESET)"; \
+			echo "$(YELLOW)   Auto-detecting a free port for edgequake-postgres...$(RESET)"; \
+			_FREE_PORT=""; \
+			for _TRY in 5433 5434 5435 5436 5437; do \
+				if ! pg_isready -h localhost -p "$$_TRY" >/dev/null 2>&1 && ! lsof -ti ":$$_TRY" >/dev/null 2>&1; then \
+					_FREE_PORT="$$_TRY"; \
+					break; \
+				fi; \
+			done; \
+			if [ -z "$$_FREE_PORT" ]; then \
+				echo "$(RED)✗ No free PostgreSQL port found in range 5433-5437$(RESET)"; \
+				exit 1; \
+			fi; \
+			echo "$(YELLOW)→ Will start edgequake-postgres on port $$_FREE_PORT instead$(RESET)"; \
+			_DB_PORT="$$_FREE_PORT"; \
+			if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+				echo "$(YELLOW)→ Removing stale edgequake-postgres container to rebind on port $$_FREE_PORT...$(RESET)"; \
+				docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+			fi; \
+		fi; \
 	fi; \
 	if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
 		for i in 1 2 3 4 5; do \
-			if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
 				echo "$(GREEN)✓ Existing edgequake-postgres container is already running and reachable$(RESET)"; \
+				_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+				printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
 				exit 0; \
 			fi; \
 			sleep 2; \
 		done; \
-		echo "$(YELLOW)→ Existing edgequake-postgres container is running but not reachable on localhost:5432; recreating it$(RESET)"; \
+		echo "$(YELLOW)→ Existing edgequake-postgres container is running but not reachable on localhost:$$_DB_PORT; recreating it$(RESET)"; \
 		docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
 	fi; \
 	if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
 		echo "$(YELLOW)→ Starting existing edgequake-postgres container...$(RESET)"; \
 		docker start edgequake-postgres >/dev/null 2>&1 || true; \
 		for i in 1 2 3 4 5; do \
-			if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
 				echo "$(GREEN)✓ Existing edgequake-postgres container is ready$(RESET)"; \
+				_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+				printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
 				exit 0; \
 			fi; \
 			sleep 2; \
 		done; \
-		echo "$(YELLOW)→ Existing edgequake-postgres container is not reachable on localhost:5432; recreating it with the current compose settings$(RESET)"; \
+		echo "$(YELLOW)→ Existing edgequake-postgres container is not reachable on localhost:$$_DB_PORT; recreating it$(RESET)"; \
 		docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
 	fi; \
 	if ! command -v docker >/dev/null 2>&1; then \
@@ -961,7 +1039,7 @@ db-start: ## Start PostgreSQL container
 		exit 1; \
 	fi; \
 	TMP_LOG=$$(mktemp); \
-	if cd $(DOCKER_DIR) && docker compose up -d postgres >"$$TMP_LOG" 2>&1; then \
+	if cd $(DOCKER_DIR) && POSTGRES_PORT="$$_DB_PORT" docker compose up -d postgres >"$$TMP_LOG" 2>&1; then \
 		cat "$$TMP_LOG"; \
 		rm -f "$$TMP_LOG"; \
 	else \
@@ -974,12 +1052,18 @@ db-start: ## Start PostgreSQL container
 		rm -f "$$TMP_LOG"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)✓ PostgreSQL container started on port 5432$(RESET)"; \
+	echo "$(GREEN)✓ PostgreSQL container started on port $$_DB_PORT$(RESET)"; \
 	echo "$(YELLOW)Waiting for database to be ready...$(RESET)"; \
 	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		pg_isready -h localhost -p 5432 >/dev/null 2>&1 && break || { echo "Waiting..."; sleep 2; }; \
+		pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1 && break || { echo "Waiting..."; sleep 2; }; \
 	done; \
-	pg_isready -h localhost -p 5432 >/dev/null 2>&1 && echo "$(GREEN)✓ Database is ready$(RESET)" || { echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; }
+	if ! pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
+		echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Database is ready$(RESET)"; \
+	_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+	printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+	echo "$(GREEN)✓ Effective DATABASE_URL written to /tmp/edgequake-db-url$(RESET)"
 
 db-stop: ## Stop PostgreSQL container
 	@echo "$(BLUE)Stopping PostgreSQL...$(RESET)"
@@ -1310,10 +1394,283 @@ test-e2e-critical: ## Run E2E critical path tests
 	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
 		pnpm exec playwright test ooda-228-critical-path.spec.ts --reporter=line
 
-test-e2e-full: ## Run full E2E test suite
-	@echo "$(BLUE)Running full E2E suite...$(RESET)"
-	@cd $(FRONTEND_DIR) && PLAYWRIGHT_BASE_URL=http://localhost:3000 \
-		pnpm exec playwright test --reporter=line
+test-e2e-lint: ## Fail if chromium-gate e2e specs contain flake anti-patterns
+	@python3 $(FRONTEND_DIR)/scripts/validate-e2e-flake.py
+
+test-e2e-ui: test-e2e-lint ## UI-only chromium gate (no backend; skips integration specs)
+	@echo "$(BLUE)Running UI-only E2E chromium gate (PLAYWRIGHT_SKIP_STACK_CHECK=1)$(RESET)"
+	@FPID=$$(lsof -nP -iTCP:3001 -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	if [ -n "$$FPID" ] && ! curl -fsS --max-time 3 http://127.0.0.1:3001 2>/dev/null | grep -qi EdgeQuake; then \
+		echo "$(YELLOW)→ Killing unhealthy frontend listener on port 3001$(RESET)"; \
+		kill "$$FPID" 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 \
+		pnpm exec playwright test --project=chromium --reporter=line
+
+test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg stack)
+	@echo "$(BLUE)Running full E2E suite → frontend $(FRONTEND_URL) backend $(BACKEND_URL)$(RESET)"
+	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ EdgeQuake backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \
+	}
+	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
+		pnpm exec playwright test --project=chromium --reporter=line
+
+# ============================================================================
+# SPEC-013 — GitHub issues #216–#233 (May 2026)
+# ============================================================================
+SPEC013_BACKEND_PORT ?= 8081
+SPEC013_BACKEND_URL ?= http://localhost:$(SPEC013_BACKEND_PORT)
+
+spec013-e2e-rust: db-wait ## In-process API tests for SPEC-013 fixes (PostgreSQL, mock LLM)
+	@echo "$(BLUE)SPEC-013 Rust E2E (PostgreSQL in-process)...$(RESET)"
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	[ -n "$$_DB" ] || { echo "$(RED)✗ DATABASE_URL required (make db-wait)$(RESET)"; exit 1; }; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_github_issues -- --nocapture
+	@cd $(BACKEND_DIR) && cargo test -p edgequake-pipeline --lib entity_type -- --nocapture
+
+spec013-mistral-backend-bg: db-wait ## Backend on :8081 with Mistral (avoids Docker :8080)
+	@if [ -z "$(MISTRAL_API_KEY)" ] && [ -z "$$MISTRAL_API_KEY" ]; then \
+		echo "$(RED)✗ MISTRAL_API_KEY required for spec013-mistral-backend-bg$(RESET)"; exit 1; \
+	fi
+	@$(MAKE) backend-bg BACKEND_PORT=$(SPEC013_BACKEND_PORT) DEV_AUTH_ENABLED=false --no-print-directory
+
+spec013-e2e-playwright-intensive: ## Playwright intensive SPEC-013 suite (Mistral stack)
+	@echo "$(BLUE)SPEC-013 Playwright intensive → backend $(SPEC013_BACKEND_URL)$(RESET)"
+	@curl -sf "$(SPEC013_BACKEND_URL)/health" >/dev/null 2>&1 || { \
+		echo "$(RED)✗ Backend not healthy at $(SPEC013_BACKEND_URL)$(RESET)"; \
+		echo "  Run: $(GREEN)make spec013-mistral-backend-bg$(RESET) and $(GREEN)make frontend-bg$(RESET)"; \
+		exit 1; \
+	}
+	@curl -sf "$(SPEC013_BACKEND_URL)/health" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("llm_provider_name") or d.get("providers",{}).get("llm",{}).get("name"); sys.exit(0 if p=="mistral" else 1)' || { \
+		echo "$(RED)✗ Backend is not using live Mistral (llm_provider_name != mistral)$(RESET)"; \
+		echo "  Current health: $$(curl -sf "$(SPEC013_BACKEND_URL)/health" 2>/dev/null || echo unavailable)"; \
+		exit 1; \
+	}
+	@cd $(FRONTEND_DIR) && SPEC013_BACKEND_URL="$(SPEC013_BACKEND_URL)" \
+		E2E_BACKEND_URL="$(SPEC013_BACKEND_URL)" \
+		PLAYWRIGHT_BASE_URL=http://localhost:$(FRONTEND_PORT) \
+		pnpm exec playwright test -c playwright.spec013.config.ts --reporter=line
+
+test-e2e-mistral-live: ## Run chromium e2e against live Mistral backend (requires MISTRAL_API_KEY)
+	@if [ -z "$(MISTRAL_API_KEY)" ] && [ -z "$$MISTRAL_API_KEY" ]; then \
+		echo "$(RED)✗ MISTRAL_API_KEY required for test-e2e-mistral-live$(RESET)"; \
+		exit 1; \
+	fi
+	@BPID=$$(lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	if [ -n "$$BPID" ]; then \
+		echo "$(YELLOW)→ Restarting backend on port $(BACKEND_PORT) for deterministic auth/provider config$(RESET)"; \
+		kill "$$BPID" 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@FPID=$$(lsof -nP -iTCP:$(FRONTEND_PORT) -sTCP:LISTEN -t 2>/dev/null | head -1); \
+	if [ -n "$$FPID" ]; then \
+		echo "$(YELLOW)→ Freeing frontend port $(FRONTEND_PORT) for Playwright-managed webServer$(RESET)"; \
+		kill "$$FPID" 2>/dev/null || true; \
+		sleep 1; \
+	fi
+	@$(MAKE) backend-bg DEV_AUTH_ENABLED=false WORKER_THREADS=1 MAX_TASKS_PER_TENANT=1 --no-print-directory
+	@for i in $$(seq 1 30); do \
+		if curl -sf "$(BACKEND_URL)/health" >/dev/null 2>&1; then break; fi; \
+		sleep 2; \
+	done; \
+	curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ Backend not healthy at $(BACKEND_URL)$(RESET)"; \
+		echo "  Last backend logs:"; tail -20 /tmp/edgequake-backend.log 2>/dev/null || true; \
+		exit 1; \
+	}
+	@curl -sf "$(BACKEND_URL)/health" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("llm_provider_name") or d.get("providers",{}).get("llm",{}).get("name"); sys.exit(0 if p=="mistral" else 1)' || { \
+		echo "$(RED)✗ Backend is not running live Mistral$(RESET)"; \
+		echo "  Current health: $$(curl -sf "$(BACKEND_URL)/health" 2>/dev/null || echo unavailable)"; \
+		exit 1; \
+	}
+	@echo "$(GREEN)✓ Live Mistral backend verified at $(BACKEND_URL)$(RESET)"
+	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
+		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 NEXT_PUBLIC_API_URL="$(BACKEND_URL)" \
+		EDGEQUAKE_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED=false \
+		NEXT_PUBLIC_DISABLE_DEMO_LOGIN=false PLAYWRIGHT_SKIP_STACK_CHECK=1 \
+		pnpm exec playwright test --project=chromium --project=load --reporter=line
+
+spec013-e2e-mistral-live: db-wait ## Live Mistral document ingest (MISTRAL_API_KEY + PostgreSQL)
+	@echo "$(BLUE)SPEC-013 live Mistral ingest test (PostgreSQL)...$(RESET)"
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	[ -n "$$_DB" ] || { echo "$(RED)✗ DATABASE_URL required$(RESET)"; exit 1; }; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_mistral_live -- --ignored --nocapture
+
+spec013-e2e-mistral: spec013-e2e-rust ## Rust + Playwright + Mistral workspace/live (start spec013-mistral-backend-bg first)
+	@if [ -n "$(MISTRAL_API_KEY)" ] || [ -n "$$MISTRAL_API_KEY" ]; then \
+		$(MAKE) spec013-e2e-mistral-rust-live --no-print-directory; \
+	else \
+		echo "$(YELLOW)→ Skipping Mistral live Rust tests (MISTRAL_API_KEY not set)$(RESET)"; \
+	fi
+	@$(MAKE) spec013-e2e-playwright-intensive --no-print-directory
+	@echo "$(GREEN)✓ SPEC-013 intensive E2E complete$(RESET)"
+
+spec013-e2e-mistral-rust-live: db-wait ## Mistral workspace + ingest tests (PostgreSQL, requires MISTRAL_API_KEY)
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	[ -n "$$_DB" ] || { echo "$(RED)✗ DATABASE_URL required$(RESET)"; exit 1; }; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_mistral_live -- --nocapture; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_mistral_live -- --ignored --nocapture
+
+SPEC013_CARGO_TEST_ARGS ?= --test-threads=1
+
+spec013-proof-preflight: db-wait ## Fail fast if SPEC-013 proof prerequisites are missing or unsafe
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	[ -n "$$_DB" ] || { echo "$(RED)✗ DATABASE_URL required$(RESET)"; exit 1; }; \
+	[ -n "$(MISTRAL_API_KEY)" ] || [ -n "$$MISTRAL_API_KEY" ] || { \
+		echo "$(RED)✗ MISTRAL_API_KEY required$(RESET)"; exit 1; \
+	}; \
+	if curl -sf "$(BACKEND_URL)/health" >/dev/null 2>&1 && [ "$(SPEC013_INCLUDE_LIVE_API_TESTS)" != "1" ]; then \
+		echo "$(RED)✗ Dev backend is up at $(BACKEND_URL) — stop it before in-process spec013-proof$(RESET)"; \
+		echo "  $(GREEN)make stop$(RESET) (or set SPEC013_INCLUDE_LIVE_API_TESTS=1 only with backend stopped for cargo tests)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ SPEC-013 preflight OK$(RESET)"
+
+spec013-proof: spec013-proof-preflight ## Deterministic SPEC-013 proof (PostgreSQL + Mistral PDF ingest/query invariants)
+	@echo "$(BOLD)$(BLUE)SPEC-013 deterministic proof$(RESET)"
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	_LIVE="$(SPEC013_LIVE_API_URL)"; \
+	if [ "$(SPEC013_INCLUDE_LIVE_API_TESTS)" = "1" ] && [ -z "$$_LIVE" ]; then \
+		_LIVE="$(BACKEND_URL)"; \
+	fi; \
+	if [ -n "$$_LIVE" ]; then \
+		echo "$(YELLOW)→ Live API tests enabled ($$_LIVE) — stop dev backend to avoid duplicate workers on DATABASE_URL$(RESET)"; \
+	else \
+		echo "$(YELLOW)→ In-process only (no SPEC013_LIVE_API_URL — avoids DB worker contention)$(RESET)"; \
+	fi; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" SPEC013_LIVE_API_URL="$$_LIVE" cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_github_issues -- $(SPEC013_CARGO_TEST_ARGS) --nocapture; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_MISTRAL_TESTS=1 cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_mistral_pdf_query -- $(SPEC013_CARGO_TEST_ARGS) --nocapture; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 cargo test -p edgequake-storage --features postgres \
+		--test postgres_workspace_vector_stats -- $(SPEC013_CARGO_TEST_ARGS) --nocapture
+	@echo "$(GREEN)✓ SPEC-013 proof passed$(RESET)"
+
+SPEC013_PROOF_REPEAT ?= 5
+spec013-proof-repeat: db-wait ## Run spec013-proof N times to detect flakiness (N=SPEC013_PROOF_REPEAT)
+	@echo "$(BOLD)$(BLUE)SPEC-013 proof repeat ($(SPEC013_PROOF_REPEAT)x)$(RESET)"
+	@i=1; \
+	while [ $$i -le $(SPEC013_PROOF_REPEAT) ]; do \
+		echo "$(YELLOW)→ Iteration $$i/$(SPEC013_PROOF_REPEAT)$(RESET)"; \
+		$(MAKE) spec013-proof --no-print-directory || exit 1; \
+		i=$$((i+1)); \
+	done
+	@echo "$(GREEN)✓ SPEC-013 proof repeat complete$(RESET)"
+
+spec013-proof-ci: db-wait ## CI-strict proof gate (3x repeat, fails on missing Mistral env)
+	@SPEC013_INGEST_SLO_SECS=$${SPEC013_INGEST_SLO_SECS:-900}; \
+	SPEC013_QUERY_SLO_SECS=$${SPEC013_QUERY_SLO_SECS:-120}; \
+	export SPEC013_INGEST_SLO_SECS SPEC013_QUERY_SLO_SECS; \
+	echo "$(YELLOW)SLO gates: ingest=$$SPEC013_INGEST_SLO_SECS s query=$$SPEC013_QUERY_SLO_SECS s$(RESET)"; \
+	$(MAKE) spec013-proof-repeat SPEC013_PROOF_REPEAT=3 --no-print-directory
+
+SPEC013_BACKEND_URL ?= $(BACKEND_URL)
+SPEC013_FRONTEND_URL ?= http://localhost:$(FRONTEND_PORT)
+
+# Resolve backend URL after backend-bg (PORT in start script may differ from make-time BACKEND_PORT).
+define spec013_effective_backend_url
+$(shell if [ -f /tmp/edgequake-start.sh ]; then \
+	_P=$$(grep '^export PORT=' /tmp/edgequake-start.sh 2>/dev/null | sed -E 's/^export PORT="?([^"]+)"?/\1/'); \
+	[ -n "$$_P" ] && echo "http://localhost:$$_P" || echo "$(SPEC013_BACKEND_URL)"; \
+else echo "$(SPEC013_BACKEND_URL)"; fi)
+endef
+
+spec013-proof-ui: ## Playwright SPEC-013 UI proof (#216–#233); requires backend + frontend up
+	@echo "$(BOLD)$(BLUE)SPEC-013 UI proof (Playwright)$(RESET)"
+	@$(MAKE) spec013-wait-stack --no-print-directory
+	@_BE="$(call spec013_effective_backend_url)"; \
+	echo "$(YELLOW)→ Backend: $$_BE$(RESET)"
+	@curl -sfI "$(SPEC013_FRONTEND_URL)" >/dev/null || { \
+		echo "$(RED)✗ Frontend not reachable at $(SPEC013_FRONTEND_URL)$(RESET)"; exit 1; \
+	}; \
+	if ! curl -sf "$(SPEC013_FRONTEND_URL)" | grep -qi edgequake; then \
+		echo "$(RED)✗ Port $(SPEC013_FRONTEND_URL) is not EdgeQuake WebUI (wrong app?)$(RESET)"; \
+		echo "  Hint: $(GREEN)make dev-bg$(RESET) or set FRONTEND_PORT to the EdgeQuake port (often 3001)"; exit 1; \
+	fi
+	@_BE="$(call spec013_effective_backend_url)"; \
+	cd $(FRONTEND_DIR) && E2E_BACKEND_URL="$$_BE" \
+		SPEC013_BACKEND_URL="$$_BE" \
+		PLAYWRIGHT_BASE_URL="$(SPEC013_FRONTEND_URL)" \
+		pnpm exec playwright test --config playwright.spec013-ui.config.ts
+	@echo "$(GREEN)✓ SPEC-013 UI proof passed$(RESET)"
+
+spec013-proof-preflight-pr: db-wait ## PR gate preflight (PostgreSQL only; no Mistral key)
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	[ -n "$$_DB" ] || { echo "$(RED)✗ DATABASE_URL required$(RESET)"; exit 1; }; \
+	if curl -sf "$(BACKEND_URL)/health" >/dev/null 2>&1 && [ "$(SPEC013_INCLUDE_LIVE_API_TESTS)" != "1" ]; then \
+		echo "$(RED)✗ Dev backend is up at $(BACKEND_URL) — stop it before in-process spec013-proof-pr$(RESET)"; \
+		echo "  $(GREEN)make stop$(RESET)"; exit 1; \
+	fi; \
+	echo "$(GREEN)✓ SPEC-013 PR preflight OK$(RESET)"
+
+spec013-proof-pr: spec013-proof-preflight-pr ## Fast PR gate: mock API + vector stats (no Mistral, no live API)
+	@echo "$(BOLD)$(BLUE)SPEC-013 PR proof (mock + storage)$(RESET)"
+	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" cargo test -p edgequake-api --features postgres \
+		--test e2e_spec013_github_issues -- $(SPEC013_CARGO_TEST_ARGS) --nocapture; \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 cargo test -p edgequake-storage --features postgres \
+		--test postgres_workspace_vector_stats -- $(SPEC013_CARGO_TEST_ARGS) --nocapture
+	@echo "$(GREEN)✓ SPEC-013 PR proof passed$(RESET)"
+
+spec013-wait-stack: ## Wait until backend + EdgeQuake frontend are healthy (SPEC013_*_URL)
+	@_BE="$(call spec013_effective_backend_url)"; \
+	echo "$(YELLOW)→ Waiting for stack at $$_BE / $(SPEC013_FRONTEND_URL)$(RESET)"; \
+	ok=0; \
+	for i in $$(seq 1 60); do \
+		if curl -sf "$$_BE/health" >/dev/null 2>&1 \
+			&& curl -sfI "$(SPEC013_FRONTEND_URL)" >/dev/null 2>&1 \
+			&& curl -sf "$(SPEC013_FRONTEND_URL)" 2>/dev/null | grep -qi edgequake; then \
+			ok=1; break; \
+		fi; \
+		sleep 2; \
+	done; \
+	[ "$$ok" = "1" ] || { \
+		echo "$(RED)✗ Stack not ready after 90s$(RESET)"; \
+		echo "  Backend log: /tmp/edgequake-backend.log"; \
+		echo "  Frontend log: /tmp/edgequake-frontend.log"; exit 1; \
+	}; \
+	echo "$(GREEN)✓ Stack ready$(RESET)"
+
+spec013-proof-full: ## Stop dev stack → Rust proof → start stack → Playwright (#216–#233)
+	@echo "$(BOLD)$(BLUE)SPEC-013 full proof (Rust + UI)$(RESET)"
+	@$(MAKE) stop --no-print-directory 2>/dev/null || true
+	@$(MAKE) spec013-proof --no-print-directory
+	@$(MAKE) backend-bg frontend-bg --no-print-directory
+	@$(MAKE) spec013-wait-stack --no-print-directory
+	@$(MAKE) spec013-proof-ui --no-print-directory
+	@echo "$(GREEN)✓ SPEC-013 full proof passed$(RESET)"
+
+spec013-entity-type-audit: ## Audit graph entity types vs workspace allow-list (needs TENANT_ID + WORKSPACE_ID)
+	@[ -n "$(TENANT_ID)" ] && [ -n "$(WORKSPACE_ID)" ] || { \
+		echo "$(RED)✗ TENANT_ID and WORKSPACE_ID required$(RESET)"; \
+		echo "  Example: make spec013-entity-type-audit TENANT_ID=... WORKSPACE_ID=..."; exit 1; \
+	}
+	@python3 $(ROOT_DIR)/scripts/spec013_entity_type_audit.py \
+		--api "$(SPEC013_BACKEND_URL)" \
+		--tenant-id "$(TENANT_ID)" \
+		--workspace-id "$(WORKSPACE_ID)"
+
+spec013-entity-type-audit-all: ## Audit all tenants/workspaces (API must be up; optional JSON_OUT=path)
+	@_BE="$(call spec013_effective_backend_url)"; \
+	curl -sf "$$_BE/health" >/dev/null || { \
+		echo "$(RED)✗ Backend not healthy at $$_BE$(RESET)"; exit 1; \
+	}; \
+	python3 $(ROOT_DIR)/scripts/spec013_entity_type_audit.py \
+		--api "$$_BE" --scan-all \
+		$(if $(JSON_OUT),--json-out $(JSON_OUT),)
 
 # ============================================================================
 # SDK E2E — Rust, Python, TypeScript against a live API (Docker Compose stack)
@@ -1363,12 +1720,15 @@ test-stability-report: ## Generate test stability report
 
 test-postgres-start: ## Start PostgreSQL test containers
 	@echo "$(BLUE)Starting PostgreSQL test containers...$(RESET)"
-	@cd $(DOCKER_DIR) && docker compose -f docker-compose.test.yml up -d
+	@cd $(DOCKER_DIR) && docker compose -f docker-compose.test.yml up -d --build postgres-test
 	@echo "$(YELLOW)Waiting for databases to be ready...$(RESET)"
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 20 25 30; do \
 		(docker exec edgequake-postgres-test pg_isready -U edgequake_test -d edgequake_test 2>/dev/null) && break || sleep 2; \
 	done
-	@echo "$(GREEN)✓ PostgreSQL test containers ready$(RESET)"
+	@echo "$(YELLOW)Verifying pgvector + AGE extensions...$(RESET)"
+	@docker exec edgequake-postgres-test psql -U edgequake_test -d edgequake_test -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS age;" >/dev/null 2>&1 \
+		|| (echo "$(RED)✗ Failed to enable vector/age extensions$(RESET)" && exit 1)
+	@echo "$(GREEN)✓ PostgreSQL test containers ready (pgvector + AGE)$(RESET)"
 
 test-postgres-stop: ## Stop PostgreSQL test containers
 	@echo "$(BLUE)Stopping PostgreSQL test containers...$(RESET)"
@@ -1495,6 +1855,33 @@ logs: ## Show recent logs from all services
 	@echo ""
 	@echo "$(BOLD)Docker Container Status:$(RESET)"
 	@cd $(DOCKER_DIR) && docker compose ps 2>/dev/null || echo "Docker not running"
+
+.PHONY: observability-proof observability-jaeger resource-proof resource-proof-postgres
+
+resource-proof: ## Run SPEC-006 resource safety proof suite (mock; no Postgres required)
+	@chmod +x specifications/006-ensure-perf/e2e/run_resource_proof.sh scripts/spec006_no_get_all_api.sh scripts/spec006_budget_catalog_sync.sh scripts/spec006_source_ids_migration.sh scripts/spec006_no_unguarded_community_api.sh scripts/spec006_no_adhoc_resource_budget.sh scripts/spec006_apply_migration_038.sh edgequake/scripts/migrations/apply_038.sh
+	@DATABASE_URL= POSTGRES_PASSWORD= ./specifications/006-ensure-perf/e2e/run_resource_proof.sh
+
+resource-proof-postgres: test-postgres-start ## SPEC-006 battle test with live Postgres (migration bootstrap e2e)
+	@echo "$(BLUE)Running SPEC-006 Postgres battle tests...$(RESET)"
+	@cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT=5433 \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		cargo test -p edgequake-api --test migration_bootstrap_proof --test migration_readiness_proof --features postgres --quiet
+	@POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_DB=edgequake_test POSTGRES_USER=edgequake_test POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:5433/edgequake_test" \
+		./specifications/006-ensure-perf/e2e/run_resource_proof.sh
+	@echo "$(GREEN)✓ SPEC-006 resource-proof-postgres complete$(RESET)"
+
+observability-proof: ## Run SPEC-018 observability proof suite (Rust + WebUI)
+	@./specs/018-observability/e2e/run_observability_proof.sh
+
+observability-jaeger: ## Docker stack with Jaeger OTLP + JSON logs (SPEC-018)
+	@cd $(DOCKER_DIR) && docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up --build
 
 status: ## Show status of all services
 	@echo ""

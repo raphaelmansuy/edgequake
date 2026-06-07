@@ -27,7 +27,7 @@
 use std::sync::Arc;
 
 use edgequake_core::Workspace;
-use edgequake_llm::traits::EmbeddingProvider;
+use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_llm::{OllamaProvider, OpenAIProvider, ProviderFactory};
 
 /// Resolve the embedding provider from environment, optionally overriding the
@@ -153,7 +153,99 @@ pub fn resolve_embedding_provider(
 
 /// Apply `EDGEQUAKE_CHAT_*` → standard LLM env var aliases.
 ///
-/// FIX #166: Users expect symmetry with `EDGEQUAKE_EMBEDDING_*` naming.
+/// Resolve an optional vision-capable LLM provider for image queries (FEAT0203).
+///
+/// WHY: Models like `mistral-small-latest` silently drop image content.
+/// When the user attaches images to a chat query a dedicated vision model must
+/// be used instead.  This function reads:
+///
+/// | Variable | Default | Purpose |
+/// |---|---|---|
+/// | `EDGEQUAKE_VISION_PROVIDER` | same as `EDGEQUAKE_LLM_PROVIDER` | Provider type (`mistral`, `openai`, …) |
+/// | `EDGEQUAKE_VISION_MODEL`    | `pixtral-large-latest` for Mistral, `gpt-4o` for OpenAI | Vision model name |
+/// | `EDGEQUAKE_VISION_API_KEY`  | same as primary key | API key override |
+///
+/// Returns `None` when no Mistral/OpenAI key is configured or when
+/// `EDGEQUAKE_VISION_PROVIDER=none` is set explicitly.
+///
+/// WHY: The function is only called from `postgres.rs` (production path).
+/// Test builds only exercise `memory.rs` construction sites, so the compiler
+/// reports it as unused in `--lib` tests; suppress that false positive here.
+#[allow(dead_code)]
+pub fn resolve_vision_llm_provider() -> Option<Arc<dyn LLMProvider>> {
+    use tracing::{debug, warn};
+
+    // Allow explicit opt-out.
+    let explicit_provider = std::env::var("EDGEQUAKE_VISION_PROVIDER").unwrap_or_default();
+    if explicit_provider.eq_ignore_ascii_case("none") {
+        debug!("EDGEQUAKE_VISION_PROVIDER=none — vision provider disabled");
+        return None;
+    }
+
+    // Determine which provider family to use.
+    let llm_provider_name = if explicit_provider.is_empty() {
+        std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_default()
+    } else {
+        explicit_provider.clone()
+    };
+
+    // Attempt to determine the API key.
+    let api_key = std::env::var("EDGEQUAKE_VISION_API_KEY")
+        .or_else(|_| std::env::var("MISTRAL_API_KEY"))
+        .or_else(|_| std::env::var("OPENAI_API_KEY"))
+        .unwrap_or_default();
+
+    if api_key.is_empty() {
+        debug!("No API key found for vision provider — vision provider disabled");
+        return None;
+    }
+
+    // Choose the vision model (provider-specific defaults).
+    let model = std::env::var("EDGEQUAKE_VISION_MODEL").unwrap_or_else(|_| {
+        let prov = llm_provider_name.to_lowercase();
+        if prov.contains("mistral") || prov.is_empty() {
+            // Mistral API is detected via MISTRAL_API_KEY even when provider name is empty.
+            if std::env::var("MISTRAL_API_KEY").is_ok() {
+                return "pixtral-large-latest".to_string();
+            }
+        }
+        if prov.contains("openai") {
+            return "gpt-4o".to_string();
+        }
+        // Generic fallback — pixtral when a Mistral key is present.
+        if std::env::var("MISTRAL_API_KEY").is_ok() {
+            "pixtral-large-latest".to_string()
+        } else {
+            "gpt-4o".to_string()
+        }
+    });
+
+    // Build the provider via the same safety-wrapped factory used elsewhere.
+    match crate::safety_limits::create_safe_llm_provider(
+        if llm_provider_name.is_empty() {
+            // Auto-detect: use whichever key is present.
+            if std::env::var("MISTRAL_API_KEY").is_ok() {
+                "mistral"
+            } else {
+                "openai"
+            }
+        } else {
+            &llm_provider_name
+        },
+        &model,
+    ) {
+        Ok(provider) => {
+            debug!(model = %model, "Vision LLM provider initialised (FEAT0203)");
+            Some(provider)
+        }
+        Err(e) => {
+            warn!(error = %e, model = %model, "Failed to create vision LLM provider — image queries will fall back to default provider");
+            None
+        }
+    }
+}
+
+/// FIX #166: Recognise `EDGEQUAKE_CHAT_*` as aliases for the standard LLM env vars.
 /// This function maps chat-specific env vars to the standard ones used by
 /// `ProviderFactory::from_env()`:
 ///

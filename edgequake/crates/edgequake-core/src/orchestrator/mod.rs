@@ -227,9 +227,10 @@ impl Default for EdgeQuakeConfig {
             response_model_name: None,
             embedding_model_name: "text-embedding-3-small".to_string(),
             embedding_dim: 1536,
-            max_token_for_text_unit: 100000, // Very large budget (user request)
-            max_token_for_global_context: 100000, // Very large budget (user request)
-            max_token_for_local_context: 100000, // Very large budget (user request)
+            // SPEC-006 RB-LLM-008: align with SOTA/LightRAG 30k (ResourceBudget SSOT)
+            max_token_for_text_unit: crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS,
+            max_token_for_global_context: crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS,
+            max_token_for_local_context: crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS,
             chunk_token_size: 1200,
             chunk_overlap_token_size: 100,
             log_level: LogLevel::Info,
@@ -347,7 +348,7 @@ pub struct EdgeQuake {
     pipeline: Option<Arc<Pipeline>>,
 
     /// Query engine.
-    query_engine: Option<Arc<crate::query::QueryEngine>>,
+    query_engine: Option<Arc<edgequake_query::SOTAQueryEngine>>,
 }
 
 impl EdgeQuake {
@@ -485,15 +486,17 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::config("Vector storage not set"))?;
 
-        // Initialize SOTA query engine from edgequake-query
-        let query_engine = crate::query::QueryEngine::new(
-            llm.clone(),
-            embedding.clone(),
-            graph_storage.clone(),
+        // Initialize SOTA query engine from edgequake-query (SPEC-017 unified path)
+        use edgequake_query::SOTAQueryConfig;
+        let sota_engine = edgequake_query::SOTAQueryEngine::new(
+            SOTAQueryConfig::default(),
             vector_storage.clone(),
+            graph_storage.clone(),
+            embedding.clone(),
+            llm.clone(),
         );
 
-        self.query_engine = Some(Arc::new(query_engine));
+        self.query_engine = Some(Arc::new(sota_engine));
 
         self.initialized = true;
         tracing::info!("EdgeQuake initialized successfully");
@@ -633,6 +636,15 @@ mod tests {
         assert!(eq.health_check().await.unwrap());
 
         eq.finalize().await.unwrap();
+    }
+
+    #[test]
+    fn default_token_budget_matches_resource_ssot() {
+        let cfg = EdgeQuakeConfig::default();
+        let cap = crate::resource::MAX_ORCHESTRATOR_CONTEXT_TOKENS;
+        assert_eq!(cfg.max_token_for_text_unit, cap);
+        assert_eq!(cfg.max_token_for_global_context, cap);
+        assert_eq!(cfg.max_token_for_local_context, cap);
     }
 
     #[tokio::test]

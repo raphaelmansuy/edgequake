@@ -94,6 +94,12 @@ val doc = client.documents.get("document-id")
 // Upload text content
 val upload = client.documents.uploadText("Title", "Content here...")
 
+// Upload multiple files in one request
+val batch = client.documents.uploadBatch(listOf("a.txt", "b.md"))
+
+// Upload multiple PDFs in one request
+val pdfBatch = client.pdf.uploadBatch(listOf("a.pdf", "b.pdf"))
+
 // Scan a directory
 val scan = client.documents.scan("/path/to/docs", recursive = true)
 

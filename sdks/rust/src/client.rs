@@ -130,7 +130,9 @@ impl EdgeQuakeClient {
         crate::resources::admin::AdminResource { client: self }
     }
 
-    pub fn effective_config(&self) -> crate::resources::effective_config::EffectiveConfigResource<'_> {
+    pub fn effective_config(
+        &self,
+    ) -> crate::resources::effective_config::EffectiveConfigResource<'_> {
         crate::resources::effective_config::EffectiveConfigResource { client: self }
     }
 
@@ -307,6 +309,53 @@ impl EdgeQuakeClient {
         let resp = req.send().await.map_err(Error::Network)?;
         let status = resp.status();
         if status.is_success() {
+            let bytes = resp.bytes().await.map_err(Error::Network)?;
+            serde_json::from_slice(&bytes).map_err(Error::Json)
+        } else {
+            Err(Error::from_response(resp).await)
+        }
+    }
+
+    /// Upload multiple files via multipart/form-data in one request.
+    pub(crate) async fn upload_multipart_many<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        files: Vec<(Vec<u8>, String)>,
+        field_name: &str,
+        content_type: &str,
+        extra_fields: HashMap<String, String>,
+    ) -> Result<T> {
+        let url = self.url(path)?;
+        let mut form = multipart::Form::new();
+        for (file_bytes, filename) in files {
+            let part = multipart::Part::bytes(file_bytes)
+                .file_name(filename)
+                .mime_str(content_type)
+                .map_err(Error::Network)?;
+            form = form.part(field_name.to_string(), part);
+        }
+        for (key, value) in extra_fields {
+            form = form.text(key, value);
+        }
+
+        let mut req = self.inner.http.post(url).multipart(form);
+        match &self.inner.auth {
+            Auth::None => {}
+            Auth::ApiKey(key) => req = req.header("X-API-Key", key.as_str()),
+            Auth::Bearer(token) => req = req.header(AUTHORIZATION, format!("Bearer {}", token)),
+        }
+        if let Some(tid) = &self.inner.tenant.tenant_id {
+            req = req.header("X-Tenant-ID", tid.as_str());
+        }
+        if let Some(uid) = &self.inner.tenant.user_id {
+            req = req.header("X-User-ID", uid.as_str());
+        }
+        if let Some(wid) = &self.inner.tenant.workspace_id {
+            req = req.header("X-Workspace-ID", wid.as_str());
+        }
+
+        let resp = req.send().await.map_err(Error::Network)?;
+        if resp.status().is_success() {
             let bytes = resp.bytes().await.map_err(Error::Network)?;
             serde_json::from_slice(&bytes).map_err(Error::Json)
         } else {

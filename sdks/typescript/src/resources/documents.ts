@@ -17,6 +17,7 @@ import type {
   ListDocumentsQuery,
   ListDocumentsResponse,
   PdfContentResponse,
+  PdfBatchUploadResponse,
   PdfInfo,
   PdfProgressResponse,
   PdfStatusResponse,
@@ -75,6 +76,24 @@ export class PdfResource extends Resource {
     const meta =
       Object.keys(formData).length > 0 ? formData : undefined;
     return this.transport.upload("/api/v1/documents/pdf", file, meta);
+  }
+
+  /** Upload multiple PDFs in one multipart request. */
+  async uploadBatch(
+    files: (File | Blob)[],
+    options?: PdfUploadOptions,
+  ): Promise<PdfBatchUploadResponse> {
+    const formData: Record<string, string> = {};
+    if (options?.title) formData["title"] = options.title;
+    if (options?.track_id) formData["track_id"] = options.track_id;
+    if (options?.enable_vision) formData["enable_vision"] = "true";
+    if (options?.vision_provider)
+      formData["vision_provider"] = options.vision_provider;
+    if (options?.vision_model) formData["vision_model"] = options.vision_model;
+    if (options?.force_reindex) formData["force_reindex"] = "true";
+    const meta =
+      Object.keys(formData).length > 0 ? formData : undefined;
+    return this.transport.uploadBatch("/api/v1/documents/pdf/batch", files, meta);
   }
 
   /** List uploaded PDFs. */

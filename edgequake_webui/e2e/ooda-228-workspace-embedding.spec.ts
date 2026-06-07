@@ -1,4 +1,10 @@
 import { test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+import {
+  waitForAppReady,
+  waitForQueryResponse,
+} from "./helpers/app-ready";
 
 /**
  * OODA-228: Interactive E2E Test for Workspace Embedding Dimension Fix
@@ -12,7 +18,12 @@ import { test } from "@playwright/test";
  *           query_with_full_config() method that accepts workspace embedding + storage
  */
 
-test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load OODA-228: Workspace Embedding Dimension Fix", () => {
   // Default timeout for these tests
   test.setTimeout(60000);
 
@@ -38,7 +49,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
     if (await workspaceButton.isVisible({ timeout: 2000 }).catch(() => false)) {
       console.log("✓ Found workspace selector");
       await workspaceButton.click();
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
     }
   });
 
@@ -136,12 +147,8 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
               { timeout: 30000 },
             );
 
-            console.log("✓ Chat API request completed");
+            await waitForQueryResponse(page);
 
-            // Wait a bit for response to render
-            await page.waitForTimeout(2000);
-
-            // Check for any error messages related to dimension mismatch
             const errorIndicator = page.locator(
               "[data-testid='error'], .error-message, .text-red-500",
             );
@@ -188,7 +195,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
   test("Should validate API response format", async ({ page, baseURL }) => {
     // Test the API directly
     const apiBaseUrl =
-      baseURL?.replace(":3001", ":8080") || "http://localhost:8080";
+      BACKEND_URL || `${BACKEND_URL}`;
 
     console.log(`🔗 Testing API at: ${apiBaseUrl}`);
 
@@ -238,7 +245,7 @@ test.describe("OODA-228: Workspace Embedding Dimension Fix", () => {
   test("Should handle streaming chat response", async ({ page, baseURL }) => {
     // This test validates that streaming responses also use workspace embedding
     const apiBaseUrl =
-      baseURL?.replace(":3001", ":8080") || "http://localhost:8080";
+      BACKEND_URL || `${BACKEND_URL}`;
 
     console.log("🧪 Testing streaming chat endpoint");
 

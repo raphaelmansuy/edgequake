@@ -16,7 +16,9 @@ use edgequake_pipeline::{
     KnowledgeGraphMerger, MergerConfig, Pipeline, PipelineConfig, SimpleSummarizer,
     SummarizerConfig,
 };
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorage, GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+};
 
 // Sample document for testing
 const SAMPLE_DOCUMENT: &str = r#"

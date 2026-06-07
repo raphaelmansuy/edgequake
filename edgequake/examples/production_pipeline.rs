@@ -17,7 +17,9 @@ use std::sync::Arc;
 
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::{EmbeddingProvider, LLMProvider, OpenAIProvider};
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+use edgequake_storage::{
+    GraphStorageReadOps, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {

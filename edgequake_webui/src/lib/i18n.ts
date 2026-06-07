@@ -43,6 +43,10 @@ i18n
       order: ["localStorage", "navigator", "htmlTag"],
       caches: ["localStorage"],
       lookupLocalStorage: "edgequake-language",
+      // WHY: Strip region suffix so "fr-FR" resolves to "fr", "zh-TW" to "zh", etc.
+      // Without this, region-tagged locales from the browser fail to match any
+      // supported language code and fall back to English, ignoring user preference.
+      convertDetectedLanguage: (lng: string) => lng.split("-")[0],
     },
   });
 

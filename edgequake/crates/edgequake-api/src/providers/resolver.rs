@@ -33,12 +33,16 @@
 //! 3. **Result-Based**: Returns errors for caller to handle appropriately
 //! 4. **API Key Detection**: Automatically detects and flags API key issues
 //!
-//! ## Priority Order
+//! ## First-Principles Resolution Ladder
 //!
-//! For LLM provider resolution:
-//! 1. Request-specified provider/model (explicit user selection)
-//! 2. Workspace-configured provider/model (workspace settings)
-//! 3. Server default (fallback)
+//! **Goal:** answer the query with an LLM that can authenticate in *this* runtime.
+//!
+//! 1. **Request override** — only if credentials for that provider are configured;
+//!    auth/creation failures fall through (not a hard error).
+//! 2. **Workspace override** — same credential gate and fall-through.
+//! 3. **Server default** — `None` → `sota_engine` startup provider (`from_env()`).
+//! 4. **Runtime auth rejection** — `execute_sota_query_*_with_auth_fallback` retries
+//!    without override when the upstream API rejects the key.
 //!
 //! @implements OODA-226: Unified provider resolution to eliminate code duplication
 
@@ -47,11 +51,14 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::safety_limits::{
-    create_safe_embedding_provider, create_safe_llm_provider, default_model_for_provider,
+    create_safe_embedding_provider, create_safe_llm_provider_with_headers,
+    default_model_for_provider,
 };
 use edgequake_core::{Workspace, WorkspaceService};
+use edgequake_llm::ModelsConfig;
 use edgequake_query::{EmbeddingProvider, LLMProvider};
 
+use crate::providers::credentials::llm_provider_credentials_configured;
 use crate::providers::error::ProviderResolutionError;
 
 /// Configuration for LLM provider resolution from a request.
@@ -61,6 +68,12 @@ pub struct LlmResolutionRequest {
     pub provider: Option<String>,
     /// Model name from request (e.g., "gpt-4o-mini", "gemma3:12b")
     pub model: Option<String>,
+    /// Optional HTTP headers to propagate to the upstream LLM provider call.
+    ///
+    /// Enables B2B / multi-tenant metadata (`x-request-id`, `x-tenant-id`,
+    /// `x-correlation-id`, `traceparent`, HMAC tokens) to flow through to the
+    /// LLM API. Reserved headers are silently dropped by the provider.
+    pub extra_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 impl LlmResolutionRequest {
@@ -70,7 +83,11 @@ impl LlmResolutionRequest {
     /// - "openai/gpt-4o-mini" (legacy)
     /// - "openai" with separate model field (new)
     pub fn from_provider_string(provider: Option<String>, model: Option<String>) -> Self {
-        Self { provider, model }
+        Self {
+            provider,
+            model,
+            extra_headers: None,
+        }
     }
 
     /// Check if this request has an explicit provider selection.
@@ -167,12 +184,28 @@ pub enum ProviderSource {
 /// ```
 pub struct WorkspaceProviderResolver {
     workspace_service: Arc<dyn WorkspaceService>,
+    models_config: Option<Arc<ModelsConfig>>,
 }
 
 impl WorkspaceProviderResolver {
     /// Create a new resolver with the given workspace service.
     pub fn new(workspace_service: Arc<dyn WorkspaceService>) -> Self {
-        Self { workspace_service }
+        Self {
+            workspace_service,
+            models_config: None,
+        }
+    }
+
+    /// Attach models.toml config for first-principles credential gating.
+    pub fn with_models_config(mut self, models_config: Arc<ModelsConfig>) -> Self {
+        self.models_config = Some(models_config);
+        self
+    }
+
+    /// Resolver wired from [`AppState`] (workspace service + models config).
+    pub fn from_app_state(state: &crate::state::AppState) -> Self {
+        Self::new(state.workspace_service.clone())
+            .with_models_config(state.query.models_config.clone())
     }
 
     /// Resolve LLM provider based on request and workspace configuration.
@@ -199,33 +232,28 @@ impl WorkspaceProviderResolver {
 
         // Case 1: Explicit provider in request
         if let (Some(provider), Some(model)) = (&provider_name, &model_name) {
-            return self
-                .create_llm_provider(provider, model, ProviderSource::Request)
-                .map(Some);
+            if let Some(resolved) = self.try_create_llm_provider(
+                provider,
+                model,
+                ProviderSource::Request,
+                request.extra_headers.clone(),
+            )? {
+                return Ok(Some(resolved));
+            }
         }
 
         // Case 2: Get from workspace if provided
         if let Some(ws_id) = workspace_id {
             if let Some(workspace) = self.get_workspace(ws_id).await? {
                 if !workspace.llm_provider.is_empty() {
-                    return match self.create_llm_provider(
+                    if let Some(resolved) = self.try_create_llm_provider(
                         &workspace.llm_provider,
                         &workspace.llm_model,
                         ProviderSource::Workspace,
-                    ) {
-                        Ok(resolved) => Ok(Some(resolved)),
-                        Err(e) => {
-                            // Workspace provider failed - log but don't error
-                            warn!(
-                                workspace_id = ws_id,
-                                provider = %workspace.llm_provider,
-                                model = %workspace.llm_model,
-                                error = %e,
-                                "Workspace LLM provider failed, falling back to server default"
-                            );
-                            Ok(None)
-                        }
-                    };
+                        None,
+                    )? {
+                        return Ok(Some(resolved));
+                    }
                 }
             }
         }
@@ -256,37 +284,77 @@ impl WorkspaceProviderResolver {
 
         // Case 1: Explicit provider in request
         if let (Some(provider), Some(model)) = (&provider_name, &model_name) {
-            return self
-                .create_llm_provider(provider, model, ProviderSource::Request)
-                .map(Some);
+            if let Some(resolved) = self.try_create_llm_provider(
+                provider,
+                model,
+                ProviderSource::Request,
+                request.extra_headers.clone(),
+            )? {
+                return Ok(Some(resolved));
+            }
         }
 
         // Case 2: Use workspace's LLM config if available
         if let Some(ws) = workspace {
             if !ws.llm_provider.is_empty() {
-                return match self.create_llm_provider(
+                if let Some(resolved) = self.try_create_llm_provider(
                     &ws.llm_provider,
                     &ws.llm_model,
                     ProviderSource::Workspace,
-                ) {
-                    Ok(resolved) => Ok(Some(resolved)),
-                    Err(e) => {
-                        // Workspace provider failed - log but don't error
-                        warn!(
-                            workspace_id = %ws.workspace_id,
-                            provider = %ws.llm_provider,
-                            model = %ws.llm_model,
-                            error = %e,
-                            "Workspace LLM provider failed, falling back to server default"
-                        );
-                        Ok(None)
-                    }
-                };
+                    None,
+                )? {
+                    return Ok(Some(resolved));
+                }
             }
         }
 
         // Case 3: No explicit provider, no workspace - use server default
         Ok(None)
+    }
+
+    /// Try to build an LLM provider; returns `None` to fall through to server default.
+    ///
+    /// Skips providers without configured credentials. Auth/key creation failures also
+    /// fall through so query-time resolution prefers a working server default.
+    fn try_create_llm_provider(
+        &self,
+        provider: &str,
+        model: &str,
+        source: ProviderSource,
+        extra_headers: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<Option<ResolvedLlmProvider>, ProviderResolutionError> {
+        let credentials_ok = self
+            .models_config
+            .as_ref()
+            .map(|cfg| llm_provider_credentials_configured(cfg, provider))
+            .unwrap_or_else(|| {
+                crate::providers::credentials::llm_provider_credentials_configured_by_name(provider)
+            });
+
+        if !credentials_ok {
+            warn!(
+                provider = provider,
+                model = model,
+                ?source,
+                "LLM provider skipped: credentials not configured for this runtime"
+            );
+            return Ok(None);
+        }
+
+        match self.create_llm_provider_with_headers(provider, model, source, extra_headers) {
+            Ok(resolved) => Ok(Some(resolved)),
+            Err(e) if e.is_api_key_error() => {
+                warn!(
+                    provider = provider,
+                    model = model,
+                    ?source,
+                    error = %e,
+                    "LLM provider skipped: credential/auth failure; using server default"
+                );
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     /// Resolve embedding provider for a workspace.
@@ -465,12 +533,13 @@ impl WorkspaceProviderResolver {
         }
     }
 
-    /// Create an LLM provider with safety limits.
-    fn create_llm_provider(
+    /// Create an LLM provider with safety limits and optional caller-supplied headers.
+    fn create_llm_provider_with_headers(
         &self,
         provider: &str,
         model: &str,
         source: ProviderSource,
+        extra_headers: Option<std::collections::HashMap<String, String>>,
     ) -> Result<ResolvedLlmProvider, ProviderResolutionError> {
         debug!(
             provider = provider,
@@ -479,9 +548,10 @@ impl WorkspaceProviderResolver {
             "Creating LLM provider"
         );
 
-        let provider_arc = create_safe_llm_provider(provider, model).map_err(|e| {
-            ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
-        })?;
+        let provider_arc = create_safe_llm_provider_with_headers(provider, model, extra_headers)
+            .map_err(|e| {
+                ProviderResolutionError::from_creation_error(provider, model, &e.to_string())
+            })?;
 
         info!(
             provider = provider,
@@ -579,6 +649,7 @@ mod tests {
                 vision_llm_provider: None,
                 pdf_parser_backend: None,
                 entity_types: None,
+                entity_types_strict: None,
             };
 
             let workspace = service

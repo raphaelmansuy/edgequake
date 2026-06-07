@@ -22,6 +22,7 @@ from edgequake.types.documents import (
     FailedChunkInfo,
     ListDocumentsResponse,
     PdfContentResponse,
+    PdfBatchUploadResponse,
     PdfInfo,
     PdfProgressResponse,
     PdfUploadOptions,
@@ -162,22 +163,13 @@ class DocumentsResource(SyncResource):
 
         POST /api/v1/documents/upload/batch
         """
-        # WHY: Batch upload sends multiple files in a single request.
-        # We iterate and upload individually since the API may not support
-        # true multipart batch in all deployments.
-        results = []
-        for f in files:
-            try:
-                result = self.upload_file(f, metadata=metadata)
-                results.append(result)
-            except Exception:
-                pass
-        return BatchUploadResponse(
-            results=results,
-            total=len(files),
-            success_count=len(results),
-            failure_count=len(files) - len(results),
+        response = self._transport.upload_many(
+            "/api/v1/documents/upload/batch",
+            files=files,
+            field_name="files",
+            metadata=metadata,
         )
+        return BatchUploadResponse.model_validate(response.json())
 
     def scan(
         self,
@@ -367,6 +359,43 @@ class PdfResource(SyncResource):
         )
         return PdfUploadResponse.model_validate(response.json())
 
+    def upload_batch(
+        self,
+        files: _list[Path | BinaryIO],
+        *,
+        metadata: dict[str, str] | None = None,
+        enable_vision: bool = False,
+        vision_provider: str | None = None,
+        vision_model: str | None = None,
+        title: str | None = None,
+        track_id: str | None = None,
+        force_reindex: bool = False,
+    ) -> PdfBatchUploadResponse:
+        """Upload multiple PDF files in one request.
+
+        POST /api/v1/documents/pdf/batch
+        """
+        form_data: dict[str, str] = dict(metadata or {})
+        if enable_vision:
+            form_data["enable_vision"] = "true"
+        if vision_provider:
+            form_data["vision_provider"] = vision_provider
+        if vision_model:
+            form_data["vision_model"] = vision_model
+        if title:
+            form_data["title"] = title
+        if track_id:
+            form_data["track_id"] = track_id
+        if force_reindex:
+            form_data["force_reindex"] = "true"
+        response = self._transport.upload_many(
+            "/api/v1/documents/pdf/batch",
+            files=files,
+            field_name="files",
+            metadata=form_data or None,
+        )
+        return PdfBatchUploadResponse.model_validate(response.json())
+
     def list(self) -> _list[PdfInfo]:
         """List all PDF documents.
 
@@ -526,6 +555,24 @@ class AsyncDocumentsResource(AsyncResource):
         )
         return UploadDocumentResponse.model_validate(response.json())
 
+    async def upload_batch(
+        self,
+        files: _list[Path | BinaryIO],
+        *,
+        metadata: dict[str, str] | None = None,
+    ) -> BatchUploadResponse:
+        """Upload multiple files in a batch.
+
+        POST /api/v1/documents/upload/batch
+        """
+        response = await self._transport.upload_many(
+            "/api/v1/documents/upload/batch",
+            files=files,
+            field_name="files",
+            metadata=metadata,
+        )
+        return BatchUploadResponse.model_validate(response.json())
+
     async def scan(
         self,
         path: str,
@@ -646,6 +693,44 @@ class AsyncPdfResource(AsyncResource):
             metadata=form_data or None,
         )
         return PdfUploadResponse.model_validate(response.json())
+
+    async def upload_batch(
+        self,
+        files: _list[Path | BinaryIO],
+        *,
+        metadata: dict[str, str] | None = None,
+        enable_vision: bool = False,
+        vision_provider: str | None = None,
+        vision_model: str | None = None,
+        title: str | None = None,
+        track_id: str | None = None,
+        force_reindex: bool = False,
+    ) -> PdfBatchUploadResponse:
+        """Upload multiple PDF files in one request.
+
+        POST /api/v1/documents/pdf/batch
+        """
+        form_data: dict[str, str] = dict(metadata or {})
+        if enable_vision:
+            form_data["enable_vision"] = "true"
+        if vision_provider:
+            form_data["vision_provider"] = vision_provider
+        if vision_model:
+            form_data["vision_model"] = vision_model
+        if title:
+            form_data["title"] = title
+        if track_id:
+            form_data["track_id"] = track_id
+        if force_reindex:
+            form_data["force_reindex"] = "true"
+
+        response = await self._transport.upload_many(
+            "/api/v1/documents/pdf/batch",
+            files=files,
+            field_name="files",
+            metadata=form_data or None,
+        )
+        return PdfBatchUploadResponse.model_validate(response.json())
 
     async def list(self) -> _list[PdfInfo]:
         data = await self._get("/api/v1/documents/pdf")

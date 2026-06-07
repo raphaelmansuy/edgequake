@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * E2E Tests for Source Citations Deep Linking
@@ -38,11 +41,16 @@ async function submitQueryAndWaitForCitations(
   }
 }
 
-test.describe("Source Citations Deep Linking", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit Source Citations Deep Linking", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page with workspace
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/query?workspace=default-workspace");
+    await waitForAppReady(page);
   });
 
   test("should display confidence score based on chunk scores", async ({
@@ -72,7 +80,7 @@ test.describe("Source Citations Deep Linking", () => {
 
     // Take screenshot of the source citations
     await page.screenshot({
-      path: "test-results/source-citations-confidence.png",
+      path: e2eScreenshot("citations", "source-citations-confidence.png"),
       fullPage: false,
     });
   });
@@ -111,7 +119,7 @@ test.describe("Source Citations Deep Linking", () => {
 
     // Take screenshot before clicking
     await page.screenshot({
-      path: "test-results/source-citations-documents-tab.png",
+      path: e2eScreenshot("citations", "source-citations-documents-tab.png"),
     });
 
     // Listen for navigation events
@@ -139,7 +147,7 @@ test.describe("Source Citations Deep Linking", () => {
 
       // Take screenshot of document page
       await page.screenshot({
-        path: "test-results/document-detail-page.png",
+        path: e2eScreenshot("citations", "document-detail-page.png"),
       });
     }
   });
@@ -176,7 +184,7 @@ test.describe("Source Citations Deep Linking", () => {
 
     // Take screenshot of Explore tab
     await page.screenshot({
-      path: "test-results/source-citations-explore-tab.png",
+      path: e2eScreenshot("citations", "source-citations-explore-tab.png"),
     });
 
     // Click "Open Graph Explorer" button
@@ -200,7 +208,7 @@ test.describe("Source Citations Deep Linking", () => {
       // Take screenshot of filtered graph
       await page.waitForTimeout(1000); // Wait for graph to render
       await page.screenshot({
-        path: "test-results/graph-filtered-by-entities.png",
+        path: e2eScreenshot("citations", "graph-filtered-by-entities.png"),
       });
     }
   });
@@ -209,9 +217,9 @@ test.describe("Source Citations Deep Linking", () => {
     // Navigate directly to a document with highlight param
     // First, we need to get a valid document ID
     await page.goto(
-      "http://localhost:3000/documents?workspace=default-workspace"
+      "/documents?workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for documents to load
     await page.waitForTimeout(2000);
@@ -242,15 +250,15 @@ test.describe("Source Citations Deep Linking", () => {
       // Navigate with highlight parameter
       const highlightText = "EdgeQuake knowledge graph";
       await page.goto(
-        `http://localhost:3000/documents/${docId}?workspace=default-workspace&highlight=${encodeURIComponent(
+        `/documents/${docId}?workspace=default-workspace&highlight=${encodeURIComponent(
           highlightText
         )}`
       );
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Take screenshot showing any highlighting
       await page.screenshot({
-        path: "test-results/document-with-highlight.png",
+        path: e2eScreenshot("citations", "document-with-highlight.png"),
       });
 
       // Check for highlight mark elements
@@ -262,16 +270,16 @@ test.describe("Source Citations Deep Linking", () => {
   test("graph page should support entity URL parameters", async ({ page }) => {
     // Navigate to graph with entity filter
     await page.goto(
-      "http://localhost:3000/graph?entities=EDGEQUAKE%2CLIGHTRAG&focus=EDGEQUAKE&workspace=default-workspace"
+      "/graph?entities=EDGEQUAKE%2CLIGHTRAG&focus=EDGEQUAKE&workspace=default-workspace"
     );
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for graph to load
     await page.waitForTimeout(2000);
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/graph-with-entity-params.png",
+      path: e2eScreenshot("citations", "graph-with-entity-params.png"),
     });
 
     // Check if search query was set based on URL params
@@ -283,10 +291,10 @@ test.describe("Source Citations Deep Linking", () => {
   });
 });
 
-test.describe("Confidence Calculation Quality", () => {
+test.describe("@audit Confidence Calculation Quality", () => {
   test("confidence should reflect actual chunk scores", async ({ page }) => {
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/query?workspace=default-workspace");
+    await waitForAppReady(page);
 
     // Query that should return high-relevance chunks
     const hasCitations = await submitQueryAndWaitForCitations(
@@ -322,15 +330,15 @@ test.describe("Confidence Calculation Quality", () => {
     }
 
     await page.screenshot({
-      path: "test-results/confidence-quality-check.png",
+      path: e2eScreenshot("citations", "confidence-quality-check.png"),
     });
   });
 });
 
-test.describe("Normalized Score Display", () => {
+test.describe("@audit Normalized Score Display", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3000/query?workspace=default-workspace");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/query?workspace=default-workspace");
+    await waitForAppReady(page);
   });
 
   test("all displayed score percentages must be <= 100%", async ({ page }) => {
@@ -382,7 +390,7 @@ test.describe("Normalized Score Display", () => {
     }
 
     await page.screenshot({
-      path: "test-results/normalized-scores-bounded.png",
+      path: e2eScreenshot("citations", "normalized-scores-bounded.png"),
     });
   });
 
@@ -427,7 +435,7 @@ test.describe("Normalized Score Display", () => {
     expect(over100).toHaveLength(0);
 
     await page.screenshot({
-      path: "test-results/normalized-scores-no-overflow.png",
+      path: e2eScreenshot("citations", "normalized-scores-no-overflow.png"),
     });
   });
 });

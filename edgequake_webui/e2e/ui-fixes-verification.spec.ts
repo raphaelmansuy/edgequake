@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { auditScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * E2E Tests for UI Fixes - December 2024
@@ -11,11 +14,16 @@ import { expect, test } from "@playwright/test";
  * 5. Graph page scroll issues
  * 6. Settings menu layout/padding
  */
-test.describe("UI Fixes Verification", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit UI Fixes Verification", () => {
   test.beforeEach(async ({ page }) => {
     // Wait for the app to be ready
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("1. Tenant/workspace selector overflow is contained", async ({
@@ -28,7 +36,7 @@ test.describe("UI Fixes Verification", () => {
     // Take a screenshot of the sidebar
     const sidebar = page.locator('[aria-label="Sidebar navigation"]');
     await sidebar.screenshot({
-      path: "audit_ui/screenshots/verification/tenant-selector-overflow.png",
+      path: auditScreenshot("verification", "tenant-selector-overflow.png"),
     });
 
     // Check that the selector container has overflow-hidden
@@ -54,11 +62,11 @@ test.describe("UI Fixes Verification", () => {
 
   test("2. Document filter/sort alignment", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take screenshot of the filter area
     await page.screenshot({
-      path: "audit_ui/screenshots/verification/document-filters-alignment.png",
+      path: auditScreenshot("verification", "document-filters-alignment.png"),
       fullPage: false,
     });
 
@@ -71,7 +79,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("3. Graph left panel is collapsible", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Wait for the entity browser panel
     await page.waitForTimeout(1000);
@@ -84,7 +92,7 @@ test.describe("UI Fixes Verification", () => {
     if (await collapseButton.isVisible()) {
       // Take screenshot before collapse
       await page.screenshot({
-        path: "audit_ui/screenshots/verification/graph-panel-expanded.png",
+        path: auditScreenshot("verification", "graph-panel-expanded.png"),
       });
 
       // Click to collapse
@@ -93,7 +101,7 @@ test.describe("UI Fixes Verification", () => {
 
       // Take screenshot after collapse
       await page.screenshot({
-        path: "audit_ui/screenshots/verification/graph-panel-collapsed.png",
+        path: auditScreenshot("verification", "graph-panel-collapsed.png"),
       });
 
       // Find the expand button
@@ -112,13 +120,13 @@ test.describe("UI Fixes Verification", () => {
 
     // Take final screenshot
     await page.screenshot({
-      path: "audit_ui/screenshots/verification/graph-panel-final.png",
+      path: auditScreenshot("verification", "graph-panel-final.png"),
     });
   });
 
   test("4. Search input styling", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for the entity browser search input
     const searchInput = page.locator(
@@ -132,7 +140,7 @@ test.describe("UI Fixes Verification", () => {
 
       // Take screenshot with focus
       await page.screenshot({
-        path: "audit_ui/screenshots/verification/search-input-focused.png",
+        path: auditScreenshot("verification", "search-input-focused.png"),
       });
 
       // Check for improved styling classes
@@ -151,7 +159,7 @@ test.describe("UI Fixes Verification", () => {
 
       // Take screenshot of open search
       await page.screenshot({
-        path: "audit_ui/screenshots/verification/graph-search-open.png",
+        path: auditScreenshot("verification", "graph-search-open.png"),
       });
 
       // Close with escape
@@ -161,7 +169,7 @@ test.describe("UI Fixes Verification", () => {
 
   test("5. Graph page scroll is contained", async ({ page }) => {
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check that the graph viewer has overflow-hidden
     const graphViewerContainer = page
@@ -173,7 +181,7 @@ test.describe("UI Fixes Verification", () => {
 
     // Take screenshot of full graph page
     await page.screenshot({
-      path: "audit_ui/screenshots/verification/graph-page-scroll.png",
+      path: auditScreenshot("verification", "graph-page-scroll.png"),
       fullPage: false,
     });
 
@@ -184,11 +192,11 @@ test.describe("UI Fixes Verification", () => {
 
   test("6. Settings menu layout and padding", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take screenshot of settings page
     await page.screenshot({
-      path: "audit_ui/screenshots/verification/settings-layout.png",
+      path: auditScreenshot("verification", "settings-layout.png"),
       fullPage: true,
     });
 
@@ -209,11 +217,11 @@ test.describe("UI Fixes Verification", () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Take mobile screenshot
     await page.screenshot({
-      path: "audit_ui/screenshots/verification/mobile-sidebar-closed.png",
+      path: auditScreenshot("verification", "mobile-sidebar-closed.png"),
     });
 
     // Open the mobile menu
@@ -224,7 +232,7 @@ test.describe("UI Fixes Verification", () => {
 
       // Take screenshot of open mobile menu
       await page.screenshot({
-        path: "audit_ui/screenshots/verification/mobile-sidebar-open.png",
+        path: auditScreenshot("verification", "mobile-sidebar-open.png"),
       });
     }
   });
@@ -241,11 +249,11 @@ test.describe("UI Fixes Verification", () => {
 
     for (const { path, name } of pages) {
       await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Take screenshot
       await page.screenshot({
-        path: `audit_ui/screenshots/verification/page-layout-${name}.png`,
+        path: auditScreenshot("verification", `page-layout-${name}.png`),
       });
 
       // Check for no horizontal overflow

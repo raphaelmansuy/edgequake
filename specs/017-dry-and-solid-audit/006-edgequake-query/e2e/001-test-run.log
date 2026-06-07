@@ -1,0 +1,365 @@
+=== edgequake-query SPEC-017 E2E ===
+Date: 2026-06-03T08:45:48Z
+
+--- Compile workspace ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+   Compiling edgequake v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.57s
+
+--- P0: SPEC-017 query pipeline contract (5) ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running tests/spec017_query_pipeline_contract.rs (target/debug/deps/spec017_query_pipeline_contract-10e74dab8720db8d)
+
+running 5 tests
+test spec017_pipeline_bypass_skips_retrieval ... ok
+test spec017_pipeline_context_only_no_answer ... ok
+test spec017_pipeline_naive_mode_returns_chunks ... ok
+test spec017_workspace_vector_storage_matches_default ... ok
+test spec017_pipeline_all_modes_execute ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P0: keyword validation tests ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/keyword_validation_tests.rs (target/debug/deps/keyword_validation_tests-8f68cb315b3c77f9)
+
+running 18 tests
+test test_graph_search_labels ... ok
+test test_entity_relationships ... ok
+test test_keyword_validation_drops_nonexistent ... ok
+test test_global_mode_theme_focus ... ok
+test test_local_mode_entity_focus ... ok
+test test_french_query_with_accents ... ok
+test test_hybrid_mode_combined ... ok
+test test_fallback_when_all_keywords_dropped ... ok
+test test_empty_query_handling ... ok
+test test_long_query_handling ... ok
+test test_adjacent_domain_query ... ok
+test test_mixed_keyword_query_succeeds ... ok
+test test_complex_french_comparative ... ok
+test test_special_characters_query ... ok
+test test_valid_keywords_preserved ... ok
+test test_keyword_cache_reuse ... ok
+test test_full_ooda_integration ... ok
+test test_all_ooda_queries_execute ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+--- P1: search quality tests ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/search_quality_tests.rs (target/debug/deps/search_quality_tests-f56957918ce60a2e)
+
+running 34 tests
+test metrics::tests::test_f1_score ... ok
+test metrics::tests::test_quality_level_from_length ... ok
+test metrics::tests::test_metrics_result ... ok
+test metrics::tests::test_precision_recall_basic ... ok
+test metrics::tests::test_response_quality_assess ... ok
+test metrics::tests::test_test_suite_metrics ... ok
+test test_metrics_precision_recall ... ok
+test test_q10_e3008_scenic_comparison ... ok
+test test_q1_stla_byd_comparison ... ok
+test test_q8_phev_consumption ... ok
+test test_q5_icockpit_google_comparison ... ok
+test test_q7_hybrid_136_powertrain ... ok
+test test_quality_assessment ... ok
+test test_queries::tests::test_all_queries_have_entities ... ok
+test test_queries::tests::test_all_queries_are_french ... ok
+test test_queries::tests::test_expected_entities_set ... ok
+test test_q11_driving_dynamics ... ok
+test test_queries::tests::test_get_queries_by_mode ... ok
+test test_queries::tests::test_get_queries_by_theme ... ok
+test test_queries::tests::test_get_query_by_id ... ok
+test test_queries::tests::test_query_count ... ok
+test test_test_queries_structure ... ok
+test test_q4_peugeot_2008_features ... ok
+test test_q6_408_itoggle_features ... ok
+test test_q3_allure_care_warranty ... ok
+test test_q2_e208_r5_comparison ... ok
+test test_q9_bonus_ecologique_pricing ... ok
+test test_french_query_handling ... ok
+test test_entity_extraction_consistency ... ok
+test test_competitive_analysis_theme ... ok
+test test_local_mode_queries ... ok
+test test_global_mode_queries ... ok
+test test_full_suite_execution ... ok
+test test_response_not_empty ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+--- P1: chunk ranking + hybrid (e2e_sota_engine) ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/e2e_sota_engine.rs (target/debug/deps/e2e_sota_engine-e802af6780da24e3)
+
+running 10 tests
+test chunk_ranking_and_hybrid_tests::test_config_lightrag_parity_defaults ... ok
+test chunk_ranking_and_hybrid_tests::test_empty_source_chunk_ids_graceful ... ok
+test chunk_ranking_and_hybrid_tests::test_alphabetically_last_but_highest_score_returned ... ok
+test chunk_ranking_and_hybrid_tests::test_multi_entity_recall ... ok
+test chunk_ranking_and_hybrid_tests::test_local_chunks_sorted_by_score_descending ... ok
+test chunk_ranking_and_hybrid_tests::test_reranker_preserves_score_ranking ... ok
+test chunk_ranking_and_hybrid_tests::test_global_chunks_sorted_by_score ... ok
+test chunk_ranking_and_hybrid_tests::test_hybrid_mode_returns_results ... ok
+test chunk_ranking_and_hybrid_tests::test_hybrid_deduplicates_across_sources ... ok
+test chunk_ranking_and_hybrid_tests::test_all_candidates_considered_before_truncation ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+
+
+--- Lib unit tests ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_query-d676d939d5413412)
+
+running 96 tests
+test chunk_retrieval::tests::test_chunk_selection_method ... ok
+test chunk_retrieval::tests::test_rerank_chunks ... ok
+test context::tests::test_query_context_building ... ok
+test chunk_retrieval::tests::test_merge_chunks ... ok
+test context::tests::test_context_to_string ... ok
+test context::tests::test_retrieved_entity_source_tracking ... ok
+test context::tests::test_retrieved_relationship_source_tracking ... ok
+test context::tests::test_retrieved_chunk_builder ... ok
+test context_filter::tests::test_empty_filter_removes_all_chunks ... ok
+test context_filter::tests::test_none_filter_is_noop ... ok
+test engine::tests::test_query_engine_config_default ... ok
+test context_filter::tests::test_filter_single_document ... ok
+test context_filter::tests::test_filter_keeps_matching_documents ... ok
+test engine::tests::test_query_request_builder ... ok
+test chunk_retrieval::tests::test_retrieve_chunks_from_relationships ... ok
+test engine::tests::test_query_request_with_system_prompt ... ok
+test chunk_retrieval::tests::test_retrieve_chunks_from_entities ... ok
+test helpers::tests::test_build_entity_from_node ... ok
+test helpers::tests::test_build_relationship_from_edge ... ok
+test engine::tests::test_query_request_system_prompt_serde ... ok
+test helpers::tests::test_extract_document_id ... ok
+test helpers::tests::test_extract_entity_source_tracking ... ok
+test helpers::tests::test_extract_entity_source_tracking_empty ... ok
+test helpers::tests::test_extract_relationship_source_tracking ... ok
+test keywords::extractor::tests::test_all_keywords ... ok
+test keywords::cache::tests::test_in_memory_cache_basic ... ok
+test keywords::extractor::tests::test_empty_keywords ... ok
+test keywords::cache::tests::test_in_memory_cache_eviction ... ok
+test keywords::extractor::tests::test_extracted_keywords_conversion ... ok
+test keywords::extractor::tests::test_keywords_creation ... ok
+test keywords::intent::tests::test_comparative_detection ... ok
+test keywords::intent::tests::test_default_to_exploratory ... ok
+test keywords::intent::tests::test_exploratory_detection ... ok
+test keywords::intent::tests::test_factual_detection ... ok
+test keywords::intent::tests::test_procedural_detection ... ok
+test keywords::intent::tests::test_recommended_modes ... ok
+test keywords::intent::tests::test_relational_detection ... ok
+test keywords::llm_extractor::tests::test_json_extraction ... ok
+test keywords::llm_extractor::tests::test_llm_extractor_prompt_generation ... ok
+test keywords::llm_extractor::tests::test_parse_response ... ok
+test keywords::llm_extractor::tests::test_extract_extended_uses_rule_based_keywords_for_mock_provider ... ok
+test keywords::mock_extractor::tests::test_mock_extractor_extended ... ok
+test keywords::mock_extractor::tests::test_mock_extractor_heuristic ... ok
+test keywords::mock_extractor::tests::test_mock_extractor_no_heuristics ... ok
+test keywords::mock_extractor::tests::test_mock_extractor_with_response ... ok
+test keywords::mock_extractor::tests::test_rule_based_extraction ... ok
+test modes::tests::test_query_mode_all ... ok
+test modes::tests::test_query_mode_display ... ok
+test modes::tests::test_query_mode_features ... ok
+test modes::tests::test_query_mode_parsing ... ok
+test sota_engine::tests::system_prompt_tests::test_build_prompt_empty_context ... ok
+test sota_engine::query_modes::tests::test_query_naive_respects_tenant_isolation ... ok
+test sota_engine::tests::system_prompt_tests::test_build_prompt_with_empty_system_prompt ... ok
+test sota_engine::tests::test_query_embeddings_uniform ... ok
+test sota_engine::tests::test_sota_config_default ... ok
+test sota_engine::query_modes::tests::test_default_and_workspace_hybrid_use_same_retrieval ... ok
+test sota_engine::tests::system_prompt_tests::test_build_prompt_without_system_prompt ... ok
+test sota_engine::query_modes::tests::test_query_naive_returns_chunks_when_entities_dominate ... ok
+test sota_engine::tests::system_prompt_tests::test_build_prompt_with_system_prompt ... ok
+test strategies::tests::test_create_strategy_factory ... ok
+test strategies::tests::test_global_strategy_empty_storage ... ok
+test strategies::tests::test_global_strategy_mode ... ok
+test strategies::tests::test_hybrid_strategy_empty_storage ... ok
+test strategies::tests::test_hybrid_strategy_mode ... ok
+test strategies::tests::test_local_strategy_empty_storage ... ok
+test strategies::tests::test_local_strategy_mode ... ok
+test strategies::tests::test_mix_strategy_empty_storage ... ok
+test strategies::tests::test_mix_strategy_mode ... ok
+test strategies::tests::test_naive_strategy_empty_storage ... ok
+test strategies::tests::test_naive_strategy_mode ... ok
+test strategies::tests::test_normalize_entity_name ... ok
+test strategies::tests::test_normalize_entity_name_special_chars ... ok
+test strategies::tests::test_strategy_config_clone ... ok
+test strategies::tests::test_naive_strategy_with_data ... ok
+test strategies::tests::test_strategy_config_custom ... ok
+test strategies::tests::test_strategy_config_debug ... ok
+test strategies::tests::test_strategy_config_default ... ok
+test tokenizer::tests::test_mock_tokenizer_custom_rate ... ok
+test tokenizer::tests::test_mock_tokenizer_default ... ok
+test strategies::tests::test_strategy_with_graph_data ... ok
+test tokenizer::tests::test_simple_tokenizer_count ... ok
+test tokenizer::tests::test_simple_tokenizer_encode_decode ... ok
+test tokenizer::tests::test_tokenizer_trait ... ok
+test truncation::tests::test_balance_context ... ok
+test truncation::tests::test_balance_context_within_limit ... ok
+test truncation::tests::test_truncate_chunks ... ok
+test truncation::tests::test_truncate_entities ... ok
+test truncation::tests::test_truncate_relationships ... ok
+test truncation::tests::test_truncation_config_default ... ok
+test vector_filter::tests::test_filter_by_type_chunks ... ok
+test vector_filter::tests::test_filter_by_type_entities ... ok
+test vector_filter::tests::test_filter_by_type_relationships ... ok
+test vector_filter::tests::test_filter_empty_results ... ok
+test vector_filter::tests::test_filter_missing_type_field ... ok
+test vector_filter::tests::test_get_typed_vectors_with_limit ... ok
+test keywords::cache::tests::test_in_memory_cache_expiration ... ok
+
+test result: ok. 96 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+--- P0: API query production path contract ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.50s
+     Running tests/spec017_query_production_path_contract.rs (target/debug/deps/spec017_query_production_path_contract-dd7ec4b20c570154)
+
+running 2 tests
+test spec017_query_execution_service_uses_sota_engine_only ... ok
+test spec017_ollama_handlers_use_sota_engine_only ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- API Ollama lib smoke ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+warning: unused import: `MemoryPdfStorage`
+  --> crates/edgequake-api/src/state/storage_runtime.rs:47:46
+   |
+47 |         MemoryGraphStorage, MemoryKVStorage, MemoryPdfStorage, MemoryVectorStorage,
+   |                                              ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-api` (lib test) generated 1 warning (run `cargo fix --lib -p edgequake-api --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.74s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_api-9e038221c05c4149)
+
+running 21 tests
+test handlers::ollama::tests::test_estimate_tokens ... ok
+test handlers::ollama::tests::test_ollama_constants ... ok
+test handlers::ollama::tests::test_search_mode_parsing ... ok
+test handlers::ollama::tests::test_search_mode_mix ... ok
+test handlers::ollama_types::tests::test_ollama_search_mode_from_query ... ok
+test handlers::ollama::tests::test_search_mode_naive ... ok
+test handlers::ollama::tests::test_model_name ... ok
+test handlers::ollama_types::tests::test_ollama_version_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_message_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_tags_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_ps_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_generate_request_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_chat_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_generate_response_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_chat_request_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_model_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_running_model_serialization ... ok
+test handlers::ollama_types::tests::test_ollama_model_details_serialization ... ok
+test state::provider_setup::tests::ollama_embedding_host_overrides_provider ... ok
+test state::provider_setup::tests::ollama_embedding_model_does_not_bleed_into_mistral ... ok
+test state::provider_setup::tests::embedding_model_from_env_reads_ollama_first ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 569 filtered out; finished in 0.00s
+
+
+✓ edgequake-query SPEC-017 E2E complete

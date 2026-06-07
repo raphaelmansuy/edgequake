@@ -56,10 +56,7 @@ pub fn conversation_list_query_string(q: &ConversationListQuery) -> String {
         parts.push(format!("limit={l}"));
     }
     if let Some(ref m) = q.filter_mode {
-        parts.push(format!(
-            "filter[mode]={}",
-            urlencoding::encode(m)
-        ));
+        parts.push(format!("filter[mode]={}", urlencoding::encode(m)));
     }
     if let Some(b) = q.filter_archived {
         parts.push(format!("filter[archived]={b}"));
@@ -68,19 +65,13 @@ pub fn conversation_list_query_string(q: &ConversationListQuery) -> String {
         parts.push(format!("filter[pinned]={b}"));
     }
     if let Some(ref id) = q.filter_folder_id {
-        parts.push(format!(
-            "filter[folder_id]={}",
-            urlencoding::encode(id)
-        ));
+        parts.push(format!("filter[folder_id]={}", urlencoding::encode(id)));
     }
     if let Some(b) = q.filter_unfiled {
         parts.push(format!("filter[unfiled]={b}"));
     }
     if let Some(ref s) = q.filter_search {
-        parts.push(format!(
-            "filter[search]={}",
-            urlencoding::encode(s)
-        ));
+        parts.push(format!("filter[search]={}", urlencoding::encode(s)));
     }
     if let Some(ref s) = q.sort {
         parts.push(format!("sort={}", urlencoding::encode(s)));

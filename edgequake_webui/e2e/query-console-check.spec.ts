@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
 
-test.describe("Query Console Check", () => {
+test.describe("@debug Query Console Check", () => {
   test("should show console output for debugging", async ({ page }) => {
     // Capture ALL console messages
     const consoleMessages: string[] = [];
@@ -10,7 +11,7 @@ test.describe("Query Console Check", () => {
       console.log(text);
     });
 
-    await page.goto("http://localhost:3000/query");
+    await page.goto("/query");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
@@ -38,7 +39,7 @@ test.describe("Query Console Check", () => {
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/console-check.png",
+      path: e2eScreenshot("debug", "console-check.png"),
       fullPage: true,
     });
 

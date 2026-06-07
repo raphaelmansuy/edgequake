@@ -1,17 +1,17 @@
 //! Non-streaming chat completion handler.
 
+use std::sync::Arc;
+
 use axum::extract::State;
 use axum::Json;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::query::{
-    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
-    QueryStats,
-};
+use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace, QueryStats};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
+use crate::services::{execute_sota_query_with_auth_fallback, resolve_workspace_query_resources};
 use crate::state::AppState;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageRole, UpdateMessageRequest,
@@ -51,21 +51,21 @@ pub async fn chat_completion(
         ));
     }
 
+    // Validate image attachments (Issue #203) — delegated to shared helper (DRY).
+    if let Some(ref images) = request.images {
+        super::validation::validate_image_attachments(images)?;
+    }
+
     let tenant_id = tenant_ctx
         .tenant_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid tenant ID".to_string()))?;
     let user_id = tenant_ctx
         .user_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-    let workspace_id = tenant_ctx
-        .workspace_id
-        .map(|s| s.parse::<Uuid>())
-        .transpose()
-        .map_err(|_| ApiError::BadRequest("Invalid workspace ID".to_string()))?;
 
     debug!(
         tenant_id = %tenant_id,
@@ -74,43 +74,12 @@ pub async fn chat_completion(
         "Processing chat completion"
     );
 
-    // Ensure user exists in PostgreSQL (auto-create if not)
-    // This is necessary because the frontend generates random UUIDs for anonymous users
-    #[cfg(feature = "postgres")]
-    if let Some(ref pool) = state.pg_pool {
-        sqlx::query(
-            r#"
-            INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, 'anonymous', 'user', TRUE, NOW(), NOW())
-            ON CONFLICT (user_id) DO NOTHING
-            "#,
-        )
-        .bind(user_id)
-        .bind(tenant_id)
-        .bind(format!("anon_{}", &user_id.to_string()[..8]))
-        .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
-    }
+    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
+        .await?;
 
-    // Validate workspace_id exists in database (may be stale from localStorage)
-    // Also store workspace for LLM provider fallback (SPEC-032)
-    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
-        match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
-            Ok(None) => {
-                warn!(workspace_id = %ws_id, "Workspace not found, ignoring stale workspace_id");
-                (None, None)
-            }
-            Err(e) => {
-                warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace, ignoring");
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
+    // Fail closed when an explicit workspace header is invalid (same as /query).
+    let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
+    let workspace_id = workspace.as_ref().map(|ws| ws.workspace_id);
 
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
@@ -128,7 +97,7 @@ pub async fn chat_completion(
             .ok_or_else(|| ApiError::NotFound(format!("Conversation {} not found", id)))?;
 
         if conv.tenant_id != tenant_id {
-            return Err(ApiError::Forbidden);
+            return Err(ApiError::forbidden());
         }
         id
     } else {
@@ -195,7 +164,7 @@ pub async fn chat_completion(
         let tenant_filter = Some(data_tenant_id.clone());
         if let Some(allowed_ids) =
             crate::handlers::query::document_filter_resolver::resolve_document_filter(
-                state.kv_storage.as_ref(),
+                state.storage.kv_storage.as_ref(),
                 filter,
                 &tenant_filter,
                 &ws_id_str,
@@ -206,7 +175,18 @@ pub async fn chat_completion(
         }
     }
 
-    // SPEC-032 + OODA-227: Unified provider resolution with safety limits
+    // FEAT0203: Forward image attachments to the query engine for vision queries.
+    if let Some(ref images) = request.images {
+        let image_data: Vec<edgequake_llm::traits::ImageData> = images
+            .iter()
+            .map(|i| edgequake_llm::traits::ImageData::new(&i.data, &i.mime_type))
+            .collect();
+        if !image_data.is_empty() {
+            engine_request = engine_request.with_images(image_data);
+        }
+    }
+
+    // SPEC-032 + OADA-227: Unified provider resolution with safety limits
     // Priority order:
     //   1. Request-specified provider/model (explicit user selection)
     //   2. Workspace-configured provider/model (workspace settings)
@@ -214,7 +194,7 @@ pub async fn chat_completion(
     // Supports both formats:
     //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
     //   - New format: provider="provider", model="model_name"
-    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let resolver = WorkspaceProviderResolver::from_app_state(&state);
     let llm_request =
         LlmResolutionRequest::from_provider_string(request.provider.clone(), request.model.clone());
 
@@ -246,122 +226,45 @@ pub async fn chat_completion(
             }
         };
 
-    // OODA-228: Get workspace-specific embedding provider and vector storage
-    // This ensures query embeddings match the dimension of stored vectors
-    let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
-    let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) = workspace_id_str {
-        let embedding_result = get_workspace_embedding_provider(&state, ws_id_str).await;
-        let vector_result = get_workspace_vector_storage(&state, ws_id_str).await;
-
-        match (embedding_result, vector_result) {
-            (Ok(Some(embed)), Ok(Some(vector))) => {
-                debug!(
-                    workspace_id = %ws_id_str,
-                    "Using workspace-specific embedding provider AND vector storage for chat query"
-                );
-                (Some(embed), Some(vector))
-            }
-            (Ok(Some(embed)), Ok(None)) => {
-                // Embedding provider exists but no vector storage (shouldn't happen in normal use)
-                debug!(
-                    workspace_id = %ws_id_str,
-                    "Using workspace-specific embedding provider only for chat query"
-                );
-                (Some(embed), None)
-            }
-            (Ok(Some(_embed)), Err(e)) => {
-                // OODA-228: Vector storage failed - return error, don't silently ignore
-                error!(
-                    workspace_id = %ws_id_str,
-                    error = %e,
-                    "Cannot get workspace vector storage - storage error"
-                );
-                return Err(ApiError::Internal(format!(
-                    "Cannot query workspace: {}. Vector storage error: {}",
-                    ws_id_str, e
-                )));
-            }
-            (Ok(None), _) => {
-                debug!(
-                    workspace_id = %ws_id_str,
-                    "No workspace-specific embedding config, using defaults"
-                );
-                (None, None)
-            }
-            (Err(e), _) => {
-                // OODA-228/OODA-229: Return clear error for configuration issues
-                // WHY: Silent fallback to default causes dimension mismatch because:
-                // 1. Workspace was configured with provider X (e.g., OpenAI 3072 dims)
-                // 2. Documents were embedded with dimension X
-                // 3. Now provider X fails (e.g., missing OPENAI_API_KEY)
-                // 4. If we fall back to provider Y (e.g., Ollama 768 dims), query will fail
-                //    with "different vector dimensions" error from PostgreSQL
-                error!(
-                    workspace_id = %ws_id_str,
-                    error = %e,
-                    "Cannot create workspace embedding provider - configuration error"
-                );
-
-                // Return the error directly (it already has a good message from query.rs)
-                return Err(e);
-            }
+    // FEAT0203: When images are attached, prefer the vision-capable LLM provider.
+    // WHY: Some models (e.g. mistral-small-latest) silently drop image content.
+    // The vision provider (e.g. pixtral-large-latest) is used instead when available.
+    // A request-level provider override takes precedence over the server-default vision provider.
+    let (llm_override, used_provider, used_model) = if llm_override.is_none()
+        && engine_request
+            .images
+            .as_ref()
+            .is_some_and(|imgs| !imgs.is_empty())
+    {
+        if let Some(ref vision_provider) = state.query.vision_llm_provider {
+            debug!("Using vision LLM provider for image query (FEAT0203)");
+            (
+                Some(Arc::clone(vision_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>),
+                Some("vision".to_string()),
+                Some("vision-model".to_string()),
+            )
+        } else {
+            (llm_override, used_provider, used_model)
         }
     } else {
-        (None, None)
+        (llm_override, used_provider, used_model)
     };
 
-    // Execute query with workspace-specific providers if available
-    let result = match (&ws_embedding_provider, &ws_vector_storage) {
-        (Some(embed), Some(vector)) => {
-            // Full workspace isolation with optional LLM override
-            state
-                .sota_engine
-                .query_with_full_config(
-                    engine_request,
-                    embed.clone(),
-                    vector.clone(),
-                    llm_override.clone(),
-                )
-                .await
-                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-        }
-        (Some(embed), None) => {
-            // WHY: Same fix as streaming path — use workspace embedding with server
-            // default vector storage instead of dropping to query_with_embedding_provider
-            // which may use a different vector storage dimension.
-            warn!("[QUERY] Workspace embedding available but no vector storage - using workspace embedding with server default vector storage");
-            state
-                .sota_engine
-                .query_with_full_config(
-                    engine_request,
-                    embed.clone(),
-                    state.vector_storage.clone(),
-                    llm_override.clone(),
-                )
-                .await
-                .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-        }
-        _ => {
-            // No workspace-specific config, use default or LLM override only
-            if let Some(ref llm) = llm_override {
-                state
-                    .sota_engine
-                    .query_with_llm_provider(engine_request, llm.clone())
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            } else {
-                state
-                    .sota_engine
-                    .query(engine_request)
-                    .await
-                    .map_err(|e| ApiError::Internal(format!("Query failed: {}", e)))?
-            }
-        }
-    };
+    // OADA-228: Resolve workspace-specific embedding/vector for query execution.
+    let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
+    let resources = resolve_workspace_query_resources(&state, workspace_id_str.as_deref()).await?;
+
+    let result = execute_sota_query_with_auth_fallback(
+        &state,
+        engine_request,
+        resources,
+        llm_override.clone(),
+    )
+    .await?;
 
     // 4. Build sources and resolve document names for chunk sources
     let mut sources = build_sources(&result.context);
-    resolve_chunk_file_paths(state.kv_storage.as_ref(), &mut sources).await;
+    resolve_chunk_file_paths(state.storage.kv_storage.as_ref(), &mut sources).await;
     let context = sources_to_message_context(&sources);
 
     // 5. Save assistant message
@@ -414,7 +317,7 @@ pub async fn chat_completion(
 
     // FEAT0505: Auto-generate conversation title for new conversations (fire-and-forget)
     if is_new_conversation {
-        let title_llm = llm_override.unwrap_or_else(|| state.llm_provider.clone());
+        let title_llm = llm_override.unwrap_or_else(|| state.query.llm_provider.clone());
         let title_conv_service = state.conversation_service.clone();
         let title_conv_id = conversation_id;
         let title_first_msg = request.message.clone();

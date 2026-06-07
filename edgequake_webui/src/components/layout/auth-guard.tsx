@@ -15,11 +15,24 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const accessToken = useAuthStore((state) => state.accessToken);
+  const isTokenExpired = useAuthStore((state) => state.isTokenExpired);
+  const logout = useAuthStore((state) => state.logout);
   const hasHydrated = useAuthStoreHydrated();
   const { authEnabled, disableDemoLogin } = getRuntimeConfig();
 
   const requiresAuth = authEnabled || disableDemoLogin;
-  const hasSession = isAuthenticated && !!accessToken;
+  // A session is valid only if authenticated, has a token, AND the token is not expired
+  const hasSession = isAuthenticated && !!accessToken && !isTokenExpired();
+
+  // Listen for API-level auth failures (e.g. 401 after failed token refresh)
+  useEffect(() => {
+    const handleAuthFailure = () => {
+      logout();
+      router.replace('/login');
+    };
+    window.addEventListener('auth:logout-required', handleAuthFailure);
+    return () => window.removeEventListener('auth:logout-required', handleAuthFailure);
+  }, [logout, router]);
 
   useEffect(() => {
     if (hasHydrated && requiresAuth && !hasSession && pathname !== '/login') {

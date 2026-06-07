@@ -396,6 +396,13 @@ let cfg = client.effective_config().get().await?;
 ```rust
 let progress = client.pdf().progress("track-id").await?;
 let content = client.pdf().content("pdf-id").await?;
+let batch = client.pdf().upload_batch(
+    vec![
+        (std::fs::read("a.pdf")?, "a.pdf".to_string()),
+        (std::fs::read("b.pdf")?, "b.pdf".to_string()),
+    ],
+    Default::default(),
+).await?;
 ```
 
 ## Error Handling

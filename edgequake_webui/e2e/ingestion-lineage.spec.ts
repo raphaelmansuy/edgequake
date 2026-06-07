@@ -6,16 +6,14 @@
  */
 
 import { expect, test } from "@playwright/test";
-import path from "path";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady } from "./helpers/app-ready";
 
-// Screenshot output directory
-const SCREENSHOT_DIR = "e2e/screenshots/ingestion";
-
-test.describe("Ingestion Pipeline E2E Tests", () => {
+test.describe("@load Ingestion Pipeline E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("01 - Documents page shows upload zone", async ({ page }) => {
@@ -39,7 +37,7 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
     }
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "01-upload-zone.png"),
+      path: e2eScreenshot("ingestion", "01-upload-zone.png"),
       fullPage: true,
     });
   });
@@ -66,7 +64,7 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
     ).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "02-document-list.png"),
+      path: e2eScreenshot("ingestion", "02-document-list.png"),
       fullPage: true,
     });
   });
@@ -83,7 +81,7 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
     if (isCostsVisible) {
       // Navigate to costs page
       await costsLink.click();
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       await expect(page).toHaveURL(/\/costs/);
 
       // Check costs page content - look for heading or dashboard text
@@ -97,17 +95,17 @@ test.describe("Ingestion Pipeline E2E Tests", () => {
     }
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "03-costs-page.png"),
+      path: e2eScreenshot("ingestion", "03-costs-page.png"),
       fullPage: true,
     });
   });
 });
 
-test.describe("Lineage Visualization E2E Tests", () => {
+test.describe("@load Lineage Visualization E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("04 - Document detail shows lineage section", async ({ page }) => {
@@ -117,7 +115,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
     if ((await viewLinks.count()) > 0) {
       // Click on first document
       await viewLinks.first().click();
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       // Check for lineage section
       const hasLineage =
@@ -131,7 +129,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
       expect(hasLineage || hasStats).toBeTruthy();
 
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "04-document-lineage.png"),
+        path: e2eScreenshot("ingestion", "04-document-lineage.png"),
         fullPage: true,
       });
     } else {
@@ -143,7 +141,7 @@ test.describe("Lineage Visualization E2E Tests", () => {
   test("05 - Graph page shows knowledge graph", async ({ page }) => {
     // Navigate to graph page
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check for graph canvas or empty state
     const hasGraph =
@@ -154,17 +152,17 @@ test.describe("Lineage Visualization E2E Tests", () => {
     expect(hasGraph || hasEmptyState).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "05-knowledge-graph.png"),
+      path: e2eScreenshot("ingestion", "05-knowledge-graph.png"),
       fullPage: true,
     });
   });
 });
 
-test.describe("WebSocket Progress Tracking E2E Tests", () => {
+test.describe("@load WebSocket Progress Tracking E2E Tests", () => {
   test("06 - WebSocket connection can be established", async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Listen for WebSocket connections
     let wsConnected = false;
@@ -180,16 +178,16 @@ test.describe("WebSocket Progress Tracking E2E Tests", () => {
     // Note: WebSocket may not connect until document upload starts
     // This test verifies the page loads without WebSocket errors
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "06-websocket-ready.png"),
+      path: e2eScreenshot("ingestion", "06-websocket-ready.png"),
       fullPage: true,
     });
   });
 });
 
-test.describe("API Integration E2E Tests", () => {
+test.describe("@load API Integration E2E Tests", () => {
   test("07 - Documents API returns data or shows error", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check for either successful data display or connection error
     const hasContent =
@@ -200,7 +198,7 @@ test.describe("API Integration E2E Tests", () => {
     expect(hasContent).toBeTruthy();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "07-api-integration.png"),
+      path: e2eScreenshot("ingestion", "07-api-integration.png"),
       fullPage: true,
     });
   });
@@ -208,7 +206,7 @@ test.describe("API Integration E2E Tests", () => {
   test("08 - Entity provenance component exists", async ({ page }) => {
     // Navigate to graph page
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Try to find and click an entity if graph is populated
     const entityNode = page.locator(
@@ -224,13 +222,13 @@ test.describe("API Integration E2E Tests", () => {
         (await page.getByText(/provenance|source|extracted from/i).count()) > 0;
 
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "08-entity-provenance.png"),
+        path: e2eScreenshot("ingestion", "08-entity-provenance.png"),
         fullPage: true,
       });
     } else {
       // No entities, take screenshot of empty state
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "08-no-entities.png"),
+        path: e2eScreenshot("ingestion", "08-no-entities.png"),
         fullPage: true,
       });
     }

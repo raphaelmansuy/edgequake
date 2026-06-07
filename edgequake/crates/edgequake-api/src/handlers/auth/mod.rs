@@ -143,6 +143,7 @@ pub(super) async fn find_user_by_login(
     // Try username first
     let username_key = format!("{}{}", USER_BY_USERNAME_PREFIX, login.to_lowercase());
     if let Some(user_id_value) = state
+        .storage
         .kv_storage
         .get_by_id(&username_key)
         .await
@@ -156,6 +157,7 @@ pub(super) async fn find_user_by_login(
     // Try email
     let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, login.to_lowercase());
     if let Some(user_id_value) = state
+        .storage
         .kv_storage
         .get_by_id(&email_key)
         .await
@@ -174,15 +176,42 @@ pub(super) async fn get_user_by_id(
     state: &AppState,
     user_id: &str,
 ) -> Result<Option<User>, ApiError> {
+    Ok(get_record_by_id(state, user_id).await?.map(|r| r.to_user()))
+}
+
+/// Get the raw [`UserRecord`] by user ID (preserves all stored fields).
+///
+/// Prefer this over [`get_user_by_id`] when the full record is needed
+/// (e.g., to build a [`crate::handlers::auth_types::UserInfo`] with
+/// `is_active`, `created_at`, `updated_at`, `last_login_at`).
+pub(super) async fn get_record_by_id(
+    state: &AppState,
+    user_id: &str,
+) -> Result<Option<UserRecord>, ApiError> {
     let key = format!("{}{}", USER_KEY_PREFIX, user_id);
-    match state.kv_storage.get_by_id(&key).await {
+    match state.storage.kv_storage.get_by_id(&key).await {
         Ok(Some(value)) => {
             let record: UserRecord = serde_json::from_value(value)
                 .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
-            Ok(Some(record.to_user()))
+            Ok(Some(record))
         }
         Ok(None) => Ok(None),
         Err(e) => Err(ApiError::Internal(format!("Storage error: {}", e))),
+    }
+}
+
+impl From<&UserRecord> for crate::handlers::auth_types::UserInfo {
+    fn from(record: &UserRecord) -> Self {
+        Self {
+            user_id: record.user_id.clone(),
+            username: record.username.clone(),
+            email: record.email.clone(),
+            role: record.role.clone(),
+            is_active: record.is_active,
+            created_at: record.created_at.to_rfc3339(),
+            updated_at: record.updated_at.to_rfc3339(),
+            last_login_at: record.last_login_at.map(|t| t.to_rfc3339()),
+        }
     }
 }
 
@@ -198,7 +227,8 @@ pub(super) fn authenticate_request(
 ) -> Result<Option<RequestAuthContext>, ApiError> {
     if let Some(api_key) = extract_api_key(headers) {
         if state
-            .auth_config
+            .auth
+            .config
             .api_keys
             .iter()
             .any(|configured| configured == &api_key)
@@ -215,7 +245,8 @@ pub(super) fn authenticate_request(
     };
 
     if state
-        .auth_config
+        .auth
+        .config
         .api_keys
         .iter()
         .any(|configured| configured == &token)
@@ -227,14 +258,15 @@ pub(super) fn authenticate_request(
     }
 
     let claims = state
-        .jwt_service
+        .auth
+        .jwt
         .verify_token(&token)
-        .map_err(|_| ApiError::Unauthorized)?;
+        .map_err(|_| ApiError::unauthorized())?;
 
     Ok(Some(RequestAuthContext {
         user_id: claims
             .user_id()
-            .map_err(|_| ApiError::Unauthorized)?
+            .map_err(|_| ApiError::unauthorized())?
             .to_string(),
         role: claims.role(),
     }))
@@ -244,21 +276,21 @@ pub(super) fn require_authenticated_request(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<RequestAuthContext, ApiError> {
-    if !state.auth_config.auth_enabled {
+    if !state.auth.config.auth_enabled {
         return Ok(RequestAuthContext {
             user_id: "demo-user".to_string(),
             role: Role::Admin,
         });
     }
 
-    authenticate_request(headers, state)?.ok_or(ApiError::Unauthorized)
+    authenticate_request(headers, state)?.ok_or(ApiError::unauthorized())
 }
 
 pub(super) fn require_admin_request(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<RequestAuthContext, ApiError> {
-    if !state.auth_config.auth_enabled {
+    if !state.auth.config.auth_enabled {
         return Ok(RequestAuthContext {
             user_id: "demo-user".to_string(),
             role: Role::Admin,
@@ -267,7 +299,7 @@ pub(super) fn require_admin_request(
 
     let auth = require_authenticated_request(headers, state)?;
     if auth.role != Role::Admin {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden());
     }
     Ok(auth)
 }
@@ -315,6 +347,10 @@ mod tests {
                 username: "test".to_string(),
                 email: "test@example.com".to_string(),
                 role: "user".to_string(),
+                is_active: true,
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+                updated_at: "2024-01-01T00:00:00Z".to_string(),
+                last_login_at: None,
             },
         };
 
@@ -406,6 +442,10 @@ mod tests {
                 username: "user1".to_string(),
                 email: "u1@test.com".to_string(),
                 role: "user".to_string(),
+                is_active: true,
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+                updated_at: "2024-01-01T00:00:00Z".to_string(),
+                last_login_at: None,
             }],
             total: 1,
             page: 1,

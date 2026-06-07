@@ -26,6 +26,28 @@ pub const ALLOWED_EXTENSIONS: [&str; 9] = [
     "txt", "md", "json", "csv", "html", "htm", "xml", "yaml", "yml",
 ];
 
+/// Allowed file extensions for image uploads (processed via vision LLM).
+pub const ALLOWED_IMAGE_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "gif", "webp"];
+
+/// Returns the MIME type for a given image extension.
+///
+/// # Returns
+/// MIME type string (e.g., `"image/png"`), or `None` if not an image extension.
+pub fn image_mime_type(extension: &str) -> Option<&'static str> {
+    match extension {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        _ => None,
+    }
+}
+
+/// Returns `true` if the given lowercase extension is a supported image type.
+pub fn is_image_extension(extension: &str) -> bool {
+    ALLOWED_IMAGE_EXTENSIONS.contains(&extension)
+}
+
 /// Validate file size against a maximum limit.
 ///
 /// # Arguments

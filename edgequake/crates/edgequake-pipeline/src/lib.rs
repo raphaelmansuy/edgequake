@@ -13,7 +13,7 @@
 //! # Enforces
 //!
 //! - **BR0001**: Documents must be unique (content hash)
-//! - **BR0002**: Chunk size 1200 tokens, overlap 100 tokens
+//! - **BR0002**: Chunk size 800 tokens (default), overlap 100 tokens
 //! - **BR0003**: Entity types from configurable list
 //! - **BR0004**: Relationship keywords max 5 per edge
 //! - **BR0005**: Entity description max 512 tokens
@@ -67,6 +67,7 @@ pub mod pipeline;
 pub mod progress;
 pub mod prompts;
 pub mod sanitizer;
+pub mod stage_bridge;
 pub mod summarizer;
 pub mod table_preprocessor;
 pub mod validation;
@@ -84,8 +85,10 @@ pub use error::{
     ChunkExtractionOutcome, ChunkFailure, PipelineError, ResilientExtractionResult, Result,
 };
 pub use extractor::{
-    EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult, GleaningConfig,
-    GleaningExtractor, LLMExtractor, SOTAExtractor, SimpleExtractor,
+    assign_token_usage, effective_temperature_for_model, extraction_completion_options,
+    recommended_chunk_size_for_bytes, ConfigurableEntitySchema, EntityExtractor, ExtractedEntity,
+    ExtractedRelationship, ExtractionResult, GleaningConfig, GleaningExtractor, LLMExtractor,
+    SOTAExtractor, SimpleExtractor,
 };
 // Re-export unified ingestion types for frontend compatibility
 pub use ingestion_types::{
@@ -102,6 +105,8 @@ pub use pipeline::{
     ChunkProgressCallback,
     ChunkProgressUpdate,
     CostBreakdownStats,
+    EmbedProgressCallback,
+    EmbedProgressUpdate,
     Pipeline,
     PipelineConfig,
     ProcessingResult,
@@ -120,11 +125,15 @@ pub use progress::{
     ProgressTracker, StageProgress, StageStatus,
 };
 pub use prompts::{
-    default_entity_types, normalize_entity_name, EntityExtractionPrompts, HybridExtractionParser,
-    JsonExtractionParser, SummarizationPrompts, TupleParser, DEFAULT_COMPLETION_DELIMITER,
-    DEFAULT_TUPLE_DELIMITER, SUPPORTED_LANGUAGES,
+    default_entity_types, detect_format_markers, normalize_entity_name, EntityExtractionPrompts,
+    ExtractionResultParser, HybridExtractionParser, JsonExtractionParser, SummarizationPrompts,
+    TupleParser, DEFAULT_COMPLETION_DELIMITER, DEFAULT_TUPLE_DELIMITER, SUPPORTED_LANGUAGES,
 };
 pub use sanitizer::{EmojiMode, SanitizeConfig, SanitizeReport, Sanitizer};
+pub use stage_bridge::{
+    pipeline_stage_to_unified, tasks_phase_slug_to_unified, unified_stage_slug,
+    unified_to_pipeline_stage, unified_to_tasks_phase_slug,
+};
 pub use summarizer::{DescriptionSummarizer, LLMSummarizer, SimpleSummarizer, SummarizerConfig};
 pub use table_preprocessor::{
     preprocess_tabular_content, PreprocessResult, TablePreprocessorConfig,

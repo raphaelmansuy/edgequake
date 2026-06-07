@@ -113,7 +113,14 @@ export function useDocumentQueries({
     // 1. Poll for documents currently processing (to catch real-time updates)
     // 2. Poll for documents that might be transitioning (stage complete but status not updated)
     // 3. Stop polling once all documents reach terminal states (completed/failed/cancelled)
+    // 4. Back off on errors — stop polling on 500s so we don't amplify pool exhaustion.
     refetchInterval: (query) => {
+      // Error backoff: stop polling when the server is struggling.
+      // WHY: Continuing to poll on 500s exhausts the DB connection pool further,
+      // creating a feedback loop. React Query's built-in retry handles recovery.
+      if (query.state.status === "error") {
+        return false;
+      }
       const documents = query.state.data?.items || [];
 
       // Check for actively processing documents
@@ -160,10 +167,18 @@ export function useDocumentQueries({
     queryKey: ["pipeline-status", tenantId, workspaceId],
     queryFn: () =>
       getPipelineStatus(tenantId ?? undefined, workspaceId ?? undefined),
-    // Poll only when documents are processing; otherwise refresh every 30s
-    refetchInterval: getAutomationAwareRefetchInterval(
-      hasProcessingDocuments ? 2000 : 30000,
-    ),
+    // Poll only when documents are processing; otherwise refresh every 30s.
+    // Error backoff: stop polling on server errors to avoid pool-exhaustion
+    // feedback loop — the same root cause that causes 500s will be made
+    // worse by continued polling.
+    refetchInterval: (query) => {
+      if (query.state.status === "error") {
+        return false;
+      }
+      return getAutomationAwareRefetchInterval(
+        hasProcessingDocuments ? 2000 : 30000,
+      );
+    },
     // When not processing, data is stable – keep it fresh for 10s
     staleTime: hasProcessingDocuments ? 0 : 10000,
   });

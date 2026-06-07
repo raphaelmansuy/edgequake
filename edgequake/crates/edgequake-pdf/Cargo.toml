@@ -15,7 +15,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 edgequake-llm = { workspace = true }
-edgequake-pdf2md = "=0.8.1"
+edgequake-pdf2md = "=0.9.2"
 edgeparse-core = { workspace = true }
 
 [dev-dependencies]

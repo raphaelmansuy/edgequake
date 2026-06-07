@@ -85,7 +85,7 @@ use crate::truncation::TruncationConfig;
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_llm::Reranker;
-use edgequake_storage::traits::{GraphStorage, VectorStorage};
+use edgequake_storage::traits::{GraphReadView, GraphStorage, VectorStorage};
 
 /// Configuration for the SOTA query engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,7 +151,13 @@ impl Default for SOTAQueryConfig {
             // 30000 tokens uses only 23% of the context window — safe and effective.
             max_context_tokens: 30000,
             graph_depth: 2,
-            min_score: 0.1,
+            // Configurable via EDGEQUAKE_MIN_ENTITY_SCORE env var (default: 0.1).
+            // Lower this (e.g. 0.0) to retrieve low-frequency entities that score
+            // below the default threshold on bare name queries.
+            min_score: std::env::var("EDGEQUAKE_MIN_ENTITY_SCORE")
+                .ok()
+                .and_then(|v| v.parse::<f32>().ok())
+                .unwrap_or(0.1),
             use_keyword_extraction: true,
             use_adaptive_mode: true,
             // WHY derived from max_context_tokens: The truncation budget MUST match
@@ -237,6 +243,73 @@ impl QueryEmbeddings {
             low_level: embedding,
         }
     }
+
+    /// Compute keyword-level embeddings when the query vector is already available.
+    ///
+    /// WHY: In the parallel query pipeline, the query embedding is computed
+    /// concurrently with keyword extraction. Once both are ready, this method
+    /// embeds only the keyword texts, avoiding a redundant re-embedding of the
+    /// query and reducing total embedding calls.
+    ///
+    /// If both keyword texts fall back to the query string (empty keywords),
+    /// the pre-computed `query_vec` is reused for all three levels — no extra
+    /// embedding call is made at all.
+    pub async fn compute_with_query_vec(
+        query: &str,
+        query_vec: Vec<f32>,
+        keywords: &ExtractedKeywords,
+        embedder: &dyn EmbeddingProvider,
+    ) -> Result<Self> {
+        let high_level_text = if keywords.high_level.is_empty() {
+            query.to_string()
+        } else {
+            keywords.high_level.join(", ")
+        };
+
+        let low_level_text = if keywords.low_level.is_empty() {
+            query.to_string()
+        } else {
+            keywords.low_level.join(", ")
+        };
+
+        // When keyword extraction is off, high/low texts equal the query string.
+        // Batch-embed three slots so providers (e.g. MockProvider queue) can supply
+        // distinct query / high_level / low_level vectors — required for Local/Global
+        // mode ranking (SPEC-017 / e2e_sota_engine chunk-ranking contract).
+        if high_level_text == query && low_level_text == query {
+            let texts = vec![query.to_string(), query.to_string(), query.to_string()];
+            let embeds = embedder.embed(&texts).await.map_err(QueryError::from)?;
+            if embeds.len() >= 3 {
+                return Ok(Self {
+                    query: embeds[0].clone(),
+                    high_level: embeds[1].clone(),
+                    low_level: embeds[2].clone(),
+                });
+            }
+            // Fallback: reuse parallel embed_one result when provider returns fewer.
+            return Ok(Self {
+                query: query_vec.clone(),
+                high_level: query_vec.clone(),
+                low_level: query_vec,
+            });
+        }
+
+        // Embed only the keyword texts (query_vec is already computed).
+        let texts = vec![high_level_text, low_level_text];
+        let embeds = embedder.embed(&texts).await.map_err(QueryError::from)?;
+        if embeds.len() != 2 {
+            return Err(QueryError::Internal(format!(
+                "Expected 2 keyword embeddings, got {}",
+                embeds.len()
+            )));
+        }
+
+        Ok(Self {
+            query: query_vec,
+            high_level: embeds[0].clone(),
+            low_level: embeds[1].clone(),
+        })
+    }
 }
 
 pub struct SOTAQueryEngine {
@@ -291,6 +364,12 @@ impl SOTAQueryEngine {
     pub fn with_reranker(mut self, reranker: Arc<dyn Reranker>) -> Self {
         self.reranker = Some(reranker);
         self
+    }
+
+    /// Read-only graph access for query paths (SPEC-017 ISP Phase 2a).
+    #[inline]
+    pub(super) fn graph_read(&self) -> GraphReadView<'_> {
+        GraphReadView::new(self.graph_storage.as_ref())
     }
 
     /// Create with mock keyword extractor (for testing).

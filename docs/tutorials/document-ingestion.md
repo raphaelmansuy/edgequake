@@ -654,25 +654,22 @@ curl "http://localhost:8080/api/v1/documents/doc_xyz789"
 For large document sets, use batch upload:
 
 ```bash
-# Create a batch
-curl -X POST "http://localhost:8080/api/v1/batches?workspace_id=$WORKSPACE_ID" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Q1 Reports Batch",
-    "documents": [
-      {"file": "report_jan.pdf", "title": "January Report"},
-      {"file": "report_feb.pdf", "title": "February Report"},
-      {"file": "report_mar.pdf", "title": "March Report"}
-    ]
-  }'
+# Multi-file text/markdown/PDF upload
+curl -X POST "http://localhost:8080/api/v1/documents/upload/batch" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "files=@report_jan.pdf" \
+  -F "files=@report_feb.txt" \
+  -F "files=@report_mar.md"
+
+# Multi-PDF upload with PDF-specific options
+curl -X POST "http://localhost:8080/api/v1/documents/pdf/batch" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "files=@q1-overview.pdf" \
+  -F "files=@q1-appendix.pdf" \
+  -F "enable_vision=true"
 ```
 
-Or upload a ZIP file:
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/documents/bulk?workspace_id=$WORKSPACE_ID" \
-  -F "file=@all_reports.zip"
-```
+Both endpoints return per-file results with processed/duplicate/failed counters.
 
 ---
 

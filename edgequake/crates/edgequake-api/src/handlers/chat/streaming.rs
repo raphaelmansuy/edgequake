@@ -1,27 +1,33 @@
 //! Streaming chat completion handler (SSE).
 
-use axum::extract::State;
+use std::sync::Arc;
+
+use axum::extract::{Extension, State};
 use axum::response::sse::{Event, Sse};
 use axum::Json;
+use edgequake_observability::ErrorEvent;
 use futures::stream::StreamExt;
+use serde_json::json;
 use std::convert::Infallible;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::query::{
-    get_workspace_embedding_provider, get_workspace_vector_storage, resolve_chunk_file_paths,
-};
+use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
+use crate::services::{
+    execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
+};
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageContext, MessageRole,
     UpdateMessageRequest,
 };
+use edgequake_observability::RequestContext;
 use edgequake_query::QueryRequest as EngineQueryRequest;
 
 use super::{
@@ -45,9 +51,19 @@ use super::{
         (status = 500, description = "Internal server error")
     )
 )]
+#[tracing::instrument(
+    name = "chat_stream",
+    skip(state, tenant_ctx, request),
+    fields(
+        request_id = %req_ctx.request_id,
+        query.mode = tracing::field::Empty,
+        otel.name = "chat_stream",
+    )
+)]
 pub async fn chat_completion_stream(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Extension(req_ctx): Extension<RequestContext>,
     Json(request): Json<ChatCompletionRequest>,
 ) -> ApiResult<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>> {
     // Validate request
@@ -57,21 +73,21 @@ pub async fn chat_completion_stream(
         ));
     }
 
+    // Validate image attachments (Issue #203) — delegated to shared helper (DRY).
+    if let Some(ref images) = request.images {
+        super::validation::validate_image_attachments(images)?;
+    }
+
     let tenant_id = tenant_ctx
         .tenant_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid tenant ID".to_string()))?;
     let user_id = tenant_ctx
         .user_id
-        .ok_or(ApiError::Unauthorized)?
+        .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
-    let workspace_id = tenant_ctx
-        .workspace_id
-        .map(|s| s.parse::<Uuid>())
-        .transpose()
-        .map_err(|_| ApiError::BadRequest("Invalid workspace ID".to_string()))?;
 
     debug!(
         tenant_id = %tenant_id,
@@ -80,46 +96,16 @@ pub async fn chat_completion_stream(
         "Processing streaming chat completion"
     );
 
-    // Ensure user exists in PostgreSQL (auto-create if not)
-    // This is necessary because the frontend generates random UUIDs for anonymous users
-    #[cfg(feature = "postgres")]
-    if let Some(ref pool) = state.pg_pool {
-        sqlx::query(
-            r#"
-            INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, 'anonymous', 'user', TRUE, NOW(), NOW())
-            ON CONFLICT (user_id) DO NOTHING
-            "#,
-        )
-        .bind(user_id)
-        .bind(tenant_id)
-        .bind(format!("anon_{}", &user_id.to_string()[..8]))
-        .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
-    }
+    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
+        .await?;
 
-    // Validate workspace_id exists in database (may be stale from localStorage)
-    // Also store workspace for LLM provider fallback (SPEC-032)
-    let (workspace_id, workspace) = if let Some(ws_id) = workspace_id {
-        match state.workspace_service.get_workspace(ws_id).await {
-            Ok(Some(ws)) => (Some(ws_id), Some(ws)),
-            Ok(None) => {
-                warn!(workspace_id = %ws_id, "Workspace not found in streaming handler, ignoring stale workspace_id");
-                (None, None)
-            }
-            Err(e) => {
-                warn!(workspace_id = %ws_id, error = %e, "Failed to validate workspace in streaming handler, ignoring");
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
+    // Fail closed when an explicit workspace header is invalid (same as /query).
+    let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
+    let workspace_id = workspace.as_ref().map(|ws| ws.workspace_id);
 
     let mode = parse_mode(&request.mode);
     let query_mode = parse_query_mode(&request.mode);
+    tracing::Span::current().record("query.mode", format!("{mode:?}").as_str());
 
     // FEAT0505: Track whether this is a new conversation for auto-title generation
     let is_new_conversation = request.conversation_id.is_none();
@@ -133,7 +119,7 @@ pub async fn chat_completion_stream(
             .ok_or_else(|| ApiError::NotFound(format!("Conversation {} not found", id)))?;
 
         if conv.tenant_id != tenant_id {
-            return Err(ApiError::Forbidden);
+            return Err(ApiError::forbidden());
         }
         id
     } else {
@@ -190,6 +176,7 @@ pub async fn chat_completion_stream(
     let request_document_filter = request.document_filter.clone();
     // FEAT0505: Clone for auto-title generation
     let first_message_for_title = request.message.clone();
+    let stream_request_id = req_ctx.request_id.clone();
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -198,10 +185,15 @@ pub async fn chat_completion_stream(
     };
 
     // 6. Spawn background task for LLM streaming
+    let stream_request_id_spawn = stream_request_id.clone();
     tokio::spawn(async move {
         // Send initial event
         if tx.send(initial_event).await.is_err() {
-            warn!("Client disconnected before receiving initial event");
+            ErrorEvent::log_stream_disconnect(
+                &stream_request_id_spawn,
+                "chat_stream",
+                "initial_event",
+            );
             return;
         }
 
@@ -237,7 +229,7 @@ pub async fn chat_completion_stream(
             let ws_id_str = workspace_id.as_ref().map(|id| id.to_string());
             let tenant_filter = Some(data_tenant_id.clone());
             match crate::handlers::query::document_filter_resolver::resolve_document_filter(
-                state_clone.kv_storage.as_ref(),
+                state_clone.storage.kv_storage.as_ref(),
                 filter,
                 &tenant_filter,
                 &ws_id_str,
@@ -249,15 +241,33 @@ pub async fn chat_completion_stream(
                 }
                 Ok(None) => {} // No filter constraints
                 Err(e) => {
-                    error!(error = %e, "Failed to resolve document filter (streaming)");
+                    let msg = format!("Document filter resolution failed: {e}");
+                    ErrorEvent::log_stream_error(
+                        &stream_request_id_spawn,
+                        "chat_stream",
+                        "DOCUMENT_FILTER_ERROR",
+                        &msg,
+                        json!({ "phase": "document_filter_resolve" }),
+                    );
                     let _ = tx
                         .send(ChatStreamEvent::Error {
-                            message: format!("Document filter resolution failed: {}", e),
+                            message: msg,
                             code: "DOCUMENT_FILTER_ERROR".to_string(),
                         })
                         .await;
                     return;
                 }
+            }
+        }
+
+        // FEAT0203: Forward image attachments to the query engine for vision queries.
+        if let Some(ref images) = request.images {
+            let image_data: Vec<edgequake_llm::traits::ImageData> = images
+                .iter()
+                .map(|i| edgequake_llm::traits::ImageData::new(&i.data, &i.mime_type))
+                .collect();
+            if !image_data.is_empty() {
+                engine_request = engine_request.with_images(image_data);
             }
         }
 
@@ -269,7 +279,7 @@ pub async fn chat_completion_stream(
         // Supports both formats:
         //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
         //   - New format: provider="provider", model="model_name"
-        let resolver = WorkspaceProviderResolver::new(state_clone.workspace_service.clone());
+        let resolver = WorkspaceProviderResolver::from_app_state(&state_clone);
         let llm_request = LlmResolutionRequest::from_provider_string(
             request_provider.clone(),
             request_model.clone(),
@@ -314,148 +324,86 @@ pub async fn chat_completion_stream(
                 (None, None, None)
             }
             Err(e) => {
-                // Explicit provider request failed - send error to client via SSE
-                error!(error = %e, "Failed to resolve LLM provider (streaming)");
                 let error_msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "PROVIDER_CONFIG_ERROR",
+                    &error_msg,
+                    json!({ "phase": "provider_resolve" }),
+                );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
                         message: error_msg,
                         code: "PROVIDER_CONFIG_ERROR".to_string(),
                     })
                     .await;
-                return; // Exit task early with error sent
+                return;
             }
         };
 
-        // Execute streaming query with context using SOTA engine (LightRAG-style)
-        // OODA-228: Get workspace embedding provider and vector storage for proper isolation
-        let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
-        let (ws_embedding_provider, ws_vector_storage) = if let Some(ref ws_id_str) =
-            workspace_id_str
+        // FEAT0203: When images are attached, prefer the vision-capable LLM provider.
+        // WHY: Some models (e.g. mistral-small-latest) silently drop image content.
+        // A request-level provider override takes precedence over the server-default vision provider.
+        let (llm_override, used_provider, used_model) = if llm_override.is_none()
+            && engine_request
+                .images
+                .as_ref()
+                .is_some_and(|imgs| !imgs.is_empty())
         {
-            // Get workspace embedding provider
-            let embed_provider = match get_workspace_embedding_provider(&state_clone, ws_id_str)
-                .await
-            {
-                Ok(Some(p)) => Some(p),
-                Ok(None) => {
-                    debug!(workspace_id = %ws_id_str, "Workspace using default embedding provider for streaming");
-                    None
-                }
-                Err(e) => {
-                    // OODA-228/OODA-229: Send error event with clear message
-                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot create workspace embedding provider for streaming");
-                    let err_msg = e.to_string();
-                    let _ = tx
-                        .send(ChatStreamEvent::Error {
-                            message: err_msg,
-                            code: "EMBEDDING_PROVIDER_CONFIG_ERROR".to_string(),
-                        })
-                        .await;
-                    return; // Exit task early with error sent
-                }
-            };
-
-            // Get workspace vector storage
-            let vector_storage = match get_workspace_vector_storage(&state_clone, ws_id_str).await {
-                Ok(Some(s)) => Some(s),
-                Ok(None) => {
-                    debug!(workspace_id = %ws_id_str, "Workspace using default vector storage for streaming");
-                    None
-                }
-                Err(e) => {
-                    // OODA-228: Send error event for vector storage failures too
-                    error!(workspace_id = %ws_id_str, error = ?e, "Cannot get workspace vector storage for streaming");
-                    let err_msg = format!(
-                        "Cannot stream query for workspace: {}. Vector storage error: {:?}",
-                        ws_id_str, e
-                    );
-                    let _ = tx
-                        .send(ChatStreamEvent::Error {
-                            message: err_msg,
-                            code: "VECTOR_STORAGE_ERROR".to_string(),
-                        })
-                        .await;
-                    return; // Exit task early with error sent
-                }
-            };
-
-            (embed_provider, vector_storage)
+            if let Some(ref vision_provider) = state_clone.query.vision_llm_provider {
+                debug!("Using vision LLM provider for image query (FEAT0203 streaming)");
+                (
+                    Some(Arc::clone(vision_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>),
+                    Some("vision".to_string()),
+                    Some("vision-model".to_string()),
+                )
+            } else {
+                (llm_override, used_provider, used_model)
+            }
         } else {
-            (None, None)
+            (llm_override, used_provider, used_model)
         };
 
-        // SPEC-006: Track retrieval time for context enrichment
+        let workspace_id_str = workspace_id.as_ref().map(|id| id.to_string());
+        let resources = match resolve_workspace_query_resources(
+            &state_clone,
+            workspace_id_str.as_deref(),
+        )
+        .await
+        {
+            Ok(resources) => resources,
+            Err(e) => {
+                let msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "WORKSPACE_QUERY_CONFIG_ERROR",
+                    &msg,
+                    json!({
+                        "phase": "workspace_resolve",
+                        "workspace_id": workspace_id_str,
+                    }),
+                );
+                let _ = tx
+                    .send(ChatStreamEvent::Error {
+                        message: msg,
+                        code: "WORKSPACE_QUERY_CONFIG_ERROR".to_string(),
+                    })
+                    .await;
+                return;
+            }
+        };
+
         let retrieval_start = std::time::Instant::now();
 
-        // WHY: Five dispatch paths exist because the SOTA engine needs different
-        // combinations of providers. The paths form a priority cascade:
-        //
-        //   (embed + vector + llm_override)  → full workspace isolation
-        //   (embed only + llm_override)      → uses DEFAULT vector storage (potential dimension bug)
-        //   (embed only, no llm)             → uses DEFAULT vector storage + DEFAULT LLM
-        //   (llm_override only)              → uses DEFAULT embedding + DEFAULT vector storage
-        //   (nothing)                        → all-default (server startup providers)
-        //
-        // The happy path for workspace queries is ALWAYS the first branch
-        // (embed + vector + llm_override). If you land in other branches, check
-        // whether get_workspace_embedding_provider or get_workspace_vector_storage
-        // returned None/Err — that usually means a missing API key or dimension mismatch.
-        let stream_result = match (&ws_embedding_provider, &ws_vector_storage) {
-            (Some(embed), Some(vector)) => {
-                // OODA-228: Use workspace embedding + storage + optional LLM override
-                debug!("Using full config for streaming (workspace embedding + vector storage + LLM override)");
-                state_clone
-                    .sota_engine
-                    .query_stream_with_full_config(
-                        engine_request,
-                        embed.clone(),
-                        vector.clone(),
-                        llm_override.clone(),
-                    )
-                    .await
-            }
-            (Some(embed), None) => {
-                // WHY: We have workspace embedding but no workspace-specific vector storage.
-                // This is unusual but can happen during workspace migration or misconfiguration.
-                // Use workspace embedding + server default vector storage + optional LLM override.
-                //
-                // Previously this dropped the embedding provider entirely and fell through to
-                // query_stream_with_context_and_llm, which used the DEFAULT embedding provider.
-                // That caused dimension mismatches when workspace embedding dimension != default.
-                //
-                // FIX: Use query_stream_with_full_config with the server's default vector storage.
-                // This preserves the workspace embedding while using the default vector table.
-                warn!("[QUERY] Workspace embedding available but no workspace-specific vector storage - using workspace embedding with server default vector storage");
-                state_clone
-                    .sota_engine
-                    .query_stream_with_full_config(
-                        engine_request,
-                        embed.clone(),
-                        state_clone.vector_storage.clone(),
-                        llm_override.clone(),
-                    )
-                    .await
-            }
-            _ => {
-                // No workspace config - use LLM override only
-                if let Some(ref llm) = llm_override {
-                    debug!("Using LLM provider override for streaming (no workspace config)");
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context_and_llm(engine_request, llm.clone())
-                        .await
-                } else {
-                    debug!(
-                        "Using default configuration for streaming (no workspace or LLM override)"
-                    );
-                    state_clone
-                        .sota_engine
-                        .query_stream_with_context(engine_request)
-                        .await
-                }
-            }
-        };
+        let stream_result = execute_sota_query_stream_with_auth_fallback(
+            &state_clone,
+            engine_request,
+            resources,
+            llm_override.clone(),
+        )
+        .await;
 
         match stream_result {
             Ok((context, used_mode, mut stream)) => {
@@ -463,7 +411,8 @@ pub async fn chat_completion_stream(
                 let mut sources = build_sources(&context);
 
                 // Resolve document names for chunk sources
-                resolve_chunk_file_paths(state_clone.kv_storage.as_ref(), &mut sources).await;
+                resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
+                    .await;
 
                 // Save message context for later persistence
                 saved_message_context = Some(sources_to_message_context(&sources));
@@ -477,7 +426,11 @@ pub async fn chat_completion_stream(
                         retrieval_time_ms: Some(retrieval_elapsed_ms),
                     };
                     if tx.send(context_event).await.is_err() {
-                        warn!("Client disconnected before receiving context event");
+                        ErrorEvent::log_stream_disconnect(
+                            &stream_request_id_spawn,
+                            "chat_stream",
+                            "context_event",
+                        );
                         return;
                     }
                     info!(
@@ -500,16 +453,26 @@ pub async fn chat_completion_stream(
                                 content: text.clone(),
                             };
                             if tx.send(event).await.is_err() {
-                                warn!("Client disconnected during streaming");
-                                // Still save the partial message
+                                ErrorEvent::log_stream_disconnect(
+                                    &stream_request_id_spawn,
+                                    "chat_stream",
+                                    "token_stream",
+                                );
                                 break;
                             }
                         }
                         Err(e) => {
-                            error!("Streaming error: {}", e);
+                            let msg = e.to_string();
+                            ErrorEvent::log_stream_error(
+                                &stream_request_id_spawn,
+                                "chat_stream",
+                                "STREAM_ERROR",
+                                &msg,
+                                json!({ "phase": "token_stream" }),
+                            );
                             let _ = tx
                                 .send(ChatStreamEvent::Error {
-                                    message: e.to_string(),
+                                    message: msg,
                                     code: "STREAM_ERROR".to_string(),
                                 })
                                 .await;
@@ -519,10 +482,17 @@ pub async fn chat_completion_stream(
                 }
             }
             Err(e) => {
-                error!("Failed to start streaming query: {}", e);
+                let msg = e.to_string();
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "QUERY_FAILED",
+                    &msg,
+                    json!({ "phase": "stream_start" }),
+                );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
-                        message: e.to_string(),
+                        message: msg,
                         code: "QUERY_FAILED".to_string(),
                     })
                     .await;
@@ -591,7 +561,7 @@ pub async fn chat_completion_stream(
                 // FEAT0505: Auto-generate conversation title for new conversations
                 if is_new_conversation {
                     let title_llm =
-                        llm_override.unwrap_or_else(|| state_clone.llm_provider.clone());
+                        llm_override.unwrap_or_else(|| state_clone.query.llm_provider.clone());
                     let title_conv_service = state_clone.conversation_service.clone();
                     let title_conv_id = conversation_id;
                     let title_first_msg = first_message_for_title.clone();
@@ -644,10 +614,20 @@ pub async fn chat_completion_stream(
                 }
             }
             Err(e) => {
-                error!("Failed to save assistant message: {}", e);
+                let msg = format!("Failed to save response: {e}");
+                ErrorEvent::log_stream_error(
+                    &stream_request_id_spawn,
+                    "chat_stream",
+                    "SAVE_FAILED",
+                    &msg,
+                    json!({
+                        "phase": "save_assistant_message",
+                        "conversation_id": conversation_id.to_string(),
+                    }),
+                );
                 let _ = tx
                     .send(ChatStreamEvent::Error {
-                        message: format!("Failed to save response: {}", e),
+                        message: msg,
                         code: "SAVE_FAILED".to_string(),
                     })
                     .await;

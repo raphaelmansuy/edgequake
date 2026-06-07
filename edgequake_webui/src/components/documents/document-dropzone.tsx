@@ -90,7 +90,7 @@ export function DocumentDropzone({
         ) : (
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">
-              {t('documents.upload.uploadDrop', 'Drag & drop or click to upload')} • TXT, MD, JSON, PDF (max 100MB)
+              {t('documents.upload.uploadDrop', 'Drag & drop or click to upload')} • TXT, MD, JSON, PDF, PNG, JPG, GIF, WEBP (max 100MB)
             </p>
             <p className="text-xs text-muted-foreground">
               {t(

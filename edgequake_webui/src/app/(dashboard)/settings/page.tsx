@@ -4,6 +4,7 @@ import { AdminQuotaSection } from '@/components/settings/admin-quota-section';
 import { ConfigExplainabilityPanel } from '@/components/settings/config-explainability-panel';
 import { PdfParserSettingsCard } from '@/components/settings/pdf-parser-settings-card';
 import { ProviderStatusCard } from '@/components/settings/provider-status-card';
+import { UserManagementCard } from '@/components/settings/user-management-card';
 import { VisionLLMSettingsCard } from '@/components/settings/vision-llm-settings-card';
 import {
     AlertDialog,
@@ -609,8 +610,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Admin section — only fetches and renders for admin users (SPEC-0001) */}
-      <div className="p-6 md:p-8 max-w-4xl mx-auto">
+      <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
         <AdminQuotaSection />
+        {/* User management — Issue #205: admin-only user CRUD */}
+        <UserManagementCard />
       </div>
     </ScrollArea>
   );

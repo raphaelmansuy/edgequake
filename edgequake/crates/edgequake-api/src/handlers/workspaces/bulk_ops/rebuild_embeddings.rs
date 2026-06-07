@@ -101,6 +101,7 @@ pub async fn rebuild_embeddings(
     {
         // Model is changing — look up the correct dimension for the new model
         state
+            .query
             .models_config
             .get_model(&new_provider, &new_model)
             .map(|m| m.capabilities.embedding_dimension)
@@ -131,6 +132,7 @@ pub async fn rebuild_embeddings(
     // REQ-25: Validate chunk size vs embedding model compatibility (CRITICAL INVARIANT)
     // Get the new embedding model's context length to ensure chunks will fit
     let model_context_length = state
+        .query
         .models_config
         .get_model(&new_provider, &new_model)
         .map(|m| m.capabilities.context_length)
@@ -163,6 +165,7 @@ pub async fn rebuild_embeddings(
     // 5. Clear vector storage for this specific workspace only
     // Uses workspace-scoped clearing to avoid affecting other workspaces
     let vectors_cleared = state
+        .storage
         .vector_storage
         .clear_workspace(&workspace_id)
         .await
@@ -181,7 +184,7 @@ pub async fn rebuild_embeddings(
     // because the query embedding (new dimension) doesn't match stored vectors (old dimension).
     // Evicting forces recreation with the new dimension on next access.
     if config_changed {
-        state.vector_registry.evict(&workspace_id).await;
+        state.storage.vector_registry.evict(&workspace_id).await;
         info!(
             workspace_id = %workspace_id,
             old_dimension = workspace.embedding_dimension,
@@ -264,9 +267,7 @@ pub async fn rebuild_embeddings(
                     task_value,
                 );
 
-                if state.task_storage.create_task(&task).await.is_ok()
-                    && state.task_queue.send(task).await.is_ok()
-                {
+                if state.enqueue_task(task).await.is_ok() {
                     documents_queued += 1;
                     total_chunks += doc.chunk_count;
                 }

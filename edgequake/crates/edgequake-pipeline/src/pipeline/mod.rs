@@ -1,519 +1,35 @@
 //! Document processing pipeline.
 //!
-//! ## Implements
-//!
-//! - **FEAT0001**: Document Ingestion Pipeline orchestration
-//! - **FEAT0017**: Pipeline configuration management
-//! - **FEAT0018**: Batch processing with concurrency control
-//! - **FEAT0019**: Chunk-level progress tracking with callbacks
-//!
-//! ## Use Cases
-//!
-//! - **UC2301**: System processes document through all pipeline stages
-//! - **UC2302**: System batches extraction for LLM rate limiting
-//! - **UC2303**: System generates embeddings for chunks and entities
-//! - **UC2304**: System reports per-chunk progress during extraction
-//!
-//! ## Enforces
-//!
-//! - **BR0017**: Maximum concurrent extractions enforced
-//! - **BR0018**: Pipeline stages can be independently enabled/disabled
-//!
 //! ## Architecture
 //!
-//! The pipeline is split into focused sub-modules:
+//! - `config`: Pipeline configuration and env-var defaults
+//! - `types`: Result types and progress callbacks
 //! - `extraction`: Parallel and resilient chunk extraction
-//! - `helpers`: Shared helpers for embedding generation, stats, lineage
+//! - `helpers`: Stats, embeddings, lineage submodules
 //! - `processing`: Document processing entry points
 
+mod config;
 mod extraction;
 mod helpers;
 mod processing;
+mod types;
 
 use std::sync::Arc;
 
 use edgequake_llm::traits::EmbeddingProvider;
-use serde::{Deserialize, Serialize};
 
-use crate::chunker::{Chunker, ChunkerConfig, TextChunk};
-use crate::extractor::{EntityExtractor, ExtractionResult};
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                              CONFIGURATION
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Pipeline configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PipelineConfig {
-    /// Chunking configuration.
-    pub chunker: ChunkerConfig,
-
-    /// Batch size for LLM extraction.
-    pub extraction_batch_size: usize,
-
-    /// Batch size for embedding generation.
-    pub embedding_batch_size: usize,
-
-    /// Whether to enable entity extraction.
-    pub enable_entity_extraction: bool,
-
-    /// Whether to enable relationship extraction.
-    pub enable_relationship_extraction: bool,
-
-    /// Whether to generate chunk embeddings.
-    pub enable_chunk_embeddings: bool,
-
-    /// Whether to generate entity embeddings.
-    pub enable_entity_embeddings: bool,
-
-    /// Whether to generate relationship embeddings.
-    pub enable_relationship_embeddings: bool,
-
-    /// Maximum concurrent extraction tasks.
-    pub max_concurrent_extractions: usize,
-
-    /// Whether to track document lineage.
-    pub enable_lineage_tracking: bool,
-
-    /// Timeout per chunk extraction in seconds.
-    ///
-    /// @implements SPEC-001/Issue-8: Timeout handling for extraction
-    ///
-    /// WHY: LLM calls can hang indefinitely due to network issues, provider
-    /// outages, or very long responses. A timeout ensures the pipeline
-    /// doesn't block forever on a single chunk.
-    ///
-    /// Default: 60 seconds (enough for most extractions, fast enough to detect hangs)
-    #[serde(default = "default_chunk_timeout")]
-    pub chunk_extraction_timeout_secs: u64,
-
-    /// Maximum retry attempts per chunk.
-    ///
-    /// @implements SPEC-001/Issue-8: Retry limit for extraction
-    ///
-    /// WHY: Transient failures (rate limits, network blips) can be recovered
-    /// with retries, but permanent failures should fail fast. 3 retries balances
-    /// recovery with fail-fast behavior.
-    #[serde(default = "default_max_retries")]
-    pub chunk_max_retries: u32,
-
-    /// Initial retry delay in milliseconds (for exponential backoff).
-    ///
-    /// @implements SPEC-001/Issue-8: Exponential backoff for retries
-    ///
-    /// WHY: Exponential backoff prevents hammering a failing service.
-    /// Starting at 1000ms (1s), delays become: 1s, 2s, 4s, etc.
-    #[serde(default = "default_initial_retry_delay")]
-    pub initial_retry_delay_ms: u64,
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                      PIPELINE CONFIG DEFAULTS & ENV VARS
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// WHY these constants are in one place: single source of truth.
-// Every default_* fn just returns the constant so serialization (serde) still
-// works (serde requires a bare fn, not a const ref).
-
-/// Default per-chunk entity-extraction timeout (seconds).
-///
-/// WHY 180: Ollama / LM Studio on consumer hardware can take 90–120 s per
-/// chunk for a large gemma3 model.  180 s gives a 50 % safety margin while
-/// still catching hung requests within 3 minutes.
-/// Configurable via `EDGEQUAKE_CHUNK_TIMEOUT_SECS`.
-pub const DEFAULT_CHUNK_TIMEOUT_SECS: u64 = 180;
-
-/// Minimum acceptable per-chunk timeout (seconds).
-pub const MIN_CHUNK_TIMEOUT_SECS: u64 = 10;
-
-/// Default maximum retry attempts per chunk.
-///
-/// Configurable via `EDGEQUAKE_CHUNK_MAX_RETRIES`.
-pub const DEFAULT_CHUNK_MAX_RETRIES: u32 = 3;
-
-/// Maximum allowed retry count (safety cap).
-pub const MAX_CHUNK_MAX_RETRIES: u32 = 20;
-
-/// Default initial exponential-backoff delay (milliseconds).
-///
-/// Configurable via `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`.
-pub const DEFAULT_INITIAL_RETRY_DELAY_MS: u64 = 1_000;
-
-/// Default maximum concurrent LLM extraction tasks.
-///
-/// WHY 16: Enough parallelism for cloud APIs while avoiding over-subscription
-/// on a single-GPU local Ollama instance.  Reduce via
-/// `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` for slow hardware.
-pub const DEFAULT_MAX_CONCURRENT_EXTRACTIONS: usize = 16;
-
-fn default_chunk_timeout() -> u64 {
-    DEFAULT_CHUNK_TIMEOUT_SECS
-}
-
-fn default_max_retries() -> u32 {
-    DEFAULT_CHUNK_MAX_RETRIES
-}
-
-fn default_initial_retry_delay() -> u64 {
-    DEFAULT_INITIAL_RETRY_DELAY_MS
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                         ENVIRONMENT-VARIABLE HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Read a `u64` env var, clamping to `[min_val, max_val]`.
-/// Returns `default` when the variable is absent or non-numeric.
-fn read_env_u64(name: &str, default: u64, min_val: u64, max_val: u64) -> u64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(default)
-        .clamp(min_val, max_val)
-}
-
-/// Read a `u32` env var, clamping to `[min_val, max_val]`.
-/// Returns `default` when the variable is absent or non-numeric.
-fn read_env_u32(name: &str, default: u32, min_val: u32, max_val: u32) -> u32 {
-    std::env::var(name)
-        .ok()
-        .and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(default)
-        .clamp(min_val, max_val)
-}
-
-/// Read a `usize` env var, clamping to `[min_val, max_val]`.
-/// Returns `default` when the variable is absent or non-numeric.
-fn read_env_usize(name: &str, default: usize, min_val: usize, max_val: usize) -> usize {
-    std::env::var(name)
-        .ok()
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(default)
-        .clamp(min_val, max_val)
-}
-
-impl PipelineConfig {
-    /// Create a `PipelineConfig` from environment variables, falling back to
-    /// compile-time defaults.
-    ///
-    /// ## Environment variables honoured
-    ///
-    /// | Variable                               | Default | Min | Description                     |
-    /// |----------------------------------------|---------|-----|---------------------------------|
-    /// | `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | 180     | 10  | Per-chunk LLM call timeout      |
-    /// | `EDGEQUAKE_CHUNK_MAX_RETRIES`          | 3       | 0   | Max retry attempts per chunk    |
-    /// | `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | 1000    | 0   | Initial backoff delay (ms)      |
-    /// | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | 16      | 1   | Max parallel LLM calls          |
-    ///
-    /// ## Why env-based construction matters
-    ///
-    /// The `Default` impl uses compile-time constants.  Running
-    /// `Pipeline::default_pipeline()` for every workspace-specific pipeline
-    /// would ignore user tuning.  This method ensures operator `.env` overrides
-    /// are respected at pipeline construction time (once per pipeline, not per
-    /// chunk).
-    ///
-    /// @implements SPEC-010-T/FR-T01 through FR-T07
-    pub fn from_env() -> Self {
-        let chunk_timeout = read_env_u64(
-            "EDGEQUAKE_CHUNK_TIMEOUT_SECS",
-            DEFAULT_CHUNK_TIMEOUT_SECS,
-            MIN_CHUNK_TIMEOUT_SECS,
-            u64::MAX,
-        );
-        let max_retries = read_env_u32(
-            "EDGEQUAKE_CHUNK_MAX_RETRIES",
-            DEFAULT_CHUNK_MAX_RETRIES,
-            0,
-            MAX_CHUNK_MAX_RETRIES,
-        );
-        let retry_delay = read_env_u64(
-            "EDGEQUAKE_CHUNK_RETRY_DELAY_MS",
-            DEFAULT_INITIAL_RETRY_DELAY_MS,
-            0,
-            60_000,
-        );
-        let max_concurrent = read_env_usize(
-            "EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS",
-            DEFAULT_MAX_CONCURRENT_EXTRACTIONS,
-            1,
-            256,
-        );
-
-        Self {
-            chunk_extraction_timeout_secs: chunk_timeout,
-            chunk_max_retries: max_retries,
-            initial_retry_delay_ms: retry_delay,
-            max_concurrent_extractions: max_concurrent,
-            ..Self::default()
-        }
-    }
-}
-
-impl Default for PipelineConfig {
-    fn default() -> Self {
-        Self {
-            chunker: ChunkerConfig::default(),
-            extraction_batch_size: 10,
-            embedding_batch_size: 100,
-            enable_entity_extraction: true,
-            enable_relationship_extraction: true,
-            enable_chunk_embeddings: true,
-            enable_entity_embeddings: true,
-            enable_relationship_embeddings: true,
-            max_concurrent_extractions: DEFAULT_MAX_CONCURRENT_EXTRACTIONS,
-            // OODA-06: Enable lineage tracking by default
-            // WHY: Lineage data is critical for provenance queries. Without it,
-            // no chunk↔entity↔document traceability is possible. The overhead is
-            // minimal (one in-memory tree per document processing run).
-            enable_lineage_tracking: true,
-            chunk_extraction_timeout_secs: DEFAULT_CHUNK_TIMEOUT_SECS,
-            chunk_max_retries: DEFAULT_CHUNK_MAX_RETRIES,
-            initial_retry_delay_ms: DEFAULT_INITIAL_RETRY_DELAY_MS,
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                              RESULT TYPES
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Result of processing a document through the pipeline.
-///
-/// WHY `Serialize, Deserialize`: Enables KG+Embedding pipeline checkpointing.
-/// When the server crashes mid-ingestion, the expensive LLM extraction results
-/// can be serialized to KV storage and restored on restart, skipping the
-/// multi-minute entity extraction stage entirely.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProcessingResult {
-    /// Document ID.
-    pub document_id: String,
-
-    /// Generated chunks.
-    pub chunks: Vec<TextChunk>,
-
-    /// Extraction results per chunk.
-    pub extractions: Vec<ExtractionResult>,
-
-    /// Processing statistics.
-    pub stats: ProcessingStats,
-
-    /// Document lineage tracking (optional).
-    pub lineage: Option<crate::lineage::DocumentLineage>,
-}
-
-/// Statistics from pipeline processing.
-///
-/// ┌─────────────────────────────────────────────────────────────────────────────┐
-/// │                    CHUNK-LEVEL RESILIENCE STATS                             │
-/// └─────────────────────────────────────────────────────────────────────────────┘
-///
-/// WHY TRACK FAILED CHUNKS?
-/// ────────────────────────
-/// 1. TRANSPARENCY: Users need to know if their document was partially processed
-/// 2. RETRY CAPABILITY: Failed chunk IDs can be used for targeted retry
-/// 3. MONITORING: Track failure patterns over time for system health
-/// 4. DEBUGGING: Chunk errors help diagnose LLM/network issues
-///
-/// ```text
-///   ProcessingStats
-///       │
-///       ├── chunk_count: 10              (total chunks attempted)
-///       ├── successful_chunks: 8         (chunks that succeeded)
-///       ├── failed_chunks: 2             (chunks that failed)
-///       ├── chunk_errors: [...]          (error details per failed chunk)
-///       │
-///       └── success_rate = 8/10 = 80%
-/// ```
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ProcessingStats {
-    /// Number of chunks created.
-    pub chunk_count: usize,
-
-    /// Number of chunks successfully extracted.
-    /// WHY: Allows calculating success rate = successful_chunks / chunk_count
-    #[serde(default)]
-    pub successful_chunks: usize,
-
-    /// Number of chunks that failed extraction after all retries.
-    /// WHY: Non-zero value triggers partial success handling in UI
-    #[serde(default)]
-    pub failed_chunks: usize,
-
-    /// Error messages for each failed chunk (chunk_id -> error).
-    /// WHY: Enables targeted retry and detailed error reporting
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunk_errors: Option<Vec<ChunkErrorInfo>>,
-
-    /// Number of entities extracted.
-    pub entity_count: usize,
-
-    /// Number of relationships extracted.
-    pub relationship_count: usize,
-
-    /// Processing time in milliseconds.
-    pub processing_time_ms: u64,
-
-    /// Number of LLM calls made.
-    pub llm_calls: usize,
-
-    /// Total tokens used.
-    pub total_tokens: usize,
-
-    /// LLM model used for entity extraction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub llm_model: Option<String>,
-
-    /// SPEC-032/OODA-198: LLM provider used for entity extraction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub llm_provider: Option<String>,
-
-    /// Embedding model used for vector embeddings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_model: Option<String>,
-
-    /// SPEC-032/OODA-198: Embedding provider used for vector embeddings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_provider: Option<String>,
-
-    /// Embedding dimensions.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embedding_dimensions: Option<usize>,
-
-    /// Entity types extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_types: Option<Vec<String>>,
-
-    /// Relationship types extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relationship_types: Option<Vec<String>>,
-
-    /// Keywords extracted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub keywords: Option<Vec<String>>,
-
-    /// Chunking strategy used.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chunking_strategy: Option<String>,
-
-    /// Average chunk size in characters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avg_chunk_size: Option<usize>,
-
-    /// Input tokens used (for LLM calls).
-    #[serde(default)]
-    pub input_tokens: usize,
-
-    /// Output tokens used (for LLM calls).
-    #[serde(default)]
-    pub output_tokens: usize,
-
-    /// Total cost in USD (calculated from token usage).
-    #[serde(default)]
-    pub cost_usd: f64,
-
-    /// Cost breakdown by operation (extraction, embedding, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cost_breakdown: Option<CostBreakdownStats>,
-
-    /// Storage-level error details (graph/vector DB failures).
-    /// WHY: Captures errors from upsert_nodes_batch, upsert_edges_batch,
-    /// and entity embedding storage that previously were warn-and-continue.
-    /// Populated only when storage_errors occur during indexing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_details: Option<String>,
-}
-
-/// Information about a failed chunk for error reporting.
-///
-/// WHY SEPARATE FROM ChunkFailure?
-/// ────────────────────────────────
-/// ChunkFailure is internal (full details for retry logic).
-/// ChunkErrorInfo is external (serializable summary for API/UI).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChunkErrorInfo {
-    /// Chunk ID (for correlation with source document).
-    pub chunk_id: String,
-    /// Chunk index (0-based position in document).
-    pub chunk_index: usize,
-    /// Error message (user-friendly).
-    pub error_message: String,
-    /// Whether this was a timeout vs other error.
-    pub was_timeout: bool,
-    /// Number of retry attempts made.
-    pub retry_attempts: u32,
-}
-
-/// Cost breakdown by operation.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CostBreakdownStats {
-    /// Cost for entity extraction.
-    #[serde(default)]
-    pub extraction_cost_usd: f64,
-
-    /// Cost for embedding generation.
-    #[serde(default)]
-    pub embedding_cost_usd: f64,
-
-    /// Cost for summarization.
-    #[serde(default)]
-    pub summarization_cost_usd: f64,
-
-    /// Extraction input tokens.
-    #[serde(default)]
-    pub extraction_input_tokens: usize,
-
-    /// Extraction output tokens.
-    #[serde(default)]
-    pub extraction_output_tokens: usize,
-
-    /// Embedding tokens.
-    #[serde(default)]
-    pub embedding_tokens: usize,
-}
-
-/// Progress update for a single chunk during extraction.
-///
-/// ## Implements
-/// - **FEAT0019**: Chunk-level progress tracking
-/// - **UC2304**: System reports per-chunk progress during extraction
-#[derive(Debug, Clone)]
-pub struct ChunkProgressUpdate {
-    /// Index of the chunk being processed (0-based).
-    pub chunk_index: usize,
-    /// Total number of chunks in the document.
-    pub total_chunks: usize,
-    /// Preview of the chunk content (first 100 chars).
-    pub chunk_preview: String,
-    /// Time taken to process this chunk in milliseconds.
-    pub processing_time_ms: u64,
-    /// Input tokens consumed for this chunk.
-    pub input_tokens: usize,
-    /// Output tokens generated for this chunk.
-    pub output_tokens: usize,
-    /// Cost in USD for this chunk's LLM call.
-    pub chunk_cost_usd: f64,
-    /// Cumulative input tokens across all processed chunks.
-    pub cumulative_input_tokens: u64,
-    /// Cumulative output tokens across all processed chunks.
-    pub cumulative_output_tokens: u64,
-    /// Cumulative cost in USD.
-    pub cumulative_cost_usd: f64,
-    /// Average time per chunk in milliseconds (for ETA calculation).
-    pub avg_time_per_chunk_ms: f64,
-    /// Estimated remaining time in seconds.
-    pub eta_seconds: u64,
-}
-
-/// Callback function type for chunk progress updates.
-///
-/// Called after each chunk is processed during extraction.
-/// The callback receives a `ChunkProgressUpdate` with details about the completed chunk.
-pub type ChunkProgressCallback = Arc<dyn Fn(ChunkProgressUpdate) + Send + Sync>;
-
-// ─────────────────────────────────────────────────────────────────────────────
-//                              PIPELINE STRUCT
-// ─────────────────────────────────────────────────────────────────────────────
+use crate::chunker::Chunker;
+use crate::extractor::EntityExtractor;
+
+pub use config::{
+    PipelineConfig, DEFAULT_CHUNK_MAX_RETRIES, DEFAULT_CHUNK_TIMEOUT_SECS,
+    DEFAULT_INITIAL_RETRY_DELAY_MS, DEFAULT_MAX_CONCURRENT_EXTRACTIONS, MAX_CHUNK_MAX_RETRIES,
+    MIN_CHUNK_TIMEOUT_SECS,
+};
+pub use types::{
+    ChunkErrorInfo, ChunkProgressCallback, ChunkProgressUpdate, CostBreakdownStats,
+    EmbedProgressCallback, EmbedProgressUpdate, ProcessingResult, ProcessingStats,
+};
 
 /// Document processing pipeline.
 pub struct Pipeline {
@@ -544,19 +60,6 @@ impl Pipeline {
     }
 
     /// Create a pipeline with default configuration, honouring environment variables.
-    ///
-    /// ## Why `from_env()` and not `PipelineConfig::default()`
-    ///
-    /// `PipelineConfig::default()` uses compile-time constants.  Any operator
-    /// tuning via `.env` (e.g. `EDGEQUAKE_CHUNK_TIMEOUT_SECS=600`) would be
-    /// silently ignored.  Using `from_env()` here ensures that ALL pipelines
-    /// constructed via `default_pipeline()` respect the operator's intent.
-    ///
-    /// Tests that need deterministic config should call `Pipeline::new(PipelineConfig::default())`
-    /// directly instead of `Pipeline::default_pipeline()`.
-    ///
-    /// @implements SPEC-010-T/FR-T01: chunk timeout env var
-    /// @implements SPEC-010-T/FR-T04: concurrency env var
     pub fn default_pipeline() -> Self {
         Self::new(PipelineConfig::from_env())
     }
@@ -567,25 +70,10 @@ impl Pipeline {
         self
     }
 
-    /// Set the embedding provider.
-    ///
-    /// ## Side-effect: chunk_size cap
-    ///
-    /// WHY: The chunker estimates tokens as `chars / 4` (normal prose), but dense
-    /// technical content (tables, formulas, numeric data) can be 2–3× denser.
-    /// When the provider declares a `max_tokens()` limit, we cap `chunk_size` at
-    /// `max_tokens / 2` (a 2× safety margin) so chunks reliably fit within the
-    /// model's context even for the densest scientific text.
-    ///
-    /// Example: embeddinggemma reports `max_tokens = 2048` →
-    /// cap becomes 1024 est-tokens = 4096 chars.
-    /// At 2 chars/true_token: 2048 true tokens = exactly at limit (truncation guard in
-    /// `generate_all_embeddings` provides the final safety net).
+    /// Set the embedding provider (caps chunk_size to fit model context when needed).
     pub fn with_embedding_provider(mut self, provider: Arc<dyn EmbeddingProvider>) -> Self {
         let max_tokens = provider.max_tokens();
         if max_tokens > 0 {
-            // Cap: max_tokens / 2 converts the hard token limit to a safe estimated-token
-            // chunk size (factor 2 accounts for worst-case tokenizer density divergence).
             let max_safe = (max_tokens / 2).max(100);
             if self.config.chunker.chunk_size > max_safe {
                 tracing::info!(
@@ -657,7 +145,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Should have extraction results
         assert!(result.stats.llm_calls > 0);
     }
 
@@ -684,14 +171,12 @@ mod tests {
         assert_eq!(config.extraction_batch_size, 10);
         assert!(config.enable_entity_extraction);
         assert!(config.enable_chunk_embeddings);
-        // OODA-06: Lineage tracking now enabled by default for provenance queries
         assert!(config.enable_lineage_tracking);
     }
 
     #[tokio::test]
     async fn test_pipeline_with_lineage_tracking() {
         let extractor = Arc::new(SimpleExtractor::default());
-        // OODA-06: Lineage tracking is now enabled by default, no need to set it
         let config = PipelineConfig::default();
         assert!(config.enable_lineage_tracking);
 
@@ -702,7 +187,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Should have lineage
         assert!(result.lineage.is_some());
 
         let lineage = result.lineage.unwrap();
@@ -713,7 +197,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_without_lineage_tracking() {
-        // OODA-06: Explicitly disable lineage to test the opt-out path
         let config = PipelineConfig {
             enable_lineage_tracking: false,
             ..Default::default()
@@ -725,7 +208,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Should not have lineage (explicitly disabled)
         assert!(result.lineage.is_none());
     }
 }

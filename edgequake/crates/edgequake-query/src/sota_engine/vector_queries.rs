@@ -22,23 +22,18 @@ impl SOTAQueryEngine {
         vector_storage: &Arc<dyn VectorStorage>,
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
-        let mf = MetadataFilter::from_tenant_workspace(tenant_id, workspace_id);
 
-        // WHY 2x oversampling: Vector storage returns all types (entities, relationships, chunks).
-        // We retrieve 2x max_chunks to compensate for non-chunk results in top results.
-        // SPEC-007: tenant/workspace filter pushed to storage layer via query_filtered.
+        // WHY: Use vector_type filter at the SQL layer so LIMIT operates only on chunk
+        // vectors. Without this, large graphs (60k+ entities) cause the top-k results
+        // to be dominated by entity vectors, leaving 0 chunks after in-memory filtering.
+        // SPEC-007: tenant/workspace/type filter pushed to storage layer via query_filtered.
+        let mf = MetadataFilter::from_tenant_workspace_type(tenant_id, workspace_id, "chunk");
+
         let results = vector_storage
-            .query_filtered(
-                &embeddings.query,
-                self.config.max_chunks * 2,
-                None,
-                mf.as_ref(),
-            )
+            .query_filtered(&embeddings.query, self.config.max_chunks, None, mf.as_ref())
             .await?;
 
-        let chunk_results = filter_by_type(results, VectorType::Chunk);
-
-        for result in chunk_results
+        for result in results
             .iter()
             .filter(|r| r.score >= self.config.min_score)
             .take(self.config.max_chunks)
@@ -112,9 +107,9 @@ impl SOTAQueryEngine {
                 workspace_id = ?workspace_id,
                 "OODA-231: No entity vectors found, falling back to popular entities from graph"
             );
+            let graph = self.graph_read();
             // Populate context with popular entities from graph
-            let popular = self
-                .graph_storage
+            let popular = graph
                 .get_popular_nodes_with_degree(
                     self.config.max_entities,
                     None,
@@ -134,8 +129,7 @@ impl SOTAQueryEngine {
 
             // Get edges for fallback entities
             if !fallback_entity_ids.is_empty() {
-                let edges = self
-                    .graph_storage
+                let edges = graph
                     .get_edges_for_nodes_batch(&fallback_entity_ids)
                     .await?;
                 for edge in edges.iter().take(self.config.max_relationships) {
@@ -146,10 +140,11 @@ impl SOTAQueryEngine {
             }
             // NOTE: Don't return early - continue to chunk collection below
         } else {
+            let graph = self.graph_read();
             // Step 4: Batch fetch nodes and degrees
             let (nodes_map, degrees) = tokio::join!(
-                self.graph_storage.get_nodes_batch(&entity_ids),
-                self.graph_storage.node_degrees_batch(&entity_ids),
+                graph.get_nodes_batch(&entity_ids),
+                graph.node_degrees_batch(&entity_ids),
             );
 
             let nodes_map = nodes_map?;
@@ -167,10 +162,7 @@ impl SOTAQueryEngine {
             }
 
             // Step 6: Batch fetch edges
-            let edges = self
-                .graph_storage
-                .get_edges_for_nodes_batch(&entity_ids)
-                .await?;
+            let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
 
             for edge in edges.iter().take(self.config.max_relationships) {
                 let rel =
@@ -347,9 +339,9 @@ impl SOTAQueryEngine {
                 workspace_id = ?workspace_id,
                 "OODA-231: No relationship vectors found, falling back to popular entities from graph"
             );
+            let graph = self.graph_read();
             // Populate context with popular entities from graph
-            let popular = self
-                .graph_storage
+            let popular = graph
                 .get_popular_nodes_with_degree(
                     self.config.max_entities,
                     None,
@@ -367,10 +359,7 @@ impl SOTAQueryEngine {
 
             // Get edges for fallback entities
             if !entity_ids.is_empty() {
-                let edges = self
-                    .graph_storage
-                    .get_edges_for_nodes_batch(&entity_ids)
-                    .await?;
+                let edges = graph.get_edges_for_nodes_batch(&entity_ids).await?;
                 for edge in edges.iter().take(self.config.max_relationships) {
                     let rel_key = format!("{}->{}:{}", edge.source, edge.target, "RELATED_TO");
                     if seen_relationships.insert(rel_key) {
@@ -385,14 +374,15 @@ impl SOTAQueryEngine {
             }
             // NOTE: Don't return early - continue to chunk collection below
         } else {
+            let graph = self.graph_read();
             // Step 5: Batch fetch entity nodes
-            let nodes_map = self.graph_storage.get_nodes_batch(&entity_ids).await?;
+            let nodes_map = graph.get_nodes_batch(&entity_ids).await?;
 
             // WHY: Iterate entity_ids (Vec) for deterministic ordering instead of HashMap.
             // HashMap iteration order is random, causing non-deterministic results.
             for id in &entity_ids {
                 if let Some(node) = nodes_map.get(id) {
-                    let degree = self.graph_storage.node_degree(id).await?;
+                    let degree = graph.node_degree(id).await?;
                     let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
                     context.add_entity(entity);
                 }

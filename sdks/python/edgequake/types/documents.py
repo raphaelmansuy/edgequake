@@ -207,10 +207,11 @@ class TrackStatusResponse(BaseModel):
 class BatchUploadResponse(BaseModel):
     """Response from POST /api/v1/documents/upload/batch."""
 
-    results: list[UploadDocumentResponse] = Field(default_factory=list)
-    total: int = 0
-    success_count: int = 0
-    failure_count: int = 0
+    total_files: int = 0
+    processed: int = 0
+    duplicates: int = 0
+    failed: int = 0
+    results: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ScanDirectoryRequest(BaseModel):
@@ -299,6 +300,27 @@ class PdfUploadResponse(BaseModel):
         return self.pdf_id
 
     model_config = {"populate_by_name": True}
+
+
+class PdfBatchFileResult(BaseModel):
+    """Result entry from POST /api/v1/documents/pdf/batch."""
+
+    filename: str
+    status: str
+    pdf_id: str | None = None
+    task_id: str | None = None
+    duplicate_of: str | None = None
+    error: str | None = None
+
+
+class PdfBatchUploadResponse(BaseModel):
+    """Response from POST /api/v1/documents/pdf/batch."""
+
+    total_files: int = 0
+    accepted: int = 0
+    duplicates: int = 0
+    failed: int = 0
+    results: list[PdfBatchFileResult] = Field(default_factory=list)
 
 
 class PdfInfo(BaseModel):

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Dashboard Console Errors", () => {
+test.describe("@debug Dashboard Console Errors", () => {
   test("should check for console errors and query state", async ({ page }) => {
     const consoleMessages: { type: string; text: string }[] = [];
     const consoleErrors: string[] = [];
@@ -33,7 +33,7 @@ test.describe("Dashboard Console Errors", () => {
     });
 
     // Navigate to Dashboard
-    await page.goto("http://localhost:3000/");
+    await page.goto("/");
 
     // Wait for page to load
     await page.waitForTimeout(5000);

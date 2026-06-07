@@ -46,7 +46,7 @@ use crate::{
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Instrument};
 
 /// RAII guard that aborts the heartbeat task on drop.
 ///
@@ -315,8 +315,16 @@ impl WorkerPool {
                                                     tokio::time::sleep(
                                                         tokio::time::Duration::from_millis(500)
                                                     ).await;
+                                                    let track_id = requeue_task.track_id.clone();
                                                     if let Err(e) = requeue_queue.send(requeue_task).await {
-                                                        error!("Failed to requeue tenant-limited task: {}", e);
+                                                        error!(
+                                                            error.source = "task_worker",
+                                                            error.action = "requeue_tenant_limited",
+                                                            worker_id = worker_id,
+                                                            task_id = %track_id,
+                                                            error.message = %e,
+                                                            "Failed to requeue tenant-limited task"
+                                                        );
                                                     }
                                                 });
                                                 continue; // Pick next task from queue
@@ -331,7 +339,14 @@ impl WorkerPool {
                                     // Mark as processing
                                     task.mark_processing();
                                     if let Err(e) = storage.update_task(&task).await {
-                                        error!("Failed to update task status: {}", e);
+                                        error!(
+                                            error.source = "task_worker",
+                                            error.action = "mark_processing",
+                                            worker_id = worker_id,
+                                            task_id = %task.track_id,
+                                            error.message = %e,
+                                            "Failed to update task status to processing"
+                                        );
                                     }
 
                                     // FEAT-CANCEL: Register cancellation token for this task.
@@ -382,9 +397,20 @@ impl WorkerPool {
                                     let timeout_duration = tokio::time::Duration::from_secs(
                                         config.processing_timeout_secs,
                                     );
+                                    let span_task_id = task.track_id.clone();
+                                    let span_tenant_id = task.tenant_id;
+                                    let span_task_type = task.task_type;
                                     let process_result = tokio::time::timeout(
                                         timeout_duration,
-                                        processor.process(&mut task, cancel_token.clone()),
+                                        processor
+                                            .process(&mut task, cancel_token.clone())
+                                            .instrument(tracing::info_span!(
+                                                "task_process",
+                                                worker_id = worker_id,
+                                                task_id = %span_task_id,
+                                                tenant_id = %span_tenant_id,
+                                                task_type = ?span_task_type,
+                                            )),
                                     )
                                     .await;
 
@@ -452,8 +478,15 @@ impl WorkerPool {
                                                         tokio::time::Duration::from_millis(retry_delay_ms)
                                                     ).await;
 
+                                                    let track_id = retry_task.track_id.clone();
                                                     if let Err(e) = retry_queue.send(retry_task).await {
-                                                        error!("Failed to requeue task for retry: {}", e);
+                                                        error!(
+                                                            error.source = "task_worker",
+                                                            error.action = "requeue_retry",
+                                                            task_id = %track_id,
+                                                            error.message = %e,
+                                                            "Failed to requeue task for retry"
+                                                        );
                                                     }
                                                 });
                                             } else {
@@ -515,7 +548,15 @@ impl WorkerPool {
 
                                     // Update task in storage
                                     if let Err(e) = storage.update_task(&task).await {
-                                        error!("Failed to update task: {}", e);
+                                        error!(
+                                            error.source = "task_worker",
+                                            error.action = "persist_task_result",
+                                            worker_id = worker_id,
+                                            task_id = %task.track_id,
+                                            task_status = ?task.status,
+                                            error.message = %e,
+                                            "Failed to persist task result"
+                                        );
                                     }
 
                                     // _tenant_permit is dropped here, releasing the slot
@@ -525,7 +566,13 @@ impl WorkerPool {
                                         info!("Worker {} queue closed", worker_id);
                                         break;
                                     }
-                                    error!("Worker {} failed to receive task: {}", worker_id, e);
+                                    error!(
+                                        error.source = "task_worker",
+                                        error.action = "receive_task",
+                                        worker_id = worker_id,
+                                        error.message = %e,
+                                        "Worker failed to receive task from queue"
+                                    );
                                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                                 }
                             }

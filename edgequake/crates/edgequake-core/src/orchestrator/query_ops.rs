@@ -80,10 +80,12 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("Query engine not initialized"))?;
 
-        // Delegate to SOTA query engine (FEAT0109)
-        // WHY delegation: Query logic is complex; separating into edgequake-query crate
-        // enables independent testing and evolution of retrieval strategies
-        query_engine.query(query, params).await
+        let llm = self
+            .llm_provider
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
+
+        crate::sota_bridge::query_via_sota(query_engine, llm, query, params).await
     }
 
     /// Delete a document and cascade delete associated graph data.
@@ -216,27 +218,11 @@ impl EdgeQuake {
         let mut entities = Vec::new();
         for result in results {
             if let Some(node) = graph_storage.get_node(&result.id).await? {
-                entities.push(ContextEntity {
-                    name: node
-                        .properties
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(&result.id)
-                        .to_string(),
-                    entity_type: node
-                        .properties
-                        .get("entity_type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("UNKNOWN")
-                        .to_string(),
-                    description: node
-                        .properties
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    score: result.score,
-                });
+                entities.push(crate::graph_mapping::graph_node_to_context_entity(
+                    &node,
+                    &result.id,
+                    result.score,
+                ));
             }
         }
 
@@ -289,66 +275,25 @@ impl EdgeQuake {
         let mut relationships = Vec::new();
 
         if let Some(node) = graph_storage.get_node(entity_name).await? {
-            entities.push(ContextEntity {
-                name: node
-                    .properties
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(entity_name)
-                    .to_string(),
-                entity_type: node
-                    .properties
-                    .get("entity_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("UNKNOWN")
-                    .to_string(),
-                description: node
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                score: 1.0,
-            });
+            entities.push(crate::graph_mapping::graph_node_to_context_entity(
+                &node,
+                entity_name,
+                1.0,
+            ));
 
             let edges = graph_storage.get_node_edges(entity_name).await?;
             for edge in edges {
-                relationships.push(crate::types::ContextRelationship {
-                    source: edge.source.clone(),
-                    target: edge.target.clone(),
-                    relation_type: "RELATED".to_string(),
-                    description: edge
-                        .properties
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    score: 1.0,
-                });
+                relationships.push(crate::graph_mapping::graph_edge_to_context_relationship(
+                    &edge, 1.0,
+                ));
 
                 // Also add the target entity if not already present
                 if let Some(target_node) = graph_storage.get_node(&edge.target).await? {
-                    entities.push(ContextEntity {
-                        name: target_node
-                            .properties
-                            .get("name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(&edge.target)
-                            .to_string(),
-                        entity_type: target_node
-                            .properties
-                            .get("entity_type")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("UNKNOWN")
-                            .to_string(),
-                        description: target_node
-                            .properties
-                            .get("description")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string(),
-                        score: 1.0,
-                    });
+                    entities.push(crate::graph_mapping::graph_node_to_context_entity(
+                        &target_node,
+                        &edge.target,
+                        1.0,
+                    ));
                 }
             }
         }

@@ -95,6 +95,7 @@ pub use crate::handlers::chat_types::*;
 
 pub mod completion;
 pub mod streaming;
+pub mod validation;
 
 pub use completion::*;
 pub use streaming::*;
@@ -119,14 +120,21 @@ fn parse_query_mode(mode: &Option<String>) -> QueryMode {
 
 /// Convert an ISO 639-1 language code to its full English name.
 /// Used to build a clear language directive for the LLM prompt.
+///
+/// WHY: Region-tagged locales like "fr-FR" must be normalized to bare codes
+/// ("fr") before matching. Browsers often send "fr-FR" instead of "fr", and
+/// without stripping the region the match falls through to "English", causing
+/// the LLM to respond in English regardless of the user's language setting.
 fn language_code_to_name(code: &str) -> &'static str {
-    match code.to_lowercase().as_str() {
+    // Strip region suffix: "fr-FR" → "fr", "zh-TW" → "zh"
+    let base = code.split('-').next().unwrap_or(code);
+    match base.to_lowercase().as_str() {
         "en" => "English",
-        "zh" | "zh-cn" | "zh-tw" | "zh-hans" | "zh-hant" => "Chinese",
+        "zh" => "Chinese",
         "fr" => "French",
         "de" => "German",
         "es" => "Spanish",
-        "pt" | "pt-br" => "Portuguese",
+        "pt" => "Portuguese",
         "it" => "Italian",
         "ja" => "Japanese",
         "ko" => "Korean",
@@ -539,5 +547,126 @@ mod tests {
         assert_eq!(context.sources.len(), 1);
         // With no file_path or document_id, title should be None (not "chunk")
         assert_eq!(context.sources[0].title, None);
+    }
+
+    // ── Fix #207: language_code_to_name — region-tagged locale normalization ─
+
+    #[test]
+    fn test_language_code_to_name_bare_codes() {
+        // Core supported languages with bare ISO 639-1 codes
+        assert_eq!(language_code_to_name("en"), "English");
+        assert_eq!(language_code_to_name("fr"), "French");
+        assert_eq!(language_code_to_name("de"), "German");
+        assert_eq!(language_code_to_name("es"), "Spanish");
+        assert_eq!(language_code_to_name("zh"), "Chinese");
+        assert_eq!(language_code_to_name("pt"), "Portuguese");
+        assert_eq!(language_code_to_name("ja"), "Japanese");
+        assert_eq!(language_code_to_name("ko"), "Korean");
+        assert_eq!(language_code_to_name("ar"), "Arabic");
+        assert_eq!(language_code_to_name("ru"), "Russian");
+    }
+
+    /// WHY: This is the core regression for issue #207. Browsers send "fr-FR",
+    /// "zh-TW", "pt-BR" etc. Before the fix, these fell through to the "_" arm
+    /// and the LLM was told to respond in English regardless of user preference.
+    #[test]
+    fn test_language_code_to_name_region_tagged_codes() {
+        // Most common region-tagged locales that browsers send
+        assert_eq!(
+            language_code_to_name("fr-FR"),
+            "French",
+            "fr-FR must resolve to French"
+        );
+        assert_eq!(
+            language_code_to_name("fr-BE"),
+            "French",
+            "fr-BE (Belgian French)"
+        );
+        assert_eq!(
+            language_code_to_name("fr-CA"),
+            "French",
+            "fr-CA (Canadian French)"
+        );
+        assert_eq!(
+            language_code_to_name("de-DE"),
+            "German",
+            "de-DE must resolve to German"
+        );
+        assert_eq!(
+            language_code_to_name("de-AT"),
+            "German",
+            "de-AT (Austrian German)"
+        );
+        assert_eq!(language_code_to_name("es-ES"), "Spanish");
+        assert_eq!(
+            language_code_to_name("es-MX"),
+            "Spanish",
+            "es-MX (Mexican Spanish)"
+        );
+        assert_eq!(
+            language_code_to_name("zh-TW"),
+            "Chinese",
+            "zh-TW must resolve to Chinese"
+        );
+        assert_eq!(
+            language_code_to_name("zh-CN"),
+            "Chinese",
+            "zh-CN must resolve to Chinese"
+        );
+        assert_eq!(
+            language_code_to_name("pt-BR"),
+            "Portuguese",
+            "pt-BR must resolve to Portuguese"
+        );
+        assert_eq!(language_code_to_name("pt-PT"), "Portuguese");
+        assert_eq!(language_code_to_name("en-US"), "English");
+        assert_eq!(language_code_to_name("en-GB"), "English");
+        assert_eq!(language_code_to_name("ja-JP"), "Japanese");
+        assert_eq!(language_code_to_name("ko-KR"), "Korean");
+        assert_eq!(language_code_to_name("ar-SA"), "Arabic");
+        assert_eq!(language_code_to_name("ru-RU"), "Russian");
+    }
+
+    #[test]
+    fn test_language_code_to_name_case_insensitive() {
+        // WHY: i18next may emit mixed-case codes in some browser configurations
+        assert_eq!(language_code_to_name("FR"), "French");
+        assert_eq!(language_code_to_name("FR-FR"), "French");
+        assert_eq!(language_code_to_name("ZH"), "Chinese");
+        assert_eq!(language_code_to_name("DE-DE"), "German");
+    }
+
+    #[test]
+    fn test_language_code_to_name_unknown_falls_back_to_english() {
+        // Unknown codes must fall back to English (safe default for LLM prompt)
+        assert_eq!(language_code_to_name("xx"), "English");
+        assert_eq!(language_code_to_name("xx-XX"), "English");
+        assert_eq!(language_code_to_name(""), "English");
+    }
+
+    #[test]
+    fn test_enrich_query_with_language_region_tagged() {
+        // WHY: The enrichment function must produce the correct language directive
+        // even when the frontend sends a region-tagged locale like "fr-FR".
+        let enriched = enrich_query_with_language("Qu'est-ce que la RAG?", &Some("fr-FR".into()));
+        assert!(
+            enriched.contains("[IMPORTANT: You MUST respond in French]"),
+            "fr-FR must produce French directive, got: {enriched}"
+        );
+    }
+
+    #[test]
+    fn test_enrich_query_with_language_bare_code() {
+        let enriched = enrich_query_with_language("Was ist RAG?", &Some("de".into()));
+        assert!(enriched.contains("[IMPORTANT: You MUST respond in German]"));
+        assert!(enriched.starts_with("Was ist RAG?"));
+    }
+
+    #[test]
+    fn test_enrich_query_no_language_unchanged() {
+        // WHY: When no language is set, query must pass through unmodified
+        let q = "What is RAG?";
+        assert_eq!(enrich_query_with_language(q, &None), q);
+        assert_eq!(enrich_query_with_language(q, &Some("".into())), q);
     }
 }

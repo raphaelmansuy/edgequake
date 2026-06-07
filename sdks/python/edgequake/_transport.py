@@ -208,6 +208,48 @@ class SyncTransport:
             if should_close:
                 file_obj.close()
 
+    def upload_many(
+        self,
+        path: str,
+        *,
+        files: list[Path | BinaryIO],
+        field_name: str = "files",
+        metadata: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Upload multiple files in one multipart/form-data request."""
+        merged_headers = {**self._config.build_headers(), **(headers or {})}
+        merged_headers.pop("Content-Type", None)
+
+        opened: list[BinaryIO] = []
+        multipart_files: list[tuple[str, tuple[str, BinaryIO]]] = []
+        try:
+            for item in files:
+                if isinstance(item, Path):
+                    file_obj: BinaryIO = open(item, "rb")  # noqa: SIM115
+                    opened.append(file_obj)
+                    fname = item.name
+                else:
+                    file_obj = item
+                    fname = getattr(item, "name", "upload")
+                multipart_files.append((field_name, (fname, file_obj)))
+
+            response = self._client.post(
+                path,
+                files=multipart_files,
+                data=metadata or {},
+                headers=merged_headers,
+            )
+            raise_for_status(response)
+            return response
+        except httpx.ConnectError as exc:
+            raise EQConnectionError(str(exc)) from exc
+        except httpx.TimeoutException as exc:
+            raise EQTimeoutError(str(exc)) from exc
+        finally:
+            for file_obj in opened:
+                file_obj.close()
+
     def put_upload(
         self,
         path: str,
@@ -405,6 +447,48 @@ class AsyncTransport:
             raise EQTimeoutError(str(exc)) from exc
         finally:
             if should_close:
+                file_obj.close()
+
+    async def upload_many(
+        self,
+        path: str,
+        *,
+        files: list[Path | BinaryIO],
+        field_name: str = "files",
+        metadata: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Upload multiple files in one multipart/form-data request (async)."""
+        merged_headers = {**self._config.build_headers(), **(headers or {})}
+        merged_headers.pop("Content-Type", None)
+
+        opened: list[BinaryIO] = []
+        multipart_files: list[tuple[str, tuple[str, BinaryIO]]] = []
+        try:
+            for item in files:
+                if isinstance(item, Path):
+                    file_obj: BinaryIO = open(item, "rb")  # noqa: SIM115
+                    opened.append(file_obj)
+                    fname = item.name
+                else:
+                    file_obj = item
+                    fname = getattr(item, "name", "upload")
+                multipart_files.append((field_name, (fname, file_obj)))
+
+            response = await self._client.post(
+                path,
+                files=multipart_files,
+                data=metadata or {},
+                headers=merged_headers,
+            )
+            raise_for_status(response)
+            return response
+        except httpx.ConnectError as exc:
+            raise EQConnectionError(str(exc)) from exc
+        except httpx.TimeoutException as exc:
+            raise EQTimeoutError(str(exc)) from exc
+        finally:
+            for file_obj in opened:
                 file_obj.close()
 
     async def put_upload(

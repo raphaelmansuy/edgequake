@@ -31,6 +31,7 @@
 //! - `relationship`: Relationship merge, update, creation, and placeholder node logic
 
 mod entity;
+mod metadata;
 mod relationship;
 
 use std::sync::Arc;
@@ -131,7 +132,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                     }
                     Err(e) => {
                         stats.errors += 1;
-                        tracing::warn!("Failed to merge entity: {}", e);
+                        tracing::warn!(
+                            error.source = "pipeline_merger",
+                            error.action = "merge_entity",
+                            error.message = %e,
+                            "Failed to merge entity"
+                        );
                     }
                 }
             }
@@ -148,7 +154,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                     }
                     Err(e) => {
                         stats.errors += 1;
-                        tracing::warn!("Failed to merge relationship: {}", e);
+                        tracing::warn!(
+                            error.source = "pipeline_merger",
+                            error.action = "merge_relationship",
+                            error.message = %e,
+                            "Failed to merge relationship"
+                        );
                     }
                 }
             }
@@ -189,15 +200,8 @@ impl MergeStats {
     }
 }
 
-/// Normalize an entity name to a consistent key format.
-pub fn normalize_entity_name(name: &str) -> String {
-    name.trim()
-        .to_uppercase()
-        .replace(|c: char| !c.is_alphanumeric() && c != ' ', "")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join("_")
-}
+/// Canonical entity key normalization (single source of truth: `prompts::normalizer`).
+pub use crate::prompts::normalize_entity_name;
 
 /// Merge two descriptions, avoiding duplication.
 fn merge_descriptions(existing: &str, new: &str, max_length: usize) -> String {
@@ -254,8 +258,94 @@ mod tests {
     fn test_normalize_entity_name() {
         assert_eq!(normalize_entity_name("John Doe"), "JOHN_DOE");
         assert_eq!(normalize_entity_name("  Hello  World  "), "HELLO_WORLD");
-        assert_eq!(normalize_entity_name("O'Brien"), "OBRIEN");
-        assert_eq!(normalize_entity_name("AI/ML"), "AIML");
+        assert_eq!(normalize_entity_name("O'Brien"), "O'BRIEN");
+        assert_eq!(normalize_entity_name("AI/ML"), "AI/ML");
+        assert_eq!(normalize_entity_name("The Company"), "COMPANY");
+    }
+
+    /// Parse→merge path must use the same key as extraction parsers (SPEC-017 P0).
+    #[test]
+    fn test_parse_merge_key_alignment() {
+        use crate::prompts::normalize_entity_name as parser_normalize;
+        let names = ["The Company", "John Doe", "the company", "O'Brien"];
+        for name in names {
+            assert_eq!(
+                normalize_entity_name(name),
+                parser_normalize(name),
+                "merger and parser keys diverged for {:?}",
+                name
+            );
+        }
+    }
+
+    // ── Fix #202: case-insensitive entity deduplication ──────────────────────
+
+    /// WHY: Root cause of issue #202. When the LLM extracts "Systems Thinking"
+    /// in one chunk and "systems thinking" in another, both must normalise to
+    /// "SYSTEMS_THINKING" so only one graph node is created or updated.
+    #[test]
+    fn test_normalize_entity_name_case_variants_produce_same_key() {
+        // All casing variants of the same phrase → identical key
+        let variants = [
+            "Systems Thinking",
+            "systems thinking",
+            "SYSTEMS THINKING",
+            "Systems thinking",
+        ];
+        let keys: Vec<String> = variants.iter().map(|v| normalize_entity_name(v)).collect();
+        let first = &keys[0];
+        for (i, key) in keys.iter().enumerate() {
+            assert_eq!(
+                key, first,
+                "variant '{}' produced '{}', expected '{}'",
+                variants[i], key, first
+            );
+        }
+        assert_eq!(keys[0], "SYSTEMS_THINKING");
+    }
+
+    #[test]
+    fn test_normalize_entity_name_real_world_case_variants() {
+        // Real duplicates observed in issue #202 bug report
+        assert_eq!(
+            normalize_entity_name("Systems Theory"),
+            normalize_entity_name("systems theory")
+        );
+        assert_eq!(
+            normalize_entity_name("Chemical Plant"),
+            normalize_entity_name("chemical plant")
+        );
+        assert_eq!(
+            normalize_entity_name("Hazard"),
+            normalize_entity_name("hazard")
+        );
+        // NOTE: "Organizations" vs "organization" produce DIFFERENT keys
+        // (ORGANIZATIONS ≠ ORGANIZATION) — this is expected. normalize_entity_name
+        // does NOT stem words; LLM should extract consistent forms.
+        assert_eq!(normalize_entity_name("Organizations"), "ORGANIZATIONS");
+        assert_eq!(normalize_entity_name("organization"), "ORGANIZATION");
+    }
+
+    #[test]
+    fn test_normalize_entity_name_edge_cases() {
+        assert_eq!(normalize_entity_name(""), "");
+        assert_eq!(normalize_entity_name("---"), "---");
+        assert_eq!(normalize_entity_name("rust"), "RUST");
+        assert_eq!(normalize_entity_name("COVID 19"), "COVID_19");
+        assert_eq!(normalize_entity_name("gpt-4o"), "GPT-4O");
+        assert_eq!(normalize_entity_name("Hello   World"), "HELLO_WORLD");
+        assert_eq!(normalize_entity_name("A\tB"), "A_B");
+        assert_eq!(normalize_entity_name("A\nB"), "A_B");
+    }
+
+    #[test]
+    fn test_normalize_entity_name_unicode_accented() {
+        // Rust is_alphanumeric() returns true for Unicode accented chars,
+        // so they are preserved (not stripped). The key insight is that
+        // case variants still normalize to the same key.
+        assert_eq!(normalize_entity_name("Rémi"), normalize_entity_name("rémi"));
+        assert_eq!(normalize_entity_name("Rémi"), normalize_entity_name("RÉMI"));
+        assert_eq!(normalize_entity_name("Rémi"), "RÉMI");
     }
 
     #[test]

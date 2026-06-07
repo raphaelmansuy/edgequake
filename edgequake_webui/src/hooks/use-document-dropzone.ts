@@ -28,12 +28,17 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 /**
  * Accepted file types for document upload.
+ * @implements FEAT0203 - Image document upload (PNG, JPG, GIF, WEBP)
  */
 const ACCEPTED_FILE_TYPES: Accept = {
   "text/plain": [".txt"],
   "text/markdown": [".md"],
   "application/json": [".json"],
   "application/pdf": [".pdf"],
+  "image/png": [".png"],
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/gif": [".gif"],
+  "image/webp": [".webp"],
 };
 
 /**
@@ -109,7 +114,7 @@ export function useDocumentDropzone(
             if (e.code === "file-invalid-type") {
               return t(
                 "documents.upload.invalidType",
-                'File "{{name}}" has an unsupported format. Supported: TXT, MD, JSON, PDF.',
+                'File "{{name}}" has an unsupported format. Supported: TXT, MD, JSON, PDF, PNG, JPG, GIF, WEBP.',
                 {
                   name: rejection.file.name,
                 },

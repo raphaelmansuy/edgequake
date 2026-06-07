@@ -88,6 +88,29 @@ pub struct ChatCompletionRequest {
     /// @implements SPEC-005: Document filters for queries
     #[serde(default)]
     pub document_filter: Option<DocumentFilter>,
+
+    /// Optional image attachments for vision-capable models.
+    ///
+    /// Each entry is a base64-encoded image with its MIME type.
+    /// Ignored when the active LLM provider/model does not support vision.
+    ///
+    /// Constraints: max 4 images per request, each ≤ 20 MB after decoding,
+    /// accepted MIME types: image/jpeg, image/png, image/gif, image/webp.
+    ///
+    /// @implements Issue #203: Image upload support for vision queries
+    #[serde(default)]
+    pub images: Option<Vec<ImageAttachment>>,
+}
+
+/// Base64-encoded image attachment for vision-capable chat.
+///
+/// @implements Issue #203: Image upload support
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ImageAttachment {
+    /// Base64-encoded image data (without the `data:image/...;base64,` prefix).
+    pub data: String,
+    /// MIME type: `image/jpeg`, `image/png`, `image/gif`, or `image/webp`.
+    pub mime_type: String,
 }
 
 // ============================================================================
@@ -320,5 +343,48 @@ mod tests {
         let json = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "thinking");
         assert!(json["content"].as_str().unwrap().contains("Analyzing"));
+    }
+
+    // ---- Issue #203: ImageAttachment struct tests ----
+
+    #[test]
+    fn test_image_attachment_deserialization() {
+        let json = r#"{"data":"aGVsbG8=","mime_type":"image/png"}"#;
+        let img: ImageAttachment = serde_json::from_str(json).unwrap();
+        assert_eq!(img.data, "aGVsbG8=");
+        assert_eq!(img.mime_type, "image/png");
+    }
+
+    #[test]
+    fn test_chat_request_with_images() {
+        let json = r#"{
+            "message": "What is in this image?",
+            "images": [
+                {"data": "aGVsbG8=", "mime_type": "image/jpeg"},
+                {"data": "d29ybGQ=", "mime_type": "image/png"}
+            ]
+        }"#;
+        let req: ChatCompletionRequest = serde_json::from_str(json).unwrap();
+        let images = req.images.expect("images should be present");
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].mime_type, "image/jpeg");
+        assert_eq!(images[1].mime_type, "image/png");
+    }
+
+    #[test]
+    fn test_chat_request_without_images() {
+        let json = r#"{"message": "No image here"}"#;
+        let req: ChatCompletionRequest = serde_json::from_str(json).unwrap();
+        assert!(req.images.is_none());
+    }
+
+    #[test]
+    fn test_image_attachment_accepted_mime_types() {
+        let accepted = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+        for mime in &accepted {
+            let json = format!(r#"{{"data":"aQ==","mime_type":"{}"}}"#, mime);
+            let img: ImageAttachment = serde_json::from_str(&json).unwrap();
+            assert_eq!(&img.mime_type, mime);
+        }
     }
 }
