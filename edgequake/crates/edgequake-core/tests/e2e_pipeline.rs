@@ -15,7 +15,9 @@ use edgequake_llm::{MockProvider, OpenAIProvider};
 use edgequake_pipeline::{
     ExtractedEntity, ExtractedRelationship, ExtractionResult, KnowledgeGraphMerger, MergerConfig,
 };
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage};
+use edgequake_storage::{
+    GraphStorage, GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage,
+};
 
 #[cfg(feature = "postgres")]
 use edgequake_storage::{KVStorage, VectorStorage};

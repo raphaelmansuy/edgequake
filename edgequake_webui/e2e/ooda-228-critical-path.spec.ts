@@ -1,4 +1,6 @@
 import { test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * OODA-228: Critical Path E2E Test
@@ -15,13 +17,18 @@ import { test } from "@playwright/test";
  * - Response contains content (not error)
  */
 
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("OODA-228: Critical Path Validation", () => {
   test.setTimeout(90000);
 
   test("Direct API: Chat query should NOT fail with dimension mismatch", async ({
     page,
   }) => {
-    const apiBaseUrl = "http://localhost:8080";
+    const apiBaseUrl = `${BACKEND_URL}`;
 
     console.log("\n🔬 OODA-228 CRITICAL PATH TEST\n");
     console.log("Testing: Direct API call to /chat/completions");
@@ -181,7 +188,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
   test("Streaming API: Should handle streaming queries without dimension mismatch", async ({
     page,
   }) => {
-    const apiBaseUrl = "http://localhost:8080";
+    const apiBaseUrl = `${BACKEND_URL}`;
 
     console.log("\n🔬 OODA-228: STREAMING PATH TEST\n");
     console.log("Testing: Streaming /chat/completions endpoint");
@@ -253,7 +260,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     // Check 1: API Health
     console.log("[ ] API is running and healthy");
     try {
-      const health = await page.request.get("http://localhost:8080/health");
+      const health = await page.request.get(`${BACKEND_URL}/health`);
       checks.apiRunning = health.ok();
       console.log(
         `[${checks.apiRunning ? "✓" : "✗"}] API Health: ${health.status()}`,
@@ -266,7 +273,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     console.log("\n[ ] Chat endpoint (/chat/completions) responds");
     try {
       const response = await page.request.post(
-        "http://localhost:8080/chat/completions",
+        `${BACKEND_URL}/chat/completions`,
         {
           data: {
             messages: [{ role: "user", content: "test" }],
@@ -289,7 +296,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     );
     try {
       const response = await page.request.post(
-        "http://localhost:8080/chat/completions",
+        `${BACKEND_URL}/chat/completions`,
         {
           data: {
             messages: [{ role: "user", content: "validation test" }],
@@ -311,7 +318,7 @@ test.describe("OODA-228: Critical Path Validation", () => {
     console.log("\n[ ] Streaming endpoint is accessible");
     try {
       const response = await page.request.post(
-        "http://localhost:8080/chat/completions",
+        `${BACKEND_URL}/chat/completions`,
         {
           data: {
             messages: [{ role: "user", content: "stream test" }],

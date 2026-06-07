@@ -9,7 +9,7 @@
     "dropdowns": 0
   },
   "/documents": {
-    "buttons": 90,
+    "buttons": 13,
     "cards": 0,
     "inputs": 2,
     "badges": 0,
@@ -18,27 +18,27 @@
     "dropdowns": 0
   },
   "/query": {
-    "buttons": 24,
+    "buttons": 26,
     "cards": 0,
-    "inputs": 2,
+    "inputs": 3,
     "badges": 0,
     "modals": 0,
     "tooltips": 0,
     "dropdowns": 0
   },
   "/graph": {
-    "buttons": 14,
+    "buttons": 104,
     "cards": 0,
-    "inputs": 0,
+    "inputs": 1,
     "badges": 0,
-    "modals": 1,
+    "modals": 0,
     "tooltips": 0,
     "dropdowns": 0
   },
   "/settings": {
-    "buttons": 27,
+    "buttons": 132,
     "cards": 0,
-    "inputs": 1,
+    "inputs": 2,
     "badges": 0,
     "modals": 0,
     "tooltips": 0,

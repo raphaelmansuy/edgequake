@@ -7,7 +7,7 @@
 /// - get_popular_nodes_with_degree: <100ms for 1000 nodes
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
-use edgequake_storage::traits::GraphStorage;
+use edgequake_storage::{GraphStorage, GraphStorageReadOps};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 

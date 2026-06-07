@@ -340,6 +340,7 @@ async fn test_pipeline_idempotent_on_retry() {
 
     // Run 1
     let result1 = state
+        .query
         .pipeline
         .process(&doc_id, SAMPLE_TEXT)
         .await
@@ -347,6 +348,7 @@ async fn test_pipeline_idempotent_on_retry() {
 
     // Run 2 — simulates a retry after a transient failure
     let result2 = state
+        .query
         .pipeline
         .process(&doc_id, SAMPLE_TEXT)
         .await
@@ -469,6 +471,7 @@ async fn test_full_ingestion_resume_simulation() {
 
     // ── Step 1: First attempt — extraction succeeds ───────────────────────
     let first_result = state
+        .query
         .pipeline
         .process(&doc_id, SAMPLE_TEXT)
         .await

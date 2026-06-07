@@ -40,6 +40,7 @@ pub async fn get_document(
     let metadata_key = format!("{}-metadata", document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
     let metadata_values = state
+        .storage
         .kv_storage
         .get_by_ids(std::slice::from_ref(&metadata_key))
         .await?;
@@ -51,19 +52,15 @@ pub async fn get_document(
     let metadata = metadata_values.into_iter().next();
     debug!(has_metadata = metadata.is_some(), "Metadata value present");
 
-    // Check if document exists by metadata or chunks
-    let keys = state.kv_storage.keys().await?;
-    debug!(total_keys = keys.len(), "Total keys in storage");
-    let matching_keys: Vec<_> = keys
-        .iter()
-        .filter(|k| k.contains(&document_id))
-        .cloned()
-        .collect();
-    debug!(matching_keys = ?matching_keys, "Keys matching document ID");
-    let chunk_count = keys
-        .iter()
-        .filter(|k| k.starts_with(&format!("{}-chunk-", document_id)))
-        .count();
+    // SPEC-011: prefix scan — no full keys() table scan
+    let chunk_prefix = format!("{}-chunk-", document_id);
+    let chunk_keys = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await?;
+    let chunk_count = chunk_keys.len();
+    debug!(chunk_count = chunk_count, "Document chunk keys loaded");
 
     // Document must have either metadata or chunks
     if metadata.is_none() && chunk_count == 0 {
@@ -85,7 +82,7 @@ pub async fn get_document(
         if let Some(ref filter_tid) = tenant_ctx.tenant_id {
             if let Some(doc_tid) = doc_tenant_id {
                 if doc_tid != filter_tid {
-                    return Err(ApiError::Forbidden);
+                    return Err(ApiError::forbidden());
                 }
             }
         }
@@ -94,20 +91,62 @@ pub async fn get_document(
         if let Some(ref filter_ws) = tenant_ctx.workspace_id {
             if let Some(doc_ws) = doc_workspace_id {
                 if doc_ws != filter_ws {
-                    return Err(ApiError::Forbidden);
+                    return Err(ApiError::forbidden());
                 }
             }
         }
     }
 
-    // Fetch document content
+    // Fetch document content (KV); PDF markdown may live only in pdf_documents.
     let content_key = format!("{}-content", document_id);
-    let content_values = state.kv_storage.get_by_ids(&[content_key]).await?;
-    let content = content_values.into_iter().next().and_then(|v| {
+    let content_values = state.storage.kv_storage.get_by_ids(&[content_key]).await?;
+    let kv_content = content_values.into_iter().next().and_then(|v| {
         v.get("content")
             .and_then(|c| c.as_str())
+            .or_else(|| v.get("text").and_then(|c| c.as_str()))
             .map(|s| s.to_string())
+            .filter(|s| !s.is_empty())
     });
+
+    // Hydrate PDF markdown when KV content is missing (PDF pipeline stores markdown in pdf_documents).
+    let content = if kv_content.is_some() {
+        kv_content
+    } else if let Some(obj) = meta_obj {
+        let is_pdf = obj
+            .get("source_type")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s == "pdf");
+        if !is_pdf {
+            None
+        } else {
+            #[cfg(feature = "postgres")]
+            {
+                if let Some(pdf_id_str) = obj.get("pdf_id").and_then(|v| v.as_str()) {
+                    if let Ok(pdf_uuid) = Uuid::parse_str(pdf_id_str) {
+                        if let Some(ref pdf_storage) = state.storage.pdf_storage {
+                            if let Ok(Some(pdf)) = pdf_storage.get_pdf(&pdf_uuid).await {
+                                pdf.markdown_content.filter(|s| !s.trim().is_empty())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            #[cfg(not(feature = "postgres"))]
+            {
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // SPEC-040: Async fallback PDF vision model lookup for backward compatibility.
     // WHY: Documents processed before pdf_vision_model was written to KV metadata JSON

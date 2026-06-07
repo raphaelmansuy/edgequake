@@ -15,7 +15,7 @@ use edgequake_query::QueryMode;
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
-use edgequake_storage::GraphStorage;
+use edgequake_storage::{GraphStorageMutateOps, GraphStorageReadOps};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

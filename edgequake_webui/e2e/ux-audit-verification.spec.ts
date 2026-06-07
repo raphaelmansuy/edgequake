@@ -8,11 +8,11 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady } from "./helpers/app-ready";
+import { gotoApp } from "./helpers/navigation";
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-const SCREENSHOT_DIR = "e2e/screenshots/audit-verification";
-
-test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
+test.describe("@audit UX/UI Audit Verification - Spacing & Padding", () => {
   test.beforeEach(async ({ page }) => {
     // Set a consistent viewport for reproducible screenshots
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -21,15 +21,15 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("01 - Dashboard: Stats cards with colored accents and proper spacing", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Wait for stats cards to load
     await page.waitForTimeout(1000);
 
     // Take full page screenshot
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/01-dashboard-full.png`,
+      path: e2eScreenshot("audit-verification", "01-dashboard-full.png"),
       fullPage: true,
     });
 
@@ -37,7 +37,7 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     const statsSection = page.locator('section[aria-label="Statistics"]');
     if ((await statsSection.count()) > 0) {
       await statsSection.screenshot({
-        path: `${SCREENSHOT_DIR}/01-dashboard-stats-cards.png`,
+        path: e2eScreenshot("audit-verification", "01-dashboard-stats-cards.png"),
       });
     }
 
@@ -47,8 +47,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   });
 
   test("02 - Dashboard: Dark mode stats cards", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Toggle dark mode via settings
     // First, add dark class to html element
@@ -59,7 +59,7 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(500);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/02-dashboard-dark-mode.png`,
+      path: e2eScreenshot("audit-verification", "02-dashboard-dark-mode.png"),
       fullPage: true,
     });
   });
@@ -67,13 +67,13 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("03 - Documents: Compact upload zone and improved header", async ({
     page,
   }) => {
-    await page.goto(`${BASE_URL}/documents`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/documents');
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Full page screenshot
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/03-documents-full.png`,
+      path: e2eScreenshot("audit-verification", "03-documents-full.png"),
       fullPage: true,
     });
 
@@ -83,14 +83,14 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
       .first();
     if ((await uploadZone.count()) > 0) {
       await uploadZone.screenshot({
-        path: `${SCREENSHOT_DIR}/03-documents-upload-zone.png`,
+        path: e2eScreenshot("audit-verification", "03-documents-upload-zone.png"),
       });
     }
   });
 
   test("04 - Documents: Drag hover state on upload zone", async ({ page }) => {
-    await page.goto(`${BASE_URL}/documents`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/documents');
+    await waitForAppReady(page);
 
     // Simulate drag hover state by adding class
     await page.evaluate(() => {
@@ -103,19 +103,19 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     await page.waitForTimeout(300);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/04-documents-drag-hover.png`,
+      path: e2eScreenshot("audit-verification", "04-documents-drag-hover.png"),
       fullPage: true,
     });
   });
 
   test("05 - Query: Improved header and message spacing", async ({ page }) => {
-    await page.goto(`${BASE_URL}/query`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/query');
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Full page screenshot
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/05-query-full.png`,
+      path: e2eScreenshot("audit-verification", "05-query-full.png"),
       fullPage: true,
     });
 
@@ -123,14 +123,14 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     const header = page.locator("header").first();
     if ((await header.count()) > 0) {
       await header.screenshot({
-        path: `${SCREENSHOT_DIR}/05-query-header.png`,
+        path: e2eScreenshot("audit-verification", "05-query-header.png"),
       });
     }
   });
 
   test("06 - Query: Input area with proper padding", async ({ page }) => {
-    await page.goto(`${BASE_URL}/query`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/query');
+    await waitForAppReady(page);
 
     // Focus on textarea to see focus ring
     const textarea = page.locator("textarea");
@@ -139,19 +139,19 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
       await textarea.fill("What are the main entities in my knowledge graph?");
 
       await page.screenshot({
-        path: `${SCREENSHOT_DIR}/06-query-input-focused.png`,
+        path: e2eScreenshot("audit-verification", "06-query-input-focused.png"),
         fullPage: true,
       });
     }
   });
 
   test("07 - Graph: Improved toolbar spacing", async ({ page }) => {
-    await page.goto(`${BASE_URL}/graph`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/graph');
+    await waitForAppReady(page);
     await page.waitForTimeout(2000); // Graph takes time to render
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/07-graph-full.png`,
+      path: e2eScreenshot("audit-verification", "07-graph-full.png"),
       fullPage: true,
     });
 
@@ -159,21 +159,21 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     const toolbar = page.locator("header").first();
     if ((await toolbar.count()) > 0) {
       await toolbar.screenshot({
-        path: `${SCREENSHOT_DIR}/07-graph-toolbar.png`,
+        path: e2eScreenshot("audit-verification", "07-graph-toolbar.png"),
       });
     }
   });
 
   test("08 - Graph: Right sidebar with improved padding", async ({ page }) => {
-    await page.goto(`${BASE_URL}/graph`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/graph');
+    await waitForAppReady(page);
     await page.waitForTimeout(1500);
 
     // Right sidebar
     const sidebar = page.locator("aside").last();
     if ((await sidebar.count()) > 0) {
       await sidebar.screenshot({
-        path: `${SCREENSHOT_DIR}/08-graph-sidebar.png`,
+        path: e2eScreenshot("audit-verification", "08-graph-sidebar.png"),
       });
     }
   });
@@ -181,19 +181,19 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("09 - Settings: Section separation and header styling", async ({
     page,
   }) => {
-    await page.goto(`${BASE_URL}/settings`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/settings');
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/09-settings-full.png`,
+      path: e2eScreenshot("audit-verification", "09-settings-full.png"),
       fullPage: true,
     });
   });
 
   test("10 - Settings: Dangerous actions section", async ({ page }) => {
-    await page.goto(`${BASE_URL}/settings`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/settings');
+    await waitForAppReady(page);
 
     // Scroll to data management section
     await page.evaluate(() => {
@@ -206,12 +206,12 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     const dangerousCard = page.locator(".border-destructive\\/30").first();
     if ((await dangerousCard.count()) > 0) {
       await dangerousCard.screenshot({
-        path: `${SCREENSHOT_DIR}/10-settings-dangerous-actions.png`,
+        path: e2eScreenshot("audit-verification", "10-settings-dangerous-actions.png"),
       });
     } else {
       // Fallback - screenshot bottom of page
       await page.screenshot({
-        path: `${SCREENSHOT_DIR}/10-settings-bottom.png`,
+        path: e2eScreenshot("audit-verification", "10-settings-bottom.png"),
       });
     }
   });
@@ -219,21 +219,21 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("11 - Sidebar: Improved navigation spacing and touch targets", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Sidebar screenshot
     const sidebar = page.locator("aside").first();
     if ((await sidebar.count()) > 0) {
       await sidebar.screenshot({
-        path: `${SCREENSHOT_DIR}/11-sidebar-expanded.png`,
+        path: e2eScreenshot("audit-verification", "11-sidebar-expanded.png"),
       });
     }
   });
 
   test("12 - Sidebar: Collapsed state", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Click collapse button
     const collapseButton = page.locator('button:has-text("Collapse")');
@@ -244,43 +244,43 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
       const sidebar = page.locator("aside").first();
       if ((await sidebar.count()) > 0) {
         await sidebar.screenshot({
-          path: `${SCREENSHOT_DIR}/12-sidebar-collapsed.png`,
+          path: e2eScreenshot("audit-verification", "12-sidebar-collapsed.png"),
         });
       }
     }
   });
 
   test("13 - API Explorer: Endpoint list layout", async ({ page }) => {
-    await page.goto(`${BASE_URL}/api-explorer`);
-    await page.waitForLoadState("networkidle");
+    await page.goto('/api-explorer');
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/13-api-explorer-full.png`,
+      path: e2eScreenshot("audit-verification", "13-api-explorer-full.png"),
       fullPage: true,
     });
   });
 
   test("14 - Mobile: Dashboard responsive layout", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 }); // iPhone X
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/14-mobile-dashboard.png`,
+      path: e2eScreenshot("audit-verification", "14-mobile-dashboard.png"),
       fullPage: true,
     });
   });
 
   test("15 - Tablet: Dashboard responsive layout", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 }); // iPad
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/15-tablet-dashboard.png`,
+      path: e2eScreenshot("audit-verification", "15-tablet-dashboard.png"),
       fullPage: true,
     });
   });
@@ -298,8 +298,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
 
     for (let i = 0; i < pages.length; i++) {
       const pagePath = pages[i];
-      await page.goto(`${BASE_URL}${pagePath}`);
-      await page.waitForLoadState("networkidle");
+      await gotoApp(page, pagePath);
+      await waitForAppReady(page);
       await page.waitForTimeout(500);
 
       // Get the first h1 element
@@ -308,9 +308,10 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
         const box = await h1.boundingBox();
         if (box) {
           await page.screenshot({
-            path: `${SCREENSHOT_DIR}/16-title-${
-              pagePath.replace("/", "") || "home"
-            }.png`,
+            path: e2eScreenshot(
+              "audit-verification",
+              `16-title-${pagePath.replace("/", "") || "home"}.png`,
+            ),
             clip: {
               x: 0,
               y: 0,
@@ -326,8 +327,8 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
   test("17 - Focus states: Keyboard navigation visibility", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Tab through navigation items
     await page.keyboard.press("Tab");
@@ -335,13 +336,13 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
     await page.keyboard.press("Tab");
 
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/17-focus-states.png`,
+      path: e2eScreenshot("audit-verification", "17-focus-states.png"),
     });
   });
 
   test("18 - Card hover states", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Hover over first stats card
@@ -353,16 +354,16 @@ test.describe("UX/UI Audit Verification - Spacing & Padding", () => {
       await page.waitForTimeout(300);
 
       await page.screenshot({
-        path: `${SCREENSHOT_DIR}/18-card-hover.png`,
+        path: e2eScreenshot("audit-verification", "18-card-hover.png"),
       });
     }
   });
 });
 
-test.describe("Spacing Measurement Verification", () => {
+test.describe("@audit Spacing Measurement Verification", () => {
   test("Verify design token application", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState("networkidle");
+    await gotoApp(page, "/");
+    await waitForAppReady(page);
 
     // Check that CSS custom properties are available
     const cssProperties = await page.evaluate(() => {

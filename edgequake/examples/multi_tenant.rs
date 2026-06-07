@@ -10,8 +10,8 @@ use std::sync::Arc;
 use edgequake_llm::{EmbeddingProvider, MockProvider};
 use edgequake_pipeline::Chunker;
 use edgequake_storage::{
-    GraphStorage, KVStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
-    VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, KVStorage, MemoryGraphStorage, MemoryKVStorage,
+    MemoryVectorStorage, VectorStorage,
 };
 
 /// A tenant-isolated RAG instance.

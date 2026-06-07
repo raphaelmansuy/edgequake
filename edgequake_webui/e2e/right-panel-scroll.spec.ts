@@ -11,15 +11,18 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { gotoApp } from "./helpers/navigation";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("Right Panel Scroll", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to the documents page and wait for it to be ready.
-    await page.goto(`${BASE_URL}/documents?workspace=default-workspace`);
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(600);
+  test.beforeEach(async ({ page, request }) => {
+    await bootstrapDeterministicUiContext(page, request, "right-panel");
+    await gotoApp(page, "/documents");
   });
 
   test("right panel opens when Preview is clicked", async ({ page }) => {

@@ -17,6 +17,19 @@ export interface QueryProviderHealth {
 }
 
 /**
+ * True when the backend rejected LLM credentials (invalid/missing API key).
+ */
+export function isLlmProviderAuthFailure(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("invalid_api_key") ||
+    lower.includes("incorrect api key") ||
+    lower.includes("authentication error") ||
+    lower.includes("invalid api key")
+  );
+}
+
+/**
  * Clears stale persisted query model selections when the provider/model is no longer
  * available in the current runtime environment. This prevents the UI from sticking
  * to a dead local provider such as Ollama when the backend server default is healthy.

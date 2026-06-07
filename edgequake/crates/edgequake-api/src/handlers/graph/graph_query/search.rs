@@ -11,6 +11,7 @@ use axum::{
 use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
 use crate::middleware::TenantContext;
+use crate::services::{admit_graph_materialization, run_timed_graph_query};
 use crate::state::AppState;
 
 /// Search for node labels.
@@ -31,6 +32,7 @@ pub async fn search_labels(
     Query(params): Query<SearchLabelsQuery>,
 ) -> ApiResult<Json<SearchLabelsResponse>> {
     let labels = state
+        .storage
         .graph_storage
         .search_labels(&params.q, params.limit)
         .await?;
@@ -64,21 +66,30 @@ pub async fn search_nodes(
 ) -> ApiResult<Json<SearchNodesResponse>> {
     use std::collections::HashSet;
 
+    let _materialize_guard = admit_graph_materialization(&state)?;
+
     // Get tenant/workspace context from middleware
     let tenant_id = tenant_ctx.tenant_id.clone();
     let workspace_id = tenant_ctx.workspace_id.clone();
 
-    // Search for matching nodes
-    let matching_nodes = state
-        .graph_storage
-        .search_nodes(
-            &params.q,
-            params.limit,
-            params.entity_type.as_deref(),
-            tenant_id.as_deref(),
-            workspace_id.as_deref(),
-        )
-        .await?;
+    let q = params.q.clone();
+    let limit = params.limit;
+    let entity_type = params.entity_type.clone();
+    let tenant_for_search = tenant_id.clone();
+    let workspace_for_search = workspace_id.clone();
+    let graph_storage = state.storage.graph_storage.clone();
+    let matching_nodes = run_timed_graph_query(&state, "search_nodes", async move {
+        graph_storage
+            .search_nodes(
+                &q,
+                limit,
+                entity_type.as_deref(),
+                tenant_for_search.as_deref(),
+                workspace_for_search.as_deref(),
+            )
+            .await
+    })
+    .await?;
 
     let total_matches = matching_nodes.len();
     let is_truncated = total_matches >= params.limit;
@@ -99,6 +110,7 @@ pub async fn search_nodes(
         for node_id in initial_node_ids {
             // Limit neighbor lookups
             if let Ok(neighbors) = state
+                .storage
                 .graph_storage
                 .get_neighbors(&node_id, params.neighbor_depth)
                 .await
@@ -108,6 +120,7 @@ pub async fn search_nodes(
                         node_ids.insert(neighbor.id.clone());
                         // Get degree for neighbor
                         let degree = state
+                            .storage
                             .graph_storage
                             .node_degree(&neighbor.id)
                             .await
@@ -123,6 +136,7 @@ pub async fn search_nodes(
     let edges = if all_nodes.len() > 1 {
         let node_id_vec: Vec<String> = node_ids.into_iter().collect();
         state
+            .storage
             .graph_storage
             .get_edges_for_node_set(&node_id_vec, tenant_id.as_deref(), workspace_id.as_deref())
             .await

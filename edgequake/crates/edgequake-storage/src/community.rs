@@ -4,8 +4,14 @@
 //!
 //! This module provides community detection algorithms for graph clustering,
 //! similar to what LightRAG uses for global queries.
+//!
+//! SPEC-006: `get_all_*` here is intentional — only reachable via `detect_communities_unchecked`
+//! after API `ResourceGuard` admission.
+
+#![allow(deprecated)]
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::error::Result;
 use crate::traits::GraphStorage;
@@ -124,9 +130,12 @@ impl Default for CommunityConfig {
     }
 }
 
-/// Detect communities in a graph.
-pub async fn detect_communities<G: GraphStorage>(
-    graph: &G,
+/// Detect communities in a graph (full-graph load — internal use only).
+///
+/// SPEC-006: Not re-exported from `edgequake_storage` crate root.
+/// API handlers must use `detect_communities_guarded` in `edgequake-api`.
+pub async fn detect_communities_unchecked(
+    graph: &Arc<dyn GraphStorage>,
     config: &CommunityConfig,
 ) -> Result<CommunityDetectionResult> {
     match config.algorithm {
@@ -142,8 +151,8 @@ pub async fn detect_communities<G: GraphStorage>(
 /// 1. Starts with each node in its own community
 /// 2. Iteratively moves nodes to maximize modularity gain
 /// 3. Continues until no improvement is made
-async fn louvain_communities<G: GraphStorage>(
-    graph: &G,
+async fn louvain_communities(
+    graph: &Arc<dyn GraphStorage>,
     config: &CommunityConfig,
 ) -> Result<CommunityDetectionResult> {
     let nodes = graph.get_all_nodes().await?;
@@ -307,8 +316,8 @@ async fn louvain_communities<G: GraphStorage>(
 }
 
 /// Label propagation community detection.
-async fn label_propagation<G: GraphStorage>(
-    graph: &G,
+async fn label_propagation(
+    graph: &Arc<dyn GraphStorage>,
     config: &CommunityConfig,
 ) -> Result<CommunityDetectionResult> {
     let nodes = graph.get_all_nodes().await?;
@@ -405,8 +414,8 @@ async fn label_propagation<G: GraphStorage>(
 }
 
 /// Connected components detection.
-async fn connected_components<G: GraphStorage>(
-    graph: &G,
+async fn connected_components(
+    graph: &Arc<dyn GraphStorage>,
     config: &CommunityConfig,
 ) -> Result<CommunityDetectionResult> {
     let nodes = graph.get_all_nodes().await?;
@@ -524,21 +533,26 @@ fn calculate_modularity(
 mod tests {
     use super::*;
     use crate::adapters::memory::MemoryGraphStorage;
+    use crate::traits::GraphStorageMutateOps;
+
+    fn test_graph() -> Arc<dyn GraphStorage> {
+        Arc::new(MemoryGraphStorage::new("test"))
+    }
 
     #[tokio::test]
     async fn test_community_detection_empty_graph() {
-        let graph = MemoryGraphStorage::new("test");
+        let graph = test_graph();
         graph.initialize().await.unwrap();
 
         let config = CommunityConfig::default();
-        let result = detect_communities(&graph, &config).await.unwrap();
+        let result = detect_communities_unchecked(&graph, &config).await.unwrap();
 
         assert!(result.communities.is_empty());
     }
 
     #[tokio::test]
     async fn test_connected_components() {
-        let graph = MemoryGraphStorage::new("test");
+        let graph = test_graph();
         graph.initialize().await.unwrap();
 
         // Create two disconnected components
@@ -572,7 +586,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = detect_communities(&graph, &config).await.unwrap();
+        let result = detect_communities_unchecked(&graph, &config).await.unwrap();
 
         // Should have 2 communities of size 2 each
         assert_eq!(result.communities.len(), 2);
@@ -581,7 +595,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_louvain_simple() {
-        let graph = MemoryGraphStorage::new("test");
+        let graph = test_graph();
         graph.initialize().await.unwrap();
 
         // Create a simple graph
@@ -609,7 +623,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = detect_communities(&graph, &config).await.unwrap();
+        let result = detect_communities_unchecked(&graph, &config).await.unwrap();
 
         // Should detect at least 2 communities
         assert!(!result.communities.is_empty());

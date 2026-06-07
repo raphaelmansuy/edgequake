@@ -157,262 +157,26 @@ pub struct DefaultModels {
 }
 
 impl AvailableProvidersResponse {
-    /// Build the list of available providers based on environment configuration
+    /// Build from bundled `models.toml` (legacy entry point — prefer [`Self::from_models_config`]).
     pub fn build(active_llm: &str, active_embedding: &str) -> Self {
-        let llm_providers = vec![
-            ProviderInfo {
-                id: "openai".to_string(),
-                name: "OpenAI".to_string(),
-                description: "OpenAI API (GPT-4o, GPT-5 Nano)".to_string(),
-                available: std::env::var("OPENAI_API_KEY").is_ok(),
-                config_requirements: vec![ConfigRequirement {
-                    env_var: "OPENAI_API_KEY".to_string(),
-                    required: true,
-                    description: "OpenAI API key".to_string(),
-                    satisfied: std::env::var("OPENAI_API_KEY").is_ok(),
-                }],
-                default_models: DefaultModels {
-                    chat_model: "gpt-4.1-nano".to_string(),
-                    embedding_model: "text-embedding-3-small".to_string(),
-                    embedding_dimension: 1536,
-                },
-            },
-            ProviderInfo {
-                id: "anthropic".to_string(),
-                name: "Anthropic".to_string(),
-                description: "Anthropic Claude (Opus 4.6, Sonnet 4.5, Haiku 4.5)".to_string(),
-                available: std::env::var("ANTHROPIC_API_KEY").is_ok(),
-                config_requirements: vec![ConfigRequirement {
-                    env_var: "ANTHROPIC_API_KEY".to_string(),
-                    required: true,
-                    description: "Anthropic API key".to_string(),
-                    satisfied: std::env::var("ANTHROPIC_API_KEY").is_ok(),
-                }],
-                default_models: DefaultModels {
-                    chat_model: "claude-sonnet-4-5-20250929".to_string(),
-                    embedding_model: "".to_string(),
-                    embedding_dimension: 0,
-                },
-            },
-            ProviderInfo {
-                id: "gemini".to_string(),
-                name: "Google Gemini".to_string(),
-                description: "Google Gemini (2.5 Pro, 2.5 Flash)".to_string(),
-                available: std::env::var("GEMINI_API_KEY").is_ok(),
-                config_requirements: vec![ConfigRequirement {
-                    env_var: "GEMINI_API_KEY".to_string(),
-                    required: true,
-                    description: "Google Gemini API key".to_string(),
-                    satisfied: std::env::var("GEMINI_API_KEY").is_ok(),
-                }],
-                default_models: DefaultModels {
-                    chat_model: "gemini-2.5-flash".to_string(),
-                    embedding_model: "gemini-embedding-001".to_string(),
-                    embedding_dimension: 3072,
-                },
-            },
-            ProviderInfo {
-                id: "xai".to_string(),
-                name: "xAI".to_string(),
-                description: "xAI Grok models (Grok-4.1, Grok-3)".to_string(),
-                available: std::env::var("XAI_API_KEY").is_ok(),
-                config_requirements: vec![ConfigRequirement {
-                    env_var: "XAI_API_KEY".to_string(),
-                    required: true,
-                    description: "xAI API key".to_string(),
-                    satisfied: std::env::var("XAI_API_KEY").is_ok(),
-                }],
-                default_models: DefaultModels {
-                    chat_model: "grok-4-1-fast".to_string(),
-                    embedding_model: "".to_string(),
-                    embedding_dimension: 0,
-                },
-            },
-            ProviderInfo {
-                id: "openrouter".to_string(),
-                name: "OpenRouter".to_string(),
-                description: "OpenRouter - Unified access to 616+ models".to_string(),
-                available: std::env::var("OPENROUTER_API_KEY").is_ok(),
-                config_requirements: vec![ConfigRequirement {
-                    env_var: "OPENROUTER_API_KEY".to_string(),
-                    required: true,
-                    description: "OpenRouter API key".to_string(),
-                    satisfied: std::env::var("OPENROUTER_API_KEY").is_ok(),
-                }],
-                default_models: DefaultModels {
-                    chat_model: "openai/gpt-4o-mini".to_string(),
-                    embedding_model: "".to_string(),
-                    embedding_dimension: 0,
-                },
-            },
-            ProviderInfo {
-                id: "ollama".to_string(),
-                name: "Ollama".to_string(),
-                description: "Local/remote Ollama instance".to_string(),
-                available: true, // Ollama always available with defaults
-                config_requirements: vec![
-                    ConfigRequirement {
-                        env_var: "OLLAMA_HOST".to_string(),
-                        required: false,
-                        description: "Ollama server URL (default: http://localhost:11434)"
-                            .to_string(),
-                        // WHY: Always satisfied because Ollama has builtin defaults
-                        satisfied: true,
-                    },
-                    ConfigRequirement {
-                        env_var: "OLLAMA_MODEL".to_string(),
-                        required: false,
-                        description: "Chat model name".to_string(),
-                        satisfied: true,
-                    },
-                ],
-                default_models: DefaultModels {
-                    chat_model: "gemma4:latest".to_string(),
-                    embedding_model: "embeddinggemma:latest".to_string(),
-                    embedding_dimension: 768,
-                },
-            },
-            ProviderInfo {
-                id: "lmstudio".to_string(),
-                name: "LM Studio".to_string(),
-                description: "Local LM Studio instance (OpenAI-compatible)".to_string(),
-                available: true, // LM Studio always available with defaults
-                config_requirements: vec![
-                    ConfigRequirement {
-                        env_var: "LMSTUDIO_HOST".to_string(),
-                        required: false,
-                        description: "LM Studio server URL (default: http://localhost:1234)"
-                            .to_string(),
-                        // WHY: Always satisfied because LM Studio has builtin defaults
-                        satisfied: true,
-                    },
-                    ConfigRequirement {
-                        env_var: "LMSTUDIO_MODEL".to_string(),
-                        required: false,
-                        description: "Chat model name".to_string(),
-                        satisfied: true,
-                    },
-                ],
-                default_models: DefaultModels {
-                    chat_model: "gemma-3n-e4b-it".to_string(),
-                    embedding_model: "nomic-embed-text-v1.5".to_string(),
-                    embedding_dimension: 768,
-                },
-            },
-            ProviderInfo {
-                id: "minimax".to_string(),
-                name: "MiniMax".to_string(),
-                description: "MiniMax AI (MiniMax-M2.7) - Latest flagship model with enhanced reasoning and coding"
-                    .to_string(),
-                available: std::env::var("MINIMAX_API_KEY").is_ok(),
-                config_requirements: {
-                    let api_key_set = std::env::var("MINIMAX_API_KEY").is_ok();
-                    vec![ConfigRequirement {
-                        env_var: "MINIMAX_API_KEY".to_string(),
-                        required: true,
-                        description: "MiniMax API key".to_string(),
-                        satisfied: api_key_set,
-                    }]
-                },
-                default_models: DefaultModels {
-                    chat_model: "MiniMax-M2.7".to_string(),
-                    embedding_model: "".to_string(),
-                    embedding_dimension: 0,
-                },
-            },
-            ProviderInfo {
-                id: "azure".to_string(),
-                name: "Azure OpenAI".to_string(),
-                description: "Azure-hosted OpenAI models (enterprise)".to_string(),
-                available: std::env::var("AZURE_OPENAI_API_KEY").is_ok(),
-                config_requirements: vec![
-                    ConfigRequirement {
-                        env_var: "AZURE_OPENAI_API_KEY".to_string(),
-                        required: true,
-                        description: "Azure OpenAI API key".to_string(),
-                        satisfied: std::env::var("AZURE_OPENAI_API_KEY").is_ok(),
-                    },
-                    ConfigRequirement {
-                        env_var: "AZURE_OPENAI_ENDPOINT".to_string(),
-                        required: true,
-                        description: "Azure OpenAI endpoint URL".to_string(),
-                        satisfied: std::env::var("AZURE_OPENAI_ENDPOINT").is_ok(),
-                    },
-                ],
-                default_models: DefaultModels {
-                    chat_model: "gpt-4o".to_string(),
-                    embedding_model: "text-embedding-3-small".to_string(),
-                    embedding_dimension: 1536,
-                },
-            },
-            ProviderInfo {
-                id: "mistral".to_string(),
-                name: "Mistral AI".to_string(),
-                description: "Mistral La Plateforme (Mistral Small, Mistral Medium, Pixtral)".to_string(),
-                available: std::env::var("MISTRAL_API_KEY").is_ok(),
-                config_requirements: vec![ConfigRequirement {
-                    env_var: "MISTRAL_API_KEY".to_string(),
-                    required: true,
-                    description: "Mistral API key".to_string(),
-                    satisfied: std::env::var("MISTRAL_API_KEY").is_ok(),
-                }],
-                default_models: DefaultModels {
-                    chat_model: "mistral-small-latest".to_string(),
-                    embedding_model: "mistral-embed".to_string(),
-                    embedding_dimension: 1024,
-                },
-            },
-            ProviderInfo {
-                id: "vertexai".to_string(),
-                name: "Google Vertex AI".to_string(),
-                description: "Google Cloud Vertex AI Gemini (paid, high-quota, ADC auth)".to_string(),
-                available: std::env::var("GOOGLE_CLOUD_PROJECT").is_ok()
-                    && (std::env::var("GOOGLE_ACCESS_TOKEN").is_ok()
-                        || std::env::var("GOOGLE_APPLICATION_CREDENTIALS").is_ok()),
-                config_requirements: vec![
-                    ConfigRequirement {
-                        env_var: "GOOGLE_CLOUD_PROJECT".to_string(),
-                        required: true,
-                        description: "Google Cloud project ID".to_string(),
-                        satisfied: std::env::var("GOOGLE_CLOUD_PROJECT").is_ok(),
-                    },
-                    ConfigRequirement {
-                        env_var: "GOOGLE_ACCESS_TOKEN".to_string(),
-                        required: false,
-                        description: "Access token (or use Application Default Credentials)".to_string(),
-                        satisfied: std::env::var("GOOGLE_ACCESS_TOKEN").is_ok()
-                            || std::env::var("GOOGLE_APPLICATION_CREDENTIALS").is_ok(),
-                    },
-                ],
-                default_models: DefaultModels {
-                    chat_model: "gemini-2.5-flash".to_string(),
-                    embedding_model: "gemini-embedding-001".to_string(),
-                    embedding_dimension: 3072,
-                },
-            },
-            ProviderInfo {
-                id: "mock".to_string(),
-                name: "Mock".to_string(),
-                description: "Mock provider for testing (no API calls)".to_string(),
-                available: true, // Mock is always available
-                config_requirements: vec![],
-                default_models: DefaultModels {
-                    chat_model: "mock-gpt-4".to_string(),
-                    embedding_model: "mock-embedding".to_string(),
-                    embedding_dimension: 1536,
-                },
-            },
-        ];
+        Self::from_models_config(
+            &crate::state::bundled_models::load_bundled_models_config(),
+            active_llm,
+            active_embedding,
+        )
+    }
 
-        // Embedding providers share the same options
-        let embedding_providers = llm_providers.clone();
-
-        Self {
-            llm_providers,
-            embedding_providers,
-            active_llm_provider: active_llm.to_string(),
-            active_embedding_provider: active_embedding.to_string(),
-        }
+    /// Build from runtime [`ModelsConfig`] held in [`QueryRuntime`](crate::state::QueryRuntime).
+    pub fn from_models_config(
+        config: &edgequake_llm::ModelsConfig,
+        active_llm: &str,
+        active_embedding: &str,
+    ) -> Self {
+        crate::provider_catalog::build_available_providers_response(
+            config,
+            active_llm,
+            active_embedding,
+        )
     }
 }
 
@@ -422,20 +186,20 @@ impl ProviderStatusResponse {
         use chrono::Utc;
 
         // Get LLM provider info
-        let llm_name = app_state.llm_provider.name().to_string();
-        let llm_model = app_state.llm_provider.model().to_string();
+        let llm_name = app_state.query.llm_provider.name().to_string();
+        let llm_model = app_state.query.llm_provider.model().to_string();
 
         // Get embedding provider info
-        let emb_name = app_state.embedding_provider.name().to_string();
-        let emb_model = app_state.embedding_provider.model().to_string();
-        let emb_dim = app_state.embedding_provider.dimension();
+        let emb_name = app_state.query.embedding_provider.name().to_string();
+        let emb_model = app_state.query.embedding_provider.model().to_string();
+        let emb_dim = app_state.query.embedding_provider.dimension();
 
         // Get storage info
-        let storage_dim = app_state.vector_storage.dimension();
-        let storage_namespace = app_state.vector_storage.namespace();
+        let storage_dim = app_state.storage.vector_storage.dimension();
+        let storage_namespace = app_state.storage.vector_storage.namespace();
 
         // Detect storage type using storage_mode field
-        let storage_type = app_state.storage_mode.as_str();
+        let storage_type = app_state.storage.mode.as_str();
 
         // Check dimension mismatch
         let dimension_mismatch = storage_dim != emb_dim;

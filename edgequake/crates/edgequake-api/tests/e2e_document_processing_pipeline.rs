@@ -49,6 +49,8 @@ async fn create_workspace_with_providers(
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     state
@@ -155,7 +157,7 @@ async fn test_document_processing_with_ollama_config() {
     assert!(
         !std::ptr::eq(
             pipeline.as_ref() as *const _,
-            state.pipeline.as_ref() as *const _
+            state.query.pipeline.as_ref() as *const _
         ),
         "Should use workspace-specific pipeline"
     );
@@ -235,6 +237,8 @@ async fn test_provider_switch_affects_document_processing() {
         vision_llm_provider: None,
         vision_llm_model: None,
         pdf_parser_backend: None,
+
+        ..Default::default()
     };
 
     state
@@ -419,7 +423,7 @@ async fn test_document_processing_with_lmstudio_config() {
     // Should be workspace-specific pipeline
     assert!(!std::ptr::eq(
         pipeline.as_ref() as *const _,
-        state.pipeline.as_ref() as *const _
+        state.query.pipeline.as_ref() as *const _
     ));
 
     // Processing may fail if LMStudio not running or return extraction error

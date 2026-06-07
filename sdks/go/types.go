@@ -36,6 +36,38 @@ type UploadResponse struct {
 	RelationshipCount *int   `json:"relationship_count,omitempty"`
 }
 
+type BatchFileResult struct {
+	Filename   string  `json:"filename"`
+	DocumentID *string `json:"document_id,omitempty"`
+	Status     string  `json:"status"`
+	Error      *string `json:"error,omitempty"`
+}
+
+type BatchUploadResponse struct {
+	TotalFiles int               `json:"total_files"`
+	Processed  int               `json:"processed"`
+	Duplicates int               `json:"duplicates"`
+	Failed     int               `json:"failed"`
+	Results    []BatchFileResult `json:"results"`
+}
+
+type PdfBatchFileResult struct {
+	Filename    string  `json:"filename"`
+	Status      string  `json:"status"`
+	PdfID       *string `json:"pdf_id,omitempty"`
+	TaskID      *string `json:"task_id,omitempty"`
+	DuplicateOf *string `json:"duplicate_of,omitempty"`
+	Error       *string `json:"error,omitempty"`
+}
+
+type PdfBatchUploadResponse struct {
+	TotalFiles int                  `json:"total_files"`
+	Accepted   int                  `json:"accepted"`
+	Duplicates int                  `json:"duplicates"`
+	Failed     int                  `json:"failed"`
+	Results    []PdfBatchFileResult `json:"results"`
+}
+
 type ListDocumentsResponse struct {
 	Documents  []Document      `json:"documents"`
 	Pagination *PaginationInfo `json:"pagination,omitempty"`

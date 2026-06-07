@@ -1,20 +1,12 @@
 import { test } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import { resolveAuditPath } from "./helpers/screenshot-paths";
 
 /**
  * Comprehensive UX/UI Audit Script
  * Captures screenshots and analyzes every major screen and component
  */
 
-const AUDIT_DIR = path.join(process.cwd(), "../audit_ui/screenshots");
-
-// Ensure audit directory exists
-if (!fs.existsSync(AUDIT_DIR)) {
-  fs.mkdirSync(AUDIT_DIR, { recursive: true });
-}
-
-test.describe("UX/UI Comprehensive Audit", () => {
+test.describe("@audit UX/UI Comprehensive Audit", () => {
   test.beforeEach(async ({ page }) => {
     // Set viewport to standard desktop size
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -29,7 +21,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "01-dashboard-full.png"),
+      path: resolveAuditPath(undefined, "01-dashboard-full.png"),
       fullPage: true,
     });
 
@@ -37,7 +29,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     const sidebar = page.locator('[data-testid="sidebar"], aside, nav').first();
     if ((await sidebar.count()) > 0) {
       await page.screenshot({
-        path: path.join(AUDIT_DIR, "01-dashboard-viewport.png"),
+        path: resolveAuditPath(undefined, "01-dashboard-viewport.png"),
         fullPage: false,
       });
     }
@@ -78,7 +70,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "02-documents-full.png"),
+      path: resolveAuditPath(undefined, "02-documents-full.png"),
       fullPage: true,
     });
 
@@ -88,7 +80,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
       .first();
     if ((await uploadArea.count()) > 0) {
       await uploadArea.screenshot({
-        path: path.join(AUDIT_DIR, "02-documents-upload-area.png"),
+        path: resolveAuditPath(undefined, "02-documents-upload-area.png"),
       });
     }
 
@@ -98,7 +90,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
       .first();
     if ((await documentList.count()) > 0) {
       await documentList.screenshot({
-        path: path.join(AUDIT_DIR, "02-documents-list.png"),
+        path: resolveAuditPath(undefined, "02-documents-list.png"),
       });
       console.log("  ✅ Document list/table found");
     }
@@ -111,7 +103,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
       const targetElement =
         (await emptyState.count()) > 0 ? emptyState : emptyText;
       await targetElement.screenshot({
-        path: path.join(AUDIT_DIR, "02-documents-empty.png"),
+        path: resolveAuditPath(undefined, "02-documents-empty.png"),
       });
     }
 
@@ -129,7 +121,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Full page screenshot - initial state
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "03-query-initial.png"),
+      path: resolveAuditPath(undefined, "03-query-initial.png"),
       fullPage: true,
     });
 
@@ -147,7 +139,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Screenshot with query
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "03-query-with-input.png"),
+      path: resolveAuditPath(undefined, "03-query-with-input.png"),
       fullPage: true,
     });
 
@@ -158,7 +150,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     if ((await modeSelector.count()) > 0) {
       console.log("  ✅ Mode selector found");
       await modeSelector.screenshot({
-        path: path.join(AUDIT_DIR, "03-query-mode-selector.png"),
+        path: resolveAuditPath(undefined, "03-query-mode-selector.png"),
       });
     }
 
@@ -172,7 +164,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
       // Screenshot with response
       await page.screenshot({
-        path: path.join(AUDIT_DIR, "03-query-with-response.png"),
+        path: resolveAuditPath(undefined, "03-query-with-response.png"),
         fullPage: true,
       });
 
@@ -190,7 +182,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     if ((await rightPanel.count()) > 0) {
       console.log("  ✅ Right panel found");
       await rightPanel.screenshot({
-        path: path.join(AUDIT_DIR, "03-query-right-panel.png"),
+        path: resolveAuditPath(undefined, "03-query-right-panel.png"),
       });
     }
   });
@@ -204,7 +196,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "04-graph-full.png"),
+      path: resolveAuditPath(undefined, "04-graph-full.png"),
       fullPage: true,
     });
 
@@ -232,7 +224,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     if ((await legend.count()) > 0) {
       console.log("  ✅ Legend found");
       await legend.screenshot({
-        path: path.join(AUDIT_DIR, "04-graph-legend.png"),
+        path: resolveAuditPath(undefined, "04-graph-legend.png"),
       });
     }
 
@@ -251,7 +243,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "05-settings-full.png"),
+      path: resolveAuditPath(undefined, "05-settings-full.png"),
       fullPage: true,
     });
 
@@ -270,7 +262,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     if ((await tabs.count()) > 0) {
       console.log("  ✅ Tabs found");
       await tabs.screenshot({
-        path: path.join(AUDIT_DIR, "05-settings-tabs.png"),
+        path: resolveAuditPath(undefined, "05-settings-tabs.png"),
       });
     }
   });
@@ -284,7 +276,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
 
     // Full page screenshot
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "06-api-explorer-full.png"),
+      path: resolveAuditPath(undefined, "06-api-explorer-full.png"),
       fullPage: true,
     });
 
@@ -313,7 +305,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "07-tablet-home.png"),
+      path: resolveAuditPath(undefined, "07-tablet-home.png"),
       fullPage: true,
     });
 
@@ -322,7 +314,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "07-tablet-query.png"),
+      path: resolveAuditPath(undefined, "07-tablet-query.png"),
       fullPage: true,
     });
 
@@ -345,7 +337,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "08-mobile-home.png"),
+      path: resolveAuditPath(undefined, "08-mobile-home.png"),
       fullPage: true,
     });
 
@@ -354,7 +346,7 @@ test.describe("UX/UI Comprehensive Audit", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: path.join(AUDIT_DIR, "08-mobile-query.png"),
+      path: resolveAuditPath(undefined, "08-mobile-query.png"),
       fullPage: true,
     });
   });

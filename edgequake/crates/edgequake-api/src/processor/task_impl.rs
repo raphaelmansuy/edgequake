@@ -88,7 +88,16 @@ impl TaskProcessor for DocumentTaskProcessor {
             document_id = ?document_id,
             retry_count = task.retry_count,
             circuit_breaker_tripped = task.circuit_breaker_tripped,
+            error.message = %error_msg,
             "Permanent task failure — updating document status to 'failed'"
+        );
+
+        let task_type_label = format!("{:?}", task.task_type);
+        edgequake_observability::record_document_processing(
+            &task_type_label,
+            "permanent_failure",
+            "failure",
+            0.0,
         );
 
         // Update document metadata to "failed" with the actual error message

@@ -1,11 +1,20 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady, waitForQueryResponse } from "./helpers/app-ready";
+import { bootstrapDeterministicUiContext } from "./helpers/bootstrap-ui";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-test.describe("Markdown Rendering Test", () => {
+test.describe("@load Markdown Rendering Test", () => {
+  test.beforeEach(async ({ page, request }) => {
+    skipUnlessLiveStack();
+    await bootstrapDeterministicUiContext(page, request, "markdown-test");
+  });
+
   test("should properly render markdown formatting in responses", async ({
     page,
   }) => {
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Enter a query that should return markdown
     const textarea = page.getByPlaceholder(/ask|question|query/i).first();
@@ -16,12 +25,11 @@ test.describe("Markdown Rendering Test", () => {
       .first();
     await submitButton.click();
 
-    // Wait for response
-    await page.waitForTimeout(6000);
+    await waitForQueryResponse(page);
 
     // Take screenshot
     await page.screenshot({
-      path: "test-results/markdown-test.png",
+      path: e2eScreenshot("load", "markdown-test.png"),
       fullPage: true,
     });
 

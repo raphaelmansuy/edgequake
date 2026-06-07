@@ -1388,6 +1388,7 @@ async fn test_delete_injection_cleans_graph_nodes() {
     );
     node_props.insert("source_ids".to_string(), json!([doc_id]));
     state
+        .storage
         .graph_storage
         .upsert_node("ENTITY_A", node_props)
         .await
@@ -1395,6 +1396,7 @@ async fn test_delete_injection_cleans_graph_nodes() {
 
     // Verify the node exists before deletion
     let exists_before = state
+        .storage
         .graph_storage
         .has_node("ENTITY_A")
         .await
@@ -1428,6 +1430,7 @@ async fn test_delete_injection_cleans_graph_nodes() {
 
     // --- Step 4: Assert graph node is removed ---
     let exists_after = state
+        .storage
         .graph_storage
         .has_node("ENTITY_A")
         .await
@@ -1481,6 +1484,7 @@ async fn test_delete_injection_preserves_shared_graph_nodes() {
     node_props.insert("entity_type".to_string(), json!("concept"));
     node_props.insert("source_ids".to_string(), json!([doc_id, "other-doc-123"]));
     state
+        .storage
         .graph_storage
         .upsert_node("SHARED_ENTITY", node_props)
         .await
@@ -1507,6 +1511,7 @@ async fn test_delete_injection_preserves_shared_graph_nodes() {
 
     // Shared node must still exist (it has another source)
     let node_after = state
+        .storage
         .graph_storage
         .get_node("SHARED_ENTITY")
         .await

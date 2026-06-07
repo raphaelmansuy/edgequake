@@ -66,10 +66,9 @@ pub async fn extract_text_from_image(
 
     let messages = vec![system_message, user_message];
 
-    let response = llm
-        .chat(&messages, None)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Vision LLM call failed for '{}': {}", filename, e)))?;
+    let response = llm.chat(&messages, None).await.map_err(|e| {
+        ApiError::Internal(format!("Vision LLM call failed for '{}': {}", filename, e))
+    })?;
 
     let text = response.content.trim().to_string();
 

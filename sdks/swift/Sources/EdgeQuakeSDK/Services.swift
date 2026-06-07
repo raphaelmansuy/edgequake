@@ -69,6 +69,14 @@ public final class DocumentService: @unchecked Sendable {
     public func recoverStuck() async throws -> SimpleStatusResponse {
         try await http.post("/api/v1/documents/recover-stuck", body: EmptyJsonBody())
     }
+
+    public func uploadBatch(filePaths: [String]) async throws -> [String: AnyCodable] {
+        try await http.uploadMany("/api/v1/documents/upload/batch", filePaths: filePaths, fieldName: "files")
+    }
+
+    public func uploadPdfBatch(filePaths: [String]) async throws -> [String: AnyCodable] {
+        try await http.uploadMany("/api/v1/documents/pdf/batch", filePaths: filePaths, fieldName: "files")
+    }
 }
 
 /// Encodable empty JSON object for POST bodies that require `{}`.

@@ -155,6 +155,40 @@ pub struct PdfUploadResponse {
     pub duplicate_of: Option<String>,
 }
 
+/// Batch PDF upload response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PdfBatchUploadResponse {
+    /// Total files received in the multipart request.
+    pub total_files: usize,
+    /// Number of files accepted for processing.
+    pub accepted: usize,
+    /// Number of duplicate files.
+    pub duplicates: usize,
+    /// Number of files that failed validation or processing setup.
+    pub failed: usize,
+    /// Per-file result details.
+    pub results: Vec<PdfBatchFileResult>,
+}
+
+/// Result for a single file in batch PDF upload.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PdfBatchFileResult {
+    /// Original filename.
+    pub filename: String,
+    /// Upload result status: `processing`, `duplicate`, `reindexing`, or `failed`.
+    pub status: String,
+    /// PDF ID when available.
+    pub pdf_id: Option<String>,
+    /// Processing task ID when available.
+    pub task_id: Option<String>,
+    /// Duplicate PDF ID if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_of: Option<String>,
+    /// Error text for failed items.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// PDF metadata in response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PdfMetadata {

@@ -64,6 +64,7 @@ pub(super) async fn collect_workspace_documents(
     workspace_slug: &str,
 ) -> Result<Vec<DocumentInfo>, ApiError> {
     let all_keys: Vec<String> = state
+        .storage
         .kv_storage
         .keys()
         .await
@@ -72,7 +73,7 @@ pub(super) async fn collect_workspace_documents(
     let mut docs = Vec::new();
 
     for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
-        let value = match state.kv_storage.get_by_id(key).await {
+        let value = match state.storage.kv_storage.get_by_id(key).await {
             Ok(Some(v)) => v,
             Ok(None) => continue,
             Err(e) => {
@@ -185,7 +186,7 @@ pub(super) fn build_pdf_task(
 /// is missing from the stored JSON.
 pub(super) async fn read_stored_content(state: &AppState, doc_id: &str) -> Option<String> {
     let content_key = format!("{}-content", doc_id);
-    match state.kv_storage.get_by_id(&content_key).await {
+    match state.storage.kv_storage.get_by_id(&content_key).await {
         Ok(Some(cv)) => cv
             .get("content")
             .and_then(|v| v.as_str())
@@ -205,6 +206,7 @@ pub(super) async fn mark_document_pending(state: &AppState, doc_id: &str, track_
 
     let metadata_key = format!("{}-metadata", doc_id);
     if let Some(mut metadata) = state
+        .storage
         .kv_storage
         .get_by_id(&metadata_key)
         .await
@@ -218,7 +220,11 @@ pub(super) async fn mark_document_pending(state: &AppState, doc_id: &str, track_
                 "reprocess_at".to_string(),
                 serde_json::json!(Utc::now().to_rfc3339()),
             );
-            let _ = state.kv_storage.upsert(&[(metadata_key, metadata)]).await;
+            let _ = state
+                .storage
+                .kv_storage
+                .upsert(&[(metadata_key, metadata)])
+                .await;
         }
     }
 }

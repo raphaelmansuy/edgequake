@@ -1,11 +1,51 @@
 //! Document and entity deletion operations for EdgeQuake.
 //!
 //! Contains `delete_document()`, `analyze_deletion_impact()`, `delete_entity()`.
+//!
+//! SPEC-006: document-scoped graph scan via `GraphScanOps` (no `get_all_*`).
+
+use std::collections::HashMap;
+
+use edgequake_storage::traits::{collect_source_references, EdgeListFilter, NodeListFilter};
 
 use crate::error::{Error, Result};
 use crate::types::{DocumentDeletionResult, EntityDeletionResult};
 
 use super::EdgeQuake;
+
+fn document_source_prefixes(document_id: &str) -> Vec<String> {
+    vec![document_id.to_string()]
+}
+
+fn source_belongs_to_document(source: &str, document_id: &str, chunk_prefix: &str) -> bool {
+    source.starts_with(chunk_prefix) || source == document_id
+}
+
+fn remaining_sources_after_removal(
+    properties: &HashMap<String, serde_json::Value>,
+    document_id: &str,
+    chunk_prefix: &str,
+) -> Vec<String> {
+    collect_source_references(properties)
+        .into_iter()
+        .filter(|s| !source_belongs_to_document(s, document_id, chunk_prefix))
+        .collect()
+}
+
+fn count_source_removals(
+    properties: &HashMap<String, serde_json::Value>,
+    document_id: &str,
+    chunk_prefix: &str,
+) -> (bool, bool) {
+    let sources = collect_source_references(properties);
+    if sources.is_empty() {
+        return (false, false);
+    }
+    let remaining = remaining_sources_after_removal(properties, document_id, chunk_prefix);
+    let fully_removed = remaining.is_empty();
+    let partially_updated = !fully_removed && remaining.len() < sources.len();
+    (fully_removed, partially_updated)
+}
 
 impl EdgeQuake {
     pub async fn delete_document(&self, document_id: &str) -> Result<DocumentDeletionResult> {
@@ -39,7 +79,6 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?;
 
-        // 1. Find and delete chunks belonging to this document
         let chunk_prefix = format!("{}-chunk-", document_id);
         let keys = kv_storage.keys().await?;
         let chunk_ids: Vec<String> = keys
@@ -50,77 +89,67 @@ impl EdgeQuake {
 
         result.chunks_deleted = chunk_ids.len();
 
-        // 2. Process graph entities - remove document sources
-        let all_nodes = graph_storage.get_all_nodes().await?;
-        for node in all_nodes {
-            // Check if this node has any sources from the deleted document
-            if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-                let sources: Vec<&str> = source_id.split('|').collect();
-                let remaining_sources: Vec<&str> = sources
-                    .into_iter()
-                    .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(document_id))
-                    .collect();
+        let source_prefixes = document_source_prefixes(document_id);
+        let node_filter = NodeListFilter::default();
+        let affected_nodes = graph_storage
+            .find_nodes_by_source_prefixes(&node_filter, &source_prefixes)
+            .await?;
 
-                if remaining_sources.is_empty() {
-                    // No sources left - delete the entity entirely
-                    // First delete all connected edges
-                    let edges = graph_storage.get_node_edges(&node.id).await?;
-                    for edge in edges {
-                        graph_storage
-                            .delete_edge(&edge.source, &edge.target)
-                            .await?;
-                        result.relationships_removed += 1;
-                    }
-                    // Then delete the node
-                    graph_storage.delete_node(&node.id).await?;
-                    // Also delete from vector storage
-                    let _ = vector_storage.delete_entity(&node.id).await;
-                    result.entities_removed += 1;
-                } else if remaining_sources.len() < source_id.split('|').count() {
-                    // Some sources were removed - update the entity
-                    let mut updated_props = node.properties.clone();
-                    updated_props.insert(
-                        "source_id".to_string(),
-                        serde_json::json!(remaining_sources.join("|")),
-                    );
-                    graph_storage.upsert_node(&node.id, updated_props).await?;
-                    result.entities_updated += 1;
-                }
+        for node in affected_nodes {
+            let sources = collect_source_references(&node.properties);
+            if sources.is_empty() {
+                continue;
             }
-        }
-
-        // 3. Process graph edges - remove document sources
-        let all_edges = graph_storage.get_all_edges().await?;
-        for edge in all_edges {
-            if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-                let sources: Vec<&str> = source_id.split('|').collect();
-                let remaining_sources: Vec<&str> = sources
-                    .into_iter()
-                    .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(document_id))
-                    .collect();
-
-                if remaining_sources.is_empty() {
-                    // No sources left - delete the relationship
+            let remaining =
+                remaining_sources_after_removal(&node.properties, document_id, &chunk_prefix);
+            if remaining.is_empty() {
+                let edges = graph_storage.get_node_edges(&node.id).await?;
+                for edge in edges {
                     graph_storage
                         .delete_edge(&edge.source, &edge.target)
                         .await?;
                     result.relationships_removed += 1;
-                } else if remaining_sources.len() < source_id.split('|').count() {
-                    // Some sources were removed - update the relationship
-                    let mut updated_props = edge.properties.clone();
-                    updated_props.insert(
-                        "source_id".to_string(),
-                        serde_json::json!(remaining_sources.join("|")),
-                    );
-                    graph_storage
-                        .upsert_edge(&edge.source, &edge.target, updated_props)
-                        .await?;
-                    result.relationships_updated += 1;
                 }
+                graph_storage.delete_node(&node.id).await?;
+                let _ = vector_storage.delete_entity(&node.id).await;
+                result.entities_removed += 1;
+            } else if remaining.len() < sources.len() {
+                let mut updated_props = node.properties.clone();
+                updated_props.insert("source_ids".to_string(), serde_json::json!(remaining));
+                updated_props.remove("source_id");
+                graph_storage.upsert_node(&node.id, updated_props).await?;
+                result.entities_updated += 1;
             }
         }
 
-        // 4. Delete chunks and document metadata from KV storage
+        let edge_filter = EdgeListFilter::default();
+        let affected_edges = graph_storage
+            .find_edges_by_source_prefixes(&edge_filter, &source_prefixes)
+            .await?;
+
+        for edge in affected_edges {
+            let sources = collect_source_references(&edge.properties);
+            if sources.is_empty() {
+                continue;
+            }
+            let remaining =
+                remaining_sources_after_removal(&edge.properties, document_id, &chunk_prefix);
+            if remaining.is_empty() {
+                graph_storage
+                    .delete_edge(&edge.source, &edge.target)
+                    .await?;
+                result.relationships_removed += 1;
+            } else if remaining.len() < sources.len() {
+                let mut updated_props = edge.properties.clone();
+                updated_props.insert("source_ids".to_string(), serde_json::json!(remaining));
+                updated_props.remove("source_id");
+                graph_storage
+                    .upsert_edge(&edge.source, &edge.target, updated_props)
+                    .await?;
+                result.relationships_updated += 1;
+            }
+        }
+
         let mut keys_to_delete = chunk_ids;
         let metadata_key = format!("{}-metadata", document_id);
         let content_key = format!("{}-content", document_id);
@@ -146,22 +175,6 @@ impl EdgeQuake {
         Ok(result)
     }
 
-    /// Analyze the impact of deleting a document before actually deleting it.
-    ///
-    /// # Implements
-    ///
-    /// - **UC0006**: Preview Document Deletion Impact
-    /// - **FEAT0012**: Deletion Impact Analysis
-    ///
-    /// # WHY: Pre-Flight Impact Visibility
-    ///
-    /// Before destructive operations, users need to understand what will change.
-    /// This method performs a dry-run of deletion to show:
-    /// - How many chunks will be removed
-    /// - Which entities will be fully deleted vs. partially updated
-    /// - Which relationships will be affected
-    ///
-    /// This implements impact analysis (P4-06) from the LightRAG specification.
     pub async fn analyze_deletion_impact(
         &self,
         document_id: &str,
@@ -189,69 +202,42 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?;
 
-        // Count chunks
         let chunk_prefix = format!("{}-chunk-", document_id);
         let keys = kv_storage.keys().await?;
         result.chunks_deleted = keys.iter().filter(|k| k.starts_with(&chunk_prefix)).count();
 
-        // Analyze entities
-        let all_nodes = graph_storage.get_all_nodes().await?;
-        for node in all_nodes {
-            if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-                let sources: Vec<&str> = source_id.split('|').collect();
-                let remaining = sources
-                    .iter()
-                    .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(document_id))
-                    .count();
+        let source_prefixes = document_source_prefixes(document_id);
+        let affected_nodes = graph_storage
+            .find_nodes_by_source_prefixes(&NodeListFilter::default(), &source_prefixes)
+            .await?;
 
-                if remaining == 0 {
-                    result.entities_removed += 1;
-                } else if remaining < sources.len() {
-                    result.entities_updated += 1;
-                }
+        for node in affected_nodes {
+            let (removed, updated) =
+                count_source_removals(&node.properties, document_id, &chunk_prefix);
+            if removed {
+                result.entities_removed += 1;
+            } else if updated {
+                result.entities_updated += 1;
             }
         }
 
-        // Analyze edges
-        let all_edges = graph_storage.get_all_edges().await?;
-        for edge in all_edges {
-            if let Some(source_id) = edge.properties.get("source_id").and_then(|v| v.as_str()) {
-                let sources: Vec<&str> = source_id.split('|').collect();
-                let remaining = sources
-                    .iter()
-                    .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(document_id))
-                    .count();
+        let affected_edges = graph_storage
+            .find_edges_by_source_prefixes(&EdgeListFilter::default(), &source_prefixes)
+            .await?;
 
-                if remaining == 0 {
-                    result.relationships_removed += 1;
-                } else if remaining < sources.len() {
-                    result.relationships_updated += 1;
-                }
+        for edge in affected_edges {
+            let (removed, updated) =
+                count_source_removals(&edge.properties, document_id, &chunk_prefix);
+            if removed {
+                result.relationships_removed += 1;
+            } else if updated {
+                result.relationships_updated += 1;
             }
         }
 
         Ok(result)
     }
 
-    /// Delete an entity and its relationships from the knowledge graph.
-    ///
-    /// # Implements
-    ///
-    /// - **UC0103**: Delete Entity from Graph
-    /// - **FEAT0203**: Graph Mutation Operations
-    ///
-    /// # Enforces
-    ///
-    /// - **BR0008**: Entity names are normalized (UPPERCASE with underscores)
-    /// - **BR0201**: Tenant isolation (deletion scoped to tenant)
-    ///
-    /// # WHY: Cascade Edge Deletion
-    ///
-    /// When an entity is deleted, all connected edges must also be deleted.
-    /// Orphan edges would corrupt graph traversal queries. The deletion order is:
-    /// 1. Find and delete all edges where entity is source or target
-    /// 2. Delete the node itself from graph storage
-    /// 3. Delete the entity embedding from vector storage
     pub async fn delete_entity(&self, entity_name: &str) -> Result<EntityDeletionResult> {
         if !self.initialized {
             return Err(Error::not_initialized("EdgeQuake not initialized"));
@@ -272,7 +258,6 @@ impl EdgeQuake {
         let normalized_name = crate::types::GraphEntity::normalize_name(entity_name);
         let mut relationships_deleted = 0;
 
-        // First, delete all edges connected to this entity
         let edges = graph_storage.get_node_edges(&normalized_name).await?;
         for edge in edges {
             graph_storage
@@ -281,10 +266,7 @@ impl EdgeQuake {
             relationships_deleted += 1;
         }
 
-        // Delete the node from graph storage
         graph_storage.delete_node(&normalized_name).await?;
-
-        // Delete from vector storage
         let _ = vector_storage.delete_entity(&normalized_name).await;
 
         Ok(EntityDeletionResult {

@@ -4,11 +4,13 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::QueryMode;
+
 /// Main configuration for EdgeQuake.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
-    /// Storage configuration
-    pub storage: StorageConfig,
+    /// Database pool configuration
+    pub storage: DatabasePoolConfig,
     /// LLM configuration
     pub llm: LlmConfig,
     /// Pipeline configuration
@@ -19,9 +21,12 @@ pub struct Config {
     pub api: ApiConfig,
 }
 
-/// Storage backend configuration.
+/// Database connection pool configuration (PostgreSQL URL, pool sizing).
+///
+/// Distinct from [`crate::orchestrator::StorageConfig`] which selects the
+/// orchestrator storage backend (memory vs postgres).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StorageConfig {
+pub struct DatabasePoolConfig {
     /// Database connection URL
     pub database_url: String,
     /// Maximum number of connections in the pool
@@ -34,7 +39,7 @@ pub struct StorageConfig {
     pub namespace: Option<String>,
 }
 
-impl Default for StorageConfig {
+impl Default for DatabasePoolConfig {
     fn default() -> Self {
         Self {
             database_url: "postgres://localhost:5432/edgequake".to_string(),
@@ -166,47 +171,6 @@ impl Default for QueryConfig {
             max_context_chunks: 20,
             stream_responses: true,
         }
-    }
-}
-
-/// Query execution modes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum QueryMode {
-    /// Direct chunk retrieval only
-    Naive,
-    /// Entity-focused local search
-    Local,
-    /// High-level global search
-    Global,
-    /// Combined local and global
-    #[default]
-    Hybrid,
-    /// No RAG, direct LLM query
-    Bypass,
-}
-
-use std::str::FromStr;
-
-impl FromStr for QueryMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "naive" => Ok(Self::Naive),
-            "local" => Ok(Self::Local),
-            "global" => Ok(Self::Global),
-            "hybrid" => Ok(Self::Hybrid),
-            "bypass" => Ok(Self::Bypass),
-            other => Err(format!("Unknown query mode: {}", other)),
-        }
-    }
-}
-
-impl QueryMode {
-    /// Parse query mode from string (returns Option for backward compatibility).
-    pub fn parse(s: &str) -> Option<Self> {
-        Self::from_str(s).ok()
     }
 }
 

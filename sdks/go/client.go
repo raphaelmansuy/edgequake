@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -228,6 +231,51 @@ func (c *Client) patchNoContent(ctx context.Context, path string, body interface
 		return err
 	}
 	return c.do(req, nil)
+}
+
+func (c *Client) postMultipartMany(
+	ctx context.Context,
+	path string,
+	fieldName string,
+	filePaths []string,
+	extraFields map[string]string,
+	v interface{},
+) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for _, p := range filePaths {
+		f, err := os.Open(p)
+		if err != nil {
+			return fmt.Errorf("edgequake: open file %s: %w", p, err)
+		}
+		part, err := writer.CreateFormFile(fieldName, filepath.Base(p))
+		if err != nil {
+			f.Close()
+			return fmt.Errorf("edgequake: create form file: %w", err)
+		}
+		if _, err := io.Copy(part, f); err != nil {
+			f.Close()
+			return fmt.Errorf("edgequake: copy form file: %w", err)
+		}
+		f.Close()
+	}
+	for k, val := range extraFields {
+		_ = writer.WriteField(k, val)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("edgequake: close multipart writer: %w", err)
+	}
+
+	req, err := c.newRequest(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return err
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body.Bytes()))
+	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body.Bytes())), nil }
+	req.ContentLength = int64(body.Len())
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	return c.do(req, v)
 }
 
 // getRaw performs a GET and returns the raw response body as bytes.

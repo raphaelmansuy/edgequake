@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 /**
  * E2E tests for EdgeQuake graph layouts
@@ -14,15 +15,15 @@ import { expect, test } from "@playwright/test";
  * 7. 🌳 Hierarchical
  */
 
-test.describe("Graph Layouts", () => {
+test.describe("@audit Graph Layouts", () => {
   // These tests require graph data to be present
   // Skip if no canvas (empty graph)
   test.beforeEach(async ({ page }) => {
     // Navigate to graph page
-    await page.goto("http://localhost:3000/graph?workspace=default-workspace");
+    await page.goto("/graph?workspace=default-workspace");
 
     // Wait for page to load
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check if canvas exists (graph has data)
     // If no canvas after 5s, skip the test - graph is empty

@@ -78,7 +78,15 @@ impl Default for PostgresConfig {
             user: "postgres".to_string(),
             password: String::new(),
             namespace: "default".to_string(),
-            max_connections: 10,
+            // QW5 (F11): default pool sized to >= 2x the pipeline's default
+            // max_concurrent_extractions (16). WHY: each in-flight document can
+            // hold a connection for the vector upsert AND another for graph
+            // MERGEs; a pool smaller than peak concurrent demand serializes the
+            // pipeline behind connection acquisition (head-of-line blocking).
+            // First principle: pool_size must exceed peak simultaneous
+            // connection holders, not average. Operators must ensure the
+            // PostgreSQL server `max_connections` >= sum of all app pools.
+            max_connections: 32,
             min_connections: 1,
             connect_timeout: Duration::from_secs(30),
             idle_timeout: Duration::from_secs(600),
@@ -137,8 +145,25 @@ impl PostgresConfig {
     }
 
     /// Get the table prefix for this namespace.
+    ///
+    /// # WHY: prefix is interpolated into DDL/table names (not a bind param)
+    /// The namespace flows into `format!("eq_{prefix}_vectors")` style identifiers
+    /// that cannot be parameterized. To close the identifier-injection surface
+    /// (security S2) we map any character outside `[A-Za-z0-9_]` to `_`. Hyphens
+    /// keep their historical mapping to `_` so existing deployments are unaffected.
     pub fn table_prefix(&self) -> String {
-        format!("eq_{}", self.namespace.replace('-', "_"))
+        let sanitized: String = self
+            .namespace
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        format!("eq_{}", sanitized)
     }
 }
 
@@ -186,7 +211,8 @@ mod tests {
         let config = PostgresConfig::default();
         assert_eq!(config.host, "localhost");
         assert_eq!(config.port, 5432);
-        assert_eq!(config.max_connections, 10);
+        // QW5: default pool raised to 32 (>= 2x default concurrent extractions).
+        assert_eq!(config.max_connections, 32);
     }
 
     #[test]
@@ -202,5 +228,20 @@ mod tests {
     fn test_table_prefix() {
         let config = PostgresConfig::default().with_namespace("my-workspace");
         assert_eq!(config.table_prefix(), "eq_my_workspace");
+    }
+
+    #[test]
+    fn test_table_prefix_sanitizes_injection_chars() {
+        // Security S2: identifier-injection attempt must be neutralized.
+        let config = PostgresConfig::default().with_namespace("a\"; DROP TABLE x;--");
+        let prefix = config.table_prefix();
+        assert!(!prefix.contains('"'));
+        assert!(!prefix.contains(';'));
+        assert!(!prefix.contains(' '));
+        assert!(prefix.starts_with("eq_"));
+        // Only [A-Za-z0-9_] survive.
+        assert!(prefix
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_'));
     }
 }

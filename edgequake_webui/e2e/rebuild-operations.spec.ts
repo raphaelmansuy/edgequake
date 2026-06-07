@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Rebuild Operations E2E Tests
@@ -39,11 +41,16 @@ async function isBackendAvailable(): Promise<boolean> {
   }
 }
 
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe("Rebuild Embeddings", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to workspace page
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -154,7 +161,7 @@ test.describe("Rebuild Embeddings", () => {
 test.describe("Rebuild Knowledge Graph", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -211,7 +218,7 @@ test.describe("Rebuild Knowledge Graph", () => {
 test.describe("Workspace Isolation", () => {
   test("workspace selector is available", async ({ page }) => {
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for workspace selector
     const workspaceSelector = page.locator(
@@ -234,7 +241,7 @@ test.describe("Workspace Isolation", () => {
 
   test("different workspaces can be selected", async ({ page }) => {
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Try to find workspace dropdown or selector in header
     const headerSelector = page.locator(
@@ -261,7 +268,7 @@ test.describe("Workspace Isolation", () => {
 test.describe("Progress Tracking", () => {
   test("pipeline status dialog can be opened", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for any processing indicator or pipeline button
     const pipelineButton = page.locator(
@@ -294,7 +301,7 @@ test.describe("Progress Tracking", () => {
 
   test("document status badges show processing states", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for status badges
     const badges = page.locator('[class*="badge"]');
@@ -337,11 +344,11 @@ test.describe("Ollama Integration", () => {
 
   test("Ollama is configured as an available provider", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for provider configuration
     const providerSettings = page.locator(
-      'text*="Ollama", text*="ollama", [data-testid="provider-settings"]',
+      'text="Ollama", text="ollama", [data-testid="provider-settings"]',
     );
 
     const count = await providerSettings.count();
@@ -350,7 +357,7 @@ test.describe("Ollama Integration", () => {
 
   test("can trigger rebuild with Ollama embedding model", async ({ page }) => {
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for embedding model selection
     const embeddingSelect = page.locator(
@@ -389,7 +396,7 @@ test.describe("Error Handling", () => {
     // For now, just verify error handling UI exists
 
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for error boundary or error display components
     const errorElements = page.locator(
@@ -408,7 +415,7 @@ test.describe("Error Handling", () => {
 
   test("failed rebuild attempts are logged", async ({ page }) => {
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Open browser console to capture any errors
     const consoleMessages: string[] = [];
@@ -420,9 +427,9 @@ test.describe("Error Handling", () => {
 
     // Navigate around to trigger any loading
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.goto("/workspace");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     console.log(`Console errors captured: ${consoleMessages.length}`);
   });

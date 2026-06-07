@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeQueryModelSelection } from '../query-model-selection';
+import {
+  isLlmProviderAuthFailure,
+  sanitizeQueryModelSelection,
+} from '../query-model-selection';
+
+describe('isLlmProviderAuthFailure', () => {
+  it('detects OpenAI invalid_api_key errors', () => {
+    expect(
+      isLlmProviderAuthFailure(
+        'LLM error: Authentication error: invalid_api_key: Incorrect API key provided'
+      )
+    ).toBe(true);
+  });
+
+  it('ignores unrelated errors', () => {
+    expect(isLlmProviderAuthFailure('Storage error: timeout')).toBe(false);
+  });
+});
 
 describe('sanitizeQueryModelSelection', () => {
   const models = [

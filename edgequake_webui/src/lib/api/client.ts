@@ -91,6 +91,63 @@ let currentTenantId: string | null = null;
 let currentWorkspaceId: string | null = null;
 let currentUserId: string | null = null;
 
+const TRACEPARENT_STORAGE_KEY = "edgequake_traceparent";
+
+/** Random lowercase hex string (cryptographic when available). */
+function randomHex(byteLength: number): string {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(byteLength);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  let out = "";
+  for (let i = 0; i < byteLength * 2; i++) {
+    out += Math.floor(Math.random() * 16).toString(16);
+  }
+  return out;
+}
+
+/**
+ * W3C traceparent for browser → API correlation (SPEC-018).
+ * Reuses stored trace id from prior API response when present.
+ */
+export function generateTraceparent(): string {
+  if (typeof window !== "undefined") {
+    const stored = sessionStorage.getItem(TRACEPARENT_STORAGE_KEY);
+    if (stored?.startsWith("00-")) {
+      const parts = stored.split("-");
+      if (parts.length >= 4 && parts[1].length === 32) {
+        return `00-${parts[1]}-${randomHex(8)}-01`;
+      }
+    }
+  }
+  return `00-${randomHex(16)}-${randomHex(8)}-01`;
+}
+
+/** Current browser trace context for client-side error logs (W3C, no OTEL SDK required). */
+export function getClientTraceContext(): {
+  traceparent: string | null;
+  trace_id: string | null;
+} {
+  if (typeof window === "undefined") {
+    return { traceparent: null, trace_id: null };
+  }
+  const traceparent = sessionStorage.getItem(TRACEPARENT_STORAGE_KEY);
+  const trace_id =
+    traceparent?.startsWith("00-") && traceparent.split("-")[1]?.length === 32
+      ? traceparent.split("-")[1]
+      : null;
+  return { traceparent, trace_id };
+}
+
+/** Persist traceparent from API response for subsequent requests. */
+export function adoptTraceparentFromResponse(response: Response): void {
+  const tp = response.headers?.get?.("traceparent");
+  if (tp?.startsWith("00-") && typeof window !== "undefined") {
+    sessionStorage.setItem(TRACEPARENT_STORAGE_KEY, tp);
+  }
+}
+
 // Generate a UUID v4 for anonymous users
 function generateUUID(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -157,6 +214,20 @@ function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
+  // SPEC-018: Per-request correlation for distributed tracing / support tickets
+  if (!headers.has("X-Request-ID")) {
+    headers.set(
+      "X-Request-ID",
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : generateUUID(),
+    );
+  }
+
+  if (!headers.has("traceparent")) {
+    headers.set("traceparent", generateTraceparent());
+  }
+
   const { tenantId, workspaceId, userId } = getTenantContext();
   if (tenantId) {
     headers.set("X-Tenant-ID", tenantId);
@@ -169,6 +240,56 @@ function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
   headers.set("X-User-ID", effectiveUserId);
 
   return headers;
+}
+
+/** Resolve URL for backend root endpoints (/health, /ready) — not under /api/v1. */
+export function resolveServerRootUrl(endpoint: string): string {
+  if (endpoint.startsWith("http")) {
+    return endpoint;
+  }
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const serverBaseUrl = getRuntimeServerBaseUrl();
+  return serverBaseUrl ? `${serverBaseUrl}${path}` : path;
+}
+
+/**
+ * GET/POST to backend server root (health, readiness). Uses unified error handling.
+ * No auth headers — probes must work before login.
+ * @implements UI-DRY-003
+ */
+export async function serverRootClient<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = resolveServerRootUrl(endpoint);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      method: options.method ?? "GET",
+    });
+
+    if (!response.ok) {
+      throw await handleErrorResponse(response);
+    }
+
+    const text = await response.text();
+    if (!text) {
+      return {} as T;
+    }
+
+    return JSON.parse(text) as T;
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
+    if (error instanceof TypeError) {
+      const networkErr = new NetworkError();
+      logClientNetworkError(networkErr);
+      throw networkErr;
+    }
+    throw error;
+  }
 }
 
 // Main API client function
@@ -204,8 +325,11 @@ export async function apiClient<T>(
     }
 
     if (!response.ok) {
+      adoptTraceparentFromResponse(response);
       throw await handleErrorResponse(response);
     }
+
+    adoptTraceparentFromResponse(response);
 
     // Handle empty responses
     const text = await response.text();
@@ -219,27 +343,86 @@ export async function apiClient<T>(
       throw error;
     }
     if (error instanceof TypeError) {
-      throw new NetworkError();
+      const networkErr = new NetworkError();
+      logClientNetworkError(networkErr);
+      throw networkErr;
     }
     throw error;
   }
+}
+
+/** Structured payload for client-side error logging (explicit context). */
+export function apiErrorLogPayload(err: ApiRequestError): Record<string, unknown> {
+  const trace = getClientTraceContext();
+  return {
+    status: err.status,
+    code: err.code,
+    message: err.message,
+    retryable: err.details?.retryable,
+    source: err.details?.source,
+    diagnostics: err.details?.diagnostics,
+    request_id: err.details?.request_id,
+    traceparent: trace.traceparent,
+    trace_id: trace.trace_id,
+  };
+}
+
+/** Log API errors at the correct level with full backend context. */
+export function logClientApiError(err: ApiRequestError): void {
+  const payload = apiErrorLogPayload(err);
+  if (err.status >= 500) {
+    console.error("[edgequake] API server error", payload);
+  } else if (err.status >= 400) {
+    console.warn("[edgequake] API client error", payload);
+  }
+}
+
+/** Log transport failures (no HTTP response) with trace context. */
+export function logClientNetworkError(err: NetworkError): void {
+  const trace = getClientTraceContext();
+  console.error("[edgequake] Network error", {
+    message: err.message,
+    code: "NETWORK_ERROR",
+    source: "webui_client",
+    traceparent: trace.traceparent,
+    trace_id: trace.trace_id,
+  });
 }
 
 // Error response handler
 async function handleErrorResponse(
   response: Response,
 ): Promise<ApiRequestError> {
+  const requestId = response.headers.get("x-request-id") ?? undefined;
   try {
-    const errorData = (await response.json()) as ApiError;
-    return ApiRequestError.fromResponse({
+    const errorData = (await response.json()) as ApiError & {
+      details?: Record<string, unknown> & { request_id?: string };
+    };
+    const err = ApiRequestError.fromResponse({
       ...errorData,
       status: response.status,
     });
+    err.details = {
+      ...(typeof errorData.details === "object" ? errorData.details : {}),
+      ...err.details,
+      request_id:
+        requestId ??
+        (typeof errorData.details?.request_id === "string"
+          ? errorData.details.request_id
+          : undefined),
+    };
+    logClientApiError(err);
+    return err;
   } catch {
-    return new ApiRequestError(
+    const err = new ApiRequestError(
       response.statusText || "Request failed",
       response.status,
     );
+    if (requestId) {
+      err.details = { request_id: requestId };
+    }
+    logClientApiError(err);
+    return err;
   }
 }
 
@@ -449,6 +632,11 @@ export const api = {
       method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     }),
+
+  serverRoot: {
+    get: <T>(endpoint: string, options?: RequestInit) =>
+      serverRootClient<T>(endpoint, { ...options, method: "GET" }),
+  },
 };
 
 export default api;

@@ -7,7 +7,7 @@ use edgequake_storage::{GraphEdge, GraphStorage, VectorStorage};
 use crate::error::Result;
 use crate::extractor::ExtractedRelationship;
 
-use super::{merge_descriptions, normalize_entity_name};
+use super::{merge_descriptions, metadata, normalize_entity_name};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Merge a single relationship, returning true if it was newly created.
@@ -39,25 +39,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         // Store relationship embedding with type metadata (for Global query mode)
         if let Some(embedding) = &rel.embedding {
             let rel_id = format!("{}->{}:{}", source_key, target_key, rel.relation_type);
-            let mut metadata = serde_json::json!({
-                "type": "relationship",  // Mark as relationship for retrieval filtering
-                "src_id": source_key,
-                "tgt_id": target_key,
-                "keywords": rel.keywords.join(", "),
-                "relation_type": rel.relation_type,
-                "description": rel.description,
-                // Source tracking for citations (LightRAG parity)
-                "source_chunk_id": rel.source_chunk_id,
-                "source_document_id": rel.source_document_id,
-                "source_file_path": rel.source_file_path
-            });
-
-            if let Some(tenant_id) = &self.tenant_id {
-                metadata["tenant_id"] = serde_json::json!(tenant_id);
-            }
-            if let Some(workspace_id) = &self.workspace_id {
-                metadata["workspace_id"] = serde_json::json!(workspace_id);
-            }
+            let scope = metadata::TenantScope {
+                tenant_id: &self.tenant_id,
+                workspace_id: &self.workspace_id,
+            };
+            let metadata =
+                metadata::relationship_vector_metadata(&rel, &source_key, &target_key, scope);
 
             self.vector_storage
                 .upsert(&[(rel_id, embedding.clone(), metadata)])

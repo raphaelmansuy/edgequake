@@ -13,7 +13,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 
-use edgequake_storage::{GraphStorage, MemoryGraphStorage};
+use edgequake_storage::{
+    GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, MemoryGraphStorage,
+};
 
 /// Create a test graph storage with known data.
 async fn create_populated_graph_storage(node_count: usize) -> Arc<MemoryGraphStorage> {

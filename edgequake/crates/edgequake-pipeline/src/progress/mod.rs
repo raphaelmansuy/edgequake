@@ -9,8 +9,18 @@
 //!
 //! - Progress tracking: pipeline stage types, ProgressTracker
 //! - `cost`: LLM API cost estimation with per-model pricing
+//!
+//! # Three-layer progress model (SPEC-017)
+//!
+//! - `edgequake_tasks::PipelinePhase` — live upload/PDF task tracking (API/WebSocket)
+//! - `ingestion_types::UnifiedStage` — frontend-facing unified stages
+//! - `progress::PipelineStage` — internal async job stages (`ProgressTracker`)
+//! - `crate::stage_bridge` — conversions between all three layer wire formats
 
 mod cost;
+mod stage_status;
+
+pub use stage_status::StageStatus;
 
 pub use cost::{default_model_pricing, CostBreakdown, CostTracker, ModelPricing, OperationCost};
 
@@ -90,23 +100,7 @@ impl PipelineStage {
     }
 }
 
-/// Status of a single pipeline stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum StageStatus {
-    /// Not started yet.
-    #[default]
-    Pending,
-    /// Currently running.
-    Running,
-    /// Successfully completed.
-    Completed,
-    /// Skipped (not applicable).
-    Skipped,
-    /// Failed with error.
-    Failed,
-}
-
-/// Progress for a single pipeline stage.
+/// Progress for a single pipeline stage (internal job tracker).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StageProgress {
     /// The stage.
@@ -275,7 +269,7 @@ impl IngestionError {
     }
 }
 
-/// Complete ingestion progress snapshot.
+/// Complete ingestion progress snapshot (internal async job tracker).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestionProgress {
     /// Job identifier.

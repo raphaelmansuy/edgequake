@@ -166,6 +166,60 @@ class HttpHelper
         return json_decode($response, true) ?? [];
     }
 
+    /**
+     * Upload multiple files via multipart/form-data in one request.
+     *
+     * @param string $path API endpoint
+     * @param array<int, string> $filePaths Local file paths
+     * @param string $fieldName Form field name (default: 'files')
+     * @param array<string, string> $extraFields Additional form fields
+     * @return array<string, mixed>
+     */
+    public function uploadMany(string $path, array $filePaths, string $fieldName = 'files', array $extraFields = []): array
+    {
+        $url = rtrim($this->config->baseUrl, '/') . $path;
+        $ch = curl_init($url);
+
+        $headers = ['Accept: application/json'];
+        if ($this->config->apiKey !== null) {
+            $headers[] = 'X-API-Key: ' . $this->config->apiKey;
+        }
+        if ($this->config->tenantId !== null) {
+            $headers[] = 'X-Tenant-ID: ' . $this->config->tenantId;
+        }
+        if ($this->config->workspaceId !== null) {
+            $headers[] = 'X-Workspace-ID: ' . $this->config->workspaceId;
+        }
+
+        $postData = $extraFields;
+        foreach ($filePaths as $idx => $filePath) {
+            if (!file_exists($filePath)) {
+                throw new ApiError("File not found: {$filePath}");
+            }
+            $postData["{$fieldName}[{$idx}]"] = new \CURLFile($filePath);
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_POSTFIELDS => $postData,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->config->timeout,
+        ]);
+
+        $response = curl_exec($ch);
+        $statusCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($response === false) {
+            throw new ApiError("cURL error during upload");
+        }
+        if ($statusCode < 200 || $statusCode >= 300) {
+            throw new ApiError("HTTP {$statusCode}: {$response}", statusCode: $statusCode, responseBody: $response);
+        }
+        return json_decode($response, true) ?? [];
+    }
+
     // OODA-39: Streaming POST support.
 
     /**

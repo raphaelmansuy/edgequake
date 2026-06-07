@@ -8,15 +8,14 @@ use axum::{
 };
 use futures::stream::StreamExt;
 use std::convert::Infallible;
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::error::ApiError;
 use crate::handlers::graph_types::*;
-use crate::handlers::isolation::properties_match_tenant_context;
 use crate::middleware::TenantContext;
+use crate::services::{admit_graph_materialization, run_timed_graph_query};
 use crate::state::AppState;
 
 /// Stream graph data progressively via SSE.
@@ -70,101 +69,71 @@ pub async fn stream_graph(
     tokio::spawn(async move {
         let start_time = std::time::Instant::now();
 
-        // WHY: Run node_count, edge_count, and the main node query in parallel.
-        // Previously these were sequential: count1 → count2 → nodes = 3 serial RTTs
-        // before the client received its first event. Parallelising shaves off 2
-        // full Cypher round-trips (now native SQL, still cheaper to parallelise).
-        const QUERY_TIMEOUT_SECS: u64 = 15;
+        let _materialize_guard = match admit_graph_materialization(&state_clone) {
+            Ok(guard) => guard,
+            Err(_) => {
+                let _ = tx
+                    .send(GraphStreamEvent::Error {
+                        message: "Graph materialization capacity reached".into(),
+                    })
+                    .await;
+                return;
+            }
+        };
 
         debug!("About to query counts + nodes in parallel");
 
+        let max_nodes = params_clone.max_nodes;
+        let tenant_id = tenant_ctx_clone.tenant_id.clone();
+        let workspace_id = tenant_ctx_clone.workspace_id.clone();
+        let graph_storage = state_clone.storage.graph_storage.clone();
+        let state_for_query = state_clone.clone();
+
         let (total_nodes, total_edges, nodes_result) = tokio::join!(
-            async { state_clone.graph_storage.node_count().await.unwrap_or(0) },
-            async { state_clone.graph_storage.edge_count().await.unwrap_or(0) },
-            tokio::time::timeout(
-                Duration::from_secs(QUERY_TIMEOUT_SECS),
-                state_clone.graph_storage.get_popular_nodes_with_degree(
-                    params_clone.max_nodes,
-                    None,
-                    None,
-                    tenant_ctx_clone.tenant_id.as_deref(),
-                    tenant_ctx_clone.workspace_id.as_deref(),
-                ),
-            ),
+            async {
+                state_clone
+                    .storage
+                    .graph_storage
+                    .node_count_fast()
+                    .await
+                    .unwrap_or(0)
+            },
+            async {
+                state_clone
+                    .storage
+                    .graph_storage
+                    .edge_count_fast()
+                    .await
+                    .unwrap_or(0)
+            },
+            async move {
+                run_timed_graph_query(&state_for_query, "graph_stream", async move {
+                    graph_storage
+                        .get_popular_nodes_with_degree(
+                            max_nodes,
+                            None,
+                            None,
+                            tenant_id.as_deref(),
+                            workspace_id.as_deref(),
+                        )
+                        .await
+                })
+                .await
+            }
         );
 
-        // Get nodes with degrees (optimized batch query with timeout)
         let nodes_with_degrees = match nodes_result {
-            Ok(Ok(nodes)) => {
+            Ok(nodes) => {
                 debug!("Query succeeded with {} nodes", nodes.len());
                 nodes
             }
-            Ok(Err(e)) => {
-                // Check if this is a statement timeout error - if so, fall back
-                let error_msg = format!("{}", e);
-                debug!("Query returned error: {}", error_msg);
-                if error_msg.contains("statement timeout")
-                    || error_msg.contains("canceling statement")
-                {
-                    warn!(
-                        max_nodes = params_clone.max_nodes,
-                        "Database query timed out, falling back to simple node fetch"
-                    );
-
-                    match state_clone.graph_storage.get_all_nodes().await {
-                        Ok(all_nodes) => all_nodes
-                            .into_iter()
-                            .filter(|n| {
-                                properties_match_tenant_context(&n.properties, &tenant_ctx_clone)
-                            })
-                            .take(params_clone.max_nodes)
-                            .map(|n| (n, 0usize)) // Degree unknown, use 0
-                            .collect(),
-                        Err(e) => {
-                            let _ = tx
-                                .send(GraphStreamEvent::Error {
-                                    message: format!("Failed to fetch nodes after timeout: {}", e),
-                                })
-                                .await;
-                            return;
-                        }
-                    }
-                } else {
-                    // Some other error, not a timeout
-                    let _ = tx
-                        .send(GraphStreamEvent::Error {
-                            message: format!("Failed to fetch nodes: {}", e),
-                        })
-                        .await;
-                    return;
-                }
-            }
-            Err(_) => {
-                // Timeout: Fall back to simple node list
-                warn!(
-                    timeout_secs = QUERY_TIMEOUT_SECS,
-                    max_nodes = params_clone.max_nodes,
-                    "Stream query timed out, falling back to simple node fetch"
-                );
-
-                match state_clone.graph_storage.get_all_nodes().await {
-                    Ok(all_nodes) => all_nodes
-                        .into_iter()
-                        .filter(|n| {
-                            properties_match_tenant_context(&n.properties, &tenant_ctx_clone)
-                        })
-                        .take(params_clone.max_nodes)
-                        .map(|n| (n, 0usize)) // Degree unknown, use 0
-                        .collect(),
-                    Err(e) => {
-                        let _ = tx
-                            .send(GraphStreamEvent::Error {
-                                message: format!("Failed to fetch nodes after timeout: {}", e),
-                            })
-                            .await;
-                        return;
-                    }
-                }
+            Err(e) => {
+                let _ = tx
+                    .send(GraphStreamEvent::Error {
+                        message: e.to_string(),
+                    })
+                    .await;
+                return;
             }
         };
 
@@ -236,6 +205,7 @@ pub async fn stream_graph(
 
         // Fetch and stream edges (optimized batch query)
         let edges = match state_clone
+            .storage
             .graph_storage
             .get_edges_for_node_set(
                 &all_node_ids,

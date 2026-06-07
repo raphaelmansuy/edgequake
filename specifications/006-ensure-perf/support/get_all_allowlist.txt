@@ -1,0 +1,19 @@
+# SPEC-006: Temporary allowlist for get_all_* in edgequake-api/src
+# Used by scripts/spec006_no_get_all_api.sh (see 008_regression_contract.md)
+# Remove one line per handler migration. Target: empty file at P0 completion.
+#
+# Format: substring match against rg output (file path fragment)
+
+# V-006-001 (relationships/* — REMOVED at P2)
+
+# V-006-002 (documents/delete/*, storage_helpers — REMOVED at P1)
+
+# V-006-003 (graph_query/traversal.rs — REMOVED at P0)
+
+# V-006-004 (lineage/* — REMOVED at P1)
+
+# pdf_upload/helpers.rs — REMOVED at P2
+
+# graph_stream.rs — REMOVED at P1 (no timeout fallback)
+
+# TARGET: empty allowlist — all edgequake-api get_all_* eliminated

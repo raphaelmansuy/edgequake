@@ -4,7 +4,18 @@
 
 ## Maven dependency
 
-Add the SDK JAR from the project build (`mvn install`) or your internal artifact repo.
+Use Maven Central:
+
+```xml
+<dependency>
+  <groupId>io.edgequake</groupId>
+  <artifactId>edgequake-sdk</artifactId>
+  <version>0.4.0</version>
+</dependency>
+```
+
+Maintainer publication is automated by `.github/workflows/publish-java-sdk.yml` on tags
+matching `sdk-java-v*`.
 
 ## Example
 

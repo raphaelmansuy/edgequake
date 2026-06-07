@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
+
+/** API base for direct upload perf tests — never use PLAYWRIGHT_BASE_URL (frontend). */
+const API_BASE = API_V1_URL.replace(/\/api\/v1$/, "") || BACKEND_URL;
 
 /**
  * Progressive Load Testing for Document Upload Performance
@@ -193,7 +198,7 @@ function formatMetrics(metrics: PerformanceMetrics): string {
  * Upload document via API with timing
  */
 async function uploadDocumentViaAPI(
-  baseURL: string,
+  apiBase: string,
   content: string,
   title: string,
   workspaceId: string = "default-workspace"
@@ -201,7 +206,7 @@ async function uploadDocumentViaAPI(
   const startTime = Date.now();
 
   try {
-    const response = await fetch(`${baseURL}/api/v1/documents`, {
+    const response = await fetch(`${API_V1_URL}/documents`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -238,7 +243,7 @@ async function uploadDocumentViaAPI(
  * Execute concurrent uploads with controlled concurrency
  */
 async function executeConcurrentUploads(
-  baseURL: string,
+  apiBase: string,
   count: number,
   concurrency: number,
   contentSize: "small" | "medium" | "large"
@@ -251,7 +256,7 @@ async function executeConcurrentUploads(
     const uploadPromise = (async () => {
       const content = generateTestContent(contentSize);
       const title = `perf-test-${contentSize}-${Date.now()}-${i}`;
-      const result = await uploadDocumentViaAPI(baseURL, content, title);
+      const result = await uploadDocumentViaAPI(apiBase, content, title);
       results.push(result);
       completed++;
 
@@ -290,8 +295,13 @@ async function executeConcurrentUploads(
 // Test Suite
 // ============================================================================
 
-test.describe("Upload Performance - Progressive Load Testing", () => {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3001";
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load Upload Performance - Progressive Load Testing", () => {
+  const apiBase = API_V1_URL;
   const allMetrics: PerformanceMetrics[] = [];
   const reportPath = path.join(__dirname, "../test-results/upload-performance-report.txt");
 
@@ -299,7 +309,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     console.log("\n" + "=".repeat(80));
     console.log("UPLOAD PERFORMANCE - PROGRESSIVE LOAD TESTING");
     console.log("=".repeat(80));
-    console.log(`Base URL: ${baseURL}`);
+    console.log(`API URL: ${apiBase}`);
     console.log(`Start Time: ${new Date().toISOString()}`);
     console.log("=".repeat(80) + "\n");
   });
@@ -339,7 +349,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     console.log("-".repeat(80));
 
     const startTime = Date.now();
-    const results = await executeConcurrentUploads(baseURL, 1, 1, "small");
+    const results = await executeConcurrentUploads(apiBase, 1, 1, "small");
     const endTime = Date.now();
 
     const metrics = analyzeResults("Phase 0: Warmup", 1, results, startTime, endTime);
@@ -358,7 +368,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     console.log("-".repeat(80));
 
     const startTime = Date.now();
-    const results = await executeConcurrentUploads(baseURL, 10, 5, "small");
+    const results = await executeConcurrentUploads(apiBase, 10, 5, "small");
     const endTime = Date.now();
 
     const metrics = analyzeResults("Phase 1: Light Load", 5, results, startTime, endTime);
@@ -377,7 +387,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     console.log("-".repeat(80));
 
     const startTime = Date.now();
-    const results = await executeConcurrentUploads(baseURL, 20, 10, "medium");
+    const results = await executeConcurrentUploads(apiBase, 20, 10, "medium");
     const endTime = Date.now();
 
     const metrics = analyzeResults("Phase 2: Medium Load", 10, results, startTime, endTime);
@@ -396,7 +406,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     console.log("-".repeat(80));
 
     const startTime = Date.now();
-    const results = await executeConcurrentUploads(baseURL, 50, 25, "medium");
+    const results = await executeConcurrentUploads(apiBase, 50, 25, "medium");
     const endTime = Date.now();
 
     const metrics = analyzeResults("Phase 3: Heavy Load", 25, results, startTime, endTime);
@@ -415,7 +425,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     console.log("-".repeat(80));
 
     const startTime = Date.now();
-    const results = await executeConcurrentUploads(baseURL, 100, 50, "large");
+    const results = await executeConcurrentUploads(apiBase, 100, 50, "large");
     const endTime = Date.now();
 
     const metrics = analyzeResults("Phase 4: Stress Load", 50, results, startTime, endTime);
@@ -439,7 +449,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const startTime = Date.now();
-    const results = await executeConcurrentUploads(baseURL, 10, 5, "small");
+    const results = await executeConcurrentUploads(apiBase, 10, 5, "small");
     const endTime = Date.now();
 
     const metrics = analyzeResults("Phase 5: Recovery", 5, results, startTime, endTime);
@@ -487,7 +497,7 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
       const size = uploads[i] as "small" | "medium" | "large";
       const content = generateTestContent(size);
       const title = `perf-test-mixed-${size}-${Date.now()}-${i}`;
-      const result = await uploadDocumentViaAPI(baseURL, content, title);
+      const result = await uploadDocumentViaAPI(apiBase, content, title);
       results.push(result);
 
       if ((i + 1) % 5 === 0) {
@@ -511,8 +521,8 @@ test.describe("Upload Performance - Progressive Load Testing", () => {
 // Additional Performance Tests
 // ============================================================================
 
-test.describe("Upload Performance - Specific Scenarios", () => {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3001";
+test.describe("@load Upload Performance - Specific Scenarios", () => {
+  const apiBase = API_V1_URL;
 
   test("Sustained Load - Constant Rate for 2 Minutes", async () => {
     console.log("\n⏱️  Sustained Load Test - 2 Minutes");
@@ -529,7 +539,7 @@ test.describe("Upload Performance - Specific Scenarios", () => {
     while (Date.now() - startTime < durationMs) {
       const content = generateTestContent("small");
       const title = `sustained-load-${Date.now()}-${uploadCount}`;
-      const result = await uploadDocumentViaAPI(baseURL, content, title);
+      const result = await uploadDocumentViaAPI(apiBase, content, title);
       results.push(result);
       uploadCount++;
 
@@ -573,7 +583,7 @@ test.describe("Upload Performance - Specific Scenarios", () => {
       console.log(`\n  Burst ${i + 1}: ${burst.count} uploads at concurrency ${burst.concurrency}`);
 
       const results = await executeConcurrentUploads(
-        baseURL,
+        apiBase,
         burst.count,
         burst.concurrency,
         "medium"

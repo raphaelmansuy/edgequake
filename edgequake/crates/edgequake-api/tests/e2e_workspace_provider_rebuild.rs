@@ -66,6 +66,8 @@ async fn test_workspace_update_changes_provider_config() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -93,6 +95,8 @@ async fn test_workspace_update_changes_provider_config() {
         vision_llm_provider: None,
         vision_llm_model: None,
         pdf_parser_backend: None,
+
+        ..Default::default()
     };
 
     let updated = state
@@ -152,6 +156,8 @@ async fn test_pipeline_uses_updated_workspace_config() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state
@@ -292,6 +298,8 @@ async fn test_concurrent_workspace_pipelines() {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let ws = state
@@ -371,6 +379,8 @@ async fn test_invalid_provider_logs_error_and_falls_back() {
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     let workspace = state

@@ -40,6 +40,7 @@ import {
     LLMModelSelector,
     type LLMSelection,
 } from '@/components/workspace/llm-model-selector';
+import { WorkspaceCreateModelSection } from '@/components/workspace/workspace-create-model-section';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
 import {
     createTenant,
@@ -113,6 +114,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   // SPEC-085: Custom entity types for new workspace
   const [workspaceEntityTypes, setWorkspaceEntityTypes] = useState<string[]>([...ENTITY_PRESETS.general.types]);
   const [showEntityTypeConfig, setShowEntityTypeConfig] = useState(false);
+  const [useServerModelDefaults, setUseServerModelDefaults] = useState(false);
 
 
   // Generate URL-safe slug from name
@@ -681,54 +683,15 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
               </div>
             </div>
 
-            <div className="rounded-lg border p-3 space-y-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {t('workspace.modelsSection', 'Model Configuration')}
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>
-                    {t('workspace.llmModel', 'LLM Model')}
-                    <span className="text-destructive ml-0.5">*</span>
-                  </Label>
-                  <LLMModelSelector
-                    value={workspaceLLMSelection}
-                    onChange={setWorkspaceLLMSelection}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('workspace.llmDescription', 'LLM for document ingestion and knowledge graph generation.')}
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="workspace-embedding">
-                    {t('workspace.embeddingModel', 'Embedding Model')}
-                    <span className="text-destructive ml-0.5">*</span>
-                  </Label>
-                  <EmbeddingModelSelector
-                    value={embeddingSelection}
-                    onChange={setEmbeddingSelection}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('workspace.embeddingDescription', 'Embedding model determines how documents are indexed. Cannot be changed after creation.')}
-                  </p>
-                </div>
-                <div className="grid gap-2 sm:col-span-2">
-                  <Label>
-                    {t('workspace.visionLLM', 'Vision LLM')}
-                    <span className="text-destructive ml-0.5">*</span>
-                  </Label>
-                  <LLMModelSelector
-                    value={workspaceVisionLLMSelection}
-                    onChange={setWorkspaceVisionLLMSelection}
-                    filterVision
-                    showUsageHint={false}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('workspace.visionDescription', 'Vision model for PDF-to-Markdown image extraction. Overrides tenant default.')}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <WorkspaceCreateModelSection
+              llm={workspaceLLMSelection}
+              embedding={embeddingSelection}
+              vision={workspaceVisionLLMSelection}
+              onLlmChange={setWorkspaceLLMSelection}
+              onEmbeddingChange={setEmbeddingSelection}
+              onVisionChange={setWorkspaceVisionLLMSelection}
+              onUseServerDefaultsChange={setUseServerModelDefaults}
+            />
 
             <div className="rounded-lg border p-3">
               <Collapsible open={showEntityTypeConfig} onOpenChange={setShowEntityTypeConfig}>
@@ -768,20 +731,25 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
                 name: newWorkspaceName, 
                 description: newWorkspaceDescription || undefined,
                 slug: newWorkspaceSlug.trim() || undefined,
-                // SPEC-032: Include LLM configuration if selected
-                llm_model: workspaceLLMSelection?.model,
-                llm_provider: workspaceLLMSelection?.provider,
-                // SPEC-032: Include embedding configuration if selected
-                embedding_model: embeddingSelection?.model,
-                embedding_provider: embeddingSelection?.provider,
-                embedding_dimension: embeddingSelection?.dimension,
-                // SPEC-041: Include vision LLM configuration if selected
-                vision_llm_model: workspaceVisionLLMSelection?.model,
-                vision_llm_provider: workspaceVisionLLMSelection?.provider,
-                // SPEC-085: Custom entity types
+                ...(useServerModelDefaults
+                  ? {}
+                  : {
+                      llm_model: workspaceLLMSelection?.model,
+                      llm_provider: workspaceLLMSelection?.provider,
+                      embedding_model: embeddingSelection?.model,
+                      embedding_provider: embeddingSelection?.provider,
+                      embedding_dimension: embeddingSelection?.dimension,
+                      vision_llm_model: workspaceVisionLLMSelection?.model,
+                      vision_llm_provider: workspaceVisionLLMSelection?.provider,
+                    }),
                 entity_types: workspaceEntityTypes.length > 0 ? workspaceEntityTypes : undefined,
               })}
-              disabled={!newWorkspaceName.trim() || !workspaceLLMSelection || !embeddingSelection || !workspaceVisionLLMSelection || createWorkspaceMutation.isPending}
+              disabled={
+                !newWorkspaceName.trim() ||
+                createWorkspaceMutation.isPending ||
+                (!useServerModelDefaults &&
+                  (!workspaceLLMSelection || !embeddingSelection || !workspaceVisionLLMSelection))
+              }
             >
               {createWorkspaceMutation.isPending ? (
                 <>

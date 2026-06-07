@@ -49,11 +49,11 @@ pub async fn export_document_lineage(
     Query(params): Query<ExportParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace.
-    verify_document_access(state.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // OODA-23: Use cached KV lookup for export
     let lineage_key = format!("{}-lineage", document_id);
-    let lineage_data = cached_kv_get(state.kv_storage.as_ref(), &lineage_key)
+    let lineage_data = cached_kv_get(state.storage.kv_storage.as_ref(), &lineage_key)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -65,7 +65,7 @@ pub async fn export_document_lineage(
 
     // Read metadata for context (cached)
     let metadata_key = format!("{}-metadata", document_id);
-    let metadata = cached_kv_get(state.kv_storage.as_ref(), &metadata_key)
+    let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id}));
 

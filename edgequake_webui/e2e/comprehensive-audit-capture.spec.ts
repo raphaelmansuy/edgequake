@@ -1,6 +1,9 @@
 import { Page, test } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { resolveAuditPath, SCREENSHOT_ROOT } from "./helpers/screenshot-paths";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
 /**
  * Comprehensive UX/UI Audit Script for EdgeQuake WebUI
@@ -14,7 +17,7 @@ import * as path from "path";
  * - Desktop L: 1536px
  */
 
-const AUDIT_DIR = path.join(process.cwd(), "../audit_ui/screenshots");
+const AUDIT_DIR = SCREENSHOT_ROOT.audit;
 
 // Breakpoints for responsive testing
 const BREAKPOINTS = {
@@ -41,14 +44,11 @@ async function captureAllBreakpoints(
   baseName: string,
   subDir?: string
 ) {
-  const screenshotDir = subDir ? path.join(AUDIT_DIR, subDir) : AUDIT_DIR;
-  ensureDir(screenshotDir);
-
   for (const [breakpointName, size] of Object.entries(BREAKPOINTS)) {
     await page.setViewportSize(size);
     await page.waitForTimeout(300); // Allow layout to settle
     await page.screenshot({
-      path: path.join(screenshotDir, `${baseName}-${breakpointName}.png`),
+      path: resolveAuditPath(subDir, `${baseName}-${breakpointName}.png`),
       fullPage: true,
     });
   }
@@ -61,10 +61,8 @@ async function captureScreenshot(
   subDir?: string,
   fullPage: boolean = true
 ) {
-  const screenshotDir = subDir ? path.join(AUDIT_DIR, subDir) : AUDIT_DIR;
-  ensureDir(screenshotDir);
   await page.screenshot({
-    path: path.join(screenshotDir, fileName),
+    path: resolveAuditPath(subDir, fileName),
     fullPage,
   });
 }
@@ -76,12 +74,10 @@ async function captureElement(
   fileName: string,
   subDir?: string
 ) {
-  const screenshotDir = subDir ? path.join(AUDIT_DIR, subDir) : AUDIT_DIR;
-  ensureDir(screenshotDir);
   const element = page.locator(selector).first();
   if ((await element.count()) > 0 && (await element.isVisible())) {
     await element.screenshot({
-      path: path.join(screenshotDir, fileName),
+      path: resolveAuditPath(subDir, fileName),
     });
     return true;
   }
@@ -165,7 +161,12 @@ function saveAuditData(data: AuditData, fileName: string) {
   );
 }
 
-test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@audit UX/UI Comprehensive Audit - Screenshot Capture", () => {
   test.beforeEach(async ({ page }) => {
     // Set primary viewport
     await page.setViewportSize(PRIMARY_VIEWPORT);
@@ -175,7 +176,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("🏠 Capturing Dashboard screen at all breakpoints...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Capture at all breakpoints
@@ -248,7 +249,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("📄 Capturing Documents screen at all breakpoints...");
 
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Capture at all breakpoints
@@ -300,7 +301,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("🔍 Capturing Query screen at all breakpoints...");
 
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Capture initial state at all breakpoints
@@ -353,7 +354,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
       .first();
     if ((await rightPanel.count()) > 0 && (await rightPanel.isVisible())) {
       await rightPanel.screenshot({
-        path: path.join(AUDIT_DIR, "components", "03-query-right-panel.png"),
+        path: resolveAuditPath("components", "03-query-right-panel.png"),
       });
     }
 
@@ -367,7 +368,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("🕸️ Capturing Graph screen at all breakpoints...");
 
     await page.goto("/graph");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(2000); // Extra time for graph rendering
 
     // Capture at all breakpoints
@@ -419,7 +420,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("⚙️ Capturing Settings screen at all breakpoints...");
 
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Capture at all breakpoints
@@ -470,7 +471,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("🔌 Capturing API Explorer screen at all breakpoints...");
 
     await page.goto("/api-explorer");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
 
     // Capture at all breakpoints
@@ -524,7 +525,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("📐 Auditing panel collapse/expand behavior...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.setViewportSize(PRIMARY_VIEWPORT);
     await page.waitForTimeout(500);
 
@@ -574,7 +575,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
 
     // Navigate to query page and check right panel
     await page.goto("/query");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     // Capture with right panel
@@ -600,7 +601,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("🎯 Capturing hover and focus states...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.setViewportSize(PRIMARY_VIEWPORT);
     await page.waitForTimeout(500);
 
@@ -641,7 +642,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("🎨 Capturing light and dark theme modes...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.setViewportSize(PRIMARY_VIEWPORT);
     await page.waitForTimeout(500);
 
@@ -667,7 +668,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
 
         // Capture dark mode on key pages
         await page.goto("/query");
-        await page.waitForLoadState("networkidle");
+        await waitForAppReady(page);
         await page.waitForTimeout(500);
         await captureScreenshot(page, "09-theme-dark-query.png", "themes");
 
@@ -695,7 +696,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("📜 Auditing scroll and overflow behavior...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.setViewportSize({ width: 1280, height: 600 }); // Shorter height to trigger scroll
     await page.waitForTimeout(500);
 
@@ -714,7 +715,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
 
     // Navigate to documents and check table scroll
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     // Check for horizontal scroll
@@ -756,7 +757,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     await page.unroute("**/api/**");
 
     // Navigate and wait for loaded state
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
     await captureScreenshot(page, "11-loaded-dashboard.png", "states");
 
@@ -774,7 +775,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("📏 Auditing typography and spacing...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.setViewportSize(PRIMARY_VIEWPORT);
     await page.waitForTimeout(500);
 
@@ -846,7 +847,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
     console.log("♿ Running accessibility basic checks...");
 
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.setViewportSize(PRIMARY_VIEWPORT);
     await page.waitForTimeout(500);
 
@@ -919,7 +920,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
 
     for (const url of pages) {
       await page.goto(url);
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
       await page.setViewportSize(PRIMARY_VIEWPORT);
       await page.waitForTimeout(300);
 
@@ -948,7 +949,7 @@ test.describe("UX/UI Comprehensive Audit - Screenshot Capture", () => {
 
     await page.setViewportSize(BREAKPOINTS["mobile-l"]);
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
 
     // Capture mobile initial state

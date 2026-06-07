@@ -59,6 +59,8 @@ async fn create_workspace_with_providers(
         vision_llm_model: None,
         pdf_parser_backend: None,
         entity_types: None,
+
+        ..Default::default()
     };
 
     state
@@ -179,6 +181,8 @@ async fn test_provider_switch_updates_names() {
         vision_llm_provider: None,
         vision_llm_model: None,
         pdf_parser_backend: None,
+
+        ..Default::default()
     };
 
     let updated = state

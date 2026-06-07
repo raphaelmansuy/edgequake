@@ -1,14 +1,14 @@
 /**
  * KaTeX Math Component
- * 
+ *
  * Renders LaTeX math expressions using KaTeX.
  * Lazy-loaded for performance.
  */
-'use client';
+"use client";
 
-import { memo, useMemo } from 'react';
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
+import { memo, useMemo } from "react";
+import "katex/dist/katex.min.css";
+import { renderKatexToHtml } from "./utils/katex-render";
 
 interface KatexMathProps {
   math: string;
@@ -19,25 +19,11 @@ interface KatexMathProps {
 export const KatexMath = memo(function KatexMath({
   math,
   block = false,
-  className = '',
+  className = "",
 }: KatexMathProps) {
-  const html = useMemo(() => {
-    try {
-      return katex.renderToString(math, {
-        displayMode: block,
-        throwOnError: false,
-        strict: false,
-        trust: true,
-        output: 'html',
-      });
-    } catch (error) {
-      console.error('KaTeX render error:', error);
-      return null;
-    }
-  }, [math, block]);
+  const html = useMemo(() => renderKatexToHtml(math, block), [math, block]);
 
   if (!html) {
-    // Fallback to code display on error
     return (
       <code
         className={`rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-red-500 ${className}`}
