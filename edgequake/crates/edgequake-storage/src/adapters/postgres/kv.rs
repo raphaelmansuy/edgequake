@@ -24,6 +24,7 @@ use async_trait::async_trait;
 
 use super::config::PostgresConfig;
 use super::connection::PostgresPool;
+use super::row_count_stats::{self, RowCountStatsConfig};
 use crate::error::{Result, StorageError};
 use crate::traits::KVStorage;
 
@@ -41,6 +42,7 @@ use crate::traits::KVStorage;
 pub struct PostgresKVStorage {
     pool: PostgresPool,
     table_name: String,
+    stats_table_name: String,
     namespace: String,
     prefix: String,
 }
@@ -48,13 +50,20 @@ pub struct PostgresKVStorage {
 impl PostgresKVStorage {
     /// Create a new PostgreSQL key-value storage.
     pub fn new(config: PostgresConfig) -> Self {
+        Self::with_pool(PostgresPool::new(config.clone()), config)
+    }
+
+    /// Create KV storage using a shared connection pool (SPEC-011).
+    pub fn with_pool(pool: PostgresPool, config: PostgresConfig) -> Self {
         let prefix = config.table_prefix();
         let table_name = format!("public.eq_{}_kv", prefix);
+        let stats_table_name = format!("public.eq_{}_kv_stats", prefix);
         let namespace = config.namespace.clone();
 
         Self {
-            pool: PostgresPool::new(config),
+            pool,
             table_name,
+            stats_table_name,
             namespace,
             prefix,
         }
@@ -94,6 +103,45 @@ impl PostgresKVStorage {
 
         sqlx::query(&gin_sql).execute(&pool).await.ok();
 
+        // SPEC-011 iter 02 Fix C: B-tree index on reverse(key) for O(log N) suffix scans.
+        // Used by `keys_with_suffix`, which the workspace stats endpoint calls every 30 s
+        // with `"-metadata"`. Without this index the equivalent `LIKE '%-metadata'` does
+        // a full table scan.
+        let reverse_idx_sql = format!(
+            "CREATE INDEX IF NOT EXISTS eq_{}_kv_reverse_key_idx ON {} (reverse(key) text_pattern_ops)",
+            self.prefix, self.table_name
+        );
+        sqlx::query(&reverse_idx_sql).execute(&pool).await.ok();
+
+        self.ensure_row_count_stats(&pool).await?;
+
+        Ok(())
+    }
+
+    /// O(1) row counter for `count()` — avoids `SELECT COUNT(*) FROM kv` full-table scans.
+    ///
+    /// SPEC-011: Production incident — 13s `COUNT(*)` on `eq_eq_default_kv` during health
+    /// probes. Maintained counter + triggers keep exact counts at O(1) when `count()` is
+    /// called from tests or admin tools.
+    async fn ensure_row_count_stats(&self, pool: &sqlx::PgPool) -> Result<()> {
+        row_count_stats::ensure_row_count_stats(
+            pool,
+            &RowCountStatsConfig {
+                prefix: &self.prefix,
+                table_name: &self.table_name,
+                stats_table_name: &self.stats_table_name,
+                kind: "kv",
+            },
+        )
+        .await
+    }
+
+    async fn reset_row_count_stats(&self, pool: &sqlx::PgPool) -> Result<()> {
+        let sql = format!(
+            "UPDATE {} SET row_count = 0 WHERE id = 1",
+            self.stats_table_name
+        );
+        sqlx::query(&sql).execute(pool).await.ok();
         Ok(())
     }
 }
@@ -174,12 +222,17 @@ impl KVStorage for PostgresKVStorage {
         }
 
         let pool = self.pool.get().await?;
+        const BATCH_SIZE: usize = 1000;
 
-        for (key, value) in data {
+        for chunk in data.chunks(BATCH_SIZE) {
+            let keys: Vec<String> = chunk.iter().map(|(k, _)| k.clone()).collect();
+            let values: Vec<serde_json::Value> = chunk.iter().map(|(_, v)| v.clone()).collect();
+
             let sql = format!(
                 r#"
                 INSERT INTO {} (key, value, updated_at)
-                VALUES ($1, $2, NOW())
+                SELECT k, v, NOW()
+                FROM unnest($1::text[], $2::jsonb[]) AS batch(k, v)
                 ON CONFLICT (key) DO UPDATE SET
                     value = EXCLUDED.value,
                     updated_at = NOW()
@@ -188,8 +241,8 @@ impl KVStorage for PostgresKVStorage {
             );
 
             sqlx::query(&sql)
-                .bind(key)
-                .bind(value)
+                .bind(&keys)
+                .bind(&values)
                 .execute(&pool)
                 .await
                 .map_err(|e| StorageError::Database(format!("KV upsert failed: {}", e)))?;
@@ -217,21 +270,135 @@ impl KVStorage for PostgresKVStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let count = self.count().await?;
-        Ok(count == 0)
+        let pool = self.pool.get().await?;
+
+        let sql = format!(
+            "SELECT NOT EXISTS (SELECT 1 FROM {} LIMIT 1) AS is_empty",
+            self.table_name
+        );
+
+        let row: (bool,) = sqlx::query_as(&sql)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV is_empty failed: {}", e)))?;
+
+        Ok(row.0)
     }
 
     async fn count(&self) -> Result<usize> {
         let pool = self.pool.get().await?;
 
-        let sql = format!("SELECT COUNT(*) as count FROM {}", self.table_name);
+        // O(1): read maintained counter — never `SELECT COUNT(*) FROM kv` (SPEC-011).
+        let sql = format!(
+            "SELECT row_count FROM {} WHERE id = 1",
+            self.stats_table_name
+        );
 
-        let row: (i64,) = sqlx::query_as(&sql)
-            .fetch_one(&pool)
+        let row: Option<(i64,)> = sqlx::query_as(&sql)
+            .fetch_optional(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV count failed: {}", e)))?;
 
+        if let Some((count,)) = row {
+            return Ok(count as usize);
+        }
+
+        // SPEC-012 Fix H (self-heal): production logs showed `SELECT COUNT(*) as count
+        // FROM eq_eq_default_kv` running 5806× / 12 s total on a deployment that
+        // predated SPEC-011 — the stats table was never bootstrapped. Run the
+        // initialiser inline so the *next* call hits the O(1) path, then return the
+        // exact count from the bootstrap backfill we just inserted.
+        tracing::warn!(
+            stats_table = %self.stats_table_name,
+            "KV stats row missing — running self-heal (one-time COUNT(*) + create triggers)"
+        );
+        if let Err(e) = self.ensure_row_count_stats(&pool).await {
+            tracing::warn!(error = %e, "KV stats self-heal failed; falling back to COUNT(*)");
+        }
+
+        let fallback = format!("SELECT COUNT(*) as count FROM {}", self.table_name);
+        let row: (i64,) = sqlx::query_as(&fallback)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV count fallback failed: {}", e)))?;
         Ok(row.0 as usize)
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let pool = self.pool.get().await?;
+
+        let sql = format!("SELECT 1 FROM {} LIMIT 1", self.table_name);
+
+        sqlx::query(&sql)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV ping failed: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn keys_like(&self, pattern: &str) -> Result<Vec<String>> {
+        let pool = self.pool.get().await?;
+
+        let sql = format!("SELECT key FROM {} WHERE key LIKE $1", self.table_name);
+
+        let rows: Vec<(String,)> = sqlx::query_as(&sql)
+            .bind(pattern)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV keys_like failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|(k,)| k).collect())
+    }
+
+    async fn keys_with_prefix(&self, prefix: &str) -> Result<Vec<String>> {
+        let pool = self.pool.get().await?;
+        let like_pattern = format!("{prefix}%");
+
+        let sql = format!("SELECT key FROM {} WHERE key LIKE $1", self.table_name);
+
+        let rows: Vec<(String,)> = sqlx::query_as(&sql)
+            .bind(&like_pattern)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV keys_with_prefix failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|(k,)| k).collect())
+    }
+
+    async fn keys_with_suffix(&self, suffix: &str) -> Result<Vec<String>> {
+        // SPEC-011 iter 02 Fix C: convert `WHERE key LIKE '%suffix'` into an
+        // indexed prefix scan on the reverse-key expression index.
+        //
+        // Plain LIKE '%suffix' is a full table scan; LIKE 'reverse(suffix)%'
+        // over `reverse(key)` is a B-tree range scan over
+        // `eq_{prefix}_kv_reverse_key_idx` (created in `create_table`).
+        let pool = self.pool.get().await?;
+
+        // Escape LIKE meta-chars in the suffix to keep the prefix scan honest
+        // (defensive: today only literal suffixes like "-metadata" are passed).
+        let escaped: String = suffix
+            .chars()
+            .flat_map(|c| match c {
+                '%' | '_' | '\\' => vec!['\\', c],
+                _ => vec![c],
+            })
+            .collect();
+        let reversed: String = escaped.chars().rev().collect();
+        let like_pattern = format!("{reversed}%");
+
+        let sql = format!(
+            "SELECT key FROM {} WHERE reverse(key) LIKE $1",
+            self.table_name
+        );
+
+        let rows: Vec<(String,)> = sqlx::query_as(&sql)
+            .bind(&like_pattern)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("KV keys_with_suffix failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|(k,)| k).collect())
     }
 
     async fn keys(&self) -> Result<Vec<String>> {
@@ -250,12 +417,15 @@ impl KVStorage for PostgresKVStorage {
     async fn clear(&self) -> Result<()> {
         let pool = self.pool.get().await?;
 
-        let sql = format!("DELETE FROM {}", self.table_name);
+        // TRUNCATE is faster than DELETE; row triggers don't fire — reset stats explicitly.
+        let sql = format!("TRUNCATE {}", self.table_name);
 
         sqlx::query(&sql)
             .execute(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV clear failed: {}", e)))?;
+
+        self.reset_row_count_stats(&pool).await?;
 
         Ok(())
     }

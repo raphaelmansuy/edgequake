@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForAppReady } from "./helpers/app-ready";
 
 /**
  * PDF Upload Progress Tracking E2E Tests
@@ -18,7 +19,7 @@ test.describe("PDF Upload Progress Tracking", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(500);
   });
 
@@ -242,7 +243,7 @@ test.describe("PDF Upload Progress Tracking", () => {
         }
       });
 
-      await page.waitForTimeout(3000);
+      await waitForAppReady(page);
 
       // Polling may or may not occur depending on component state
       expect(Array.isArray(pollingRequests)).toBe(true);
@@ -287,7 +288,7 @@ test.describe("PDF Upload Flow Integration", () => {
     // Enable when running full integration tests
 
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Click upload
     await page.locator('button:has-text("Upload")').first().click();

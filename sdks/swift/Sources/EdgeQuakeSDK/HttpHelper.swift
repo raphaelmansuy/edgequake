@@ -68,6 +68,25 @@ final class HttpHelper: @unchecked Sendable {
         try await executeRaw(buildRequest(path: path, method: "POST", body: body))
     }
 
+    func uploadMany<T: Decodable>(
+        _ path: String,
+        filePaths: [String],
+        fieldName: String = "files",
+        extraFields: [String: String] = [:]
+    ) async throws -> T {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let body = try buildMultipartBody(
+            boundary: boundary,
+            filePaths: filePaths,
+            fieldName: fieldName,
+            extraFields: extraFields
+        )
+        var request = buildRequest(path: path, method: "POST")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        return try await execute(request)
+    }
+
     func deleteRaw(_ path: String) async throws -> Data {
         try await executeRaw(buildRequest(path: path, method: "DELETE"))
     }
@@ -130,6 +149,34 @@ final class HttpHelper: @unchecked Sendable {
                 statusCode: httpResponse.statusCode, responseBody: body
             )
         }
+        return data
+    }
+
+    private func buildMultipartBody(
+        boundary: String,
+        filePaths: [String],
+        fieldName: String,
+        extraFields: [String: String]
+    ) throws -> Data {
+        var data = Data()
+        let lineBreak = "\r\n"
+        for path in filePaths {
+            let fileURL = URL(fileURLWithPath: path)
+            let filename = fileURL.lastPathComponent
+            let fileData = try Data(contentsOf: fileURL)
+            data.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
+            data.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(filename)\"\(lineBreak)".data(using: .utf8)!)
+            data.append("Content-Type: application/octet-stream\(lineBreak)\(lineBreak)".data(using: .utf8)!)
+            data.append(fileData)
+            data.append(lineBreak.data(using: .utf8)!)
+        }
+        for (k, v) in extraFields {
+            data.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
+            data.append("Content-Disposition: form-data; name=\"\(k)\"\(lineBreak)\(lineBreak)".data(using: .utf8)!)
+            data.append(v.data(using: .utf8)!)
+            data.append(lineBreak.data(using: .utf8)!)
+        }
+        data.append("--\(boundary)--\(lineBreak)".data(using: .utf8)!)
         return data
     }
 }

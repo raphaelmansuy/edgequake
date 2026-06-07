@@ -14,50 +14,57 @@ use crate::env::{
 // Model Configuration Constants (SPEC-032)
 // ============================================================================
 // These defaults MUST match models.toml [defaults] section.
-// Ollama is used by default for both LLM and embedding to enable
-// development without requiring API keys.
+// OpenAI is used by default for LLM, embedding, and vision.
+// Set OPENAI_API_KEY to use these defaults; override via env vars to switch providers.
 //
 // Runtime configuration – environment variable resolution order
 // (each step falls back to the next if the variable is absent):
 //
 //   LLM provider  : EDGEQUAKE_DEFAULT_LLM_PROVIDER
 //                   → EDGEQUAKE_LLM_PROVIDER
-//                   → "ollama" (constant below)
+//                   → "openai" (constant below)
 //   LLM model     : EDGEQUAKE_DEFAULT_LLM_MODEL
 //                   → EDGEQUAKE_LLM_MODEL
-//                   → sensible default for the resolved provider
+//                   → "gpt-4.1-mini" (constant below)
 //   Embedding provider: EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER
 //                       → EDGEQUAKE_EMBEDDING_PROVIDER
-//                       → "ollama" (constant below)
+//                       → "openai" (constant below)
 //   Embedding model   : EDGEQUAKE_DEFAULT_EMBEDDING_MODEL
 //                       → EDGEQUAKE_EMBEDDING_MODEL
-//                       → sensible default for the resolved provider
+//                       → "text-embedding-3-small" (constant below)
 //   Embedding dim     : EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION
 //                       → auto-detected from embedding model name
 //
-// Example – OpenAI in Docker / Portainer (issue #147):
-//   EDGEQUAKE_LLM_PROVIDER=openai
-//   OPENAI_API_KEY=sk-…
-//   # Workspace will be created with gpt-4o-mini / text-embedding-3-small
-//   # No need to override the model unless you want a specific one.
+// Example – switching to Ollama for local development:
+//   EDGEQUAKE_LLM_PROVIDER=ollama
+//   EDGEQUAKE_EMBEDDING_PROVIDER=ollama
+//   # No API key needed; workspace uses gemma4:latest / embeddinggemma:latest
 
-/// Default LLM model (Ollama gemma4:latest - 128K context, vision support).
-pub const DEFAULT_LLM_MODEL: &str = "gemma4:latest";
+/// Default LLM model (OpenAI gpt-4.1-mini — 1M context, vision, cost-effective).
+/// Synced with models.toml [defaults] section.
+pub const DEFAULT_LLM_MODEL: &str = "gpt-4.1-mini";
 
 /// Default LLM provider.
-pub const DEFAULT_LLM_PROVIDER: &str = "ollama";
-
-/// Default embedding model (Ollama embeddinggemma:latest - 768 dimensions, 2K context).
 /// Synced with models.toml [defaults] section.
-pub const DEFAULT_EMBEDDING_MODEL: &str = "embeddinggemma:latest";
+pub const DEFAULT_LLM_PROVIDER: &str = "openai";
+
+/// Default embedding model (OpenAI text-embedding-3-small — 1536 dimensions).
+/// Synced with models.toml [defaults] section.
+pub const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 
 /// Default embedding provider.
 /// Synced with models.toml [defaults] section.
-pub const DEFAULT_EMBEDDING_PROVIDER: &str = "ollama";
+pub const DEFAULT_EMBEDDING_PROVIDER: &str = "openai";
 
-/// Default embedding dimension (Ollama embeddinggemma).
+/// Default embedding dimension (OpenAI text-embedding-3-small).
 /// Synced with models.toml [defaults] section.
-pub const DEFAULT_EMBEDDING_DIMENSION: usize = 768;
+pub const DEFAULT_EMBEDDING_DIMENSION: usize = 1536;
+
+/// Fallback LLM model when provider is Ollama and no model is explicitly set.
+pub const OLLAMA_DEFAULT_LLM_MODEL: &str = "gemma4:latest";
+
+/// Fallback embedding model when provider is Ollama and no model is explicitly set.
+pub const OLLAMA_DEFAULT_EMBEDDING_MODEL: &str = "embeddinggemma:latest";
 
 /// A document workspace within a tenant (knowledge base).
 ///
@@ -224,6 +231,56 @@ impl Workspace {
         (model, provider)
     }
 
+    /// LLM config for "server default" reset (SPEC-013 / UI clear override).
+    ///
+    /// Matches the running API server: active `EDGEQUAKE_LLM_PROVIDER` wins over
+    /// static `EDGEQUAKE_DEFAULT_*` so health `providers.llm` and workspace reset agree.
+    pub fn server_runtime_llm_config() -> (String, String) {
+        let provider = non_empty_env_var("EDGEQUAKE_LLM_PROVIDER").or_else(|| {
+            first_non_empty_env_var(&[LLM_PROVIDER_ALIASES[0], LLM_PROVIDER_ALIASES[1]])
+        });
+        if let Some(provider) = provider {
+            let model = non_empty_env_var("EDGEQUAKE_LLM_MODEL")
+                .or_else(|| first_non_empty_env_var(&[LLM_MODEL_ALIASES[0], LLM_MODEL_ALIASES[1]]))
+                .unwrap_or_else(|| Self::default_model_for_provider(&provider));
+            return (model, provider);
+        }
+        Self::default_llm_config()
+    }
+
+    /// Embedding config for "server default" reset (mirrors [`Self::server_runtime_llm_config`]).
+    pub fn server_runtime_embedding_config() -> (String, String, usize) {
+        let provider = non_empty_env_var("EDGEQUAKE_EMBEDDING_PROVIDER").or_else(|| {
+            first_non_empty_env_var(&[
+                "EDGEQUAKE_EMBEDDING_PROVIDER",
+                EMBEDDING_PROVIDER_ALIASES[0],
+            ])
+        });
+        if let Some(provider) = provider {
+            let model = non_empty_env_var("EDGEQUAKE_EMBEDDING_MODEL")
+                .or_else(|| {
+                    first_non_empty_env_var(&[
+                        "EDGEQUAKE_EMBEDDING_MODEL",
+                        EMBEDDING_MODEL_ALIASES[0],
+                    ])
+                })
+                .unwrap_or_else(|| Self::default_embedding_model_for_provider(&provider));
+
+            let detected_dimension = Self::detect_dimension_from_model(&model);
+            let known_model_dimension = Self::known_embedding_dimension(&model);
+            let dimension = first_non_empty_env_var(&[
+                "EDGEQUAKE_EMBEDDING_DIMENSION",
+                EMBEDDING_DIMENSION_ALIASES[0],
+            ])
+            .and_then(|s| s.parse().ok())
+            .filter(|dim| known_model_dimension.is_none() || *dim == detected_dimension)
+            .unwrap_or(detected_dimension);
+
+            return (model, provider, dimension);
+        }
+        Self::default_embedding_config()
+    }
+
     /// Get default embedding configuration from environment.
     ///
     /// Returns `(model, provider, dimension)`.  Resolution order mirrors
@@ -274,14 +331,14 @@ impl Workspace {
     /// actually compatible with the chosen provider.
     pub fn default_model_for_provider(provider: &str) -> String {
         match provider {
-            "openai" => "gpt-5-mini".to_string(),
-            "anthropic" => "claude-sonnet-4-20250514".to_string(),
+            "openai" => DEFAULT_LLM_MODEL.to_string(),
+            "anthropic" => "claude-sonnet-4-6".to_string(),
             "gemini" => "gemini-2.5-flash".to_string(),
             "mistral" => "mistral-small-latest".to_string(),
             "xai" => "grok-3-mini".to_string(),
             "lmstudio" | "openai-compatible" => "local-model".to_string(),
             // ollama and everything else: use the compiled-in Ollama default.
-            _ => DEFAULT_LLM_MODEL.to_string(),
+            _ => OLLAMA_DEFAULT_LLM_MODEL.to_string(),
         }
     }
 
@@ -290,12 +347,12 @@ impl Workspace {
     /// Called when the user has not explicitly configured an embedding model.
     pub fn default_embedding_model_for_provider(provider: &str) -> String {
         match provider {
-            "openai" | "openai-compatible" => "text-embedding-3-small".to_string(),
+            "openai" | "openai-compatible" => DEFAULT_EMBEDDING_MODEL.to_string(),
             "lmstudio" => "nomic-embed-text".to_string(),
             // Mistral native embedding — 1024 dimensions, optimised for retrieval.
             "mistral" => "mistral-embed".to_string(),
             // ollama and everything else: use the compiled-in Ollama default.
-            _ => DEFAULT_EMBEDDING_MODEL.to_string(),
+            _ => OLLAMA_DEFAULT_EMBEDDING_MODEL.to_string(),
         }
     }
 
@@ -583,7 +640,7 @@ mod tests {
     fn test_default_model_openai() {
         assert_eq!(
             Workspace::default_model_for_provider("openai"),
-            "gpt-5-mini"
+            DEFAULT_LLM_MODEL
         );
     }
 
@@ -591,7 +648,7 @@ mod tests {
     fn test_default_model_ollama() {
         assert_eq!(
             Workspace::default_model_for_provider("ollama"),
-            DEFAULT_LLM_MODEL
+            OLLAMA_DEFAULT_LLM_MODEL
         );
     }
 
@@ -599,7 +656,7 @@ mod tests {
     fn test_default_model_unknown_falls_back_to_ollama_default() {
         assert_eq!(
             Workspace::default_model_for_provider("unknown-provider"),
-            DEFAULT_LLM_MODEL
+            OLLAMA_DEFAULT_LLM_MODEL
         );
     }
 
@@ -609,7 +666,7 @@ mod tests {
     fn test_default_embedding_model_openai() {
         assert_eq!(
             Workspace::default_embedding_model_for_provider("openai"),
-            "text-embedding-3-small"
+            DEFAULT_EMBEDDING_MODEL
         );
     }
 
@@ -617,7 +674,7 @@ mod tests {
     fn test_default_embedding_model_ollama() {
         assert_eq!(
             Workspace::default_embedding_model_for_provider("ollama"),
-            DEFAULT_EMBEDDING_MODEL
+            OLLAMA_DEFAULT_EMBEDDING_MODEL
         );
     }
 
@@ -647,7 +704,7 @@ mod tests {
 
         assert_eq!(provider, "openai");
         assert_eq!(
-            model, "gpt-5-mini",
+            model, DEFAULT_LLM_MODEL,
             "Should pick the sensible OpenAI default when no model is explicitly set"
         );
     }

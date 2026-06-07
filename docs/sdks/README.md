@@ -31,7 +31,10 @@ Configure these on the client **once**; every resource reuses the same transport
 
 1. **Health** — `GET /health` (unversioned) before anything else.
 2. **List documents** — `GET /api/v1/documents` with optional `page`, `page_size`, `date_from`, `date_to`, `document_pattern`.
-3. **Conversations** — list uses cursor filters (`filter[folder_id]`, etc.); bulk delete body uses **`conversation_ids`**; response uses **`affected`**.
+3. **Batch ingestion** — SDKs now expose:
+   - `POST /api/v1/documents/upload/batch`
+   - `POST /api/v1/documents/pdf/batch`
+4. **Conversations** — list uses cursor filters (`filter[folder_id]`, etc.); bulk delete body uses **`conversation_ids`**; response uses **`affected`**.
 
 ## See also
 

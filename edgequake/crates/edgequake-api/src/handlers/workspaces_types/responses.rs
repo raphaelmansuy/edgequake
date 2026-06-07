@@ -111,6 +111,9 @@ pub struct WorkspaceResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_types: Option<Vec<String>>,
 
+    /// When true, unknown types are remapped to OTHER/CONCEPT (default true).
+    pub entity_types_strict: bool,
+
     /// Creation timestamp.
     pub created_at: String,
     /// Last update timestamp.

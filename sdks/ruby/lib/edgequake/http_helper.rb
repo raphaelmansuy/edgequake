@@ -3,6 +3,7 @@
 require "net/http"
 require "json"
 require "uri"
+require "pathname"
 
 module EdgeQuake
   # Internal HTTP helper using Net::HTTP.
@@ -34,6 +35,42 @@ module EdgeQuake
 
     def get_raw(path)
       request_raw(:get, path)
+    end
+
+    def upload_many(path, file_paths:, field_name: "files", extra_fields: {})
+      uri = URI("#{@config.base_url}#{path}")
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == "https"
+      http.read_timeout = @config.timeout
+      http.open_timeout = @config.timeout
+
+      req = Net::HTTP::Post.new(uri)
+      req["Accept"] = "application/json"
+      req["X-API-Key"] = @config.api_key if @config.api_key
+      req["X-Tenant-ID"] = @config.tenant_id if @config.tenant_id
+      req["X-User-ID"] = @config.user_id if @config.user_id
+      req["X-Workspace-ID"] = @config.workspace_id if @config.workspace_id
+
+      parts = file_paths.map do |path_str|
+        {
+          name: field_name,
+          filename: Pathname.new(path_str).basename.to_s,
+          content_type: "application/octet-stream",
+          data: File.binread(path_str)
+        }
+      end
+      extra_fields.each { |k, v| parts << [k.to_s, v.to_s] }
+      req.set_form(parts, "multipart/form-data")
+
+      resp = http.request(req)
+      unless resp.is_a?(Net::HTTPSuccess)
+        raise ApiError.new(
+          "HTTP #{resp.code}: #{resp.body}",
+          status_code: resp.code.to_i,
+          response_body: resp.body
+        )
+      end
+      JSON.parse(resp.body, symbolize_names: false)
     end
 
     private

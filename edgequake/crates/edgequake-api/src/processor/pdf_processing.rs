@@ -18,28 +18,35 @@ fn strip_nul_bytes(text: String) -> String {
 }
 
 #[cfg(feature = "postgres")]
-fn should_fallback_to_edgeparse(
+fn task_error_to_vision_failure(
+    error: &edgequake_tasks::TaskError,
+) -> edgequake_pdf::VisionFailureKind {
+    match error {
+        edgequake_tasks::TaskError::Timeout(_) => edgequake_pdf::VisionFailureKind::Timeout,
+        edgequake_tasks::TaskError::Processing(_) => {
+            edgequake_pdf::VisionFailureKind::ConversionFailed
+        }
+        edgequake_tasks::TaskError::UnsupportedOperation(_) => {
+            edgequake_pdf::VisionFailureKind::FeatureUnavailable
+        }
+        _ => edgequake_pdf::VisionFailureKind::ProviderUnavailable,
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn vision_fallback_allowed(
     requested_backend: edgequake_pdf::PdfParserBackend,
     error: &edgequake_tasks::TaskError,
 ) -> bool {
-    if requested_backend != edgequake_pdf::PdfParserBackend::Vision {
-        return false;
-    }
-
-    matches!(
-        error,
-        edgequake_tasks::TaskError::Timeout(_)
-            | edgequake_tasks::TaskError::Processing(_)
-            | edgequake_tasks::TaskError::UnsupportedOperation(_)
+    edgequake_pdf::should_fallback_to_edgeparse(
+        requested_backend,
+        task_error_to_vision_failure(error),
     )
 }
 
 #[cfg(feature = "postgres")]
 fn build_edgeparse_fallback_message(provider: &str, error: &edgequake_tasks::TaskError) -> String {
-    format!(
-        "Vision extraction via {} was unavailable ({}). Falling back to EdgeParse for a more reliable text extraction.",
-        provider, error
-    )
+    edgequake_pdf::build_edgeparse_fallback_message(provider, &error.to_string())
 }
 
 #[cfg(feature = "postgres")]
@@ -365,6 +372,13 @@ impl DocumentTaskProcessor {
                     // Clone for linking step after process_text_insert consumes the string.
                     let stored_markdown_for_link = stored_markdown.clone();
 
+                    let doc_content_key = format!("{}-content", early_doc_id);
+                    let doc_content = json!({ "content": stored_markdown.clone() });
+                    self.kv_storage
+                        .upsert(&[(doc_content_key, doc_content)])
+                        .await
+                        .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
                     let text_data = edgequake_tasks::TextInsertData {
                         text: stored_markdown,
                         file_source: filename.clone(),
@@ -489,7 +503,7 @@ impl DocumentTaskProcessor {
                                     "Failed to create vision provider '{}': {e}",
                                     data.vision_provider
                                 ));
-                                if !should_fallback_to_edgeparse(backend, &error) {
+                                if !vision_fallback_allowed(backend, &error) {
                                     return Err(error);
                                 }
                                 let message =
@@ -631,7 +645,7 @@ impl DocumentTaskProcessor {
                         let error = edgequake_tasks::TaskError::Processing(format!(
                             "PDF conversion failed: {e}"
                         ));
-                        if !should_fallback_to_edgeparse(backend, &error) {
+                        if !vision_fallback_allowed(backend, &error) {
                             return Err(error);
                         }
 
@@ -668,7 +682,7 @@ impl DocumentTaskProcessor {
                             data.pdf_id,
                             data.vision_provider
                         ));
-                        if !should_fallback_to_edgeparse(backend, &error) {
+                        if !vision_fallback_allowed(backend, &error) {
                             return Err(error);
                         }
 
@@ -780,6 +794,15 @@ impl DocumentTaskProcessor {
             .await
             .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
+        // Mirror markdown into KV so GET /documents/{id} and the WebUI content pane
+        // can render without a second round-trip (pdf_documents remains canonical for PDF APIs).
+        let doc_content_key = format!("{}-content", early_doc_id);
+        let doc_content = json!({ "content": markdown.clone() });
+        self.kv_storage
+            .upsert(&[(doc_content_key, doc_content)])
+            .await
+            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
         // 6. Create document via standard pipeline
         // == Progress: markdown stored, starting entity extraction + indexing ==
         task.update_progress("entity_extraction".to_string(), 4, 50);
@@ -862,9 +885,15 @@ impl DocumentTaskProcessor {
                 )
                 .await
             {
-                error!(
-                    "Failed to ensure document record: {} - continuing anyway",
-                    e
+                edgequake_observability::ErrorEvent::log_domain_warn(
+                    "task_processor",
+                    "ensure_document_record",
+                    &format!("Failed to ensure document record: {e}"),
+                    json!({
+                        "pdf_id": data.pdf_id,
+                        "document_id": data.existing_document_id,
+                        "error": e.to_string(),
+                    }),
                 );
             }
 
@@ -872,7 +901,16 @@ impl DocumentTaskProcessor {
                 .link_pdf_to_document(&data.pdf_id, &document_uuid)
                 .await
             {
-                error!("Failed to link PDF to document: {} - continuing anyway", e);
+                edgequake_observability::ErrorEvent::log_domain_warn(
+                    "task_processor",
+                    "link_pdf_to_document",
+                    &format!("Failed to link PDF to document: {e}"),
+                    json!({
+                        "pdf_id": data.pdf_id,
+                        "document_id": data.existing_document_id,
+                        "error": e.to_string(),
+                    }),
+                );
                 // Non-fatal - PDF still processed successfully
             }
         }
@@ -880,7 +918,14 @@ impl DocumentTaskProcessor {
         // 8. Status already set to Completed in step 5 via update_pdf_processing
         info!(
             pdf_id = %data.pdf_id,
+            document_id = ?data.existing_document_id,
             "PDF processing completed successfully"
+        );
+        edgequake_observability::record_document_processing(
+            "pdf_processing",
+            "conversion",
+            "success",
+            0.0,
         );
 
         // OODA-16: Clean up progress tracking (fire-and-forget)
@@ -914,7 +959,7 @@ impl DocumentTaskProcessor {
 #[cfg(all(test, feature = "postgres"))]
 mod tests {
     use super::*;
-    use edgequake_pdf::PdfParserBackend;
+    use edgequake_pdf::{PdfParserBackend, VisionFailureKind};
     use edgequake_tasks::TaskError;
 
     #[test]
@@ -924,17 +969,18 @@ mod tests {
                 .to_string(),
         );
 
-        assert!(should_fallback_to_edgeparse(
-            PdfParserBackend::Vision,
-            &error
-        ));
+        assert!(vision_fallback_allowed(PdfParserBackend::Vision, &error));
     }
 
     #[test]
     fn edgeparse_requests_do_not_self_fallback() {
         let error = TaskError::Timeout("EdgeParse timed out".to_string());
 
-        assert!(!should_fallback_to_edgeparse(
+        assert!(!edgequake_pdf::should_fallback_to_edgeparse(
+            PdfParserBackend::EdgeParse,
+            VisionFailureKind::Timeout,
+        ));
+        assert!(!vision_fallback_allowed(
             PdfParserBackend::EdgeParse,
             &error
         ));

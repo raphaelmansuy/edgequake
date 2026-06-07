@@ -25,7 +25,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { QueryContext } from '@/types';
+import type { QueryContext, QueryMode } from '@/types';
 import {
     Brain,
     Check,
@@ -53,7 +53,7 @@ export interface ChatMessageData {
   timestamp?: number;
   isStreaming?: boolean;
   isError?: boolean;
-  mode?: 'local' | 'global' | 'hybrid' | 'naive';
+  mode?: QueryMode;
   tokensUsed?: number;
   durationMs?: number;
   thinkingTimeMs?: number;

@@ -27,6 +27,14 @@ module EdgeQuake
       @http.post("/api/v1/documents", { title: title, content: content, file_type: file_type })
     end
 
+    def upload_batch(file_paths:)
+      @http.upload_many("/api/v1/documents/upload/batch", file_paths: file_paths, field_name: "files")
+    end
+
+    def upload_pdf_batch(file_paths:)
+      @http.upload_many("/api/v1/documents/pdf/batch", file_paths: file_paths, field_name: "files")
+    end
+
     def delete(id:)
       @http.delete("/api/v1/documents/#{id}")
     end

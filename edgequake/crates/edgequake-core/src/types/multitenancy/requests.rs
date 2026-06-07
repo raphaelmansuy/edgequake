@@ -88,6 +88,10 @@ pub struct CreateWorkspaceRequest {
     ///
     /// @implements SPEC-085: Custom entity configuration from UI
     pub entity_types: Option<Vec<String>>,
+
+    /// When true (default), unknown extracted types remap to OTHER/CONCEPT.
+    /// When false, LLM may emit additional type labels without forced OTHER catch-all.
+    pub entity_types_strict: Option<bool>,
 }
 
 impl CreateWorkspaceRequest {
@@ -263,15 +267,20 @@ pub struct UpdateWorkspaceRequest {
     pub max_documents: Option<usize>,
     /// New LLM model for entity extraction (optional).
     /// Takes effect immediately for new document ingestions.
+    /// Set to `Some("")` or `Some("none")` to reset to server/env defaults.
     pub llm_model: Option<String>,
     /// New LLM provider (optional).
+    /// Set to `Some("")` or `Some("none")` to reset to server/env defaults.
     pub llm_provider: Option<String>,
     /// New embedding model (optional).
     /// WARNING: Requires vector rebuild - use rebuild-embeddings endpoint.
+    /// Set to `Some("")` or `Some("none")` to reset to server/env defaults.
     pub embedding_model: Option<String>,
     /// New embedding provider (optional).
+    /// Set to `Some("")` or `Some("none")` to reset to server/env defaults.
     pub embedding_provider: Option<String>,
     /// New embedding dimension (optional).
+    /// Set to `Some(0)` when clearing embedding overrides.
     pub embedding_dimension: Option<usize>,
     /// New Vision LLM provider for PDF extraction (optional).
     /// Set to Some("") or Some("none") to clear it.
@@ -282,6 +291,11 @@ pub struct UpdateWorkspaceRequest {
     /// New PDF parser backend for PDF extraction (optional).
     /// Set to Some("") or Some("none") to clear the workspace override.
     pub pdf_parser_backend: Option<String>,
+    /// Entity types for future ingestions (SPEC-085 / GitHub #216).
+    pub entity_types: Option<Vec<String>>,
+
+    /// Strict entity type enforcement (default true when omitted).
+    pub entity_types_strict: Option<bool>,
 }
 
 /// Statistics for a workspace.

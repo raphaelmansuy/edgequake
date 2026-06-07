@@ -224,7 +224,11 @@ pub fn resolve_vision_llm_provider() -> Option<Arc<dyn LLMProvider>> {
     match crate::safety_limits::create_safe_llm_provider(
         if llm_provider_name.is_empty() {
             // Auto-detect: use whichever key is present.
-            if std::env::var("MISTRAL_API_KEY").is_ok() { "mistral" } else { "openai" }
+            if std::env::var("MISTRAL_API_KEY").is_ok() {
+                "mistral"
+            } else {
+                "openai"
+            }
         } else {
             &llm_provider_name
         },

@@ -22,9 +22,20 @@ use edgequake_tasks::{PdfProcessingData, Task, TaskStatus, TaskType};
 /// @enforces BR0701: PostgreSQL-backed PDF storage
 #[cfg(feature = "postgres")]
 pub(super) fn get_pdf_storage(state: &AppState) -> ApiResult<Arc<dyn PdfDocumentStorage>> {
-    state.pdf_storage.as_ref().map(Arc::clone).ok_or_else(|| {
-        ApiError::Internal("PDF storage not initialized (check PostgreSQL setup)".to_string())
-    })
+    if state.storage.is_postgresql() {
+        state
+            .storage
+            .validate_postgres_adapters()
+            .map_err(ApiError::Internal)?;
+    }
+    state
+        .storage
+        .pdf_storage
+        .as_ref()
+        .map(Arc::clone)
+        .ok_or_else(|| {
+            ApiError::Internal("PDF storage not initialized (check storage setup)".to_string())
+        })
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -95,19 +106,7 @@ pub(super) async fn create_pdf_processing_task(
         result: None,
     };
 
-    // Store task in database
-    state
-        .task_storage
-        .create_task(&task)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
-
-    // Queue task for background processing (critical - missing this causes tasks to stay in pending)
-    state
-        .task_queue
-        .send(task)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
+    state.enqueue_task(task).await?;
 
     debug!(
         "Created and queued PDF processing task: id={}, pdf_id={}",
@@ -206,51 +205,19 @@ pub(super) async fn clear_document_derived_data(
         document_id
     );
 
-    let mut entities_cleared = 0;
-    let mut edges_cleared = 0;
+    // SPEC-006 P2: reuse bounded document cascade (DRY with delete handler)
+    let scope = crate::services::DocumentSourceScope::from_document_id(document_id);
+    let stats = crate::services::cascade_remove_document_sources(
+        &state.storage.graph_storage,
+        None,
+        None,
+        &scope,
+    )
+    .await
+    .map_err(|e| format!("Failed to clear graph data: {}", e))?;
 
-    // 1. Clear graph data (entities and relationships)
-    let graph_storage = &state.graph_storage;
-
-    // Get all nodes and filter by source_id
-    let all_nodes = graph_storage
-        .get_all_nodes()
-        .await
-        .map_err(|e| format!("Failed to get graph nodes: {}", e))?;
-
-    let chunk_prefix = format!("{}-chunk-", document_id);
-
-    for node in all_nodes {
-        // Check if this node has sources from the deleted document
-        if let Some(source_id) = node.properties.get("source_id").and_then(|v| v.as_str()) {
-            let sources: Vec<&str> = source_id.split('|').collect();
-            let remaining_sources: Vec<&str> = sources
-                .into_iter()
-                .filter(|s| !s.starts_with(&chunk_prefix) && !s.starts_with(document_id))
-                .collect();
-
-            if remaining_sources.is_empty() {
-                // Delete connected edges first
-                if let Ok(edges) = graph_storage.get_node_edges(&node.id).await {
-                    for edge in edges {
-                        let _ = graph_storage.delete_edge(&edge.source, &edge.target).await;
-                        edges_cleared += 1;
-                    }
-                }
-                // Then delete the node
-                let _ = graph_storage.delete_node(&node.id).await;
-                entities_cleared += 1;
-            } else if remaining_sources.len() < source_id.split('|').count() {
-                // Update to remove this document's sources
-                let mut updated_props = node.properties.clone();
-                updated_props.insert(
-                    "source_id".to_string(),
-                    serde_json::json!(remaining_sources.join("|")),
-                );
-                let _ = graph_storage.upsert_node(&node.id, updated_props).await;
-            }
-        }
-    }
+    let entities_cleared = stats.entities_removed + stats.entities_updated;
+    let edges_cleared = stats.relationships_removed + stats.relationships_updated;
 
     // 2. Clear vector data
     // Note: Vector storage doesn't have a direct delete_by_document method,

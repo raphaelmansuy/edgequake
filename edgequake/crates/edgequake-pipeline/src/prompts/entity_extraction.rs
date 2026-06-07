@@ -36,12 +36,10 @@ impl EntityExtractionPrompts {
     ///
     /// This prompt instructs the LLM on how to extract entities and relationships
     /// in a structured tuple format.
-    pub fn system_prompt(&self, entity_types: &[impl AsRef<str>], language: &str) -> String {
-        let entity_types_str = entity_types
-            .iter()
-            .map(|s| s.as_ref())
-            .collect::<Vec<_>>()
-            .join(", ");
+    pub fn system_prompt(&self, schema: &super::EntityExtractionSchema, language: &str) -> String {
+        let entity_types_str = schema.types.join(", ");
+        let entity_type_instruction =
+            super::sota_entity_type_instruction(schema, &entity_types_str);
 
         format!(
             r#"---Role---
@@ -52,7 +50,7 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
     *   **Identification:** Identify clearly defined and meaningful entities in the input text.
     *   **Entity Details:** For each identified entity, extract the following information:
         *   `entity_name`: The name of the entity. If the entity name is case-insensitive, capitalize the first letter of each significant word (title case). Ensure **consistent naming** across the entire extraction process.
-        *   `entity_type`: Categorize the entity using one of the following types: `{entity_types}`. If none of the provided entity types apply, classify it as `Other`.
+        *   `entity_type`: {entity_type_instruction}
         *   `entity_description`: Provide a concise yet comprehensive description of the entity's attributes and activities, based *solely* on the information present in the input text.
     *   **Output Format - Entities:** Output a total of 4 fields for each entity, delimited by `{tuple_delimiter}`, on a single line. The first field *must* be the literal string `entity`.
         *   Format: `entity{tuple_delimiter}entity_name{tuple_delimiter}entity_type{tuple_delimiter}entity_description`
@@ -93,7 +91,7 @@ You are a Knowledge Graph Specialist responsible for extracting entities and rel
 
 ---Examples---
 {examples}"#,
-            entity_types = entity_types_str,
+            entity_type_instruction = entity_type_instruction,
             tuple_delimiter = self.tuple_delimiter,
             language = language,
             completion_delimiter = self.completion_delimiter,
@@ -223,11 +221,19 @@ relation{td}National Science Foundation{td}Sarah Chen{td}funding{td}The National
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prompts::EntityExtractionSchema;
+
+    fn schema(types: Vec<&str>) -> EntityExtractionSchema {
+        EntityExtractionSchema {
+            types: types.into_iter().map(str::to_string).collect(),
+            strict: true,
+        }
+    }
 
     #[test]
     fn test_system_prompt_generation() {
         let prompts = EntityExtractionPrompts::default();
-        let system = prompts.system_prompt(&["PERSON", "ORGANIZATION"], "English");
+        let system = prompts.system_prompt(&schema(vec!["PERSON", "ORGANIZATION"]), "English");
 
         assert!(system.contains("Knowledge Graph Specialist"));
         assert!(system.contains("PERSON, ORGANIZATION"));
@@ -258,7 +264,7 @@ mod tests {
     #[test]
     fn test_examples_in_prompt() {
         let prompts = EntityExtractionPrompts::default();
-        let system = prompts.system_prompt(&["PERSON"], "English");
+        let system = prompts.system_prompt(&schema(vec!["PERSON"]), "English");
 
         assert!(system.contains("Example 1:"));
         assert!(system.contains("Example 2:"));

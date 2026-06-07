@@ -73,7 +73,7 @@ jobs:
           --health-start-period 30s
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -201,7 +201,8 @@ jobs:
 
     services:
       postgres-age:
-        image: apache/age:latest
+        # WHY: storage_backend_contract + migration bootstrap need pgvector + AGE (apache/age has AGE only).
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -216,7 +217,7 @@ jobs:
           --health-start-period 60s
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -244,13 +245,38 @@ jobs:
       - name: Install PostgreSQL client tools
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Setup AGE extension
+      - name: Setup database extensions
         run: |
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
+            CREATE EXTENSION IF NOT EXISTS vector;
             CREATE EXTENSION IF NOT EXISTS age;
             LOAD 'age';
             SET search_path = ag_catalog, "$user", public;
           EOSQL
+
+      - name: Run SPEC-017 storage backend contracts (postgres)
+        working-directory: edgequake
+        env:
+          POSTGRES_PASSWORD: test_password_123
+          POSTGRES_DB: edgequake_test
+          POSTGRES_USER: edgequake_test
+        run: |
+          echo "Running SPEC-017 storage backend contract tests..."
+          cargo test -p edgequake-storage --test storage_backend_contract --features postgres -- --test-threads=1
+          cargo test -p edgequake-storage --test backend_e2e_contract --features postgres -- --test-threads=1
+          cargo test -p edgequake-storage --test graph_isp_contract --features postgres -- --test-threads=1
+        continue-on-error: false
+
+      - name: Run SPEC-006 migration bootstrap postgres e2e
+        working-directory: edgequake
+        env:
+          DATABASE_URL: postgresql://edgequake_test:test_password_123@localhost:5432/edgequake_test
+          POSTGRES_PASSWORD: test_password_123
+        run: |
+          echo "Running SPEC-006 migration bootstrap + readiness battle tests..."
+          cargo test -p edgequake-api --test migration_bootstrap_proof --features postgres -- --test-threads=1
+          cargo test -p edgequake-api --test migration_readiness_proof --features postgres -- --test-threads=1
+        continue-on-error: false
 
       - name: Run PostgreSQL AGE Graph Tests
         working-directory: edgequake
@@ -286,7 +312,7 @@ jobs:
           --health-start-period 60s
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master

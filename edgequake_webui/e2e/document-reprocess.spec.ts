@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady } from "./helpers/app-ready";
 
 /**
  * Document Reprocess E2E Tests
@@ -28,11 +30,11 @@ async function isOllamaAvailable(): Promise<boolean> {
   }
 }
 
-test.describe("Document Reprocessing", () => {
+test.describe("@load Document Reprocessing", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -141,7 +143,7 @@ test.describe("Document Reprocessing", () => {
 
     // Navigate to documents if not already there
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for file upload area
     const dropzone = page.locator(
@@ -173,17 +175,17 @@ test.describe("Document Reprocessing", () => {
       );
 
       // Capture screenshot for visual verification
-      await page.screenshot({ path: "test-results/upload-processing.png" });
+      await page.screenshot({ path: e2eScreenshot("load", "upload-processing.png") });
 
       console.log("Upload triggered - check screenshot for processing states");
     }
   });
 });
 
-test.describe("Pipeline Status Dialog", () => {
+test.describe("@load Pipeline Status Dialog", () => {
   test("pipeline status dialog shows correct information", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for pipeline status button (usually shows when processing is active)
     const pipelineButton = page.locator(
@@ -214,11 +216,11 @@ test.describe("Pipeline Status Dialog", () => {
   });
 });
 
-test.describe("Rebuild Operations", () => {
+test.describe("@load Rebuild Operations", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to settings or workspace page where rebuild is available
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     await page.waitForTimeout(1000);
   });
 
@@ -236,7 +238,7 @@ test.describe("Rebuild Operations", () => {
     } else {
       // Try workspace page
       await page.goto("/workspace");
-      await page.waitForLoadState("networkidle");
+      await waitForAppReady(page);
 
       const wsRebuild = page.locator('button:has-text("Rebuild")');
       const hasWsRebuild = await wsRebuild.first().isVisible().catch(() => false);
@@ -260,10 +262,10 @@ test.describe("Rebuild Operations", () => {
   });
 });
 
-test.describe("Error Handling UX", () => {
+test.describe("@load Error Handling UX", () => {
   test("error messages are actionable and copyable", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Find failed documents using proper filter syntax
     const failedRows = page.locator('tr').filter({ hasText: 'Failed' });
@@ -297,7 +299,7 @@ test.describe("Error Handling UX", () => {
 
   test("error categorization is clear", async ({ page }) => {
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for error indicators
     const errorIndicators = page.locator(
@@ -313,7 +315,7 @@ test.describe("Error Handling UX", () => {
   });
 });
 
-test.describe("Ollama Integration Tests", () => {
+test.describe("@load Ollama Integration Tests", () => {
   test.beforeEach(async () => {
     const available = await isOllamaAvailable();
     if (!available) {
@@ -323,7 +325,7 @@ test.describe("Ollama Integration Tests", () => {
 
   test("can configure Ollama as provider", async ({ page }) => {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Look for provider selection
     const providerSelect = page.locator(
@@ -353,7 +355,7 @@ test.describe("Ollama Integration Tests", () => {
     }
 
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
     // Check for documents processed with Ollama
     const ollamaIndicators = page.getByText(/ollama|gemma/i);

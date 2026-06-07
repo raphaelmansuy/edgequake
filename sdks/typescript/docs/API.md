@@ -45,8 +45,8 @@ await client.live(); // GET /live
 | Method                          | Endpoint                                    | Description                |
 | ------------------------------- | ------------------------------------------- | -------------------------- |
 | `upload(request)`               | `POST /api/v1/documents`                    | Upload text document       |
-| `uploadFile(file, metadata?)`   | `POST /api/v1/documents`                    | Upload file (multipart)    |
-| `uploadBatch(files, metadata?)` | `POST /api/v1/documents/batch`              | Upload multiple files      |
+| `uploadFile(file, metadata?)`   | `POST /api/v1/documents/upload`             | Upload file (multipart)    |
+| `uploadBatch(files, metadata?)` | `POST /api/v1/documents/upload/batch`       | Upload multiple files      |
 | `list(params?)`                 | `GET /api/v1/documents`                     | List documents (paginated) |
 | `get(id)`                       | `GET /api/v1/documents/:id`                 | Get document details       |
 | `delete(id)`                    | `DELETE /api/v1/documents/:id`              | Delete document            |
@@ -64,6 +64,7 @@ await client.live(); // GET /live
 | Method                    | Endpoint                                  | Description             |
 | ------------------------- | ----------------------------------------- | ----------------------- |
 | `upload(file, metadata?)` | `POST /api/v1/documents/pdf`              | Upload PDF              |
+| `uploadBatch(files, metadata?)` | `POST /api/v1/documents/pdf/batch`        | Upload multiple PDFs    |
 | `list()`                  | `GET /api/v1/documents/pdf`               | List PDFs               |
 | `getStatus(id)`           | `GET /api/v1/documents/pdf/:id`           | Get PDF status          |
 | `getContent(id)`          | `GET /api/v1/documents/pdf/:id/content`   | Get extracted content   |

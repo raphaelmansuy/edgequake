@@ -11,6 +11,11 @@
  * @enforces BR0616 - Pending messages cleared on completion
  *
  * @see {@link use-query-store.ts} for query execution logic
+ *
+ * ## Store boundary (UI-DRY-007)
+ * - **use-query-store**: messages, streaming accumulation, query history, mode for execution
+ * - **use-query-ui-store** (this): streaming UI phase, pending bubble, conversation list filters/sort
+ * - **use-conversation-store**: server-backed conversation IDs and sync
  */
 "use client";
 

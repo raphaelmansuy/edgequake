@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * E2E Test: Workspace Rebuild Functionality (OODA 256-280)
  *
@@ -8,40 +9,51 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import {
+  bootstrapDeterministicUiContext,
+  type Spec013BootstrapContext,
+} from "./helpers/bootstrap-ui";
+import { tenantHeaders } from "./helpers/spec013-api";
+import { waitForAppReady } from "./helpers/app-ready";
 
-const BACKEND_URL = "http://localhost:8080";
-const FRONTEND_URL = "http://localhost:3000";
-const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000002";
-const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000003";
+let bootstrapCtx: Spec013BootstrapContext;
 
-test.describe("Workspace Rebuild E2E Tests", () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to workspace page
-    await page.goto(`${FRONTEND_URL}/w/default`);
-    await page.waitForLoadState("networkidle");
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load Workspace Rebuild E2E Tests", () => {
+  test.beforeEach(async ({ page, request }) => {
+    bootstrapCtx = await bootstrapDeterministicUiContext(
+      page,
+      request,
+      "rebuild-ws",
+    );
   });
+
+  function rebuildHeaders(
+    workspaceId: string = bootstrapCtx.workspaceId,
+  ): Record<string, string> {
+    return tenantHeaders(bootstrapCtx.tenantId, workspaceId);
+  }
 
   test("Backend API: Rebuild embeddings endpoint exists", async ({
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-embeddings`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-        },
+        headers: rebuildHeaders(),
         data: {
           embedding_model: "mxbai-embed-large:latest",
           embedding_provider: "ollama",
           embedding_dimension: 1024,
           force: false,
         },
-      }
+      },
     );
 
-    // Should return 200 or 400 (if config unchanged)
     expect([200, 400]).toContain(response.status());
 
     if (response.status() === 200) {
@@ -50,7 +62,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
       expect(body).toHaveProperty("status");
       expect(body).toHaveProperty("vectors_cleared");
       expect(body).toHaveProperty("documents_to_process");
-      expect(body.workspace_id).toBe(DEFAULT_WORKSPACE_ID);
+      expect(body.workspace_id).toBe(bootstrapCtx.workspaceId);
       console.log("✓ Rebuild embeddings response:", body);
     } else {
       const body = await response.json();
@@ -62,13 +74,9 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+      `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-knowledge-graph`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-        },
+        headers: rebuildHeaders(),
         data: {
           llm_model: "gemma3:12b",
           llm_provider: "ollama",
@@ -76,10 +84,9 @@ test.describe("Workspace Rebuild E2E Tests", () => {
           rebuild_embeddings: true,
           max_documents: 1000,
         },
-      }
+      },
     );
 
-    // Should return 200 or 400 (if config unchanged)
     expect([200, 400]).toContain(response.status());
 
     if (response.status() === 200) {
@@ -90,7 +97,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
       expect(body).toHaveProperty("edges_cleared");
       expect(body).toHaveProperty("vectors_cleared");
       expect(body).toHaveProperty("documents_to_process");
-      expect(body.workspace_id).toBe(DEFAULT_WORKSPACE_ID);
+      expect(body.workspace_id).toBe(bootstrapCtx.workspaceId);
       console.log("✓ Rebuild knowledge graph response:", body);
     } else {
       const body = await response.json();
@@ -100,17 +107,11 @@ test.describe("Workspace Rebuild E2E Tests", () => {
 
   test("Backend API: Force rebuild embeddings works", async ({ request }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-embeddings`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-        },
-        data: {
-          force: true, // Force rebuild even if config unchanged
-        },
-      }
+        headers: rebuildHeaders(),
+        data: { force: true },
+      },
     );
 
     expect(response.status()).toBe(200);
@@ -119,7 +120,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     expect(body).toHaveProperty("workspace_id");
     expect(body).toHaveProperty("status");
     expect(body).toHaveProperty("vectors_cleared");
-    expect(body.workspace_id).toBe(DEFAULT_WORKSPACE_ID);
+    expect(body.workspace_id).toBe(bootstrapCtx.workspaceId);
     expect(typeof body.vectors_cleared).toBe("number");
 
     console.log("✓ Force rebuild cleared", body.vectors_cleared, "vectors");
@@ -129,18 +130,14 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+      `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-knowledge-graph`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-        },
+        headers: rebuildHeaders(),
         data: {
-          force: true, // Force rebuild even if config unchanged
+          force: true,
           rebuild_embeddings: true,
         },
-      }
+      },
     );
 
     expect(response.status()).toBe(200);
@@ -151,7 +148,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     expect(body).toHaveProperty("nodes_cleared");
     expect(body).toHaveProperty("edges_cleared");
     expect(body).toHaveProperty("vectors_cleared");
-    expect(body.workspace_id).toBe(DEFAULT_WORKSPACE_ID);
+    expect(body.workspace_id).toBe(bootstrapCtx.workspaceId);
 
     console.log("✓ Force rebuild cleared:", {
       nodes: body.nodes_cleared,
@@ -163,25 +160,22 @@ test.describe("Workspace Rebuild E2E Tests", () => {
   test("Frontend: Workspace configuration page accessible", async ({
     page,
   }) => {
-    // Navigate to workspace page via sidebar
-    await page.goto(`${FRONTEND_URL}/w/default/workspace`);
-    await page.waitForLoadState("networkidle");
+    await page.goto(`/w/${bootstrapCtx.workspaceSlug}/workspace`);
+    await waitForAppReady(page);
 
-    // Check if workspace config page loaded
     const heading = page
       .locator("h1, h2, h3")
       .filter({ hasText: /workspace|settings|config/i })
       .first();
-    await expect(heading).toBeVisible({ timeout: 5000 });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
 
     console.log("✓ Workspace configuration page loaded");
   });
 
   test("Frontend: Sidebar has workspace link", async ({ page }) => {
-    await page.goto(`${FRONTEND_URL}/w/default`);
-    await page.waitForLoadState("networkidle");
+    await page.goto(`/w/${bootstrapCtx.workspaceSlug}`);
+    await waitForAppReady(page);
 
-    // Look for workspace navigation link
     const workspaceLink = page
       .locator('a[href*="/workspace"], nav a')
       .filter({ hasText: /workspace/i })
@@ -197,13 +191,8 @@ test.describe("Workspace Rebuild E2E Tests", () => {
   test("Workspace isolation: Different workspace IDs are independent", async ({
     request,
   }) => {
-    // Upload a test document to workspace 1
-    const docResponse = await request.post(`${BACKEND_URL}/api/v1/documents`, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-ID": DEFAULT_TENANT_ID,
-        "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-      },
+    const docResponse = await request.post(`${API_V1_URL}/documents`, {
+      headers: rebuildHeaders(),
       data: {
         title: "Test Document for Isolation",
         content:
@@ -216,20 +205,27 @@ test.describe("Workspace Rebuild E2E Tests", () => {
       const doc = await docResponse.json();
       console.log("✓ Test document uploaded:", doc.id);
 
-      // Wait for processing
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Rebuild workspace 1 with force
-      const rebuild = await request.post(
-        `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Tenant-ID": DEFAULT_TENANT_ID,
-            "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
+      await expect
+        .poll(
+          async () => {
+            const statusRes = await request.get(
+              `${API_V1_URL}/documents/${doc.id}`,
+              { headers: rebuildHeaders() },
+            );
+            if (!statusRes.ok()) return "pending";
+            const body = await statusRes.json();
+            return body.status ?? "pending";
           },
+          { timeout: 30_000 },
+        )
+        .not.toBe("processing");
+
+      const rebuild = await request.post(
+        `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-knowledge-graph`,
+        {
+          headers: rebuildHeaders(),
           data: { force: true, rebuild_embeddings: true },
-        }
+        },
       );
 
       expect(rebuild.status()).toBe(200);
@@ -242,8 +238,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
         vectors_cleared: rebuildBody.vectors_cleared,
       });
 
-      // Verify only THIS workspace was affected
-      expect(rebuildBody.workspace_id).toBe(DEFAULT_WORKSPACE_ID);
+      expect(rebuildBody.workspace_id).toBe(bootstrapCtx.workspaceId);
     }
   });
 
@@ -251,21 +246,16 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-embeddings`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-        },
+        headers: rebuildHeaders(),
         data: { force: true },
-      }
+      },
     );
 
     expect(response.status()).toBe(200);
     const body = await response.json();
 
-    // Verify all required fields exist
     const requiredFields = [
       "workspace_id",
       "status",
@@ -287,21 +277,16 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     request,
   }) => {
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${DEFAULT_WORKSPACE_ID}/rebuild-knowledge-graph`,
+      `${API_V1_URL}/workspaces/${bootstrapCtx.workspaceId}/rebuild-knowledge-graph`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": DEFAULT_WORKSPACE_ID,
-        },
+        headers: rebuildHeaders(),
         data: { force: true, rebuild_embeddings: true },
-      }
+      },
     );
 
     expect(response.status()).toBe(200);
     const body = await response.json();
 
-    // Verify all required fields exist
     const requiredFields = [
       "workspace_id",
       "status",
@@ -318,7 +303,7 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     }
 
     console.log(
-      "✓ All required fields present in rebuild_knowledge_graph response"
+      "✓ All required fields present in rebuild_knowledge_graph response",
     );
   });
 
@@ -328,15 +313,11 @@ test.describe("Workspace Rebuild E2E Tests", () => {
     const fakeWorkspaceId = "00000000-0000-0000-0000-999999999999";
 
     const response = await request.post(
-      `${BACKEND_URL}/api/v1/workspaces/${fakeWorkspaceId}/rebuild-embeddings`,
+      `${API_V1_URL}/workspaces/${fakeWorkspaceId}/rebuild-embeddings`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
-          "X-Workspace-ID": fakeWorkspaceId,
-        },
+        headers: tenantHeaders(bootstrapCtx.tenantId, fakeWorkspaceId),
         data: { force: true },
-      }
+      },
     );
 
     expect(response.status()).toBe(404);
@@ -345,9 +326,8 @@ test.describe("Workspace Rebuild E2E Tests", () => {
 
   test("Swagger UI: Rebuild endpoints documented", async ({ page }) => {
     await page.goto(`${BACKEND_URL}/swagger-ui`);
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
 
-    // Check if swagger UI loaded
     const swagger = page
       .locator('.swagger-ui, #swagger-ui, [class*="swagger"]')
       .first();

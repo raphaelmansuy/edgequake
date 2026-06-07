@@ -162,7 +162,7 @@ pub fn validate_path<P: AsRef<Path>>(
     };
 
     if !is_allowed {
-        return Err(ApiError::Forbidden);
+        return Err(ApiError::forbidden());
     }
 
     Ok(ValidatedPath {

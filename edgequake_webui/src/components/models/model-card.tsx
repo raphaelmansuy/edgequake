@@ -11,6 +11,7 @@
  */
 'use client';
 
+import { ProviderIcon } from '@/components/providers/provider-icon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,30 +52,6 @@ interface ModelCardProps {
   className?: string;
 }
 
-/**
- * Get icon component for a provider.
- */
-function getProviderIcon(providerId: string, className?: string) {
-  const iconClass = cn('h-4 w-4', className);
-  switch (providerId.toLowerCase()) {
-    case 'openai':
-      return <Cloud className={cn(iconClass, 'text-green-600')} />;
-    case 'ollama':
-      return <Cpu className={cn(iconClass, 'text-blue-600')} />;
-    case 'lmstudio':
-      return <Brain className={cn(iconClass, 'text-purple-600')} />;
-    case 'anthropic':
-      return <Sparkles className={cn(iconClass, 'text-orange-600')} />;
-    case 'azure':
-      return <Cloud className={cn(iconClass, 'text-blue-500')} />;
-    case 'minimax':
-      return <Sparkles className={cn(iconClass, 'text-teal-600')} />;
-    case 'mock':
-      return <FlaskConical className={cn(iconClass, 'text-gray-500')} />;
-    default:
-      return <Brain className={cn(iconClass, 'text-muted-foreground')} />;
-  }
-}
 
 /**
  * Format cost display for a model.
@@ -227,7 +204,7 @@ export function ModelCard({
         tabIndex={onSelect ? 0 : undefined}
       >
         <div className="flex items-center gap-3">
-          {getProviderIcon(model.provider)}
+          {<ProviderIcon providerId={model.provider} />}
           <div>
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">{model.display_name || model.name}</span>
@@ -261,7 +238,7 @@ export function ModelCard({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            {getProviderIcon(model.provider, 'h-5 w-5')}
+            <ProviderIcon providerId={model.provider} className="h-5 w-5" />
             <div>
               <CardTitle className="text-base">
                 {model.display_name || model.name}

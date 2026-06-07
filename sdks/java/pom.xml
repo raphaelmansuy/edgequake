@@ -11,7 +11,7 @@
 
     <name>EdgeQuake Java SDK</name>
     <description>Java SDK for the EdgeQuake RAG API</description>
-    <url>https://github.com/edgequake/edgequake</url>
+    <url>https://github.com/raphaelmansuy/edgequake</url>
 
     <licenses>
         <license>
@@ -23,14 +23,14 @@
     <developers>
         <developer>
             <name>EdgeQuake Contributors</name>
-            <url>https://github.com/edgequake</url>
+            <url>https://github.com/raphaelmansuy/edgequake</url>
         </developer>
     </developers>
 
     <scm>
-        <url>https://github.com/edgequake/edgequake</url>
-        <connection>scm:git:https://github.com/edgequake/edgequake.git</connection>
-        <developerConnection>scm:git:git@github.com:edgequake/edgequake.git</developerConnection>
+        <url>https://github.com/raphaelmansuy/edgequake</url>
+        <connection>scm:git:https://github.com/raphaelmansuy/edgequake.git</connection>
+        <developerConnection>scm:git:git@github.com:raphaelmansuy/edgequake.git</developerConnection>
     </scm>
 
     <distributionManagement>
@@ -61,14 +61,14 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.12.7.1</version>
+            <version>${jackson.version}</version>
         </dependency>
 
         <!-- JUnit 5 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>0.3.0</version>
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -78,7 +78,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>0.3.0</version>
+                <version>3.13.0</version>
                 <configuration>
                     <!-- WHY: Java 17 LTS for broad compatibility (OODA-01) -->
                     <release>17</release>
@@ -87,7 +87,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>0.3.0</version>
+                <version>3.5.2</version>
                 <configuration>
                     <!-- WHY: E2E tests require a live backend, so exclude by default.
                          Run with: mvn test -Dtest.excludedGroups= -Dtest.groups=e2e -->
@@ -98,7 +98,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>0.3.0</version>
+                <version>3.5.2</version>
                 <configuration>
                     <groups>e2e</groups>
                 </configuration>
@@ -110,6 +110,67 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.10.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <source>17</source>
+                    <failOnError>false</failOnError>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.2.7</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.7.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                </configuration>
             </plugin>
         </plugins>
     </build>

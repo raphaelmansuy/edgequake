@@ -28,6 +28,7 @@ export {
 
 // Inline components
 export { KatexMath } from "./KatexMath";
+export { MathTokenRenderer } from "./MathTokenRenderer";
 export { MarkdownInlineTokens } from "./MarkdownInlineTokens";
 
 // Configuration

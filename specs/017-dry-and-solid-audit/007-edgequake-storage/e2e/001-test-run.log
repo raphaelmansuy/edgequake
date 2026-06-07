@@ -1,0 +1,351 @@
+=== edgequake-storage SPEC-017 E2E ===
+Date: 2026-06-03T08:14:38Z
+
+--- Compile workspace ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+   Compiling edgequake v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.71s
+
+--- P0: graph workspace contract (memory) ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running tests/storage_backend_contract.rs (target/debug/deps/storage_backend_contract-bfe40ed99345beb6)
+
+running 2 tests
+test memory_backend_workspace_graph_stats_contract ... ok
+test memory_backend_graph_batch_upsert_contract ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P0: memory graph workspace parity ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.51s
+     Running tests/memory_graph_workspace_parity.rs (target/debug/deps/memory_graph_workspace_parity-549c6b28f8fe687f)
+
+running 1 test
+test memory_graph_workspace_scoped_counts ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P1: conversation storage contract (memory) ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.45s
+     Running tests/conversation_backend_contract.rs (target/debug/deps/conversation_backend_contract-92ec3cc4957804d5)
+
+running 1 test
+test memory_conversation_crud_contract ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P1: MetadataFilter shared predicate ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.48s
+     Running tests/metadata_filter_predicate.rs (target/debug/deps/metadata_filter_predicate-4cdec98110cf630a)
+
+running 1 test
+test memory_query_filtered_uses_shared_predicate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P1: memory PDF + conversation parity ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.48s
+     Running tests/memory_subsystem_parity.rs (target/debug/deps/memory_subsystem_parity-250b9726c9f30f0c)
+
+running 2 tests
+test memory_conversation_crud_smoke ... ok
+test memory_pdf_full_lifecycle ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P1: MetadataFilter SQL builder (lib) ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_storage-49b0f7c1a62d11ad)
+
+running 2 tests
+test metadata_filter_sql::tests::empty_filter_yields_no_conditions ... ok
+test metadata_filter_sql::tests::build_sql_matches_predicate_fields ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 85 filtered out; finished in 0.00s
+
+
+--- Lib unit tests ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_storage-49b0f7c1a62d11ad)
+
+running 87 tests
+test adapters::memory::kv::tests::test_transition_if_status_key_not_found ... ok
+test adapters::memory::graph::tests::test_graph_node_operations ... ok
+test adapters::memory::kv::tests::test_kv_delete ... ok
+test adapters::memory::kv::tests::test_transition_if_status_wrong_status ... ok
+test adapters::memory::kv::tests::test_kv_basic_operations ... ok
+test adapters::memory::conversation::tests::conversation_message_lifecycle ... ok
+test adapters::memory::kv::tests::test_kv_filter_keys ... ok
+test adapters::memory::graph::tests::test_graph_edge_operations ... ok
+test adapters::memory::pdf::tests::create_and_deduplicate_by_checksum ... ok
+test adapters::memory::graph::tests::test_graph_traversal ... ok
+test adapters::memory::graph::tests::test_graph_delete_cascade ... ok
+test adapters::memory::vector::tests::test_query_filtered_by_tenant_id ... ok
+test adapters::memory::pdf::tests::link_requires_document_record ... ok
+test adapters::memory::kv::tests::test_transition_if_status_success ... ok
+test adapters::memory::kv::tests::test_kv_batch_operations ... ok
+test adapters::memory::vector::tests::test_query_filtered_by_document_ids ... ok
+test adapters::memory::vector::tests::test_query_filtered_all_three_fields_combined ... ok
+test adapters::memory::vector::tests::test_query_filtered_by_workspace_id ... ok
+test adapters::memory::vector::tests::test_query_filtered_by_vector_type_chunk_only ... ok
+test adapters::memory::vector::tests::test_query_filtered_combined_tenant_and_workspace ... ok
+test adapters::memory::vector::tests::test_query_filtered_empty_document_ids_matches_none ... ok
+test adapters::memory::vector::tests::test_query_filtered_empty_filter_returns_all ... ok
+test adapters::memory::vector::tests::test_query_filtered_filter_ids_and_metadata_both_restrict ... ok
+test adapters::memory::vector::tests::test_query_filtered_filter_ids_empty_returns_empty ... ok
+test adapters::memory::vector::tests::test_query_filtered_entities_dominate_top_k_still_returns_chunks ... ok
+test adapters::memory::vector::tests::test_query_filtered_missing_document_id_field_excluded ... ok
+test adapters::memory::vector::tests::test_query_filtered_missing_tenant_field_in_metadata_passes ... ok
+test adapters::memory::vector::tests::test_query_filtered_missing_workspace_field_in_metadata_passes ... ok
+test adapters::memory::vector::tests::test_query_filtered_multiple_document_ids ... ok
+test adapters::memory::vector::tests::test_query_filtered_no_filter_delegates_to_query ... ok
+test adapters::memory::vector::tests::test_query_filtered_no_matches_returns_empty ... ok
+test adapters::memory::vector::tests::test_query_filtered_no_metadata_on_record_excluded ... ok
+test adapters::memory::vector::tests::test_query_filtered_on_empty_storage ... ok
+test adapters::memory::vector::tests::test_query_filtered_preserves_score_ordering ... ok
+test adapters::memory::vector::tests::test_query_filtered_source_document_id_only ... ok
+test adapters::memory::vector::tests::test_query_filtered_top_k_applied_after_filter ... ok
+test adapters::memory::vector::tests::test_query_filtered_top_k_applied_after_type_filter ... ok
+test adapters::memory::vector::tests::test_query_filtered_top_k_zero ... ok
+test adapters::memory::vector::tests::test_query_filtered_vector_type_excludes_untyped_records ... ok
+test adapters::memory::vector::tests::test_query_filtered_vector_type_combines_with_tenant_workspace ... ok
+test adapters::memory::vector::tests::test_query_filtered_with_filter_ids_and_metadata_filter ... ok
+test adapters::memory::vector::tests::test_query_filtered_wrong_dimension_returns_error ... ok
+test adapters::memory::vector::tests::test_vector_basic_operations ... ok
+test adapters::memory::vector::tests::test_vector_filtered_search ... ok
+test adapters::memory::vector::tests::test_vector_similarity_search ... ok
+test adapters::memory::workspace_vector::tests::test_cache_eviction ... ok
+test adapters::workspace_vector_cache::tests::cache_evict_forces_recreate ... ok
+test adapters::memory::workspace_vector::tests::test_workspace_isolation ... ok
+test adapters::workspace_vector_cache::tests::cache_get_or_create_returns_same_instance ... ok
+test community::tests::test_community_detection_empty_graph ... ok
+test error::tests::test_storage_error_already_exists ... ok
+test error::tests::test_storage_error_connection ... ok
+test error::tests::test_storage_error_database ... ok
+test community::tests::test_connected_components ... ok
+test error::tests::test_storage_error_debug ... ok
+test error::tests::test_storage_error_invalid_config ... ok
+test error::tests::test_storage_error_from_serde_json ... ok
+test error::tests::test_storage_error_invalid_query ... ok
+test error::tests::test_storage_error_not_found ... ok
+test error::tests::test_storage_error_not_initialized ... ok
+test community::tests::test_louvain_simple ... ok
+test error::tests::test_storage_error_serialization ... ok
+test error::tests::test_storage_error_transaction ... ok
+test metadata_filter_sql::tests::build_sql_matches_predicate_fields ... ok
+test metadata_filter_sql::tests::empty_filter_yields_no_conditions ... ok
+test pdf_storage::tests::test_calculate_pdf_checksum ... ok
+test pdf_storage::tests::test_extraction_method_conversions ... ok
+test pdf_storage::tests::test_pdf_processing_status_conversions ... ok
+test traits::graph_isp::tests::memory_backend_satisfies_isp_capabilities ... ok
+test traits::kv::kv_like_tests::test_kv_key_matches_like_patterns ... ok
+test traits::graph_read_view::tests::read_view_delegates_to_storage ... ok
+test traits::vector::tests::matches_document_ids_accepts_either_key ... ok
+test traits::vector::tests::matches_tenant_workspace_helpers_delegate_to_filter ... ok
+test traits::vector::tests::matches_tenant_workspace_skips_missing_metadata_fields ... ok
+test traits::vector::tests::matches_vector_type_requires_exact_type_field ... ok
+test traits::vector::tests::test_from_tenant_workspace_type_all_fields ... ok
+test traits::vector::tests::test_from_tenant_workspace_type_always_some ... ok
+test traits::vector::tests::test_metadata_filter_from_tenant_workspace_both ... ok
+test traits::vector::tests::test_metadata_filter_from_tenant_workspace_both_none ... ok
+test traits::vector::tests::test_metadata_filter_from_tenant_workspace_tenant_only ... ok
+test traits::vector::tests::test_metadata_filter_is_empty ... ok
+test traits::vector::tests::test_metadata_filter_is_empty_with_vector_type ... ok
+test traits::vector::tests::test_metadata_filter_serialization_roundtrip ... ok
+test traits::vector::tests::test_metadata_filter_serialization_with_vector_type ... ok
+test traits::vector::tests::test_vector_type_variants ... ok
+test pdf_storage::tests::test_validate_pdf_data ... ok
+test adapters::memory::lock::tests::map_lock_err_formats_poison_message ... ok
+
+test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+
+--- P2: cross-backend E2E contracts (memory) ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.58s
+     Running tests/backend_e2e_contract.rs (target/debug/deps/backend_e2e_contract-5a452baf42908645)
+
+running 10 tests
+test memory_vector_query_e2e_contract ... ok
+test memory_kv_filter_keys_e2e_contract ... ok
+test memory_graph_node_crud_e2e_contract ... ok
+test memory_vector_basic_crud_e2e_contract ... ok
+test memory_kv_basic_crud_e2e_contract ... ok
+test memory_graph_edge_crud_e2e_contract ... ok
+test memory_graph_node_edges_e2e_contract ... ok
+test memory_graph_batch_e2e_contract ... ok
+test memory_vector_bulk_count_e2e_contract ... ok
+test memory_kv_bulk_e2e_contract ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P2-22: e2e_storage_backends (memory) ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+warning: function `assert_graph_batch_upsert` is never used
+  --> crates/edgequake-storage/tests/support/graph_batch_contract.rs:10:14
+   |
+10 | pub async fn assert_graph_batch_upsert<G: GraphStorage + ?Sized>(storage: &G) {
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-storage` (test "e2e_storage_backends") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s
+     Running tests/e2e_storage_backends.rs (target/debug/deps/e2e_storage_backends-a6a260058c1bc7b7)
+
+running 35 tests
+test memory_graph_tests::test_graph_counts ... ok
+test memory_graph_tests::test_graph_node_crud ... ok
+test memory_graph_tests::test_graph_clear ... ok
+test memory_graph_tests::test_graph_search_labels ... ok
+test memory_graph_tests::test_graph_neighbors ... ok
+test memory_kv_tests::test_kv_basic_crud ... ok
+test memory_graph_tests::test_graph_edge_crud ... ok
+test memory_graph_tests::test_graph_get_nodes_by_ids ... ok
+test memory_graph_tests::test_graph_cascade_delete ... ok
+test memory_graph_tests::test_graph_knowledge_graph ... ok
+test memory_graph_tests::test_clear_workspace_graph_cascade_spec028 ... ok
+test memory_graph_tests::test_graph_get_all ... ok
+test memory_graph_tests::test_graph_node_edges ... ok
+test memory_graph_tests::test_graph_popular_labels ... ok
+test concurrent_tests::test_concurrent_graph_operations ... ok
+test memory_kv_tests::test_kv_clear ... ok
+test memory_kv_tests::test_kv_empty_operations ... ok
+test memory_kv_tests::test_kv_complex_json ... ok
+test memory_kv_tests::test_kv_filter_keys ... ok
+test memory_kv_tests::test_kv_finalize ... ok
+test memory_kv_tests::test_kv_namespace ... ok
+test memory_kv_tests::test_kv_special_characters ... ok
+test concurrent_tests::test_concurrent_kv_writes ... ok
+test memory_vector_tests::test_vector_basic_crud ... ok
+test memory_kv_tests::test_kv_bulk_operations ... ok
+test memory_vector_tests::test_vector_dimension ... ok
+test memory_vector_tests::test_vector_empty_operations ... ok
+test memory_vector_tests::test_vector_delete_entity ... ok
+test memory_vector_tests::test_vector_clear ... ok
+test trait_compliance_tests::test_memory_kv_trait_compliance ... ok
+test trait_compliance_tests::test_memory_vector_trait_compliance ... ok
+test trait_compliance_tests::test_memory_graph_trait_compliance ... ok
+test memory_vector_tests::test_vector_bulk_operations ... ok
+test memory_vector_tests::test_vector_filtered_query ... ok
+test memory_vector_tests::test_vector_similarity_search ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P3: GraphStorage ISP capability contract ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running tests/graph_isp_contract.rs (target/debug/deps/graph_isp_contract-e03f4a4d587ef75c)
+
+running 6 tests
+test memory_graph_storage_satisfies_isp_contract ... ok
+test memory_graph_read_ops_compile_time ... ok
+test analytics_cap_can_count_without_mutation_api ... ok
+test mutator_cap_can_upsert_via_narrow_bound ... ok
+test read_cap_can_query_nodes_without_mutation_api ... ok
+test graph_read_view_delegates_without_mutation_surface ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P3: conversation HTTP contract (memory API) ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.18s
+     Running tests/spec017_conversation_http_contract.rs (target/debug/deps/spec017_conversation_http_contract-e625ff5bb4f542bc)
+
+running 2 tests
+test spec017_conversation_http_requires_tenant_headers ... ok
+test spec017_conversation_http_create_and_list_contract ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+--- P1-12: postgres graph helpers (lib) ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.23s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_storage-b76d7b8d2e5b7f56)
+
+running 4 tests
+test adapters::postgres::graph::helpers::helper_tests::test_dollar_quote_tag_avoids_double_dollar_injection ... ok
+test adapters::postgres::graph::helpers::helper_tests::test_dollar_quote_tag_avoids_collision_with_base ... ok
+test adapters::postgres::graph::helpers::helper_tests::test_dollar_quote_tag_escalates_through_numbered_tags ... ok
+test adapters::postgres::graph::helpers::helper_tests::test_dollar_quote_tag_default_when_absent ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 110 filtered out; finished in 0.00s
+
+
+--- P1: MetadataFilter DRY contract ---
+   Compiling edgequake-storage v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.60s
+     Running tests/metadata_filter_dry_contract.rs (target/debug/deps/metadata_filter_dry_contract-b28d8d97fdcae075)
+
+running 2 tests
+test build_sql_emits_condition_per_active_field ... ok
+test matches_and_sql_share_workspace_semantics ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- P1: API memory conversation service contract ---
+warning: method `matches_tenant_filter_props` is never used
+  --> crates/edgequake-query/src/sota_engine/prompt.rs:31:19
+   |
+10 | impl SOTAQueryEngine {
+   | -------------------- method in this implementation
+...
+31 |     pub(super) fn matches_tenant_filter_props(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `edgequake-query` (lib) generated 1 warning
+   Compiling edgequake-api v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-api)
+   Compiling edgequake-core v0.12.6 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.93s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_api-43d75704dac9350a)
+
+running 1 test
+test state::tests::test_memory_conversation_service_roundtrip ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 601 filtered out; finished in 0.00s
+
+
+=== E2E PASSED ===
+Log: /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/007-edgequake-storage/e2e/001-test-run.log
+Playwright PNGs (when run): /Users/raphaelmansuy/Github/03-working/edgequake/specs/017-dry-and-solid-audit/007-edgequake-storage/e2e/screenshots/*.png

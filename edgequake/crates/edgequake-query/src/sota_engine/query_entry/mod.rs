@@ -6,5 +6,6 @@
 //! - `query_stream`: All streaming query variants
 
 mod query_basic;
+mod query_pipeline;
 mod query_stream;
 mod query_workspace;

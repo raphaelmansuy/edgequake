@@ -34,7 +34,7 @@ pub fn calculate_line_numbers(
 }
 
 /// Estimate token count (rough approximation: 1 token ≈ 4 chars).
-pub(super) fn estimate_tokens(text: &str) -> usize {
+pub fn estimate_tokens(text: &str) -> usize {
     (text.len() as f32 / 4.0).ceil() as usize
 }
 
@@ -42,7 +42,7 @@ pub(super) fn estimate_tokens(text: &str) -> usize {
 ///
 /// WHY: Avoids splitting on common abbreviations (Dr., Mr., Inc., etc.)
 /// while still detecting sentence boundaries at '.', '!', '?' characters.
-pub(super) fn split_into_sentences(text: &str) -> Vec<String> {
+pub fn split_into_sentences(text: &str) -> Vec<String> {
     let mut sentences = Vec::new();
     let mut current = String::new();
 
@@ -97,7 +97,7 @@ pub(super) fn take_overlap_sentences(buffer: &[String], target_tokens: usize) ->
 }
 
 /// Find the nearest valid UTF-8 char boundary at or before the given byte position.
-pub(super) fn floor_char_boundary(s: &str, index: usize) -> usize {
+pub fn floor_char_boundary(s: &str, index: usize) -> usize {
     if index >= s.len() {
         return s.len();
     }
@@ -110,7 +110,7 @@ pub(super) fn floor_char_boundary(s: &str, index: usize) -> usize {
 }
 
 /// Find the nearest valid UTF-8 char boundary at or after the given byte position.
-pub(super) fn ceil_char_boundary(s: &str, index: usize) -> usize {
+pub fn ceil_char_boundary(s: &str, index: usize) -> usize {
     if index >= s.len() {
         return s.len();
     }

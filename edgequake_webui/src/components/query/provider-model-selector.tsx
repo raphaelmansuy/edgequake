@@ -13,6 +13,7 @@
  */
 'use client';
 
+import { ProviderIcon } from '@/components/providers/provider-icon';
 import {
   Command,
   CommandEmpty,
@@ -66,23 +67,6 @@ function parseFullId(fullId: string): { provider: string; model: string } {
   return { provider: fullId, model: '' };
 }
 
-/**
- * Get icon component for a provider.
- */
-function getProviderIcon(providerId: string) {
-  switch (providerId.toLowerCase()) {
-    case 'openai':
-      return <Cloud className="h-4 w-4 text-green-600" />;
-    case 'ollama':
-      return <Cpu className="h-4 w-4 text-blue-600" />;
-    case 'lmstudio':
-      return <Brain className="h-4 w-4 text-purple-600" />;
-    case 'mock':
-      return <FlaskConical className="h-4 w-4 text-gray-500" />;
-    default:
-      return <Brain className="h-4 w-4 text-muted-foreground" />;
-  }
-}
 
 /**
  * Provider & Model selector component for query interface.
@@ -193,7 +177,7 @@ export function ProviderModelSelector({
         >
           {currentSelection ? (
             <div className="flex items-center gap-2 overflow-hidden">
-              {getProviderIcon(currentSelection.provider)}
+              {<ProviderIcon providerId={currentSelection.provider} />}
               <span className="truncate">{currentSelection.displayName}</span>
             </div>
           ) : (
@@ -237,7 +221,7 @@ export function ProviderModelSelector({
                   key={providerId} 
                   heading={
                     <div className="flex items-center gap-1">
-                      {getProviderIcon(providerId)}
+                      {<ProviderIcon providerId={providerId} />}
                       <span>{displayName}</span>
                       {!isProviderAvailable && (
                         <span className="text-xs text-orange-500 ml-1">(Not configured)</span>

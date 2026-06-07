@@ -436,6 +436,9 @@ rebuild, err := client.Workspaces.RebuildEmbeddings(ctx, "workspace-id")
 // List PDF documents
 pdfs, err := client.PDF.List(ctx)
 
+// Upload multiple PDFs in one request
+pdfBatch, err := client.PDF.UploadBatch(ctx, []string{"a.pdf", "b.pdf"})
+
 // Get PDF processing progress
 progress, err := client.PDF.Progress(ctx, "track-id")
 
@@ -444,6 +447,9 @@ status, err := client.PDF.Status(ctx, "pdf-id")
 
 // Get extracted PDF content (markdown)
 content, err := client.PDF.Content(ctx, "pdf-id")
+
+// Upload multiple text/files in one request
+docBatch, err := client.Documents.UploadBatch(ctx, []string{"a.txt", "b.md"})
 ```
 
 ## Error Handling

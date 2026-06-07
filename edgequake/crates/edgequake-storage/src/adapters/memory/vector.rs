@@ -93,14 +93,8 @@ impl VectorStorage for MemoryVectorStorage {
             )));
         }
 
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let metadata = self
-            .metadata
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
+        let metadata = self.metadata.read().map_err(super::lock::map_lock_err)?;
 
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
@@ -140,14 +134,8 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn upsert(&self, data: &[(String, Vec<f32>, serde_json::Value)]) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         for (id, vec, meta) in data {
             if vec.len() != self.dimension {
@@ -165,14 +153,8 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn delete(&self, ids: &[String]) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         for id in ids {
             vectors.remove(id);
@@ -183,14 +165,8 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn delete_entity(&self, entity_name: &str) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         let to_remove: Vec<String> = vectors
             .keys()
@@ -211,18 +187,12 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
         Ok(vectors.get(id).cloned())
     }
 
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
 
         let results: Vec<(String, Vec<f32>)> = ids
             .iter()
@@ -233,30 +203,18 @@ impl VectorStorage for MemoryVectorStorage {
     }
 
     async fn is_empty(&self) -> Result<bool> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
         Ok(vectors.is_empty())
     }
 
     async fn count(&self) -> Result<usize> {
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
         Ok(vectors.len())
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         vectors.clear();
         metadata.clear();
@@ -268,14 +226,8 @@ impl VectorStorage for MemoryVectorStorage {
     /// Filters by `workspace_id` field in metadata JSON.
     /// Returns the count of deleted vectors.
     async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        let mut vectors = self
-            .vectors
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let mut metadata_map = self
-            .metadata
-            .write()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let mut vectors = self.vectors.write().map_err(super::lock::map_lock_err)?;
+        let mut metadata_map = self.metadata.write().map_err(super::lock::map_lock_err)?;
 
         let workspace_id_str = workspace_id.to_string();
 
@@ -330,14 +282,8 @@ impl VectorStorage for MemoryVectorStorage {
             )));
         }
 
-        let vectors = self
-            .vectors
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
-        let metadata = self
-            .metadata
-            .read()
-            .map_err(|e| StorageError::Database(format!("Lock error: {}", e)))?;
+        let vectors = self.vectors.read().map_err(super::lock::map_lock_err)?;
+        let metadata = self.metadata.read().map_err(super::lock::map_lock_err)?;
 
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
@@ -355,44 +301,7 @@ impl VectorStorage for MemoryVectorStorage {
                     Some(m) => m,
                     None => return false,
                 };
-                // Document IDs filter: match both "document_id" and "source_document_id"
-                if let Some(doc_ids) = &mf.document_ids {
-                    let doc_id = meta.get("document_id").and_then(|v| v.as_str());
-                    let src_doc_id = meta.get("source_document_id").and_then(|v| v.as_str());
-                    let matches = doc_id
-                        .map(|d| doc_ids.iter().any(|id| id == d))
-                        .unwrap_or(false)
-                        || src_doc_id
-                            .map(|d| doc_ids.iter().any(|id| id == d))
-                            .unwrap_or(false);
-                    if !matches {
-                        return false;
-                    }
-                }
-                // Tenant ID filter
-                if let Some(tid) = &mf.tenant_id {
-                    if let Some(meta_tid) = meta.get("tenant_id").and_then(|v| v.as_str()) {
-                        if meta_tid != tid {
-                            return false;
-                        }
-                    }
-                }
-                // Workspace ID filter
-                if let Some(wid) = &mf.workspace_id {
-                    if let Some(meta_wid) = meta.get("workspace_id").and_then(|v| v.as_str()) {
-                        if meta_wid != wid {
-                            return false;
-                        }
-                    }
-                }
-                // Vector type filter (e.g. "chunk", "entity", "relationship")
-                if let Some(vtype) = &mf.vector_type {
-                    let meta_type = meta.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                    if meta_type != vtype {
-                        return false;
-                    }
-                }
-                true
+                mf.matches(meta)
             })
             .map(|(id, vec)| {
                 let score = Self::cosine_similarity(query_embedding, vec);
@@ -758,53 +667,6 @@ mod tests {
     }
 
     // --- SPEC-007 edge-case tests ---
-
-    #[tokio::test]
-    async fn test_metadata_filter_is_empty() {
-        let mf = MetadataFilter::default();
-        assert!(mf.is_empty());
-
-        let mf = MetadataFilter {
-            tenant_id: Some("t1".to_string()),
-            ..Default::default()
-        };
-        assert!(!mf.is_empty());
-
-        let mf = MetadataFilter {
-            document_ids: Some(vec!["d1".to_string()]),
-            ..Default::default()
-        };
-        assert!(!mf.is_empty());
-
-        let mf = MetadataFilter {
-            workspace_id: Some("ws1".to_string()),
-            ..Default::default()
-        };
-        assert!(!mf.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_metadata_filter_from_tenant_workspace() {
-        // Both None → returns None
-        assert!(MetadataFilter::from_tenant_workspace(None, None).is_none());
-
-        // Tenant only
-        let mf = MetadataFilter::from_tenant_workspace(Some("t1".into()), None).unwrap();
-        assert_eq!(mf.tenant_id.as_deref(), Some("t1"));
-        assert!(mf.workspace_id.is_none());
-        assert!(mf.document_ids.is_none());
-
-        // Workspace only
-        let mf = MetadataFilter::from_tenant_workspace(None, Some("ws1".into())).unwrap();
-        assert!(mf.tenant_id.is_none());
-        assert_eq!(mf.workspace_id.as_deref(), Some("ws1"));
-
-        // Both set
-        let mf =
-            MetadataFilter::from_tenant_workspace(Some("t1".into()), Some("ws1".into())).unwrap();
-        assert_eq!(mf.tenant_id.as_deref(), Some("t1"));
-        assert_eq!(mf.workspace_id.as_deref(), Some("ws1"));
-    }
 
     #[tokio::test]
     async fn test_query_filtered_no_metadata_on_record_excluded() {
@@ -1329,12 +1191,8 @@ mod tests {
         assert_eq!(all.len(), 4);
 
         // With vector_type = "chunk" — only chunks returned
-        let mf = MetadataFilter::from_tenant_workspace_type(
-            Some("t1".into()),
-            None,
-            "chunk",
-        )
-        .unwrap();
+        let mf =
+            MetadataFilter::from_tenant_workspace_type(Some("t1".into()), None, "chunk").unwrap();
         let chunks = storage
             .query_filtered(&[1.0, 0.0, 0.0], 10, None, Some(&mf))
             .await
@@ -1343,12 +1201,8 @@ mod tests {
         assert!(chunks.iter().all(|r| r.id.starts_with('c')));
 
         // With vector_type = "entity" — only entities returned
-        let mf_ent = MetadataFilter::from_tenant_workspace_type(
-            Some("t1".into()),
-            None,
-            "entity",
-        )
-        .unwrap();
+        let mf_ent =
+            MetadataFilter::from_tenant_workspace_type(Some("t1".into()), None, "entity").unwrap();
         let entities = storage
             .query_filtered(&[1.0, 0.0, 0.0], 10, None, Some(&mf_ent))
             .await

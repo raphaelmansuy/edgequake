@@ -10,8 +10,12 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        ENABLE_OTEL: ${ENABLE_OTEL:-false}
     container_name: edgequake
     restart: unless-stopped
+    # SPEC-006 P2: cgroup memory cap — last line of defense against exit 137 (OOM kill)
+    mem_limit: ${EDGEQUAKE_MEM_LIMIT:-4g}
     ports:
       - "${EDGEQUAKE_PORT:-8080}:8080"
     environment:
@@ -66,7 +70,20 @@ services:
       # pdfium-auto cache dir — writable by the non-root container user.
       # Override with PDFIUM_AUTO_CACHE_DIR if you mount a persistent volume.
       - PDFIUM_AUTO_CACHE_DIR=${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
-      - RUST_LOG=info,edgequake=debug
+      - RUST_LOG=${RUST_LOG:-edgequake=info,edgequake_api=info,edgequake_query=warn,edgequake_pipeline=info,edgequake_storage=warn,tower_http=warn,sqlx=warn}
+      - EDGEQUAKE_LOG_FORMAT=${EDGEQUAKE_LOG_FORMAT:-plain}
+      - EDGEQUAKE_LOG_SPAN_EVENTS=${EDGEQUAKE_LOG_SPAN_EVENTS:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-edgequake-api}
+      - EDGEQUAKE_OTEL_ENABLED=${EDGEQUAKE_OTEL_ENABLED:-}
+      # SPEC-006 resource safety (see specifications/006-ensure-perf/009_operator_runbook.md)
+      - WORKER_THREADS=${WORKER_THREADS:-8}
+      - MAX_TASKS_PER_TENANT=${MAX_TASKS_PER_TENANT:-6}
+      - EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=${EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS:-4}
+      - EDGEQUAKE_GRAPH_SCAN_THRESHOLD=${EDGEQUAKE_GRAPH_SCAN_THRESHOLD:-50000}
+      - EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT=${EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT:-1}
+      - EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS=${EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS:-15}
+      - EDGEQUAKE_MAX_UPLOAD_BYTES=${EDGEQUAKE_MAX_UPLOAD_BYTES:-52428800}
     # Linux only: enable host.docker.internal resolution
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -139,6 +156,21 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # Optional: Jaeger all-in-one for OTLP trace export (SPEC-018).
+  # Usage: docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: edgequake-jaeger
+    profiles: ["observability"]
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "${OTEL_GRPC_PORT:-4317}:4317"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - edgequake-network
 
 volumes:
   postgres-data:

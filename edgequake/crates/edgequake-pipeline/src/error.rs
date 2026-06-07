@@ -245,6 +245,40 @@ impl ResilientExtractionResult {
         successful_extractions.sort_by(|a, b| a.source_chunk_id.cmp(&b.source_chunk_id));
         failed_chunks.sort_by_key(|f| f.chunk_index);
 
+        if !failed_chunks.is_empty() {
+            let success_count = successful_extractions.len();
+            let failed_count = failed_chunks.len();
+            let first = &failed_chunks[0];
+            if success_count == 0 {
+                tracing::error!(
+                    error.source = "pipeline",
+                    error.action = "chunk_extraction",
+                    error.code = "EXTRACTION_COMPLETE_FAILURE",
+                    failed_chunks = failed_count,
+                    total_chunks = total_chunks,
+                    chunk_id = %first.chunk_id,
+                    chunk_index = first.chunk_index,
+                    error.message = %first.error,
+                    was_timeout = first.was_timeout,
+                    retry_attempts = first.retry_attempts,
+                    "All chunk extractions failed"
+                );
+            } else {
+                tracing::warn!(
+                    error.source = "pipeline",
+                    error.action = "chunk_extraction",
+                    error.code = "EXTRACTION_PARTIAL_FAILURE",
+                    failed_chunks = failed_count,
+                    successful_chunks = success_count,
+                    total_chunks = total_chunks,
+                    success_rate = success_count as f64 / total_chunks as f64,
+                    chunk_id = %first.chunk_id,
+                    error.message = %first.error,
+                    "Chunk extraction completed with failures"
+                );
+            }
+        }
+
         Self {
             successful_extractions,
             failed_chunks,

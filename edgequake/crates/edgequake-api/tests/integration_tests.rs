@@ -603,9 +603,15 @@ async fn test_request_id_header_added() {
         .await
         .unwrap();
 
-    // The request_id middleware should add x-request-id header
-    // Note: Depending on implementation, this may or may not be present
+    let request_id = response
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok());
     assert!(response.status().is_success());
+    assert!(
+        request_id.is_some(),
+        "SPEC-018: x-request-id must be present on responses"
+    );
 }
 
 // ============ Models Configuration Endpoint Tests ============

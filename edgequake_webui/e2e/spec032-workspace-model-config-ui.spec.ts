@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Workspace Model Configuration UI E2E Tests
  *
@@ -12,12 +13,17 @@
  * @iteration OODA 59
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
 
 test.setTimeout(90000);
 
-test.describe("SPEC-032: Workspace Configuration UI", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@load SPEC-032: Workspace Configuration UI", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => localStorage.clear());
@@ -55,7 +61,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Page should load
       const main = page.locator("main");
@@ -92,7 +97,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for LLM configuration elements
       const pageContent = await page.content();
@@ -135,7 +139,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for embedding configuration elements
       const pageContent = await page.content();
@@ -174,7 +177,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for provider status section
       const providerText = page.getByText(/provider|status/i);
@@ -216,7 +218,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for rebuild button or text
       const rebuildText = page.getByText(/rebuild/i);
@@ -255,7 +256,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for knowledge graph rebuild option
       const pageContent = await page.content();
@@ -299,7 +299,6 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
       await page.goto(`/w/${workspaceSlug}/workspace`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Look for indication that LLM is for extraction/ingestion
       const pageContent = await page.content();
@@ -410,7 +409,7 @@ test.describe("SPEC-032: Workspace Configuration UI", () => {
   });
 });
 
-test.describe("SPEC-032: Workspace Model Editing UI", () => {
+test.describe("@load SPEC-032: Workspace Model Editing UI", () => {
   test("workspace page has edit mode toggle", async ({ page, request }) => {
     // Get workspace slug
     const tenantsResponse = await request.get(`${BACKEND_URL}/api/v1/tenants`);
@@ -436,7 +435,6 @@ test.describe("SPEC-032: Workspace Model Editing UI", () => {
     await page.goto(`/w/${workspaceSlug}/workspace`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
 
     // Look for edit button or toggle
     const editButton = page.getByRole("button", {
@@ -479,7 +477,6 @@ test.describe("SPEC-032: Workspace Model Editing UI", () => {
     await page.goto(`/w/${workspaceSlug}/workspace`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
 
     // Look for model-related elements (buttons, selectors, text)
     const pageContent = await page.content();
@@ -494,7 +491,7 @@ test.describe("SPEC-032: Workspace Model Editing UI", () => {
   });
 });
 
-test.describe("SPEC-032: Workspace Stats Display", () => {
+test.describe("@load SPEC-032: Workspace Stats Display", () => {
   test("workspace page shows document count", async ({ page, request }) => {
     // Get workspace slug
     const tenantsResponse = await request.get(`${BACKEND_URL}/api/v1/tenants`);
@@ -520,7 +517,6 @@ test.describe("SPEC-032: Workspace Stats Display", () => {
     await page.goto(`/w/${workspaceSlug}/workspace`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
 
     // Look for stats section
     const pageContent = await page.content();

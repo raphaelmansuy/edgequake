@@ -51,10 +51,24 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use edgequake_observability::ErrorEvent;
+use serde_json::{json, Value};
+
 use crate::providers::ProviderResolutionError;
 
 /// Result type for API operations.
 pub type ApiResult<T> = std::result::Result<T, ApiError>;
+
+/// Optional context for auth-related 401 responses (single structured log via `into_response`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuthFailureContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+}
 
 /// API error response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,13 +112,13 @@ pub enum ApiError {
     #[error("Not found: {0}")]
     NotFound(String),
 
-    /// Unauthorized.
+    /// Unauthorized (optional auth context for explicit login/refresh diagnostics).
     #[error("Unauthorized")]
-    Unauthorized,
+    Unauthorized(Option<AuthFailureContext>),
 
-    /// Forbidden.
+    /// Forbidden (optional reason, e.g. `account_inactive`).
     #[error("Forbidden")]
-    Forbidden,
+    Forbidden(Option<String>),
 
     /// Conflict.
     #[error("Conflict: {0}")]
@@ -122,6 +136,14 @@ pub enum ApiError {
     /// @implements OODA-01: HTTP-level timeout for document processing
     #[error("Request timeout: {0}")]
     Timeout(String),
+
+    /// Service temporarily unavailable (resource or upstream pressure).
+    /// SPEC-006: BR-006-014 — graph timeout must not fall back to full-graph load.
+    #[error("Service unavailable: {message}")]
+    ServiceUnavailable {
+        message: String,
+        retry_after_secs: u64,
+    },
 
     /// Not implemented.
     #[error("Not implemented: {feature}")]
@@ -150,10 +172,6 @@ pub enum ApiError {
     /// Pipeline error.
     #[error("Pipeline error: {0}")]
     Pipeline(#[from] edgequake_pipeline::error::PipelineError),
-
-    /// Query error.
-    #[error("Query error: {0}")]
-    Query(#[from] edgequake_query::error::QueryError),
 }
 
 impl ApiError {
@@ -162,19 +180,126 @@ impl ApiError {
         match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
-            Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Timeout(_) => StatusCode::REQUEST_TIMEOUT,
+            Self::ServiceUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::ConfigError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Llm(_) => StatusCode::BAD_GATEWAY,
             Self::Pipeline(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Query(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    /// Whether clients should retry (rate limits, timeouts, transient upstream errors).
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::RateLimited | Self::Timeout(_) | Self::ServiceUnavailable { .. } => true,
+            Self::Storage(e) => storage_error_retryable(e),
+            Self::Llm(e) => llm_error_retryable(e),
+            Self::Pipeline(e) => pipeline_error_retryable(e),
+            _ => false,
+        }
+    }
+
+    /// Upstream layer that produced the failure (for logs and `details`).
+    pub fn source_layer(&self) -> &'static str {
+        match self {
+            Self::Storage(_) => "storage",
+            Self::Llm(_) => "llm",
+            Self::Pipeline(_) => "pipeline",
+            Self::Unauthorized(Some(_)) | Self::Forbidden(Some(_)) => "auth",
+            _ => "api",
+        }
+    }
+
+    /// Generic 401 without auth-specific context.
+    pub fn unauthorized() -> Self {
+        Self::Unauthorized(None)
+    }
+
+    /// 401 with explicit login/refresh failure context (one log line in `into_response`).
+    pub fn auth_unauthorized(action: &str, reason: &str, subject: Option<&str>) -> Self {
+        Self::Unauthorized(Some(AuthFailureContext {
+            action: Some(action.into()),
+            reason: Some(reason.into()),
+            subject: subject.map(|s| s.to_string()),
+        }))
+    }
+
+    /// Generic 403 without reason.
+    pub fn forbidden() -> Self {
+        Self::Forbidden(None)
+    }
+
+    /// 403 with explicit reason (e.g. inactive account).
+    pub fn forbidden_reason(reason: impl Into<String>) -> Self {
+        Self::Forbidden(Some(reason.into()))
+    }
+
+    /// Variant-specific diagnostics (explicit, not only Display).
+    pub fn diagnostic_details(&self) -> Value {
+        match self {
+            Self::BadRequest(msg) => json!({ "kind": "bad_request", "message": msg }),
+            Self::NotFound(msg) => json!({ "kind": "not_found", "resource": msg }),
+            Self::Unauthorized(ctx) => auth_failure_diagnostic("unauthorized", ctx.as_ref()),
+            Self::Forbidden(reason) => {
+                let mut d = json!({ "kind": "forbidden" });
+                if let Some(r) = reason {
+                    d["reason"] = json!(r);
+                }
+                d
+            }
+            Self::Conflict(msg) => json!({ "kind": "conflict", "message": msg }),
+            Self::ValidationError(msg) => json!({ "kind": "validation", "message": msg }),
+            Self::RateLimited => json!({ "kind": "rate_limited", "retryable": true }),
+            Self::Timeout(msg) => json!({ "kind": "timeout", "message": msg, "retryable": true }),
+            Self::ServiceUnavailable {
+                message,
+                retry_after_secs,
+            } => json!({
+                "kind": "service_unavailable",
+                "message": message,
+                "retry_after_secs": retry_after_secs,
+                "retryable": true,
+            }),
+            Self::NotImplemented { feature } => {
+                json!({ "kind": "not_implemented", "feature": feature })
+            }
+            Self::Internal(msg) => json!({ "kind": "internal", "message": msg }),
+            Self::ConfigError(msg) => json!({ "kind": "config", "message": msg }),
+            Self::Storage(e) => storage_error_diagnostic(e),
+            Self::Llm(e) => {
+                let retryable = llm_error_retryable(e);
+                let mut diag = json!({
+                    "kind": "llm",
+                    "error": e.to_string(),
+                    "retryable": retryable,
+                });
+                if let Some(provider) = edgequake_observability::current_llm_provider() {
+                    diag["provider"] = json!(provider);
+                }
+                diag
+            }
+            Self::Pipeline(e) => pipeline_error_diagnostic(e),
+        }
+    }
+
+    /// Build structured error event for logging and traces.
+    pub fn to_error_event(&self, request_id: String) -> ErrorEvent {
+        ErrorEvent {
+            request_id,
+            error_code: self.code().to_string(),
+            http_status: self.status_code().as_u16(),
+            message: self.to_string(),
+            source: Some(self.source_layer().to_string()),
+            retryable: self.is_retryable(),
+            details: self.diagnostic_details(),
         }
     }
 
@@ -183,19 +308,19 @@ impl ApiError {
         match self {
             Self::BadRequest(_) => "BAD_REQUEST",
             Self::NotFound(_) => "NOT_FOUND",
-            Self::Unauthorized => "UNAUTHORIZED",
-            Self::Forbidden => "FORBIDDEN",
+            Self::Unauthorized(_) => "UNAUTHORIZED",
+            Self::Forbidden(_) => "FORBIDDEN",
             Self::Conflict(_) => "CONFLICT",
             Self::ValidationError(_) => "VALIDATION_ERROR",
             Self::RateLimited => "RATE_LIMITED",
             Self::Timeout(_) => "REQUEST_TIMEOUT",
+            Self::ServiceUnavailable { .. } => "SERVICE_UNAVAILABLE",
             Self::NotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::Internal(_) => "INTERNAL_ERROR",
             Self::ConfigError(_) => "CONFIG_ERROR",
             Self::Storage(_) => "STORAGE_ERROR",
             Self::Llm(_) => "LLM_ERROR",
             Self::Pipeline(_) => "PIPELINE_ERROR",
-            Self::Query(_) => "QUERY_ERROR",
         }
     }
 }
@@ -203,9 +328,102 @@ impl ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = self.status_code();
-        let error = ErrorResponse::new(self.code(), self.to_string());
+        let request_id =
+            edgequake_observability::current_request_id().unwrap_or_else(|| "unknown".to_string());
+
+        let event = self.to_error_event(request_id.clone());
+        event.record_on_current_span();
+        event.log();
+
+        edgequake_observability::record_http_error(
+            status.as_u16(),
+            self.code(),
+            &self.to_string(),
+            Some(self.source_layer()),
+            Some(self.is_retryable()),
+        );
+
+        if let Self::Storage(e) = &self {
+            edgequake_observability::record_storage_error(storage_error_category(e), self.code());
+        }
+
+        if let Self::Pipeline(e) = &self {
+            let category = pipeline_error_category(e);
+            edgequake_observability::record_pipeline_error(category, self.code());
+            tracing::debug!(
+                request_id = %request_id,
+                error.code = %self.code(),
+                pipeline.category = %category,
+                pipeline.error = %e,
+                "Pipeline error mapped to API response"
+            );
+        }
+
+        if let Self::Llm(e) = &self {
+            let provider = edgequake_observability::current_llm_provider()
+                .unwrap_or_else(|| "unknown".to_string());
+            edgequake_observability::record_llm_request(
+                &provider,
+                "query_generation",
+                "failure",
+                0.0,
+            );
+            tracing::debug!(
+                request_id = %request_id,
+                error.code = %self.code(),
+                llm.error = %e,
+                "LLM error mapped to API response"
+            );
+        }
+
+        let mut error = ErrorResponse::new(self.code(), self.to_string());
+        error.details = Some(event.into_api_details());
+
+        if let Self::ServiceUnavailable {
+            retry_after_secs, ..
+        } = &self
+        {
+            return (
+                status,
+                [(
+                    axum::http::header::RETRY_AFTER,
+                    retry_after_secs.to_string(),
+                )],
+                Json(error),
+            )
+                .into_response();
+        }
 
         (status, Json(error)).into_response()
+    }
+}
+
+impl ApiError {
+    /// SPEC-006: graph popular-nodes query exceeded budget — never fall back to full scan.
+    pub fn graph_query_timeout() -> Self {
+        Self::ServiceUnavailable {
+            message: "Graph query exceeded time budget. Retry later.".into(),
+            retry_after_secs: 30,
+        }
+    }
+
+    /// SPEC-006 P3: full-graph operation rejected at admission (community detection, etc.).
+    pub fn graph_too_large(node_count: usize, threshold: usize) -> Self {
+        Self::ServiceUnavailable {
+            message: format!(
+                "Graph has {node_count} nodes, exceeding scan threshold of {threshold}. \
+                 Operation requires bounded graph size."
+            ),
+            retry_after_secs: 60,
+        }
+    }
+
+    /// SPEC-006 P1: concurrent graph materialization cap reached.
+    pub fn graph_materialization_busy() -> Self {
+        Self::ServiceUnavailable {
+            message: "Graph materialization capacity reached. Retry shortly.".into(),
+            retry_after_secs: 5,
+        }
     }
 }
 
@@ -226,6 +444,161 @@ impl IntoResponse for ApiError {
 /// | WorkspaceServiceError | Internal | 500 |
 ///
 /// @implements OODA-234: Unified error conversion for provider resolution
+fn auth_failure_diagnostic(kind: &str, ctx: Option<&AuthFailureContext>) -> Value {
+    let mut d = json!({ "kind": kind });
+    if let Some(ctx) = ctx {
+        if let Some(a) = &ctx.action {
+            d["action"] = json!(a);
+        }
+        if let Some(r) = &ctx.reason {
+            d["reason"] = json!(r);
+        }
+        if let Some(s) = &ctx.subject {
+            d["subject"] = json!(s);
+        }
+    }
+    d
+}
+
+fn storage_error_category(e: &edgequake_storage::error::StorageError) -> &'static str {
+    use edgequake_storage::error::StorageError;
+    match e {
+        StorageError::Connection(_) => "connection",
+        StorageError::NotFound(_) => "not_found",
+        StorageError::AlreadyExists(_) => "already_exists",
+        StorageError::Conflict(_) => "conflict",
+        StorageError::InvalidQuery(_) => "invalid_query",
+        StorageError::Transaction(_) => "transaction",
+        StorageError::Serialization(_) => "serialization",
+        StorageError::Database(_) => "database",
+        StorageError::Io(_) => "io",
+        StorageError::NotInitialized => "not_initialized",
+        StorageError::InvalidConfig(_) => "invalid_config",
+        StorageError::InvalidData(_) => "invalid_data",
+    }
+}
+
+fn storage_error_retryable(e: &edgequake_storage::error::StorageError) -> bool {
+    use edgequake_storage::error::StorageError;
+    matches!(
+        e,
+        StorageError::Connection(_) | StorageError::Database(_) | StorageError::Transaction(_)
+    )
+}
+
+fn storage_error_diagnostic(e: &edgequake_storage::error::StorageError) -> Value {
+    json!({
+        "kind": "storage",
+        "category": storage_error_category(e),
+        "error": e.to_string(),
+        "retryable": storage_error_retryable(e),
+    })
+}
+
+fn llm_error_retryable(e: &edgequake_llm::error::LlmError) -> bool {
+    let msg = e.to_string().to_ascii_lowercase();
+    msg.contains("timeout")
+        || msg.contains("rate limit")
+        || msg.contains("rate_limit")
+        || msg.contains("429")
+        || msg.contains("503")
+        || msg.contains("overloaded")
+        || msg.contains("unavailable")
+}
+
+fn pipeline_error_retryable(e: &edgequake_pipeline::error::PipelineError) -> bool {
+    use edgequake_pipeline::error::PipelineError;
+    matches!(
+        e,
+        PipelineError::ExtractionTimeout { .. } | PipelineError::CircuitBreakerOpen { .. }
+    )
+}
+
+fn pipeline_error_category(e: &edgequake_pipeline::error::PipelineError) -> &'static str {
+    use edgequake_pipeline::error::PipelineError;
+    match e {
+        PipelineError::DocumentError(_) => "document",
+        PipelineError::ChunkingError(_) => "chunking",
+        PipelineError::ExtractionError(_) => "extraction",
+        PipelineError::EmbeddingError(_) => "embedding",
+        PipelineError::GraphError(_) => "graph",
+        PipelineError::StorageError(_) => "storage",
+        PipelineError::LlmError(_) => "llm",
+        PipelineError::ConfigError(_) => "config",
+        PipelineError::NotFound(_) => "not_found",
+        PipelineError::InvalidFormat(_) => "invalid_format",
+        PipelineError::ExtractionTimeout { .. } => "extraction_timeout",
+        PipelineError::RetryExhausted { .. } => "retry_exhausted",
+        PipelineError::CircuitBreakerOpen { .. } => "circuit_breaker_open",
+        PipelineError::Validation(_) => "validation",
+    }
+}
+
+fn pipeline_error_diagnostic(e: &edgequake_pipeline::error::PipelineError) -> Value {
+    use edgequake_pipeline::error::PipelineError;
+    match e {
+        PipelineError::StorageError(inner) => json!({
+            "kind": "pipeline",
+            "category": "storage",
+            "storage": storage_error_diagnostic(inner),
+            "error": e.to_string(),
+        }),
+        PipelineError::ExtractionTimeout {
+            chunk_index,
+            timeout_secs,
+            message,
+        } => json!({
+            "kind": "pipeline",
+            "category": "extraction_timeout",
+            "chunk_index": chunk_index,
+            "timeout_secs": timeout_secs,
+            "message": message,
+            "retryable": true,
+        }),
+        PipelineError::RetryExhausted {
+            chunk_index,
+            attempts,
+            message,
+        } => json!({
+            "kind": "pipeline",
+            "category": "retry_exhausted",
+            "chunk_index": chunk_index,
+            "attempts": attempts,
+            "message": message,
+        }),
+        PipelineError::CircuitBreakerOpen {
+            failures,
+            retry_after_secs,
+        } => json!({
+            "kind": "pipeline",
+            "category": "circuit_breaker_open",
+            "failures": failures,
+            "retry_after_secs": retry_after_secs,
+            "retryable": true,
+        }),
+        other => {
+            let category = match other {
+                PipelineError::DocumentError(_) => "document",
+                PipelineError::ChunkingError(_) => "chunking",
+                PipelineError::ExtractionError(_) => "extraction",
+                PipelineError::EmbeddingError(_) => "embedding",
+                PipelineError::GraphError(_) => "graph",
+                PipelineError::LlmError(_) => "llm",
+                PipelineError::ConfigError(_) => "config",
+                PipelineError::NotFound(_) => "not_found",
+                PipelineError::InvalidFormat(_) => "invalid_format",
+                PipelineError::Validation(_) => "validation",
+                _ => "unknown",
+            };
+            json!({
+                "kind": "pipeline",
+                "category": category,
+                "error": e.to_string(),
+            })
+        }
+    }
+}
+
 impl From<ProviderResolutionError> for ApiError {
     fn from(err: ProviderResolutionError) -> Self {
         match err {
@@ -261,6 +634,26 @@ impl From<ProviderResolutionError> for ApiError {
             ProviderResolutionError::WorkspaceServiceError(msg) => {
                 ApiError::Internal(format!("Workspace service error: {}", msg))
             }
+        }
+    }
+}
+
+/// Convert query engine errors to semantic HTTP API errors (SPEC-017 P1-07).
+impl From<edgequake_query::error::QueryError> for ApiError {
+    fn from(e: edgequake_query::error::QueryError) -> Self {
+        use edgequake_query::error::QueryError;
+        match e {
+            QueryError::InvalidQuery(msg) => ApiError::BadRequest(msg),
+            QueryError::NoResults => ApiError::NotFound("No results found for query".to_string()),
+            QueryError::ContextLimitExceeded { max, got } => ApiError::BadRequest(format!(
+                "Context limit exceeded: max {} tokens, got {}",
+                max, got
+            )),
+            QueryError::StorageError(se) => ApiError::Storage(se),
+            QueryError::LlmError(le) => ApiError::Llm(le),
+            QueryError::ConfigError(msg) => ApiError::ConfigError(msg),
+            QueryError::Timeout(ms) => ApiError::Timeout(format!("Query timed out after {}ms", ms)),
+            QueryError::Internal(msg) => ApiError::Internal(msg),
         }
     }
 }
@@ -354,10 +747,10 @@ mod tests {
     #[test]
     fn test_all_error_status_codes() {
         assert_eq!(
-            ApiError::Unauthorized.status_code(),
+            ApiError::unauthorized().status_code(),
             StatusCode::UNAUTHORIZED
         );
-        assert_eq!(ApiError::Forbidden.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(ApiError::forbidden().status_code(), StatusCode::FORBIDDEN);
         assert_eq!(
             ApiError::Conflict("c".into()).status_code(),
             StatusCode::CONFLICT
@@ -376,8 +769,8 @@ mod tests {
     fn test_all_error_codes() {
         assert_eq!(ApiError::BadRequest("b".into()).code(), "BAD_REQUEST");
         assert_eq!(ApiError::NotFound("n".into()).code(), "NOT_FOUND");
-        assert_eq!(ApiError::Unauthorized.code(), "UNAUTHORIZED");
-        assert_eq!(ApiError::Forbidden.code(), "FORBIDDEN");
+        assert_eq!(ApiError::unauthorized().code(), "UNAUTHORIZED");
+        assert_eq!(ApiError::forbidden().code(), "FORBIDDEN");
         assert_eq!(ApiError::Conflict("c".into()).code(), "CONFLICT");
         assert_eq!(
             ApiError::ValidationError("v".into()).code(),
@@ -395,7 +788,7 @@ mod tests {
         let error = ApiError::NotFound("document".to_string());
         assert_eq!(error.to_string(), "Not found: document");
 
-        let error = ApiError::Unauthorized;
+        let error = ApiError::unauthorized();
         assert_eq!(error.to_string(), "Unauthorized");
     }
 
@@ -463,10 +856,101 @@ mod tests {
     #[test]
     fn test_query_error_status_code() {
         use edgequake_query::error::QueryError;
-        let query_err = QueryError::InvalidQuery("bad query".to_string());
-        let api_err = ApiError::Query(query_err);
-        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(api_err.code(), "QUERY_ERROR");
+        let api_err = ApiError::from(QueryError::InvalidQuery("bad query".to_string()));
+        assert_eq!(api_err.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(api_err.code(), "BAD_REQUEST");
+
+        let api_err = ApiError::from(QueryError::NoResults);
+        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+
+        let api_err = ApiError::from(QueryError::ConfigError("missing key".into()));
+        assert_eq!(api_err.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[test]
+    fn test_error_event_explicit_context() {
+        let err = ApiError::NotFound("doc-abc".into());
+        let event = err.to_error_event("req-1".into());
+        assert_eq!(event.error_code, "NOT_FOUND");
+        assert_eq!(event.http_status, 404);
+        assert_eq!(event.source.as_deref(), Some("api"));
+        assert_eq!(event.details["kind"], "not_found");
+        let api_details = event.into_api_details();
+        assert_eq!(api_details["request_id"], "req-1");
+        assert_eq!(api_details["error_code"], "NOT_FOUND");
+        assert!(api_details.get("diagnostics").is_some());
+    }
+
+    #[test]
+    fn test_storage_error_diagnostic_layer() {
+        use edgequake_storage::error::StorageError;
+        let err = ApiError::Storage(StorageError::NotFound("chunk-1".into()));
+        let event = err.to_error_event("req-2".into());
+        assert_eq!(event.source.as_deref(), Some("storage"));
+        assert_eq!(event.details["kind"], "storage");
+        assert_eq!(event.details["category"], "not_found");
+        assert!(event.http_status >= 500);
+    }
+
+    #[test]
+    fn test_storage_connection_error_is_retryable_with_category() {
+        use edgequake_storage::error::StorageError;
+        let err = ApiError::Storage(StorageError::Connection("pool exhausted".into()));
+        assert!(err.is_retryable());
+        assert_eq!(err.diagnostic_details()["category"], "connection");
+        assert_eq!(err.diagnostic_details()["retryable"], true);
+    }
+
+    #[test]
+    fn test_pipeline_circuit_breaker_is_retryable() {
+        use edgequake_pipeline::error::PipelineError;
+        let err = ApiError::Pipeline(PipelineError::CircuitBreakerOpen {
+            failures: 3,
+            retry_after_secs: 60,
+        });
+        assert!(err.is_retryable());
+        assert_eq!(err.diagnostic_details()["retryable"], true);
+    }
+
+    #[test]
+    fn test_auth_failure_includes_reason_in_diagnostics() {
+        let err = ApiError::auth_unauthorized("login", "invalid_password", Some("alice"));
+        let d = err.diagnostic_details();
+        assert_eq!(d["kind"], "unauthorized");
+        assert_eq!(d["action"], "login");
+        assert_eq!(d["reason"], "invalid_password");
+        assert_eq!(d["subject"], "alice");
+        assert_eq!(err.source_layer(), "auth");
+    }
+
+    #[test]
+    fn test_forbidden_includes_reason() {
+        let err = ApiError::forbidden_reason("account_inactive");
+        assert_eq!(err.diagnostic_details()["reason"], "account_inactive");
+        assert_eq!(err.source_layer(), "auth");
+    }
+
+    #[test]
+    fn test_llm_timeout_is_retryable_not_auth_error() {
+        use edgequake_llm::error::LlmError;
+        let timeout = ApiError::Llm(LlmError::ApiError("request timeout after 30s".into()));
+        assert!(timeout.is_retryable());
+        let auth = ApiError::Llm(LlmError::ApiError("invalid_api_key: unauthorized".into()));
+        assert!(!auth.is_retryable());
+    }
+
+    #[test]
+    fn test_pipeline_extraction_timeout_diagnostic() {
+        use edgequake_pipeline::error::PipelineError;
+        let err = ApiError::Pipeline(PipelineError::ExtractionTimeout {
+            chunk_index: 3,
+            timeout_secs: 120,
+            message: "LLM hung".into(),
+        });
+        let d = err.diagnostic_details();
+        assert_eq!(d["category"], "extraction_timeout");
+        assert_eq!(d["chunk_index"], 3);
+        assert_eq!(d["retryable"], true);
     }
 
     #[test]
@@ -494,8 +978,8 @@ mod tests {
         let errors = vec![
             ApiError::BadRequest("test".into()),
             ApiError::NotFound("test".into()),
-            ApiError::Unauthorized,
-            ApiError::Forbidden,
+            ApiError::unauthorized(),
+            ApiError::forbidden(),
             ApiError::Conflict("test".into()),
             ApiError::ValidationError("test".into()),
             ApiError::RateLimited,

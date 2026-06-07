@@ -238,9 +238,10 @@ async fn test_app_state_has_broadcaster() {
     let state = AppState::test_state();
 
     // The broadcaster should be accessible and functional
-    let mut rx = state.progress_broadcaster.subscribe();
+    let mut rx = state.tasks.progress_broadcaster.subscribe();
 
     state
+        .tasks
         .progress_broadcaster
         .job_started("integration-test", 5, 1);
 

@@ -1,7 +1,7 @@
-//! Query strategies for different modes.
+//! Legacy query strategies (benchmark-only — use `SOTAQueryEngine` in production).
 //!
-//! Each query mode has a corresponding strategy that determines how to
-//! retrieve and combine context from vector and graph storage.
+//! @deprecated since SPEC-017: Superseded by `sota_engine::query_pipeline`.
+//! Retained for `benches/query_bench.rs` performance comparisons only.
 
 mod config;
 mod global;
@@ -46,6 +46,7 @@ where
         QueryMode::Global => Box::new(GlobalStrategy::new(vector_storage, graph_storage)),
         QueryMode::Hybrid => Box::new(HybridStrategy::new(vector_storage, graph_storage)),
         QueryMode::Mix => Box::new(MixStrategy::new(vector_storage, graph_storage)),
+        QueryMode::Bypass => Box::new(NaiveStrategy::new(vector_storage)),
     }
 }
 
@@ -53,6 +54,7 @@ where
 mod tests {
     use super::*;
     use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryVectorStorage};
+    use edgequake_storage::GraphStorageMutateOps;
     use serde_json::json;
     use std::collections::HashMap;
 

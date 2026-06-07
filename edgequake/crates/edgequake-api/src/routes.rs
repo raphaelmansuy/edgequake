@@ -253,6 +253,10 @@ fn api_v1_routes() -> Router<AppState> {
         )
         // PDF Upload (SPEC-007) - MUST come before /documents/{document_id}
         .route("/documents/pdf", post(handlers::upload_pdf_document))
+        .route(
+            "/documents/pdf/batch",
+            post(handlers::upload_pdf_batch_document),
+        )
         .route("/documents/pdf", get(handlers::list_pdfs))
         // OODA-14: PDF progress endpoint - before /documents/pdf/{pdf_id}
         .route(

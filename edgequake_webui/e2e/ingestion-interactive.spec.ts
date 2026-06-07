@@ -8,11 +8,8 @@
  */
 
 import { expect, test } from "@playwright/test";
-import fs from "fs";
-import path from "path";
-
-// Screenshot output directory
-const SCREENSHOT_DIR = "e2e/screenshots/ingestion-interactive";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { waitForAppReady } from "./helpers/app-ready";
 
 // Test document content
 const TEST_DOCUMENT_CONTENT = `
@@ -58,18 +55,10 @@ EdgeQuake represents a significant advancement in RAG technology,
 combining graph databases with vector search for enhanced retrieval.
 `;
 
-test.describe("Interactive Ingestion Pipeline Tests", () => {
-  test.beforeAll(async () => {
-    // Ensure screenshot directory exists
-    if (!fs.existsSync(SCREENSHOT_DIR)) {
-      fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-    }
-  });
-
+test.describe("@audit Interactive Ingestion Pipeline Tests", () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to documents page
     await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
   });
 
   test("01 - Navigate to documents page and view upload zone", async ({
@@ -77,7 +66,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
   }) => {
     // Take initial screenshot
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "01-documents-page.png"),
+      path: e2eScreenshot("ingestion-interactive", "01-documents-page.png"),
       fullPage: true,
     });
 
@@ -118,7 +107,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
 
       // Take screenshot after upload initiated
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "02-upload-initiated.png"),
+        path: e2eScreenshot("ingestion-interactive", "02-upload-initiated.png"),
         fullPage: true,
       });
 
@@ -133,7 +122,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
 
       // Take screenshot of progress (if visible)
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "02-progress-tracking.png"),
+        path: e2eScreenshot("ingestion-interactive", "02-progress-tracking.png"),
         fullPage: true,
       });
 
@@ -142,7 +131,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
 
       // Final screenshot
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "02-upload-complete.png"),
+        path: e2eScreenshot("ingestion-interactive", "02-upload-complete.png"),
         fullPage: true,
       });
     } finally {
@@ -162,7 +151,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
     const hasDocuments = (await page.locator('tr, [role="row"]').count()) > 1;
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "03-document-list.png"),
+      path: e2eScreenshot("ingestion-interactive", "03-document-list.png"),
       fullPage: true,
     });
 
@@ -185,7 +174,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
 
     // Take screenshot of connection status
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "04-websocket-status.png"),
+      path: e2eScreenshot("ingestion-interactive", "04-websocket-status.png"),
       fullPage: true,
     });
 
@@ -212,7 +201,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
       await expect(page).toHaveURL(/\/costs/);
 
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "05-costs-page.png"),
+        path: e2eScreenshot("ingestion-interactive", "05-costs-page.png"),
         fullPage: true,
       });
 
@@ -224,7 +213,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
     } else {
       console.log("Costs link not visible, skipping navigation");
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "05-no-costs-link.png"),
+        path: e2eScreenshot("ingestion-interactive", "05-no-costs-link.png"),
         fullPage: true,
       });
     }
@@ -238,7 +227,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
     await page.waitForTimeout(1000);
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "06-graph-page.png"),
+      path: e2eScreenshot("ingestion-interactive", "06-graph-page.png"),
       fullPage: true,
     });
 
@@ -270,7 +259,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
       await page.waitForTimeout(500);
 
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "07-document-detail.png"),
+        path: e2eScreenshot("ingestion-interactive", "07-document-detail.png"),
         fullPage: true,
       });
 
@@ -292,14 +281,14 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
 
       if (hasTreeOrGraph) {
         await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, "07-lineage-detail.png"),
+          path: e2eScreenshot("ingestion-interactive", "07-lineage-detail.png"),
           fullPage: true,
         });
       }
     } else {
       console.log("No documents to view");
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "07-no-documents.png"),
+        path: e2eScreenshot("ingestion-interactive", "07-no-documents.png"),
         fullPage: true,
       });
     }
@@ -317,7 +306,7 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
 
     if ((await progressPanel.count()) > 0) {
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "08-progress-panel.png"),
+        path: e2eScreenshot("ingestion-interactive", "08-progress-panel.png"),
         fullPage: true,
       });
 
@@ -333,14 +322,14 @@ test.describe("Interactive Ingestion Pipeline Tests", () => {
     } else {
       console.log("No active ingestion progress panels");
       await page.screenshot({
-        path: path.join(SCREENSHOT_DIR, "08-no-active-progress.png"),
+        path: e2eScreenshot("ingestion-interactive", "08-no-active-progress.png"),
         fullPage: true,
       });
     }
   });
 });
 
-test.describe("Stage Indicator Visualization Tests", () => {
+test.describe("@audit Stage Indicator Visualization Tests", () => {
   test("09 - Verify stage indicator styles", async ({ page }) => {
     // Navigate to documents and look for stage indicators
     await page.goto("/documents");
@@ -348,7 +337,7 @@ test.describe("Stage Indicator Visualization Tests", () => {
 
     // Take screenshot of any visible stage indicators
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "09-stage-indicators.png"),
+      path: e2eScreenshot("ingestion-interactive", "09-stage-indicators.png"),
       fullPage: true,
     });
 
@@ -372,7 +361,7 @@ test.describe("Stage Indicator Visualization Tests", () => {
   });
 });
 
-test.describe("Cost Tracking UI Tests", () => {
+test.describe("@audit Cost Tracking UI Tests", () => {
   test("10 - Verify cost badge displays", async ({ page }) => {
     // Navigate to documents page
     await page.goto("/documents");
@@ -383,7 +372,7 @@ test.describe("Cost Tracking UI Tests", () => {
     const costText = await page.getByText(/\$[0-9.]+/).count();
 
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "10-cost-badges.png"),
+      path: e2eScreenshot("ingestion-interactive", "10-cost-badges.png"),
       fullPage: true,
     });
 
