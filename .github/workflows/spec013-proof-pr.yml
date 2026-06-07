@@ -1,0 +1,67 @@
+# SPEC-013 PR gate — mock API + Postgres vector stats (no Mistral key, ~2–5 min).
+
+name: SPEC-013 PR Proof
+
+on:
+  pull_request:
+    paths:
+      - "edgequake/**"
+      - "edgequake_webui/**"
+      - "scripts/spec013_entity_type_audit.py"
+      - "Makefile"
+      - ".github/workflows/spec013-proof-pr.yml"
+
+concurrency:
+  group: spec013-proof-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_TOOLCHAIN: 1.95.0
+  SPEC013_CARGO_TEST_ARGS: --test-threads=1
+
+jobs:
+  spec013-proof-pr:
+    name: SPEC-013 PR proof (mock + storage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: edgequake
+          POSTGRES_PASSWORD: edgequake_secret
+          POSTGRES_DB: edgequake
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edgequake -d edgequake"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U edgequake -d edgequake && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Run SPEC-013 PR proof
+        env:
+          DATABASE_URL: postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
+        run: make spec013-proof-pr

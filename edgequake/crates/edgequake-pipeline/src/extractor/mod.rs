@@ -18,13 +18,6 @@
 //! - **BR0006**: Same-entity relationships forbidden
 //! - **BR0008**: Entity names normalized (UPPERCASE_UNDERSCORE)
 //!
-//! # WHY: LLM-Based Extraction
-//!
-//! Using LLMs for extraction provides:
-//! 1. Domain-agnostic entity recognition (no training required)
-//! 2. Rich semantic descriptions (not just labels)
-//! 3. Relationship inference beyond co-occurrence
-//!
 //! # Extraction Strategies
 //!
 //! | Strategy | Description | Use Case |
@@ -34,267 +27,30 @@
 //! | [`GleaningExtractor`] | Iterative re-extraction | High-stakes domains |
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::chunker::TextChunk;
 use crate::error::Result;
 
-/// Result of entity and relationship extraction.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ExtractionResult {
-    /// Extracted entities.
-    pub entities: Vec<ExtractedEntity>,
+mod completion_options;
+mod gleaning;
+mod llm;
+mod schema;
+mod simple;
+mod sota;
+mod temperature;
+mod types;
 
-    /// Extracted relationships.
-    pub relationships: Vec<ExtractedRelationship>,
+pub use completion_options::{
+    assign_token_usage, extraction_completion_options, recommended_chunk_size_for_bytes,
+};
+pub use schema::ConfigurableEntitySchema;
+pub use temperature::effective_temperature_for_model;
+pub use types::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
 
-    /// Source chunk ID.
-    pub source_chunk_id: String,
-
-    /// Processing metadata.
-    pub metadata: HashMap<String, serde_json::Value>,
-
-    /// Input tokens used for this extraction.
-    pub input_tokens: usize,
-
-    /// Output tokens generated for this extraction.
-    pub output_tokens: usize,
-
-    /// Extraction time in milliseconds.
-    pub extraction_time_ms: u64,
-}
-
-impl ExtractionResult {
-    /// Create a new empty extraction result.
-    pub fn new(source_chunk_id: impl Into<String>) -> Self {
-        Self {
-            entities: Vec::new(),
-            relationships: Vec::new(),
-            source_chunk_id: source_chunk_id.into(),
-            metadata: HashMap::new(),
-            input_tokens: 0,
-            output_tokens: 0,
-            extraction_time_ms: 0,
-        }
-    }
-
-    /// Add an entity.
-    pub fn add_entity(&mut self, entity: ExtractedEntity) {
-        self.entities.push(entity);
-    }
-
-    /// Add a relationship.
-    pub fn add_relationship(&mut self, rel: ExtractedRelationship) {
-        self.relationships.push(rel);
-    }
-
-    /// Set token usage information.
-    pub fn with_token_usage(mut self, input_tokens: usize, output_tokens: usize) -> Self {
-        self.input_tokens = input_tokens;
-        self.output_tokens = output_tokens;
-        self
-    }
-
-    /// Set extraction timing.
-    pub fn with_timing(mut self, extraction_time_ms: u64) -> Self {
-        self.extraction_time_ms = extraction_time_ms;
-        self
-    }
-}
-
-/// An extracted entity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedEntity {
-    /// Entity name (normalized).
-    pub name: String,
-
-    /// Entity type (e.g., "PERSON", "ORGANIZATION", "CONCEPT").
-    pub entity_type: String,
-
-    /// Description of the entity.
-    pub description: String,
-
-    /// Importance score (0.0 to 1.0).
-    pub importance: f32,
-
-    /// Source text spans.
-    pub source_spans: Vec<String>,
-
-    /// Entity embedding.
-    pub embedding: Option<Vec<f32>>,
-
-    /// Source chunk IDs where this entity was mentioned.
-    /// Used for citation tracking back to original document chunks.
-    #[serde(default)]
-    pub source_chunk_ids: Vec<String>,
-
-    /// Source document ID (the document this entity was extracted from).
-    #[serde(default)]
-    pub source_document_id: Option<String>,
-
-    /// Original file path of the source document.
-    #[serde(default)]
-    pub source_file_path: Option<String>,
-}
-
-impl ExtractedEntity {
-    /// Create a new extracted entity.
-    pub fn new(
-        name: impl Into<String>,
-        entity_type: impl Into<String>,
-        description: impl Into<String>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            entity_type: entity_type.into(),
-            description: description.into(),
-            importance: 0.5,
-            source_spans: Vec::new(),
-            embedding: None,
-            source_chunk_ids: Vec::new(),
-            source_document_id: None,
-            source_file_path: None,
-        }
-    }
-
-    /// Set the importance score.
-    pub fn with_importance(mut self, importance: f32) -> Self {
-        self.importance = importance.clamp(0.0, 1.0);
-        self
-    }
-
-    /// Add a source span.
-    pub fn with_source_span(mut self, span: impl Into<String>) -> Self {
-        self.source_spans.push(span.into());
-        self
-    }
-
-    /// Add a source chunk ID.
-    pub fn with_source_chunk_id(mut self, chunk_id: impl Into<String>) -> Self {
-        let id = chunk_id.into();
-        if !self.source_chunk_ids.contains(&id) {
-            self.source_chunk_ids.push(id);
-        }
-        self
-    }
-
-    /// Set the source document ID.
-    pub fn with_source_document_id(mut self, document_id: impl Into<String>) -> Self {
-        self.source_document_id = Some(document_id.into());
-        self
-    }
-
-    /// Set the source file path.
-    pub fn with_source_file_path(mut self, file_path: impl Into<String>) -> Self {
-        self.source_file_path = Some(file_path.into());
-        self
-    }
-
-    /// Add source chunk ID (mutable reference version).
-    pub fn add_source_chunk_id(&mut self, chunk_id: impl Into<String>) {
-        let id = chunk_id.into();
-        if !self.source_chunk_ids.contains(&id) {
-            self.source_chunk_ids.push(id);
-        }
-    }
-}
-
-/// An extracted relationship between entities.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedRelationship {
-    /// Source entity name.
-    pub source: String,
-
-    /// Target entity name.
-    pub target: String,
-
-    /// Relationship type/description.
-    pub relation_type: String,
-
-    /// Relationship description.
-    pub description: String,
-
-    /// Weight/strength (0.0 to 1.0).
-    pub weight: f32,
-
-    /// Keywords associated with this relationship.
-    pub keywords: Vec<String>,
-
-    /// Relationship embedding (for similarity search).
-    /// Computed from: keywords + source + target + description
-    pub embedding: Option<Vec<f32>>,
-
-    /// Source chunk ID where this relationship was extracted.
-    #[serde(default)]
-    pub source_chunk_id: Option<String>,
-
-    /// Source document ID.
-    #[serde(default)]
-    pub source_document_id: Option<String>,
-
-    /// Original file path of the source document.
-    #[serde(default)]
-    pub source_file_path: Option<String>,
-}
-
-impl ExtractedRelationship {
-    /// Create a new extracted relationship.
-    pub fn new(
-        source: impl Into<String>,
-        target: impl Into<String>,
-        relation_type: impl Into<String>,
-    ) -> Self {
-        Self {
-            source: source.into(),
-            target: target.into(),
-            relation_type: relation_type.into(),
-            description: String::new(),
-            weight: 0.5,
-            keywords: Vec::new(),
-            embedding: None,
-            source_chunk_id: None,
-            source_document_id: None,
-            source_file_path: None,
-        }
-    }
-
-    /// Set the description.
-    pub fn with_description(mut self, desc: impl Into<String>) -> Self {
-        self.description = desc.into();
-        self
-    }
-
-    /// Set the weight.
-    pub fn with_weight(mut self, weight: f32) -> Self {
-        self.weight = weight.clamp(0.0, 1.0);
-        self
-    }
-
-    /// Add keywords.
-    pub fn with_keywords(mut self, keywords: Vec<String>) -> Self {
-        self.keywords = keywords;
-        self
-    }
-
-    /// Set the source chunk ID.
-    pub fn with_source_chunk_id(mut self, chunk_id: impl Into<String>) -> Self {
-        self.source_chunk_id = Some(chunk_id.into());
-        self
-    }
-
-    /// Set the source document ID.
-    pub fn with_source_document_id(mut self, document_id: impl Into<String>) -> Self {
-        self.source_document_id = Some(document_id.into());
-        self
-    }
-
-    /// Set the source file path.
-    pub fn with_source_file_path(mut self, file_path: impl Into<String>) -> Self {
-        self.source_file_path = Some(file_path.into());
-        self
-    }
-}
+pub use gleaning::{GleaningConfig, GleaningExtractor};
+pub use llm::LLMExtractor;
+pub use simple::SimpleExtractor;
+pub use sota::SOTAExtractor;
 
 /// Trait for entity extraction implementations.
 #[async_trait]
@@ -327,68 +83,6 @@ pub trait EntityExtractor: Send + Sync {
         "unknown"
     }
 }
-
-fn extract_json_from_response(response: &str) -> String {
-    let response = response.trim();
-
-    // Try to find JSON block markers
-    if let Some(start) = response.find("```json") {
-        if let Some(end) = response[start + 7..].find("```") {
-            return response[start + 7..start + 7 + end].trim().to_string();
-        }
-    }
-
-    // Try to find JSON starting with {
-    if let Some(start) = response.find('{') {
-        if let Some(end) = response.rfind('}') {
-            if end > start {
-                return response[start..=end].to_string();
-            }
-        }
-    }
-
-    response.to_string()
-}
-
-/// Returns the effective temperature override to send for a model.
-///
-/// WHY: Some OpenAI model families only accept their built-in default temperature
-/// and reject any explicit override with an API error. Omitting the field is the
-/// most compatible behavior for those models while preserving overrides for models
-/// that still support them.
-pub fn effective_temperature_for_model(model: &str, preferred_temperature: f32) -> Option<f32> {
-    if model_requires_default_temperature(model) {
-        None
-    } else {
-        Some(preferred_temperature)
-    }
-}
-
-fn model_requires_default_temperature(model: &str) -> bool {
-    let normalized = model
-        .trim()
-        .rsplit('/')
-        .next()
-        .unwrap_or(model)
-        .to_ascii_lowercase();
-
-    normalized.contains("gpt-5")
-        || normalized.contains("gpt-4.1-nano")
-        || normalized.contains("gpt-4.1-mini")
-        || normalized.starts_with("o1")
-        || normalized.starts_with("o3")
-        || normalized.starts_with("o4")
-}
-
-mod gleaning;
-mod llm;
-mod simple;
-mod sota;
-
-pub use gleaning::{GleaningConfig, GleaningExtractor};
-pub use llm::LLMExtractor;
-pub use simple::SimpleExtractor;
-pub use sota::SOTAExtractor;
 
 #[cfg(test)]
 mod tests {
@@ -445,7 +139,6 @@ mod tests {
             .with_source_document_id("doc-xyz789")
             .with_source_file_path("/documents/team.md");
 
-        // Relationship has source_chunk_id as Option<String> (singular)
         assert_eq!(rel.source_chunk_id, Some("chunk-005".to_string()));
         assert_eq!(rel.source_document_id, Some("doc-xyz789".to_string()));
         assert_eq!(rel.source_file_path, Some("/documents/team.md".to_string()));
@@ -487,7 +180,6 @@ mod tests {
 
         let result = extractor.extract(&chunk).await.unwrap();
 
-        // Should find "John Doe" as a person
         assert!(result.entities.iter().any(|e| e.name == "John Doe"));
     }
 

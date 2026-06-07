@@ -31,7 +31,7 @@ pub async fn list_folders(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let folders = state
         .conversation_service
@@ -60,7 +60,7 @@ pub async fn create_folder(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let folder = state
         .conversation_service
@@ -93,7 +93,7 @@ pub async fn update_folder(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let folder = state
         .conversation_service
@@ -131,7 +131,7 @@ pub async fn delete_folder(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::Unauthorized)?;
+    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     state
         .conversation_service

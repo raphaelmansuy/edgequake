@@ -12,7 +12,6 @@ default = []
 postgres = ["dep:sqlx"]
 
 [dependencies]
-edgequake-core = { path = "../edgequake-core", default-features = false }
 edgequake-storage = { path = "../edgequake-storage", default-features = false }
 edgequake-llm = { workspace = true }
 

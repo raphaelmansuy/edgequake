@@ -86,6 +86,12 @@ $doc = $client->documents->get('doc-id');
 // Upload text
 $doc = $client->documents->uploadText('Title', 'Content body', 'txt');
 
+// Upload multiple files in one request
+$batch = $client->documents->uploadFilesBatch(['a.txt', 'b.md']);
+
+// Upload multiple PDFs in one request
+$pdfBatch = $client->documents->uploadPdfBatch(['a.pdf', 'b.pdf']);
+
 // Delete
 $client->documents->delete('doc-id');
 ```

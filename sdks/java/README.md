@@ -23,14 +23,33 @@ Java SDK for the [EdgeQuake](https://github.com/edgequake/edgequake) RAG (Retrie
 <dependency>
     <groupId>io.edgequake</groupId>
     <artifactId>edgequake-sdk</artifactId>
-    <version>0.1.0</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'io.edgequake:edgequake-sdk:0.1.0'
+implementation 'io.edgequake:edgequake-sdk:0.4.0'
+```
+
+## Maven Central Publishing
+
+The Java SDK is configured for Maven Central (OSSRH) publication.
+
+- GitHub Actions workflow: `.github/workflows/publish-java-sdk.yml`
+- Publish trigger: push tag matching `sdk-java-v*` (example: `sdk-java-v0.4.1`)
+- Required repository secrets:
+  - `OSSRH_USERNAME`
+  - `OSSRH_TOKEN`
+  - `OSSRH_GPG_SECRET_KEY` (ASCII-armored private key)
+  - `OSSRH_GPG_SECRET_KEY_PASSWORD`
+
+Manual local publish command (maintainers):
+
+```bash
+cd sdks/java
+mvn clean deploy -DskipTests
 ```
 
 ## Quick Start
@@ -91,6 +110,12 @@ var doc = client.documents().get("document-id");
 
 // Upload text content
 var upload = client.documents().uploadText("Content here...", "Title");
+
+// Upload multiple files in one request
+var batch = client.documents().uploadBatch(List.of("a.txt", "b.md"));
+
+// Upload multiple PDFs in one request
+var pdfBatch = client.documents().uploadPdfBatch(List.of("a.pdf", "b.pdf"));
 
 // Track upload progress
 var track = client.documents().track("track-id");
@@ -332,7 +357,7 @@ try {
 
 ## Architecture
 
-```
+```text
 io.edgequake.sdk/
 ├── EdgeQuakeClient.java           # Main client entry point
 ├── EdgeQuakeConfig.java           # Builder-pattern configuration

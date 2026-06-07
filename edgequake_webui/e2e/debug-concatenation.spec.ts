@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-test.describe("Debug Concatenation Test", () => {
+test.describe("@debug Debug Concatenation Test", () => {
   test("should debug exactly what concatenation issue is found", async ({
     page,
   }) => {

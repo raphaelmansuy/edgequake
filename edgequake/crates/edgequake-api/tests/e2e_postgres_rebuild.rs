@@ -115,6 +115,8 @@ mod postgres_rebuild_tests {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let workspace = state
@@ -246,6 +248,8 @@ mod postgres_rebuild_tests {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let workspace = state
@@ -371,6 +375,8 @@ mod postgres_rebuild_tests {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let workspace_a = state
@@ -395,6 +401,8 @@ mod postgres_rebuild_tests {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let workspace_b = state
@@ -521,6 +529,8 @@ mod postgres_rebuild_tests {
                 vision_llm_model: None,
                 pdf_parser_backend: None,
                 entity_types: None,
+
+                ..Default::default()
             };
 
             let workspace = state1
@@ -640,6 +650,8 @@ mod postgres_rebuild_tests {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let workspace = state
@@ -787,6 +799,8 @@ mod postgres_rebuild_tests {
             vision_llm_model: None,
             pdf_parser_backend: None,
             entity_types: None,
+
+            ..Default::default()
         };
 
         let workspace = state
@@ -812,7 +826,11 @@ mod postgres_rebuild_tests {
             dimension: 768,
             namespace: "default".to_string(),
         };
-        let _ = state.vector_registry.get_or_create(config_768).await;
+        let _ = state
+            .storage
+            .vector_registry
+            .get_or_create(config_768)
+            .await;
 
         // Build app and call rebuild-embeddings with NEW dimension (1536)
         let app = Server::new(create_test_config(), state.clone()).build_router();
@@ -866,7 +884,11 @@ mod postgres_rebuild_tests {
             namespace: "default".to_string(),
         };
 
-        let result = state.vector_registry.get_or_create(config_1536).await;
+        let result = state
+            .storage
+            .vector_registry
+            .get_or_create(config_1536)
+            .await;
 
         assert!(
             result.is_ok(),

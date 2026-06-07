@@ -7,7 +7,7 @@ use edgequake_storage::{GraphNode, GraphStorage, VectorStorage};
 use crate::error::Result;
 use crate::extractor::ExtractedEntity;
 
-use super::{merge_descriptions, normalize_entity_name};
+use super::{merge_descriptions, metadata, normalize_entity_name};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Merge a single entity, returning true if it was newly created.
@@ -16,23 +16,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
 
         // Store entity embedding with type metadata (for Local query mode)
         if let Some(embedding) = &entity.embedding {
-            let mut metadata = serde_json::json!({
-                "type": "entity",  // Mark as entity for retrieval filtering
-                "entity_name": entity.name,
-                "entity_type": entity.entity_type,
-                "description": entity.description,
-                // Source tracking for citations (LightRAG parity)
-                "source_chunk_ids": entity.source_chunk_ids,
-                "source_document_id": entity.source_document_id,
-                "source_file_path": entity.source_file_path
-            });
-
-            if let Some(tenant_id) = &self.tenant_id {
-                metadata["tenant_id"] = serde_json::json!(tenant_id);
-            }
-            if let Some(workspace_id) = &self.workspace_id {
-                metadata["workspace_id"] = serde_json::json!(workspace_id);
-            }
+            let scope = metadata::TenantScope {
+                tenant_id: &self.tenant_id,
+                workspace_id: &self.workspace_id,
+            };
+            let metadata = metadata::entity_vector_metadata(&entity, scope);
 
             self.vector_storage
                 .upsert(&[(entity_key.clone(), embedding.clone(), metadata)])

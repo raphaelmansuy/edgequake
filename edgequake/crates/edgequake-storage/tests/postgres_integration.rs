@@ -5,10 +5,13 @@
 //!
 //! Environment variables needed:
 //! - POSTGRES_HOST (default: localhost)
-//! - POSTGRES_PORT (default: 5432)
+//! - POSTGRES_PORT (default: 5432; Makefile uses 5433 for test container)
 //! - POSTGRES_DB (default: edgequake)
 //! - POSTGRES_USER (default: edgequake)
 //! - POSTGRES_PASSWORD (required)
+//!
+//! Test container (`docker-compose.test.yml`) uses Dockerfile.postgres with
+//! pgvector + Apache AGE on port 5433 — run via `make test-postgres-storage`.
 
 #![cfg(feature = "postgres")]
 
@@ -18,8 +21,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use edgequake_storage::{
-    GraphStorage, KVStorage, PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig,
-    PostgresKVStorage, VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps, KVStorage,
+    PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, VectorStorage,
 };
 
 /// Get PostgreSQL configuration from environment variables.
@@ -59,6 +62,42 @@ macro_rules! require_postgres {
             }
         }
     };
+}
+
+// ============ Infrastructure Smoke Test ============
+
+#[tokio::test]
+async fn test_postgres_extensions_pgvector_and_age_available() {
+    let config = require_postgres!();
+
+    let pool = sqlx::PgPool::connect(&format!(
+        "postgres://{}:{}@{}:{}/{}",
+        config.user, config.password, config.host, config.port, config.database
+    ))
+    .await
+    .expect("Failed to connect for extension check");
+
+    let vector: (bool,) =
+        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+            .fetch_one(&pool)
+            .await
+            .expect("vector extension query");
+    assert!(
+        vector.0,
+        "pgvector extension must be enabled on test database"
+    );
+
+    let age: (bool,) =
+        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'age')")
+            .fetch_one(&pool)
+            .await
+            .expect("age extension query");
+    assert!(
+        age.0,
+        "Apache AGE extension must be enabled on test database"
+    );
+
+    pool.close().await;
 }
 
 // ============ KV Storage Tests ============
@@ -655,19 +694,29 @@ async fn test_age_cypher_variable_length_paths() {
         .expect("Failed to get neighbors at depth 2");
     assert_eq!(neighbors_2.len(), 2, "Depth 2 should find 2 neighbors");
 
-    // Test depth 3: A should see B, C, D
+    // Test depth 3: A should see B, C, D (max safe depth per QW4)
     let neighbors_3 = graph_storage
         .get_neighbors("A", 3)
         .await
         .expect("Failed to get neighbors at depth 3");
     assert_eq!(neighbors_3.len(), 3, "Depth 3 should find 3 neighbors");
+    let ids_3: std::collections::HashSet<_> = neighbors_3.iter().map(|n| n.id.as_str()).collect();
+    assert!(ids_3.contains("B") && ids_3.contains("C") && ids_3.contains("D"));
 
-    // Test full depth: A should see all 4 other nodes
-    let neighbors_all = graph_storage
+    // QW4: traversal depth is clamped to 3 hops — depth 10 must not reach E (4 hops away)
+    let neighbors_capped = graph_storage
         .get_neighbors("A", 10)
         .await
-        .expect("Failed to get all neighbors");
-    assert_eq!(neighbors_all.len(), 4, "Should find all 4 neighbors");
+        .expect("Failed to get capped neighbors");
+    assert_eq!(
+        neighbors_capped.len(),
+        3,
+        "Depth >3 is clamped to 3; E (4 hops) must not appear"
+    );
+    assert!(
+        !neighbors_capped.iter().any(|n| n.id == "E"),
+        "Node E is 4 hops from A and must be excluded by QW4 depth cap"
+    );
 
     // Cleanup
     graph_storage.clear().await.expect("Failed to clear");

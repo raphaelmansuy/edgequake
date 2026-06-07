@@ -26,13 +26,25 @@
 //! ```
 
 mod entity_extraction;
+mod entity_type_policy;
+mod json_extract;
+mod json_prompts;
 mod normalizer;
 mod parser;
 mod summarization;
 
 pub use entity_extraction::EntityExtractionPrompts;
+pub use entity_type_policy::{
+    enforce_entity_type, json_entity_types_prompt_section, normalize_type_token,
+    sota_entity_type_instruction, EntityExtractionSchema, METADATA_ENTITY_TYPES_STRICT,
+};
+pub use json_extract::extract_json_from_response;
+pub use json_prompts::{json_extraction_prompt, json_gleaning_prompt, JSON_OUTPUT_FORMAT_SECTION};
 pub use normalizer::normalize_entity_name;
-pub use parser::{HybridExtractionParser, JsonExtractionParser, TupleParser};
+pub use parser::{
+    detect_format_markers, ExtractionResultParser, HybridExtractionParser, JsonExtractionParser,
+    JsonParseOptions, TupleParser,
+};
 pub use summarization::SummarizationPrompts;
 
 /// Default tuple delimiter for extraction output.

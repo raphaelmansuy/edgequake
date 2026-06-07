@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * SPEC-032: Query Page Model Selection and Lineage E2E Tests
  *
@@ -11,10 +12,15 @@
  * @iteration OODA 59
  */
 import { expect, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
 
-const BACKEND_URL = "http://localhost:8080";
 
 test.setTimeout(90000);
+
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
 
 test.describe("SPEC-032: Query Page Model Selection", () => {
   test.beforeEach(async ({ page }) => {
@@ -51,7 +57,6 @@ test.describe("SPEC-032: Query Page Model Selection", () => {
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Page should have provider selector
       const selectors = page.locator('[role="combobox"]');
@@ -90,7 +95,6 @@ test.describe("SPEC-032: Query Page Model Selection", () => {
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Provider selector should show a value
       const selector = page.locator('[role="combobox"]').first();
@@ -130,7 +134,6 @@ test.describe("SPEC-032: Query Page Model Selection", () => {
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Click provider selector
       const selector = page.locator('[role="combobox"]').first();
@@ -179,7 +182,6 @@ test.describe("SPEC-032: Query Page Model Selection", () => {
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Click provider selector
       const selector = page.locator('[role="combobox"]').first();
@@ -234,7 +236,6 @@ test.describe("SPEC-032: Query Page Model Selection", () => {
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Click provider selector
       const selector = page.locator('[role="combobox"]').first();
@@ -284,7 +285,6 @@ test.describe("SPEC-032: Query Page Model Selection", () => {
       await page.goto(`/w/${workspaceSlug}/query`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
 
       // Query input should be visible
       const queryInput = page.locator('textarea, input[type="text"]');

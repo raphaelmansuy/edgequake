@@ -283,8 +283,8 @@ async fn test_mock_entity_extraction() {
     );
 
     // Check graph state
-    let nodes = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges = state.storage.graph_storage.get_all_edges().await.unwrap();
     println!("Graph state: {} nodes, {} edges", nodes.len(), edges.len());
 
     // Clean up
@@ -292,8 +292,8 @@ async fn test_mock_entity_extraction() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Verify cleanup
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
     assert!(nodes_after.is_empty(), "All nodes should be deleted");
     assert!(edges_after.is_empty(), "All edges should be deleted");
 
@@ -373,8 +373,8 @@ async fn test_mock_deletion_cascade() {
     println!("Before deletion: {} entities extracted", entity_count);
 
     // Check graph state before deletion
-    let nodes_before = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     println!(
         "Graph before deletion: {} nodes, {} edges",
@@ -394,8 +394,8 @@ async fn test_mock_deletion_cascade() {
     );
 
     // Verify all entities and relationships are cleaned up
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     println!(
         "Graph after deletion: {} nodes, {} edges",
@@ -492,8 +492,8 @@ async fn test_mock_multi_document_stress() {
     }
 
     // Check graph state
-    let nodes = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges = state.storage.graph_storage.get_all_edges().await.unwrap();
     println!(
         "After uploading {} docs: {} nodes, {} edges",
         documents.len(),
@@ -519,8 +519,8 @@ async fn test_mock_multi_document_stress() {
     }
 
     // Verify cleanup
-    let nodes_after = state.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
 
     assert!(
         nodes_after.is_empty(),

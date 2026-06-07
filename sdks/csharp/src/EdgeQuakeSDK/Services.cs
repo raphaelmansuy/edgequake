@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Collections.Generic;
 
 namespace EdgeQuakeSDK;
 
@@ -29,6 +30,12 @@ public class DocumentService(HttpHelper http)
     /// <summary>POST /api/v1/documents — text upload. Parameters are <c>(title, content)</c> for historical SDK compatibility; JSON sends <c>content</c> + <c>title</c> per API.</summary>
     public Task<UploadResponse> UploadTextAsync(string title, string content) =>
         http.PostAsync<UploadResponse>("/api/v1/documents", new { content, title });
+
+    public Task<Dictionary<string, object>> UploadBatchAsync(IEnumerable<string> filePaths) =>
+        http.UploadManyAsync<Dictionary<string, object>>("/api/v1/documents/upload/batch", filePaths, "files");
+
+    public Task<Dictionary<string, object>> UploadPdfBatchAsync(IEnumerable<string> filePaths) =>
+        http.UploadManyAsync<Dictionary<string, object>>("/api/v1/documents/pdf/batch", filePaths, "files");
 
     /// <summary>POST /api/v1/documents/reprocess — reprocess failed documents (workspace-scoped via headers).</summary>
     public Task<UploadResponse> ReprocessFailedAsync() =>

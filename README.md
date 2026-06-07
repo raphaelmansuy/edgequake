@@ -5,13 +5,54 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.11.3-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.12.7-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.11.0** — Mistral La Plateforme is now a first-class citizen: chat (`mistral-small-latest`), vision PDF ingestion (`pixtral-large-latest`), and embeddings (`mistral-embed`, 1024 dims) all work out of the box. Set `MISTRAL_API_KEY` and `make dev` — no other config needed. See [CHANGELOG](CHANGELOG.md) for full details.
+> **v0.12.7** — SPEC-006 resource safety (P0–P9): bounded graph ops, materialization guard, migration 038, production delivery checklist. SPEC-018 observability: structured logs, metrics, OTLP/Jaeger. See [CHANGELOG](CHANGELOG.md).
+
+## Release & CD Cycle
+
+Use this sequence to cut a release with a deterministic quality gate and publish pipeline.
+
+### 1) Local release gates (must pass before tag)
+
+```bash
+make stop
+make spec013-proof-pr
+cd edgequake && cargo clippy -p edgequake-pipeline -p edgequake-core -p edgequake-api --all-targets --features postgres -- -D warnings
+cd ../edgequake_webui && pnpm exec tsc --noEmit
+cd .. && make backend-bg frontend-bg && make spec013-proof-ui
+```
+
+### 2) CI validation (GitHub Actions)
+
+- `SPEC-013 PR Proof` must be green on the target branch/PR.
+- Core CI workflows (`CI`, `Test Quality Gates`, integration tests) must be green.
+- Ignore unrelated external automation failures (for example Dependabot noise) only if all required project gates are green.
+
+### 3) Cut release (CD publish)
+
+```bash
+# Example
+git tag v0.12.4
+git push origin v0.12.4
+```
+
+This triggers `.github/workflows/release-docker.yml`, which:
+- builds/publishes multi-arch API, frontend, and postgres images to GHCR
+- creates/updates the GitHub Release notes for that tag
+
+### 4) Post-publish verification
+
+```bash
+gh release view v0.12.4
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.12.4
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.12.4
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.12.4
+```
 
 ---
 
@@ -113,6 +154,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **OpenAPI 3.0**: Full Swagger documentation at `/swagger-ui`
 - **Streaming**: Server-Sent Events (SSE) for real-time responses
 - **Versioned**: `/api/v1/*` with backward compatibility
+- **Batch Ingestion APIs** ✨: `POST /api/v1/documents/upload/batch` and `POST /api/v1/documents/pdf/batch` for multi-file and multi-PDF ingestion with per-file status reporting
 - **Health Checks**: Kubernetes-ready `/health`, `/ready`, `/live`
 - **Safer Local Startup**: Make-based development uses the standard UI port 3000 when available and auto-selects the next free port only if another local stack is already using it
 - **Runtime Auth Hardening** ✨: prebuilt WebUI images now consume runtime API/auth config, and protected dashboard routes fail closed when authentication is enabled
@@ -741,7 +783,28 @@ make test             # Run all tests
 make lint             # Lint all code
 make format           # Format all code
 make clean            # Clean build artifacts
+
+# Resource safety (SPEC-006)
+make resource-proof   # Bounded graph ops + migration 038 package gates
 ```
+
+### Database Migrations & Resource Safety (SPEC-006)
+
+PostgreSQL migrations auto-apply on backend start (sqlx). For production index rollout and verification:
+
+```bash
+export DATABASE_URL="postgres://edgequake:edgequake@localhost/edgequake"
+./edgequake/scripts/migrations/apply_038.sh --dry-run    # preflight
+./edgequake/scripts/migrations/apply_038.sh --apply --yes
+./edgequake/scripts/migrations/apply_038.sh --verify
+```
+
+| Doc | Purpose |
+|-----|---------|
+| [edgequake/docs/migrations.md](edgequake/docs/migrations.md) | Migration overview & troubleshooting |
+| [edgequake/docs/migrations/038-source-ids-indexes.md](edgequake/docs/migrations/038-source-ids-indexes.md) | Migration 038 FAQ & edge cases |
+| [edgequake/docs/migrations/bootstrap-first-principles.md](edgequake/docs/migrations/bootstrap-first-principles.md) | Bootstrap migration design |
+| [specifications/006-ensure-perf/](specifications/006-ensure-perf/000-index.md) | Resource safety spec & brutal assessment |
 
 ### Agent Workflow
 

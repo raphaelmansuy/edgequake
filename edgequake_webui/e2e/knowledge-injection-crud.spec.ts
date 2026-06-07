@@ -1,3 +1,4 @@
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 /**
  * E2E tests for Knowledge Injection CRUD operations:
  *   1. Add new text injection → verify card appears + entity_count > 0
@@ -12,17 +13,19 @@
  *   - Cards: Link → /knowledge/:id, Trash2 icon (Button with stopPropagation) → nested Dialog → Button "Delete"
  *   - Detail page (/knowledge/:id): Pencil button → edit name/content → Save button
  *
- * Runs against the live dev stack on http://localhost:3000
+ * Runs against the live dev stack on 
  *
  * IMPORTANT: Tests run SERIALLY to avoid saturating the OpenAI API with
  * parallel extraction requests, which causes processing timeouts.
  */
 
 import { expect, Page, test } from "@playwright/test";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { waitForAppReady, GOTO_OPTS, clearAppStorage, waitForBackendHealthy } from "./helpers/app-ready";
 
-const KNOWLEDGE_URL = "http://localhost:3000/knowledge";
+const KNOWLEDGE_URL = "/knowledge";
 const WS_ID = "8efcd288-37f7-413c-97bb-95bd7b535059";
-const API_INJECTIONS_URL = `http://localhost:8080/api/v1/workspaces/${WS_ID}/injections`;
+const API_INJECTIONS_URL = `${API_V1_URL}/workspaces/${WS_ID}/injections`;
 const WS_HEADERS = { "X-Workspace-ID": WS_ID };
 
 // Unique suffix per test run to avoid name collisions
@@ -44,7 +47,7 @@ const PROCESSING_TIMEOUT_MS = 480_000; // 8 minutes
 
 async function gotoKnowledge(page: Page) {
   await page.goto(KNOWLEDGE_URL);
-  await page.waitForLoadState("networkidle");
+  await waitForAppReady(page);
 }
 
 /** Open the "New Injection" dialog. */
@@ -95,9 +98,14 @@ async function pollInjectionStatus(
 // Test suite — SERIAL to avoid parallel OpenAI extraction overload
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
 test.describe.configure({ mode: "serial" });
 
-test.describe("Knowledge Injection CRUD", () => {
+test.describe("@load Knowledge Injection CRUD", () => {
   // ── TEST 1: Add ────────────────────────────────────────────────────────────
   test("1 - Add text injection → card shows entity_count > 0", async ({
     page,
@@ -144,7 +152,7 @@ test.describe("Knowledge Injection CRUD", () => {
     await expect(cardLink).toBeVisible({ timeout: 5_000 });
     await cardLink.click();
     await page.waitForURL(/\/knowledge\/[a-f0-9-]+/, { timeout: 8_000 });
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     console.log(`[2] Detail page: ${page.url()}`);
 
     // Click the Pencil (Edit) button
@@ -189,7 +197,7 @@ test.describe("Knowledge Injection CRUD", () => {
     await expect(cardLink).toBeVisible({ timeout: 5_000 });
     await cardLink.click();
     await page.waitForURL(/\/knowledge\/[a-f0-9-]+/, { timeout: 8_000 });
-    await page.waitForLoadState("networkidle");
+    await waitForAppReady(page);
     console.log(`[3] Detail page: ${page.url()}`);
 
     // Click the red "Delete" button on the detail page header
@@ -244,7 +252,7 @@ test.describe("Knowledge Injection CRUD", () => {
   test("5 - Query retrieves XJMIJI → Hermes 3 from injection", async ({
     page,
   }) => {
-    const resp = await page.request.post("http://localhost:8080/api/v1/query", {
+    const resp = await page.request.post(`${API_V1_URL}/query`, {
       headers: {
         "Content-Type": "application/json",
         "X-Workspace-ID": WS_ID,

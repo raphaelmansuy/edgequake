@@ -161,22 +161,27 @@ async fn try_kv_storage_stats(
     state: &AppState,
     workspace_id: Uuid,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
-    // Get all keys from KV storage
-    let all_keys = state
+    // SPEC-011 iter 02 Fix C: `keys_with_suffix("-metadata")` uses the reverse-key
+    // expression index (`eq_{prefix}_kv_reverse_key_idx`) for an O(log N + K)
+    // prefix scan — replaces the previous `keys_like("%-metadata")` full scan.
+    let metadata_keys = state
+        .storage
         .kv_storage
-        .keys()
+        .keys_with_suffix("-metadata")
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get KV storage keys: {}", e)))?;
-
-    // Filter metadata keys
-    let metadata_keys: Vec<String> = all_keys
-        .iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .cloned()
-        .collect();
+        .map_err(|e| ApiError::Internal(format!("Failed to get KV metadata keys: {}", e)))?;
+    // `"%-chunk-%"` is an interior wildcard, not a suffix — still uses the slow
+    // path. Documented as a known gap in SPEC-011 ITERATION_02_AUDIT.md §8.
+    let chunk_keys = state
+        .storage
+        .kv_storage
+        .keys_like("%-chunk-%")
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to get KV chunk keys: {}", e)))?;
 
     // Get all metadata values
     let metadata_values = state
+        .storage
         .kv_storage
         .get_by_ids(&metadata_keys)
         .await
@@ -216,12 +221,14 @@ async fn try_kv_storage_stats(
     // The actual entity/relationship data is stored in the graph, not metadata.
     // This fixes dashboard showing 0 entities despite successful extraction.
     let entity_count = state
+        .storage
         .graph_storage
         .node_count_by_workspace(&workspace_id)
         .await
         .unwrap_or(0);
 
     let relationship_count = state
+        .storage
         .graph_storage
         .edge_count_by_workspace(&workspace_id)
         .await
@@ -232,8 +239,8 @@ async fn try_kv_storage_stats(
     let mut embedding_count = 0;
 
     for doc_id in &workspace_doc_ids {
-        // Count chunk keys for this document
-        let doc_chunk_keys: Vec<String> = all_keys
+        // Count chunk keys for this document (from pre-filtered chunk key list)
+        let doc_chunk_keys: Vec<String> = chunk_keys
             .iter()
             .filter(|k| k.starts_with(&format!("{}-chunk-", doc_id)))
             .cloned()
@@ -244,6 +251,7 @@ async fn try_kv_storage_stats(
         // Get chunk data to check for embeddings
         if !doc_chunk_keys.is_empty() {
             let chunk_values = state
+                .storage
                 .kv_storage
                 .get_by_ids(&doc_chunk_keys)
                 .await
@@ -265,6 +273,7 @@ async fn try_kv_storage_stats(
     // nodes over the wire just to compute unique types. This single aggregate
     // query reduces latency from seconds to milliseconds.
     let entity_type_count = state
+        .storage
         .graph_storage
         .distinct_node_type_count_by_workspace(&workspace_id)
         .await

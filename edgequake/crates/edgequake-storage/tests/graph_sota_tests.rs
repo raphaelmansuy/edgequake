@@ -11,7 +11,7 @@
 #[cfg(test)]
 mod tests {
     use edgequake_storage::adapters::memory::MemoryGraphStorage;
-    use edgequake_storage::traits::GraphStorage;
+    use edgequake_storage::{GraphStorage, GraphStorageMutateOps, GraphStorageReadOps};
     use std::collections::HashMap;
     use std::time::Instant;
 

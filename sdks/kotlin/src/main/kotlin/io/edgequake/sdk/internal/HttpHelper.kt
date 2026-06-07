@@ -6,10 +6,13 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.edgequake.sdk.EdgeQuakeConfig
 import io.edgequake.sdk.EdgeQuakeException
+import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.time.Duration
 
 /**
@@ -80,6 +83,28 @@ open class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
         return resp.body()
     }
 
+    inline fun <reified T> postMultipartMany(
+        path: String,
+        filePaths: List<String>,
+        fieldName: String = "files",
+        extraFields: Map<String, String> = emptyMap(),
+    ): T {
+        val boundary = "----edgequake-sdk-${System.currentTimeMillis()}"
+        val body = buildMultipartBody(boundary, filePaths, fieldName, extraFields)
+        val url = "${config.baseUrl}$path"
+        val builder = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .timeout(Duration.ofSeconds(config.timeoutSeconds))
+            .header("Accept", "application/json")
+            .header("Content-Type", "multipart/form-data; boundary=$boundary")
+        config.apiKey?.let { builder.header("X-API-Key", it) }
+        config.tenantId?.let { builder.header("X-Tenant-ID", it) }
+        config.userId?.let { builder.header("X-User-ID", it) }
+        config.workspaceId?.let { builder.header("X-Workspace-ID", it) }
+        val req = builder.POST(HttpRequest.BodyPublishers.ofByteArray(body)).build()
+        return execute(req)
+    }
+
     // ── Internals ────────────────────────────────────────────────────
 
     fun buildRequest(path: String, method: String, body: Any?): HttpRequest {
@@ -133,5 +158,31 @@ open class HttpHelper(@PublishedApi internal val config: EdgeQuakeConfig) {
         } catch (e: Exception) {
             throw EdgeQuakeException("Request failed: ${e.message}", cause = e)
         }
+    }
+
+    @PublishedApi
+    internal fun buildMultipartBody(
+        boundary: String,
+        filePaths: List<String>,
+        fieldName: String,
+        extraFields: Map<String, String>,
+    ): ByteArray {
+        val out = ByteArrayOutputStream()
+        for (filePath in filePaths) {
+            val filename = Paths.get(filePath).fileName.toString()
+            out.write("--$boundary\r\n".toByteArray())
+            out.write("Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$filename\"\r\n".toByteArray())
+            out.write("Content-Type: application/octet-stream\r\n\r\n".toByteArray())
+            out.write(Files.readAllBytes(Paths.get(filePath)))
+            out.write("\r\n".toByteArray())
+        }
+        for ((k, v) in extraFields) {
+            out.write("--$boundary\r\n".toByteArray())
+            out.write("Content-Disposition: form-data; name=\"$k\"\r\n\r\n".toByteArray())
+            out.write(v.toByteArray())
+            out.write("\r\n".toByteArray())
+        }
+        out.write("--$boundary--\r\n".toByteArray())
+        return out.toByteArray()
     }
 }

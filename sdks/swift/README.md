@@ -104,6 +104,12 @@ let upload = try await client.documents.uploadText(
     content: longTextContent
 )
 
+// Upload multiple files in one request
+let batch = try await client.documents.uploadBatch(filePaths: ["a.txt", "b.md"])
+
+// Upload multiple PDFs in one request
+let pdfBatch = try await client.documents.uploadPdfBatch(filePaths: ["a.pdf", "b.pdf"])
+
 // Wait for processing, then query
 let result = try await client.query.execute(
     query: "Summarize the key findings",

@@ -3,9 +3,12 @@
 //! @implements FEAT0303
 
 use async_trait::async_trait;
-use edgequake_llm::traits::{ChatMessage, CompletionOptions};
+use edgequake_llm::traits::ChatMessage;
 
-use super::{effective_temperature_for_model, EntityExtractor, ExtractionResult};
+use super::{
+    assign_token_usage, extraction_completion_options, recommended_chunk_size_for_bytes,
+    ConfigurableEntitySchema, EntityExtractor, ExtractionResult,
+};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
 
@@ -18,7 +21,7 @@ where
     L: edgequake_llm::LLMProvider + ?Sized,
 {
     llm_provider: std::sync::Arc<L>,
-    entity_types: Vec<String>,
+    entity_schema: crate::prompts::EntityExtractionSchema,
     prompts: crate::prompts::EntityExtractionPrompts,
     parser: crate::prompts::HybridExtractionParser,
     language: String,
@@ -32,19 +35,42 @@ where
     pub fn new(llm_provider: std::sync::Arc<L>) -> Self {
         Self {
             llm_provider,
-            entity_types: crate::prompts::default_entity_types(),
+            entity_schema: crate::prompts::EntityExtractionSchema::server_default(),
             prompts: crate::prompts::EntityExtractionPrompts::default(),
             parser: crate::prompts::HybridExtractionParser::new(true),
             language: "English".to_string(),
         }
     }
+}
 
-    /// Set custom entity types.
-    pub fn with_entity_types(mut self, types: Vec<String>) -> Self {
-        self.entity_types = types;
-        self
+impl<L> ConfigurableEntitySchema for SOTAExtractor<L>
+where
+    L: edgequake_llm::LLMProvider + ?Sized,
+{
+    fn entity_schema_field(&mut self) -> &mut crate::prompts::EntityExtractionSchema {
+        &mut self.entity_schema
+    }
+}
+
+impl<L> SOTAExtractor<L>
+where
+    L: edgequake_llm::LLMProvider + ?Sized,
+{
+    /// Set custom entity types (strict enforcement).
+    pub fn with_entity_types(self, types: Vec<String>) -> Self {
+        ConfigurableEntitySchema::with_entity_types(self, types)
     }
 
+    /// Set full entity schema (types + strict mode).
+    pub fn with_entity_schema(self, schema: crate::prompts::EntityExtractionSchema) -> Self {
+        ConfigurableEntitySchema::with_entity_schema(self, schema)
+    }
+}
+
+impl<L> SOTAExtractor<L>
+where
+    L: edgequake_llm::LLMProvider + ?Sized,
+{
     /// Set output language.
     pub fn with_language(mut self, language: impl Into<String>) -> Self {
         self.language = language.into();
@@ -75,14 +101,7 @@ where
         const MAX_CHUNK_TOKENS: usize = 1500; // Reduced from 4000 based on research
 
         if estimated_tokens > MAX_CHUNK_TOKENS {
-            // Calculate adaptive chunk size based on estimated document size
-            let recommended_chunk_size = if chunk_size_bytes > 100_000 {
-                600 // >100KB: minimal chunks
-            } else if chunk_size_bytes > 50_000 {
-                800 // 50-100KB: reduced chunks
-            } else {
-                1200 // <50KB: standard chunks
-            };
+            let recommended_chunk_size = recommended_chunk_size_for_bytes(chunk_size_bytes);
 
             let error_msg = format!(
                 "Chunk too large for LLM processing. Chunk size: {}KB (~{} tokens, max: {}). \
@@ -114,10 +133,10 @@ where
         // Build system and user prompts
         let system_prompt = self
             .prompts
-            .system_prompt(&self.entity_types, &self.language);
+            .system_prompt(&self.entity_schema, &self.language);
         let user_prompt =
             self.prompts
-                .user_prompt(&chunk.content, &self.entity_types, &self.language);
+                .user_prompt(&chunk.content, &self.entity_schema.types, &self.language);
 
         // Create chat messages for system + user prompt
         let messages = vec![
@@ -282,14 +301,8 @@ where
             // → "Invalid JSON: EOF while parsing a value". Setting reasoning_effort="none"
             // disables CoT for extraction tasks where structured JSON output is required.
             // Non-reasoning models silently ignore this field.
-            let options = CompletionOptions {
-                max_tokens: Some(current_max_tokens),
-                // WHY: Some OpenAI reasoning-capable models only support their default
-                // temperature and fail if we force 0.0. Omit the override for those models.
-                temperature: effective_temperature_for_model(self.llm_provider.model(), 0.0),
-                reasoning_effort: Some("none".to_string()),
-                ..Default::default()
-            };
+            let options =
+                extraction_completion_options(self.llm_provider.model(), current_max_tokens);
 
             tracing::debug!(
                 attempt = attempt,
@@ -321,13 +334,8 @@ where
                     // Build enhanced error message with diagnostic info
                     let enhanced_error = if is_timeout {
                         // Calculate adaptive chunk size recommendation
-                        let recommended_chunk_size = if chunk_size_bytes > 100_000 {
-                            600 // >100KB: minimal chunks
-                        } else if chunk_size_bytes > 50_000 {
-                            800 // 50-100KB: reduced chunks
-                        } else {
-                            1200 // <50KB: standard chunks
-                        };
+                        let recommended_chunk_size =
+                            recommended_chunk_size_for_bytes(chunk_size_bytes);
 
                         format!(
                             "LLM timeout after 120s. Chunk: {}KB (~{} tokens, max: {}). \
@@ -475,9 +483,26 @@ where
             // Parse response using hybrid parser (with built-in fallbacks)
             match self.parser.parse(&response.content, &chunk.id) {
                 Ok(mut result) => {
+                    for entity in &mut result.entities {
+                        let (enforced, remapped) = crate::prompts::enforce_entity_type(
+                            &entity.entity_type,
+                            &self.entity_schema,
+                        );
+                        if remapped {
+                            tracing::debug!(
+                                raw_type = %entity.entity_type,
+                                enforced = %enforced,
+                                "Remapped SOTA entity type to workspace schema"
+                            );
+                        }
+                        entity.entity_type = enforced;
+                    }
                     // Add token usage from response
-                    result.input_tokens = response.prompt_tokens;
-                    result.output_tokens = response.completion_tokens;
+                    assign_token_usage(
+                        &mut result,
+                        response.prompt_tokens,
+                        response.completion_tokens,
+                    );
                     result.extraction_time_ms = start.elapsed().as_millis() as u64;
 
                     // Add source chunk line info to metadata

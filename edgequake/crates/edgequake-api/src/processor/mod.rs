@@ -92,7 +92,7 @@ use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{
     ChunkProgressCallback, ChunkProgressUpdate, EmbedProgressCallback, EmbedProgressUpdate,
-    LLMExtractor, Pipeline,
+    Pipeline,
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{

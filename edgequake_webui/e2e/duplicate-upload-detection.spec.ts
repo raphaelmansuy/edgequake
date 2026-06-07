@@ -112,7 +112,9 @@ const MOCK_WORKSPACE = {
 // Test Suite
 // ---------------------------------------------------------------------------
 
-test.describe("Duplicate Upload Detection", () => {
+test.describe("@load Duplicate Upload Detection", () => {
+  test.setTimeout(60_000);
+
   test.beforeEach(async ({ page }) => {
     // -----------------------------------------------------------------------
     // Mock ALL backend endpoints the page needs during initialization.
@@ -294,14 +296,7 @@ test.describe("Duplicate Upload Detection", () => {
       });
     });
 
-    // Navigate to documents page and wait for content to load
-    await page.goto("/documents");
-    await page.waitForLoadState("domcontentloaded");
-    // Wait for TenantGuard to finish initialization and render the documents page
-    await page.getByRole("heading", { name: "Documents" }).waitFor({
-      state: "visible",
-      timeout: 15000,
-    });
+    await getDocumentsFileInput(page);
   });
 
   // -------------------------------------------------------------------------
@@ -465,11 +460,7 @@ test.describe("Duplicate Upload Detection", () => {
         await confirmButton.click();
       }
 
-      // Wait for the async force_reindex re-upload to complete
-      await page.waitForTimeout(3000);
-
-      // Dialog should be closed
-      await expect(dialog).not.toBeVisible({ timeout: 3000 });
+      await expect(dialog).not.toBeVisible({ timeout: 15000 });
 
       // A force_reindex POST must have been made (3rd POST call)
       expect(pdfUploadCount).toBeGreaterThanOrEqual(3);

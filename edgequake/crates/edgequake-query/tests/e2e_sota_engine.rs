@@ -14,7 +14,9 @@ use edgequake_query::{
     ExtractedKeywords, KeywordExtractor, Keywords, MockKeywordExtractor, QueryIntent, QueryMode,
     QueryRequest, SOTAQueryConfig, SOTAQueryEngine,
 };
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorage, GraphStorageMutateOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+};
 use serde_json::json;
 
 // =============================================================================

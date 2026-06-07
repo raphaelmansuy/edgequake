@@ -95,6 +95,24 @@ pub struct SchemaHealth {
     /// When the last migration was applied (ISO 8601 timestamp).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_applied_at: Option<String>,
+
+    /// Migration 038 source_ids index readiness (PostgreSQL + AGE only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_ids_indexes: Option<SourceIdsIndexHealth>,
+}
+
+/// Migration 038 index health surfaced at bootstrap.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SourceIdsIndexHealth {
+    pub ready: bool,
+    pub graphs_checked: usize,
+    pub indexes_repaired_at_bootstrap: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deferred_large_graphs: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub missing_indexes: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator_action: Option<String>,
 }
 
 /// Component health status.
@@ -218,6 +236,7 @@ mod tests {
                 latest_version: Some(15),
                 migrations_applied: 15,
                 last_applied_at: Some("2025-01-26T10:00:00Z".to_string()),
+                source_ids_indexes: None,
             }),
             providers: None,
             pdf_storage_enabled: None,
@@ -234,6 +253,7 @@ mod tests {
             latest_version: Some(14),
             migrations_applied: 14,
             last_applied_at: None,
+            source_ids_indexes: None,
         };
         let json = serde_json::to_string(&schema).unwrap();
         assert!(json.contains("\"latest_version\":14"));

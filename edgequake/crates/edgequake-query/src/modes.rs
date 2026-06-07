@@ -73,6 +73,9 @@ pub enum QueryMode {
     /// Weighted combination of naive and graph-based.
     /// Most flexible, configurable weights.
     Mix,
+
+    /// Direct LLM query without RAG retrieval (FEAT0106).
+    Bypass,
 }
 
 impl QueryMode {
@@ -84,6 +87,7 @@ impl QueryMode {
             Self::Global,
             Self::Hybrid,
             Self::Mix,
+            Self::Bypass,
         ]
     }
 
@@ -95,6 +99,7 @@ impl QueryMode {
             Self::Global => "global",
             Self::Hybrid => "hybrid",
             Self::Mix => "mix",
+            Self::Bypass => "bypass",
         }
     }
 
@@ -105,13 +110,17 @@ impl QueryMode {
 
     /// Whether this mode uses vector search.
     pub fn uses_vector_search(&self) -> bool {
-        // Hybrid should use BOTH vector search AND graph traversal
         matches!(self, Self::Naive | Self::Local | Self::Hybrid | Self::Mix)
     }
 
     /// Whether this mode uses graph traversal.
     pub fn uses_graph(&self) -> bool {
         matches!(self, Self::Local | Self::Global | Self::Hybrid | Self::Mix)
+    }
+
+    /// Whether this mode skips retrieval entirely.
+    pub fn is_bypass(&self) -> bool {
+        matches!(self, Self::Bypass)
     }
 }
 
@@ -127,6 +136,7 @@ impl FromStr for QueryMode {
             "global" => Ok(Self::Global),
             "hybrid" => Ok(Self::Hybrid),
             "mix" => Ok(Self::Mix),
+            "bypass" => Ok(Self::Bypass),
             other => Err(format!("Unknown query mode: {}", other)),
         }
     }
@@ -145,13 +155,14 @@ mod tests {
     #[test]
     fn test_query_mode_all() {
         let modes = QueryMode::all();
-        assert_eq!(modes.len(), 5);
+        assert_eq!(modes.len(), 6);
     }
 
     #[test]
     fn test_query_mode_parsing() {
         assert_eq!(QueryMode::parse("naive"), Some(QueryMode::Naive));
         assert_eq!(QueryMode::parse("HYBRID"), Some(QueryMode::Hybrid));
+        assert_eq!(QueryMode::parse("bypass"), Some(QueryMode::Bypass));
         assert_eq!(QueryMode::parse("unknown"), None);
     }
 

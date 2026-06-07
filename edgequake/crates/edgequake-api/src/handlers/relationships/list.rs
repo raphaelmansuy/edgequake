@@ -5,8 +5,9 @@ use axum::{
     Json,
 };
 
+use edgequake_storage::traits::EdgeListFilter;
+
 use crate::error::ApiResult;
-use crate::handlers::isolation::filter_edges_by_tenant_context;
 use crate::handlers::relationships_types::{ListRelationshipsQuery, ListRelationshipsResponse};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -32,54 +33,27 @@ pub async fn list_relationships(
     tenant_ctx: TenantContext,
     Query(query): Query<ListRelationshipsQuery>,
 ) -> ApiResult<Json<ListRelationshipsResponse>> {
-    // Clamp page_size to range [1, 100]
-    let page_size = query.page_size.clamp(1, 100);
+    // SPEC-006: BR-006-010 — AppState resource SSOT
+    let page_size = state.resource_budget().clamp_page_size(query.page_size);
     let page = query.page.max(1);
     let offset = ((page - 1) * page_size) as usize;
 
-    // Get all edges from graph storage
-    // WHY: We need to fetch all edges and filter in memory because the storage
-    // interface doesn't support pagination/filtering yet.
-    let all_edges = state.graph_storage.get_all_edges().await?;
+    // SPEC-006: TR-006-001 — push-down edge pagination
+    let filter = EdgeListFilter {
+        tenant_id: tenant_ctx.tenant_id.clone(),
+        workspace_id: tenant_ctx.workspace_id.clone(),
+        relationship_type: query.relationship_type.clone(),
+    };
 
-    // WHY: Apply tenant isolation first to ensure multi-tenancy is respected
-    let tenant_filtered_edges = filter_edges_by_tenant_context(all_edges, &tenant_ctx);
+    let page_result = state
+        .storage
+        .graph_storage
+        .list_edges_filtered(&filter, offset, page_size as usize)
+        .await?;
 
-    // Apply filters
-    let mut filtered_edges: Vec<_> = tenant_filtered_edges
-        .into_iter()
-        .filter(|edge| {
-            // Filter by relationship_type if specified
-            if let Some(ref rel_type) = query.relationship_type {
-                let edge_type = edge
-                    .properties
-                    .get("relation_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                if !edge_type.eq_ignore_ascii_case(rel_type) {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
-
-    // Sort by edge ID for consistent ordering
-    filtered_edges.sort_by(|a, b| {
-        let a_id = format!("{}_{}", a.source, a.target);
-        let b_id = format!("{}_{}", b.source, b.target);
-        a_id.cmp(&b_id)
-    });
-
-    let total = filtered_edges.len();
+    let total = page_result.total;
     let total_pages = ((total as f64) / (page_size as f64)).ceil() as u32;
-
-    // Apply pagination
-    let page_edges: Vec<_> = filtered_edges
-        .into_iter()
-        .skip(offset)
-        .take(page_size as usize)
-        .collect();
+    let page_edges = page_result.items;
 
     // Convert to response format
     let items: Vec<_> = page_edges

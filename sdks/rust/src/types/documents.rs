@@ -89,10 +89,7 @@ pub fn document_list_query_string(q: &DocumentListQuery) -> String {
         parts.push(format!("date_to={}", urlencoding::encode(d)));
     }
     if let Some(ref pat) = q.document_pattern {
-        parts.push(format!(
-            "document_pattern={}",
-            urlencoding::encode(pat)
-        ));
+        parts.push(format!("document_pattern={}", urlencoding::encode(pat)));
     }
     parts.join("&")
 }
@@ -287,6 +284,32 @@ impl PdfUploadResponse {
     pub fn canonical_id(&self) -> Option<&str> {
         self.pdf_id.as_deref().or(self.id.as_deref())
     }
+}
+
+/// Per-file result for `POST /api/v1/documents/pdf/batch`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PdfBatchFileResult {
+    pub filename: String,
+    pub status: String,
+    #[serde(default)]
+    pub pdf_id: Option<String>,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub duplicate_of: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// Batch PDF upload response.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PdfBatchUploadResponse {
+    pub total_files: usize,
+    pub accepted: usize,
+    pub duplicates: usize,
+    pub failed: usize,
+    #[serde(default)]
+    pub results: Vec<PdfBatchFileResult>,
 }
 
 /// PDF document metadata returned by list/get endpoints.

@@ -1,9 +1,17 @@
 import { expect, test } from "@playwright/test";
+import { e2eScreenshot } from "./helpers/screenshot-paths";
+import { API_V1_URL, BACKEND_URL } from "./helpers/backend-url";
+import { skipUnlessLiveStack } from "./helpers/live-stack";
 
-test.describe("Query Page Functionality Test", () => {
+
+test.beforeEach(() => {
+  skipUnlessLiveStack();
+});
+
+test.describe("@debug Query Page Functionality Test", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to query page
-    await page.goto("http://localhost:3000/query");
+    await page.goto("/query");
   });
 
   test("should load query page and check UI elements", async ({ page }) => {
@@ -12,7 +20,7 @@ test.describe("Query Page Functionality Test", () => {
 
     // Take screenshot of initial state
     await page.screenshot({
-      path: "test-results/query-page-initial.png",
+      path: e2eScreenshot("debug", "query-page-initial.png"),
       fullPage: true,
     });
 
@@ -57,7 +65,7 @@ test.describe("Query Page Functionality Test", () => {
 
     // Take screenshot before submission
     await page.screenshot({
-      path: "test-results/query-before-submit.png",
+      path: e2eScreenshot("debug", "query-before-submit.png"),
       fullPage: true,
     });
 
@@ -73,7 +81,7 @@ test.describe("Query Page Functionality Test", () => {
 
     // Take screenshot after submission
     await page.screenshot({
-      path: "test-results/query-after-submit.png",
+      path: e2eScreenshot("debug", "query-after-submit.png"),
       fullPage: true,
     });
 
@@ -90,7 +98,7 @@ test.describe("Query Page Functionality Test", () => {
 
     // Take screenshot of response
     await page.screenshot({
-      path: "test-results/query-with-response.png",
+      path: e2eScreenshot("debug", "query-with-response.png"),
       fullPage: true,
     });
 
@@ -135,7 +143,7 @@ test.describe("Query Page Functionality Test", () => {
 
   test("should check for API connectivity", async ({ page }) => {
     // Check if backend is reachable
-    const response = await page.request.get("http://localhost:8080/health");
+    const response = await page.request.get(`${BACKEND_URL}/health`);
     console.log(`Backend health check: ${response.status()}`);
 
     if (response.ok()) {

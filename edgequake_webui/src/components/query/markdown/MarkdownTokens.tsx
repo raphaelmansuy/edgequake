@@ -17,12 +17,12 @@ import type { Token, Tokens } from 'marked';
 import { lazy, memo, Suspense, useId } from 'react';
 import { MarkdownInlineTokens } from './MarkdownInlineTokens';
 import type { AlertType } from './utils/configure-marked';
+import { MathTokenRenderer } from './MathTokenRenderer';
 import { sanitizeHtml } from './utils/sanitize-html';
 
 // Lazy load heavy components
 const CodeBlock = lazy(() => import('./CodeBlock'));
 const MermaidBlock = lazy(() => import('./MermaidBlock'));
-const KatexMath = lazy(() => import('./KatexMath'));
 const GitHubAlert = lazy(() => import('./GitHubAlert'));
 const DetailsBlock = lazy(() => import('./DetailsBlock'));
 interface MarkdownTokensProps {
@@ -58,15 +58,6 @@ function CodeBlockSkeleton() {
         <div className="h-3 w-1/2 rounded bg-muted-foreground/20" />
         <div className="h-3 w-2/3 rounded bg-muted-foreground/20" />
       </div>
-    </div>
-  );
-}
-
-// Skeleton loader for math blocks
-function MathBlockSkeleton() {
-  return (
-    <div className="my-4 flex justify-center animate-pulse">
-      <div className="h-12 w-48 rounded bg-muted-foreground/20" />
     </div>
   );
 }
@@ -158,22 +149,9 @@ const TokenRenderer = memo(function TokenRenderer({
       );
     }
 
-    case 'math_block': {
-      // Custom token type from our marked extension
-      const mathToken = token as Token & { raw: string };
-      // Extract math content - remove $$ delimiters
-      const mathContent = mathToken.raw
-        .replace(/^\$\$\s*/, '')
-        .replace(/\s*\$\$$/, '')
-        .trim();
-      return (
-        <Suspense fallback={<MathBlockSkeleton />}>
-          <div className="my-4 overflow-x-auto">
-            <KatexMath math={mathContent} block />
-          </div>
-        </Suspense>
-      );
-    }
+    case 'math_block':
+    case 'math_bracket_block':
+      return <MathTokenRenderer key={tokenId} token={token} />;
 
     case 'blockquote': {
       const blockquote = token as Tokens.Blockquote;

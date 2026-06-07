@@ -5,6 +5,7 @@ members = [
     "crates/edgequake-audit",
     "crates/edgequake-auth",
     "crates/edgequake-core",
+    "crates/edgequake-observability",
     "crates/edgequake-pdf",
     "crates/edgequake-pipeline",
     "crates/edgequake-query",
@@ -43,6 +44,7 @@ path = "examples/multi_tenant.rs"
 
 [features]
 default = ["postgres", "vision"]
+otel = ["edgequake-observability/otel", "edgequake-api/otel"]
 postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]
 vision = ["edgequake-api/vision"]
 
@@ -53,10 +55,10 @@ edgequake-llm = { workspace = true }
 edgequake-pipeline = { workspace = true }
 edgequake-query = { workspace = true }
 edgequake-api = { workspace = true }
+edgequake-observability = { workspace = true, features = ["metrics"] }
 edgequake-tasks = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
@@ -69,7 +71,7 @@ criterion = { workspace = true }
 tokio-test = { workspace = true }
 
 [workspace.package]
-version = "0.12.2"
+version = "0.12.7"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"
@@ -153,6 +155,7 @@ edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
+edgequake-observability = { path = "crates/edgequake-observability" }
 edgeparse-core = "0.2.3"
 
 # CPU utilities
