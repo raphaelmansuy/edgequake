@@ -1,5 +1,5 @@
 {
-  "name": "@edgequake/mcp-server",
+  "name": "@romysaputra/edgequake-mcp",
   "version": "0.2.0",
   "description": "MCP server for EdgeQuake Graph-RAG — use EdgeQuake as persistent agent memory",
   "type": "module",
@@ -40,11 +40,11 @@
     "knowledge-graph",
     "agent-memory"
   ],
-  "author": "EdgeQuake Team",
+  "author": "Romy Saputra Sihananda",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raphaelmansuy/edgequake.git",
+    "url": "git+https://github.com/RomySaputraSihananda/edgequake.git",
     "directory": "mcp"
   },
   "publishConfig": {
