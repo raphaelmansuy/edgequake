@@ -63,6 +63,11 @@ services:
       - EDGEQUAKE_EMBEDDING_PROVIDER=${EDGEQUAKE_EMBEDDING_PROVIDER:-}
       # Vision extraction timeout (seconds). Default 600s (10 min).
       - EDGEQUAKE_VISION_TIMEOUT_SECS=${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
+      # Entity extraction concurrency and timeout.
+      # For local LLMs (Ollama/LMStudio), lower concurrency to avoid overwhelming the model.
+      # Default concurrency is 16 (suited for cloud APIs); use 2-4 for local LLMs.
+      - EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=${EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS:-2}
+      - EDGEQUAKE_CHUNK_TIMEOUT_SECS=${EDGEQUAKE_CHUNK_TIMEOUT_SECS:-300}
       # pdfium-auto cache dir — writable by the non-root container user.
       # Override with PDFIUM_AUTO_CACHE_DIR if you mount a persistent volume.
       - PDFIUM_AUTO_CACHE_DIR=${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
