@@ -37,8 +37,6 @@ export interface QueryRequest {
   system_prompt?: string;
   /** Filter to documents with this enrichment topic. Must be one of the allowed EnrichmentTopic values. */
   topic?: EnrichmentTopic;
-  /** Filter to documents containing ANY of these enrichment tags (case-insensitive). Example: ["Machine Learning", "Python"]. */
-  tags?: string[];
 }
 
 export interface StreamQueryRequest {
@@ -48,8 +46,6 @@ export interface StreamQueryRequest {
   system_prompt?: string;
   /** Filter to documents with this enrichment topic. Must be one of the allowed EnrichmentTopic values. */
   topic?: EnrichmentTopic;
-  /** Filter to documents containing ANY of these enrichment tags (case-insensitive). Example: ["Machine Learning", "Python"]. */
-  tags?: string[];
 }
 
 // ── Shared Response Types ─────────────────────────────────────

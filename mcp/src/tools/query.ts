@@ -46,12 +46,6 @@ export function registerQueryTools(server: McpServer): void {
         .describe(
           "Filter query to documents with this enrichment topic. Must be one of the allowed values: Politics, Indonesia, Psychology, Business, Communication, Technology, Science, SocialMedia, Religion, Media, AI, Culinary, Finance, Literature, Law, Sports, Education, History, Uncategorized.",
         ),
-      tags: z
-        .array(z.string())
-        .optional()
-        .describe(
-          "Filter query to documents containing ANY of these enrichment tags (case-insensitive). Example: ['Machine Learning', 'Python']. Use to narrow results to specific subtopics.",
-        ),
     },
     async (params) => {
       try {
@@ -64,7 +58,6 @@ export function registerQueryTools(server: McpServer): void {
           include_references: params.include_references ?? true,
           conversation_history: params.conversation_history,
           topic: params.topic,
-          tags: params.tags,
         } as any);
 
         return {
