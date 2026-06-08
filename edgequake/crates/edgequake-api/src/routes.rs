@@ -111,6 +111,8 @@ pub fn create_router(state: AppState) -> Router {
             "/ws/progress/{track_id}",
             get(handlers::ws_progress_by_track_id),
         )
+        // MCP Streamable HTTP endpoint
+        .route("/mcp", post(handlers::mcp::mcp_handler))
         // Ollama Emulation API (GAP-038)
         .nest("/api", ollama_api_routes())
         // API v1 endpoints
