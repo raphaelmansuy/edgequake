@@ -36,10 +36,15 @@ export function registerQueryTools(server: McpServer): void {
         .optional()
         .describe("Prior conversation messages for multi-turn context"),
       topic: z
-        .string()
+        .enum([
+          "Politics", "Indonesia", "Psychology", "Business", "Communication",
+          "Technology", "Science", "SocialMedia", "Religion", "Media",
+          "AI", "Culinary", "Finance", "Literature", "Law",
+          "Sports", "Education", "History", "Uncategorized",
+        ])
         .optional()
         .describe(
-          "Filter query to documents with this enrichment topic (case-insensitive exact match). Example: 'Technology', 'Finance', 'Law'. Use this to scope questions to a specific subject area.",
+          "Filter query to documents with this enrichment topic. Must be one of the allowed values: Politics, Indonesia, Psychology, Business, Communication, Technology, Science, SocialMedia, Religion, Media, AI, Culinary, Finance, Literature, Law, Sports, Education, History, Uncategorized.",
         ),
       tags: z
         .array(z.string())

@@ -12,15 +12,24 @@ use super::enrichment_config::EnrichmentConfig;
 
 const MAX_TEXT_CHARS: usize = 8_000;
 
+const ALLOWED_TOPICS: &[&str] = &[
+    "Politics", "Indonesia", "Psychology", "Business", "Communication",
+    "Technology", "Science", "SocialMedia", "Religion", "Media",
+    "AI", "Culinary", "Finance", "Literature", "Law",
+    "Sports", "Education", "History", "Uncategorized",
+];
+
 const ENRICHMENT_PROMPT: &str = "You are a document classifier. Given text from a document, \
 return ONLY valid JSON with no markdown, no explanation.\n\
 \n\
 RULES for \"topic\":\n\
-- MAXIMUM 2 words\n\
-- Use a generic domain label, NOT a description of the document\n\
-- Good examples: Technology, Finance, Law, Healthcare, Education, Marketing, Engineering, Science, Management, Communication\n\
-- BAD examples: \"SmartHome Hub product launch strategy\", \"Cross-Cultural Communication\", \"Workplace Communication Skills\"\n\
-- If unsure, pick the single closest domain word\n\
+- You MUST pick exactly one value from this allowed list:\n\
+  Politics, Indonesia, Psychology, Business, Communication, Technology, Science,\n\
+  SocialMedia, Religion, Media, AI, Culinary, Finance, Literature, Law,\n\
+  Sports, Education, History, Uncategorized\n\
+- Do NOT invent new topics outside this list\n\
+- Pick the closest match to the document's main subject\n\
+- Use \"Uncategorized\" only if no other topic fits\n\
 \n\
 RULES for \"tags\":\n\
 - 3 to 6 short tags (1-3 words each)\n\
@@ -30,7 +39,7 @@ RULES for \"tags\":\n\
 - Use the document's own language for tags\n\
 \n\
 {\n  \"summary\": \"2-3 sentence summary in the document's own language\",\n  \
-\"topic\": \"1-2 word domain label\",\n  \
+\"topic\": \"one value from the allowed topic list\",\n  \
 \"tags\": [\"3-6 specific subtopic tags\"],\n  \
 \"language\": \"ISO 639-1 code (e.g. en, id, fr)\",\n  \
 \"keywords\": [\"up to 10 keywords\"]\n}\n\nDocument text:";
@@ -228,12 +237,30 @@ impl TaskProcessor for MetadataEnrichProcessor {
         let keywords: Vec<String> = result.keywords.into_iter().take(10).collect();
         let tags: Vec<String> = result.tags.into_iter().take(6).collect();
 
+        // Enforce allowed topic list — fall back to Uncategorized if LLM hallucinated
+        let topic = if ALLOWED_TOPICS.iter().any(|&t| t.eq_ignore_ascii_case(&result.topic)) {
+            // Normalize to canonical casing from the allowed list
+            ALLOWED_TOPICS
+                .iter()
+                .find(|&&t| t.eq_ignore_ascii_case(&result.topic))
+                .copied()
+                .unwrap_or("Uncategorized")
+                .to_string()
+        } else {
+            warn!(
+                document_id = %data.document_id,
+                llm_topic = %result.topic,
+                "LLM returned topic outside allowed list — falling back to Uncategorized"
+            );
+            "Uncategorized".to_string()
+        };
+
         self.write_metadata(
             &data.document_id,
             serde_json::json!({
                 "enrichment_status": "completed",
                 "enrichment_summary": result.summary,
-                "enrichment_topic": result.topic,
+                "enrichment_topic": topic,
                 "enrichment_tags": tags,
                 "enrichment_language": result.language,
                 "enrichment_keywords": keywords,
@@ -245,14 +272,14 @@ impl TaskProcessor for MetadataEnrichProcessor {
 
         info!(
             document_id = %data.document_id,
-            topic = %result.topic,
+            topic = %topic,
             language = %result.language,
             "Metadata enrichment completed"
         );
 
         Ok(serde_json::json!({
             "enrichment_status": "completed",
-            "topic": result.topic,
+            "topic": topic,
             "language": result.language,
         }))
     }
