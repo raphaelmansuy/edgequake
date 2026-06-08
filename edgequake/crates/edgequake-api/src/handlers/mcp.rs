@@ -393,7 +393,17 @@ async fn tool_query(state: &AppState, args: &Value) -> Result<Value, (i32, Strin
         }
     }
 
-    match state.sota_engine.query(engine_req).await {
+    // Build workspace-aware LLM override so queries use the workspace model
+    // (e.g. openrouter/gpt-oss-120b) instead of the global default provider.
+    let llm_override = workspace_llm_override(state).await;
+
+    let query_result = if let Some(llm) = llm_override {
+        state.sota_engine.query_with_llm_provider(engine_req, llm).await
+    } else {
+        state.sota_engine.query(engine_req).await
+    };
+
+    match query_result {
         Ok(result) => {
             let chunks = &result.context.chunks;
             let sources = if !chunks.is_empty() {
@@ -411,6 +421,37 @@ async fn tool_query(state: &AppState, args: &Value) -> Result<Value, (i32, Strin
             "isError": true
         })),
     }
+}
+
+/// Build a workspace-specific LLM provider using the default workspace config.
+///
+/// Falls back to env-var defaults (`EDGEQUAKE_LLM_PROVIDER` / `EDGEQUAKE_DEFAULT_LLM_MODEL`)
+/// so the MCP query tool honours the same model as the regular API query endpoints.
+async fn workspace_llm_override(
+    state: &AppState,
+) -> Option<std::sync::Arc<dyn edgequake_llm::LLMProvider>> {
+    use edgequake_core::Workspace;
+
+    // Priority 1: Default workspace in DB
+    let default_workspace_id = Uuid::parse_str("00000000-0000-0000-0000-000000000003").ok()?;
+    let (provider, model) = if let Ok(Some(ws)) = state.workspace_service
+        .get_workspace(default_workspace_id).await
+    {
+        if !ws.llm_provider.is_empty() && !ws.llm_model.is_empty() {
+            (ws.llm_provider, ws.llm_model)
+        } else {
+            // Priority 2: env vars
+            let (model, provider) = Workspace::server_runtime_llm_config();
+            (provider, model)
+        }
+    } else {
+        let (model, provider) = Workspace::server_runtime_llm_config();
+        (provider, model)
+    };
+
+    crate::safety_limits::create_safe_llm_provider(&provider, &model)
+        .map_err(|e| warn!(error = %e, provider, model, "MCP: failed to create workspace LLM override"))
+        .ok()
 }
 
 // ── document_upload ───────────────────────────────────────────────────────────
