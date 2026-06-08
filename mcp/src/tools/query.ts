@@ -56,6 +56,7 @@ export function registerQueryTools(server: McpServer): void {
     async (params) => {
       try {
         const client = await getClient();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = await client.query.execute({
           query: params.query,
           mode: params.mode,
@@ -64,7 +65,7 @@ export function registerQueryTools(server: McpServer): void {
           conversation_history: params.conversation_history,
           topic: params.topic,
           tags: params.tags,
-        });
+        } as any);
 
         return {
           content: [
