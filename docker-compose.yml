@@ -159,8 +159,9 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
-      EDGEQUAKE_API_URL:  ${EDGEQUAKE_API_URL:-http://localhost:${EDGEQUAKE_PORT:-8080}}
+      NEXT_PUBLIC_API_URL:      ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      EDGEQUAKE_API_URL:        ${EDGEQUAKE_API_URL:-http://localhost:${EDGEQUAKE_PORT:-8080}}
+      NEXT_PUBLIC_AUTH_ENABLED: ${EDGEQUAKE_AUTH_ENABLED:-false}
     depends_on:
       api:
         condition: service_healthy
