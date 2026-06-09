@@ -121,6 +121,11 @@ services:
       # ── Storage / pdfium ──────────────────────────────────────────────────
       PDFIUM_AUTO_CACHE_DIR: ${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
 
+      # ── Auth ──────────────────────────────────────────────────────────────
+      EDGEQUAKE_AUTH_ENABLED: ${EDGEQUAKE_AUTH_ENABLED:-false}
+      ALLOW_REGISTRATION:     ${ALLOW_REGISTRATION:-true}
+      JWT_SECRET:             ${JWT_SECRET:-change-me-in-production-256-bit-secret-key}
+
       # ── Logging ───────────────────────────────────────────────────────────
       RUST_LOG: ${RUST_LOG:-info,edgequake=debug}
 

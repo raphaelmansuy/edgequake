@@ -1,6 +1,6 @@
 {
   "name": "@romysaputrasihanandaa/edgequake-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server for EdgeQuake Graph-RAG — use EdgeQuake as persistent agent memory",
   "type": "module",
   "main": "./dist/index.js",
