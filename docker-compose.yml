@@ -68,11 +68,12 @@ services:
       EDGEQUAKE_VISION_TIMEOUT_SECS: ${EDGEQUAKE_VISION_TIMEOUT_SECS:-600}
 
       # ── API Keys ──────────────────────────────────────────────────────────
-      OPENAI_API_KEY:     ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL:    ${OPENAI_BASE_URL:-}
-      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
-      GEMINI_API_KEY:     ${GEMINI_API_KEY:-}
-      MISTRAL_API_KEY:    ${MISTRAL_API_KEY:-}
+      OPENAI_API_KEY:      ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL:     ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY:   ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY:      ${GEMINI_API_KEY:-}
+      MISTRAL_API_KEY:     ${MISTRAL_API_KEY:-}
+      OPENROUTER_API_KEY:  ${OPENROUTER_API_KEY:-}
 
       # ── Ollama (host machine via host.docker.internal) ─────────────────────
       OLLAMA_HOST:             ${OLLAMA_HOST:-http://host.docker.internal:11434}
