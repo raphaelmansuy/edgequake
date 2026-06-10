@@ -58,10 +58,20 @@ impl JsonRpcResponse {
 // ── Allowed topics ────────────────────────────────────────────────────────────
 
 const ALLOWED_TOPICS: &[&str] = &[
-    "Politics", "Indonesia", "Psychology", "Business", "Communication",
-    "Technology", "Science", "SocialMedia", "Religion", "Media",
-    "AI", "Culinary", "Finance", "Literature", "Law",
-    "Sports", "Education", "History", "Uncategorized",
+    // Fiction
+    "Romance", "Science Fiction & Fantasy", "Mystery, Thriller & Suspense",
+    "Literature & Fiction", "Teen & Young Adult", "LGBTQIA+",
+    // Nonfiction
+    "Arts & Photography", "Biographies & Memoirs", "Business & Money",
+    "Computers & Technology", "Cookbooks, Food & Wine", "Crafts, Hobbies & Home",
+    "Education & Teaching", "Engineering & Transportation", "Health, Fitness & Dieting",
+    "History", "Humor & Entertainment", "Law", "Medical Books",
+    "Parenting & Relationships", "Politics & Social Sciences", "Reference",
+    "Religion & Spirituality", "Science & Math", "Self-help",
+    "Sports & Outdoors", "Travel",
+    // Other
+    "Comics & Manga", "Children's Books", "Textbooks",
+    "Uncategorized",
 ];
 
 // ── Tool schema ───────────────────────────────────────────────────────────────
@@ -86,7 +96,18 @@ fn tools_list() -> Value {
                         "include_references": { "type": "boolean", "description": "Include source snippets in response (default: true)" },
                         "topic": {
                             "type": "string",
-                            "enum": ["Politics","Indonesia","Psychology","Business","Communication","Technology","Science","SocialMedia","Religion","Media","AI","Culinary","Finance","Literature","Law","Sports","Education","History","Uncategorized"],
+                            "enum": [
+                                "Romance","Science Fiction & Fantasy","Mystery, Thriller & Suspense",
+                                "Literature & Fiction","Teen & Young Adult","LGBTQIA+",
+                                "Arts & Photography","Biographies & Memoirs","Business & Money",
+                                "Computers & Technology","Cookbooks, Food & Wine","Crafts, Hobbies & Home",
+                                "Education & Teaching","Engineering & Transportation","Health, Fitness & Dieting",
+                                "History","Humor & Entertainment","Law","Medical Books",
+                                "Parenting & Relationships","Politics & Social Sciences","Reference",
+                                "Religion & Spirituality","Science & Math","Self-help",
+                                "Sports & Outdoors","Travel","Comics & Manga","Children's Books",
+                                "Textbooks","Uncategorized"
+                            ],
                             "description": "Filter query to documents with this enrichment topic"
                         }
                     },
@@ -95,20 +116,8 @@ fn tools_list() -> Value {
             },
             // ── Documents ─────────────────────────────────────────────────
             {
-                "name": "document_upload",
-                "description": "Upload a text document to EdgeQuake for knowledge graph extraction. The document will be chunked, entities extracted, and relationships mapped.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "content": { "type": "string", "description": "Document text content" },
-                        "title": { "type": "string", "description": "Document title" }
-                    },
-                    "required": ["content"]
-                }
-            },
-            {
                 "name": "document_list",
-                "description": "List documents with pagination and optional filtering",
+                "description": "List documents with pagination and optional filtering by status, topic, or title search",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -119,6 +128,22 @@ fn tools_list() -> Value {
                             "enum": ["pending","processing","completed","failed"],
                             "description": "Filter by processing status"
                         },
+                        "topic": {
+                            "type": "string",
+                            "enum": [
+                                "Romance","Science Fiction & Fantasy","Mystery, Thriller & Suspense",
+                                "Literature & Fiction","Teen & Young Adult","LGBTQIA+",
+                                "Arts & Photography","Biographies & Memoirs","Business & Money",
+                                "Computers & Technology","Cookbooks, Food & Wine","Crafts, Hobbies & Home",
+                                "Education & Teaching","Engineering & Transportation","Health, Fitness & Dieting",
+                                "History","Humor & Entertainment","Law","Medical Books",
+                                "Parenting & Relationships","Politics & Social Sciences","Reference",
+                                "Religion & Spirituality","Science & Math","Self-help",
+                                "Sports & Outdoors","Travel","Comics & Manga","Children's Books",
+                                "Textbooks","Uncategorized"
+                            ],
+                            "description": "Filter by enrichment topic"
+                        },
                         "search": { "type": "string", "description": "Search in title" }
                     }
                 }
@@ -126,28 +151,6 @@ fn tools_list() -> Value {
             {
                 "name": "document_get",
                 "description": "Get document details including metadata and enrichment data",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "document_id": { "type": "string", "description": "Document UUID" }
-                    },
-                    "required": ["document_id"]
-                }
-            },
-            {
-                "name": "document_delete",
-                "description": "Delete a document and its extracted knowledge (entities, relationships, chunks)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "document_id": { "type": "string", "description": "Document UUID" }
-                    },
-                    "required": ["document_id"]
-                }
-            },
-            {
-                "name": "document_status",
-                "description": "Check the processing status of a document",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -202,66 +205,6 @@ fn tools_list() -> Value {
                         "label": { "type": "string", "description": "Relationship type/label (partial match)" },
                         "limit": { "type": "integer", "description": "Max results (default: 20)" }
                     }
-                }
-            },
-            // ── Health ────────────────────────────────────────────────────
-            {
-                "name": "health",
-                "description": "Check EdgeQuake server health and component status",
-                "inputSchema": { "type": "object", "properties": {} }
-            },
-            // ── Workspaces ────────────────────────────────────────────────
-            {
-                "name": "workspace_list",
-                "description": "List all workspaces across all tenants",
-                "inputSchema": { "type": "object", "properties": {} }
-            },
-            {
-                "name": "workspace_create",
-                "description": "Create a new workspace for document ingestion and knowledge graph",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "Workspace name" },
-                        "description": { "type": "string", "description": "Workspace description" },
-                        "tenant_id": { "type": "string", "description": "Tenant UUID (uses first available tenant if omitted)" },
-                        "llm_model": { "type": "string", "description": "LLM model for extraction" },
-                        "llm_provider": { "type": "string", "description": "LLM provider (ollama, openai, lmstudio)" }
-                    },
-                    "required": ["name"]
-                }
-            },
-            {
-                "name": "workspace_get",
-                "description": "Get workspace details",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "workspace_id": { "type": "string", "description": "Workspace UUID" }
-                    },
-                    "required": ["workspace_id"]
-                }
-            },
-            {
-                "name": "workspace_delete",
-                "description": "Delete a workspace and all its data (documents, entities, relationships)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "workspace_id": { "type": "string", "description": "Workspace UUID" }
-                    },
-                    "required": ["workspace_id"]
-                }
-            },
-            {
-                "name": "workspace_stats",
-                "description": "Get statistics for a workspace (document, entity, relationship, chunk counts)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "workspace_id": { "type": "string", "description": "Workspace UUID" }
-                    },
-                    "required": ["workspace_id"]
                 }
             }
         ]
@@ -492,6 +435,7 @@ async fn tool_document_list(state: &AppState, args: &Value) -> Result<Value, (i3
     let page = args.get("page").and_then(|v| v.as_u64()).unwrap_or(1).max(1) as usize;
     let page_size = args.get("page_size").and_then(|v| v.as_u64()).unwrap_or(20).min(100) as usize;
     let status_filter = args.get("status").and_then(|v| v.as_str());
+    let topic_filter = args.get("topic").and_then(|v| v.as_str()).map(|s| s.to_lowercase());
     let search_filter = args.get("search").and_then(|v| v.as_str()).map(|s| s.to_lowercase());
 
     let keys = state.kv_storage.keys_with_suffix("-metadata").await
@@ -504,9 +448,13 @@ async fn tool_document_list(state: &AppState, args: &Value) -> Result<Value, (i3
             let doc_status = meta.get("enrichment_status").or_else(|| meta.get("status"))
                 .and_then(|v| v.as_str()).unwrap_or("");
             let title = meta.get("title").and_then(|v| v.as_str()).unwrap_or(doc_id);
+            let doc_topic = meta.get("enrichment_topic").and_then(|v| v.as_str()).unwrap_or("");
 
             if let Some(sf) = status_filter {
                 if doc_status != sf { continue; }
+            }
+            if let Some(ref tf) = topic_filter {
+                if doc_topic.to_lowercase() != *tf { continue; }
             }
             if let Some(ref q) = search_filter {
                 if !title.to_lowercase().contains(q.as_str()) { continue; }
