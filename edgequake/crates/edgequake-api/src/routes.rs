@@ -219,6 +219,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/workspaces/{workspace_id}/reprocess-documents",
             post(handlers::reprocess_all_documents),
         )
+        // Re-enrich documents with legacy topics using the current taxonomy
+        .route(
+            "/workspaces/{workspace_id}/re-enrich",
+            post(handlers::re_enrich_documents),
+        )
         // SPEC-0002: Knowledge Injection
         .route(
             "/workspaces/{workspace_id}/injection",

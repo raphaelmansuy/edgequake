@@ -15,10 +15,12 @@
 //! - [`mark_document_pending`]: Document status update to "pending"
 //! - [`build_reprocess_task`]: SPEC-041 source-type routing (PDF vs text)
 
+mod re_enrich_documents;
 mod rebuild_embeddings;
 mod rebuild_knowledge_graph;
 mod reprocess_documents;
 
+pub use re_enrich_documents::re_enrich_documents;
 pub use rebuild_embeddings::rebuild_embeddings;
 pub use rebuild_knowledge_graph::rebuild_knowledge_graph;
 pub use reprocess_documents::reprocess_all_documents;
