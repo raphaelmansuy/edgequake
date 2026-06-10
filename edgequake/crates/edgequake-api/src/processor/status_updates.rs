@@ -352,6 +352,13 @@ impl DocumentTaskProcessor {
 
                 updated.remove("error_message");
 
+                // Persist storage error details so they are visible via API
+                if let Some(ref err) = stats.error_details {
+                    updated.insert("error_details".to_string(), json!(err));
+                } else {
+                    updated.remove("error_details");
+                }
+
                 self.kv_storage
                     .upsert(&[(metadata_key, json!(updated))])
                     .await
