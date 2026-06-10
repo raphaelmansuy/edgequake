@@ -122,6 +122,9 @@ services:
       # ── Storage / pdfium ──────────────────────────────────────────────────
       PDFIUM_AUTO_CACHE_DIR: ${PDFIUM_AUTO_CACHE_DIR:-/tmp/edgequake-pdfium-cache}
 
+      # ── Graph Query ───────────────────────────────────────────────────────
+      EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS: ${EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS:-120}
+
       # ── Auth ──────────────────────────────────────────────────────────────
       EDGEQUAKE_AUTH_ENABLED: ${EDGEQUAKE_AUTH_ENABLED:-false}
       ALLOW_REGISTRATION:     ${ALLOW_REGISTRATION:-true}

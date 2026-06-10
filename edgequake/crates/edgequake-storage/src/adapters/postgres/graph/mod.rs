@@ -365,17 +365,20 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         // WHY: Use ::text cast for graphid comparison - Apache AGE's graphid type
         // lacks a native equality operator, but text comparison works correctly.
+        // WHY "Node"/"EDGE" not "_ag_label_vertex"/"_ag_label_edge": direct label tables
+        // use specific indexes (idx_node_prop_node_id, idx_edge_start_id) instead of
+        // triggering a full inheritance scan through the base tables.
         let sql = format!(
             "WITH node_vid AS ( \
-                SELECT id::text as id_text FROM {}.\"_ag_label_vertex\" \
+                SELECT id::text as id_text FROM {}.\"Node\" \
                 WHERE ag_catalog.agtype_to_json(properties)->>'node_id' = '{}' \
              ), \
              out_edges AS ( \
-                SELECT COUNT(*) as cnt FROM {}.\"_ag_label_edge\" e \
+                SELECT COUNT(*) as cnt FROM {}.\"EDGE\" e \
                 JOIN node_vid n ON e.start_id::text = n.id_text \
              ), \
              in_edges AS ( \
-                SELECT COUNT(*) as cnt FROM {}.\"_ag_label_edge\" e \
+                SELECT COUNT(*) as cnt FROM {}.\"EDGE\" e \
                 JOIN node_vid n ON e.end_id::text = n.id_text \
              ) \
              SELECT COALESCE(o.cnt, 0) + COALESCE(i.cnt, 0) as degree \
@@ -417,21 +420,23 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         // WHY: Use ::text cast for graphid comparison - Apache AGE's graphid type
         // lacks a native equality operator, but text comparison works correctly.
+        // WHY "Node"/"EDGE": direct label tables use specific indexes instead of
+        // triggering PostgreSQL inheritance scans through the base label tables.
         let sql = format!(
             "WITH target_nodes AS ( \
                 SELECT id::text as id_text, ag_catalog.agtype_to_json(properties)->>'node_id' as node_id \
-                FROM {}.\"_ag_label_vertex\" \
+                FROM {}.\"Node\" \
                 WHERE ag_catalog.agtype_to_json(properties)->>'node_id' IN ({}) \
              ), \
              out_degrees AS ( \
                 SELECT n.node_id, COUNT(*) as out_deg \
-                FROM {}.\"_ag_label_edge\" e \
+                FROM {}.\"EDGE\" e \
                 JOIN target_nodes n ON e.start_id::text = n.id_text \
                 GROUP BY n.node_id \
              ), \
              in_degrees AS ( \
                 SELECT n.node_id, COUNT(*) as in_deg \
-                FROM {}.\"_ag_label_edge\" e \
+                FROM {}.\"EDGE\" e \
                 JOIN target_nodes n ON e.end_id::text = n.id_text \
                 GROUP BY n.node_id \
              ) \
@@ -1022,7 +1027,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id'), \
                     plainto_tsquery('english', '{}') \
                 ) as rank \
-             FROM {}.\"_ag_label_vertex\" \
+             FROM {}.\"Node\" \
              WHERE to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id') \
                    @@ plainto_tsquery('english', '{}') \
              ORDER BY rank DESC \
@@ -1056,7 +1061,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     ag_catalog.agtype_to_json(properties)->>'node_id', \
                     '{}' \
                 ) as sim \
-             FROM {}.\"_ag_label_vertex\" \
+             FROM {}.\"Node\" \
              WHERE ag_catalog.agtype_to_json(properties)->>'node_id' OPERATOR(ag_catalog.%) '{}' \
              ORDER BY sim DESC \
              LIMIT {}",
@@ -1084,7 +1089,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
         // Final fallback to simple ILIKE prefix matching (always works)
         let prefix_sql = format!(
             "SELECT ag_catalog.agtype_to_json(properties)->>'node_id' as label \
-             FROM {}.\"_ag_label_vertex\" \
+             FROM {}.\"Node\" \
              WHERE LOWER(ag_catalog.agtype_to_json(properties)->>'node_id') LIKE LOWER('{}%') \
              ORDER BY ag_catalog.agtype_to_json(properties)->>'node_id' \
              LIMIT {}",
@@ -1158,26 +1163,28 @@ impl GraphStorage for PostgresAGEGraphStorage {
         let where_clause = where_conditions.join(" AND ");
 
         // CTE query to get nodes with degree count in one query
+        // WHY "Node"/"EDGE": direct label tables use specific indexes instead of
+        // triggering PostgreSQL inheritance scans through the base label tables.
         let sql = format!(
             "WITH node_props AS (
-                SELECT 
+                SELECT
                     v.id as vertex_id,
                     ag_catalog.agtype_to_json(v.properties) as props
-                FROM {graph}.\"_ag_label_vertex\" v
+                FROM {graph}.\"Node\" v
                 WHERE {where_clause}
             ),
             edge_counts AS (
-                SELECT 
+                SELECT
                     e.start_id as node_id,
                     COUNT(*) as out_degree
-                FROM {graph}.\"_ag_label_edge\" e
+                FROM {graph}.\"EDGE\" e
                 GROUP BY e.start_id
             ),
             in_edge_counts AS (
-                SELECT 
+                SELECT
                     e.end_id as node_id,
                     COUNT(*) as in_degree
-                FROM {graph}.\"_ag_label_edge\" e
+                FROM {graph}.\"EDGE\" e
                 GROUP BY e.end_id
             )
             SELECT 
@@ -1548,12 +1555,19 @@ impl GraphStorage for PostgresAGEGraphStorage {
         // output format is not a bare integer string, the ::bigint cast fails.
         // The consistent pattern (same as node_degree / node_degrees_batch) is to cast
         // graphid to text and join on text = text, which AGE always supports.
+        //
+        // WHY "EDGE"/"Node" instead of "_ag_label_edge"/"_ag_label_vertex":
+        // The base label tables are parent tables in PostgreSQL's table inheritance
+        // hierarchy. Querying them triggers a scan of ALL child tables, bypassing the
+        // specific indexes (idx_edge_start_id, idx_node_props_gin) that exist on the
+        // concrete "EDGE" and "Node" tables. Direct table access uses those indexes and
+        // avoids the inheritance scan overhead (~196 MB + ~183 MB respectively).
         let sql = format!(
             "WITH edge_counts AS ( \
                 SELECT \
                     start_id::text AS start_id_text, \
                     COUNT(*) as out_degree \
-                FROM {}.\"_ag_label_edge\" \
+                FROM {}.\"EDGE\" \
                 GROUP BY start_id::text \
             ), \
             node_degrees AS ( \
@@ -1561,7 +1575,7 @@ impl GraphStorage for PostgresAGEGraphStorage {
                     v.id::text AS id_text, \
                     v.properties, \
                     COALESCE(ec.out_degree, 0) as degree \
-                FROM {}.\"_ag_label_vertex\" v \
+                FROM {}.\"Node\" v \
                 LEFT JOIN edge_counts ec ON v.id::text = ec.start_id_text \
                 {} \
             ) \
@@ -1675,9 +1689,11 @@ impl GraphStorage for PostgresAGEGraphStorage {
         // Native SQL: filter on edge properties directly.
         // `source_id` and `target_id` are stored in edge properties (not vertex joins needed).
         // Migration 036 adds expression indexes on these properties for fast lookups.
+        // WHY "EDGE" not "_ag_label_edge": direct table uses existing expression indexes
+        // from migration 036 instead of triggering a costly inheritance scan.
         let sql = format!(
             r#"SELECT ag_catalog.agtype_to_json(properties) AS edge_props
-               FROM {}."_ag_label_edge"
+               FROM {}."EDGE"
                WHERE ag_catalog.agtype_to_json(properties)->>'source_id' IN ({})
                  AND ag_catalog.agtype_to_json(properties)->>'target_id' IN ({})
                  {}"#,
