@@ -13,10 +13,20 @@ use super::enrichment_config::EnrichmentConfig;
 const MAX_TEXT_CHARS: usize = 8_000;
 
 const ALLOWED_TOPICS: &[&str] = &[
-    "Politics", "Indonesia", "Psychology", "Business", "Communication",
-    "Technology", "Science", "SocialMedia", "Religion", "Media",
-    "AI", "Culinary", "Finance", "Literature", "Law",
-    "Sports", "Education", "History", "Uncategorized",
+    // Fiction
+    "Romance", "Science Fiction & Fantasy", "Mystery, Thriller & Suspense",
+    "Literature & Fiction", "Teen & Young Adult", "LGBTQIA+",
+    // Nonfiction
+    "Arts & Photography", "Biographies & Memoirs", "Business & Money",
+    "Computers & Technology", "Cookbooks, Food & Wine", "Crafts, Hobbies & Home",
+    "Education & Teaching", "Engineering & Transportation", "Health, Fitness & Dieting",
+    "History", "Humor & Entertainment", "Law", "Medical Books",
+    "Parenting & Relationships", "Politics & Social Sciences", "Reference",
+    "Religion & Spirituality", "Science & Math", "Self-help",
+    "Sports & Outdoors", "Travel",
+    // Other
+    "Comics & Manga", "Children's Books", "Textbooks",
+    "Uncategorized",
 ];
 
 const ENRICHMENT_PROMPT: &str = "You are a document classifier. Given text from a document, \
@@ -24,9 +34,16 @@ return ONLY valid JSON with no markdown, no explanation.\n\
 \n\
 RULES for \"topic\":\n\
 - You MUST pick exactly one value from this allowed list:\n\
-  Politics, Indonesia, Psychology, Business, Communication, Technology, Science,\n\
-  SocialMedia, Religion, Media, AI, Culinary, Finance, Literature, Law,\n\
-  Sports, Education, History, Uncategorized\n\
+  Romance, Science Fiction & Fantasy, Mystery Thriller & Suspense,\n\
+  Literature & Fiction, Teen & Young Adult, LGBTQIA+,\n\
+  Arts & Photography, Biographies & Memoirs, Business & Money,\n\
+  Computers & Technology, Cookbooks Food & Wine, Crafts Hobbies & Home,\n\
+  Education & Teaching, Engineering & Transportation, Health Fitness & Dieting,\n\
+  History, Humor & Entertainment, Law, Medical Books,\n\
+  Parenting & Relationships, Politics & Social Sciences, Reference,\n\
+  Religion & Spirituality, Science & Math, Self-help,\n\
+  Sports & Outdoors, Travel, Comics & Manga, Children's Books, Textbooks,\n\
+  Uncategorized\n\
 - Do NOT invent new topics outside this list\n\
 - Pick the closest match to the document's main subject\n\
 - Use \"Uncategorized\" only if no other topic fits\n\
@@ -34,8 +51,8 @@ RULES for \"topic\":\n\
 RULES for \"tags\":\n\
 - 3 to 6 short tags (1-3 words each)\n\
 - More specific than the topic — describe subtopics, key themes, or subject areas in the document\n\
-- Good examples for a Technology doc: [\"Machine Learning\", \"Neural Networks\", \"Python\"]\n\
-- Good examples for a Finance doc: [\"Investment\", \"Risk Management\", \"Stock Market\"]\n\
+- Good examples for a Computers & Technology doc: [\"Machine Learning\", \"Neural Networks\", \"Python\"]\n\
+- Good examples for a Business & Money doc: [\"Investment\", \"Risk Management\", \"Stock Market\"]\n\
 - Use the document's own language for tags\n\
 \n\
 {\n  \"summary\": \"2-3 sentence summary in the document's own language\",\n  \
