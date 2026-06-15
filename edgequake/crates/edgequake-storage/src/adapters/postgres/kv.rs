@@ -183,15 +183,27 @@ impl KVStorage for PostgresKVStorage {
 
         let pool = self.pool.get().await?;
 
-        let sql = format!("SELECT value FROM {} WHERE key = ANY($1)", self.table_name);
+        // Use unnest WITH ORDINALITY so results come back in the same order as
+        // the input slice. WHERE key = ANY($1) does not guarantee order and
+        // causes callers that zip keys+values to pair wrong entries.
+        let sql = format!(
+            "SELECT t.value \
+             FROM unnest($1::text[]) WITH ORDINALITY AS u(key, ord) \
+             LEFT JOIN {} t ON t.key = u.key \
+             ORDER BY u.ord",
+            self.table_name
+        );
 
-        let rows: Vec<(serde_json::Value,)> = sqlx::query_as(&sql)
+        let rows: Vec<(Option<serde_json::Value>,)> = sqlx::query_as(&sql)
             .bind(ids)
             .fetch_all(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("KV get_by_ids failed: {}", e)))?;
 
-        Ok(rows.into_iter().map(|(v,)| v).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(v,)| v.unwrap_or(serde_json::Value::Null))
+            .collect())
     }
 
     async fn filter_keys(&self, keys: HashSet<String>) -> Result<HashSet<String>> {
