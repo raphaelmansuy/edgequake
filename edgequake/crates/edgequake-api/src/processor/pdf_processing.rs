@@ -206,6 +206,21 @@ impl DocumentTaskProcessor {
             .clone()
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
+        // Skip processing if doc is already completed and this is not a forced restart.
+        // Prevents orphan-recovered tasks from overwriting manually restored docs.
+        if has_existing_document && !data.restart_from_scratch {
+            let meta_key = format!("{}-metadata", early_doc_id);
+            if let Ok(Some(meta)) = self.kv_storage.get_by_id(&meta_key).await {
+                if meta.get("status").and_then(|v| v.as_str()) == Some("completed") {
+                    tracing::info!(
+                        document_id = %early_doc_id,
+                        "Skipping task — document already completed"
+                    );
+                    return Ok(serde_json::json!({"skipped": true, "reason": "already_completed"}));
+                }
+            }
+        }
+
         // FIX-DUPLICATE-BUG: Persist the generated document ID back into task_data
         // so that worker retries reuse the same document ID instead of creating
         // a new UUID on each attempt. Without this, a single PDF upload that fails
