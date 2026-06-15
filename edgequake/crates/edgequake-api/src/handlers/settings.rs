@@ -333,8 +333,14 @@ fn build_config_area(
     levels: Vec<ConfigLevel>,
     effective_provider: String,
     effective_model: String,
+    has_custom_base_url: bool,
 ) -> ConfigAreaResponse {
-    let has_mismatch = is_model_provider_mismatch(&effective_provider, &effective_model);
+    let raw_mismatch = is_model_provider_mismatch(&effective_provider, &effective_model);
+    // Custom OpenAI-compatible servers (e.g. LMDeploy, vLLM) often expose models
+    // as "/models/<name>" paths. This is not an Ollama-style naming conflict — the
+    // operator explicitly pointed the base URL at a different server, so the "/"
+    // path pattern is not a mismatch indicator.
+    let has_mismatch = raw_mismatch && !(has_custom_base_url && effective_model.contains('/'));
 
     // Find which env var set the mismatched value to give targeted remediation.
     let mismatch_description = if has_mismatch {
@@ -465,10 +471,23 @@ pub async fn get_effective_config(
         "Effective config requested"
     );
 
+    let llm_has_custom_base = std::env::var("EDGEQUAKE_CHAT_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_some()
+        || std::env::var("OPENAI_BASE_URL")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .is_some();
+    let emb_has_custom_base = std::env::var("EDGEQUAKE_EMBEDDING_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_some();
+
     Ok(Json(EffectiveConfigResponse {
-        llm: build_config_area(llm_levels, llm_provider, llm_model),
-        embedding: build_config_area(emb_levels, emb_provider, emb_model),
-        vision: build_config_area(vis_levels, vis_provider, vis_model),
+        llm: build_config_area(llm_levels, llm_provider, llm_model, llm_has_custom_base),
+        embedding: build_config_area(emb_levels, emb_provider, emb_model, emb_has_custom_base),
+        vision: build_config_area(vis_levels, vis_provider, vis_model, llm_has_custom_base),
         priority_rule:
             "Higher-indexed levels override lower. \
              compiled_default < env_alias < env_secondary < env_primary. \
