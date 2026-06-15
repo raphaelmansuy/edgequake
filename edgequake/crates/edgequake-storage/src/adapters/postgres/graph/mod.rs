@@ -300,7 +300,9 @@ impl GraphStorage for PostgresAGEGraphStorage {
 
         // WHY chunk: bound the generated query string so a pathological batch
         // cannot blow past PostgreSQL's statement size / planner limits.
-        const CHUNK: usize = 500;
+        // WHY 100 not 500: large documents (4000+ entities with long LLM descriptions)
+        // cause the inlined UNWIND literal to exceed the statement_timeout at 500.
+        const CHUNK: usize = 100;
 
         for chunk in nodes.chunks(CHUNK) {
             let rows: Vec<String> = chunk
@@ -807,7 +809,9 @@ impl GraphStorage for PostgresAGEGraphStorage {
             return Ok(());
         }
 
-        const CHUNK: usize = 500;
+        // WHY 100: mirrors the node chunk rationale — avoids statement_timeout on
+        // large documents with many relationship properties.
+        const CHUNK: usize = 100;
 
         for chunk in edges.chunks(CHUNK) {
             let rows: Vec<String> = chunk
