@@ -980,6 +980,11 @@ impl DocumentTaskProcessor {
                 "ANOMALY: Document processed but extracted 0 entities from {} chunks - marking as partial_failure",
                 result.stats.chunk_count
             );
+            stats_with_lineage.error_details = Some(format!(
+                "Extracted 0 entities from {} chunks ({} failed) — likely LLM extraction failure",
+                result.stats.chunk_count,
+                result.stats.failed_chunks,
+            ));
             "partial_failure"
         } else if has_storage_errors {
             // Extraction succeeded but storage partially failed

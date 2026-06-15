@@ -348,6 +348,7 @@ pub async fn get_document(
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "completed".to_string()),
             obj.get("error_message")
+                .or_else(|| obj.get("error_details"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
             obj.get("source_type")

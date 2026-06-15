@@ -185,9 +185,10 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
-                // Get error_message
+                // Get error_message; fall back to error_details (set for partial_failure)
                 meta.error_message = obj
                     .get("error_message")
+                    .or_else(|| obj.get("error_details"))
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
