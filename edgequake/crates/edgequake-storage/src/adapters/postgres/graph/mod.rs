@@ -324,7 +324,32 @@ impl GraphStorage for PostgresAGEGraphStorage {
                  SET n = props",
                 rows.join(", ")
             );
-            self.cypher_execute(&cypher).await?;
+
+            // WHY retry: "Entity failed to be updated" is a transient AGE concurrency
+            // conflict when multiple workers MERGE the same shared entity (e.g. "Google",
+            // "United States") simultaneously. A short backoff-retry resolves it without
+            // failing the entire document.
+            let mut attempts = 0u32;
+            loop {
+                match self.cypher_execute(&cypher).await {
+                    Ok(()) => break,
+                    Err(e)
+                        if attempts < 3
+                            && e.to_string().contains("Entity failed to be updated") =>
+                    {
+                        attempts += 1;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(
+                            200 * u64::from(attempts),
+                        ))
+                        .await;
+                        tracing::warn!(
+                            attempt = attempts,
+                            "Node batch concurrent-update conflict — retrying"
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
         }
 
         // Lazily create indexes after the first successful batch (AGE builds the
@@ -838,7 +863,28 @@ impl GraphStorage for PostgresAGEGraphStorage {
                  SET r += e",
                 rows.join(", ")
             );
-            self.cypher_execute(&cypher).await?;
+
+            let mut attempts = 0u32;
+            loop {
+                match self.cypher_execute(&cypher).await {
+                    Ok(()) => break,
+                    Err(e)
+                        if attempts < 3
+                            && e.to_string().contains("Entity failed to be updated") =>
+                    {
+                        attempts += 1;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(
+                            200 * u64::from(attempts),
+                        ))
+                        .await;
+                        tracing::warn!(
+                            attempt = attempts,
+                            "Edge batch concurrent-update conflict — retrying"
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
         }
 
         Ok(())
