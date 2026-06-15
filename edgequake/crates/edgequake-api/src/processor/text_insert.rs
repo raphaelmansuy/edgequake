@@ -1120,11 +1120,14 @@ impl DocumentTaskProcessor {
             }
         }
 
-        // CHECKPOINT-CLEAR: All storage stages completed successfully.
-        // Remove the checkpoint so it won't be reloaded on next run.
-        // WHY: If we reach here, every piece of data is safely persisted.
-        // Keeping the checkpoint would waste storage and risk stale reloads.
-        super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id).await;
+        // CHECKPOINT-CLEAR: Only clear on full success.
+        // WHY: On partial_failure (graph storage timeout, etc.) the checkpoint must
+        // survive so the next reprocess run can skip LLM extraction and retry only
+        // the storage stage. Clearing on partial_failure would force re-extraction.
+        if final_status == "completed" {
+            super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id)
+                .await;
+        }
 
         // Log success
         self.pipeline_state
