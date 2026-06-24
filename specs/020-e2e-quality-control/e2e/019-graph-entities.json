@@ -7,7 +7,7 @@
   },
   "after": {
     "entityCount": 11,
-    "relationshipCount": 25,
+    "relationshipCount": 8,
     "documentCount": 1,
     "chunkCount": 1
   },
@@ -16,8 +16,8 @@
   "search": {
     "matchCount": 2,
     "labels": [
-      "SARAH_CHEN",
-      "GRAPHRAG"
+      "GRAPHRAG",
+      "SARAH_CHEN"
     ]
   },
   "statsSynced": true

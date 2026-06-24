@@ -48,7 +48,11 @@ def choose_port(kind: str, preferred_port: int, scan_window: int) -> int:
         if not is_listening(port):
             return port
 
-    return preferred_port
+    # Saturated window: never return preferred_port when a non-EdgeQuake app owns it.
+    if not is_listening(preferred_port) or is_edgequake(kind, preferred_port):
+        return preferred_port
+
+    return candidate_ports[-1]
 
 
 def main() -> int:

@@ -252,6 +252,14 @@ export function resolveServerRootUrl(endpoint: string): string {
   return serverBaseUrl ? `${serverBaseUrl}${path}` : path;
 }
 
+export interface ServerRootClientOptions extends RequestInit {
+  /**
+   * Probe failures (health/ready) are handled by callers — avoid console.error
+   * in dev, which triggers the Next.js global error overlay (see MermaidBlock).
+   */
+  silent?: boolean;
+}
+
 /**
  * GET/POST to backend server root (health, readiness). Uses unified error handling.
  * No auth headers — probes must work before login.
@@ -259,18 +267,19 @@ export function resolveServerRootUrl(endpoint: string): string {
  */
 export async function serverRootClient<T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: ServerRootClientOptions = {},
 ): Promise<T> {
+  const { silent = false, ...fetchOptions } = options;
   const url = resolveServerRootUrl(endpoint);
 
   try {
     const response = await fetch(url, {
-      ...options,
-      method: options.method ?? "GET",
+      ...fetchOptions,
+      method: fetchOptions.method ?? "GET",
     });
 
     if (!response.ok) {
-      throw await handleErrorResponse(response);
+      throw await handleErrorResponse(response, { silent });
     }
 
     const text = await response.text();
@@ -285,7 +294,7 @@ export async function serverRootClient<T>(
     }
     if (error instanceof TypeError) {
       const networkErr = new NetworkError();
-      logClientNetworkError(networkErr);
+      logClientNetworkError(networkErr, { silent });
       throw networkErr;
     }
     throw error;
@@ -367,9 +376,20 @@ export function apiErrorLogPayload(err: ApiRequestError): Record<string, unknown
   };
 }
 
+interface ClientErrorLogOptions {
+  silent?: boolean;
+}
+
 /** Log API errors at the correct level with full backend context. */
-export function logClientApiError(err: ApiRequestError): void {
+export function logClientApiError(
+  err: ApiRequestError,
+  options: ClientErrorLogOptions = {},
+): void {
   const payload = apiErrorLogPayload(err);
+  if (options.silent) {
+    console.debug("[edgequake] API probe failed", payload);
+    return;
+  }
   if (err.status >= 500) {
     console.error("[edgequake] API server error", payload);
   } else if (err.status >= 400) {
@@ -378,21 +398,30 @@ export function logClientApiError(err: ApiRequestError): void {
 }
 
 /** Log transport failures (no HTTP response) with trace context. */
-export function logClientNetworkError(err: NetworkError): void {
+export function logClientNetworkError(
+  err: NetworkError,
+  options: ClientErrorLogOptions = {},
+): void {
   const trace = getClientTraceContext();
-  console.error("[edgequake] Network error", {
+  const payload = {
     message: err.message,
     code: "NETWORK_ERROR",
     source: "webui_client",
     apiBase: getRuntimeApiBaseUrl() || "(relative via dev proxy)",
     traceparent: trace.traceparent,
     trace_id: trace.trace_id,
-  });
+  };
+  if (options.silent) {
+    console.debug("[edgequake] Network probe failed", payload);
+    return;
+  }
+  console.error("[edgequake] Network error", payload);
 }
 
 // Error response handler
 async function handleErrorResponse(
   response: Response,
+  options: ClientErrorLogOptions = {},
 ): Promise<ApiRequestError> {
   const requestId = response.headers.get("x-request-id") ?? undefined;
   try {
@@ -412,7 +441,7 @@ async function handleErrorResponse(
           ? errorData.details.request_id
           : undefined),
     };
-    logClientApiError(err);
+    logClientApiError(err, options);
     return err;
   } catch {
     const err = new ApiRequestError(
@@ -422,7 +451,7 @@ async function handleErrorResponse(
     if (requestId) {
       err.details = { request_id: requestId };
     }
-    logClientApiError(err);
+    logClientApiError(err, options);
     return err;
   }
 }

@@ -1,13 +1,5 @@
 import type { NextConfig } from "next";
-
-/** Backend URL for dev rewrites (proxy target — not exposed to browser). */
-function devProxyBackend(): string {
-  const raw =
-    process.env.EDGEQUAKE_API_URL?.trim() ||
-    process.env.NEXT_PUBLIC_API_URL?.trim() ||
-    "http://127.0.0.1:8081";
-  return raw.replace(/\/$/, "");
-}
+import { resolveDevProxyBackend } from "./src/lib/server/dev-proxy-backend";
 
 const nextConfig: NextConfig = {
   // ============================================================================
@@ -48,7 +40,7 @@ const nextConfig: NextConfig = {
     if (process.env.NODE_ENV !== "development") {
       return [];
     }
-    const backend = devProxyBackend();
+    const backend = resolveDevProxyBackend();
     return [
       { source: "/api/:path*", destination: `${backend}/api/:path*` },
       { source: "/health", destination: `${backend}/health` },
