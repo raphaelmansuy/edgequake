@@ -1,5 +1,5 @@
 {
-  "answerPreview": "Based on the provided context, Sarah Chen holds a specific and active role within EDGEQUAKE, focusing primarily on advanced technological development.Professional Profile SummaryRole: Sarah Chen is defined as a Senior Engineer employed by EDGEQUAKE.Project Focus: She is actively engaged in building GraphRAG.Technology Stack: The GraphRAG system she is developing utilizes the Rust programming language.Detailed Relationships and ContributionsEntityRelationshipDetailEmploymentWorks AtSarah Chen is ",
+  "answerPreview": "Based on the provided context, here is a detailed profile of Sarah Chen at EDGEQUAKE:Professional Role and AffiliationTitle: Sarah Chen is a senior engineer.Employer: She is employed by EDGEQUAKE.Key Contributions and ProjectsSarah Chen is actively involved in building the following major project:Project Name: GraphRAGImplementation Detail: This system, which she is building, utilizes Rust as its programming language.",
   "grounded": true,
   "acceptable": true,
   "llmProvider": "ollama",

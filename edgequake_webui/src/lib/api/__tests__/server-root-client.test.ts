@@ -56,4 +56,28 @@ describe("serverRootClient (UI-DRY-003)", () => {
       NetworkError,
     );
   });
+
+  it("silent probes avoid console.error (Next.js dev overlay)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      headers: new Headers(),
+      json: async () => ({
+        message: "starting",
+        status: 503,
+        code: "UNAVAILABLE",
+      }),
+    } as Response);
+
+    await expect(
+      serverRootClient("/health", { silent: true }),
+    ).rejects.toMatchObject({ status: 503 });
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalled();
+  });
 });

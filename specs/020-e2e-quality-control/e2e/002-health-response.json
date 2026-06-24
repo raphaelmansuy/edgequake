@@ -1,11 +1,11 @@
 {
   "status": "healthy",
-  "version": "0.12.7",
+  "version": "0.12.10",
   "build_info": {
-    "git_hash": "bb1b9955",
-    "git_branch": "edgequake-main",
-    "build_timestamp": "2026-06-08T07:32:04Z",
-    "build_number": "20260608.073204"
+    "git_hash": "unknown",
+    "git_branch": "unknown",
+    "build_timestamp": "2026-06-08T13:46:08Z",
+    "build_number": "20260608.134608"
   },
   "storage_mode": "postgresql",
   "workspace_id": "default",
@@ -15,26 +15,26 @@
     "graph_storage": true,
     "llm_provider": true
   },
-  "llm_provider_name": "ollama",
+  "llm_provider_name": "mock",
   "schema": {
     "latest_version": 38,
     "migrations_applied": 37,
-    "last_applied_at": "2026-06-06T12:53:26.920835+00:00",
+    "last_applied_at": "2026-06-08T11:15:56.692172+00:00",
     "source_ids_indexes": {
       "ready": true,
-      "graphs_checked": 40,
+      "graphs_checked": 1,
       "indexes_repaired_at_bootstrap": false
     }
   },
   "providers": {
     "llm": {
-      "name": "ollama",
-      "model": "gemma4:latest"
+      "name": "mock",
+      "model": "mock-model"
     },
     "embedding": {
-      "name": "ollama",
-      "model": "embeddinggemma",
-      "dimension": 768
+      "name": "mock",
+      "model": "mock-embedding",
+      "dimension": 1536
     }
   },
   "pdf_storage_enabled": true,
