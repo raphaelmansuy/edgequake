@@ -19,6 +19,14 @@ describe("runtime-config", () => {
     expect(getRuntimeApiBaseUrl()).toBe("/api/v1");
   });
 
+  it("uses EDGEQUAKE_API_URL in development when explicitly provided", () => {
+    process.env.NODE_ENV = "development";
+    process.env.EDGEQUAKE_API_URL = "http://127.0.0.1:8080";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8080";
+    expect(getRuntimeConfig().apiUrl).toBe("http://127.0.0.1:8080");
+    expect(getRuntimeApiBaseUrl()).toBe("http://127.0.0.1:8080/api/v1");
+  });
+
   it("uses EDGEQUAKE_API_URL in production", () => {
     process.env.NODE_ENV = "production";
     process.env.EDGEQUAKE_API_URL = "http://api.example.com";

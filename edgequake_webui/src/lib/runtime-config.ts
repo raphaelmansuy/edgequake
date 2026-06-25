@@ -25,10 +25,11 @@ function resolveClientApiUrl(
   if (browserConfig?.apiUrl !== undefined) {
     return browserConfig.apiUrl.replace(/\/$/, "");
   }
-  // Local dev: relative /api/v1 → Next.js rewrites (see next.config.ts).
-  // Ignores stale NEXT_PUBLIC_API_URL=http://localhost:8080 in .env.local.
+  // Local dev: keep relative /api/v1 by default (Next.js rewrites), but honor
+  // explicit server-provided EDGEQUAKE_API_URL when set so API/WS can bypass
+  // dev proxy issues (e.g., stale rewrite target or WS upgrade failures).
   if (process.env.NODE_ENV === "development") {
-    return "";
+    return (process.env.EDGEQUAKE_API_URL ?? "").replace(/\/$/, "");
   }
   return (
     process.env.EDGEQUAKE_API_URL ??
