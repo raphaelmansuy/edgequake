@@ -355,7 +355,12 @@ impl EdgeQuake {
                 .with_tenant_context(
                     self.config.tenant_id.clone(),
                     self.config.workspace_id.clone(),
-                );
+                )
+                // SPEC-021 P3-01b: wire relational CQRS dual-write sink.
+                // When entity_sync_mode is "disabled" (default), self.relational_sink
+                // is a NoopEntitySink — zero overhead. When "dual_write" or "full",
+                // it writes to the entities table in parallel with the AGE graph.
+                .with_relational_sink(self.relational_sink.clone());
 
         // Add LLM summarizer if enabled
         if self.config.use_llm_summarization {

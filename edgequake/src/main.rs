@@ -4,6 +4,8 @@
 
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
+#[cfg(feature = "postgres")]
+use edgequake_api::PostgresEntitySink;
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
 use edgequake_observability::{
     init_observability, record_db_pool_stats, ErrorEvent, ObservabilityConfig,
@@ -580,6 +582,15 @@ async fn main() -> Result<()> {
         Arc::clone(&state.query.models_config),
     )
     .with_progress_broadcaster(state.tasks.progress_broadcaster.clone());
+
+    // SPEC-021 P3-01c: Wire CQRS entity dual-write sink when postgres feature is active.
+    // create_if_enabled() checks entity_sync_mode in server_config; returns NoopEntitySink
+    // when mode is "disabled" (default), so this is always safe to call.
+    #[cfg(feature = "postgres")]
+    if let Some(ref pool) = state.pg_pool {
+        let entity_sink = PostgresEntitySink::create_if_enabled(Arc::new(pool.clone())).await;
+        processor = processor.with_relational_sink(entity_sink);
+    }
 
     // CRITICAL: Attach PDF storage for PDF processing tasks
     if let Some(ref pdf_storage) = state.storage.pdf_storage {

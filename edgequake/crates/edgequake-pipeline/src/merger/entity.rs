@@ -30,14 +30,14 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         // Check if entity exists
         let existing = self.graph_storage.get_node(&entity_key).await?;
 
-        match existing {
+        let is_new = match existing {
             Some(mut node) => {
                 // Update existing entity
                 self.update_entity_node(&mut node, &entity).await?;
                 self.graph_storage
                     .upsert_node(&node.id, node.properties)
                     .await?;
-                Ok(false)
+                false
             }
             None => {
                 // Create new entity
@@ -45,9 +45,31 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                 self.graph_storage
                     .upsert_node(&node.id, node.properties)
                     .await?;
-                Ok(true)
+                true
             }
-        }
+        };
+
+        // SPEC-021 P3-01: Best-effort dual-write to relational CQRS read model.
+        // Errors are logged but never fail ingestion (best-effort semantics).
+        self.relational_sink
+            .upsert_entity(
+                &entity_key,
+                &entity.entity_type,
+                &entity.description,
+                self.tenant_id.as_deref(),
+                self.workspace_id.as_deref(),
+                &entity.source_chunk_ids,
+            )
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    entity = %entity_key,
+                    error = %e,
+                    "Relational entity sink failed (best-effort; graph write succeeded)"
+                );
+            });
+
+        Ok(is_new)
     }
 
     /// Update an existing entity node with new information.

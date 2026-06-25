@@ -11,8 +11,14 @@ use tracing::{info, warn};
 /// Size-aware index DDL — SSOT: `migrations/support/038/apply.sql`
 const SQL_038_APPLY: &str = include_str!("../../../../migrations/support/038/apply.sql");
 
+/// Entity backfill — SSOT: `migrations/support/040/apply.sql`
+const SQL_040_APPLY: &str = include_str!("../../../../migrations/support/040/apply.sql");
+
 /// sqlx migration version marker (no blocking DDL in sqlx file).
 pub const MIGRATION_038_VERSION: i64 = 38;
+
+/// sqlx migration version marker for CQRS backfill.
+pub const MIGRATION_040_VERSION: i64 = 40;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
@@ -131,6 +137,18 @@ pub async fn run_postgres_migrations(
     }
 
     let migration_038 = reconcile_migration_038(pool, &applied_this_run).await?;
+
+    // SPEC-021 P2-02c: Kick off the CQRS entity backfill in the background
+    // if migration 040 has been applied but the backfill hasn't completed yet.
+    // WHY background: The apply.sql can take minutes on large corpora.
+    // Running it at startup would delay the server health check unacceptably.
+    let should_backfill = applied_after.contains(&MIGRATION_040_VERSION);
+    if should_backfill {
+        let pool_clone = pool.clone();
+        tokio::spawn(async move {
+            reconcile_migration_040_background(&pool_clone).await;
+        });
+    }
 
     if migration_038.is_degraded() {
         warn!(
@@ -397,6 +415,57 @@ async fn audit_graph_indexes(pool: &PgPool) -> Result<Vec<GraphIndexAudit>, sqlx
 
 fn quote_schema(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+/// Background task: run the CQRS entity backfill (migration 040 apply.sql).
+///
+/// WHY background: The apply.sql can take minutes on large corpora.
+/// We check `entity_sync_mode` first — if it's already 'full', nothing to do.
+async fn reconcile_migration_040_background(pool: &PgPool) {
+    // Check current sync mode
+    let mode: Option<String> =
+        sqlx::query_scalar("SELECT value::text FROM server_config WHERE key = 'entity_sync_mode'")
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None);
+
+    let mode_str = mode.as_deref().unwrap_or("\"disabled\"");
+    if mode_str.contains("full") {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_040_skip",
+            "CQRS backfill already complete (entity_sync_mode=full)"
+        );
+        return;
+    }
+
+    info!(
+        target: "edgequake.migration",
+        step = "migration_040_start",
+        entity_sync_mode = %mode_str,
+        "Starting CQRS entity backfill in background (SPEC-021 P2-02c)"
+    );
+
+    // Execute the backfill script as a series of individual statements
+    // (each statement is separated by the DO $$ ... $$ boundary)
+    // The apply.sql is a single large DO block, so execute it directly.
+    match sqlx::raw_sql(SQL_040_APPLY).execute(pool).await {
+        Ok(_) => {
+            info!(
+                target: "edgequake.migration",
+                step = "migration_040_complete",
+                "CQRS entity backfill complete (entity_sync_mode=full)"
+            );
+        }
+        Err(e) => {
+            warn!(
+                target: "edgequake.migration",
+                step = "migration_040_failed",
+                error = %e,
+                "CQRS entity backfill failed — will retry on next restart"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

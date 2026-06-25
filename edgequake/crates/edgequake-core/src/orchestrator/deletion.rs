@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use edgequake_storage::kv_keys;
 use edgequake_storage::traits::{collect_source_references, EdgeListFilter, NodeListFilter};
 
 use crate::error::{Error, Result};
@@ -79,7 +80,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?;
 
-        let chunk_prefix = format!("{}-chunk-", document_id);
+        let chunk_prefix = kv_keys::doc_chunk_prefix(&document_id);
         let keys = kv_storage.keys().await?;
         let chunk_ids: Vec<String> = keys
             .iter()
@@ -112,12 +113,32 @@ impl EdgeQuake {
                 }
                 graph_storage.delete_node(&node.id).await?;
                 let _ = vector_storage.delete_entity(&node.id).await;
+                // SPEC-021 P3-02: best-effort relational sync — entity fully removed
+                self.relational_sink
+                    .remove_entity_sources(
+                        &node.id,
+                        self.config.workspace_id.as_deref(),
+                        &sources,
+                        &[],
+                    )
+                    .await
+                    .unwrap_or_else(|e| tracing::warn!(entity=%node.id, error=%e, "relational sink delete failed (best-effort)"));
                 result.entities_removed += 1;
             } else if remaining.len() < sources.len() {
                 let mut updated_props = node.properties.clone();
                 updated_props.insert("source_ids".to_string(), serde_json::json!(remaining));
                 updated_props.remove("source_id");
                 graph_storage.upsert_node(&node.id, updated_props).await?;
+                // SPEC-021 P3-02: best-effort relational sync — sources partially removed
+                self.relational_sink
+                    .remove_entity_sources(
+                        &node.id,
+                        self.config.workspace_id.as_deref(),
+                        &sources,
+                        &remaining,
+                    )
+                    .await
+                    .unwrap_or_else(|e| tracing::warn!(entity=%node.id, error=%e, "relational sink update failed (best-effort)"));
                 result.entities_updated += 1;
             }
         }
@@ -151,8 +172,8 @@ impl EdgeQuake {
         }
 
         let mut keys_to_delete = chunk_ids;
-        let metadata_key = format!("{}-metadata", document_id);
-        let content_key = format!("{}-content", document_id);
+        let metadata_key = kv_keys::doc_metadata(&document_id);
+        let content_key = kv_keys::doc_content(&document_id);
         if keys.contains(&metadata_key) {
             keys_to_delete.push(metadata_key);
         }
@@ -202,7 +223,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?;
 
-        let chunk_prefix = format!("{}-chunk-", document_id);
+        let chunk_prefix = kv_keys::doc_chunk_prefix(&document_id);
         let keys = kv_storage.keys().await?;
         result.chunks_deleted = keys.iter().filter(|k| k.starts_with(&chunk_prefix)).count();
 

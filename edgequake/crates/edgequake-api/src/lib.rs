@@ -102,6 +102,8 @@ pub mod observability_middleware;
 pub mod openapi;
 pub mod path_validation;
 pub mod pipeline_progress_callback;
+#[cfg(feature = "postgres")]
+pub mod postgres_entity_sink;
 pub mod processor;
 mod provider_catalog;
 pub mod provider_types;
@@ -111,6 +113,7 @@ pub mod safety_limits;
 pub mod server;
 pub mod services;
 pub mod state;
+pub mod storage_inspector;
 pub mod streaming;
 pub mod validation;
 pub mod workspace_pipeline_factory;
@@ -122,6 +125,8 @@ pub use pipeline_progress_callback::PipelineProgressCallback;
 
 pub use error::{ApiError, ApiResult};
 pub use middleware::{tenant_rate_limit, AuthConfig, AuthState, RateLimitConfig, RateLimitState};
+#[cfg(feature = "postgres")]
+pub use postgres_entity_sink::PostgresEntitySink;
 pub use processor::DocumentTaskProcessor;
 pub use routes::create_router;
 pub use server::{Server, ServerConfig};

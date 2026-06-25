@@ -350,7 +350,7 @@ impl AppState {
         let audit_logger = AuditLogger::new(pool.clone());
         let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
 
-        Ok(Self {
+        let app_state = Self {
             storage,
             query: QueryRuntime {
                 llm_provider: Arc::clone(&llm_provider)
@@ -369,13 +369,50 @@ impl AppState {
             config: AppConfig::default(),
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
-            pg_pool: Some(pool),
+            pg_pool: Some(pool.clone()),
             start_time: std::time::Instant::now(),
             path_validation_config: Self::load_path_validation_config(),
             audit_logger: Some(audit_logger),
             resource_guard,
             graph_materialize,
             migration_bootstrap: Some(migration_bootstrap),
-        })
+        };
+
+        // SPEC-021 P4-02: Startup storage invariant check + auto-repair (SAFE tier)
+        // SPEC-021 P3-01: Log the entity sync mode for observability
+        {
+            use crate::storage_inspector::{InspectorConfig, StorageInspector};
+            let inspector =
+                StorageInspector::new(Arc::new(pool.clone()), InspectorConfig::default());
+            let report = inspector.inspect().await;
+            if report.has_critical {
+                tracing::error!(
+                    schema_issues = report.schema_issues.len(),
+                    invariant_violations = report.invariant_violations.len(),
+                    "CRITICAL: Storage invariant violations detected at startup (SPEC-021)"
+                );
+            } else if report.has_warning {
+                tracing::warn!(
+                    schema_issues = report.schema_issues.len(),
+                    invariant_violations = report.invariant_violations.len(),
+                    duration_ms = report.duration_ms,
+                    "Storage health warnings at startup (SPEC-021)"
+                );
+            } else {
+                tracing::info!(
+                    duration_ms = report.duration_ms,
+                    "Storage health OK (SPEC-021)"
+                );
+            }
+            let repaired = inspector.auto_repair_safe(&report).await;
+            if !repaired.is_empty() {
+                tracing::info!(
+                    count = repaired.len(),
+                    "Storage auto-repairs applied at startup"
+                );
+            }
+        }
+
+        Ok(app_state)
     }
 }

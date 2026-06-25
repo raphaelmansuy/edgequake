@@ -20,7 +20,8 @@ pub async fn workspace_has_visible_document_for_pdf(
     pdf: &PdfDocument,
 ) -> ApiResult<bool> {
     if let Some(document_id) = pdf.document_id {
-        let metadata_key = format!("{}-metadata", document_id);
+        let doc_id_str = document_id.to_string();
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id_str);
         if let Ok(Some(meta)) = state.storage.kv_storage.get_by_id(&metadata_key).await {
             if metadata_matches_tenant_context(&meta, tenant_ctx) {
                 return Ok(true);

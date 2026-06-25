@@ -113,7 +113,7 @@ impl Chunker {
         Ok(results
             .into_iter()
             .map(|result| {
-                let id = format!("{}-chunk-{}", doc_id, result.chunk_order_index);
+                let id = edgequake_storage::kv_keys::doc_chunk(doc_id, result.chunk_order_index);
                 let start_offset = cumulative_offset;
                 let end_offset = cumulative_offset + result.content.len();
                 let (start_line, end_line) = calculate_line_numbers(text, start_offset, end_offset);
