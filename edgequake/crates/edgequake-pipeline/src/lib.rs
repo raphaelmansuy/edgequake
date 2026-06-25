@@ -100,7 +100,9 @@ pub use lineage::{
     ChunkLineage, DescriptionVersion, DocumentLineage, EntityLineage, EntitySource,
     ExtractionMetadata, LineageBuilder, RelationshipLineage, SourceSpan,
 };
-pub use merger::{KnowledgeGraphMerger, MergeStats, MergerConfig};
+pub use merger::{
+    KnowledgeGraphMerger, MergeStats, MergerConfig, NoopEntitySink, RelationalEntitySink,
+};
 pub use pipeline::{
     ChunkProgressCallback,
     ChunkProgressUpdate,

@@ -60,9 +60,11 @@ pub mod community;
 pub mod conversation_storage;
 pub mod conversation_types;
 pub mod error;
+pub mod kv_key_schema;
 pub mod metadata_filter_sql;
 pub mod pdf_storage;
 pub mod traits;
+pub mod vector_id;
 
 // Re-export community detection
 pub use community::{Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult};
@@ -97,3 +99,6 @@ pub use adapters::postgres::{
     PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage, PostgresConfig,
     PostgresConversationStorage, PostgresKVStorage, PostgresPdfStorage, PostgresPool,
 };
+
+// Re-export KV key schema for use across all crates
+pub use kv_key_schema::kv_keys;

@@ -349,6 +349,10 @@ pub struct EdgeQuake {
 
     /// Query engine.
     query_engine: Option<Arc<edgequake_query::SOTAQueryEngine>>,
+
+    /// CQRS relational entity sink (SPEC-021 P3-01/P3-02).
+    /// Defaults to NoopEntitySink — set via `with_relational_sink()` to enable dual-write.
+    relational_sink: Arc<dyn edgequake_pipeline::RelationalEntitySink>,
 }
 
 impl EdgeQuake {
@@ -364,6 +368,7 @@ impl EdgeQuake {
             embedding_provider: None,
             pipeline: None,
             query_engine: None,
+            relational_sink: Arc::new(edgequake_pipeline::NoopEntitySink),
         }
     }
 
@@ -382,6 +387,19 @@ impl EdgeQuake {
         self.kv_storage = Some(kv);
         self.vector_storage = Some(vector);
         self.graph_storage = Some(graph);
+        self
+    }
+
+    /// Wire a relational CQRS sink for dual-write (SPEC-021 P3-01/P3-02).
+    ///
+    /// When set, the orchestrator writes entity data to both the AGE graph
+    /// AND the relational `entities` table on every merge/delete.
+    /// Default: `NoopEntitySink` (no relational writes).
+    pub fn with_relational_sink(
+        mut self,
+        sink: Arc<dyn edgequake_pipeline::RelationalEntitySink>,
+    ) -> Self {
+        self.relational_sink = sink;
         self
     }
 

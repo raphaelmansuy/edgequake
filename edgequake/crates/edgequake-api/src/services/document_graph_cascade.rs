@@ -86,7 +86,7 @@ pub fn edge_list_filter(tenant_ctx: Option<&TenantContext>) -> EdgeListFilter {
 pub fn source_belongs_to_document(source: &str, scope: &DocumentSourceScope) -> bool {
     scope.source_prefixes.iter().any(|p| {
         source.starts_with(p.as_str())
-            || source.starts_with(&format!("{}-chunk-", p))
+            || source.starts_with(&edgequake_storage::kv_keys::doc_chunk_prefix(&p))
             || source == p.as_str()
     })
 }

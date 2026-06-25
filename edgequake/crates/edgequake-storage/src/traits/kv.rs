@@ -138,12 +138,25 @@ pub trait KVStorage: Send + Sync {
 
     /// Lightweight connectivity probe — must not scan the full table.
     ///
-    /// # WHY (SPEC-011)
+    /// # WHY (SPEC-011, SPEC-021 R-SOLID-03)
     ///
-    /// Health checks previously called `count()`, causing 10+ second sequential
-    /// scans on large KV tables. `ping()` verifies pool + table reachability in O(1).
+    /// The original default called `count()`, causing O(N) sequential scans on
+    /// large KV tables (production incident: 13s scan on health check endpoint).
+    ///
+    /// The new default is a no-op that assumes connectivity (safe for in-memory
+    /// adapters). **PostgreSQL adapters MUST override this** with a `SELECT 1`
+    /// probe. This is documented as a contract: implementors that do NOT override
+    /// will silently skip the connectivity check, which is acceptable only for
+    /// in-memory test adapters.
+    ///
+    /// # Contract
+    ///
+    /// - MUST complete in O(1) time
+    /// - MUST NOT scan the full table
+    /// - MUST return `Err` if the storage backend is unreachable
     async fn ping(&self) -> Result<()> {
-        let _ = self.count().await?;
+        // Default no-op: in-memory adapters are always "reachable".
+        // PostgreSQL adapters override this with SELECT 1.
         Ok(())
     }
 

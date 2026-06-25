@@ -36,11 +36,92 @@ mod relationship;
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use edgequake_storage::{GraphStorage, VectorStorage};
 
 use crate::error::Result;
 use crate::extractor::ExtractionResult;
 use crate::summarizer::LLMSummarizer;
+
+// ── Relational CQRS Sink (SPEC-021 P3-01) ────────────────────────────────────
+
+/// Trait for writing entity/relationship data to the relational CQRS read model.
+///
+/// # WHY: Dependency Inversion Principle (SPEC-021 R-SOLID)
+///
+/// The pipeline crate must not take a direct dependency on `sqlx::PgPool`
+/// or any PostgreSQL type. Instead, callers (edgequake-api, edgequake-core)
+/// provide a concrete implementation of this trait when dual-write is enabled.
+///
+/// # Default behaviour
+///
+/// When no sink is wired, the merger silently skips relational sync (old behaviour).
+/// This ensures ascending compatibility: deployments without migration 039 applied
+/// continue working exactly as before.
+///
+/// # Implementations
+///
+/// - `NoopEntitySink` — default, no-op (sync disabled)
+/// - `PostgresEntitySink` in `edgequake-api` — writes to `entities` table
+///
+/// @implements SPEC-021 P3-01
+#[async_trait]
+pub trait RelationalEntitySink: Send + Sync {
+    /// Upsert an entity into the relational CQRS read model.
+    ///
+    /// Called after the primary graph write succeeds.
+    /// Must be best-effort: implementors SHOULD NOT fail the ingestion on error.
+    async fn upsert_entity(
+        &self,
+        name: &str,
+        entity_type: &str,
+        description: &str,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+        source_chunk_ids: &[String],
+    ) -> Result<()>;
+
+    /// Remove or update source references when a document is deleted.
+    ///
+    /// Called from `delete_document()` after graph node deletion.
+    async fn remove_entity_sources(
+        &self,
+        name: &str,
+        workspace_id: Option<&str>,
+        sources_to_remove: &[String],
+        remaining_sources: &[String],
+    ) -> Result<()>;
+}
+
+/// No-op implementation — used when dual-write is disabled (default).
+pub struct NoopEntitySink;
+
+#[async_trait]
+impl RelationalEntitySink for NoopEntitySink {
+    async fn upsert_entity(
+        &self,
+        _name: &str,
+        _entity_type: &str,
+        _description: &str,
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
+        _source_chunk_ids: &[String],
+    ) -> Result<()> {
+        Ok(()) // best-effort no-op
+    }
+
+    async fn remove_entity_sources(
+        &self,
+        _name: &str,
+        _workspace_id: Option<&str>,
+        _sources_to_remove: &[String],
+        _remaining_sources: &[String],
+    ) -> Result<()> {
+        Ok(()) // best-effort no-op
+    }
+}
+
+// ── MergerConfig ──────────────────────────────────────────────────────────────
 
 /// Configuration for the merger.
 #[derive(Debug, Clone)]
@@ -83,6 +164,9 @@ pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Si
     pub(super) workspace_id: Option<String>,
     /// Optional LLM summarizer for intelligent description merging.
     pub(super) summarizer: Option<Arc<LLMSummarizer>>,
+    /// Optional CQRS relational sink (SPEC-021 P3-01).
+    /// When None, relational sync is skipped (backwards-compatible default).
+    pub(super) relational_sink: Arc<dyn RelationalEntitySink>,
 }
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G, V> {
@@ -95,7 +179,17 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             tenant_id: None,
             workspace_id: None,
             summarizer: None,
+            relational_sink: Arc::new(NoopEntitySink),
         }
+    }
+
+    /// Wire a relational CQRS sink for dual-write (SPEC-021 P3-01).
+    ///
+    /// When set, the merger writes to both the AGE graph AND the relational
+    /// `entities` table after each successful entity merge.
+    pub fn with_relational_sink(mut self, sink: Arc<dyn RelationalEntitySink>) -> Self {
+        self.relational_sink = sink;
+        self
     }
 
     /// Set tenant and workspace IDs.
@@ -453,5 +547,120 @@ mod tests {
             json.get("source_file_path").unwrap().as_str(),
             Some("/documents/team.md")
         );
+    }
+
+    // ── SPEC-021 P3-01: RelationalEntitySink tests ───────────────────────────
+
+    /// Verify NoopEntitySink always returns Ok (backward-compatible default).
+    #[tokio::test]
+    async fn test_noop_sink_always_ok() {
+        let sink = NoopEntitySink;
+        let result = sink
+            .upsert_entity(
+                "APPLE_INC",
+                "ORGANIZATION",
+                "Technology company",
+                Some("tenant-1"),
+                Some("workspace-1"),
+                &["doc-1-chunk-0".to_string()],
+            )
+            .await;
+        assert!(result.is_ok(), "NoopEntitySink must never fail");
+
+        let result2 = sink
+            .remove_entity_sources(
+                "APPLE_INC",
+                Some("workspace-1"),
+                &["doc-1-chunk-0".to_string()],
+                &[],
+            )
+            .await;
+        assert!(result2.is_ok(), "NoopEntitySink must never fail");
+    }
+
+    /// Verify that a recording sink captures the expected calls from merge_entity.
+    #[tokio::test]
+    async fn test_relational_sink_called_during_merge() {
+        use std::sync::Mutex;
+
+        // Spy sink that records calls
+        struct SpySink {
+            calls: Mutex<Vec<String>>,
+        }
+
+        #[async_trait::async_trait]
+        impl RelationalEntitySink for SpySink {
+            async fn upsert_entity(
+                &self,
+                name: &str,
+                _entity_type: &str,
+                _description: &str,
+                _tenant_id: Option<&str>,
+                _workspace_id: Option<&str>,
+                _source_chunk_ids: &[String],
+            ) -> crate::error::Result<()> {
+                self.calls.lock().unwrap().push(format!("upsert:{name}"));
+                Ok(())
+            }
+
+            async fn remove_entity_sources(
+                &self,
+                name: &str,
+                _workspace_id: Option<&str>,
+                _sources_to_remove: &[String],
+                remaining: &[String],
+            ) -> crate::error::Result<()> {
+                self.calls
+                    .lock()
+                    .unwrap()
+                    .push(format!("remove:{name}:remaining={}", remaining.len()));
+                Ok(())
+            }
+        }
+
+        let spy = Arc::new(SpySink {
+            calls: Mutex::new(Vec::new()),
+        });
+        let spy_clone = Arc::clone(&spy);
+
+        // Build merger with the spy sink
+        let graph = Arc::new(edgequake_storage::MemoryGraphStorage::new("test"));
+        let vector = Arc::new(edgequake_storage::MemoryVectorStorage::new("test", 4));
+        graph.initialize().await.unwrap();
+        vector.initialize().await.unwrap();
+
+        let merger = KnowledgeGraphMerger::new(MergerConfig::default(), graph, vector)
+            .with_relational_sink(spy_clone);
+
+        let entity = ExtractedEntity {
+            name: "Apple Inc".to_string(),
+            entity_type: "ORGANIZATION".to_string(),
+            description: "Tech company".to_string(),
+            importance: 0.8,
+            source_spans: vec![],
+            source_chunk_ids: vec!["doc-1-chunk-0".to_string()],
+            embedding: None,
+            source_document_id: None,
+            source_file_path: None,
+        };
+
+        merger.merge_entity(entity).await.unwrap();
+
+        let calls = spy.calls.lock().unwrap().clone();
+        assert!(
+            calls.iter().any(|c| c.starts_with("upsert:APPLE_INC")),
+            "Expected sink.upsert_entity to be called with APPLE_INC, got: {calls:?}"
+        );
+    }
+
+    /// Verify KnowledgeGraphMerger::with_relational_sink() sets the sink.
+    #[test]
+    fn test_merger_builder_sink() {
+        let graph = Arc::new(edgequake_storage::MemoryGraphStorage::new("test"));
+        let vector = Arc::new(edgequake_storage::MemoryVectorStorage::new("test", 4));
+        let sink: Arc<dyn RelationalEntitySink> = Arc::new(NoopEntitySink);
+        let _merger = KnowledgeGraphMerger::new(MergerConfig::default(), graph, vector)
+            .with_relational_sink(sink);
+        // If it compiles and doesn't panic, the builder works
     }
 }

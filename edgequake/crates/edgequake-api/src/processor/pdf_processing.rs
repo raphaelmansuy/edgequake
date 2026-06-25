@@ -230,7 +230,7 @@ impl DocumentTaskProcessor {
                 task.task_data = serde_json::Value::Object(task_data_map);
             }
         }
-        let metadata_key = format!("{}-metadata", early_doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&early_doc_id);
         // OODA-04: Include file_size_bytes and sha256_checksum in early metadata
         // WHY: Enables complete lineage from the moment the document appears in UI.
         // Without these, users see metadata gaps until processing completes.
@@ -280,12 +280,12 @@ impl DocumentTaskProcessor {
                 "Fresh reprocess requested: cleaning up old content and chunks before re-extraction"
             );
             // Remove old content entry
-            let content_key = format!("{}-content", early_doc_id);
+            let content_key = edgequake_storage::kv_keys::doc_content(&early_doc_id);
             let _ = self.kv_storage.delete(&[content_key]).await;
 
             // Remove old chunk entries
             let all_keys = self.kv_storage.keys().await.unwrap_or_default();
-            let chunk_prefix = format!("{}-chunk-", early_doc_id);
+            let chunk_prefix = edgequake_storage::kv_keys::doc_chunk_prefix(&early_doc_id);
             let chunk_keys: Vec<String> = all_keys
                 .into_iter()
                 .filter(|k| k.starts_with(&chunk_prefix))
@@ -372,7 +372,7 @@ impl DocumentTaskProcessor {
                     // Clone for linking step after process_text_insert consumes the string.
                     let stored_markdown_for_link = stored_markdown.clone();
 
-                    let doc_content_key = format!("{}-content", early_doc_id);
+                    let doc_content_key = edgequake_storage::kv_keys::doc_content(&early_doc_id);
                     let doc_content = json!({ "content": stored_markdown.clone() });
                     self.kv_storage
                         .upsert(&[(doc_content_key, doc_content)])
@@ -796,7 +796,7 @@ impl DocumentTaskProcessor {
 
         // Mirror markdown into KV so GET /documents/{id} and the WebUI content pane
         // can render without a second round-trip (pdf_documents remains canonical for PDF APIs).
-        let doc_content_key = format!("{}-content", early_doc_id);
+        let doc_content_key = edgequake_storage::kv_keys::doc_content(&early_doc_id);
         let doc_content = json!({ "content": markdown.clone() });
         self.kv_storage
             .upsert(&[(doc_content_key, doc_content)])

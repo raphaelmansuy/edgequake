@@ -111,7 +111,7 @@ impl DocumentTaskProcessor {
                 .cloned()
                 .or_else(|| Some(json!(source_type)));
 
-            let metadata_key = format!("{}-metadata", document_id);
+            let metadata_key = edgequake_storage::kv_keys::doc_metadata(&document_id);
             if let Ok(Some(existing)) = self.kv_storage.get_by_id(&metadata_key).await {
                 if let Some(obj) = existing.as_object() {
                     let mut updated = obj.clone();
@@ -267,7 +267,7 @@ impl DocumentTaskProcessor {
 
                     // Fire-and-forget metadata update to avoid blocking extraction
                     tokio::spawn(async move {
-                        let metadata_key = format!("{}-metadata", doc_id_clone);
+                        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id_clone);
                         if let Ok(Some(existing)) = kv_clone.get_by_id(&metadata_key).await {
                             if let Some(obj) = existing.as_object() {
                                 let mut updated = obj.clone();
@@ -373,7 +373,7 @@ impl DocumentTaskProcessor {
 
                     // Fire-and-forget metadata update — same pattern as chunk callback
                     tokio::spawn(async move {
-                        let metadata_key = format!("{}-metadata", doc_id_clone);
+                        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id_clone);
                         if let Ok(Some(existing)) = kv_clone.get_by_id(&metadata_key).await {
                             if let Some(obj) = existing.as_object() {
                                 let mut updated = obj.clone();
@@ -905,6 +905,35 @@ impl DocumentTaskProcessor {
                 storage_errors.push(err_msg);
             } else {
                 info!("Batch stored {} entities", nodes_batch.len());
+
+                // SPEC-021 P3-01b: Dual-write to relational entities table (best-effort).
+                // WHY: Only active when entity_sync_mode = dual_write|full; otherwise
+                // self.relational_sink is a NoopEntitySink and this is zero overhead.
+                let tenant_str = tenant_id.as_deref();
+                for extraction in &result.extractions {
+                    for entity in &extraction.entities {
+                        if let Err(e) = self
+                            .relational_sink
+                            .upsert_entity(
+                                &entity.name,
+                                &entity.entity_type,
+                                &entity.description,
+                                tenant_str,
+                                Some(&workspace_id_meta),
+                                &entity.source_chunk_ids,
+                            )
+                            .await
+                        {
+                            // Best-effort: never fail ingestion on relational write error.
+                            warn!(
+                                document_id = %document_id,
+                                entity = %entity.name,
+                                error = %e,
+                                "CQRS entity dual-write failed (best-effort, skipping)"
+                            );
+                        }
+                    }
+                }
             }
         }
 

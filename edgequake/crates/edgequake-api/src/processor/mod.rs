@@ -92,7 +92,7 @@ use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{
     ChunkProgressCallback, ChunkProgressUpdate, EmbedProgressCallback, EmbedProgressUpdate,
-    Pipeline,
+    NoopEntitySink, Pipeline, RelationalEntitySink,
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{
@@ -160,6 +160,10 @@ pub struct DocumentTaskProcessor {
     /// OODA-223: Strict workspace mode - when true, fail if workspace not found.
     /// When false (memory/test mode), allow fallback to default storage.
     strict_workspace_mode: bool,
+    /// SPEC-021 P3-01: Relational CQRS dual-write sink.
+    /// WHY: Defaults to NoopEntitySink (zero overhead). Set to PostgresEntitySink
+    /// via `with_relational_sink()` when entity_sync_mode = dual_write|full.
+    relational_sink: Arc<dyn RelationalEntitySink>,
 }
 
 impl DocumentTaskProcessor {
@@ -188,6 +192,7 @@ impl DocumentTaskProcessor {
             workspace_service: None,
             models_config: None,
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
+            relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
         }
     }
 
@@ -225,6 +230,7 @@ impl DocumentTaskProcessor {
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
+            relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
         }
     }
 
@@ -259,7 +265,17 @@ impl DocumentTaskProcessor {
             workspace_service: Some(workspace_service),
             models_config: Some(models_config),
             strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
+            relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
         }
+    }
+
+    /// Set the relational CQRS sink for dual-write to the entities table (SPEC-021 P3-01).
+    ///
+    /// WHY: Defaults to `NoopEntitySink` (zero cost). Set this to `PostgresEntitySink`
+    /// when `entity_sync_mode = dual_write|full` to enable CQRS dual-write.
+    pub fn with_relational_sink(mut self, sink: Arc<dyn RelationalEntitySink>) -> Self {
+        self.relational_sink = sink;
+        self
     }
 
     /// Set PDF storage for PDF processing support (SPEC-007).
@@ -469,7 +485,7 @@ mod tests {
 
         // Pre-populate metadata
         let doc_id = "test-doc-status";
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
@@ -508,7 +524,7 @@ mod tests {
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-error";
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
@@ -548,7 +564,7 @@ mod tests {
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-warning";
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
@@ -593,7 +609,7 @@ mod tests {
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-clear-stale";
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
