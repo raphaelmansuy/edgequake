@@ -91,8 +91,9 @@ use crate::pipeline_progress_callback::PipelineProgressCallback;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{
-    ChunkProgressCallback, ChunkProgressUpdate, EmbedProgressCallback, EmbedProgressUpdate,
-    NoopEntitySink, Pipeline, RelationalEntitySink,
+    ChunkProgressCallback, ChunkProgressUpdate, ChunkVectorBuildOptions,
+    EmbedProgressCallback, EmbedProgressUpdate, IngestionPersistConfig, IngestionPersistContext,
+    MergerConfig, NoopEntitySink, persist_processing_result, Pipeline, RelationalEntitySink,
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{

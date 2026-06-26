@@ -675,72 +675,7 @@ impl DocumentTaskProcessor {
                 .await;
         }
 
-        // Store chunk embeddings in vector storage for semantic search
-        // OODA-05: Include position metadata for lineage-aware retrieval
-        // WHY: Semantic search results should carry source position so callers
-        // can display "found in lines 42-58" without extra KV lookups.
-        // SPEC-021 P-C1 / P-G4 (RC-9): collect the chunk vector IDs we actually wrote so
-        // the saga compensation can roll them back if the graph merge fails.
-        //
-        // P-G4: collapse O(C) per-chunk `upsert` round-trips into ONE batched
-        // `upsert` call. The postgres adapter chunks internally (UNNEST), so a
-        // single call is correct regardless of corpus size. Dimension validation
-        // happens at the storage layer (E14); a wrong-dimension vector fails the
-        // whole batch before any write, preserving atomicity.
-        let mut written_chunk_vector_ids: Vec<String> = Vec::new();
-        let mut chunk_vector_batch: Vec<(String, Vec<f32>, serde_json::Value)> = Vec::new();
-        for chunk in &result.chunks {
-            if let Some(embedding) = &chunk.embedding {
-                let mut metadata = json!({
-                    "type": "chunk",
-                    "document_id": document_id,
-                    "index": chunk.index,
-                    "content": chunk.content,
-                    "start_line": chunk.start_line,
-                    "end_line": chunk.end_line,
-                    "start_offset": chunk.start_offset,
-                    "end_offset": chunk.end_offset,
-                    "token_count": chunk.token_count,
-                });
-
-                // Add tenant and workspace IDs if present
-                if let Some(ref tid) = tenant_id {
-                    metadata["tenant_id"] = json!(tid);
-                }
-                metadata["workspace_id"] = json!(&workspace_id_meta);
-
-                chunk_vector_batch.push((chunk.id.clone(), embedding.clone(), metadata));
-            }
-        }
-        let chunk_embeddings_stored = chunk_vector_batch.len();
-        if !chunk_vector_batch.is_empty() {
-            match workspace_vector_storage.upsert(&chunk_vector_batch).await {
-                Ok(()) => {
-                    written_chunk_vector_ids
-                        .extend(chunk_vector_batch.iter().map(|(id, _, _)| id.clone()));
-                }
-                Err(e) => {
-                    // P-G4: a batch failure means NO chunk vectors were written.
-                    // Preserve the prior warn-and-continue semantics for chunk
-                    // vectors (entity extraction can still proceed); the saga
-                    // compensation tracks `written_chunk_vector_ids` (empty here)
-                    // so nothing is orphaned. The detailed storage-error accounting
-                    // happens below for the graph/entity-vector stages.
-                    error!(
-                        document_id = %document_id,
-                        chunk_count = chunk_vector_batch.len(),
-                        error = %e,
-                        "Failed to store chunk embeddings batch"
-                    );
-                }
-            }
-        }
-        info!(
-            "Stored {} chunk embeddings in vector storage for document {}",
-            chunk_embeddings_stored, document_id
-        );
-
-        // Update task progress - extraction
+        // Update task progress - extraction (chunk vectors deferred to P-G2 persist below)
         task.update_progress("extraction".to_string(), 4, 60);
 
         // ── CANCELLATION GATE: before graph storage (heavy DB writes) ──
@@ -782,440 +717,54 @@ impl DocumentTaskProcessor {
                 .await;
         }
 
-        // Store entities and relationships in graph storage using batch operations
-        // Collect all nodes for batch upsert
-        let mut nodes_batch: Vec<(String, std::collections::HashMap<String, serde_json::Value>)> =
-            Vec::new();
-        let mut edges_batch: Vec<(
-            String,
-            String,
-            std::collections::HashMap<String, serde_json::Value>,
-        )> = Vec::new();
-
-        // OODA-07: Pre-fetch existing entities to merge source_ids (GAP-07 fix for async path)
-        // WHY: Without merge, second document overwrites first's source_ids, breaking reference counting
-        //
-        // RC-6 / P-G1: entity identity MUST be the normalized `EntityId`, not the
-        // raw extraction name. Previously this path fetched nodes by raw name and
-        // wrote nodes/edges by raw name, fragmenting the graph and disconnecting
-        // entity vectors (written as `entity:{raw}`) from the nodes the query
-        // layer looks up. All keys below are now the normalized graph node id.
-        let entity_ids: Vec<edgequake_storage::EntityId> = result
-            .extractions
-            .iter()
-            .flat_map(|e| {
-                e.entities
-                    .iter()
-                    .map(|ent| edgequake_storage::EntityId::new(&ent.name))
-            })
-            .collect();
-        let entity_node_ids: Vec<String> = entity_ids
-            .iter()
-            .map(|id| id.as_graph_node_id().to_string())
-            .collect();
-
-        let existing_entity_source_ids: std::collections::HashMap<
-            String,
-            std::collections::HashSet<String>,
-        > = if !entity_node_ids.is_empty() {
-            match self.graph_storage.get_nodes_by_ids(&entity_node_ids).await {
-                Ok(nodes) => nodes
-                    .into_iter()
-                    .map(|node| {
-                        let sources: std::collections::HashSet<String> = node
-                            .properties
-                            .get("source_ids")
-                            .and_then(|v| v.as_array())
-                            .map(|arr| {
-                                arr.iter()
-                                    .filter_map(|v| v.as_str().map(String::from))
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        (node.id, sources)
-                    })
-                    .collect(),
-                Err(e) => {
-                    warn!(
-                        "Failed to fetch existing entities for source_ids merge: {}",
-                        e
-                    );
-                    std::collections::HashMap::new()
-                }
-            }
-        } else {
-            std::collections::HashMap::new()
+        // SPEC-021 P-G2: single persist path — chunk vectors + KnowledgeGraphMerger
+        // (replaces manual upsert_nodes_batch / entity-vector / upsert_edges_batch).
+        let mut storage_errors: Vec<String> = Vec::new();
+        let persist_config = IngestionPersistConfig {
+            merger_config: MergerConfig::default(),
+            relational_sink: self.relational_sink.clone(),
+            llm_provider: Some(self.llm_provider.clone()),
+        };
+        let persist_ctx = IngestionPersistContext {
+            document_id: document_id.clone(),
+            tenant_id: tenant_id.clone(),
+            workspace_id: Some(workspace_id_meta.clone()),
         };
 
-        // OODA-07: Pre-fetch existing edges to merge source_ids
-        // WHY: Same issue as entities - edges need reference counting for correct deletion
-        // RC-6 / P-G1: edge endpoints are normalized `EntityId`s.
-        let edge_keys: Vec<(String, String)> = result
-            .extractions
-            .iter()
-            .flat_map(|e| {
-                e.relationships.iter().map(|r| {
-                    (
-                        edgequake_storage::EntityId::new(&r.source)
-                            .as_graph_node_id()
-                            .to_string(),
-                        edgequake_storage::EntityId::new(&r.target)
-                            .as_graph_node_id()
-                            .to_string(),
-                    )
-                })
-            })
-            .collect();
-
-        let mut existing_edge_source_ids: std::collections::HashMap<
-            (String, String),
-            std::collections::HashSet<String>,
-        > = std::collections::HashMap::new();
-        // P-G4 (RC-9): replace the O(R) per-edge `get_edge` loop with ONE
-        // `get_edges_for_nodes_batch` call (fetches all edges incident to the
-        // endpoint node set), then index them in-memory by (source,target).
-        // This collapses R round-trips into 1.
-        if !edge_keys.is_empty() {
-            let node_set: Vec<String> = edge_keys
-                .iter()
-                .flat_map(|(s, t)| [s.clone(), t.clone()])
-                .collect::<std::collections::HashSet<_>>()
-                .into_iter()
-                .collect();
-            match self
-                .graph_storage
-                .get_edges_for_nodes_batch(&node_set)
-                .await
-            {
-                Ok(edges) => {
-                    for edge in edges {
-                        let sources: std::collections::HashSet<String> = edge
-                            .properties
-                            .get("source_ids")
-                            .and_then(|v| v.as_array())
-                            .map(|arr| {
-                                arr.iter()
-                                    .filter_map(|v| v.as_str().map(String::from))
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        existing_edge_source_ids.insert((edge.source, edge.target), sources);
-                    }
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to batch-fetch existing edges for source_ids merge: {}",
-                        e
-                    );
-                }
-            }
-        }
-
-        for extraction in &result.extractions {
-            for entity in &extraction.entities {
-                // RC-6 / P-G1: graph node id = normalized EntityId. Skip empty
-                // identities (E1) so a blank extraction never creates a "" node.
-                let entity_id = edgequake_storage::EntityId::new(&entity.name);
-                if entity_id.is_empty() {
-                    warn!(
-                        document_id = %document_id,
-                        raw_name = %entity.name,
-                        "Skipping entity with empty normalized name"
-                    );
-                    continue;
-                }
-                let entity_key = entity_id.as_graph_node_id().to_string();
-
-                let mut properties = std::collections::HashMap::new();
-                properties.insert("entity_type".to_string(), json!(entity.entity_type));
-                properties.insert("description".to_string(), json!(entity.description));
-                properties.insert("importance".to_string(), json!(entity.importance));
-
-                // OODA-07: Merge source_ids with existing entity (GAP-07 fix)
-                let mut merged_sources: std::collections::HashSet<String> =
-                    existing_entity_source_ids
-                        .get(&entity_key)
-                        .cloned()
-                        .unwrap_or_default();
-                merged_sources.insert(document_id.clone());
-                let source_ids_vec: Vec<String> = merged_sources.into_iter().collect();
-                properties.insert("source_ids".to_string(), json!(source_ids_vec));
-
-                // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
-                properties.insert(
-                    "source_chunk_ids".to_string(),
-                    json!(&entity.source_chunk_ids),
+        let chunk_embeddings_stored = match persist_processing_result(
+            self.graph_storage.clone(),
+            workspace_vector_storage.clone(),
+            &persist_config,
+            &persist_ctx,
+            &result,
+            ChunkVectorBuildOptions {
+                include_lineage_metadata: true,
+            },
+        )
+        .await
+        {
+            Ok(out) => {
+                info!(
+                    document_id = %document_id,
+                    chunk_vectors = out.chunk_vector_ids.len(),
+                    entities = out.merge_stats.entities_created + out.merge_stats.entities_updated,
+                    relationships = out.merge_stats.relationships_created
+                        + out.merge_stats.relationships_updated,
+                    "P-G2 persist completed"
                 );
-                // Add tenant scoping
-                if let Some(ref tid) = tenant_id {
-                    properties.insert("tenant_id".to_string(), json!(tid));
-                }
-                properties.insert("workspace_id".to_string(), json!(&workspace_id_meta));
-
-                nodes_batch.push((entity_key, properties));
+                out.chunk_vector_ids.len()
             }
-
-            for relationship in &extraction.relationships {
-                // RC-6 / P-G1: edge endpoints = normalized EntityIds.
-                let src_key = edgequake_storage::EntityId::new(&relationship.source)
-                    .as_graph_node_id()
-                    .to_string();
-                let tgt_key = edgequake_storage::EntityId::new(&relationship.target)
-                    .as_graph_node_id()
-                    .to_string();
-
-                let mut properties = std::collections::HashMap::new();
-                properties.insert(
-                    "relation_type".to_string(),
-                    json!(relationship.relation_type),
-                );
-                properties.insert("description".to_string(), json!(relationship.description));
-                properties.insert("weight".to_string(), json!(relationship.weight));
-                properties.insert("keywords".to_string(), json!(relationship.keywords));
-
-                // OODA-07: Merge source_ids with existing edge (GAP-07 fix)
-                let edge_key = (src_key.clone(), tgt_key.clone());
-                let mut merged_sources: std::collections::HashSet<String> =
-                    existing_edge_source_ids
-                        .get(&edge_key)
-                        .cloned()
-                        .unwrap_or_default();
-                merged_sources.insert(document_id.clone());
-                let source_ids_vec: Vec<String> = merged_sources.into_iter().collect();
-                properties.insert("source_ids".to_string(), json!(source_ids_vec));
-
-                // CRITICAL: Store source_chunk_id for relationship chunk linkage
-                if let Some(ref chunk_id) = relationship.source_chunk_id {
-                    properties.insert("source_chunk_ids".to_string(), json!(vec![chunk_id]));
-                }
-                // Add tenant scoping
-                if let Some(ref tid) = tenant_id {
-                    properties.insert("tenant_id".to_string(), json!(tid));
-                }
-                properties.insert("workspace_id".to_string(), json!(&workspace_id_meta));
-
-                edges_batch.push((src_key, tgt_key, properties));
-            }
-        }
-
-        // Track storage errors for reliable status reporting.
-        // WHY: Previously these were warn-and-continue, causing silent data loss where
-        // the document shows "completed" but entities/relationships are missing.
-        let mut storage_errors: Vec<String> = Vec::new();
-
-        // Batch upsert nodes
-        if !nodes_batch.is_empty() {
-            if let Err(e) = self.graph_storage.upsert_nodes_batch(&nodes_batch).await {
-                let err_msg = format!(
-                    "Failed to store {} entities in graph: {}",
-                    nodes_batch.len(),
-                    e
-                );
+            Err(e) => {
+                let err_msg = format!("Knowledge graph persist failed: {}", e);
                 error!(document_id = %document_id, "{}", err_msg);
-                // SPEC-021 P-C1: roll back the chunk vectors we already wrote so
-                // they do not become orphaned retrievable-but-disconnected
-                // embeddings. Entity vectors are written later (after graph
-                // success) so they cannot be orphaned here. Best-effort: a
-                // cleanup failure is logged as quarantine, never masks the
-                // original graph error.
-                edgequake_storage::compensation::compensate_orphan_vectors(
-                    workspace_vector_storage.as_ref(),
-                    &document_id,
-                    &written_chunk_vector_ids,
-                    &[],
-                    &err_msg,
-                )
-                .await;
                 storage_errors.push(err_msg);
-            } else {
-                info!("Batch stored {} entities", nodes_batch.len());
-
-                // SPEC-021 P3-01b: Dual-write to relational entities table (best-effort).
-                // WHY: Only active when entity_sync_mode = dual_write|full; otherwise
-                // self.relational_sink is a NoopEntitySink and this is zero overhead.
-                // RC-6 / P-G1: write the normalized entity id, not the raw name, so the
-                // relational read model matches the graph node id.
-                let tenant_str = tenant_id.as_deref();
-                for extraction in &result.extractions {
-                    for entity in &extraction.entities {
-                        let entity_id = edgequake_storage::EntityId::new(&entity.name);
-                        if entity_id.is_empty() {
-                            continue;
-                        }
-                        if let Err(e) = self
-                            .relational_sink
-                            .upsert_entity(
-                                entity_id.as_graph_node_id(),
-                                &entity.entity_type,
-                                &entity.description,
-                                tenant_str,
-                                Some(&workspace_id_meta),
-                                &entity.source_chunk_ids,
-                            )
-                            .await
-                        {
-                            // Best-effort: never fail ingestion on relational write error.
-                            warn!(
-                                document_id = %document_id,
-                                entity = %entity_id,
-                                error = %e,
-                                "CQRS entity dual-write failed (best-effort, skipping)"
-                            );
-                        }
-                    }
-                }
+                0
             }
-        }
-
-        // CRITICAL: Store entity embeddings in vector storage for query_local retrieval
-
-        // ── CANCELLATION GATE: before entity embedding storage ──
-        self.check_cancelled(&cancel_token, "pre-entity-embeddings", &document_id)
-            .await?;
-
-        // FIX: Use workspace_vector_storage instead of self.vector_storage to avoid
-        // dimension mismatch (768 vs 1536) when workspace uses different embedding model
-        //
-        // SPEC-021 P-C1 / P-G5: collect the entity vector IDs we actually wrote so
-        // the saga compensation can roll them back on a later edge-batch failure.
-        // RC-6 / P-G1: the vector id and the metadata's entity_name are both
-        // derived from the normalized `EntityId`, matching the graph node id.
-        //
-        // P-G4 (RC-9): collapse O(E) per-entity `upsert` round-trips into ONE
-        // batched `upsert` call. E14: validate every embedding's dimension up
-        // front and skip invalid ones BEFORE the batch so a single bad vector
-        // cannot reject the whole batch (and so we never write a partial batch
-        // that the saga would then have to roll back).
-        let expected_dim = workspace_vector_storage.dimension();
-        let mut written_entity_vector_ids: Vec<String> = Vec::new();
-        let mut entity_embedding_failures = 0u32;
-        let mut entity_vector_batch: Vec<(String, Vec<f32>, serde_json::Value)> = Vec::new();
-        for extraction in &result.extractions {
-            for entity in &extraction.entities {
-                if let Some(embedding) = &entity.embedding {
-                    let entity_id = edgequake_storage::EntityId::new(&entity.name);
-                    if entity_id.is_empty() {
-                        continue;
-                    }
-                    // E14: dimension pre-validation. Skip and count as failure
-                    // without aborting the batch.
-                    if embedding.len() != expected_dim {
-                        edgequake_observability::ErrorEvent::log_domain_warn(
-                            "task_processor",
-                            "store_entity_embedding",
-                            &format!(
-                                "Skipping entity embedding {}: dimension {} != expected {}",
-                                entity_id,
-                                embedding.len(),
-                                expected_dim
-                            ),
-                            json!({
-                                "document_id": document_id,
-                                "entity_id": entity_id.as_vector_id(),
-                                "expected_dim": expected_dim,
-                                "actual_dim": embedding.len(),
-                            }),
-                        );
-                        entity_embedding_failures += 1;
-                        continue;
-                    }
-                    let mut metadata = json!({
-                        "type": "entity",
-                        "entity_name": entity_id.as_str(),
-                        "entity_type": entity.entity_type,
-                        "description": entity.description,
-                        "document_id": document_id,
-                        "source_chunk_ids": entity.source_chunk_ids,
-                    });
-                    if let Some(ref tid) = tenant_id {
-                        metadata["tenant_id"] = json!(tid);
-                    }
-                    metadata["workspace_id"] = json!(&workspace_id_meta);
-
-                    entity_vector_batch.push((
-                        entity_id.as_vector_id(),
-                        embedding.clone(),
-                        metadata,
-                    ));
-                }
-            }
-        }
-        if !entity_vector_batch.is_empty() {
-            match workspace_vector_storage.upsert(&entity_vector_batch).await {
-                Ok(()) => {
-                    written_entity_vector_ids
-                        .extend(entity_vector_batch.iter().map(|(id, _, _)| id.clone()));
-                }
-                Err(e) => {
-                    // Whole batch failed: every entity vector is missing. Count
-                    // them as failures so the document is marked partial_failure
-                    // (P-G5 default threshold = 0).
-                    let failed = entity_vector_batch.len() as u32;
-                    entity_embedding_failures += failed;
-                    edgequake_observability::ErrorEvent::log_domain_error(
-                        "task_processor",
-                        "store_entity_embeddings_batch",
-                        &format!("Failed to store {failed} entity embeddings: {e}"),
-                        json!({
-                            "document_id": document_id,
-                            "failure_count": failed,
-                            "error": e.to_string(),
-                        }),
-                    );
-                }
-            }
-        }
-        if entity_embedding_failures > 0 {
-            let err_msg = format!(
-                "{} entity embeddings failed to store in vector DB",
-                entity_embedding_failures
-            );
-            edgequake_observability::ErrorEvent::log_domain_error(
-                "task_processor",
-                "store_entity_embeddings_batch",
-                &err_msg,
-                json!({
-                    "document_id": document_id,
-                    "failure_count": entity_embedding_failures,
-                }),
-            );
-            storage_errors.push(err_msg);
-        }
-
-        // Batch upsert edges
-
-        // ── CANCELLATION GATE: before edge batch upsert ──
-        self.check_cancelled(&cancel_token, "pre-edge-storage", &document_id)
-            .await?;
-
-        if !edges_batch.is_empty() {
-            if let Err(e) = self.graph_storage.upsert_edges_batch(&edges_batch).await {
-                let err_msg = format!(
-                    "Failed to store {} relationships in graph: {}",
-                    edges_batch.len(),
-                    e
-                );
-                error!(document_id = %document_id, "{}", err_msg);
-                // SPEC-021 P-C1 / P-G5 (RC-10): the edge batch is the last graph
-                // write. By this point chunk AND entity vectors are already
-                // persisted, so a failure here orphans both. Roll them back via
-                // the single shared compensation entry point so they cannot
-                // become retrievable-but-disconnected embeddings. Best-effort:
-                // a cleanup failure is logged as quarantine, never masks the
-                // original edge-batch error.
-                edgequake_storage::compensation::compensate_orphan_vectors(
-                    workspace_vector_storage.as_ref(),
-                    &document_id,
-                    &written_chunk_vector_ids,
-                    &written_entity_vector_ids,
-                    &err_msg,
-                )
-                .await;
-                storage_errors.push(err_msg);
-            } else {
-                info!("Batch stored {} relationships", edges_batch.len());
-            }
-        }
+        };
+        info!(
+            "Stored {} chunk embeddings in vector storage for document {}",
+            chunk_embeddings_stored, document_id
+        );
 
         // Update task progress - indexing complete
         task.update_progress("indexing".to_string(), 4, 100);

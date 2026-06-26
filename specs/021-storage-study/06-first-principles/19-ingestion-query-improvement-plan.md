@@ -30,7 +30,7 @@
 | Layer | Verdict | Evidence |
 |-------|---------|----------|
 | Entity identity SSOT | ✅ **Fixed (new writes)** / ⚠️ **legacy data** | P-G1 `EntityId` newtype wired; P-G1b backfill still admin-gated |
-| Ingestion persistence | ❌ **3 paths, inverted batching** | orchestrator batches vectors; processor batches graph; neither batches both (P-G2 open) |
+| Ingestion persistence | ✅ **Fixed** | P-G2 `persist_processing_result` — orchestrator + processor share one function body (plan-21) |
 | Processor vector writes | ❌ **O(C)+O(E) round-trips** | `text_insert.rs:686-714, 988-1022` (P-G4 open) |
 | Processor edge prefetch | ❌ **O(R) N+1** | `text_insert.rs:830-844` |
 | Saga compensation | ⚠️ Partial | wired only for node-batch failure; edges/entity-vectors/sync-upload leak (P-G5 open) |
@@ -46,9 +46,9 @@
 | PDF ingest idempotency | ✅ **Fixed (best-effort)** | P-G14 admission SSOT + single-flight; see §12.4 for race caveats |
 | Vision PDF OOM guard | ✅ **Fixed (conservative)** | P-G13 `PdfVisionSemaphore` + cloud concurrency cap 2; throughput trade-off |
 
-**The single biggest *remaining* risk is RC-7 (P-G2)**: three ingestion persistence
-paths still diverge in batching and saga coverage. RC-6 is closed for **new** writes;
-legacy graphs may still contain duplicate nodes until P-G1b backfill runs.
+**RC-7 (P-G2) is closed**: orchestrator and async processor delegate to
+`edgequake-pipeline::persist_processing_result` (chunk vectors + `KnowledgeGraphMerger`
++ shared compensation). Sync upload path removed by P-G2b.
 
 ---
 
@@ -203,50 +203,27 @@ already normalized → skip. E7: race with ongoing ingestion → skip `status=pr
 fixture with `John Doe` + `john doe` nodes, after backfill there is one `JOHN_DOE` node
 with combined `source_chunk_ids` and merged degree.
 
-### P-G2 — `IngestionPersister` trait + single persistence path ◑ PARTIAL (RC-7, CRITICAL)
+### P-G2 — `IngestionPersister` + single persistence path ✅ DONE, WIRED, E2E tested (RC-7, CRITICAL)
 
-**Status (2026-06-26)**: The three persistence paths are already collapsed to
-**two** by P-G2b (sync upload forced async — `text_upload.rs` no longer
-persists inline). Both remaining paths (`edgequake-api/processor/text_insert.rs`
-and `edgequake-core/orchestrator/ingestion.rs`) now share the
-correctness-critical invariants:
+**Status (2026-06-26)**: Implemented as `edgequake-pipeline/src/persistence/ingestion_persister.rs`
+(`persist_processing_result`, `build_chunk_vector_batch`). Both callers delegate:
 
-- **EntityId** (P-G1): both paths build entity/relationship keys via
-  `edgequake_storage::EntityId::new(...).as_graph_node_id()` and entity vectors
-  via `.as_vector_id()` — single canonical identity, no raw-name fragmentation.
-- **Batch writes** (P-G4): both paths batch chunk vectors, entity vectors,
-  graph nodes (`upsert_nodes_batch`), and graph edges (`upsert_edges_batch`).
-- **Single compensation module** (P-G5): both paths call
-  `edgequake_storage::compensation::compensate_orphan_vectors` on graph-stage
-  failure — one rollback entry point, identical cleanup.
+- `edgequake-core/src/orchestrator/ingestion.rs` — orchestrator insert path
+- `edgequake-api/src/processor/text_insert.rs` — async task processor (manual
+  `upsert_nodes_batch` / entity-vector / edge batch removed; merger path canonical)
 
-**What remains (deferred, tracked)**: the literal `IngestionPersister` trait +
-`DefaultPersister` struct so the two callers share *one* function body rather
-than two implementations of the same 8-step sequence. This is structural DRY
-only — the persisted state is already byte-identical across the two paths
-because they share EntityId, batch ops, and compensation. The refactor is
-deferred because it requires abstracting each caller's storage handles
-(graph/vector/KV + relational sink) and checkpoint/cancel plumbing into the
-trait, which is a HIGH-risk change across 651+ tests with no correctness delta.
-The P-G12 contract test (`contract_ingestion_persistence.rs`) locks the
-shared invariants until the trait extraction lands.
+**Tests**: `edgequake-pipeline/tests/contract_ingestion_persistence.rs` (double-persist
+dedup); `edgequake-api/tests/e2e_spec021_ingestion_persister.rs`; `sc2_sc5_ingestion`
+still green. `make test-spec021` includes P-G2 contracts.
 
-**Goal**: collapse the three ingestion persistence paths into one trait-backed
-implementation that inherits the merger's correctness and the processor's resilience.
+**Design delivered** (first principles / DRY / SOLID):
 
-**Files**:
-- new `edgequake/crates/edgequake-core/src/persistence/ingestion_persister.rs`
-- new `edgequake/crates/edgequake-api/src/persistence/default_persister.rs`
-  (the one implementation: batch vectors → batch graph → saga → KV metadata →
-  relational stats → lineage)
-- `edgequake/crates/edgequake-core/src/orchestrator/ingestion.rs` (delegate to persister)
-- `edgequake/crates/edgequake-api/src/processor/text_insert.rs` (delegate persistence
-  to persister; keep checkpoints/cancel/progress in the processor)
-- `edgequake/crates/edgequake-api/src/handlers/documents/upload/text_upload.rs`
-  (either delegate to persister or **force async** by removing the sync persistence
-  branch — recommended: force async, see P-G2b)
+- SRP: pipeline computes; persister writes chunk vectors + graph merge
+- DIP: callers pass `Arc<dyn GraphStorage/VectorStorage>` + `IngestionPersistConfig`
+- DRY: one function body for the 8-step cross-store sequence (RC-7)
+- Processor retains KV chunks, checkpoints, cancel gates, PDF phases, status updates
 
-**Design**:
+**Original goal** (for traceability):
 - `DefaultPersister::persist` executes, in order:
   1. `EntityId::new` for every entity (P-G1).
   2. KV chunks batch upsert.
