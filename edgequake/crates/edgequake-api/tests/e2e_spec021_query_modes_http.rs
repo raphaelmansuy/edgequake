@@ -83,4 +83,9 @@ async fn spec021_http_mix_mode_accepted() {
     assert_eq!(response.status(), StatusCode::OK);
     let parsed = extract_json(response).await;
     assert_eq!(parsed["mode"].as_str(), Some("mix"));
+    assert!(
+        parsed.get("stats").is_some(),
+        "HTTP mix must return stats (retrieval ran); keys={:?}",
+        parsed.as_object().map(|m| m.keys().collect::<Vec<_>>())
+    );
 }

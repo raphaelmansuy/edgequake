@@ -7,7 +7,7 @@ use edgequake_storage::{EntityId, GraphEdge, GraphStorage, VectorStorage};
 use crate::error::Result;
 use crate::extractor::ExtractedRelationship;
 
-use super::{merge_descriptions, metadata, MergeArtifacts, MergeStats};
+use super::{merge_descriptions, metadata, MergeStats};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Collect batched relationship vector upserts (P-G4-merger).
@@ -190,27 +190,6 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             );
         }
         properties
-    }
-
-    /// Merge a single relationship (delegates to batch path for DRY).
-    pub(super) async fn merge_relationship(
-        &self,
-        rel: ExtractedRelationship,
-        artifacts: &mut MergeArtifacts,
-    ) -> Result<bool> {
-        let mut stats = MergeStats::default();
-        self.merge_relationships_batch(vec![rel], &mut stats).await?;
-        artifacts.entity_vector_ids.extend(stats.artifacts.entity_vector_ids);
-        artifacts
-            .relationship_vector_ids
-            .extend(stats.artifacts.relationship_vector_ids);
-        artifacts
-            .graph_nodes_created
-            .extend(stats.artifacts.graph_nodes_created);
-        artifacts
-            .graph_edges_created
-            .extend(stats.artifacts.graph_edges_created);
-        Ok(stats.relationships_created > 0)
     }
 
     /// Update an existing relationship edge.

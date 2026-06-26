@@ -126,27 +126,6 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         Ok(())
     }
 
-    /// Merge a single entity (delegates to batch path for DRY).
-    pub(super) async fn merge_entity(
-        &self,
-        entity: ExtractedEntity,
-        artifacts: &mut MergeArtifacts,
-    ) -> Result<bool> {
-        let mut stats = MergeStats::default();
-        self.merge_entities_batch(vec![entity], &mut stats).await?;
-        artifacts.entity_vector_ids.extend(stats.artifacts.entity_vector_ids);
-        artifacts
-            .relationship_vector_ids
-            .extend(stats.artifacts.relationship_vector_ids);
-        artifacts
-            .graph_nodes_created
-            .extend(stats.artifacts.graph_nodes_created);
-        artifacts
-            .graph_edges_created
-            .extend(stats.artifacts.graph_edges_created);
-        Ok(stats.entities_created > 0)
-    }
-
     async fn build_entity_node_batch_entry(
         &self,
         entity: &ExtractedEntity,

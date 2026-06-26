@@ -653,8 +653,11 @@ mod tests {
             source_file_path: None,
         };
 
-        let mut artifacts = MergeArtifacts::default();
-        merger.merge_entity(entity, &mut artifacts).await.unwrap();
+        let mut stats = super::MergeStats::default();
+        merger
+            .merge_entities_batch(vec![entity], &mut stats)
+            .await
+            .unwrap();
 
         let calls = spy.calls.lock().unwrap().clone();
         assert!(
