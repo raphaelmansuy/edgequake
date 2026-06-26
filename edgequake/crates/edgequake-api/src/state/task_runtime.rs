@@ -4,8 +4,11 @@ use edgequake_tasks::{
     CancellationRegistry, PipelineState, SharedTaskQueue, SharedTaskStorage, Task,
 };
 
+use std::sync::Arc;
+
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::ProgressBroadcaster;
+use crate::services::PdfAdmissionRegistry;
 
 /// Background task processing and real-time progress broadcasting.
 #[derive(Clone)]
@@ -15,6 +18,8 @@ pub struct TaskRuntime {
     pub pipeline_state: PipelineState,
     pub progress_broadcaster: ProgressBroadcaster,
     pub cancellation_registry: CancellationRegistry,
+    /// P-G15: closes TOCTOU between single-flight check and task row creation.
+    pub pdf_admission: Arc<crate::services::PdfAdmissionRegistry>,
 }
 
 impl TaskRuntime {
@@ -26,6 +31,7 @@ impl TaskRuntime {
             pipeline_state: PipelineState::new(),
             progress_broadcaster: ProgressBroadcaster::default(),
             cancellation_registry: CancellationRegistry::new(),
+            pdf_admission: Arc::new(PdfAdmissionRegistry::default()),
         }
     }
 
@@ -58,6 +64,7 @@ mod tests {
             pipeline_state: PipelineState::new(),
             progress_broadcaster: ProgressBroadcaster::default(),
             cancellation_registry: CancellationRegistry::new(),
+            pdf_admission: Arc::new(PdfAdmissionRegistry::default()),
         };
 
         let task = Task::new(

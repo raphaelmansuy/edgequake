@@ -147,6 +147,15 @@ pub(super) async fn create_pdf_processing_task(
 
     let track_id = format!("pdf-{}", Uuid::new_v4());
 
+    if let Some(existing_track_id) =
+        state.tasks.pdf_admission.try_register(workspace_id, pdf_id, &track_id)
+    {
+        return Ok(PdfProcessingEnqueueResult {
+            track_id: existing_track_id,
+            document_id,
+        });
+    }
+
     let task = Task {
         track_id: track_id.clone(),
         tenant_id,
@@ -170,7 +179,10 @@ pub(super) async fn create_pdf_processing_task(
         result: None,
     };
 
-    state.enqueue_task(task).await?;
+    if let Err(e) = state.enqueue_task(task).await {
+        state.tasks.pdf_admission.release(workspace_id, pdf_id);
+        return Err(e);
+    }
 
     debug!(
         "Created and queued PDF processing task: id={}, pdf_id={}, document_id={}",

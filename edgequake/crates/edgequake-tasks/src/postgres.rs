@@ -456,6 +456,88 @@ impl TaskStorage for PostgresTaskStorage {
         })
     }
 
+    async fn find_active_pdf_processing_task(
+        &self,
+        pdf_id: uuid::Uuid,
+        workspace_id: uuid::Uuid,
+    ) -> TaskResult<Option<Task>> {
+        let pdf_id_str = pdf_id.to_string();
+        let row = sqlx::query(
+            r#"
+            SELECT
+                track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
+                started_at, completed_at, error_message, error, retry_count,
+                max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
+                payload, result
+            FROM tasks
+            WHERE workspace_id = $1
+              AND task_type = 'pdf_processing'
+              AND status IN ('pending', 'processing')
+              AND payload->'task_data'->>'pdf_id' = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(workspace_id)
+        .bind(&pdf_id_str)
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| TaskError::StorageError(format!("Failed to find active PDF task: {}", e)))?;
+
+        if let Some(row) = row {
+            let task_type = row.get::<String, _>("task_type").parse().ok();
+            let status = row.get::<String, _>("status").parse().ok();
+            if task_type.is_none() || status.is_none() {
+                return Ok(None);
+            }
+            let payload: serde_json::Value = row.get("payload");
+            let task_data = payload
+                .get("task_data")
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+            let metadata = payload.get("metadata").cloned().and_then(|v| {
+                if v.is_null() {
+                    None
+                } else {
+                    Some(v)
+                }
+            });
+            let progress = payload.get("progress").cloned().and_then(|v| {
+                if v.is_null() {
+                    None
+                } else {
+                    serde_json::from_value(v).ok()
+                }
+            });
+
+            Ok(Some(Task {
+                track_id: row.get("track_id"),
+                tenant_id: row.get("tenant_id"),
+                workspace_id: row.get("workspace_id"),
+                task_type: task_type.unwrap(),
+                status: status.unwrap(),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+                started_at: row.get("started_at"),
+                completed_at: row.get("completed_at"),
+                error_message: row.get("error_message"),
+                error: row
+                    .get::<Option<serde_json::Value>, _>("error")
+                    .and_then(|v| serde_json::from_value(v).ok()),
+                retry_count: row.get("retry_count"),
+                max_retries: row.get("max_retries"),
+                consecutive_timeout_failures: row.get("consecutive_timeout_failures"),
+                circuit_breaker_tripped: row.get("circuit_breaker_tripped"),
+                task_data,
+                metadata,
+                progress,
+                result: row.get("result"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     async fn get_queue_metrics_filtered(
         &self,
         tenant_id: Option<uuid::Uuid>,

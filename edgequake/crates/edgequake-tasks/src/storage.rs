@@ -84,6 +84,50 @@ pub trait TaskStorage: Send + Sync {
         tenant_id: Option<uuid::Uuid>,
         workspace_id: Option<uuid::Uuid>,
     ) -> TaskResult<QueueMetrics>;
+
+    /// Find an in-flight PdfProcessing task for the same PDF (P-G14 single-flight).
+    ///
+    /// Default scans Pending + Processing pages; Postgres overrides with JSONB index-friendly query.
+    async fn find_active_pdf_processing_task(
+        &self,
+        pdf_id: uuid::Uuid,
+        workspace_id: uuid::Uuid,
+    ) -> TaskResult<Option<Task>> {
+        use crate::types::{TaskStatus, TaskType};
+
+        for status in [TaskStatus::Pending, TaskStatus::Processing] {
+            let mut page = 1u32;
+            loop {
+                let list = self
+                    .list_tasks(
+                        TaskFilter {
+                            workspace_id: Some(workspace_id),
+                            status: Some(status),
+                            task_type: Some(TaskType::PdfProcessing),
+                            ..Default::default()
+                        },
+                        Pagination {
+                            page,
+                            page_size: 100,
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+
+                for task in list.tasks {
+                    if task.pdf_id() == Some(pdf_id) {
+                        return Ok(Some(task));
+                    }
+                }
+
+                if page >= list.total_pages.max(1) {
+                    break;
+                }
+                page += 1;
+            }
+        }
+        Ok(None)
+    }
 }
 
 /// Task filter criteria

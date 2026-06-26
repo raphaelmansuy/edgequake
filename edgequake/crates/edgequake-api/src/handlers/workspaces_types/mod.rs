@@ -228,7 +228,7 @@ mod tests {
             chunk_count: 100,
             embedding_count: 80,
             storage_bytes: 1024 * 1024,
-            stale: None,
+            stale: false,
         };
 
         let json = serde_json::to_string(&response).unwrap();

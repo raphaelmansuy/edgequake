@@ -92,7 +92,7 @@ pub async fn get_workspace_stats(
         Ok(Ok(stats)) => stats,
         Ok(Err(e)) => {
             if let Some(mut stale) = stale_fallback {
-                stale.stale = Some(true);
+                stale.stale = true;
                 tracing::warn!(
                     workspace_id = %workspace_id,
                     error = %e,
@@ -104,7 +104,7 @@ pub async fn get_workspace_stats(
         }
         Err(_) => {
             if let Some(mut stale) = stale_fallback {
-                stale.stale = Some(true);
+                stale.stale = true;
                 tracing::warn!(
                     workspace_id = %workspace_id,
                     timeout_secs = STATS_FETCH_TIMEOUT.as_secs(),
@@ -322,7 +322,7 @@ async fn try_kv_storage_stats(
         chunk_count,
         embedding_count,
         storage_bytes,
-        stale: None,
+        stale: false,
     })
 }
 

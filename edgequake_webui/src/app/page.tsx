@@ -67,6 +67,7 @@ export default function Home() {
   // and counts distinct graph node types (PERSON, ORGANIZATION, etc.) via a
   // single Cypher aggregate query — much faster than fetching all nodes.
   const entityTypes = statsData?.entity_type_count ?? 0;
+  const statsStale = statsData?.stale ?? false;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -99,6 +100,7 @@ export default function Home() {
                   description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
                   icon={FileText}
                   isLoading={isLoadingStats || isLoadingDocs}
+                  isStale={statsStale}
                 />
                 <StatsCard
                   title={t('dashboard.stats.entities', 'Entities')}
@@ -106,6 +108,7 @@ export default function Home() {
                   description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
                   icon={Users}
                   isLoading={isLoadingStats}
+                  isStale={statsStale}
                 />
                 <StatsCard
                   title={t('dashboard.stats.relationships', 'Relationships')}
@@ -113,6 +116,7 @@ export default function Home() {
                   description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
                   icon={GitMerge}
                   isLoading={isLoadingStats}
+                  isStale={statsStale}
                 />
                 <StatsCard
                   title={t('dashboard.stats.entityTypes', 'Entity Types')}
@@ -120,6 +124,7 @@ export default function Home() {
                   description={t('dashboard.stats.entityTypesDesc', 'Unique categories')}
                   icon={Network}
                   isLoading={isLoadingStats}
+                  isStale={statsStale}
                 />
               </div>
 
