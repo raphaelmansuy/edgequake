@@ -436,6 +436,14 @@ impl EdgeQuake {
         self.embedding_provider = Some(embedding);
     }
 
+    /// Pre-wire a query engine (optional). When set before [`Self::initialize`], that
+    /// engine is used instead of constructing a default one — enables result-cache
+    /// wiring in library/tests (SPEC-021 P-G9).
+    pub fn with_query_engine(mut self, engine: Arc<edgequake_query::QueryEngine>) -> Self {
+        self.query_engine = Some(engine);
+        self
+    }
+
     /// Initialize the EdgeQuake instance.
     ///
     /// This sets up all storage backends and connections.
@@ -494,7 +502,7 @@ impl EdgeQuake {
 
         self.pipeline = Some(Arc::new(pipeline));
 
-        // Set up query engine
+        // Set up query engine (respect pre-wired engine from `with_query_engine`)
         let graph_storage = self
             .graph_storage
             .as_ref()
@@ -504,17 +512,20 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::config("Vector storage not set"))?;
 
-        // Initialize SOTA query engine from edgequake-query (SPEC-017 unified path)
-        use edgequake_query::QueryEngineConfig;
-        let engine_impl = edgequake_query::QueryEngine::new(
-            QueryEngineConfig::default(),
-            vector_storage.clone(),
-            graph_storage.clone(),
-            embedding.clone(),
-            llm.clone(),
-        );
+        let engine_impl = if let Some(engine) = self.query_engine.take() {
+            engine
+        } else {
+            use edgequake_query::QueryEngineConfig;
+            Arc::new(edgequake_query::QueryEngine::new(
+                QueryEngineConfig::default(),
+                vector_storage.clone(),
+                graph_storage.clone(),
+                embedding.clone(),
+                llm.clone(),
+            ))
+        };
 
-        self.query_engine = Some(Arc::new(engine_impl));
+        self.query_engine = Some(engine_impl);
 
         self.initialized = true;
         tracing::info!("EdgeQuake initialized successfully");

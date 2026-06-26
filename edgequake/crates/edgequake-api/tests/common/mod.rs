@@ -13,6 +13,8 @@
 //! use common::*;
 //! ```
 
+use std::sync::Arc;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -36,6 +38,17 @@ pub const TEST_TENANT_ID: &str = "aaaaaaaa-0019-0019-0019-aaaaaaaaaaaa";
 pub const TEST_USER_ID: &str = "bbbbbbbb-0019-0019-0019-bbbbbbbbbbbb";
 /// Default test workspace ID (valid UUID for workspace-scoped operations).
 pub const TEST_WORKSPACE_ID: &str = "cccccccc-0019-0019-0019-cccccccccccc";
+
+/// Deterministic mock LLM extraction for worker ingest E2E (aligned with `sc2_sc5_ingestion`).
+pub const SPEC021_WORKER_EXTRACTION_JSON: &str = r#"{
+  "entities": [
+    {"name": "Sarah Chen", "type": "PERSON", "description": "Chief architect"},
+    {"name": "EdgeQuake", "type": "SYSTEM", "description": "RAG system in Rust"}
+  ],
+  "relationships": [
+    {"source": "Sarah Chen", "target": "EdgeQuake", "type": "LEADS", "description": "Sarah leads EdgeQuake"}
+  ]
+}"#;
 
 /// Environment variables that influence provider auto-detection.
 ///
@@ -153,6 +166,12 @@ pub struct WorkerAppGuard {
     pub query_engine: std::sync::Arc<edgequake_query::QueryEngine>,
 }
 
+impl Drop for WorkerAppGuard {
+    fn drop(&mut self) {
+        edgequake_api::safety_limits::clear_test_provider_override();
+    }
+}
+
 impl WorkerAppGuard {
     /// Borrow the router.
     pub fn app(&self) -> &axum::Router {
@@ -174,7 +193,18 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
     // Shut down any pool left over from the previous worker-backed test.
     shutdown_test_worker_pool().await;
 
-    let mut state = AppState::test_state();
+    use edgequake_llm::MockProvider;
+    let mock_provider = Arc::new(MockProvider::new());
+    for _ in 0..32 {
+        mock_provider
+            .add_response(SPEC021_WORKER_EXTRACTION_JSON)
+            .await;
+    }
+    let mut state = AppState::build_test_state(mock_provider.clone());
+    edgequake_api::safety_limits::set_test_provider_override(
+        Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+    );
 
     // P-G2b: seed the built-in default workspace so the async upload path's
     // strict workspace resolution succeeds (mirrors the production bootstrap).

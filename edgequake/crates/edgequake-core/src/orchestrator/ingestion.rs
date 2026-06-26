@@ -325,6 +325,10 @@ impl EdgeQuake {
             .await
             .map_err(|e| Error::internal(format!("Persistence failed: {}", e)))?;
 
+        if let Some(engine) = &self.query_engine {
+            engine.invalidate_result_cache();
+        }
+
         let merge_stats = persist_out.merge_stats;
 
         let processing_time_ms = start.elapsed().as_millis() as u64;

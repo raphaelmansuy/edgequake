@@ -8,7 +8,7 @@
 //! this application-level safety layer.
 
 use async_trait::async_trait;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use edgequake_llm::{
@@ -28,6 +28,36 @@ pub const DEFAULT_MAX_TOKENS: usize = 16384;
 
 /// Default request timeout in seconds (600 = 10 minutes).
 pub const DEFAULT_TIMEOUT_SECS: u64 = 600;
+
+/// E2E test hook — when set, workspace pipeline factory reuses seeded mock providers
+/// instead of constructing fresh empty mocks (SPEC-021 worker ingest tests).
+static TEST_PROVIDER_OVERRIDE: Mutex<
+    Option<(
+        Arc<dyn LLMProvider>,
+        Arc<dyn EmbeddingProvider>,
+    )>,
+> = Mutex::new(None);
+
+/// Wire shared mock providers for worker E2E (see `tests/common/mod.rs`).
+pub fn set_test_provider_override(
+    llm: Arc<dyn LLMProvider>,
+    embedding: Arc<dyn EmbeddingProvider>,
+) {
+    *TEST_PROVIDER_OVERRIDE.lock().expect("test provider override mutex") =
+        Some((llm, embedding));
+}
+
+/// Clear E2E provider override (call from `WorkerAppGuard` drop).
+pub fn clear_test_provider_override() {
+    *TEST_PROVIDER_OVERRIDE.lock().expect("test provider override mutex") = None;
+}
+
+fn test_provider_override() -> Option<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {
+    TEST_PROVIDER_OVERRIDE
+        .lock()
+        .expect("test provider override mutex")
+        .clone()
+}
 
 /// Absolute maximum tokens allowed (65536).
 ///
@@ -415,6 +445,10 @@ fn check_api_key(provider_name: &str) -> Result<()> {
 
 /// Create a safety-limited LLM provider from workspace configuration.
 pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
+    if let Some((llm, _)) = test_provider_override() {
+        return Ok(llm);
+    }
+
     check_api_key(provider_name)?;
 
     // WHY: Same compat guard as create_safe_vision_provider — entity extraction
@@ -503,6 +537,10 @@ pub fn create_safe_embedding_provider(
     model: &str,
     dimension: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>> {
+    if let Some((_, embedding)) = test_provider_override() {
+        return Ok(embedding);
+    }
+
     // FIX #163: If embedding-specific env vars are set and provider is openai-compatible,
     // create the provider with dedicated credentials.
     let is_openai_compatible = matches!(
