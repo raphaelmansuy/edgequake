@@ -479,11 +479,33 @@ pub async fn list_documents(
     let status_counts = StatusCounts {
         pending: documents
             .iter()
-            .filter(|d| d.status.as_deref() == Some("pending"))
+            .filter(|d| {
+                matches!(
+                    d.status.as_deref(),
+                    Some("pending" | "queued")
+                ) || d.current_stage.as_deref() == Some("queued")
+            })
             .count(),
         processing: documents
             .iter()
-            .filter(|d| d.status.as_deref() == Some("processing"))
+            .filter(|d| {
+                matches!(d.status.as_deref(), Some("processing"))
+                    || matches!(
+                        d.current_stage.as_deref(),
+                        Some(
+                            "converting"
+                                | "preprocessing"
+                                | "chunking"
+                                | "extracting"
+                                | "gleaning"
+                                | "merging"
+                                | "summarizing"
+                                | "embedding"
+                                | "storing"
+                                | "indexing"
+                        )
+                    )
+            })
             .count(),
         // SPEC-021 P-B2: only count explicit completed/indexed status, NOT NULL.
         completed: documents
@@ -514,6 +536,7 @@ pub async fn list_documents(
                         d.status.as_deref(),
                         Some(
                             "pending"
+                                | "queued"
                                 | "processing"
                                 | "completed"
                                 | "indexed"

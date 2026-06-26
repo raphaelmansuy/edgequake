@@ -581,7 +581,14 @@ async fn main() -> Result<()> {
         Arc::clone(&state.workspace_service),
         Arc::clone(&state.query.models_config),
     )
-    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone());
+    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone())
+    .with_task_storage(Arc::clone(&state.tasks.storage) as edgequake_tasks::SharedTaskStorage)
+    .with_pdf_vision_semaphore(Arc::clone(&state.pdf_vision));
+
+    info!(
+        pdf_vision_jobs = state.pdf_vision.max_concurrent(),
+        "Vision PDF admission control enabled"
+    );
 
     // SPEC-021 P3-01c: Wire CQRS entity dual-write sink when postgres feature is active.
     // create_if_enabled() checks entity_sync_mode in server_config; returns NoopEntitySink

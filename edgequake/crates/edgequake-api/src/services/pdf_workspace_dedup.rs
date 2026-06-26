@@ -11,7 +11,29 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use crate::workspace_scope::metadata_matches_tenant_context;
+use edgequake_storage::traits::KVStorage;
 use edgequake_storage::{PdfDocument, PdfDocumentStorage};
+
+/// Find a workspace-visible KV document id linked to `pdf_id`, if any.
+pub async fn find_kv_document_id_for_pdf(
+    kv_storage: &dyn KVStorage,
+    pdf_id: &str,
+    tenant_ctx: &TenantContext,
+) -> Option<String> {
+    let metadata_keys = kv_storage.keys_with_suffix("-metadata").await.ok()?;
+
+    for metadata_key in metadata_keys {
+        let Ok(Some(meta)) = kv_storage.get_by_id(&metadata_key).await else {
+            continue;
+        };
+        let linked_pdf = meta.get("pdf_id").and_then(|v| v.as_str());
+        if linked_pdf == Some(pdf_id) && metadata_matches_tenant_context(&meta, tenant_ctx) {
+            return meta.get("id").and_then(|v| v.as_str()).map(str::to_string);
+        }
+    }
+
+    None
+}
 
 /// Returns true when a workspace-visible KV document still backs this PDF row.
 pub async fn workspace_has_visible_document_for_pdf(
@@ -30,26 +52,11 @@ pub async fn workspace_has_visible_document_for_pdf(
     }
 
     let pdf_id_str = pdf.pdf_id.to_string();
-    let metadata_keys = state
-        .storage
-        .kv_storage
-        .keys_with_suffix("-metadata")
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to scan document metadata: {}", e)))?;
-
-    for metadata_key in metadata_keys {
-        let Ok(Some(meta)) = state.storage.kv_storage.get_by_id(&metadata_key).await else {
-            continue;
-        };
-        let linked_pdf = meta.get("pdf_id").and_then(|v| v.as_str());
-        if linked_pdf == Some(pdf_id_str.as_str())
-            && metadata_matches_tenant_context(&meta, tenant_ctx)
-        {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
+    Ok(
+        find_kv_document_id_for_pdf(state.storage.kv_storage.as_ref(), &pdf_id_str, tenant_ctx)
+            .await
+            .is_some(),
+    )
 }
 
 /// Remove a PDF row that no longer has a visible workspace document.

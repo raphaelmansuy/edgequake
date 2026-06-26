@@ -55,6 +55,9 @@ const statusConfig = {
   
   // Upload stage
   uploading: { icon: Upload, color: 'bg-blue-400', textColor: 'text-blue-500 dark:text-blue-300', label: 'Uploading', animate: true },
+
+  // Queued — waiting for tenant/worker slot (P-G14)
+  queued: { icon: Clock, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', label: 'Queued', animate: true },
   
   // Conversion stage (PDF only)
   converting: { icon: FileText, color: 'bg-indigo-500', textColor: 'text-indigo-600 dark:text-indigo-400', label: 'Converting PDF', animate: true },
@@ -125,7 +128,22 @@ function getStageProgress(status: DocumentStatus): { current: number; total: num
  * Check if a status represents an active processing state
  */
 export function isProcessingStatus(status: DocumentStatus): boolean {
-  return ['processing', 'chunking', 'extracting', 'embedding', 'indexing'].includes(status);
+  return [
+    'queued',
+    'pending',
+    'processing',
+    'uploading',
+    'converting',
+    'preprocessing',
+    'chunking',
+    'extracting',
+    'gleaning',
+    'merging',
+    'summarizing',
+    'embedding',
+    'storing',
+    'indexing',
+  ].includes(status);
 }
 
 /**

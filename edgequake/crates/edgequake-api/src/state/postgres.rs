@@ -348,7 +348,8 @@ impl AppState {
         storage.validate_postgres_adapters()?;
 
         let audit_logger = AuditLogger::new(pool.clone());
-        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
+        let (resource_guard, graph_materialize, pdf_vision) =
+            super::resource_runtime::build_resource_runtime();
 
         let app_state = Self {
             storage,
@@ -374,6 +375,7 @@ impl AppState {
             audit_logger: Some(audit_logger),
             resource_guard,
             graph_materialize,
+            pdf_vision,
             migration_bootstrap: Some(migration_bootstrap),
         };
 

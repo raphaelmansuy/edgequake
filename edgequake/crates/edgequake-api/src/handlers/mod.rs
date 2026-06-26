@@ -67,6 +67,7 @@ pub mod entities_types;
 pub mod graph;
 pub mod graph_types;
 pub mod health;
+pub mod health_probes;
 pub mod health_types;
 pub mod injection;
 pub mod injection_types;

@@ -50,8 +50,11 @@ export {
 export { streamClient } from "./stream-client";
 export {
   isBackendReady,
+  getBackendReadinessState,
+  probeBackendReadiness,
   _resetBackendReadinessCache,
   type ReadinessProbeClient,
+  type BackendReadinessState,
 } from "./backend-readiness";
 
 // === Custom error classes =============================================

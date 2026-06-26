@@ -50,6 +50,13 @@ pub const DEFAULT_MEM_HEADROOM_RATIO: f64 = 0.75;
 /// Graph popular-nodes query timeout (seconds).
 pub const DEFAULT_GRAPH_QUERY_TIMEOUT_SECS: u64 = 15;
 
+/// Max concurrent vision PDF conversions process-wide (P-G13 OOM guard).
+///
+/// WHY 2: each job may spawn multiple parallel page renders (see
+/// `EDGEQUAKE_PDF_CONCURRENCY`). Capping document-level jobs prevents
+/// N workers × page concurrency from exhausting process memory.
+pub const DEFAULT_PDF_VISION_JOBS_CONCURRENT: usize = 2;
+
 /// Orchestrator + SOTA context token cap (RB-LLM-004 / RB-LLM-008 alignment).
 pub const MAX_ORCHESTRATOR_CONTEXT_TOKENS: usize = 30_000;
 
@@ -63,6 +70,7 @@ pub struct ResourceBudgetConfig {
     pub max_query_chars: usize,
     pub graph_scan_threshold_nodes: usize,
     pub graph_materialize_concurrent: usize,
+    pub pdf_vision_jobs_concurrent: usize,
     pub mem_headroom_ratio: f64,
     pub graph_query_timeout_secs: u64,
 }
@@ -77,6 +85,7 @@ impl Default for ResourceBudgetConfig {
             max_query_chars: MAX_QUERY_CHARS,
             graph_scan_threshold_nodes: DEFAULT_GRAPH_SCAN_THRESHOLD_NODES,
             graph_materialize_concurrent: DEFAULT_GRAPH_MATERIALIZE_CONCURRENT,
+            pdf_vision_jobs_concurrent: DEFAULT_PDF_VISION_JOBS_CONCURRENT,
             mem_headroom_ratio: DEFAULT_MEM_HEADROOM_RATIO,
             graph_query_timeout_secs: DEFAULT_GRAPH_QUERY_TIMEOUT_SECS,
         }
@@ -122,6 +131,11 @@ impl ResourceBudgetConfig {
                 config.max_upload_bytes = n.max(1024 * 1024);
             }
         }
+        if let Ok(v) = std::env::var("EDGEQUAKE_PDF_VISION_JOBS") {
+            if let Ok(n) = v.parse::<usize>() {
+                config.pdf_vision_jobs_concurrent = n.clamp(1, 8);
+            }
+        }
         config
     }
 
@@ -159,6 +173,7 @@ mod tests {
         assert_eq!(budget.max_query_chars, 10_000);
         assert_eq!(budget.graph_scan_threshold_nodes, 50_000);
         assert_eq!(budget.graph_materialize_concurrent, 4);
+        assert_eq!(budget.pdf_vision_jobs_concurrent, 2);
         assert_eq!(budget.graph_query_timeout_secs, 15);
     }
 

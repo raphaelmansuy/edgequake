@@ -88,21 +88,30 @@ fn compute_safe_pdf_resource_profile(
     let large_file = file_size_bytes >= 25 * 1024 * 1024;
     let huge_file = file_size_bytes >= 50 * 1024 * 1024;
 
-    let concurrency = if is_local {
-        if huge_file || page_count >= 200 {
+    let concurrency = {
+        let computed = if is_local {
+            if huge_file || page_count >= 200 {
+                1
+            } else {
+                2
+            }
+        } else if huge_file || page_count >= 1000 {
             1
         } else {
-            2
-        }
-    } else if huge_file || page_count >= 1000 {
-        1
-    } else {
-        match page_count {
-            0..=49 => 8,
-            50..=199 => 6,
-            200..=499 => 3,
-            _ => 2,
-        }
+            // P-G13: cap cloud concurrency — N concurrent PDF tasks × page
+            // parallelism → multi-MiB base64 buffers can OOM-kill the API.
+            match page_count {
+                0..=49 => 2,
+                50..=199 => 2,
+                200..=499 => 2,
+                _ => 2,
+            }
+        };
+        std::env::var("EDGEQUAKE_PDF_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .map(|cap| computed.min(cap.max(1)))
+            .unwrap_or(computed)
     };
 
     let dpi = if huge_file || page_count >= 1000 {
@@ -194,6 +203,12 @@ impl DocumentTaskProcessor {
         // == Progress: loading complete, preparing for conversion ==
         task.update_progress("pdf_loading".to_string(), 1, 5);
 
+        let tenant_ctx = crate::middleware::TenantContext {
+            tenant_id: Some(data.tenant_id.to_string()),
+            workspace_id: Some(data.workspace_id.to_string()),
+            user_id: None,
+        };
+
         // 3.1 Create document metadata early with "converting" stage
         // WHY: Users need to see the document appear in the UI immediately with visual feedback
         // showing that PDF → Markdown conversion is happening.
@@ -203,34 +218,28 @@ impl DocumentTaskProcessor {
         // to avoid creating orphaned duplicates. Without this, the old document still
         // references the same pdf_id whose markdown_content gets overwritten, causing
         // it to display wrong/hallucinated content from the new extraction.
-        let has_existing_document = data.existing_document_id.is_some();
+        let early_doc_id = crate::services::resolve_worker_pdf_document_id(
+            &self.kv_storage,
+            pdf.document_id,
+            data.pdf_id,
+            task,
+            &data,
+            self.task_storage.as_ref(),
+            Some(&tenant_ctx),
+        )
+        .await?;
+
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&early_doc_id);
+        let has_existing_document = self
+            .kv_storage
+            .get_by_id(&metadata_key)
+            .await
+            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?
+            .is_some();
         let should_resume_from_checkpoint =
             should_resume_pdf_conversion(has_existing_document, data.restart_from_scratch);
         let should_cleanup_existing_content =
             should_restart_pdf_conversion(has_existing_document, data.restart_from_scratch);
-        let early_doc_id = data
-            .existing_document_id
-            .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-        // FIX-DUPLICATE-BUG: Persist the generated document ID back into task_data
-        // so that worker retries reuse the same document ID instead of creating
-        // a new UUID on each attempt. Without this, a single PDF upload that fails
-        // and gets retried by the worker pool creates duplicate documents with
-        // different IDs, each stuck in "processing" state.
-        if !has_existing_document {
-            if let Ok(mut task_data_map) = serde_json::from_value::<
-                serde_json::Map<String, serde_json::Value>,
-            >(task.task_data.clone())
-            {
-                task_data_map.insert(
-                    "existing_document_id".to_string(),
-                    serde_json::json!(early_doc_id.clone()),
-                );
-                task.task_data = serde_json::Value::Object(task_data_map);
-            }
-        }
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&early_doc_id);
         // OODA-04: Include file_size_bytes and sha256_checksum in early metadata
         // WHY: Enables complete lineage from the moment the document appears in UI.
         // Without these, users see metadata gaps until processing completes.
@@ -627,6 +636,21 @@ impl DocumentTaskProcessor {
                 };
                 let vision_timeout = std::time::Duration::from_secs(vision_timeout_secs);
 
+                let _vision_job_permit = if let Some(semaphore) = &self.pdf_vision {
+                    info!(
+                        pdf_id = %data.pdf_id,
+                        max_concurrent_jobs = semaphore.max_concurrent(),
+                        "Waiting for vision PDF admission slot"
+                    );
+                    Some(semaphore.acquire_owned().await.ok_or_else(|| {
+                        edgequake_tasks::TaskError::Processing(
+                            "Vision PDF admission semaphore closed".to_string(),
+                        )
+                    })?)
+                } else {
+                    None
+                };
+
                 info!(
                     pdf_id = %data.pdf_id,
                     vision_provider = %data.vision_provider,
@@ -1013,7 +1037,7 @@ mod tests {
     #[test]
     fn small_cloud_pdfs_keep_reasonable_parallelism() {
         let (concurrency, dpi) = compute_safe_pdf_resource_profile(40, 4 * 1024 * 1024, "openai");
-        assert_eq!(concurrency, 8);
+        assert_eq!(concurrency, 2);
         assert_eq!(dpi, 150);
     }
 

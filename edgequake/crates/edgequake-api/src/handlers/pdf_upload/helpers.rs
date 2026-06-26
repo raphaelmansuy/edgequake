@@ -72,6 +72,12 @@ impl PdfReprocessIntent {
     }
 }
 
+/// Result of enqueueing (or reusing) a PDF processing task.
+pub(super) struct PdfProcessingEnqueueResult {
+    pub track_id: String,
+    pub document_id: String,
+}
+
 /// Create PDF processing background task.
 pub(super) async fn create_pdf_processing_task(
     state: &AppState,
@@ -80,7 +86,7 @@ pub(super) async fn create_pdf_processing_task(
     options: &PdfUploadOptions,
     workspace: Option<&Workspace>,
     intent: PdfReprocessIntent,
-) -> ApiResult<String> {
+) -> ApiResult<PdfProcessingEnqueueResult> {
     let workspace_id = context
         .workspace_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
@@ -88,6 +94,35 @@ pub(super) async fn create_pdf_processing_task(
     let tenant_id = context
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Tenant ID required".to_string()))?;
+
+    if let Some(existing_track_id) = crate::services::admit_pdf_processing_enqueue(
+        state,
+        pdf_id,
+        workspace_id,
+        intent.restart_from_scratch,
+    )
+    .await
+    {
+        let document_id = crate::services::resolve_pdf_ingest_document_id(
+            state,
+            pdf_id,
+            intent.existing_document_id.clone(),
+            context,
+        )
+        .await;
+        return Ok(PdfProcessingEnqueueResult {
+            track_id: existing_track_id,
+            document_id,
+        });
+    }
+
+    let document_id = crate::services::resolve_pdf_ingest_document_id(
+        state,
+        pdf_id,
+        intent.existing_document_id.clone(),
+        context,
+    )
+    .await;
 
     let task_data = PdfProcessingData {
         pdf_id,
@@ -104,7 +139,7 @@ pub(super) async fn create_pdf_processing_task(
         } else {
             None
         },
-        existing_document_id: intent.existing_document_id,
+        existing_document_id: Some(document_id.clone()),
         pdf_parser_backend: options.resolved_backend(workspace),
         restart_from_scratch: intent.restart_from_scratch,
         reprocess_mode: intent.reprocess_mode,
@@ -138,11 +173,14 @@ pub(super) async fn create_pdf_processing_task(
     state.enqueue_task(task).await?;
 
     debug!(
-        "Created and queued PDF processing task: id={}, pdf_id={}",
-        track_id, pdf_id
+        "Created and queued PDF processing task: id={}, pdf_id={}, document_id={}",
+        track_id, pdf_id, document_id
     );
 
-    Ok(track_id)
+    Ok(PdfProcessingEnqueueResult {
+        track_id,
+        document_id,
+    })
 }
 
 /// Extract page count from PDF binary data.

@@ -9,6 +9,7 @@
  * @enforces BR0800 - Theme persisted in localStorage
  */
 import { getRuntimeConfig } from '@/lib/runtime-config';
+import { resolveRuntimeApiUrlForInjection } from '@/lib/server/resolve-runtime-api-url';
 import { AppProviders } from '@/providers';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
@@ -36,7 +37,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const runtimeConfig = getRuntimeConfig();
+  const runtimeConfig = {
+    ...getRuntimeConfig(),
+    // P-G13: per-request backend discovery in dev — avoids stale :8081 proxy when
+    // backend was down at `next dev` start or when :8080 is another Docker stack.
+    apiUrl: resolveRuntimeApiUrlForInjection() || getRuntimeConfig().apiUrl,
+  };
 
   return (
     <html lang="en" suppressHydrationWarning>

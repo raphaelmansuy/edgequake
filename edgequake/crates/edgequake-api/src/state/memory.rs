@@ -70,7 +70,8 @@ impl AppState {
         workspace_service: SharedWorkspaceService,
     ) -> Self {
         let conversation_service = memory_conversation_service();
-        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
+        let (resource_guard, graph_materialize, pdf_vision) =
+            super::resource_runtime::build_resource_runtime();
 
         Self {
             storage: StorageRuntime {
@@ -104,6 +105,7 @@ impl AppState {
             audit_logger: None,
             resource_guard,
             graph_materialize,
+            pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
         }
@@ -194,7 +196,8 @@ impl AppState {
 
         // Create auth services
         let auth = AuthRuntime::from_env();
-        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
+        let (resource_guard, graph_materialize, pdf_vision) =
+            super::resource_runtime::build_resource_runtime();
 
         Self {
             storage: StorageRuntime {
@@ -234,6 +237,7 @@ impl AppState {
             audit_logger: None,
             resource_guard,
             graph_materialize,
+            pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
         }
@@ -276,7 +280,8 @@ impl AppState {
 
         // Create auth services with test configuration
         let auth = AuthRuntime::new(AuthConfig::default());
-        let (resource_guard, graph_materialize) = super::resource_runtime::build_resource_runtime();
+        let (resource_guard, graph_materialize, pdf_vision) =
+            super::resource_runtime::build_resource_runtime();
 
         Self {
             storage: StorageRuntime {
@@ -318,6 +323,7 @@ impl AppState {
             audit_logger: None,
             resource_guard,
             graph_materialize,
+            pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
         }

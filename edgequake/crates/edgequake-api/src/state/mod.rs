@@ -92,7 +92,9 @@ pub use task_runtime::TaskRuntime;
 
 use std::sync::Arc;
 
-use edgequake_core::{GraphMaterializationSemaphore, ResourceBudgetConfig, ResourceGuard};
+use edgequake_core::{
+    GraphMaterializationSemaphore, PdfVisionSemaphore, ResourceBudgetConfig, ResourceGuard,
+};
 
 use crate::cache_manager::CacheManager;
 use edgequake_pipeline::Pipeline;
@@ -171,6 +173,9 @@ pub struct AppState {
 
     /// SPEC-006: caps concurrent graph materialization queries.
     pub graph_materialize: Arc<GraphMaterializationSemaphore>,
+
+    /// P-G13: caps concurrent vision PDF conversions process-wide.
+    pub pdf_vision: Arc<PdfVisionSemaphore>,
 
     /// Bootstrap migration report (PostgreSQL only).
     #[cfg(feature = "postgres")]

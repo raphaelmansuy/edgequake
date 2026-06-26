@@ -94,9 +94,9 @@ pub use token_budget::{BudgetAllocation, BudgetSource, ContextSource, TokenBudge
 
 // SPEC-006: Resource safety SSOT
 pub use resource::{
-    AdmissionDecision, GraphMaterializationSemaphore, GraphOperation, ResourceBudgetConfig,
-    ResourceGuard, MAX_GRAPH_DEPTH, MAX_GRAPH_NODES, MAX_ORCHESTRATOR_CONTEXT_TOKENS,
-    MAX_UPLOAD_BYTES,
+    AdmissionDecision, GraphMaterializationSemaphore, GraphOperation, PdfVisionSemaphore,
+    ResourceBudgetConfig, ResourceGuard, MAX_GRAPH_DEPTH, MAX_GRAPH_NODES,
+    MAX_ORCHESTRATOR_CONTEXT_TOKENS, MAX_UPLOAD_BYTES,
 };
 
 // Re-export commonly used types

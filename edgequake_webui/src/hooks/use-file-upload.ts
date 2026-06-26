@@ -212,13 +212,25 @@ export function useFileUpload(
             const isPdfDuplicate =
               !!pdfResponse.duplicate_of || pdfResponse.status === "duplicate";
             if (pdfResponse.pdf_id && !isPdfDuplicate) {
+              const optimisticId =
+                pdfResponse.document_id ?? pdfResponse.pdf_id;
               const optimisticDoc: Document = {
-                id: pdfResponse.pdf_id,
+                id: optimisticId,
                 title: file.name,
                 file_name: file.name,
                 file_size: file.size,
                 source_type: "pdf",
-                status: "processing",
+                status:
+                  pdfResponse.status === "queued" ? "queued" : "processing",
+                current_stage:
+                  pdfResponse.status === "queued" ? "queued" : "converting",
+                stage_message:
+                  pdfResponse.status === "queued"
+                    ? t(
+                        "pipeline.waitingForSlot",
+                        "Waiting for a processing slot",
+                      )
+                    : undefined,
                 mime_type: "application/pdf",
                 created_at: new Date().toISOString(),
                 pdf_id: pdfResponse.pdf_id,
@@ -237,7 +249,9 @@ export function useFileUpload(
                   const exists = old.items.some(
                     (d) =>
                       d.pdf_id === pdfResponse.pdf_id ||
-                      d.id === pdfResponse.pdf_id,
+                      d.id === optimisticId ||
+                      (pdfResponse.document_id != null &&
+                        d.id === pdfResponse.document_id),
                   );
                   if (exists) return old;
                   return {

@@ -6,6 +6,9 @@
  * retries NetworkError silently in the background, this banner tells the
  * user *why* counts read as 0 and offers a manual retry.
  *
+ * SPEC-021 P-G13: distinguishes *unreachable* (process down) from
+ * *degraded* (busy during ingestion — counts may lag but backend is alive).
+ *
  * @implements FEAT1030 - System health monitoring (visible degradation)
  */
 'use client';
@@ -13,15 +16,15 @@
 import { Loader2, RefreshCw, WifiOff, X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { isBackendReady } from '@/lib/api/client';
+import { getBackendReadinessState } from '@/lib/api/client';
 import { getAutomationAwareRefetchInterval } from '@/lib/runtime/browser-detection';
 import { useTranslation } from 'react-i18next';
 
 /**
- * Banner shown when the backend is unreachable.
+ * Banner shown when the backend is unreachable or degraded under load.
  *
- * - Polls /health every 10s (paused under Playwright automation).
- * - Auto-dismisses once the backend reports healthy.
+ * - Polls `/live` + `/health` every 10s (paused under Playwright automation).
+ * - Auto-dismisses once the backend reports ready.
  * - User can dismiss manually; the banner stays dismissed until the next
  *   navigation (sessionStorage) to avoid reappearing on every refetch.
  */
@@ -29,16 +32,19 @@ export function BackendStatusBanner() {
   const { t } = useTranslation();
   const [dismissed, setDismissed] = useState(false);
 
-  const { data: ready, isLoading } = useQuery({
+  const { data: state, isLoading } = useQuery({
     queryKey: ['backend-ready'],
-    queryFn: () => isBackendReady(),
+    queryFn: () => getBackendReadinessState(),
     refetchInterval: getAutomationAwareRefetchInterval(10_000),
     staleTime: 5_000,
   });
 
-  if (dismissed || ready || isLoading) {
+  if (dismissed || isLoading || !state || state === 'ready') {
     return null;
   }
+
+  const isUnreachable = state === 'unreachable';
+  const isMisconfigured = state === 'misconfigured';
 
   return (
     <div
@@ -48,10 +54,20 @@ export function BackendStatusBanner() {
     >
       <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span className="flex-1">
-        {t(
-          'common.backendNotReady',
-          'EdgeQuake backend is not reachable. Counts may show 0 until the connection is restored.',
-        )}
+        {isMisconfigured
+          ? t(
+              'common.backendWrongPort',
+              'Port 8080 is used by another service. Start EdgeQuake with make dev (backend runs on :8081 when :8080 is busy).',
+            )
+          : isUnreachable
+          ? t(
+              'common.backendNotReady',
+              'EdgeQuake backend is not reachable. Start it with make backend-bg or make dev, then refresh.',
+            )
+          : t(
+              'common.backendBusy',
+              'EdgeQuake is busy processing documents. Counts may update slowly until ingestion catches up.',
+            )}
       </span>
       <Loader2
         className="h-3 w-3 animate-spin opacity-70"
@@ -60,7 +76,6 @@ export function BackendStatusBanner() {
       <button
         type="button"
         onClick={() => {
-          // Force a fresh health check by reloading the page.
           if (typeof window !== 'undefined') {
             window.location.reload();
           }
