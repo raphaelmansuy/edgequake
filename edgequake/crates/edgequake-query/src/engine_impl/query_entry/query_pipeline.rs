@@ -73,12 +73,37 @@ impl QueryEngine {
         let prepared = self.pipeline_prepare(&request, &providers).await?;
         stats.embedding_time_ms = prepared.embedding_time_ms;
 
+        if request.context_only {
+            if let Some(cache) = &self.result_cache {
+                if let Some(cached) = cache.get(&request, prepared.mode) {
+                    stats.retrieval_time_ms = 0;
+                    return self
+                        .pipeline_finalize(
+                            request,
+                            cached,
+                            prepared.mode,
+                            &mut stats,
+                            &providers,
+                            start,
+                        )
+                        .await;
+                }
+                cache.record_miss();
+            }
+        }
+
         let retrieval_start = Instant::now();
         let context = self
             .pipeline_retrieve(&prepared, &request, &providers)
             .await?;
         stats.retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
         stats.context_tokens = context.token_count;
+
+        if request.context_only {
+            if let Some(cache) = &self.result_cache {
+                cache.put(&request, prepared.mode, context.clone());
+            }
+        }
 
         self.pipeline_finalize(
             request,

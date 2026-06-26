@@ -92,8 +92,9 @@ use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{
     ChunkProgressCallback, ChunkProgressUpdate, ChunkVectorBuildOptions,
-    EmbedProgressCallback, EmbedProgressUpdate, IngestionPersistConfig, IngestionPersistContext,
-    IngestionPersistSettings, NoopEntitySink, persist_processing_result, Pipeline,
+    EmbedProgressCallback, EmbedProgressUpdate, IngestionPersistContext,
+    DefaultIngestionPersister, IngestionPersistSettings, IngestionPersister, NoopEntitySink,
+    Pipeline,
     RelationalEntitySink,
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
@@ -168,6 +169,8 @@ pub struct DocumentTaskProcessor {
     relational_sink: Arc<dyn RelationalEntitySink>,
     /// Persist task rows when ingestion identity is allocated mid-flight.
     task_storage: Option<edgequake_tasks::SharedTaskStorage>,
+    /// P-G9: Invalidate query result cache after ingest (DIP port).
+    query_cache_invalidator: Option<Arc<dyn edgequake_query::QueryResultCacheInvalidator>>,
     /// P-G13: Process-wide cap on concurrent vision PDF conversions.
     #[cfg(feature = "postgres")]
     pdf_vision: Option<Arc<edgequake_core::PdfVisionSemaphore>>,
@@ -201,6 +204,7 @@ impl DocumentTaskProcessor {
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
             task_storage: None,
+            query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
             pdf_vision: None,
         }
@@ -242,6 +246,7 @@ impl DocumentTaskProcessor {
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
             task_storage: None,
+            query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
             pdf_vision: None,
         }
@@ -280,6 +285,7 @@ impl DocumentTaskProcessor {
             strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
             task_storage: None,
+            query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
             pdf_vision: None,
         }
@@ -322,6 +328,21 @@ impl DocumentTaskProcessor {
         task_storage: edgequake_tasks::SharedTaskStorage,
     ) -> Self {
         self.task_storage = Some(task_storage);
+        self
+    }
+
+    /// P-G9: Wire cache invalidator (typically `Arc<QueryEngine>`).
+    pub fn with_query_cache_invalidator(
+        mut self,
+        invalidator: Arc<dyn edgequake_query::QueryResultCacheInvalidator>,
+    ) -> Self {
+        self.query_cache_invalidator = Some(invalidator);
+        self
+    }
+
+    /// Convenience wrapper for production wiring.
+    pub fn with_query_engine(mut self, engine: Arc<edgequake_query::QueryEngine>) -> Self {
+        self.query_cache_invalidator = Some(engine);
         self
     }
 

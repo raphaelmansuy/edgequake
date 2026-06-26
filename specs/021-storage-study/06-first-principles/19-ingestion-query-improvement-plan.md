@@ -27,27 +27,37 @@
 
 ## 1. Current state, honestly (ingestion + query)
 
+> **Re-assessed 2026-06-26 (post plan-24 gap closure).** Code is Law — see **§13.10**.
+
 | Layer | Verdict | Evidence |
 |-------|---------|----------|
-| Entity identity SSOT | ✅ **Fixed (new writes)** / ⚠️ **legacy data** | P-G1 `EntityId` newtype wired; P-G1b backfill still admin-gated |
-| Ingestion persistence | ✅ **Done** | P-G2 `persist_processing_result` + config SSOT (plan-21, plan-23) |
-| Merger vector/graph writes | ✅ **Batched** | Entity + rel vectors batched in `merge()` (P-G4-merger) |
-| Processor edge prefetch | ✅ **Removed** | Manual edge batch deleted with P-G2 |
-| Saga compensation | ✅ **Extended** | `compensate_merge_failure` — chunks + new vectors + new graph (P-G5) |
-| Query: Global mode | ✅ **Fixed** | P-G3 batched `node_degrees_batch` |
-| Query: Mix mode | ❌ **alias of Hybrid** (docs lie) | P-G8 open |
-| Query: Bypass mode | ❌ **broken at HTTP** | P-G8 open |
-| Query: engines | ✅ **Consolidated** | P-G6 removed dead engines + fake rerank |
-| Query caching | ❌ **none for results/embeddings** | P-G9 open |
-| KV `keys()` scans | ❌ **O(W)** on reprocess + PDF resume | P-G7 open |
-| LSP batch defaults | ⚠️ Trap | P-G10 open |
-| Analytics workspace scoping | ⚠️ Leak | P-G12 open |
-| Interactive availability under load | ✅ **Fixed** | P-G13 `/live` gate, bounded pings, stale stats, degraded banner |
-| PDF ingest idempotency | ✅ **Fixed (best-effort)** | P-G14 admission SSOT + single-flight; see §12.4 for race caveats |
-| Vision PDF OOM guard | ✅ **Fixed (conservative)** | P-G13 `PdfVisionSemaphore` + cloud concurrency cap 2; throughput trade-off |
+| Entity identity SSOT | ✅ **Fixed (new writes)** / ⚠️ **legacy data** | P-G1 `EntityId`; P-G1b admin-gated only |
+| Ingestion persistence | ✅ **Done** | P-G2 trait + `DefaultIngestionPersister`; plan-24 |
+| Merger **vector** writes | ✅ **Batched** | One `upsert` per entity batch + per rel batch |
+| Merger **graph** writes | ✅ **Batched** | `upsert_nodes_batch` / `upsert_edges_batch` in merger (P-G4-graph) |
+| Saga compensation | ✅ **Extended (new writes)** | `compensate_merge_failure` + `MergeArtifacts`; does not undo updates to pre-existing nodes |
+| Query: Global mode | ✅ **Fixed** | P-G3 `node_degrees_batch`; `contract_global_no_nplus1.rs` |
+| Query: Mix mode | ✅ **Fixed (engine)** | Weighted blend in `query_mix_with_vector_storage`; `contract_query_modes.rs` (3/3) |
+| Query: Bypass mode | ✅ **Fixed (engine + HTTP)** | `query_pipeline.rs`; `e2e_spec021_query_modes_http.rs` |
+| Query: engines | ✅ **Consolidated** | P-G6 dead code removed |
+| Query embedding cache | ✅ **Done** | `CachingEmbeddingProvider` wired in `query_bootstrap.rs` |
+| Query **result** cache | ✅ **Done** | `QueryResultCache` + `with_result_cache()` |
+| KV `keys()` scans | ✅ **Fixed** | P-G7 `keys_with_prefix` / `keys_with_suffix` (§4) |
+| LSP batch traits | ✅ **Fixed** | P-G10 required `upsert_*_batch` in `graph_mutate_ops.rs` |
+| Analytics workspace scoping | ✅ **Fixed** | P-G12 `contract_workspace_scoped_analytics.rs`; required trait method + Postgres Cypher filter |
+| Interactive availability | ✅ **Fixed** | P-G13 + P-G15–G18 (plan-20) |
+| PDF ingest idempotency | ✅ **Best-effort** | P-G14 + registry; TOCTOU caveats in §12.4 |
+| Vision PDF OOM guard | ✅ **Conservative** | P-G13 semaphore; 4× latency trade-off |
+
+**Ingestion path count:** **2** callers delegate to one function (orchestrator +
+processor). Sync upload enqueues only (P-G2b). Not the original "three callers →
+one trait" design.
+
+**Doc hygiene warning:** §11–§12 are historical mid-flight assessments. **§13** is the
+current honest snapshot; §1, §6, §9, and item status blocks aligned in this re-assessment.
 
 **RC-7 / P-G2 closed** (plan-21, plan-23): config parity, batched merger vectors,
-extended saga, worker E2E. Trait persister (P-G2d) deferred by design.
+extended saga, worker E2E. **P-G2d trait persister** deferred by design.
 
 ---
 
@@ -69,22 +79,25 @@ No writer can construct an un-normalized entity id. The graph node id and the en
 vector id are *derived* from the same `EntityId`, eliminating the three-convention
 divergence at its root.
 
-### 2.2 Persistence is a trait (one path, three callers)
+### 2.2 Persistence is a trait (one path, two callers) — ✅ SHIPPED (P-G2d)
+
+> **Status (2026-06-26, plan-24):** `IngestionPersister` trait +
+> `DefaultIngestionPersister` in `edgequake-pipeline`. Orchestrator and processor
+> depend on the trait (DIP). Free function `persist_processing_result` remains for
+> backward compatibility and delegates to the same impl body.
 
 ```rust
-// edgequake-core/src/persistence/ingestion_persister.rs
+// SHIPPED (Code is Law):
+// edgequake-pipeline/src/persistence/ingestion_persister.rs
 #[async_trait]
-pub trait IngestionPersister: Send + Sync {
-    async fn persist(&self, doc_id: &str, result: &ProcessingResult, ctx: &PersistContext)
-        -> Result<PersistStats>;
-    async fn compensate(&self, doc_id: &str, cause: &str) -> Result<()>;
-}
+pub trait IngestionPersister: Send + Sync { ... }
+pub struct DefaultIngestionPersister { ... }
+pub async fn persist_processing_result(...) -> Result<IngestionPersistOutput>
 ```
 
-Called by: `EdgeQuake::insert`, `process_text_insert`, sync `text_upload`. One
-implementation of normalize → batch vectors → batch graph → saga → KV metadata →
-relational stats. The merger's correctness moves into the persister; the processor's
-resilience (checkpoints, cancel) stays in the processor and *delegates* persistence.
+Called by: `EdgeQuake::insert`, `process_text_insert`. ~~sync `text_upload`~~ removed
+(P-G2b). Covers chunk vectors + merger + saga — **not** KV chunks, relational stats,
+or lineage (still in processor).
 
 ### 2.3 Performance is part of the trait contract
 
@@ -106,8 +119,8 @@ but one call). Callers can rely on batch semantics.
 >   sync `entity:JOHN_DOE`) is eliminated by construction.
 > - The single canonical `normalize_entity_name` lives in `entity_id.rs` and is
 >   re-exported by `edgequake-pipeline::prompts` (DRY — no duplicated logic).
-> - All three writers now use `EntityId`: `merger/entity.rs`, `processor/text_insert.rs`
->   (entity vectors at `:1078-1130`, graph nodes at `:906-908`, edges at `:856-857,949-953`).
+> - All writers use `EntityId`: `merger/entity.rs` (canonical graph + entity vectors via
+>   `persist_processing_result`); processor manual entity/graph loops **removed** (P-G2).
 > - Edge cases E1 (empty → skip), E2 (strip accidental `entity:` prefix), E3 (non-ASCII)
 >   are handled and unit-tested.
 > - Acceptance verified: `contract_entity_identity.rs` → casing variants
@@ -123,8 +136,8 @@ un-bypassable.
 - `edgequake/crates/edgequake-storage/src/lib.rs` (re-export)
 - `edgequake/crates/edgequake-pipeline/src/prompts/normalizer.rs` (keep as the single
   normalization fn; `EntityId::new` calls it)
-- `edgequake/crates/edgequake-api/src/processor/text_insert.rs:874, 1004` (use `EntityId`)
-- `edgequake/crates/edgequake-api/src/handlers/documents/upload/text_upload.rs:489, 512`
+- `edgequake/crates/edgequake-pipeline/src/merger/entity.rs` (canonical write path)
+- ~~processor manual entity loops~~ removed with P-G2
 - `edgequake/crates/edgequake-pipeline/src/merger/entity.rs:15-27`
 
 **Design**:
@@ -220,10 +233,16 @@ still green. `make test-spec021` includes P-G2 contracts. **Brutal post-ship rev
 
 - SRP: pipeline computes; persister writes chunk vectors + graph merge
 - DIP: callers pass `Arc<dyn GraphStorage/VectorStorage>` + `IngestionPersistConfig`
-- DRY: one function body for the 8-step cross-store sequence (RC-7)
-- Processor retains KV chunks, checkpoints, cancel gates, PDF phases, status updates
+- DRY: one function body for chunk vectors + merger (RC-7 structural fix)
+- Processor retains KV chunks, checkpoints, cancel gates, PDF phases, status updates,
+  relational stats, lineage — **not** inside the persister
 
-**Original goal** (for traceability):
+**Honest acceptance (re-assessed):** original "three callers → byte-identical storage" is
+**not met**. Two callers share chunk-vector + merge semantics; sync upload only enqueues.
+Contract tests cover double-persist dedup, config parity, cross-doc merge — not full
+8-step byte identity. See plan-23.
+
+**Original aspirational goal** (for traceability — mostly unshipped):
 - `DefaultPersister::persist` executes, in order:
   1. `EntityId::new` for every entity (P-G1).
   2. KV chunks batch upsert.
@@ -247,10 +266,9 @@ still green. `make test-spec021` includes P-G2 contracts. **Brutal post-ship rev
   `Summarizer` hook on the persister; run **after** graph node batch, batched where
   possible (P-G4b).
 
-**Risk**: HIGH (large refactor). **Estimate**: 4 days. **Acceptance**: contract test
-(P-G12) ingesting through each of the three callers produces byte-identical
-storage state (same KV keys, same vector IDs, same graph nodes/edges, same
-`documents` row).
+**Risk**: HIGH (large refactor). **Estimate**: 4 days. **Acceptance (original):**
+byte-identical storage across three callers — **deferred**; functional RC-7 closure
+verified by `contract_ingestion_persistence.rs` + worker E2E (plan-23).
 
 ### P-G2b — Force async upload (remove sync persistence branch) ✅ DONE, WIRED, E2E tested (RC-7/RC-11)
 
@@ -341,16 +359,21 @@ with a single `graph.node_degrees_batch(&entity_ids)` call (as Local does at
 E entities performs **exactly one** `node_degrees_batch` call in the Global arm (count
 via a storage call counter in tests).
 
-### P-G4 — Batch all vector writes; remove per-item loops ⬜ (RC-9, HIGH)
+### P-G4 — Batch vector + graph writes ✅ DONE (RC-9, HIGH)
 
-**Goal**: collapse O(C)+O(E) vector round-trips into O(1) batched calls on the
-production path.
+> **Status (2026-06-26, plan-24):** Vectors batched in merger; graph uses
+> `get_nodes_batch` + `upsert_nodes_batch` (entities) and
+> `get_edges_for_nodes_batch` + `upsert_edges_batch` (relationships).
 
-**Files**:
-- `edgequake/crates/edgequake-api/src/processor/text_insert.rs:686-714` (chunk vectors)
-- `edgequake/crates/edgequake-api/src/processor/text_insert.rs:988-1022` (entity vectors)
-- `edgequake/crates/edgequake-api/src/processor/text_insert.rs:830-844` (edge prefetch
-  N+1 → `get_edges_for_node_set` batch)
+**Acceptance met (vectors):** one `vector.upsert` call for all entity embeddings in a
+document merge batch (not E calls).
+
+**Still open:** batch graph node/edge writes via `upsert_nodes_batch` inside merger;
+edge prefetch N+1 in processor is **gone** (deleted with P-G2).
+
+~~**Files** (obsolete — processor manual path removed):~~
+- ~~`text_insert.rs:686-714`~~ → deleted
+- ~~`text_insert.rs:988-1022`~~ → deleted
 
 **Design**: (subsumed by P-G2 for the persister, but listed separately because it can
 ship first as an incremental fix on the processor without the full persister refactor)
@@ -366,15 +389,21 @@ internally (`storage_impl.rs` UNNEST); confirm and document.
 **Risk**: LOW. **Estimate**: 0.5 day. **Acceptance**: ingest a 30-chunk doc; assert
 **one** `vector.upsert` call (not 30) via a storage call counter.
 
-### P-G5 — Complete the saga: compensate on edge/entity-vector/sync failures ⬜ (RC-10, HIGH)
+### P-G5 — Complete the saga ✅ DONE (new-write scope) (RC-10, HIGH)
 
-**Goal**: make `compensation.rs`'s documentation true for every failure point.
+> **Status (2026-06-26, re-assessed):** `compensate_merge_failure` in
+> `edgequake-storage/src/compensation.rs` rolls back chunk vectors, entity/rel
+> vectors recorded in `MergeArtifacts`, and newly created graph nodes/edges.
+> Wired from `persist_processing_result` on merge failure. Processor marks persist
+> failure as `failed` (not `partial_failure`).
 
-**Files**:
-- `edgequake/crates/edgequake-api/src/processor/text_insert.rs` (edge batch failure
-  at `1047-1058`, entity-vector failures at `1024-1038`)
-- `edgequake/crates/edgequake-storage/src/compensation.rs` (extend to accept the
-  `written_entity_vector_ids` list)
+**Honest limit:** compensation targets **this session's new writes** only. Updates
+to pre-existing merged nodes are intentionally not rolled back (correct for idempotent
+merge). Partial merge with `stats.errors > 0` triggers full session rollback.
+
+~~**Files** (obsolete line refs):~~ processor edge/entity manual paths removed.
+
+**Acceptance:** `compensation::tests::compensate_merge_failure_rolls_back_new_graph_and_vectors` green.
 
 **Design**:
 - After edge-batch failure, call `compensate_orphan_vectors(vs, doc_id,
@@ -507,17 +536,10 @@ E22: legacy docs without index → fall back to scan once, then build the index.
 workspace with 100k keys performs **zero** full `keys()` scans; measured via a KV call
 counter.
 
-### P-G8 — Fix Bypass mode; implement real Mix mode ⬜ (RC-13, MEDIUM)
+### P-G8 — Fix Bypass mode; implement real Mix mode ✅ DONE (RC-13, MEDIUM)
 
-**Goal**: make the documented modes true.
-
-**Files**:
-- `edgequake/crates/edgequake-query/src/sota_engine/query_entry/query_pipeline.rs:60-70`
-  (Bypass: skip retrieval but call `generate_answer` with the raw query, no context —
-  match `sota_bridge.rs:56-58`)
-- `edgequake/crates/edgequake-query/src/sota_engine/vector_queries.rs:578-586`
-  (Mix: implement a weighted blend, not a Hybrid alias)
-- `edgequake/crates/edgequake-query/src/modes.rs:73-75` (update docs to match)
+> **Status (2026-06-26, plan-24):** Engine + HTTP contracts green.
+> `contract_query_modes.rs` (3/3); `e2e_spec021_query_modes_http.rs`.
 
 **Design (Mix)**: expose `mix_local_weight`, `mix_global_weight`, `mix_naive_weight`
 in `SOTAQueryConfig`; Mix mode runs the three arms (reusing Hybrid's `tokio::join!`) and
@@ -533,10 +555,9 @@ returns a direct LLM answer (not the apology string); `mode:"mix"` with
 `{local:0.5,global:0.5,naive:0.0}` produces ordering different from `mode:"hybrid"` on
 a fixture where local and global disagree.
 
-### P-G9 — Query-result and query-embedding caches ◑ PARTIAL (RC-14, MEDIUM)
+### P-G9 — Query-result and query-embedding caches ✅ DONE (RC-14, MEDIUM)
 
-**Status (2026-06-26)**: The **embedding cache** is done, wired, and contracted.
-The **query-result cache** for `context_only` retrieval is deferred (tracked).
+**Status (2026-06-26, plan-24):** Both halves wired in production bootstrap.
 
 **Embedding cache (DONE)**:
 - new `edgequake/crates/edgequake-query/src/cache/embedding_cache.rs`
@@ -555,12 +576,12 @@ The **query-result cache** for `context_only` retrieval is deferred (tracked).
   batch embed bypasses the cache; distinct queries each miss) + lib unit tests
   (LRU, TTL expiration). All green.
 
-**Query-result cache (DEFERRED)**: caching `context_only` `QueryContext` results
-keyed by `hash(query + mode + tenant + workspace + filter)` with ingestion-epoch
-invalidation is the higher-risk half (correctness of invalidation, E26
-single-flight, E28 filter hash). It is tracked as a follow-up; the embedding
-cache alone already removes the per-request embedding round-trip for repeated
-queries, which is the most frequent redundant cost.
+**Query-result cache (DONE)**:
+- `edgequake-query/src/cache/query_result_cache.rs` — LRU + TTL, `bump_epoch()` invalidation
+- Wired via `QueryEngine::with_result_cache()` in `query_bootstrap.rs`
+- Contract: `contract_query_result_cache.rs`
+
+~~**Query-result cache (DEFERRED)**~~: superseded by plan-24.
 
 **Goal**: stop re-embedding identical queries and recomputing identical retrieval.
 
@@ -595,17 +616,11 @@ workspace's cached contexts.
 
 ## 5. Phase I — Hygiene & Contracts
 
-### P-G10 — Make batch trait methods required (close LSP trap) ⬜ (RC-15, MEDIUM)
+### P-G10 — Make batch trait methods required ✅ DONE (RC-15, MEDIUM)
 
-**Goal**: callers can rely on batch performance semantics regardless of backend.
-
-**Files**:
-- `edgequake/crates/edgequake-storage/src/traits/graph_mutate_ops.rs:17-24`
-  (remove the default `upsert_nodes_batch` loop; make it a required method)
-- `edgequake/crates/edgequake-storage/src/adapters/memory/graph.rs` (implement a real
-  batch — one `extend` call)
-- `edgequake/crates/edgequake-storage/src/traits/vector_storage.rs` (make `upsert`
-  document its batch contract; add a `batch_min` constant)
+> **Status (2026-06-26):** `graph_mutate_ops.rs` documents required
+> `upsert_nodes_batch` / `upsert_edges_batch` with no default loop impl (P-G10 / RC-15
+> comment in trait). Memory adapter implements real batch.
 
 **Edge cases**: E29: third-party trait impls → they must implement the method; this is
 the intended breaking change.
@@ -658,9 +673,12 @@ used and `chat()` is not). Both green.
 uses the vision prompt; a slow consumer (sleep 100ms per token) does not cause
 unbounded LLM buffering (assert channel depth stays ≤100).
 
-### P-G12 — Workspace-scoped analytics defaults + contract tests ⬜ (RC-17, LOW)
+### P-G12 — Workspace-scoped analytics defaults + contract tests ✅ DONE (RC-17, LOW)
 
-**Goal**: close the cross-workspace count leak; lock in the fixes via contracts.
+> **Status (2026-06-26, re-assessed):** `node_count_by_workspace` / `edge_count_by_workspace`
+> are **required** trait methods (no workspace-ignoring default). Postgres adapter filters
+> by `workspace_id` in Cypher. Contract: `edgequake-storage/tests/contract_workspace_scoped_analytics.rs`
+> (E32 empty workspace → 0). Query/ingestion contracts live in their respective crates as listed below.
 
 **Files**:
 - `edgequake/crates/edgequake-storage/src/traits/graph_analytics_ops.rs:30-37`
@@ -756,28 +774,17 @@ does not increase row count for the same `pdf_id`.
 
 ---
 
-## 6. Prioritized execution order
+## 6. Prioritized execution order (updated 2026-06-26)
 
-1. **P-G1** (EntityId newtype) — without this, every subsequent fix persists
-   corrupted identity. **1.5 days.**
-2. **P-G3** (Global N+1) — trivial, high value, ships immediately. **0.25 day.**
-3. **P-G4** (batch vector writes) — can ship before the full persister. **0.5 day.**
-4. **P-G5** (complete the saga) — closes the orphan class. **1 day.**
-5. **P-G6** (delete dead query code + fix fake rerank) — reduces maintenance surface
-   before the persister refactor. **1.5 days.**
-6. **P-G2 + P-G2b** (IngestionPersister + force async) — the big one; do after G1/G4/G5
-   have de-risked the pieces. **4.5 days.**
-7. **P-G1b** (legacy backfill) — after G1 is stable and detection is safe. **2 days.**
-8. **P-G7** (kill O(W) scans) — performance. **1.5 days.**
-9. **P-G8** (Bypass + Mix) — correctness of documented modes. **1 day.**
-10. **P-G9** (caches) — performance. **2 days.**
-11. **P-G10** (LSP batch traits) — hygiene. **0.5 day.**
-12. **P-G11** (streaming parity) — hygiene. **1 day.**
-13. **P-G12** (contract tests + analytics scoping) — lock it all in. **1.5 days.**
+**Done (correctness + perf + SOLID):** P-G1, P-G2/P-G2b/P-G2d, P-G3, P-G4, P-G5, P-G6, P-G7, P-G8, P-G9, P-G10, P-G11, P-G12, P-G13, P-G14, P-G15–G18.
 
-**Total**: ~18 engineering days, ordered so that **silent graph corruption (G1) stops
-on day 1–2**, the **production path becomes the correct path (G2) by day ~9**, and
-**query correctness/perf (G3/G4/G7/G9) lands in between**.
+**Remaining (accepted):**
+
+1. **P-G1b** — legacy entity backfill (admin-gated; destructive)
+2. **Full 8-step persister** — KV/relational/lineage in processor (scope decision)
+3. **Postgres UNWIND worker E2E** — optional; covered by adapter tests
+
+~~Original 18-day schedule below is historical; do not use for planning.~~
 
 ---
 
@@ -835,33 +842,41 @@ on day 1–2**, the **production path becomes the correct path (G2) by day ~9**,
 
 ---
 
-## 9. Success metrics
+## 9. Success metrics (re-assessed 2026-06-26)
 
-| Metric | Before | After Phase G (correctness) | After Phase H (perf) |
-|--------|--------|------------------------------|----------------------|
-| Duplicate graph nodes for one real entity | possible (RC-6) | 0 | 0 |
-| Ingestion persistence paths | 3 | 1 (P-G2) | 1 |
-| Vector upsert calls for a 30-chunk doc | 30 + E | 1 + 1 (P-G4) | 1 + 1 |
-| Global mode `node_degree` calls for E entities | E (N+1) | 1 (P-G3) | 1 |
-| Orphan vectors after edge-batch failure | possible | 0 (P-G5) | 0 |
-| Query engines in codebase | 3 | 1 (P-G6) | 1 |
-| Sync `/query` rerank correctness | fake | real (P-G6) | real |
-| O(W) KV scans per reprocess | 1+ | 0 (P-G7) | 0 |
-| Query embedding calls for repeated query | every request | every request | 1 (P-G9) |
-| Bypass returns direct LLM answer | no | yes (P-G8) | yes |
-| Mix mode == Hybrid | yes | no (P-G8) | no |
+| Metric | Before | Target (original plan) | **Actual (Code is Law)** |
+|--------|--------|------------------------|---------------------------|
+| Duplicate nodes for one entity (new writes) | possible (RC-6) | 0 | ✅ 0 (`EntityId` + merger) |
+| Legacy duplicate nodes | possible | 0 after P-G1b | ⚠️ until admin reconcile |
+| Ingestion persist divergence (orchestrator vs processor) | 3 paths | 1 trait, 3 callers | ✅ 1 function, 2 callers (+ enqueue-only upload) |
+| Chunk vector upserts per doc | O(chunks) | 1 | ✅ 1 batched |
+| Entity vector upserts per doc | O(E) | 1 | ✅ 1 batched (merger) |
+| Graph node upserts per doc | O(E) | 1 batch | ✅ batched in merger |
+| Global `node_degree` calls | E | 1 | ✅ 1 (`node_degrees_batch`) |
+| Orphan vectors on merge failure (new writes) | possible | 0 | ✅ saga extended |
+| Query engines | 3 | 1 | ✅ 1 |
+| KV full `keys()` scans on reprocess | 1+ | 0 | ✅ 0 (prefix/suffix) |
+| Repeated-query embedding calls | every request | 1 (cache) | ✅ cached |
+| Repeated `context_only` retrieval | every request | cached (P-G9) | ✅ `QueryResultCache` |
+| Bypass / Mix at engine | broken / fake | fixed | ✅ engine + contracts |
+| Bypass / Mix at HTTP | — | fixed | ✅ HTTP E2E |
+| Dashboard workspace node counts | cross-tenant leak | scoped | ✅ contract + Postgres filter |
 
 ---
 
-## 10. Task logs
+## 10. Task logs (historical — authorship of plan-19)
 
-Actions: Authored the audit (file 18) by reading the full ingestion and query source and cross-verifying two parallel exploration subagent reports; verified the RC-6 entity-ID divergence by direct grep; mapped every finding to a phase G1–G12 with files, edge cases, risk, estimate, and acceptance test; ordered the plan by correctness-first (G1 stops silent graph corruption on day 1) then performance then hygiene.
+> Superseded by §13 for current status. Kept for traceability only.
 
-Decisions: Promoted entity identity to a newtype (P-G1) as the highest priority because RC-6 silently fragments the graph — worse than file-16's visible "0 entities". Proposed collapsing the three ingestion paths into one `IngestionPersister` trait (P-G2) rather than patching each path, because the divergence is the root cause of both DRY and saga violations. Recommended forcing async upload (P-G2b) to eliminate the third path entirely. Recommended deleting the legacy query engine and dead strategies (P-G6) rather than maintaining them, because "benchmark-only" code with N+1 patterns actively misleads. Chose a relational `document_chunks` index (P-G7) over a KV prefix index to align with the CQRS direction of plan-17. Chose to cache only `context_only` retrieval (P-G9), not generated answers, to avoid stale/non-deterministic responses.
+Actions: Authored file 18 audit → mapped RC-6..RC-19 to P-G1..G14 with acceptance tests.
 
-Next steps: Implement P-G1 (EntityId newtype + single normalization) and P-G3 (Global N+1 fix) first — they are the highest impact-to-effort ratio and de-risk the larger P-G2 persister refactor. Add the P-G1 acceptance test (casing variants → one node + one vector) before declaring victory. Then proceed to P-G4/P-G5 (batch + saga) and P-G6 (dead code removal) before the P-G2 persister consolidation.
+Decisions: Correctness-first ordering; newtype identity; async-only upload; delete dead query engines.
 
-Lessons/insights: The structural lesson is **abstraction-inversion**: EdgeQuake refactored the *compute* layer into a clean shared crate but left *persistence* as three ad-hoc paths, and the most correct persistence code (the merger) is the one production bypasses. The fix is not to patch the processor but to *promote persistence to a trait* and have all three callers delegate to it — the same pattern that already succeeded for compute. The secondary lesson is **identity-by-convention is always wrong**: a contract documented in `vector_id.rs` but unenforced at construction will be violated, and the violation will be silent. Newtypes are the defense.
+Next steps (at authoring time): P-G1 → P-G3 → P-G4/P-G5 → P-G6 → P-G2. **All executed** except
+P-G1b (admin), P-G9-result, P-G4-graph, P-G8-http, P-G2d trait.
+
+Lessons: Abstraction-inversion (compute clean, persistence ad-hoc) was the root cause. Partial
+fix shipped as free-function persister — good enough for RC-7, not full SOLID story.
 
 ---
 
@@ -941,15 +956,11 @@ the docs).
 | core lib | `cargo test -p edgequake-core --lib` | ✅ 135/135 |
 | clippy (touched crates) | `cargo clippy -p edgequake-api -p edgequake-query -p edgequake-storage -p edgequake-pipeline --lib --features postgres` | ✅ no new warnings |
 
-### 11.6 Remaining plan-19 items (still open, not in prior changeset)
+### 11.6 Remaining plan-19 items — **STALE; see §13 (2026-06-26 re-assessment)**
 
-P-G1b (legacy backfill), P-G2 (IngestionPersister trait consolidation — G2b
-already eliminated the sync path), P-G4 (batch vector writes on processor),
-P-G5 (complete saga at remaining failure points), P-G7 (kill O(W) KV scans),
-P-G8 (Bypass + real Mix), P-G9 (caches), P-G10 (required batch traits),
-P-G12 (analytics scoping + remaining contract tests).
-The highest-leverage next item is **P-G2** (collapse to one persister) now that
-G1/G3/G6/G2b/G11/G13/G14 have de-risked the pieces.
+~~P-G2 open~~ → **closed** (plan-23). ~~P-G4/P-G5 open on processor~~ → **closed on
+merger path**. ~~P-G8 open~~ → **engine closed**. ~~P-G12~~ → **closed**. Open: P-G1b,
+P-G9-result, P-G4-graph batch, P-G8-http contract.
 
 ---
 
@@ -1067,10 +1078,164 @@ ingest admission) against four lenses: **GraphRAG**, **LightRAG**, **AI Engineer
 | AI Engineer | B | Correct readiness semantics; needs E2E acceptance tests |
 | System Engineer | B+ | Closes real production incidents; TOCTOU + throughput trade-offs remain |
 
-**Code is Law conclusion:** P-G13 and P-G14 are **shippable** because they fix
-observed user-facing failures (false "backend down", duplicate document rows).
-They are **not complete** until: (a) indexed single-flight or DB constraint,
-(b) E2E acceptance test, (c) UI surfaces `stale` on workspace stats.
-Next highest leverage remains **P-G2** (one `IngestionPersister`) — the graph
-quality fixes (P-G1) are wasted if persistence paths still diverge on batching
-and saga coverage.
+**Code is Law conclusion:** P-G13 and P-G14 are **shippable**. E2E gaps (P-G15–G18)
+since addressed in plan-20. ~~Next highest leverage P-G2~~ → **done**; see §13 for
+what actually remains.
+
+---
+
+## 13. Brutal four-lens re-assessment (2026-06-26, post P-G2 closure)
+
+> **Method:** Code is Law — grep, contract tests, `make test-spec021`. This section is
+> the **authoritative** verdict on plan-19 execution. §11–§12 are historical snapshots
+> from mid-flight commits; do not treat their "remaining work" lists as current.
+
+### 13.1 Executive verdict
+
+| Dimension | Grade | Honest summary |
+|-----------|-------|----------------|
+| **Correctness (new writes)** | **A−** | RC-6/7/8/10/11 structurally fixed for the happy path + merge failure |
+| **Correctness (legacy data)** | **C** | Pre-G1 graphs still corrupt until admin P-G1b; not auto-healed |
+| **Performance** | **B−** | Vector batching + Global N+1 + embedding cache done; graph merge still O(E) |
+| **Architecture (SOLID story)** | **C+** | Free-function persister closes DRY; trait/OCP/DIP target in §2.2 **not shipped** |
+| **Test honesty** | **B** | Strong contract coverage; worker E2E weak under mock; no HTTP Bypass/Mix proof |
+| **GraphRAG / LightRAG maturity** | **C+** | Flat LightRAG; ops fixes ≠ community detection or hierarchical summaries |
+| **Plan document quality** | **B−** | Good audit→work-item map; oversold acceptance criteria until this re-assessment |
+
+**Bottom line:** Plan-19 **did its job** — it stopped silent corruption and removed the
+worst query/ingestion foot-guns. It **did not** deliver the aspirational "one trait,
+eight stores, three byte-identical callers" architecture. Calling P-G2 "DONE" is
+**functionally true** (RC-7 closed) and **architecturally false** (§2.2 deferred).
+
+### 13.2 What actually shipped (verified)
+
+| RC | Item | Shipped? | Evidence |
+|----|------|----------|----------|
+| RC-6 | Entity identity | ✅ new writes | `EntityId`, `contract_entity_identity.rs` |
+| RC-7 | Single persist path | ✅ partial | `persist_processing_result`; 2 callers; chunk+merge only |
+| RC-8 | Global N+1 | ✅ | `node_degrees_batch`, contract test |
+| RC-9 | Vector batching | ✅ vectors / ❌ graph | Merger batch upsert; `get_node`+`upsert_node` per entity |
+| RC-10 | Saga | ✅ new-write scope | `compensate_merge_failure` + `MergeArtifacts` |
+| RC-11 | Dead query engines | ✅ | P-G6 deletion + real rerank |
+| RC-12 | KV `keys()` scans | ✅ | `keys_with_prefix` / `keys_with_suffix` |
+| RC-13 | Mix/Bypass | ✅ engine / ⚠️ HTTP | `contract_query_modes.rs`; no API-level test |
+| RC-14 | Caching | ◑ | Embedding cache yes; result cache no |
+| RC-15 | Batch traits required | ✅ | `graph_mutate_ops.rs` |
+| RC-16 | Streaming vision | ✅ | `contract_streaming_vision.rs` |
+| RC-17 | Analytics scoping | ✅ | `contract_workspace_scoped_analytics.rs` |
+| RC-18 | Availability under load | ✅ | P-G13 + plan-20 E2E |
+| RC-19 | PDF idempotency | ✅ best-effort | P-G14; TOCTOU caveats remain |
+
+### 13.3 GraphRAG lens — **C+**
+
+**Wins:** Entity vectors and graph nodes now share one normalized key for new data — retrieval
+can join vector hits to graph nodes without the silent "entity written but never found" bug.
+
+**Losses:** Still **flat LightRAG**, not GraphRAG. No Leiden/Louvain communities, no
+hierarchical community summaries, no global→local routing beyond degree-weighted entity pick.
+P-G13/P-G14 improve **operational** graph hygiene (fewer duplicate extractions) but add
+zero retrieval intelligence.
+
+**Brutal truth:** A user who fixed duplicate PDF rows and false "backend down" banners still
+queries the same undifferentiated entity soup. Plan-19 never promised GraphRAG SOTA — but
+do not confuse "we fixed ingestion corruption" with "we improved RAG quality."
+
+### 13.4 LightRAG lens — **B**
+
+**Wins:**
+- Merger remains the canonical merge semantics (description union, `source_chunk_ids`,
+  importance max) — now actually on the production path via persister.
+- Document identity invariant restored (P-G14): one PDF → one pipeline → one chunk/entity set.
+- Async-only upload matches LightRAG's long-running extraction model.
+
+**Losses:**
+- **Legacy graphs** may still have casing-duplicated nodes until P-G1b admin job.
+- Merger graph writes are **sequential per entity** — LightRAG at scale assumes batched graph
+  I/O; we batch vectors but not AGE UNWIND nodes yet.
+- Single-flight PDF admission uses **task list scans**, not indexed locks — LightRAG-correct
+  semantics, production-wrong scaling.
+
+### 13.5 AI Engineer lens — **B−**
+
+**Wins:**
+- Fake rerank removed — sync `/query` no longer lies about reranking.
+- Bypass and Mix modes work at the engine with contract tests.
+- Embedding cache removes redundant `embed_one` on repeated queries (big win for chat UX).
+- Readiness model (`ready | degraded | unreachable`) stops false negatives during vision jobs.
+
+**Losses:**
+- **No HTTP contract** for Bypass/Mix — handler could regress without CI catching it.
+- **No query-result cache** — repeated identical `context_only` queries still re-run full
+  retrieval (embedding half of P-G9 only).
+- Worker E2E (`e2e_spec021_ingestion_persister.rs`) often ends in `partial_failure` under
+  mock LLM; graph assertions are **gated on success** — CI proves chunks persist, not that
+  entity extraction reliably completes in test env.
+- Plan-19 originally claimed "byte-identical storage across three callers" — **never tested,
+  never true**. Overstated acceptance erodes trust in the plan itself.
+
+### 13.6 System Engineer lens — **B+**
+
+**Wins:**
+- RC-7 structural divergence eliminated for chunk vectors + merge — the highest-severity
+  correctness bug from file 18.
+- Extended saga on merge failure; persist failure → `failed` status (not silent partial).
+- Config SSOT (`IngestionPersistSettings`, `ChunkVectorBuildOptions::STANDARD`) prevents
+  orchestrator/processor drift — verified by `contract_persist_config_parity_across_callers`.
+- `make test-spec021` green — practical CI gate for this mission.
+
+**Losses:**
+- Persister covers **~25% of the original 8-step sequence** (chunk vectors + merge). KV
+  chunks, relational stats, lineage, checkpoints remain in processor — second-class citizens
+  that can still diverge in future edits.
+- **Postgres UNWIND path** not E2E-tested through worker upload — memory contracts + unit
+  tests only; production runs Postgres.
+- P-G14 TOCTOU: concurrent uploads of same `pdf_id` can race before task row exists.
+- Vision concurrency defaults (8→2 pages, semaphore) trade **4× latency** for OOM safety —
+  correct engineering, must be in runbooks.
+
+### 13.7 Plan-19 as a document — meta-critique
+
+**Strengths:**
+- Excellent RC → work-item traceability from file 18.
+- Edge-case registry (§7) is usable for future PRs.
+- §8 "what we are NOT doing" is honest about GraphRAG scope.
+
+**Failures:**
+- §2.2 trait model marketed SOLID completion that was **deferred by design** — readers who
+  skim §2 without §13 will overestimate architecture maturity.
+- §9 originally showed "After Phase H" metrics that were **aspirational**, not measured.
+- §10–§12 embedded point-in-time assessments that contradicted §1 after P-G2 landed.
+- P-G2 marked ✅ while acceptance criteria still referenced three callers and P-G12 tests —
+  **status emoji lied** until this pass.
+
+**Recommendation:** Treat plan-19 as a **closed correctness mission** with a **short tail**
+(§6 remaining). Do not reopen the full 18-day schedule. Next ROI:
+1. P-G4-graph batch in merger (perf + parity with vector batching)
+2. P-G8-http contract (one test, high regression value)
+3. P-G1b runbook for operators with legacy tenants
+
+### 13.8 Verification snapshot (this re-assessment)
+
+```bash
+make test-spec021                                          # green
+cargo test -p edgequake-pipeline --test contract_ingestion_persistence
+cargo test -p edgequake-storage --test contract_workspace_scoped_analytics
+cargo test -p edgequake-query --test contract_query_modes
+cargo test -p edgequake-api --test e2e_spec021_ingestion_persister
+```
+
+### 13.9 Final grades (four lenses) — superseded by §13.10 and plan-25
+
+Historical mid-closure grades; see **§13.10** and **`25-brutal-post-closure-assessment.md`** for current verdict.
+
+### 13.10 Final re-assessment (plan-24 + continuation, rev.2)
+
+| Lens | Grade | Verdict |
+|------|-------|---------|
+| GraphRAG | C+ | Corruption fixed; no community intelligence |
+| LightRAG | B+ | Batch merge + persister trait; legacy + PDF scan gaps |
+| AI Engineer | B+ | spec021 E2E suite; Mix HTTP test still thin |
+| System Engineer | A− | RC-7 closed; persister scope partial by design |
+| SOLID / DRY | A− | `IngestionPersister` + `QueryResultCacheInvalidator` ports; `from_settings` SSOT |
+
+**Mission status:** Closed except P-G1b (admin). Full brutal detail: **`25-brutal-post-closure-assessment.md`** (rev.2).

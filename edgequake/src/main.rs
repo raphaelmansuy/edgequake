@@ -583,7 +583,8 @@ async fn main() -> Result<()> {
     )
     .with_progress_broadcaster(state.tasks.progress_broadcaster.clone())
     .with_task_storage(Arc::clone(&state.tasks.storage) as edgequake_tasks::SharedTaskStorage)
-    .with_pdf_vision_semaphore(Arc::clone(&state.pdf_vision));
+    .with_pdf_vision_semaphore(Arc::clone(&state.pdf_vision))
+    .with_query_engine(Arc::clone(&state.query.engine_impl));
 
     info!(
         pdf_vision_jobs = state.pdf_vision.max_concurrent(),

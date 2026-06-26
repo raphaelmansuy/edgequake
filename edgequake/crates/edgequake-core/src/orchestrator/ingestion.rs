@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::{
-    ChunkVectorBuildOptions, GleaningConfig, GleaningExtractor, IngestionPersistConfig,
-    IngestionPersistContext, IngestionPersistSettings, LLMExtractor, persist_processing_result,
+    ChunkVectorBuildOptions, DefaultIngestionPersister, GleaningConfig, GleaningExtractor,
+    IngestionPersistContext, IngestionPersistSettings, IngestionPersister, LLMExtractor,
     Pipeline, PipelineConfig,
 };
 
@@ -298,13 +298,9 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
 
-        let persist_config = IngestionPersistConfig::from_settings(
-            IngestionPersistSettings {
-                use_llm_summarization: self.config.use_llm_summarization,
-            },
-            self.relational_sink.clone(),
-            Some(llm.clone()),
-        );
+        let persist_config = IngestionPersistSettings {
+            use_llm_summarization: self.config.use_llm_summarization,
+        };
 
         let persist_ctx = IngestionPersistContext::new(
             doc_id.clone(),
@@ -312,16 +308,22 @@ impl EdgeQuake {
             self.config.workspace_id.clone(),
         );
 
-        let persist_out = persist_processing_result(
+        let persister = DefaultIngestionPersister::from_settings(
             graph_storage.clone(),
             vector_storage.clone(),
-            &persist_config,
-            &persist_ctx,
-            &processing_result,
-            ChunkVectorBuildOptions::STANDARD,
-        )
-        .await
-        .map_err(|e| Error::internal(format!("Persistence failed: {}", e)))?;
+            persist_config,
+            self.relational_sink.clone(),
+            Some(llm.clone()),
+        );
+
+        let persist_out = persister
+            .persist(
+                &persist_ctx,
+                &processing_result,
+                ChunkVectorBuildOptions::STANDARD,
+            )
+            .await
+            .map_err(|e| Error::internal(format!("Persistence failed: {}", e)))?;
 
         let merge_stats = persist_out.merge_stats;
 

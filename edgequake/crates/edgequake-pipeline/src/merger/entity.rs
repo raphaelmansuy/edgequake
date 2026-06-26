@@ -7,7 +7,7 @@ use edgequake_storage::{EntityId, GraphNode, GraphStorage, VectorStorage};
 use crate::error::Result;
 use crate::extractor::{ExtractedEntity, ExtractionResult};
 
-use super::{merge_descriptions, metadata};
+use super::{merge_descriptions, metadata, MergeArtifacts, MergeStats};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Collect batched entity vector upserts for all extractions (P-G4-merger).
@@ -40,74 +40,138 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         batch
     }
 
-    /// Merge a single entity (graph only — vectors batched in `merge()`).
+    /// Merge entities with one `get_nodes_batch` + one `upsert_nodes_batch` (P-G4-graph).
+    pub(super) async fn merge_entities_batch(
+        &self,
+        entities: Vec<ExtractedEntity>,
+        stats: &mut MergeStats,
+    ) -> Result<()> {
+        if entities.is_empty() {
+            return Ok(());
+        }
+
+        let mut keys = Vec::new();
+        let mut valid = Vec::new();
+        for entity in entities {
+            let entity_id = EntityId::new(&entity.name);
+            if entity_id.is_empty() {
+                tracing::warn!(
+                    raw_name = %entity.name,
+                    "Skipping entity with empty normalized name"
+                );
+                continue;
+            }
+            keys.push(entity_id.as_graph_node_id().to_string());
+            valid.push(entity);
+        }
+
+        if valid.is_empty() {
+            return Ok(());
+        }
+
+        let existing_map = self.graph_storage.get_nodes_batch(&keys).await?;
+        let mut node_batch: Vec<(String, HashMap<String, serde_json::Value>)> =
+            Vec::with_capacity(valid.len());
+
+        for (entity, key) in valid.into_iter().zip(keys.iter()) {
+            match self
+                .build_entity_node_batch_entry(
+                    &entity,
+                    existing_map.get(key),
+                    &mut stats.artifacts,
+                )
+                .await
+            {
+                Ok((node_id, properties, is_new)) => {
+                    node_batch.push((node_id, properties));
+                    if is_new {
+                        stats.entities_created += 1;
+                    } else {
+                        stats.entities_updated += 1;
+                    }
+                    self.relational_sink
+                        .upsert_entity(
+                            key,
+                            &entity.entity_type,
+                            &entity.description,
+                            self.tenant_id.as_deref(),
+                            self.workspace_id.as_deref(),
+                            &entity.source_chunk_ids,
+                        )
+                        .await
+                        .unwrap_or_else(|e| {
+                            tracing::warn!(
+                                entity = %key,
+                                error = %e,
+                                "Relational entity sink failed (best-effort; graph write succeeded)"
+                            );
+                        });
+                }
+                Err(e) => {
+                    stats.errors += 1;
+                    tracing::warn!(
+                        error.source = "pipeline_merger",
+                        error.action = "merge_entity",
+                        error.message = %e,
+                        "Failed to merge entity"
+                    );
+                }
+            }
+        }
+
+        if !node_batch.is_empty() {
+            self.graph_storage.upsert_nodes_batch(&node_batch).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Merge a single entity (delegates to batch path for DRY).
     pub(super) async fn merge_entity(
         &self,
         entity: ExtractedEntity,
-        artifacts: &mut super::MergeArtifacts,
+        artifacts: &mut MergeArtifacts,
     ) -> Result<bool> {
-        // RC-6 / P-G1: identity is a newtype. The graph node id and the entity
-        // vector id are both derived from this single `EntityId`, so they can
-        // never diverge. Skip writes for empty identities (E1).
+        let mut stats = MergeStats::default();
+        self.merge_entities_batch(vec![entity], &mut stats).await?;
+        artifacts.entity_vector_ids.extend(stats.artifacts.entity_vector_ids);
+        artifacts
+            .relationship_vector_ids
+            .extend(stats.artifacts.relationship_vector_ids);
+        artifacts
+            .graph_nodes_created
+            .extend(stats.artifacts.graph_nodes_created);
+        artifacts
+            .graph_edges_created
+            .extend(stats.artifacts.graph_edges_created);
+        Ok(stats.entities_created > 0)
+    }
+
+    async fn build_entity_node_batch_entry(
+        &self,
+        entity: &ExtractedEntity,
+        existing: Option<&GraphNode>,
+        artifacts: &mut MergeArtifacts,
+    ) -> Result<(String, HashMap<String, serde_json::Value>, bool)> {
         let entity_id = EntityId::new(&entity.name);
-        if entity_id.is_empty() {
-            tracing::warn!(
-                raw_name = %entity.name,
-                "Skipping entity with empty normalized name"
-            );
-            return Ok(false);
-        }
-        let entity_key: String = entity_id.as_graph_node_id().to_string();
+        let entity_key = entity_id.as_graph_node_id().to_string();
 
-        // Check if entity exists
-        let existing = self.graph_storage.get_node(&entity_key).await?;
-
-        let is_new = match existing {
+        match existing.cloned() {
             Some(mut node) => {
-                // Update existing entity
                 self.update_entity_node(&mut node, &entity).await?;
-                self.graph_storage
-                    .upsert_node(&node.id, node.properties)
-                    .await?;
-                false
+                Ok((node.id.clone(), node.properties, false))
             }
             None => {
-                // Create new entity
                 let node = self.create_entity_node(&entity)?;
-                self.graph_storage
-                    .upsert_node(&node.id, node.properties)
-                    .await?;
-                artifacts.graph_nodes_created.push(entity_key.clone());
                 if entity.embedding.is_some() {
                     artifacts
                         .entity_vector_ids
                         .push(entity_id.as_vector_id());
                 }
-                true
+                artifacts.graph_nodes_created.push(entity_key);
+                Ok((node.id, node.properties, true))
             }
-        };
-
-        // SPEC-021 P3-01: Best-effort dual-write to relational CQRS read model.
-        // Errors are logged but never fail ingestion (best-effort semantics).
-        self.relational_sink
-            .upsert_entity(
-                &entity_key,
-                &entity.entity_type,
-                &entity.description,
-                self.tenant_id.as_deref(),
-                self.workspace_id.as_deref(),
-                &entity.source_chunk_ids,
-            )
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(
-                    entity = %entity_key,
-                    error = %e,
-                    "Relational entity sink failed (best-effort; graph write succeeded)"
-                );
-            });
-
-        Ok(is_new)
+        }
     }
 
     /// Update an existing entity node with new information.

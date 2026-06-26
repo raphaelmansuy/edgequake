@@ -264,13 +264,17 @@ impl AppState {
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
         // Create SOTA query engine with mock keywords for testing
-        let engine_impl = Arc::new(QueryEngine::with_mock_keywords(
-            QueryEngineConfig::default(),
-            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ));
+        let engine_impl = Arc::new(
+            QueryEngine::with_mock_keywords(
+                QueryEngineConfig::default(),
+                Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
+                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+                Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            )
+            .with_embedding_cache()
+            .with_result_cache(),
+        );
 
         // Create workspace vector registry for per-workspace dimensions
         let vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry> =

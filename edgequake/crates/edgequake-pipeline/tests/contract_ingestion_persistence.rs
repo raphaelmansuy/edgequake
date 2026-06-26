@@ -174,3 +174,59 @@ async fn contract_cross_document_entity_merge() {
         "doc-b chunk id must be on merged node"
     );
 }
+
+#[tokio::test]
+async fn contract_persister_trait_matches_free_function() {
+    let graph = Arc::new(MemoryGraphStorage::new("trait"));
+    let vector = Arc::new(MemoryVectorStorage::new("trait", 4));
+    vector.initialize().await.unwrap();
+
+    let config = IngestionPersistConfig::from_settings(
+        IngestionPersistSettings {
+            use_llm_summarization: false,
+        },
+        Arc::new(NoopEntitySink),
+        None,
+    );
+    let ctx = sample_persist_context();
+    let result = sample_processing_result();
+
+    let free = persist_processing_result(
+        graph.clone(),
+        vector.clone(),
+        &config,
+        &ctx,
+        &result,
+        ChunkVectorBuildOptions::STANDARD,
+    )
+    .await
+    .expect("free fn");
+
+    let graph2 = Arc::new(MemoryGraphStorage::new("trait2"));
+    let vector2 = Arc::new(MemoryVectorStorage::new("trait2", 4));
+    vector2.initialize().await.unwrap();
+
+    let settings = IngestionPersistSettings {
+        use_llm_summarization: false,
+    };
+    let persister = edgequake_pipeline::DefaultIngestionPersister::from_settings(
+        graph2.clone(),
+        vector2.clone(),
+        settings,
+        Arc::new(NoopEntitySink),
+        None,
+    );
+    use edgequake_pipeline::IngestionPersister;
+    let trait_out = persister
+        .persist(&ctx, &result, ChunkVectorBuildOptions::STANDARD)
+        .await
+        .expect("trait persist");
+
+    assert_eq!(
+        free.chunk_vector_ids.len(),
+        trait_out.chunk_vector_ids.len()
+    );
+    assert!(
+        trait_out.merge_stats.entities_created + trait_out.merge_stats.entities_updated > 0
+    );
+}

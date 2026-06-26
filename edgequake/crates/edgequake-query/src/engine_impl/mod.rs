@@ -339,6 +339,8 @@ pub struct QueryEngine {
     /// Cache for keyword validation (keyword -> exists_in_graph).
     /// WHY: Avoids repeated graph lookups for the same keywords.
     keyword_validation_cache: Arc<tokio::sync::RwLock<std::collections::HashMap<String, bool>>>,
+    /// Optional cache for `context_only` retrieval contexts (P-G9).
+    result_cache: Option<Arc<crate::cache::QueryResultCache>>,
 }
 
 impl QueryEngine {
@@ -371,6 +373,7 @@ impl QueryEngine {
             keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(
                 std::collections::HashMap::new(),
             )),
+            result_cache: None,
         }
     }
 
@@ -405,7 +408,41 @@ impl QueryEngine {
         self
     }
 
-    /// Read-only graph access for query paths (SPEC-017 ISP Phase 2a).
+    /// Enable LRU+TTL cache for `context_only` retrieval (P-G9 result half).
+    pub fn with_result_cache(self) -> Self {
+        self.with_result_cache_config(1_000, std::time::Duration::from_secs(300))
+    }
+
+    pub fn with_result_cache_config(
+        mut self,
+        max_size: usize,
+        ttl: std::time::Duration,
+    ) -> Self {
+        self.result_cache = Some(Arc::new(crate::cache::QueryResultCache::new(
+            max_size, ttl,
+        )));
+        self
+    }
+
+    pub fn result_cache(&self) -> Option<&Arc<crate::cache::QueryResultCache>> {
+        self.result_cache.as_ref()
+    }
+
+    /// Invalidate cached `context_only` retrieval after ingestion (P-G9 / E26).
+    pub fn invalidate_result_cache(&self) {
+        if let Some(cache) = &self.result_cache {
+            cache.invalidate_all();
+        }
+    }
+}
+
+impl crate::cache::QueryResultCacheInvalidator for QueryEngine {
+    fn invalidate_query_result_cache(&self) {
+        self.invalidate_result_cache();
+    }
+}
+
+impl QueryEngine {
     #[inline]
     pub(super) fn graph_read(&self) -> GraphReadView<'_> {
         GraphReadView::new(self.graph_storage.as_ref())
@@ -433,6 +470,7 @@ impl QueryEngine {
             keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(
                 std::collections::HashMap::new(),
             )),
+            result_cache: None,
         }
     }
 

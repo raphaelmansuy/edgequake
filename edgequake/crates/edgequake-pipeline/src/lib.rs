@@ -107,8 +107,8 @@ pub use merger::{
 };
 pub use persistence::{
     build_chunk_vector_batch, persist_processing_result, ChunkVectorBuildOptions,
-    IngestionPersistConfig, IngestionPersistContext, IngestionPersistOutput,
-    IngestionPersistSettings,
+    DefaultIngestionPersister, IngestionPersistConfig, IngestionPersistContext,
+    IngestionPersistOutput, IngestionPersistSettings, IngestionPersister,
 };
 pub use pipeline::{
     ChunkProgressCallback,

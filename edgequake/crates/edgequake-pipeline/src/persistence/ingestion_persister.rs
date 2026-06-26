@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use edgequake_llm::LLMProvider;
 use edgequake_storage::{compensation, GraphStorage, VectorStorage};
 use serde_json::json;
@@ -16,6 +17,74 @@ use crate::merger::{
 use crate::pipeline::ProcessingResult;
 use crate::summarizer::{LLMSummarizer, SummarizerConfig};
 use crate::Result;
+
+/// Ingestion persistence port (P-G2d / DIP). Callers depend on this trait, not
+/// storage details.
+#[async_trait]
+pub trait IngestionPersister: Send + Sync {
+    async fn persist(
+        &self,
+        ctx: &IngestionPersistContext,
+        result: &ProcessingResult,
+        chunk_options: ChunkVectorBuildOptions,
+    ) -> Result<IngestionPersistOutput>;
+}
+
+/// Default production persister — wraps graph + vector stores + merger config.
+pub struct DefaultIngestionPersister {
+    graph_storage: Arc<dyn GraphStorage>,
+    vector_storage: Arc<dyn VectorStorage>,
+    config: IngestionPersistConfig,
+}
+
+impl DefaultIngestionPersister {
+    pub fn new(
+        graph_storage: Arc<dyn GraphStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
+        config: IngestionPersistConfig,
+    ) -> Self {
+        Self {
+            graph_storage,
+            vector_storage,
+            config,
+        }
+    }
+
+    /// DRY factory — orchestrator and processor must use this (P-G2b SSOT).
+    pub fn from_settings(
+        graph_storage: Arc<dyn GraphStorage>,
+        vector_storage: Arc<dyn VectorStorage>,
+        settings: IngestionPersistSettings,
+        relational_sink: Arc<dyn RelationalEntitySink>,
+        llm_provider: Option<Arc<dyn LLMProvider>>,
+    ) -> Self {
+        Self::new(
+            graph_storage,
+            vector_storage,
+            IngestionPersistConfig::from_settings(settings, relational_sink, llm_provider),
+        )
+    }
+}
+
+#[async_trait]
+impl IngestionPersister for DefaultIngestionPersister {
+    async fn persist(
+        &self,
+        ctx: &IngestionPersistContext,
+        result: &ProcessingResult,
+        chunk_options: ChunkVectorBuildOptions,
+    ) -> Result<IngestionPersistOutput> {
+        persist_processing_result_impl(
+            self.graph_storage.clone(),
+            self.vector_storage.clone(),
+            &self.config,
+            ctx,
+            result,
+            chunk_options,
+        )
+        .await
+    }
+}
 
 /// Tenant/workspace scope for vector metadata and merger.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,6 +214,25 @@ pub fn build_chunk_vector_batch(
 
 /// Persist chunk embeddings + merge extractions into graph/entity vectors (P-G2 SSOT).
 pub async fn persist_processing_result(
+    graph_storage: Arc<dyn GraphStorage>,
+    vector_storage: Arc<dyn VectorStorage>,
+    config: &IngestionPersistConfig,
+    ctx: &IngestionPersistContext,
+    result: &ProcessingResult,
+    chunk_options: ChunkVectorBuildOptions,
+) -> Result<IngestionPersistOutput> {
+    persist_processing_result_impl(
+        graph_storage,
+        vector_storage,
+        config,
+        ctx,
+        result,
+        chunk_options,
+    )
+    .await
+}
+
+async fn persist_processing_result_impl(
     graph_storage: Arc<dyn GraphStorage>,
     vector_storage: Arc<dyn VectorStorage>,
     config: &IngestionPersistConfig,

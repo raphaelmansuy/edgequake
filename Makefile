@@ -1409,7 +1409,13 @@ test-spec021: ## SPEC-021 ingest resilience + P-G2 persister contracts (Rust + T
 	@echo "$(BLUE)Running SPEC-021 ingest resilience contracts...$(RESET)"
 	@cd edgequake && cargo test -p edgequake-api --test e2e_spec021_ingest_resilience -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --test e2e_spec021_ingestion_persister -- --nocapture
+	@cd edgequake && cargo test -p edgequake-api --test e2e_spec021_query_modes_http -- --nocapture
 	@cd edgequake && cargo test -p edgequake-pipeline --test contract_ingestion_persistence -- --nocapture
+	@cd edgequake && cargo test -p edgequake-query --test contract_query_modes -- --nocapture
+	@cd edgequake && cargo test -p edgequake-query --test contract_query_result_cache -- --nocapture
+	@cd edgequake && cargo test -p edgequake-pipeline --test contract_merger_graph_batch -- --nocapture
+	@cd edgequake && cargo test -p edgequake-api --test e2e_spec021_query_cache_invalidation -- --nocapture
+	@cd edgequake && cargo test -p edgequake-api --test spec021_processor_cache_invalidator_contract -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --lib ingest_admission -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --lib pdf_admission_registry -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --lib health_probes -- --nocapture

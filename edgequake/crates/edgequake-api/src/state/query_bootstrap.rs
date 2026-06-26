@@ -46,6 +46,8 @@ pub fn build_production_query_engine(
         // P-G9 (RC-14): memoize query embeddings to skip redundant embedding
         // round-trips for repeated queries. Ingestion `embed` (batch) is
         // delegated unchanged, so this is query-path only.
-        .with_embedding_cache(),
+        .with_embedding_cache()
+        // P-G9 result half: cache context_only retrieval contexts.
+        .with_result_cache(),
     )
 }

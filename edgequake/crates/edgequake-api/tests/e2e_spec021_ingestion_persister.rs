@@ -31,14 +31,14 @@ async fn spec021_worker_upload_produces_chunks_and_graph_on_success() {
         final_status.as_str(),
         "completed" | "processed" | "indexed"
     ) {
-        use edgequake_storage::GraphStorageReadOps;
-        let nodes = workers
+        use edgequake_storage::traits::GraphStorageAnalyticsOps;
+        let node_count = workers
             .graph_storage
-            .get_all_nodes()
+            .node_count()
             .await
             .expect("graph read");
         assert!(
-            !nodes.is_empty(),
+            node_count > 0,
             "successful terminal status must persist graph nodes via P-G2"
         );
     }

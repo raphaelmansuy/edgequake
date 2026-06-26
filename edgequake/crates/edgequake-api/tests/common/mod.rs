@@ -189,7 +189,8 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
         std::sync::Arc::clone(&state.workspace_service),
         std::sync::Arc::clone(&state.query.models_config),
     )
-    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone());
+    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone())
+    .with_query_engine(std::sync::Arc::clone(&state.query.engine_impl));
     let processor = std::sync::Arc::new(processor);
 
     let worker_config = WorkerPoolConfig {
