@@ -486,7 +486,7 @@ async fn process_pdf_upload_parts(
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to reset PDF status: {}", e)))?;
 
-            let task_id = create_pdf_processing_task(
+            let enqueue = create_pdf_processing_task(
                 state,
                 context,
                 existing.pdf_id,
@@ -500,7 +500,8 @@ async fn process_pdf_upload_parts(
             )
             .await?;
 
-            let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
+            let effective_track_id =
+                options.track_id.clone().unwrap_or_else(|| enqueue.track_id.clone());
             state
                 .tasks
                 .pipeline_state
@@ -515,7 +516,7 @@ async fn process_pdf_upload_parts(
                 pdf_id: existing.pdf_id.to_string(),
                 document_id: existing_document_id,
                 status: "reindexing".to_string(),
-                task_id: task_id.to_string(),
+                task_id: enqueue.track_id.to_string(),
                 track_id: options.track_id.clone(),
                 message: "Re-indexing document. PDF will be re-converted to markdown and graph/vector data cleared.".to_string(),
                 estimated_time_seconds: estimated_time,
@@ -623,7 +624,7 @@ async fn process_pdf_upload_parts(
         }
     };
 
-    let task_id = create_pdf_processing_task(
+    let enqueue = create_pdf_processing_task(
         state,
         context,
         pdf_id,
@@ -632,7 +633,32 @@ async fn process_pdf_upload_parts(
         super::helpers::PdfReprocessIntent::fresh(), // fresh upload — mint a new document id
     )
     .await?;
-    let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
+
+    let workspace_id = context
+        .workspace_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Workspace ID required".to_string()))?;
+    let tenant_id = context
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Tenant ID required".to_string()))?;
+
+    crate::services::provision_queued_pdf_document_shell(
+        &state.storage.kv_storage,
+        &enqueue.document_id,
+        &crate::services::QueuedPdfDocumentShell {
+            pdf_id,
+            filename: filename.clone(),
+            tenant_id,
+            workspace_id,
+            track_id: enqueue.track_id.clone(),
+            file_size_bytes: file_data.len() as i64,
+            sha256_checksum: checksum.clone(),
+            page_count,
+        },
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to provision queued document: {e}")))?;
+
+    let effective_track_id = options.track_id.clone().unwrap_or_else(|| enqueue.track_id.clone());
     state
         .tasks
         .pipeline_state
@@ -658,9 +684,9 @@ async fn process_pdf_upload_parts(
 
     Ok(PdfUploadResponse {
         pdf_id: pdf_id.to_string(),
-        document_id: None,
-        status: "processing".to_string(),
-        task_id: task_id.to_string(),
+        document_id: Some(enqueue.document_id),
+        status: "queued".to_string(),
+        task_id: enqueue.track_id.to_string(),
         track_id: options.track_id,
         message: "PDF uploaded successfully. Processing in background.".to_string(),
         estimated_time_seconds: estimated_time,

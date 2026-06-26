@@ -72,8 +72,51 @@ pub async fn get_workspace_stats(
         }
     }
 
-    // Cache miss - fetch from storage
-    let stats = fetch_workspace_stats_uncached(&state, workspace_id, start).await?;
+    // SPEC-021 P-G13: stale-if-error — under ingestion load, prefer last-known
+    // stats over timing out (which makes the UI show 0 and triggers false
+    // "backend unreachable" banners via React Query transport failures).
+    let stale_fallback = {
+        let cache = WORKSPACE_STATS_CACHE.read().await;
+        cache.get(&workspace_id).map(|c| c.stats.clone())
+    };
+
+    const STATS_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+
+    let fetch_result = tokio::time::timeout(
+        STATS_FETCH_TIMEOUT,
+        fetch_workspace_stats_uncached(&state, workspace_id, start),
+    )
+    .await;
+
+    let stats = match fetch_result {
+        Ok(Ok(stats)) => stats,
+        Ok(Err(e)) => {
+            if let Some(mut stale) = stale_fallback {
+                stale.stale = Some(true);
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    error = %e,
+                    "Workspace stats fetch failed — serving stale cache (P-G13)"
+                );
+                return Ok(Json(stale));
+            }
+            return Err(e);
+        }
+        Err(_) => {
+            if let Some(mut stale) = stale_fallback {
+                stale.stale = Some(true);
+                tracing::warn!(
+                    workspace_id = %workspace_id,
+                    timeout_secs = STATS_FETCH_TIMEOUT.as_secs(),
+                    "Workspace stats fetch timed out under load — serving stale cache (P-G13)"
+                );
+                return Ok(Json(stale));
+            }
+            return Err(ApiError::Internal(
+                "Workspace stats temporarily unavailable — retry shortly".to_string(),
+            ));
+        }
+    };
 
     // Update cache for next request
     {
@@ -279,6 +322,7 @@ async fn try_kv_storage_stats(
         chunk_count,
         embedding_count,
         storage_bytes,
+        stale: None,
     })
 }
 

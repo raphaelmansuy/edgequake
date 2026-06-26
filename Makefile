@@ -207,6 +207,22 @@ export
 
 # Environment variables (can be overridden from shell)
 OPENAI_API_KEY ?= $(shell echo $$OPENAI_API_KEY)
+
+# P-G13: dev stability defaults — prevent OOM during heavy PDF ingestion.
+# Override from shell or .env when you need higher throughput.
+WORKER_THREADS ?= 4
+MAX_TASKS_PER_TENANT ?= 2
+EDGEQUAKE_PDF_CONCURRENCY ?= 2
+EDGEQUAKE_PDF_VISION_JOBS ?= 2
+export WORKER_THREADS MAX_TASKS_PER_TENANT EDGEQUAKE_PDF_CONCURRENCY EDGEQUAKE_PDF_VISION_JOBS
+
+# Shared exports appended to /tmp/edgequake-start.sh by backend-bg.
+define BACKEND_STABILITY_EXPORTS
+printf '%s\n' "export WORKER_THREADS=\"$(WORKER_THREADS)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export MAX_TASKS_PER_TENANT=\"$(MAX_TASKS_PER_TENANT)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_PDF_CONCURRENCY=\"$(EDGEQUAKE_PDF_CONCURRENCY)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_PDF_VISION_JOBS=\"$(EDGEQUAKE_PDF_VISION_JOBS)\"" >> /tmp/edgequake-start.sh;
+endef
 DEV_AUTH_ENABLED ?= false
 DEV_DISABLE_DEMO_LOGIN ?= false
 
@@ -772,6 +788,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
+		$(BACKEND_STABILITY_EXPORTS) \
 		printf '%s\n' "export MISTRAL_API_KEY=\"$$_MISTRAL_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$(OPENAI_API_KEY)" ] && printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
@@ -792,6 +809,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
+		$(BACKEND_STABILITY_EXPORTS) \
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$MISTRAL_API_KEY" ] && printf '%s\n' "export MISTRAL_API_KEY=\"$$MISTRAL_API_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
@@ -807,6 +825,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "#!/bin/bash" > /tmp/edgequake-start.sh; \
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
+		$(BACKEND_STABILITY_EXPORTS) \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \

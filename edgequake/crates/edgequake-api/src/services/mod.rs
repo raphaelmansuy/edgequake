@@ -8,6 +8,7 @@ pub mod content_hasher;
 pub mod document_graph_cascade;
 pub mod graph_community;
 pub mod graph_materialization;
+pub mod ingest_admission;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
 
@@ -23,8 +24,14 @@ pub use graph_materialization::{
     admit_graph_materialization, graph_query_timeout, run_timed_graph_query,
     GraphMaterializationGuard,
 };
+pub use ingest_admission::{
+    admit_pdf_processing_enqueue, find_active_pdf_processing_task,
+    persist_pdf_task_document_id, provision_queued_pdf_document_shell,
+    resolve_pdf_ingest_document_id, resolve_worker_pdf_document_id, QueuedPdfDocumentShell,
+};
 pub use pdf_workspace_dedup::{
-    recycle_orphan_workspace_pdf, workspace_has_visible_document_for_pdf,
+    find_kv_document_id_for_pdf, recycle_orphan_workspace_pdf,
+    workspace_has_visible_document_for_pdf,
 };
 pub use query_execution::{
     execute_sota_query, execute_sota_query_stream, execute_sota_query_stream_with_auth_fallback,

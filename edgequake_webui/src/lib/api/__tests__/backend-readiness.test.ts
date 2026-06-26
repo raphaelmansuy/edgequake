@@ -1,11 +1,16 @@
 /**
- * SPEC-021 stabilization — backend readiness + silent network logging.
- *
- * Covers the edge case: frontend starts before the backend is ready.
- * The dashboard must not crash (no console.error → no Next.js dev overlay),
- * and `isBackendReady` must report false until /health returns healthy.
+ * SPEC-021 stabilization + P-G13 — backend readiness probes.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+function liveOk() {
+  return {
+    ok: () => true,
+    status: () => 200,
+    text: async () => "OK",
+    json: async () => ({}),
+  };
+}
 
 describe("SPEC-021 backend readiness", () => {
   const originalApiUrl = process.env.EDGEQUAKE_API_URL;
@@ -23,96 +28,116 @@ describe("SPEC-021 backend readiness", () => {
     vi.restoreAllMocks();
   });
 
-  it("isBackendReady returns true when /health reports healthy", async () => {
+  it("probeBackendReadiness returns ready when /live and /health are healthy", async () => {
     const request = {
-      get: vi.fn().mockResolvedValue({
-        ok: () => true,
-        status: () => 200,
-        json: async () => ({ status: "healthy" }),
+      get: vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith("/live")) return Promise.resolve(liveOk());
+        return Promise.resolve({
+          ok: () => true,
+          status: () => 200,
+          text: async () => "",
+          json: async () => ({ status: "healthy" }),
+        });
       }),
     };
-    const { isBackendReady, _resetBackendReadinessCache } = await import("../client");
+    const { probeBackendReadiness, _resetBackendReadinessCache } =
+      await import("../backend-readiness");
     _resetBackendReadinessCache();
 
-    const ready = await isBackendReady(request);
-    expect(ready).toBe(true);
+    const state = await probeBackendReadiness(request);
+    expect(state).toBe("ready");
+    expect(request.get).toHaveBeenCalledWith("http://backend.test:8080/live");
     expect(request.get).toHaveBeenCalledWith("http://backend.test:8080/health");
   });
 
-  it("isBackendReady returns false when /health reports starting", async () => {
+  it("isBackendReady returns true when /health reports degraded (busy, not down)", async () => {
     const request = {
-      get: vi.fn().mockResolvedValue({
-        ok: () => true,
-        status: () => 200,
-        json: async () => ({ status: "starting" }),
+      get: vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith("/live")) return Promise.resolve(liveOk());
+        return Promise.resolve({
+          ok: () => true,
+          status: () => 200,
+          text: async () => "",
+          json: async () => ({ status: "degraded" }),
+        });
       }),
     };
-    const { isBackendReady, _resetBackendReadinessCache } = await import("../client");
-    _resetBackendReadinessCache();
-
-    const ready = await isBackendReady(request);
-    expect(ready).toBe(false);
-  });
-
-  it("isBackendReady returns false when the backend is unreachable", async () => {
-    const request = {
-      get: vi.fn().mockRejectedValue(new TypeError("connect ECONNREFUSED")),
-    };
-    const { isBackendReady, _resetBackendReadinessCache } = await import("../client");
-    _resetBackendReadinessCache();
-
-    const ready = await isBackendReady(request);
-    expect(ready).toBe(false);
-  });
-
-  it("isBackendReady returns false when /health responds non-2xx (non-auth)", async () => {
-    const request = {
-      get: vi.fn().mockResolvedValue({
-        ok: () => false,
-        status: () => 500,
-        json: async () => ({}),
-      }),
-    };
-    const { isBackendReady, _resetBackendReadinessCache } = await import("../client");
-    _resetBackendReadinessCache();
-
-    const ready = await isBackendReady(request);
-    expect(ready).toBe(false);
-  });
-
-  it("isBackendReady returns true on 401/403 (backend up, auth-gated health)", async () => {
-    // WHY: some deployments put /health behind auth. A 401 means the backend
-    // is reachable and responding — the banner must not fire.
-    const request = {
-      get: vi.fn().mockResolvedValue({
-        ok: () => false,
-        status: () => 401,
-        json: async () => ({ message: "Unauthorized" }),
-      }),
-    };
-    const { isBackendReady, _resetBackendReadinessCache } = await import("../client");
+    const { isBackendReady, _resetBackendReadinessCache } =
+      await import("../backend-readiness");
     _resetBackendReadinessCache();
 
     const ready = await isBackendReady(request);
     expect(ready).toBe(true);
   });
 
-  it("isBackendReady caches the result within the cache window", async () => {
+  it("probeBackendReadiness returns degraded when /live ok but /health throws", async () => {
     const request = {
-      get: vi.fn().mockResolvedValue({
-        ok: () => true,
-        status: () => 200,
-        json: async () => ({ status: "healthy" }),
+      get: vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith("/live")) return Promise.resolve(liveOk());
+        return Promise.reject(new TypeError("timeout"));
       }),
     };
-    const { isBackendReady, _resetBackendReadinessCache } = await import("../client");
+    const { probeBackendReadiness, _resetBackendReadinessCache } =
+      await import("../backend-readiness");
     _resetBackendReadinessCache();
 
-    await isBackendReady(request);
-    await isBackendReady(request);
-    await isBackendReady(request);
+    const state = await probeBackendReadiness(request);
+    expect(state).toBe("degraded");
+  });
 
-    // Three calls, one network request (cached afterwards)
-    expect(request.get).toHaveBeenCalledTimes(1);
+  it("isBackendReady returns false when /live is unreachable after retries", async () => {
+    const request = {
+      get: vi.fn().mockRejectedValue(new TypeError("connect ECONNREFUSED")),
+    };
+    const { isBackendReady, _resetBackendReadinessCache } =
+      await import("../backend-readiness");
+    _resetBackendReadinessCache();
+
+    const ready = await isBackendReady(request);
+    expect(ready).toBe(false);
+    expect(request.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("isBackendReady returns true on /health 401/403 when /live ok", async () => {
+    const request = {
+      get: vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith("/live")) return Promise.resolve(liveOk());
+        return Promise.resolve({
+          ok: () => false,
+          status: () => 401,
+          text: async () => "Unauthorized",
+          json: async () => ({ message: "Unauthorized" }),
+        });
+      }),
+    };
+    const { isBackendReady, _resetBackendReadinessCache } =
+      await import("../backend-readiness");
+    _resetBackendReadinessCache();
+
+    const ready = await isBackendReady(request);
+    expect(ready).toBe(true);
+  });
+
+  it("caches successful readiness within the cache window", async () => {
+    const request = {
+      get: vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith("/live")) return Promise.resolve(liveOk());
+        return Promise.resolve({
+          ok: () => true,
+          status: () => 200,
+          text: async () => "",
+          json: async () => ({ status: "healthy" }),
+        });
+      }),
+    };
+    const { probeBackendReadiness, _resetBackendReadinessCache } =
+      await import("../backend-readiness");
+    _resetBackendReadinessCache();
+
+    await probeBackendReadiness(request);
+    await probeBackendReadiness(request);
+    await probeBackendReadiness(request);
+
+    expect(request.get).toHaveBeenCalledTimes(2);
   });
 });

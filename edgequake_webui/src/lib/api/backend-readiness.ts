@@ -9,6 +9,11 @@
  * ready (cold start, rolling restart, transient DNS failure). React Query
  * retries transport errors silently; this probe gives the UI a single
  * cached source of truth for the "Backend not reachable" banner.
+ *
+ * SPEC-021 P-G13: **liveness ≠ deep health**. Under heavy ingestion the DB
+ * pool may be saturated; `/health` storage pings can exceed the old 2s probe
+ * budget even though the process is alive (`/live` → "OK"). The banner must
+ * distinguish *unreachable* (process down) from *degraded* (busy but serving).
  */
 
 import { getRuntimeServerBaseUrl } from "@/lib/runtime-config";
@@ -21,6 +26,8 @@ export interface ReadinessProbeResponse {
   status: () => number;
   /** Parse the response body as JSON. */
   json: () => Promise<unknown>;
+  /** Plain-text body (for `/live` → "OK"). */
+  text: () => Promise<string>;
 }
 
 export interface ReadinessProbeClient {
@@ -28,56 +35,129 @@ export interface ReadinessProbeClient {
   get: (url: string) => Promise<ReadinessProbeResponse>;
 }
 
-// Cache the last backend readiness result to avoid repeated probes during boot.
-let backendReadinessCache: { ready: boolean; checkedAt: number } | null = null;
-const READINESS_CACHE_MS = 5_000;
+/** Reachability state for the dashboard banner (P-G13). */
+export type BackendReadinessState =
+  | "ready"
+  | "degraded"
+  | "unreachable"
+  | "misconfigured";
+
+interface ReadinessCacheState {
+  state: BackendReadinessState;
+  checkedAt: number;
+}
+
+let backendReadinessCache: ReadinessCacheState | null = null;
+
+const SUCCESS_CACHE_MS = 10_000;
+const FAILURE_CACHE_MS = 2_000;
+const LIVE_PROBE_TIMEOUT_MS = 5_000;
+const HEALTH_PROBE_TIMEOUT_MS = 8_000;
+const PROBE_ATTEMPTS = 3;
+const PROBE_RETRY_DELAY_MS = 300;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Probe backend readiness with retries and liveness-first semantics.
+ *
+ * 1. `/live` (no DB) — process alive?
+ * 2. `/health` — deep check; timeout/failure → `degraded`, not `unreachable`
+ */
+export async function probeBackendReadiness(
+  request: ReadinessProbeClient = nativeFetchAdapter(),
+): Promise<BackendReadinessState> {
+  const now = Date.now();
+  if (
+    backendReadinessCache &&
+    now - backendReadinessCache.checkedAt <
+      (backendReadinessCache.state === "unreachable"
+        ? FAILURE_CACHE_MS
+        : SUCCESS_CACHE_MS)
+  ) {
+    return backendReadinessCache.state;
+  }
+
+  const base = getRuntimeServerBaseUrl();
+  const liveUrl = `${base}/live`;
+
+  let liveOk = false;
+  let misconfigured = false;
+  for (let attempt = 0; attempt < PROBE_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await request.get(liveUrl);
+      if (res.ok() && (await res.text()).trim() === "OK") {
+        liveOk = true;
+        break;
+      }
+      const status = res.status();
+      if (status === 401 || status === 403) {
+        misconfigured = true;
+        break;
+      }
+    } catch {
+      // retry below
+    }
+    if (attempt + 1 < PROBE_ATTEMPTS) {
+      await sleep(PROBE_RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+
+  if (misconfigured) {
+    backendReadinessCache = { state: "misconfigured", checkedAt: now };
+    return "misconfigured";
+  }
+
+  if (!liveOk) {
+    backendReadinessCache = { state: "unreachable", checkedAt: now };
+    return "unreachable";
+  }
+
+  try {
+    const res = await request.get(`${base}/health`);
+    if (res.ok()) {
+      const body = (await res.json()) as { status?: string };
+      const state: BackendReadinessState =
+        body.status === "healthy" || body.status === "degraded"
+          ? "ready"
+          : "degraded";
+      backendReadinessCache = { state, checkedAt: now };
+      return state;
+    }
+    const status = res.status();
+    if (status === 401 || status === 403) {
+      backendReadinessCache = { state: "ready", checkedAt: now };
+      return "ready";
+    }
+    backendReadinessCache = { state: "degraded", checkedAt: now };
+    return "degraded";
+  } catch {
+    // Live passed — backend is up but deep health timed out (ingestion load).
+    backendReadinessCache = { state: "degraded", checkedAt: now };
+    return "degraded";
+  }
+}
 
 /**
  * Check if the backend is ready to serve requests.
  *
- * Returns a cached result within {@link READINESS_CACHE_MS} to avoid stampeding
- * the health endpoint on dashboard boot when multiple React Query hooks fire
- * simultaneously.
- *
- * @param request Probe client (defaults to a native fetch adapter with a 2s
- *   timeout). Tests can pass a Playwright `APIRequestContext`-compatible shim.
+ * Returns true for `ready` and `degraded` — only `unreachable` triggers the
+ * "backend not reachable" banner. Degraded gets a softer busy message.
  */
 export async function isBackendReady(
   request: ReadinessProbeClient = nativeFetchAdapter(),
 ): Promise<boolean> {
-  const now = Date.now();
-  if (
-    backendReadinessCache &&
-    now - backendReadinessCache.checkedAt < READINESS_CACHE_MS
-  ) {
-    return backendReadinessCache.ready;
-  }
+  const state = await probeBackendReadiness(request);
+  return state === "ready" || state === "degraded";
+}
 
-  try {
-    const res = await request.get(`${getRuntimeServerBaseUrl()}/health`);
-    // WHY treat 401/403 as reachable: some deployments put /health behind auth.
-    // The backend is up and responding — the banner should not fire. A true
-    // unreachable backend throws (TypeError) which is caught below.
-    if (res.ok()) {
-      const body = (await res.json()) as { status?: string };
-      const ready = body.status === "healthy" || body.status === "degraded";
-      backendReadinessCache = { ready, checkedAt: now };
-      return ready;
-    }
-    const status = res.status();
-    if (status === 401 || status === 403) {
-      // WHY: some deployments put /health behind auth. The backend is up and
-      // responding — the banner should not fire. A true unreachable backend
-      // throws (TypeError) which is caught below.
-      backendReadinessCache = { ready: true, checkedAt: now };
-      return true;
-    }
-    backendReadinessCache = { ready: false, checkedAt: now };
-    return false;
-  } catch {
-    backendReadinessCache = { ready: false, checkedAt: now };
-    return false;
-  }
+/** Expose full state for banners that distinguish busy vs down. */
+export async function getBackendReadinessState(
+  request: ReadinessProbeClient = nativeFetchAdapter(),
+): Promise<BackendReadinessState> {
+  return probeBackendReadiness(request);
 }
 
 /** Reset the cached readiness result (used by tests). */
@@ -85,14 +165,20 @@ export function _resetBackendReadinessCache(): void {
   backendReadinessCache = null;
 }
 
-function nativeFetchAdapter(): ReadinessProbeClient {
+function nativeFetchAdapter(timeoutMs = LIVE_PROBE_TIMEOUT_MS): ReadinessProbeClient {
   return {
     get: async (url: string) => {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      const isHealth = url.endsWith("/health");
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(
+          isHealth ? HEALTH_PROBE_TIMEOUT_MS : timeoutMs,
+        ),
+      });
       return {
         ok: () => res.ok,
         status: () => res.status,
         json: () => res.json(),
+        text: () => res.text(),
       };
     },
   };

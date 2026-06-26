@@ -165,6 +165,7 @@ mod tests {
             chunk_count: 1000,
             embedding_count: 800,
             storage_bytes: 1024 * 1024,
+            stale: None,
         };
         let json = serde_json::to_string(&response);
         assert!(json.is_ok());

@@ -308,9 +308,23 @@ impl StorageInspector {
                 ticker.tick().await;
                 let report = self.inspect().await;
                 if report.has_critical {
+                    let critical_details: Vec<String> = report
+                        .schema_issues
+                        .iter()
+                        .filter(|i| i.severity == Severity::Critical)
+                        .map(|i| format!("{}: {}", i.check_name, i.description))
+                        .chain(
+                            report
+                                .invariant_violations
+                                .iter()
+                                .filter(|v| v.severity == Severity::Critical)
+                                .map(|v| format!("{}: {}", v.invariant_id, v.description)),
+                        )
+                        .collect();
                     tracing::error!(
                         schema_issues = report.schema_issues.len(),
                         invariant_violations = report.invariant_violations.len(),
+                        issues = ?critical_details,
                         "SPEC-021 P-D1: hourly invariant monitor — CRITICAL drift"
                     );
                 } else if report.has_warning {
@@ -394,7 +408,7 @@ impl StorageInspector {
             "chunks",
             "tenants",
             "workspaces",
-            "edgequake_tasks",
+            "tasks",
             "pdf_documents",
             "failed_chunks",
             "server_config",

@@ -164,6 +164,11 @@ pub struct DocumentTaskProcessor {
     /// WHY: Defaults to NoopEntitySink (zero overhead). Set to PostgresEntitySink
     /// via `with_relational_sink()` when entity_sync_mode = dual_write|full.
     relational_sink: Arc<dyn RelationalEntitySink>,
+    /// Persist task rows when ingestion identity is allocated mid-flight.
+    task_storage: Option<edgequake_tasks::SharedTaskStorage>,
+    /// P-G13: Process-wide cap on concurrent vision PDF conversions.
+    #[cfg(feature = "postgres")]
+    pdf_vision: Option<Arc<edgequake_core::PdfVisionSemaphore>>,
 }
 
 impl DocumentTaskProcessor {
@@ -193,6 +198,9 @@ impl DocumentTaskProcessor {
             models_config: None,
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
+            task_storage: None,
+            #[cfg(feature = "postgres")]
+            pdf_vision: None,
         }
     }
 
@@ -231,6 +239,9 @@ impl DocumentTaskProcessor {
             models_config: Some(models_config),
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
+            task_storage: None,
+            #[cfg(feature = "postgres")]
+            pdf_vision: None,
         }
     }
 
@@ -266,6 +277,9 @@ impl DocumentTaskProcessor {
             models_config: Some(models_config),
             strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
+            task_storage: None,
+            #[cfg(feature = "postgres")]
+            pdf_vision: None,
         }
     }
 
@@ -297,6 +311,25 @@ impl DocumentTaskProcessor {
     /// WebSocket clients in real-time.
     pub fn with_progress_broadcaster(mut self, broadcaster: ProgressBroadcaster) -> Self {
         self.progress_broadcaster = Some(broadcaster);
+        self
+    }
+
+    /// P-G14: Persist task identity updates during PDF ingestion.
+    pub fn with_task_storage(
+        mut self,
+        task_storage: edgequake_tasks::SharedTaskStorage,
+    ) -> Self {
+        self.task_storage = Some(task_storage);
+        self
+    }
+
+    /// P-G13: Set process-wide vision PDF admission semaphore.
+    #[cfg(feature = "postgres")]
+    pub fn with_pdf_vision_semaphore(
+        mut self,
+        pdf_vision: Arc<edgequake_core::PdfVisionSemaphore>,
+    ) -> Self {
+        self.pdf_vision = Some(pdf_vision);
         self
     }
 }

@@ -212,6 +212,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
         graph_materialize: std::sync::Arc::new(edgequake_core::GraphMaterializationSemaphore::new(
             4,
         )),
+        pdf_vision: std::sync::Arc::new(edgequake_core::PdfVisionSemaphore::new(2)),
     }
 }
 

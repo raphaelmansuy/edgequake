@@ -1,4 +1,4 @@
-//! Global cap on concurrent graph materializations — SPEC-006 P1 (SRP).
+//! Global caps on concurrent heavy operations — SPEC-006 P1 (SRP).
 
 use std::sync::Arc;
 
@@ -6,19 +6,45 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use super::budget::ResourceBudgetConfig;
 
-/// Limits concurrent in-process graph materialization (popular-nodes, stream, etc.).
+/// Shared admission-control primitive for process-wide concurrency caps.
 #[derive(Debug)]
-pub struct GraphMaterializationSemaphore {
+struct ConcurrentCapSemaphore {
     semaphore: Arc<Semaphore>,
     max_concurrent: usize,
 }
 
-impl GraphMaterializationSemaphore {
-    pub fn new(max_concurrent: usize) -> Self {
-        let max_concurrent = max_concurrent.clamp(1, 16);
+impl ConcurrentCapSemaphore {
+    fn new(max_concurrent: usize, absolute_max: usize) -> Self {
+        let max_concurrent = max_concurrent.clamp(1, absolute_max);
         Self {
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
             max_concurrent,
+        }
+    }
+
+    fn max_concurrent(&self) -> usize {
+        self.max_concurrent
+    }
+
+    async fn acquire_owned(&self) -> Option<OwnedSemaphorePermit> {
+        self.semaphore.clone().acquire_owned().await.ok()
+    }
+
+    fn try_acquire_owned(&self) -> Option<OwnedSemaphorePermit> {
+        self.semaphore.clone().try_acquire_owned().ok()
+    }
+}
+
+/// Limits concurrent in-process graph materialization (popular-nodes, stream, etc.).
+#[derive(Debug)]
+pub struct GraphMaterializationSemaphore {
+    inner: ConcurrentCapSemaphore,
+}
+
+impl GraphMaterializationSemaphore {
+    pub fn new(max_concurrent: usize) -> Self {
+        Self {
+            inner: ConcurrentCapSemaphore::new(max_concurrent, 16),
         }
     }
 
@@ -27,17 +53,43 @@ impl GraphMaterializationSemaphore {
     }
 
     pub fn max_concurrent(&self) -> usize {
-        self.max_concurrent
+        self.inner.max_concurrent()
     }
 
     /// Acquire a permit, waiting if all slots are in use.
     pub async fn acquire_owned(&self) -> Option<OwnedSemaphorePermit> {
-        self.semaphore.clone().acquire_owned().await.ok()
+        self.inner.acquire_owned().await
     }
 
     /// Try to acquire without waiting — returns `None` when at capacity.
     pub fn try_acquire_owned(&self) -> Option<OwnedSemaphorePermit> {
-        self.semaphore.clone().try_acquire_owned().ok()
+        self.inner.try_acquire_owned()
+    }
+}
+
+/// Limits concurrent vision PDF conversions process-wide (P-G13 OOM guard).
+#[derive(Debug)]
+pub struct PdfVisionSemaphore {
+    inner: ConcurrentCapSemaphore,
+}
+
+impl PdfVisionSemaphore {
+    pub fn new(max_concurrent: usize) -> Self {
+        Self {
+            inner: ConcurrentCapSemaphore::new(max_concurrent, 8),
+        }
+    }
+
+    pub fn from_budget(budget: &ResourceBudgetConfig) -> Self {
+        Self::new(budget.pdf_vision_jobs_concurrent)
+    }
+
+    pub fn max_concurrent(&self) -> usize {
+        self.inner.max_concurrent()
+    }
+
+    pub async fn acquire_owned(&self) -> Option<OwnedSemaphorePermit> {
+        self.inner.acquire_owned().await
     }
 }
 

@@ -27,6 +27,7 @@
 //! - Detailed debugging via `/health` response
 
 use axum::{extract::State, http::StatusCode, Json};
+use std::sync::Arc;
 
 use crate::error::ApiResult;
 use crate::state::AppState;
@@ -71,11 +72,17 @@ pub use crate::handlers::health_types::{
     )
 )]
 pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<HealthResponse>> {
+    // SPEC-021 P-G13: bounded pings — never block on pool acquire during ingestion bursts.
+    let (kv_ok, vector_ok, graph_ok) = super::health_probes::probe_storage_components(
+        Arc::clone(&state.storage.kv_storage),
+        Arc::clone(&state.storage.vector_storage),
+        Arc::clone(&state.storage.graph_storage),
+    )
+    .await;
     let components = ComponentHealth {
-        // SPEC-011: ping() is O(1); count() was O(N) full-table scan per health probe.
-        kv_storage: state.storage.kv_storage.ping().await.is_ok(),
-        vector_storage: state.storage.vector_storage.ping().await.is_ok(),
-        graph_storage: state.storage.graph_storage.ping().await.is_ok(),
+        kv_storage: kv_ok,
+        vector_storage: vector_ok,
+        graph_storage: graph_ok,
         llm_provider: true, // Assume available, actual check would require API call
     };
 
@@ -85,10 +92,12 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     // Query schema health (PostgreSQL only)
     // WHY: OODA-14 - Mission requires schema version verification
     let schema = get_schema_health(&state).await;
+    let storage_degraded = !kv_ok || !vector_ok || !graph_ok;
     let status = if schema
         .as_ref()
         .and_then(|s| s.source_ids_indexes.as_ref())
         .is_some_and(|m| !m.ready)
+        || storage_degraded
     {
         "degraded"
     } else {
