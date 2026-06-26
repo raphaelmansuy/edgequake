@@ -149,6 +149,8 @@ pub struct WorkerAppGuard {
     _serialize: tokio::sync::MutexGuard<'static, ()>,
     pub router: axum::Router,
     pub graph_storage: std::sync::Arc<dyn edgequake_storage::GraphStorage>,
+    /// Production query engine (mirrors worker processor wiring for P-G9 E2E).
+    pub query_engine: std::sync::Arc<edgequake_query::QueryEngine>,
 }
 
 impl WorkerAppGuard {
@@ -221,6 +223,7 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
         enable_swagger: true,
     };
     let graph_storage = std::sync::Arc::clone(&state.storage.graph_storage);
+    let query_engine = std::sync::Arc::clone(&state.query.engine_impl);
 
     let server = Server::new(config, state);
     let router = server.build_router();
@@ -233,6 +236,7 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
         _serialize: serialize,
         router,
         graph_storage,
+        query_engine,
     }
 }
 
