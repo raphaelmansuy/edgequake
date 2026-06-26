@@ -172,11 +172,7 @@ async fn create_test_app_with_state_and_workers() -> (axum::Router, AppState) {
 
 /// Upload + wait for ingestion via track-status polling (P-G2b). Returns the
 /// document_id.
-async fn upload_and_wait_http(
-    app: &axum::Router,
-    title: &str,
-    content: &str,
-) -> String {
+async fn upload_and_wait_http(app: &axum::Router, title: &str, content: &str) -> String {
     let (status, body) = upload_document(app, title, content).await;
     assert!(
         status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
@@ -209,7 +205,10 @@ async fn upload_and_wait_http(
             .unwrap();
         if resp.status().is_success() {
             let b = extract_json(resp).await;
-            if b.get("is_complete").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if b.get("is_complete")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return doc_id;
             }
         }

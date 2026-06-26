@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::engine::QueryRequest;
-use edgequake_query::{QueryEngineConfig, QueryEngine};
+use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_storage::traits::{GraphStorage, GraphStorageMutateOps, VectorStorage};
 use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};
 
@@ -43,7 +43,10 @@ async fn global_mode_returns_entities_with_batched_degrees() {
 
     let mut edge_props = std::collections::HashMap::new();
     edge_props.insert("relation_type".to_string(), serde_json::json!("KNOWS"));
-    edge_props.insert("description".to_string(), serde_json::json!("alpha knows beta"));
+    edge_props.insert(
+        "description".to_string(),
+        serde_json::json!("alpha knows beta"),
+    );
     graph
         .upsert_edge("ALPHA", "BETA", edge_props)
         .await
@@ -90,6 +93,11 @@ async fn global_mode_returns_entities_with_batched_degrees() {
         !response.context.entities.is_empty(),
         "Global mode must return entities via the batched degree path"
     );
-    let names: Vec<&str> = response.context.entities.iter().map(|e| e.name.as_str()).collect();
+    let names: Vec<&str> = response
+        .context
+        .entities
+        .iter()
+        .map(|e| e.name.as_str())
+        .collect();
     assert!(names.contains(&"ALPHA") || names.contains(&"BETA"));
 }

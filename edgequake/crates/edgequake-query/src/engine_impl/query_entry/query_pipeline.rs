@@ -10,11 +10,11 @@ use std::time::Instant;
 use edgequake_storage::traits::VectorStorage;
 
 use crate::context::QueryContext;
-use crate::types::{QueryRequest, QueryResponse, QueryStats};
 use crate::error::Result;
 use crate::keywords::{ExtractedKeywords, QueryIntent};
 use crate::modes::QueryMode;
 use crate::truncation::balance_context;
+use crate::types::{QueryRequest, QueryResponse, QueryStats};
 use crate::{EmbeddingProvider, LLMProvider};
 
 use super::super::{QueryEmbeddings, QueryEngine};
@@ -357,6 +357,23 @@ impl QueryEngine {
                 ),
                 0,
             )
+        } else if mode.is_bypass() {
+            // P-G8 / RC-13: Bypass = direct LLM, no RAG template, no apology.
+            // `final_context` is intentionally empty for Bypass (the retrieval
+            // step is skipped in `run_query_pipeline`); the RAG `generate_answer`
+            // would misinterpret that emptiness as a retrieval miss and return
+            // the apology string. Use the dedicated direct-LLM path instead.
+            let gen_start = Instant::now();
+            let result = self
+                .generate_bypass_answer(
+                    &request.query,
+                    providers.answer_llm.as_ref(),
+                    request.system_prompt.as_deref(),
+                    request.images.as_deref(),
+                )
+                .await?;
+            stats.generation_time_ms = gen_start.elapsed().as_millis() as u64;
+            result
         } else {
             let gen_start = Instant::now();
             let result = if let Some(ref llm) = providers.answer_llm {

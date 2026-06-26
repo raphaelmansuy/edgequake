@@ -4040,9 +4040,13 @@ async fn test_delete_isolation_between_workspaces() {
     let workspace_b = "00000000-0000-0000-0000-0000000000b1";
 
     // Upload document to workspace A (P-G2b: async enqueue, returns 202).
-    let (upload_a_status, body_a) =
-        upload_document_tenant_scoped(&app, "Doc in Workspace A", "Content for workspace A testing isolation during deletion.", workspace_a)
-            .await;
+    let (upload_a_status, body_a) = upload_document_tenant_scoped(
+        &app,
+        "Doc in Workspace A",
+        "Content for workspace A testing isolation during deletion.",
+        workspace_a,
+    )
+    .await;
     assert!(
         upload_a_status == StatusCode::CREATED || upload_a_status == StatusCode::ACCEPTED,
         "upload A should return 201 or 202, got {}",
@@ -4051,9 +4055,13 @@ async fn test_delete_isolation_between_workspaces() {
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
 
     // Upload document to workspace B.
-    let (upload_b_status, body_b) =
-        upload_document_tenant_scoped(&app, "Doc in Workspace B", "Content for workspace B testing isolation during deletion.", workspace_b)
-            .await;
+    let (upload_b_status, body_b) = upload_document_tenant_scoped(
+        &app,
+        "Doc in Workspace B",
+        "Content for workspace B testing isolation during deletion.",
+        workspace_b,
+    )
+    .await;
     assert!(
         upload_b_status == StatusCode::CREATED || upload_b_status == StatusCode::ACCEPTED,
         "upload B should return 201 or 202, got {}",

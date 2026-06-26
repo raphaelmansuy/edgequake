@@ -716,9 +716,8 @@ impl DocumentTaskProcessor {
         if !chunk_vector_batch.is_empty() {
             match workspace_vector_storage.upsert(&chunk_vector_batch).await {
                 Ok(()) => {
-                    written_chunk_vector_ids.extend(
-                        chunk_vector_batch.iter().map(|(id, _, _)| id.clone()),
-                    );
+                    written_chunk_vector_ids
+                        .extend(chunk_vector_batch.iter().map(|(id, _, _)| id.clone()));
                 }
                 Err(e) => {
                     // P-G4: a batch failure means NO chunk vectors were written.
@@ -804,10 +803,16 @@ impl DocumentTaskProcessor {
         let entity_ids: Vec<edgequake_storage::EntityId> = result
             .extractions
             .iter()
-            .flat_map(|e| e.entities.iter().map(|ent| edgequake_storage::EntityId::new(&ent.name)))
+            .flat_map(|e| {
+                e.entities
+                    .iter()
+                    .map(|ent| edgequake_storage::EntityId::new(&ent.name))
+            })
             .collect();
-        let entity_node_ids: Vec<String> =
-            entity_ids.iter().map(|id| id.as_graph_node_id().to_string()).collect();
+        let entity_node_ids: Vec<String> = entity_ids
+            .iter()
+            .map(|id| id.as_graph_node_id().to_string())
+            .collect();
 
         let existing_entity_source_ids: std::collections::HashMap<
             String,
@@ -849,14 +854,16 @@ impl DocumentTaskProcessor {
             .extractions
             .iter()
             .flat_map(|e| {
-                e.relationships
-                    .iter()
-                    .map(|r| {
-                        (
-                            edgequake_storage::EntityId::new(&r.source).as_graph_node_id().to_string(),
-                            edgequake_storage::EntityId::new(&r.target).as_graph_node_id().to_string(),
-                        )
-                    })
+                e.relationships.iter().map(|r| {
+                    (
+                        edgequake_storage::EntityId::new(&r.source)
+                            .as_graph_node_id()
+                            .to_string(),
+                        edgequake_storage::EntityId::new(&r.target)
+                            .as_graph_node_id()
+                            .to_string(),
+                    )
+                })
             })
             .collect();
 
@@ -875,7 +882,11 @@ impl DocumentTaskProcessor {
                 .collect::<std::collections::HashSet<_>>()
                 .into_iter()
                 .collect();
-            match self.graph_storage.get_edges_for_nodes_batch(&node_set).await {
+            match self
+                .graph_storage
+                .get_edges_for_nodes_batch(&node_set)
+                .await
+            {
                 Ok(edges) => {
                     for edge in edges {
                         let sources: std::collections::HashSet<String> = edge
@@ -888,8 +899,7 @@ impl DocumentTaskProcessor {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        existing_edge_source_ids
-                            .insert((edge.source, edge.target), sources);
+                        existing_edge_source_ids.insert((edge.source, edge.target), sources);
                     }
                 }
                 Err(e) => {
@@ -947,10 +957,12 @@ impl DocumentTaskProcessor {
 
             for relationship in &extraction.relationships {
                 // RC-6 / P-G1: edge endpoints = normalized EntityIds.
-                let src_key =
-                    edgequake_storage::EntityId::new(&relationship.source).as_graph_node_id().to_string();
-                let tgt_key =
-                    edgequake_storage::EntityId::new(&relationship.target).as_graph_node_id().to_string();
+                let src_key = edgequake_storage::EntityId::new(&relationship.source)
+                    .as_graph_node_id()
+                    .to_string();
+                let tgt_key = edgequake_storage::EntityId::new(&relationship.target)
+                    .as_graph_node_id()
+                    .to_string();
 
                 let mut properties = std::collections::HashMap::new();
                 properties.insert(
@@ -1120,7 +1132,11 @@ impl DocumentTaskProcessor {
                     }
                     metadata["workspace_id"] = json!(&workspace_id_meta);
 
-                    entity_vector_batch.push((entity_id.as_vector_id(), embedding.clone(), metadata));
+                    entity_vector_batch.push((
+                        entity_id.as_vector_id(),
+                        embedding.clone(),
+                        metadata,
+                    ));
                 }
             }
         }

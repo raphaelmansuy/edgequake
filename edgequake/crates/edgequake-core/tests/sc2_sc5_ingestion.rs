@@ -204,6 +204,23 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         ))
     }
 
+    /// P-G10: batch is now required. The processor persists via the batch path,
+    /// so the injected failure must live here (mirrors `upsert_node`).
+    async fn upsert_nodes_batch(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> Result<(), StorageError> {
+        // Record the chunk-vector count at the moment the graph merge is
+        // attempted, then fail exactly like the per-node path.
+        let seen = count_chunk_vectors(self.vector_store.as_ref()).await;
+        self.chunk_vectors_at_merge.store(seen, Ordering::SeqCst);
+        // Surface how many nodes were attempted for diagnostics.
+        Err(StorageError::Transaction(format!(
+            "injected graph merge failure (batch of {} nodes)",
+            nodes.len()
+        )))
+    }
+
     async fn delete_node(&self, _node_id: &str) -> Result<(), StorageError> {
         Ok(())
     }
@@ -214,6 +231,15 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         _target: &str,
         _properties: HashMap<String, serde_json::Value>,
     ) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    async fn upsert_edges_batch(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> Result<(), StorageError> {
+        // Edges succeed in this fixture (the failure is injected at node batch).
+        let _ = edges;
         Ok(())
     }
 
@@ -278,6 +304,23 @@ impl GraphStorageAnalyticsOps for FailingGraphStorage {
     }
 
     async fn edge_count(&self) -> Result<usize, StorageError> {
+        Ok(0)
+    }
+
+    // P-G12: required workspace-scoped counts. This fixture stores nothing,
+    // so every workspace (including the empty one) returns 0 — never the global
+    // count.
+    async fn node_count_by_workspace(
+        &self,
+        _workspace_id: &uuid::Uuid,
+    ) -> Result<usize, StorageError> {
+        Ok(0)
+    }
+
+    async fn edge_count_by_workspace(
+        &self,
+        _workspace_id: &uuid::Uuid,
+    ) -> Result<usize, StorageError> {
         Ok(0)
     }
 }

@@ -74,6 +74,7 @@ mod config_tests {
             enable_rerank: false,
             min_rerank_score: 0.1,
             rerank_top_k: 10,
+            ..Default::default()
         };
 
         assert!(matches!(config.default_mode, QueryMode::Local));

@@ -300,9 +300,13 @@ async fn test_pipeline_small_document_extraction() {
 
     // P-G2b: upload enqueues a background task; wait for it to reach a
     // terminal processed state before asserting on ingestion results.
-    let (document_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "Small AI Research", SMALL_DOCUMENT, Duration::from_secs(30))
-            .await;
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Small AI Research",
+        SMALL_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // In mock/test mode, extraction may legitimately end as completed or partial_failure.
     let doc_details = get_document(app, document_id.as_str()).await;
@@ -317,9 +321,13 @@ async fn test_pipeline_small_document_entity_types() {
     let workers = common::create_test_app_with_workers().await;
     let app = workers.app();
 
-    let (_document_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "Entity Type Test", SMALL_DOCUMENT, Duration::from_secs(30))
-            .await;
+    let (_document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Entity Type Test",
+        SMALL_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Get graph to verify structure (mock may not have entities)
     let graph = get_graph(app).await;
@@ -392,9 +400,13 @@ async fn test_pipeline_medium_document_keywords() {
     let workers = common::create_test_app_with_workers().await;
     let app = workers.app();
 
-    let (_document_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "Keywords Test", MEDIUM_DOCUMENT, Duration::from_secs(30))
-            .await;
+    let (_document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Keywords Test",
+        MEDIUM_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Get graph to check relationships have keywords
     let graph = get_graph(app).await;
@@ -455,9 +467,13 @@ async fn test_pipeline_large_document_embeddings() {
     let workers = common::create_test_app_with_workers().await;
     let app = workers.app();
 
-    let (_document_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "Embeddings Test", LARGE_DOCUMENT, Duration::from_secs(30))
-            .await;
+    let (_document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Embeddings Test",
+        LARGE_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Query should work with embeddings
     let query_result = query_rag(app, "Who works on quantum computing at IBM?").await;
@@ -503,8 +519,13 @@ async fn test_lineage_entity_provenance() {
     let workers = common::create_test_app_with_workers().await;
     let app = workers.app();
 
-    let (document_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "Lineage Test", MEDIUM_DOCUMENT, Duration::from_secs(30)).await;
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Lineage Test",
+        MEDIUM_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Get document lineage - endpoint should return valid response
     let lineage = get_document_lineage(app, document_id.as_str()).await;
@@ -737,9 +758,13 @@ async fn test_rag_query_after_ingestion() {
     let workers = common::create_test_app_with_workers().await;
     let app = workers.app();
 
-    let (_document_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "RAG Query Test", MEDIUM_DOCUMENT, Duration::from_secs(30))
-            .await;
+    let (_document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "RAG Query Test",
+        MEDIUM_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Query about the document content
     let query_result = query_rag(app, "Who founded EdgeQuake Corporation?").await;

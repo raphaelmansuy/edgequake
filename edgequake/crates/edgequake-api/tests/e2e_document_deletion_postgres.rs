@@ -36,7 +36,7 @@ use edgequake_core::{
 };
 use edgequake_llm::MockProvider;
 use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngineConfig, QueryEngine};
+use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_storage::{
     GraphStorage, KVStorage, MemoryWorkspaceVectorRegistry, PgVectorStorage,
     PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, VectorStorage,

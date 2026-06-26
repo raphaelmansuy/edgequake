@@ -86,8 +86,7 @@ async fn test_upload_request_defaults() {
             .unwrap();
 
         assert!(
-            response.status() == StatusCode::CREATED
-                || response.status() == StatusCode::ACCEPTED,
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED,
             "Upload should return 201 or 202"
         );
         let body = extract_json(response).await;
@@ -242,8 +241,7 @@ async fn test_upload_response_structure() {
             .unwrap();
 
         assert!(
-            response.status() == StatusCode::CREATED
-                || response.status() == StatusCode::ACCEPTED,
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED,
             "Upload should return 201 or 202"
         );
         let body = extract_json(response).await;
@@ -429,8 +427,7 @@ async fn test_metadata_special_characters() {
             .unwrap();
 
         assert!(
-            response.status() == StatusCode::CREATED
-                || response.status() == StatusCode::ACCEPTED,
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED,
             "Special chars in metadata should be accepted: {}",
             response.status()
         );

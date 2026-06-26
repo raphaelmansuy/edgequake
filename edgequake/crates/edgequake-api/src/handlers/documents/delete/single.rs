@@ -32,20 +32,36 @@ use super::super::storage_helpers::{
 /// the real KV key prefix to delete all associated keys (chunks, content, metadata).
 ///
 /// Returns `(actual_key_prefix, metadata_key, has_metadata)`.
-async fn resolve_kv_key_prefix(
-    document_id: &str,
-    keys: &[String],
-    state: &AppState,
-) -> (String, String, bool) {
+///
+/// P-G7 (RC-12): the slow path uses `keys_with_suffix("-metadata")` (an
+/// index-friendly scan in Postgres) instead of requiring the caller to pass
+/// the full key list. The fast path is a direct O(1) `get_by_id` on the
+/// expected `{document_id}-metadata` key.
+async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, String, bool) {
     // Fast path: direct key lookup — key prefix == document_id
     let direct_metadata_key = format!("{}-metadata", document_id);
-    if keys.contains(&direct_metadata_key) {
+    if state
+        .storage
+        .kv_storage
+        .get_by_id(&direct_metadata_key)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+    {
         return (document_id.to_string(), direct_metadata_key, true);
     }
 
-    // Slow path: scan ALL metadata keys and check if any has a JSON `id` field
-    // that matches `document_id`. This handles key/id mismatch cases.
-    for key in keys.iter().filter(|k| k.ends_with("-metadata")) {
+    // Slow path: scan metadata keys only (index-friendly suffix scan) and check
+    // if any has a JSON `id` field that matches `document_id`. This handles
+    // key/id mismatch cases without an O(W) full-table key scan.
+    let metadata_keys = state
+        .storage
+        .kv_storage
+        .keys_with_suffix("-metadata")
+        .await
+        .unwrap_or_default();
+    for key in metadata_keys.iter() {
         if let Ok(Some(val)) = state.storage.kv_storage.get_by_id(key).await {
             if let Some(json_id) = val.get("id").and_then(|v| v.as_str()) {
                 if json_id == document_id {
@@ -79,18 +95,12 @@ pub async fn delete_document(
     axum::extract::Path(document_id): axum::extract::Path<String>,
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<DeleteDocumentResponse>> {
-    let keys = state.storage.kv_storage.keys().await?;
-
-    // Resolve the actual KV key prefix for this document.
-    //
-    // WHY: The list endpoint shows documents by their JSON `id` field inside KV
-    // metadata values, but KV keys use the prefix `{early_doc_id}-metadata`.
-    // Historically these could diverge (e.g., during interrupted retries or
-    // backend restarts with older code versions). When they differ, the frontend
-    // sends the JSON `id` (from the list), but the KV key prefix is different.
-    // Without this fallback, the delete returns 404 and the document is undeletable.
+    // P-G7 (RC-12): no upfront O(W) full-key scan. The metadata key is resolved
+    // via `resolve_kv_key_prefix` (fast O(1) direct lookup, slow path uses an
+    // index-friendly suffix scan). Chunk/content keys are fetched with an
+    // index-friendly prefix scan scoped to the resolved document prefix.
     let (actual_key_prefix, metadata_key, has_metadata) =
-        resolve_kv_key_prefix(&document_id, &keys, &state).await;
+        resolve_kv_key_prefix(&document_id, &state).await;
     let key_id_mismatch = actual_key_prefix != document_id;
 
     if key_id_mismatch {
@@ -102,17 +112,25 @@ pub async fn delete_document(
         );
     }
 
-    // Find chunks belonging to this document (using resolved key prefix)
+    // Find chunks belonging to this document (index-friendly prefix scan).
     let chunk_prefix = format!("{}-chunk-", actual_key_prefix);
-    let chunk_ids: Vec<String> = keys
-        .iter()
-        .filter(|k| k.starts_with(&chunk_prefix))
-        .cloned()
-        .collect();
+    let chunk_ids: Vec<String> = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&chunk_prefix)
+        .await
+        .unwrap_or_default();
 
     // Also check for content key (using resolved key prefix)
     let content_key = format!("{}-content", actual_key_prefix);
-    let has_content = keys.contains(&content_key);
+    let has_content = state
+        .storage
+        .kv_storage
+        .get_by_id(&content_key)
+        .await
+        .ok()
+        .flatten()
+        .is_some();
 
     // Document must have either chunks, metadata, or content
     if chunk_ids.is_empty() && !has_metadata && !has_content {
@@ -303,12 +321,17 @@ pub async fn delete_document(
 
     // Collect any other KV keys with the document prefix that aren't already
     // in the list (e.g., `-lineage` keys). This ensures comprehensive cleanup.
-    let all_prefix_keys: Vec<String> = keys
-        .iter()
-        .filter(|k| {
-            k.starts_with(&format!("{}-", actual_key_prefix)) && !keys_to_delete.contains(k)
-        })
-        .cloned()
+    // P-G7 (RC-12): index-friendly prefix scan instead of filtering the full
+    // key set in-memory.
+    let actual_doc_prefix = format!("{}-", actual_key_prefix);
+    let all_prefix_keys: Vec<String> = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&actual_doc_prefix)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|k| !keys_to_delete.contains(k))
         .collect();
     if !all_prefix_keys.is_empty() {
         tracing::debug!(
@@ -321,10 +344,15 @@ pub async fn delete_document(
 
     // In mismatch cases, also collect keys under the JSON id prefix
     if key_id_mismatch {
-        let alt_prefix_keys: Vec<String> = keys
-            .iter()
-            .filter(|k| k.starts_with(&format!("{}-", document_id)) && !keys_to_delete.contains(k))
-            .cloned()
+        let json_doc_prefix = format!("{}-", document_id);
+        let alt_prefix_keys: Vec<String> = state
+            .storage
+            .kv_storage
+            .keys_with_prefix(&json_doc_prefix)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|k| !keys_to_delete.contains(k))
             .collect();
         if !alt_prefix_keys.is_empty() {
             tracing::debug!(
@@ -489,8 +517,7 @@ mod tests {
             .await
             .unwrap();
 
-        let keys = state.storage.kv_storage.keys().await.unwrap();
-        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &keys, &state).await;
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &state).await;
 
         assert_eq!(prefix, doc_id);
         assert_eq!(key, metadata_key);
@@ -516,8 +543,7 @@ mod tests {
             .await
             .unwrap();
 
-        let keys = state.storage.kv_storage.keys().await.unwrap();
-        let (prefix, key, has_metadata) = resolve_kv_key_prefix(json_id, &keys, &state).await;
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(json_id, &state).await;
 
         // Should resolve to the KV key prefix, not the JSON id
         assert_eq!(prefix, kv_prefix);
@@ -531,8 +557,7 @@ mod tests {
         let state = AppState::test_state();
         let doc_id = "nonexistent-doc-9999";
 
-        let keys = state.storage.kv_storage.keys().await.unwrap();
-        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &keys, &state).await;
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &state).await;
 
         assert_eq!(prefix, doc_id);
         assert_eq!(key, format!("{}-metadata", doc_id));

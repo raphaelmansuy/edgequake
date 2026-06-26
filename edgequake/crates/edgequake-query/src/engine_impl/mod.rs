@@ -131,6 +131,16 @@ pub struct QueryEngineConfig {
 
     /// Top K results to keep after reranking.
     pub rerank_top_k: usize,
+
+    /// Mix-mode weights (P-G8 / RC-13). Mix runs the Local, Global, and Naive
+    /// arms in parallel and blends them with these weights after min-max
+    /// normalizing each arm's scores. Weights need not sum to 1 (they are
+    /// normalized at use). When all three are equal, Mix ordering matches the
+    /// round-robin Hybrid ordering on identical fixtures (backward compatible).
+    /// A weight of 0 for an arm means it contributes 0 to the blend (E25).
+    pub mix_local_weight: f32,
+    pub mix_global_weight: f32,
+    pub mix_naive_weight: f32,
 }
 
 impl Default for QueryEngineConfig {
@@ -176,6 +186,10 @@ impl Default for QueryEngineConfig {
             min_rerank_score: 0.1,
             // WHY 20: Match max_chunks to keep all chunk candidates after reranking.
             rerank_top_k: 20,
+            // P-G8: equal weights preserve Hybrid ordering on identical fixtures.
+            mix_local_weight: 1.0,
+            mix_global_weight: 1.0,
+            mix_naive_weight: 1.0,
         }
     }
 }
@@ -366,6 +380,31 @@ impl QueryEngine {
         self
     }
 
+    /// Wrap the engine's embedding provider in an LRU+TTL embedding cache
+    /// (P-G9 / RC-14). Repeated `embed_one` calls for the same query text skip
+    /// the embedding round-trip. Batch `embed` (ingestion) is delegated
+    /// unchanged, so this never affects ingestion semantics.
+    ///
+    /// Defaults: 10_000 entries, 1h TTL. Use [`Self::with_embedding_cache_config`]
+    /// for custom sizing.
+    pub fn with_embedding_cache(self) -> Self {
+        self.with_embedding_cache_config(10_000, std::time::Duration::from_secs(3600))
+    }
+
+    /// Wrap the embedding provider in a cache with custom `max_size` and `ttl`.
+    pub fn with_embedding_cache_config(
+        mut self,
+        max_size: usize,
+        ttl: std::time::Duration,
+    ) -> Self {
+        self.embedding_provider = Arc::new(crate::cache::CachingEmbeddingProvider::new(
+            self.embedding_provider.clone(),
+            max_size,
+            ttl,
+        ));
+        self
+    }
+
     /// Read-only graph access for query paths (SPEC-017 ISP Phase 2a).
     #[inline]
     pub(super) fn graph_read(&self) -> GraphReadView<'_> {
@@ -454,6 +493,9 @@ mod query_entry;
 mod query_modes;
 mod reranking;
 mod vector_queries;
+
+/// Shared token-stream type for streaming query answers (P-G11).
+pub type TokenStream = futures::stream::BoxStream<'static, std::result::Result<String, QueryError>>;
 
 #[cfg(test)]
 mod tests {

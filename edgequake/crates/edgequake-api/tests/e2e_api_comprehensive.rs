@@ -176,8 +176,7 @@ mod document_tests {
         // returns 202 Accepted + pending (201 Created is also accepted for
         // back-compat). Counts are no longer reported synchronously.
         assert!(
-            response.status() == StatusCode::CREATED
-                || response.status() == StatusCode::ACCEPTED
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED
         );
 
         let json = extract_json(response).await;
@@ -207,8 +206,7 @@ mod document_tests {
 
         // WHY (P-G2b): uploads return 202 Accepted (or 201 Created for back-compat).
         assert!(
-            response.status() == StatusCode::CREATED
-                || response.status() == StatusCode::ACCEPTED
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED
         );
     }
 
@@ -311,8 +309,7 @@ mod document_tests {
         // Accepted + status "pending" + task_id (201 Created accepted for
         // back-compat). The `async_processing` flag is accepted but ignored.
         assert!(
-            response.status() == StatusCode::CREATED
-                || response.status() == StatusCode::ACCEPTED
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED
         );
 
         let json = extract_json(response).await;
@@ -1190,8 +1187,7 @@ mod tenant_tests {
         // and the upstream call fails -> 502 Bad Gateway. Accept OK (mock/dry
         // path) or 502 (real provider rejected the test credentials).
         assert!(
-            response.status() == StatusCode::OK
-                || response.status() == StatusCode::BAD_GATEWAY
+            response.status() == StatusCode::OK || response.status() == StatusCode::BAD_GATEWAY
         );
     }
 

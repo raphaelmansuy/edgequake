@@ -168,6 +168,15 @@ fn api_v1_routes() -> Router<AppState> {
         // SPEC-021 P-D2: Storage health inspection + repair (admin-only)
         .route("/admin/storage/inspect", get(handlers::storage_inspect))
         .route("/admin/storage/repair", post(handlers::storage_repair))
+        // SPEC-021 P-G1b: legacy entity reconciliation (admin-gated, dry-run + confirm).
+        .route(
+            "/admin/entities/reconcile",
+            get(handlers::entity_reconcile_plan),
+        )
+        .route(
+            "/admin/entities/reconcile",
+            post(handlers::entity_reconcile_execute),
+        )
         // Workspaces (Multi-tenancy)
         .route(
             "/tenants/{tenant_id}/workspaces",

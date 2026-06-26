@@ -8,6 +8,15 @@ use super::graph_read_ops::GraphStorageReadOps;
 use super::graph_scan_ops::GraphScanOps;
 
 /// Counts, estimates, and workspace-scoped statistics.
+///
+/// # Workspace scoping (P-G12 / RC-17, LSP)
+///
+/// `node_count_by_workspace` and `edge_count_by_workspace` are **required**
+/// (no default). The previous default ignored `workspace_id` and returned the
+/// GLOBAL count, which silently leaked cross-workspace counts to any adapter
+/// that forgot to override it. Making them required forces every adapter to
+/// implement honest workspace scoping (E32: a workspace with zero nodes must
+/// return 0, not the global count).
 #[async_trait]
 pub trait GraphStorageAnalyticsOps: GraphStorageReadOps + GraphScanOps {
     async fn node_count(&self) -> Result<usize>;
@@ -27,15 +36,11 @@ pub trait GraphStorageAnalyticsOps: GraphStorageReadOps + GraphScanOps {
         Ok(())
     }
 
-    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        let _ = workspace_id;
-        self.node_count().await
-    }
+    /// Count nodes scoped to a single workspace (required; no default).
+    async fn node_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize>;
 
-    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        let _ = workspace_id;
-        self.edge_count().await
-    }
+    /// Count edges scoped to a single workspace (required; no default).
+    async fn edge_count_by_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize>;
 
     async fn distinct_node_type_count_by_workspace(
         &self,

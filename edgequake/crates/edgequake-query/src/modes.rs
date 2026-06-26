@@ -70,8 +70,13 @@ pub enum QueryMode {
     #[default]
     Hybrid,
 
-    /// Weighted combination of naive and graph-based.
-    /// Most flexible, configurable weights.
+    /// Weighted combination of naive and graph-based retrieval (FEAT0105 / P-G8).
+    ///
+    /// Runs the Local, Global, and Naive arms in parallel and blends them by
+    /// *weighted score* (min-max normalized per arm, then weighted sum), not
+    /// round-robin. Weights are `QueryEngineConfig::{mix_local_weight,
+    /// mix_global_weight, mix_naive_weight}` and need not sum to 1. Equal
+    /// weights preserve Hybrid's ordering on identical fixtures.
     Mix,
 
     /// Direct LLM query without RAG retrieval (FEAT0106).

@@ -14,7 +14,7 @@ use edgequake_core::InMemoryConversationService;
 use edgequake_core::InMemoryWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngineConfig, QueryEngine};
+use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 #[cfg(feature = "postgres")]
 use edgequake_storage::adapters::memory::{MemoryConversationStorage, MemoryPdfStorage};

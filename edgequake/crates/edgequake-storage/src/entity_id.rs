@@ -203,7 +203,10 @@ mod tests {
     fn strips_accidental_entity_prefix() {
         // E2: a caller passing an already-prefixed value must not double-prefix.
         assert_eq!(EntityId::new("entity:Foo Bar"), EntityId::new("Foo Bar"));
-        assert_eq!(EntityId::new("entity:Foo Bar").as_vector_id(), "entity:FOO_BAR");
+        assert_eq!(
+            EntityId::new("entity:Foo Bar").as_vector_id(),
+            "entity:FOO_BAR"
+        );
     }
 
     #[test]

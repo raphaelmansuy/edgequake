@@ -52,15 +52,20 @@ pub async fn recover_stuck(
     let threshold = Duration::minutes(request.stuck_threshold_minutes as i64);
     let cutoff_time = Utc::now() - threshold;
 
-    // Get all metadata keys
-    let all_keys: Vec<String> = state.storage.kv_storage.keys().await?;
+    // P-G7 (RC-12): index-friendly suffix scan instead of O(W) full-table scan.
+    let all_keys: Vec<String> = state
+        .storage
+        .kv_storage
+        .keys_with_suffix("-metadata")
+        .await?;
 
     let mut stuck_docs = Vec::new();
     let mut requeued_ids = Vec::new();
     let mut requeued_titles = Vec::new();
 
-    // Find stuck processing documents
-    for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
+    // Find stuck processing documents. `all_keys` already contains only
+    // `*-metadata` keys (P-G7), so no suffix filter is needed here.
+    for key in all_keys.iter() {
         if stuck_docs.len() >= request.max_documents {
             break;
         }

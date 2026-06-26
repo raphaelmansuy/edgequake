@@ -123,9 +123,15 @@ mod tests {
     #[test]
     fn test_normalize_entity_name_edge_cases() {
         // Single space replaced with underscore
-        assert_eq!(normalize_entity_name_for_graph("hello world"), "HELLO_WORLD");
+        assert_eq!(
+            normalize_entity_name_for_graph("hello world"),
+            "HELLO_WORLD"
+        );
         // Canonical normalizer collapses runs of whitespace (split_whitespace)
-        assert_eq!(normalize_entity_name_for_graph("hello  world"), "HELLO_WORLD");
+        assert_eq!(
+            normalize_entity_name_for_graph("hello  world"),
+            "HELLO_WORLD"
+        );
         // Empty string
         assert_eq!(normalize_entity_name_for_graph(""), "");
         // Already uppercase

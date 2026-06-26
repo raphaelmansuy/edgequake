@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use futures::stream::StreamExt;
+
 use crate::context::QueryContext;
 use crate::error::Result;
 use edgequake_llm::traits::{ChatMessage, ImageData};
 
 use super::QueryEngine;
+use super::TokenStream;
 
 impl QueryEngine {
     /// Check if metadata matches tenant/workspace filter.
@@ -251,5 +254,114 @@ Generate a comprehensive, well-structured answer that integrates observations fr
     ) -> Result<(String, usize)> {
         self.generate_answer_with_provider(query, context, None, system_prompt_extension, None)
             .await
+    }
+
+    /// Generate a *direct* LLM answer with no retrieval context (P-G8 / RC-13).
+    ///
+    /// WHY (First Principles): Bypass mode means "skip retrieval, ask the LLM
+    /// directly" — the opposite of RAG. The RAG `generate_answer_with_provider`
+    /// guards on `context.is_empty()` and returns the *apology* string for a
+    /// real retrieval miss, which is correct for Local/Global/Hybrid/Naive but
+    /// wrong for Bypass, where an empty context is *intentional*. This method
+    /// bypasses that guard and calls the LLM with a direct prompt, mirroring
+    /// `sota_bridge::query_bypass` so both entry paths (HTTP `/query` and the
+    /// orchestrator) produce identical Bypass answers (DRY).
+    ///
+    /// E23: an empty/whitespace query still reaches the LLM; the provider is
+    /// responsible for its own handling. `system_prompt_extension` is honored
+    /// as a system message when present.
+    pub(super) async fn generate_bypass_answer(
+        &self,
+        query: &str,
+        llm_override: Option<&Arc<dyn crate::LLMProvider>>,
+        system_prompt_extension: Option<&str>,
+        images: Option<&[ImageData]>,
+    ) -> Result<(String, usize)> {
+        let provider = llm_override.unwrap_or(&self.llm_provider);
+        let user_prompt = format!(
+            "Answer the following question to the best of your ability.\n\nQuestion: {}\n\nAnswer:",
+            query
+        );
+
+        let response = if let Some(imgs) = images.filter(|i| !i.is_empty()) {
+            // Vision-capable bypass: system = optional extension, user = query + images.
+            let system_text = system_prompt_extension
+                .unwrap_or("You are a helpful assistant. Answer the user's question directly.");
+            let messages = vec![
+                ChatMessage::system(system_text),
+                ChatMessage::user_with_images(&user_prompt, imgs.to_vec()),
+            ];
+            match provider.chat(&messages, None).await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!(error = %e, "Bypass vision chat failed; retrying as text-only");
+                    provider.complete(&user_prompt).await?
+                }
+            }
+        } else if let Some(ext) = system_prompt_extension.filter(|s| !s.trim().is_empty()) {
+            let messages = vec![ChatMessage::system(ext), ChatMessage::user(&user_prompt)];
+            provider.chat(&messages, None).await?
+        } else {
+            provider.complete(&user_prompt).await?
+        };
+
+        Ok((response.content, response.completion_tokens))
+    }
+
+    /// Stream a vision (image-attached) answer (P-G11 / RC-16).
+    ///
+    /// WHY (First Principles): the `LLMProvider::stream` trait method takes only
+    /// a text prompt — it cannot carry images. The vision-capable path is
+    /// `provider.chat()` with image attachments (FEAT0203). So streaming vision
+    /// parity means: when images are attached, run the vision `chat` call and
+    /// emit its result as a one-shot token stream. This keeps the streaming
+    /// entry's contract (a `Stream<Item = Result<String>>`) while using the
+    /// vision path — the same trade-off the sync path already makes.
+    ///
+    /// E30: if the vision chat fails (e.g., vision LLM unavailable), fall back
+    /// to the text-only `stream`/`complete` path — identical to
+    /// `generate_answer_with_provider`'s image fallback.
+    pub(super) async fn stream_vision_answer(
+        &self,
+        query: &str,
+        context: &QueryContext,
+        llm_override: Option<Arc<dyn crate::LLMProvider>>,
+        system_prompt_extension: Option<&str>,
+        images: &[ImageData],
+    ) -> Result<TokenStream> {
+        let provider = llm_override.unwrap_or_else(|| self.llm_provider.clone());
+        let system_text = self.build_vision_system_message(context, system_prompt_extension);
+        let messages = vec![
+            ChatMessage::system(&system_text),
+            ChatMessage::user_with_images(query, images.to_vec()),
+        ];
+
+        match provider.chat(&messages, None).await {
+            Ok(r) => Ok(futures::stream::once(async move { Ok(r.content) }).boxed()),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Streaming vision chat failed; falling back to text-only stream"
+                );
+                // Text-only fallback: prefer streaming if supported, else one-shot.
+                let prompt = self.build_prompt(query, context, system_prompt_extension);
+                if provider.supports_streaming() {
+                    provider
+                        .stream(&prompt)
+                        .await
+                        .map(|s| {
+                            s.map(|res| res.map_err(crate::error::QueryError::from))
+                                .boxed()
+                        })
+                        .map_err(crate::error::QueryError::from)
+                } else {
+                    let resp = provider
+                        .complete(&prompt)
+                        .await
+                        .map_err(crate::error::QueryError::from)?;
+                    Ok(futures::stream::once(async move { Ok(resp.content) }).boxed())
+                }
+            }
+        }
     }
 }
