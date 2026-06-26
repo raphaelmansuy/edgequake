@@ -465,7 +465,7 @@ pure waste.
 | ID | Severity | Status | Finding | Fixed by |
 |----|----------|--------|---------|----------|
 | RC-6 | **CRITICAL** | ⛔ NEW | Entity identity SSOT broken; async processor uses raw names → duplicate nodes + invisible vectors | plan-19 P-G1 |
-| RC-7 | **CRITICAL** | ⛔ NEW | Three ingestion paths with inverted batching; production path is least correct | plan-19 P-G2 |
+| RC-7 | **CRITICAL** | ✅ FIXED | Three ingestion paths collapsed to `persist_processing_result` (P-G2) | plan-19 P-G2, plan-21 |
 | RC-8 | **HIGH** | ⛔ NEW | Global mode N+1 `node_degree` (Local fixed, Global not) | plan-19 P-G3 |
 | RC-9 | **HIGH** | ⛔ NEW | Processor per-chunk and per-entity vector writes are O(C)/O(E) round-trips | plan-19 P-G4 |
 | RC-10 | **HIGH** | ⛔ NEW | Edge-batch / entity-vector / sync-upload failures leave orphans (compensation.rs aspirational) | plan-19 P-G5 |

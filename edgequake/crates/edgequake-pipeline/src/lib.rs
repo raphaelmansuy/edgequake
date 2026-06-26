@@ -63,6 +63,7 @@ pub mod extractor;
 pub mod ingestion_types;
 pub mod lineage;
 pub mod merger;
+pub mod persistence;
 pub mod pipeline;
 pub mod progress;
 pub mod prompts;
@@ -102,6 +103,10 @@ pub use lineage::{
 };
 pub use merger::{
     KnowledgeGraphMerger, MergeStats, MergerConfig, NoopEntitySink, RelationalEntitySink,
+};
+pub use persistence::{
+    build_chunk_vector_batch, persist_processing_result, ChunkVectorBuildOptions,
+    IngestionPersistConfig, IngestionPersistContext, IngestionPersistOutput,
 };
 pub use pipeline::{
     ChunkProgressCallback,

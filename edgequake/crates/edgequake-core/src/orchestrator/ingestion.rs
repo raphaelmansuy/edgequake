@@ -5,11 +5,10 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::{
-    GleaningConfig, GleaningExtractor, KnowledgeGraphMerger, LLMExtractor, LLMSummarizer,
-    MergerConfig, Pipeline, PipelineConfig, SummarizerConfig,
+    ChunkVectorBuildOptions, GleaningConfig, GleaningExtractor, IngestionPersistConfig,
+    IngestionPersistContext, LLMExtractor, MergerConfig, persist_processing_result, Pipeline,
+    PipelineConfig,
 };
-
-use edgequake_storage::traits::VectorStorage;
 
 use crate::error::{Error, Result};
 use crate::types::InsertResult;
@@ -292,135 +291,40 @@ impl EdgeQuake {
         // removed on failure), shrinking the orphan class to the idempotent,
         // re-runnable graph side.
 
-        // Stage 2: Store chunk embeddings with type metadata (written FIRST).
-        // WHY type:"chunk" metadata: enables filtering entity vs chunk vectors at query time.
-        // WHY tenant/workspace: multi-tenancy isolation at the vector level.
-        //
-        // QW2: collect ALL chunk embeddings into a SINGLE batched `upsert` call
-        // instead of one round trip per chunk. The vector adapter performs a
-        // chunked UNNEST insert in one transaction, collapsing N round trips into
-        // ~ceil(N/1000).
-        let chunk_vectors: Vec<(String, Vec<f32>, serde_json::Value)> = processing_result
-            .chunks
-            .iter()
-            .filter_map(|chunk| {
-                let embedding = chunk.embedding.as_ref()?;
-                let mut metadata = serde_json::json!({
-                    "type": "chunk",  // Mark as chunk for retrieval filtering
-                    "document_id": doc_id,
-                    "index": chunk.index,
-                    "content": chunk.content
-                });
-
-                // Add tenant and workspace IDs if present
-                if let Some(tenant_id) = &self.config.tenant_id {
-                    metadata["tenant_id"] = serde_json::json!(tenant_id);
-                }
-                if let Some(workspace_id) = &self.config.workspace_id {
-                    metadata["workspace_id"] = serde_json::json!(workspace_id);
-                }
-
-                Some((chunk.id.clone(), embedding.clone(), metadata))
-            })
-            .collect();
-
-        // Capture the chunk IDs up front so the compensation path can delete
-        // exactly what stage 2 wrote — nothing more, nothing less.
-        let chunk_ids: Vec<String> = chunk_vectors.iter().map(|(id, _, _)| id.clone()).collect();
-
-        if !chunk_vectors.is_empty() {
-            vector_storage
-                .upsert(&chunk_vectors)
-                .await
-                .map_err(|e| Error::internal(format!("Vector storage error: {}", e)))?;
-        }
-
-        // Stage 3: Merge results into the knowledge graph (the LAST fallible step).
-        // WHY merge: entities may already exist from previous documents; merge
-        // de-duplicates instead of creating conflicting nodes.
-        // WHY LLM summarization: when merging descriptions, the LLM produces a
-        // single coherent summary rather than concatenated fragments.
+        // Stage 2+3: SPEC-021 P-G2 — delegate chunk vectors + graph merge to the
+        // shared persister (same sequence as processor `text_insert`).
         let llm = self
             .llm_provider
             .as_ref()
             .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
 
-        let merger_config = MergerConfig {
-            use_llm_summarization: self.config.use_llm_summarization,
-            ..Default::default()
+        let persist_config = IngestionPersistConfig {
+            merger_config: MergerConfig {
+                use_llm_summarization: self.config.use_llm_summarization,
+                ..Default::default()
+            },
+            relational_sink: self.relational_sink.clone(),
+            llm_provider: Some(llm.clone()),
         };
 
-        let mut merger =
-            KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage.clone())
-                .with_tenant_context(
-                    self.config.tenant_id.clone(),
-                    self.config.workspace_id.clone(),
-                )
-                // SPEC-021 P3-01b: wire relational CQRS dual-write sink.
-                // When entity_sync_mode is "disabled" (default), self.relational_sink
-                // is a NoopEntitySink — zero overhead. When "dual_write" or "full",
-                // it writes to the entities table in parallel with the AGE graph.
-                .with_relational_sink(self.relational_sink.clone());
-
-        // Add LLM summarizer if enabled
-        if self.config.use_llm_summarization {
-            let summarizer = Arc::new(LLMSummarizer::new(llm.clone(), SummarizerConfig::default()));
-            merger = merger.with_summarizer(summarizer);
-        }
-
-        // ── SC2 saga: the graph merge is the LAST fallible stage ──────────────
-        //
-        // Both failure modes below are the SAME logical event — "the graph stage
-        // failed, so undo the chunk vectors Stage 2 committed" — and therefore
-        // share ONE compensation path (`fail_with_chunk_vector_rollback`):
-        //
-        //   1. `merge()` returns `Err`: a catastrophic early abort (e.g. a
-        //      pre-flight failure before per-element processing).
-        //
-        //   2. `merge()` returns `Ok` but `stats.errors > 0`:
-        //      `KnowledgeGraphMerger::merge` is deliberately resilient — it does
-        //      NOT abort on the first bad element. It catches each
-        //      `merge_entity` / `merge_relationship` failure, increments
-        //      `MergeStats::errors`, logs it, and returns `Ok(stats)`. Good for
-        //      *data-level* hiccups, but it means a wholesale graph-storage fault
-        //      (backend down, transaction rejected) is silently absorbed and the
-        //      insert would otherwise report `success: true` while the graph is
-        //      partially/fully unwritten — orphaning the Stage 2 chunk vectors.
-        //      `errors > 0` is a reliable storage-fault signal because every
-        //      counted error originates from a storage call (`get_node`,
-        //      `upsert_node`, `get_edge`, `upsert_edge`, vector `upsert`):
-        //      parsing/validation happened upstream in the extractor and
-        //      LLM-summarization failures fall back instead of erroring.
-        //
-        // WHY we roll back only the vectors (not the graph): the graph MERGE is
-        // idempotent and source-tracked, so any partial graph residue is safe to
-        // re-run or to clean up via normal document deletion. Deleting the
-        // freshly-written chunk vectors collapses the orphan window to that
-        // re-runnable graph side.
-        let merge_stats = match merger.merge(processing_result.extractions.clone()).await {
-            Ok(stats) if stats.errors == 0 => stats,
-            Ok(stats) => {
-                return Err(Self::fail_with_chunk_vector_rollback(
-                    vector_storage.as_ref(),
-                    &doc_id,
-                    &chunk_ids,
-                    format!(
-                        "{} knowledge-graph merge error(s) during insert",
-                        stats.errors
-                    ),
-                )
-                .await);
-            }
-            Err(merge_err) => {
-                return Err(Self::fail_with_chunk_vector_rollback(
-                    vector_storage.as_ref(),
-                    &doc_id,
-                    &chunk_ids,
-                    merge_err.to_string(),
-                )
-                .await);
-            }
+        let persist_ctx = IngestionPersistContext {
+            document_id: doc_id.clone(),
+            tenant_id: self.config.tenant_id.clone(),
+            workspace_id: self.config.workspace_id.clone(),
         };
+
+        let persist_out = persist_processing_result(
+            graph_storage.clone(),
+            vector_storage.clone(),
+            &persist_config,
+            &persist_ctx,
+            &processing_result,
+            ChunkVectorBuildOptions::default(),
+        )
+        .await
+        .map_err(|e| Error::internal(format!("Persistence failed: {}", e)))?;
+
+        let merge_stats = persist_out.merge_stats;
 
         let processing_time_ms = start.elapsed().as_millis() as u64;
 
@@ -434,36 +338,6 @@ impl EdgeQuake {
             processing_time_ms,
             error: None,
         })
-    }
-
-    /// Compensate a failed cross-store document write and build the error to
-    /// surface to the caller.
-    ///
-    /// SOLID/DRY: this is the SINGLE place the two graph-stage failure modes
-    /// (`merge()` returning `Err`, and `merge()` returning `Ok` with
-    /// `errors > 0`) converge. It composes the best-effort vector rollback
-    /// (`compensate_orphan_chunk_vectors`) with a uniform, caller-facing error
-    /// so neither call site can drift in cleanup behaviour or messaging.
-    async fn fail_with_chunk_vector_rollback(
-        vector_storage: &dyn VectorStorage,
-        doc_id: &str,
-        chunk_ids: &[String],
-        cause: String,
-    ) -> Error {
-        // SPEC-021 P-C1: delegate to the shared compensation module so the
-        // orchestrator and processor paths converge on identical cleanup.
-        edgequake_storage::compensation::compensate_orphan_vectors(
-            vector_storage,
-            doc_id,
-            chunk_ids,
-            &[],
-            &cause,
-        )
-        .await;
-        Error::internal(format!(
-            "Knowledge graph merge failed for document {doc_id} ({cause}); \
-             rolled back chunk vectors to avoid orphaned embeddings"
-        ))
     }
 
     /// Insert multiple documents.
