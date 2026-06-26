@@ -516,13 +516,17 @@ impl EdgeQuake {
             engine
         } else {
             use edgequake_query::QueryEngineConfig;
-            Arc::new(edgequake_query::QueryEngine::new(
-                QueryEngineConfig::default(),
-                vector_storage.clone(),
-                graph_storage.clone(),
-                embedding.clone(),
-                llm.clone(),
-            ))
+            Arc::new(
+                edgequake_query::QueryEngine::new(
+                    QueryEngineConfig::default(),
+                    vector_storage.clone(),
+                    graph_storage.clone(),
+                    embedding.clone(),
+                    llm.clone(),
+                )
+                .with_embedding_cache()
+                .with_result_cache(),
+            )
         };
 
         self.query_engine = Some(engine_impl);
@@ -542,6 +546,11 @@ impl EdgeQuake {
     /// Get the configuration.
     pub fn config(&self) -> &EdgeQuakeConfig {
         &self.config
+    }
+
+    /// Query engine wired at initialize (or via [`Self::with_query_engine`]).
+    pub fn query_engine(&self) -> Option<&Arc<edgequake_query::QueryEngine>> {
+        self.query_engine.as_ref()
     }
 
     /// Get the namespace.

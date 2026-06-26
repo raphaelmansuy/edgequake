@@ -29,8 +29,8 @@ pub const DEFAULT_MAX_TOKENS: usize = 16384;
 /// Default request timeout in seconds (600 = 10 minutes).
 pub const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
-/// E2E test hook — when set, workspace pipeline factory reuses seeded mock providers
-/// instead of constructing fresh empty mocks (SPEC-021 worker ingest tests).
+/// E2E test hook — when set (and `EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE=1`),
+/// workspace pipeline factory reuses seeded mock providers (SPEC-021 worker tests).
 static TEST_PROVIDER_OVERRIDE: Mutex<
     Option<(
         Arc<dyn LLMProvider>,
@@ -38,11 +38,16 @@ static TEST_PROVIDER_OVERRIDE: Mutex<
     )>,
 > = Mutex::new(None);
 
+const TEST_PROVIDER_OVERRIDE_ENV: &str = "EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE";
+
 /// Wire shared mock providers for worker E2E (see `tests/common/mod.rs`).
 pub fn set_test_provider_override(
     llm: Arc<dyn LLMProvider>,
     embedding: Arc<dyn EmbeddingProvider>,
 ) {
+    if std::env::var(TEST_PROVIDER_OVERRIDE_ENV).as_deref() != Ok("1") {
+        return;
+    }
     *TEST_PROVIDER_OVERRIDE.lock().expect("test provider override mutex") =
         Some((llm, embedding));
 }

@@ -1228,14 +1228,14 @@ cargo test -p edgequake-api --test e2e_spec021_ingestion_persister
 
 Historical mid-closure grades; see **§13.10** and **`25-brutal-post-closure-assessment.md`** for current verdict.
 
-### 13.10 Final re-assessment (plan-24 + continuation, rev.4)
+### 13.10 Final re-assessment (plan-24 + continuation, rev.5)
 
 | Lens | Grade | Verdict |
 |------|-------|---------|
 | GraphRAG | C+ | Corruption fixed; no community intelligence |
 | LightRAG | A− | Batch merge + persister + deterministic worker E2E |
-| AI Engineer | A− | Worker + orchestrator cache E2E; Mix HTTP weight engine-only |
+| AI Engineer | A | Worker + orchestrator (default) cache E2E; Mix HTTP weight engine-only |
 | System Engineer | A− | RC-7 closed; persister scope partial by design |
-| SOLID / DRY | A | Batch-only merger; DIP ports; `build_test_state` SSOT |
+| SOLID / DRY | A | Shared fixture; DIP ports; orchestrator default caches |
 
-**Mission status:** Closed except P-G1b (admin). Full brutal detail: **`25-brutal-post-closure-assessment.md`** (rev.4).
+**Mission status:** Closed except P-G1b (admin). Full brutal detail: **`25-brutal-post-closure-assessment.md`** (rev.5).
