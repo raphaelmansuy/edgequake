@@ -1,4 +1,4 @@
-//! SPEC-021 P-G2c E2E — worker upload → chunks persisted (production path).
+//! SPEC-021 P-G2c E2E — worker upload → chunks + graph persisted (production path).
 
 use std::time::Duration;
 
@@ -27,19 +27,21 @@ async fn spec021_worker_upload_produces_chunks_and_graph_on_success() {
         "worker upload must produce chunks (status={final_status})"
     );
 
-    if matches!(
-        final_status.as_str(),
-        "completed" | "processed" | "indexed"
-    ) {
-        use edgequake_storage::traits::GraphStorageAnalyticsOps;
-        let node_count = workers
+    assert_eq!(
+        final_status, "completed",
+        "seeded mock extraction must yield completed status, not partial_failure"
+    );
+
+    use edgequake_storage::EntityId;
+    use edgequake_storage::traits::GraphStorageReadOps;
+    let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
+    assert!(
+        workers
             .graph_storage
-            .node_count()
+            .get_node(&node_id)
             .await
-            .expect("graph read");
-        assert!(
-            node_count > 0,
-            "successful terminal status must persist graph nodes via P-G2"
-        );
-    }
+            .expect("graph read")
+            .is_some(),
+        "completed worker upload must persist SARAH_CHEN via P-G2 batch merge"
+    );
 }

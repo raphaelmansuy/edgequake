@@ -1,51 +1,50 @@
-# 25 — Brutal Post-Closure Assessment (2026-06-26, rev.3)
+# 25 — Brutal Post-Closure Assessment (2026-06-26, rev.4)
 
-> **Method:** Code is Law after commit `64fcd808` + rev.3 pass (batch-only merger,
-> worker cache E2E, dead-code cleanup). Honest verdict **after** full spec021 green.
+> **Method:** Code is Law after rev.3 + rev.4 (deterministic worker mock, orchestrator
+> cache invalidation, `build_test_state` DRY). Full `make test-spec021` green.
 
 ## Executive summary
 
-Plan-19 is **closed for production new-write correctness**. Remaining work is
-**operational** (P-G1b legacy repair) and **scope** (full 8-step persister), not
-silent-corruption bugs.
+Plan-19 is **closed for production new-write correctness**. Remaining gaps are
+**operational** (P-G1b) or **explicitly deferred scope** (full 8-step persister, GraphRAG).
 
 | Dimension | Grade | Brutal truth |
 |-----------|-------|--------------|
-| Correctness (new writes) | **A** | RC-6..11 structurally fixed; saga on merge failure |
-| Correctness (legacy) | **C** | Pre-G1 graphs still need admin P-G1b |
-| Performance | **A−** | Vector + graph batch only in merger; LLM summarization still O(E) when enabled |
-| SOLID / DRY | **A−** | Batch-only merge path; two DIP ports; `from_settings` SSOT; not full 8-step persister |
-| E2E honesty | **A−** | Worker upload + **worker cache bust** + HTTP Bypass/Mix/stats + cross-doc merge contracts; mock graph assert still conditional |
+| Correctness (new writes) | **A** | RC-6..11 fixed; saga on merge failure |
+| Correctness (legacy) | **C** | Pre-G1 graphs need admin P-G1b |
+| Performance | **A−** | Batch merge; LLM summarization still O(E) when enabled |
+| SOLID / DRY | **A** | Batch-only merger; two DIP ports; `from_settings` + `build_test_state`; orchestrator `with_query_engine` |
+| E2E honesty | **A** | Worker upload asserts `completed` + `SARAH_CHEN` node; worker + orchestrator cache bust; cross-doc contract |
 | GraphRAG maturity | **C+** | Flat LightRAG; ops ≠ intelligence |
 
 ## What we can claim (verified)
 
-- **DRY:** Single batch merge path (removed unused single-entity/relationship shims); one persister impl; `from_settings` everywhere
-- **SOLID:** `IngestionPersister` + `QueryResultCacheInvalidator` ports; processor never holds concrete `QueryEngine`
-- **E2E:** `make test-spec021` includes worker persist cache invalidation (`e2e_spec021_worker_cache_invalidation`), engine cache contract, HTTP modes, cross-doc merge, processor DIP source contract
-- **P-G9 complete:** Invalidation proven on engine **and** worker persist success paths
+- **DRY:** Single batch merge path; shared `build_test_state`; ingestion pipeline built via `build_ingestion_pipeline` in tests (not `default_pipeline()`)
+- **SOLID:** `IngestionPersister` + `QueryResultCacheInvalidator`; orchestrator `with_query_engine` + `invalidate_result_cache()` after persist
+- **E2E:** Worker graph assert is **unconditional** (seeded mock via test provider override); orchestrator cache test in `spec021_orchestrator_cache_invalidation`
+- **P-G9:** Cache invalidation on API worker **and** core orchestrator when query engine wired
 
 ## What we cannot claim (be honest)
 
-1. **Mix HTTP weight ordering** — still not tested over HTTP; engine `contract_query_modes` covers weight sensitivity.
-2. **Worker graph assert** — still conditional on terminal success; mock often `partial_failure`.
-3. **Postgres UNWIND through worker upload** — adapter contracts elsewhere; no worker+Postgres persist E2E in spec021.
-4. **Core `insert()` cache invalidation** — API worker only; accepted architectural boundary.
-5. **P-G1b** — admin tool only; no auto-heal.
-6. **GraphRAG** — no communities; this sprint is storage/query hygiene, not retrieval intelligence.
-7. **Full 8-step persister** — KV/relational/lineage steps remain in processor by design.
+1. **Mix HTTP weight ordering** — engine `contract_query_modes` only; HTTP checks mode + stats.
+2. **Postgres UNWIND through worker upload** — adapter contracts elsewhere; no worker+Postgres spec021 E2E.
+3. **Orchestrator cache without `with_query_engine`** — default `initialize()` engine has no result cache; library callers must pre-wire.
+4. **P-G1b** — admin tool only; no auto-heal.
+5. **GraphRAG** — no communities; not a retrieval-quality sprint.
+6. **Full 8-step persister** — KV/relational/lineage remain in processor by design.
+7. **Test provider override** — production hook in `safety_limits` is test-only usage today; must not be set in prod (Mutex guard, cleared on `WorkerAppGuard` drop).
 
 ## Four-lens verdict (final)
 
 | Lens | Grade | One line |
 |------|-------|----------|
-| GraphRAG | C+ | Hygiene fixed; zero hierarchical graph intelligence |
-| LightRAG | B+ | Canonical batch merge + persister; PDF scan scaling gap |
-| AI Engineer | A− | Engine + HTTP + **worker** cache contracts; Mix HTTP still not weight-tested |
-| System Engineer | A− | RC-7 closed; persister scope intentionally partial |
+| GraphRAG | C+ | Hygiene fixed; zero hierarchical intelligence |
+| LightRAG | A− | Batch merge + persister + deterministic worker E2E |
+| AI Engineer | A− | Engine + HTTP + worker + orchestrator cache contracts |
+| System Engineer | A− | RC-7 closed; persister scope partial by design |
 
 ## Recommendation
 
-**Ship.** P-G1b = operator runbook only. Do **not** reopen plan-19 unless product asks for full 8-step persister or GraphRAG communities.
+**Ship.** P-G1b = operator runbook. Do **not** reopen plan-19 unless product asks for full 8-step persister or GraphRAG communities.
 
-See `24-plan19-gap-closure.md`; plan-19 §13.10.
+See `24-plan19-gap-closure.md`; plan-19 §13.10 (rev.4).

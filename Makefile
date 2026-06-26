@@ -1417,6 +1417,7 @@ test-spec021: ## SPEC-021 ingest resilience + P-G2 persister contracts (Rust + T
 	@cd edgequake && cargo test -p edgequake-api --test e2e_spec021_query_cache_invalidation -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --test e2e_spec021_worker_cache_invalidation -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --test spec021_processor_cache_invalidator_contract -- --nocapture
+	@cd edgequake && cargo test -p edgequake-core --test spec021_orchestrator_cache_invalidation -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --lib ingest_admission -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --lib pdf_admission_registry -- --nocapture
 	@cd edgequake && cargo test -p edgequake-api --lib health_probes -- --nocapture

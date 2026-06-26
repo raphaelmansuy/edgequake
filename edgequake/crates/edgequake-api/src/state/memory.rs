@@ -247,11 +247,18 @@ impl AppState {
     pub fn test_state() -> Self {
         use edgequake_llm::MockProvider;
 
-        let mock_provider = Arc::new(MockProvider::new());
+        Self::build_test_state(Arc::new(MockProvider::new()))
+    }
+
+    /// Build test state from a pre-configured mock (DRY — worker E2E seeds extraction JSON).
+    pub fn build_test_state(mock_provider: Arc<edgequake_llm::MockProvider>) -> Self {
         let kv_storage = Arc::new(MemoryKVStorage::new("test"));
         let vector_storage = Arc::new(MemoryVectorStorage::new("test", 1536)); // Match MockProvider dimension
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
-        let pipeline = Arc::new(Pipeline::default_pipeline());
+        let pipeline = super::query_bootstrap::build_ingestion_pipeline(
+            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+        );
 
         // Create workspace service
         let workspace_service: SharedWorkspaceService = Arc::new(InMemoryWorkspaceService::new());
