@@ -96,6 +96,14 @@ pub struct Task {
 }
 
 impl Task {
+    /// PDF id from `task_data.pdf_id` when present (P-G14 admission).
+    pub fn pdf_id(&self) -> Option<Uuid> {
+        self.task_data
+            .get("pdf_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| Uuid::parse_str(s).ok())
+    }
+
     /// Create a new task
     pub fn new(
         tenant_id: Uuid,

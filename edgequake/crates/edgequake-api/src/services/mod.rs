@@ -9,6 +9,7 @@ pub mod document_graph_cascade;
 pub mod graph_community;
 pub mod graph_materialization;
 pub mod ingest_admission;
+pub mod pdf_admission_registry;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
 
@@ -25,10 +26,11 @@ pub use graph_materialization::{
     GraphMaterializationGuard,
 };
 pub use ingest_admission::{
-    admit_pdf_processing_enqueue, find_active_pdf_processing_task,
-    persist_pdf_task_document_id, provision_queued_pdf_document_shell,
-    resolve_pdf_ingest_document_id, resolve_worker_pdf_document_id, QueuedPdfDocumentShell,
+    admit_pdf_processing_enqueue, persist_pdf_task_document_id,
+    provision_queued_pdf_document_shell, resolve_pdf_ingest_document_id,
+    resolve_worker_pdf_document_id, QueuedPdfDocumentShell,
 };
+pub use pdf_admission_registry::PdfAdmissionRegistry;
 pub use pdf_workspace_dedup::{
     find_kv_document_id_for_pdf, recycle_orphan_workspace_pdf,
     workspace_has_visible_document_for_pdf,

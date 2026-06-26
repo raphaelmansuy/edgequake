@@ -146,6 +146,7 @@ export default function DashboardPage() {
   const entityValue = stats?.entity_count ?? 0;
   const relationshipValue = stats?.relationship_count ?? 0;
   const chunkValue = stats?.chunk_count ?? 0;
+  const statsStale = stats?.stale ?? false;
 
   return (
     <ScrollArea className="h-full">
@@ -174,6 +175,7 @@ export default function DashboardPage() {
             icon={FileText}
             variant="documents"
             isLoading={isLoadingStats || !selectedWorkspaceId}
+            isStale={statsStale}
           />
           <StatsCard
             title={t('dashboard.stats.entities', 'Entities')}
@@ -182,6 +184,7 @@ export default function DashboardPage() {
             icon={Users}
             variant="entities"
             isLoading={isLoadingStats || !selectedWorkspaceId}
+            isStale={statsStale}
           />
           <StatsCard
             title={t('dashboard.stats.relationships', 'Relationships')}
@@ -190,6 +193,7 @@ export default function DashboardPage() {
             icon={GitBranch}
             variant="relationships"
             isLoading={isLoadingStats || !selectedWorkspaceId}
+            isStale={statsStale}
           />
           <StatsCard
             title={t('dashboard.stats.chunks', 'Chunks')}
@@ -198,6 +202,7 @@ export default function DashboardPage() {
             icon={Tags}
             variant="types"
             isLoading={isLoadingStats || !selectedWorkspaceId}
+            isStale={statsStale}
           />
         </section>
 

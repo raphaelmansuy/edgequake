@@ -14,7 +14,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use edgequake_storage::traits::KVStorage;
 use edgequake_tasks::{
-    Pagination, PdfProcessingData, SharedTaskStorage, Task, TaskFilter, TaskStatus, TaskType,
+    PdfProcessingData, SharedTaskStorage, Task,
 };
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -22,55 +22,6 @@ use uuid::Uuid;
 use crate::middleware::TenantContext;
 use crate::services::pdf_workspace_dedup::find_kv_document_id_for_pdf;
 use crate::state::AppState;
-
-/// Returns the `pdf_id` referenced by a persisted task payload, if any.
-pub fn task_pdf_id(task: &Task) -> Option<Uuid> {
-    task.task_data
-        .get("pdf_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-}
-
-/// Find an in-flight PdfProcessing task for the same PDF (single-flight guard).
-pub async fn find_active_pdf_processing_task(
-    storage: &SharedTaskStorage,
-    pdf_id: Uuid,
-    workspace_id: Uuid,
-) -> Option<Task> {
-    for status in [TaskStatus::Pending, TaskStatus::Processing] {
-        let mut page = 1u32;
-        loop {
-            let list = storage
-                .list_tasks(
-                    TaskFilter {
-                        workspace_id: Some(workspace_id),
-                        status: Some(status),
-                        task_type: Some(TaskType::PdfProcessing),
-                        ..Default::default()
-                    },
-                    Pagination {
-                        page,
-                        page_size: 100,
-                        ..Default::default()
-                    },
-                )
-                .await
-                .ok()?;
-
-            for task in list.tasks {
-                if task_pdf_id(&task) == Some(pdf_id) {
-                    return Some(task);
-                }
-            }
-
-            if page >= list.total_pages.max(1) {
-                break;
-            }
-            page += 1;
-        }
-    }
-    None
-}
 
 /// Resolve the document id to use for a PDF ingest at **enqueue** time.
 pub async fn resolve_pdf_ingest_document_id(
@@ -187,7 +138,30 @@ pub async fn admit_pdf_processing_enqueue(
     if restart_from_scratch {
         return None;
     }
-    let active = find_active_pdf_processing_task(&state.tasks.storage, pdf_id, workspace_id).await?;
+
+    if state
+        .tasks
+        .storage
+        .find_active_pdf_processing_task(pdf_id, workspace_id)
+        .await
+        .ok()
+        .flatten()
+        .is_none()
+    {
+        state.tasks.pdf_admission.release(workspace_id, pdf_id);
+    }
+
+    if let Some(existing) = state.tasks.pdf_admission.get(workspace_id, pdf_id) {
+        return Some(existing);
+    }
+
+    let active = state
+        .tasks
+        .storage
+        .find_active_pdf_processing_task(pdf_id, workspace_id)
+        .await
+        .ok()
+        .flatten()?;
     info!(
         pdf_id = %pdf_id,
         track_id = %active.track_id,
@@ -251,6 +225,7 @@ pub async fn provision_queued_pdf_document_shell(
 mod tests {
     use super::*;
     use edgequake_tasks::memory::MemoryTaskStorage;
+    use edgequake_tasks::{TaskStatus, TaskType};
     use std::sync::Arc;
 
     fn pdf_task(pdf_id: Uuid, workspace_id: Uuid, status: TaskStatus) -> Task {
@@ -278,8 +253,10 @@ mod tests {
         let task = pdf_task(pdf_id, workspace_id, TaskStatus::Pending);
         storage.create_task(&task).await.unwrap();
 
-        let found = find_active_pdf_processing_task(&storage, pdf_id, workspace_id)
+        let found = storage
+            .find_active_pdf_processing_task(pdf_id, workspace_id)
             .await
+            .expect("lookup")
             .expect("should find task");
         assert_eq!(found.track_id, task.track_id);
     }

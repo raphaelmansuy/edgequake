@@ -30,6 +30,8 @@ interface StatsCardProps {
     isPositive: boolean;
   };
   isLoading?: boolean;
+  /** P-G18: stats may be served from stale cache under ingestion load. */
+  isStale?: boolean;
   className?: string;
   variant?: StatsCardVariant;
 }
@@ -65,6 +67,7 @@ export function StatsCard({
   icon: Icon,
   trend,
   isLoading,
+  isStale,
   className,
   variant = 'default',
 }: StatsCardProps) {
@@ -105,6 +108,14 @@ export function StatsCard({
           <div className="space-y-1 min-w-0 flex-1">
             <p className="text-xs font-medium text-muted-foreground truncate">
               {title}
+              {isStale && (
+                <span
+                  className="ml-1.5 text-[10px] font-normal text-amber-600 dark:text-amber-400"
+                  data-testid="stats-stale-badge"
+                >
+                  (updating)
+                </span>
+              )}
             </p>
             <div className="flex items-baseline gap-2">
               <p 

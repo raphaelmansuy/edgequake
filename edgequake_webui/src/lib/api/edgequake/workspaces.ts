@@ -39,6 +39,8 @@ export interface WorkspaceStats {
   chunk_count: number;
   embedding_count: number;
   storage_bytes: number;
+  /** True when counts may be outdated (served from cache under load). */
+  stale: boolean;
 }
 
 export async function getTenants(): Promise<Tenant[]> {

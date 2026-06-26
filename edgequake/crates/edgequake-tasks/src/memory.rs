@@ -74,6 +74,31 @@ impl TaskStorage for MemoryTaskStorage {
         Ok(())
     }
 
+    async fn find_active_pdf_processing_task(
+        &self,
+        pdf_id: uuid::Uuid,
+        workspace_id: uuid::Uuid,
+    ) -> TaskResult<Option<Task>> {
+        use crate::types::{TaskStatus, TaskType};
+
+        let tasks = self.tasks.read().unwrap();
+        for task in tasks.values() {
+            if task.workspace_id != workspace_id {
+                continue;
+            }
+            if task.task_type != TaskType::PdfProcessing {
+                continue;
+            }
+            if !matches!(task.status, TaskStatus::Pending | TaskStatus::Processing) {
+                continue;
+            }
+            if task.pdf_id() == Some(pdf_id) {
+                return Ok(Some(task.clone()));
+            }
+        }
+        Ok(None)
+    }
+
     async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList> {
         let tasks = self.tasks.read().unwrap();
 
