@@ -43,9 +43,7 @@
 
 ## 2. Out of scope (plan-19 remainder)
 
-P-G2a shipped (`404ce915`); **P-G2b-config / P-G2c-e2e / P-G2d-trait** gaps in
-`22-pg2-post-ship-brutal-assessment.md`. P-G4-merger batch vectors, P-G5 saga,
-P-G8 Bypass/Mix — tracked in plan-19 §11.6.
+P-G2 closed (plan-23). Remaining plan-19: P-G8 Bypass/Mix, query caching, etc.
 
 ---
 

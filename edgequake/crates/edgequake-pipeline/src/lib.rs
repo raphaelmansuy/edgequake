@@ -102,11 +102,13 @@ pub use lineage::{
     ExtractionMetadata, LineageBuilder, RelationshipLineage, SourceSpan,
 };
 pub use merger::{
-    KnowledgeGraphMerger, MergeStats, MergerConfig, NoopEntitySink, RelationalEntitySink,
+    KnowledgeGraphMerger, MergeArtifacts, MergeStats, MergerConfig, NoopEntitySink,
+    RelationalEntitySink,
 };
 pub use persistence::{
     build_chunk_vector_batch, persist_processing_result, ChunkVectorBuildOptions,
     IngestionPersistConfig, IngestionPersistContext, IngestionPersistOutput,
+    IngestionPersistSettings,
 };
 pub use pipeline::{
     ChunkProgressCallback,

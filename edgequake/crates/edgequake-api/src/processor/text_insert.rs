@@ -720,16 +720,16 @@ impl DocumentTaskProcessor {
         // SPEC-021 P-G2: single persist path — chunk vectors + KnowledgeGraphMerger
         // (replaces manual upsert_nodes_batch / entity-vector / upsert_edges_batch).
         let mut storage_errors: Vec<String> = Vec::new();
-        let persist_config = IngestionPersistConfig {
-            merger_config: MergerConfig::default(),
-            relational_sink: self.relational_sink.clone(),
-            llm_provider: Some(self.llm_provider.clone()),
-        };
-        let persist_ctx = IngestionPersistContext {
-            document_id: document_id.clone(),
-            tenant_id: tenant_id.clone(),
-            workspace_id: Some(workspace_id_meta.clone()),
-        };
+        let persist_config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings::default(),
+            self.relational_sink.clone(),
+            Some(self.llm_provider.clone()),
+        );
+        let persist_ctx = IngestionPersistContext::new(
+            document_id.clone(),
+            tenant_id.clone(),
+            Some(workspace_id_meta.clone()),
+        );
 
         let chunk_embeddings_stored = match persist_processing_result(
             self.graph_storage.clone(),
@@ -737,9 +737,7 @@ impl DocumentTaskProcessor {
             &persist_config,
             &persist_ctx,
             &result,
-            ChunkVectorBuildOptions {
-                include_lineage_metadata: true,
-            },
+            ChunkVectorBuildOptions::STANDARD,
         )
         .await
         {
@@ -817,17 +815,16 @@ impl DocumentTaskProcessor {
             );
             "partial_failure"
         } else if has_storage_errors {
-            // Extraction succeeded but storage partially failed
+            // Persist path failed after compensation — hard failure, not partial success.
             let combined = storage_errors.join("; ");
-            warn!(
+            error!(
                 document_id = %document_id,
                 storage_error_count = storage_errors.len(),
-                "Storage errors during indexing — marking as partial_failure: {}",
+                "Knowledge graph persist failed — marking as failed: {}",
                 combined
             );
-            // Append storage errors to stats so they are visible via API
             stats_with_lineage.error_details = Some(combined);
-            "partial_failure"
+            "failed"
         } else {
             "completed"
         };

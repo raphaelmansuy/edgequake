@@ -10,8 +10,41 @@ use crate::extractor::ExtractedRelationship;
 use super::{merge_descriptions, metadata};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
-    /// Merge a single relationship, returning true if it was newly created.
-    pub(super) async fn merge_relationship(&self, rel: ExtractedRelationship) -> Result<bool> {
+    /// Collect batched relationship vector upserts (P-G4-merger).
+    pub(super) fn collect_relationship_vector_batch(
+        &self,
+        relationships: &[ExtractedRelationship],
+    ) -> Vec<(String, Vec<f32>, serde_json::Value)> {
+        let mut batch = Vec::new();
+        for rel in relationships {
+            let source_id = EntityId::new(&rel.source);
+            let target_id = EntityId::new(&rel.target);
+            let source_key = source_id.as_graph_node_id();
+            let target_key = target_id.as_graph_node_id();
+            if source_key.is_empty() || target_key.is_empty() || source_key == target_key {
+                continue;
+            }
+            let Some(embedding) = rel.embedding.as_ref() else {
+                continue;
+            };
+            let rel_id = format!("{}->{}:{}", source_key, target_key, rel.relation_type);
+            let scope = metadata::TenantScope {
+                tenant_id: &self.tenant_id,
+                workspace_id: &self.workspace_id,
+            };
+            let metadata =
+                metadata::relationship_vector_metadata(&rel, source_key, target_key, scope);
+            batch.push((rel_id, embedding.clone(), metadata));
+        }
+        batch
+    }
+
+    /// Merge a single relationship (graph only — vectors batched in `merge()`).
+    pub(super) async fn merge_relationship(
+        &self,
+        rel: ExtractedRelationship,
+        artifacts: &mut super::MergeArtifacts,
+    ) -> Result<bool> {
         // RC-6 / P-G1: both endpoints are `EntityId`s, so edge endpoints and the
         // entities they reference share one identity space.
         let source_id = EntityId::new(&rel.source);
@@ -40,21 +73,6 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             return Ok(false);
         }
 
-        // Store relationship embedding with type metadata (for Global query mode)
-        if let Some(embedding) = &rel.embedding {
-            let rel_id = format!("{}->{}:{}", source_key, target_key, rel.relation_type);
-            let scope = metadata::TenantScope {
-                tenant_id: &self.tenant_id,
-                workspace_id: &self.workspace_id,
-            };
-            let metadata =
-                metadata::relationship_vector_metadata(&rel, &source_key, &target_key, scope);
-
-            self.vector_storage
-                .upsert(&[(rel_id, embedding.clone(), metadata)])
-                .await?;
-        }
-
         // Check if edge exists
         let existing = self
             .graph_storage
@@ -72,14 +90,26 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             }
             None => {
                 // Ensure both nodes exist
-                self.ensure_node_exists(&source_key, &rel.source).await?;
-                self.ensure_node_exists(&target_key, &rel.target).await?;
+                self.ensure_node_exists(&source_key, &rel.source, artifacts)
+                    .await?;
+                self.ensure_node_exists(&target_key, &rel.target, artifacts)
+                    .await?;
 
                 // Create new relationship
                 let edge = self.create_relationship_edge(&source_key, &target_key, &rel)?;
                 self.graph_storage
                     .upsert_edge(&edge.source, &edge.target, edge.properties)
                     .await?;
+                if rel.embedding.is_some() {
+                    let rel_id = format!(
+                        "{}->{}:{}",
+                        source_key, target_key, rel.relation_type
+                    );
+                    artifacts.relationship_vector_ids.push(rel_id);
+                }
+                artifacts
+                    .graph_edges_created
+                    .push((source_key.clone(), target_key.clone()));
                 Ok(true)
             }
         }
@@ -247,7 +277,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
     }
 
     /// Ensure a node exists, creating a placeholder if needed.
-    async fn ensure_node_exists(&self, key: &str, label: &str) -> Result<()> {
+    async fn ensure_node_exists(
+        &self,
+        key: &str,
+        label: &str,
+        artifacts: &mut super::MergeArtifacts,
+    ) -> Result<()> {
         if self.graph_storage.get_node(key).await?.is_none() {
             let mut properties = HashMap::new();
             properties.insert(
@@ -278,6 +313,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             }
 
             self.graph_storage.upsert_node(key, properties).await?;
+            artifacts.graph_nodes_created.push(key.to_string());
         }
         Ok(())
     }

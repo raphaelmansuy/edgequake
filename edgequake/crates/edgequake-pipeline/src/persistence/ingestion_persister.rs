@@ -1,8 +1,8 @@
 //! SPEC-021 P-G2 — single persistence path for chunk vectors + graph merge (RC-7).
 //!
 //! Both `edgequake-core::orchestrator::ingestion` and
-//! `edgequake-api::processor::text_insert` delegate here so the 8-step
-//! cross-store sequence cannot diverge.
+//! `edgequake-api::processor::text_insert` delegate here so the cross-store
+//! sequence cannot diverge (P-G2b config SSOT).
 
 use std::sync::Arc;
 
@@ -18,17 +18,58 @@ use crate::summarizer::{LLMSummarizer, SummarizerConfig};
 use crate::Result;
 
 /// Tenant/workspace scope for vector metadata and merger.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IngestionPersistContext {
     pub document_id: String,
     pub tenant_id: Option<String>,
     pub workspace_id: Option<String>,
 }
 
-/// Whether to include chunk position fields in vector metadata (processor path).
-#[derive(Debug, Clone, Copy, Default)]
+impl IngestionPersistContext {
+    pub fn new(
+        document_id: impl Into<String>,
+        tenant_id: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Self {
+        Self {
+            document_id: document_id.into(),
+            tenant_id,
+            workspace_id,
+        }
+    }
+}
+
+/// Shared knobs every ingestion caller must agree on (P-G2b SSOT).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IngestionPersistSettings {
+    pub use_llm_summarization: bool,
+}
+
+impl Default for IngestionPersistSettings {
+    fn default() -> Self {
+        Self {
+            use_llm_summarization: MergerConfig::default().use_llm_summarization,
+        }
+    }
+}
+
+/// Chunk vector metadata options — all production paths use the same shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChunkVectorBuildOptions {
     pub include_lineage_metadata: bool,
+}
+
+impl ChunkVectorBuildOptions {
+    /// SSOT: include chunk position fields for citation / lineage parity.
+    pub const STANDARD: Self = Self {
+        include_lineage_metadata: true,
+    };
+}
+
+impl Default for ChunkVectorBuildOptions {
+    fn default() -> Self {
+        Self::STANDARD
+    }
 }
 
 /// Merger + relational sink configuration (shared by all callers).
@@ -37,6 +78,24 @@ pub struct IngestionPersistConfig {
     pub merger_config: MergerConfig,
     pub relational_sink: Arc<dyn RelationalEntitySink>,
     pub llm_provider: Option<Arc<dyn LLMProvider>>,
+}
+
+impl IngestionPersistConfig {
+    /// Build config from shared settings — orchestrator and processor must use this.
+    pub fn from_settings(
+        settings: IngestionPersistSettings,
+        relational_sink: Arc<dyn RelationalEntitySink>,
+        llm_provider: Option<Arc<dyn LLMProvider>>,
+    ) -> Self {
+        Self {
+            merger_config: MergerConfig {
+                use_llm_summarization: settings.use_llm_summarization,
+                ..Default::default()
+            },
+            relational_sink,
+            llm_provider,
+        }
+    }
 }
 
 /// Output of a successful persist (chunk IDs for optional external bookkeeping).
@@ -106,7 +165,7 @@ pub async fn persist_processing_result(
     let mut merger =
         KnowledgeGraphMerger::new(
             config.merger_config.clone(),
-            graph_storage,
+            graph_storage.clone(),
             vector_storage.clone(),
         )
         .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
@@ -120,52 +179,62 @@ pub async fn persist_processing_result(
         }
     }
 
-    let merge_stats = match merger.merge(result.extractions.clone()).await {
-        Ok(stats) if stats.errors == 0 => stats,
+    let merge_result = merger.merge(result.extractions.clone()).await;
+
+    match merge_result {
+        Ok(stats) if stats.errors == 0 => Ok(IngestionPersistOutput {
+            chunk_vector_ids,
+            merge_stats: stats,
+        }),
         Ok(stats) => {
             let cause = format!(
                 "{} knowledge-graph merge error(s) during persist",
                 stats.errors
             );
-            compensate_orphan_chunk_vectors(
+            compensate_merge_failure(
+                graph_storage.as_ref(),
                 vector_storage.as_ref(),
-                &ctx.document_id,
+                ctx,
                 &chunk_vector_ids,
+                &stats.artifacts,
                 &cause,
             )
             .await;
-            return Err(crate::error::PipelineError::GraphError(cause));
+            Err(crate::error::PipelineError::GraphError(cause))
         }
         Err(merge_err) => {
             let cause = merge_err.to_string();
-            compensate_orphan_chunk_vectors(
+            compensate_merge_failure(
+                graph_storage.as_ref(),
                 vector_storage.as_ref(),
-                &ctx.document_id,
+                ctx,
                 &chunk_vector_ids,
+                &crate::merger::MergeArtifacts::default(),
                 &cause,
             )
             .await;
-            return Err(merge_err);
+            Err(merge_err)
         }
-    };
-
-    Ok(IngestionPersistOutput {
-        chunk_vector_ids,
-        merge_stats,
-    })
+    }
 }
 
-async fn compensate_orphan_chunk_vectors(
+async fn compensate_merge_failure(
+    graph_storage: &dyn GraphStorage,
     vector_storage: &dyn VectorStorage,
-    document_id: &str,
+    ctx: &IngestionPersistContext,
     chunk_vector_ids: &[String],
+    artifacts: &crate::merger::MergeArtifacts,
     cause: &str,
 ) {
-    compensation::compensate_orphan_vectors(
+    compensation::compensate_merge_failure(
+        graph_storage,
         vector_storage,
-        document_id,
+        &ctx.document_id,
         chunk_vector_ids,
-        &[],
+        &artifacts.entity_vector_ids,
+        &artifacts.relationship_vector_ids,
+        &artifacts.graph_nodes_created,
+        &artifacts.graph_edges_created,
         cause,
     )
     .await;
@@ -176,9 +245,7 @@ mod tests {
     use super::*;
     use crate::chunker::TextChunk;
     use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
-    use edgequake_storage::{
-        GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage,
-    };
+    use edgequake_storage::{GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage};
 
     fn sample_result() -> ProcessingResult {
         let chunk = TextChunk {
@@ -217,26 +284,19 @@ mod tests {
         let vector = Arc::new(MemoryVectorStorage::new("test", 4));
         vector.initialize().await.unwrap();
 
-        let ctx = IngestionPersistContext {
-            document_id: "doc1".to_string(),
-            tenant_id: None,
-            workspace_id: None,
-        };
-        let config = IngestionPersistConfig {
-            merger_config: MergerConfig::default(),
-            relational_sink: Arc::new(crate::merger::NoopEntitySink),
-            llm_provider: None,
-        };
+        let config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings::default(),
+            Arc::new(crate::merger::NoopEntitySink),
+            None,
+        );
 
         let out = persist_processing_result(
             graph.clone(),
             vector.clone(),
             &config,
-            &ctx,
+            &IngestionPersistContext::new("doc1", None, None),
             &sample_result(),
-            ChunkVectorBuildOptions {
-                include_lineage_metadata: true,
-            },
+            ChunkVectorBuildOptions::STANDARD,
         )
         .await
         .expect("persist");
@@ -251,5 +311,20 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
+    }
+
+    #[test]
+    fn config_from_settings_is_deterministic() {
+        let settings = IngestionPersistSettings {
+            use_llm_summarization: false,
+        };
+        let sink: Arc<dyn RelationalEntitySink> = Arc::new(crate::merger::NoopEntitySink);
+        let a = IngestionPersistConfig::from_settings(settings, sink.clone(), None);
+        let b = IngestionPersistConfig::from_settings(settings, sink, None);
+        assert_eq!(
+            a.merger_config.use_llm_summarization,
+            b.merger_config.use_llm_summarization
+        );
+        assert!(!a.merger_config.use_llm_summarization);
     }
 }

@@ -148,6 +148,7 @@ async fn shutdown_test_worker_pool() {
 pub struct WorkerAppGuard {
     _serialize: tokio::sync::MutexGuard<'static, ()>,
     pub router: axum::Router,
+    pub graph_storage: std::sync::Arc<dyn edgequake_storage::GraphStorage>,
 }
 
 impl WorkerAppGuard {
@@ -218,6 +219,8 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
         enable_compression: false,
         enable_swagger: true,
     };
+    let graph_storage = std::sync::Arc::clone(&state.storage.graph_storage);
+
     let server = Server::new(config, state);
     let router = server.build_router();
 
@@ -228,6 +231,7 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
     WorkerAppGuard {
         _serialize: serialize,
         router,
+        graph_storage,
     }
 }
 
