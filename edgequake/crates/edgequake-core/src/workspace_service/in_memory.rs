@@ -52,6 +52,44 @@ impl InMemoryWorkspaceService {
             .trim_matches('-')
             .to_string()
     }
+
+    async fn seed_default_workspace_inner(&self) {
+        let tenant_id = uuid::Uuid::from_u128(2);
+        let workspace_id = uuid::Uuid::from_u128(3);
+
+        // Ensure the default tenant exists (idempotent).
+        if self.get_tenant(tenant_id).await.ok().flatten().is_none() {
+            let tenant = Tenant::new("Default Tenant", "default").with_plan(TenantPlan::Pro);
+            // Force the canonical tenant id.
+            let mut tenant = tenant;
+            tenant.tenant_id = tenant_id;
+            self.tenants.write().await.insert(tenant_id, tenant);
+        }
+
+        if self.get_workspace(workspace_id).await.ok().flatten().is_none() {
+            let now = chrono::Utc::now();
+            let ws = Workspace {
+                workspace_id,
+                tenant_id,
+                name: "Default Workspace".to_string(),
+                slug: "default".to_string(),
+                description: None,
+                is_active: true,
+                created_at: now,
+                updated_at: now,
+                metadata: HashMap::new(),
+                llm_model: "mock".to_string(),
+                llm_provider: "mock".to_string(),
+                embedding_model: "mock".to_string(),
+                embedding_provider: "mock".to_string(),
+                embedding_dimension: 1536,
+                vision_llm_provider: None,
+                vision_llm_model: None,
+                pdf_parser_backend: None,
+            };
+            self.workspaces.write().await.insert(workspace_id, ws);
+        }
+    }
 }
 
 impl Default for InMemoryWorkspaceService {
@@ -62,6 +100,12 @@ impl Default for InMemoryWorkspaceService {
 
 #[async_trait]
 impl WorkspaceService for InMemoryWorkspaceService {
+    /// Seed the built-in default tenant + workspace at their canonical UUIDs.
+    /// See `seed_default_workspace_inner` for the rationale (P-G2b).
+    async fn seed_default_workspace(&self) {
+        self.seed_default_workspace_inner().await
+    }
+
     async fn create_tenant(&self, tenant: Tenant) -> Result<Tenant> {
         let mut tenants = self.tenants.write().await;
 

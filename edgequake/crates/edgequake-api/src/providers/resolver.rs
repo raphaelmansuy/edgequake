@@ -21,7 +21,7 @@
 //!  │       ├── Absent? Check workspace.llm_provider                   │
 //!  │       │   └── Present? ──► Create provider → source=Workspace    │
 //!  │       │                                                          │
-//!  │       └── Neither? ──► Return None → caller uses sota_engine      │
+//!  │       └── Neither? ──► Return None → caller uses engine_impl      │
 //!  │                         default (from_env() at startup)           │
 //!  └──────────────────────────────────────────────────────────────────┘
 //! ```
@@ -40,7 +40,7 @@
 //! 1. **Request override** — only if credentials for that provider are configured;
 //!    auth/creation failures fall through (not a hard error).
 //! 2. **Workspace override** — same credential gate and fall-through.
-//! 3. **Server default** — `None` → `sota_engine` startup provider (`from_env()`).
+//! 3. **Server default** — `None` → `engine_impl` startup provider (`from_env()`).
 //! 4. **Runtime auth rejection** — `execute_sota_query_*_with_auth_fallback` retries
 //!    without override when the upstream API rejects the key.
 //!

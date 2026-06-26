@@ -1,4 +1,4 @@
-//! Shared SOTA query pipeline phases (SPEC-017 P1-01).
+//! Shared query pipeline phases (SPEC-017 P1-01).
 //!
 //! Single prepare → retrieve → finalize implementation used by all non-stream
 //! query entry points. Eliminates triplicated ~600 LOC blocks across basic,
@@ -10,14 +10,14 @@ use std::time::Instant;
 use edgequake_storage::traits::VectorStorage;
 
 use crate::context::QueryContext;
-use crate::engine::{QueryRequest, QueryResponse, QueryStats};
+use crate::types::{QueryRequest, QueryResponse, QueryStats};
 use crate::error::Result;
 use crate::keywords::{ExtractedKeywords, QueryIntent};
 use crate::modes::QueryMode;
 use crate::truncation::balance_context;
 use crate::{EmbeddingProvider, LLMProvider};
 
-use super::super::{QueryEmbeddings, SOTAQueryEngine};
+use super::super::{QueryEmbeddings, QueryEngine};
 
 /// Provider bundle for one pipeline run.
 pub(crate) struct QueryProviders<'a> {
@@ -35,10 +35,10 @@ pub(crate) struct PreparedQuery {
     pub embedding_time_ms: u64,
 }
 
-impl SOTAQueryEngine {
-    /// Run the full non-streaming SOTA pipeline with explicit providers.
+impl QueryEngine {
+    /// Run the full non-streaming query pipeline with explicit providers.
     #[tracing::instrument(
-        name = "sota_query_pipeline",
+        name = "query_pipeline",
         skip(self, request, providers),
         err(Debug, level = "warn"),
         fields(

@@ -183,6 +183,7 @@ mod tests {
                 partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
+                unknown: 0,
             },
         };
 
@@ -293,6 +294,7 @@ mod tests {
                 partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
+                unknown: 0,
             },
             is_complete: true,
             latest_message: Some("All documents processed successfully".to_string()),

@@ -394,6 +394,30 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         Ok(())
     }
 
+    async fn clear_markdown(&self, pdf_id: &Uuid) -> Result<()> {
+        // WHY: Explicitly NULL out markdown_content + extraction metadata so the
+        // pdf_processing resume shortcut cannot reuse a stale conversion. This is
+        // the only way to force a true PDF -> markdown re-conversion, because
+        // `update_pdf_processing` uses COALESCE and never clears these columns.
+        sqlx::query!(
+            r#"
+            UPDATE pdf_documents
+            SET markdown_content = NULL,
+                extraction_method = NULL,
+                extraction_errors = NULL
+            WHERE pdf_id = $1
+            "#,
+            pdf_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to clear PDF markdown: {}", e)))?;
+
+        debug!("Cleared cached markdown for PDF: id={}", pdf_id);
+
+        Ok(())
+    }
+
     async fn ensure_document_record(
         &self,
         document_id: &Uuid,
@@ -431,6 +455,73 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             "Ensured document record: id={}, workspace_id={}",
             document_id, workspace_id
         );
+
+        Ok(())
+    }
+
+    async fn update_document_stats(&self, stats: &DocumentStatsUpdate<'_>) -> Result<()> {
+        // SPEC-021 P-A1/P-A2: refresh the denormalized stat/cost columns.
+        //
+        // Idempotent + race-safe: if the row was never inserted by
+        // `ensure_document_record` (race), UPDATE affects 0 rows. We log a
+        // warn and return Ok so the caller's best-effort contract holds; the
+        // next `ensure_document_record` + a follow-up stats refresh will
+        // converge. We deliberately do NOT upsert-create the row here because
+        // we do not have workspace_id/tenant_id/title/content at this call
+        // site — those are `ensure_document_record`'s responsibility.
+        //
+        // Counts are clamped to >= 0 to defend against buggy upstream counters
+        // (E5 in file 17 §10). Cost/token columns are nullable and left as-is
+        // when the caller passes None (preserving any prior value).
+        let chunk_count = stats.chunk_count.max(0);
+        let entity_count = stats.entity_count.max(0);
+        let relationship_count = stats.relationship_count.max(0);
+
+        let result = sqlx::query(
+            r#"
+            UPDATE documents SET
+                chunk_count        = $2,
+                entity_count       = $3,
+                relationship_count = $4,
+                cost_usd           = COALESCE($5, cost_usd),
+                input_tokens       = COALESCE($6, input_tokens),
+                output_tokens      = COALESCE($7, output_tokens),
+                total_tokens       = COALESCE($8, total_tokens),
+                error_message      = COALESCE($9, error_message),
+                status             = $10,
+                updated_at         = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(stats.document_id)
+        .bind(chunk_count)
+        .bind(entity_count)
+        .bind(relationship_count)
+        .bind(stats.cost_usd)
+        .bind(stats.input_tokens)
+        .bind(stats.output_tokens)
+        .bind(stats.total_tokens)
+        .bind(stats.error_message)
+        .bind(stats.status)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to update document stats: {}", e)))?;
+
+        if result.rows_affected() == 0 {
+            warn!(
+                document_id = %stats.document_id,
+                "update_document_stats: documents row not found (race with ensure_document_record) — stats not persisted; will converge on next refresh"
+            );
+        } else {
+            debug!(
+                document_id = %stats.document_id,
+                chunk_count = chunk_count,
+                entity_count = entity_count,
+                relationship_count = relationship_count,
+                status = stats.status,
+                "Updated document stats (SPEC-021 P-A1)"
+            );
+        }
 
         Ok(())
     }

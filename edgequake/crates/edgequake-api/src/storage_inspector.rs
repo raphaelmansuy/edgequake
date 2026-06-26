@@ -74,7 +74,7 @@ impl Default for InspectorConfig {
 }
 
 /// Severity level of an inspection finding.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 pub enum Severity {
     Info,
     Warning,
@@ -82,7 +82,7 @@ pub enum Severity {
 }
 
 /// A schema drift finding from Layer 1.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SchemaDriftIssue {
     pub check_name: String,
     pub severity: Severity,
@@ -91,7 +91,7 @@ pub struct SchemaDriftIssue {
 }
 
 /// A data invariant violation from Layer 2.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InvariantViolation {
     pub invariant_id: String,
     pub severity: Severity,
@@ -101,10 +101,11 @@ pub struct InvariantViolation {
 }
 
 /// A repair action from Layer 3.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub enum RepairAction {
     ResyncEntitiesFromAge { count: usize },
     DeleteOrphanedVectors { count: usize, ids: Vec<String> },
+    DeleteOrphanedWorkspaceTables { count: usize, tables: Vec<String> },
     RematerializeVectorColumns { table: String, count: usize },
     ResetStuckPdfs { count: usize },
     LogOnly { message: String },
@@ -126,6 +127,9 @@ impl RepairAction {
         match self {
             Self::ResyncEntitiesFromAge { .. } => RepairTier::Safe,
             Self::DeleteOrphanedVectors { .. } => RepairTier::Safe,
+            // SPEC-021 P-B3: dropping workspace tables is Caution — a workspace
+            // could be temporarily offline rather than deleted.
+            Self::DeleteOrphanedWorkspaceTables { .. } => RepairTier::Caution,
             Self::RematerializeVectorColumns { .. } => RepairTier::Safe,
             Self::ResetStuckPdfs { .. } => RepairTier::Caution,
             Self::LogOnly { .. } => RepairTier::Safe,
@@ -140,6 +144,12 @@ impl RepairAction {
             Self::DeleteOrphanedVectors { count, .. } => {
                 format!("Delete {count} orphaned chunk vectors (no KV entry, no indexed document)")
             }
+            Self::DeleteOrphanedWorkspaceTables { count, tables } => {
+                format!(
+                    "Drop {count} orphan workspace storage tables: {}",
+                    tables.join(", ")
+                )
+            }
             Self::RematerializeVectorColumns { table, count } => {
                 format!("Re-materialize {count} NULL columns in {table}")
             }
@@ -152,7 +162,7 @@ impl RepairAction {
 }
 
 /// Full inspection report.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InspectorReport {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub duration_ms: u64,
@@ -275,6 +285,56 @@ impl StorageInspector {
             .iter()
             .filter(|r| r.tier() == RepairTier::Safe)
             .collect()
+    }
+
+    /// SPEC-021 P-D1: spawn an hourly background invariant monitor.
+    ///
+    /// WHY: the startup check catches drift present at boot, but drift
+    /// accumulates over time (orphan vectors from saga failures, CQRS lag,
+    /// stuck PDFs). An hourly loop re-runs `inspect()` + auto-repairs the SAFE
+    /// tier and logs a structured summary. CAUTION-tier issues are logged but
+    /// not auto-repaired (require the admin endpoint, P-D2).
+    ///
+    /// The handle is detached; the task exits when the process exits. Errors
+    /// inside the loop are swallowed (logged) so a single bad run never kills
+    /// the monitor.
+    #[cfg(feature = "postgres")]
+    pub fn spawn_hourly_monitor(self: std::sync::Arc<Self>) {
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(3600));
+            // Skip the immediate first tick (startup already ran inspect()).
+            ticker.tick().await;
+            loop {
+                ticker.tick().await;
+                let report = self.inspect().await;
+                if report.has_critical {
+                    tracing::error!(
+                        schema_issues = report.schema_issues.len(),
+                        invariant_violations = report.invariant_violations.len(),
+                        "SPEC-021 P-D1: hourly invariant monitor — CRITICAL drift"
+                    );
+                } else if report.has_warning {
+                    tracing::warn!(
+                        schema_issues = report.schema_issues.len(),
+                        invariant_violations = report.invariant_violations.len(),
+                        duration_ms = report.duration_ms,
+                        "SPEC-021 P-D1: hourly invariant monitor — warnings"
+                    );
+                } else {
+                    tracing::info!(
+                        duration_ms = report.duration_ms,
+                        "SPEC-021 P-D1: hourly invariant monitor — OK"
+                    );
+                }
+                let repaired = self.auto_repair_safe(&report).await;
+                if !repaired.is_empty() {
+                    tracing::info!(
+                        count = repaired.len(),
+                        "SPEC-021 P-D1: hourly monitor auto-repairs applied"
+                    );
+                }
+            }
+        });
     }
 }
 
@@ -476,6 +536,15 @@ impl StorageInspector {
         self.check_inv03_indexed_docs_without_chunks(report).await;
         self.check_inv04_cqrs_sync_lag(report).await;
         self.check_inv05_stuck_pdfs(report).await;
+        // SPEC-021 P-B1: per-doc entity_count drift vs the authoritative AGE
+        // graph. Replaces the planned R-DRY-03 invariant that compared against
+        // the dead relational column (which would fire on every doc).
+        self.check_inv_c_per_doc_entity_drift(report).await;
+        // SPEC-021 P-D3: silent CQRS no-op detection.
+        self.check_inv04b_silent_sync_noop(report).await;
+        // SPEC-021 P-B3: orphan entity vectors + orphan workspace tables.
+        self.check_inv_d_orphan_entity_vectors(report).await;
+        self.check_inv_d2_orphan_workspace_tables(report).await;
     }
 
     /// INV-01: Every chunk vector has a KV entry.
@@ -693,12 +762,348 @@ impl StorageInspector {
         }
     }
 
+    /// INV-C (SPEC-021 P-B1): per-document `entity_count` drift vs AGE.
+    ///
+    /// WHY: the old R-DRY-03 invariant compared `documents.chunk_count` vs the
+    /// KV chunk-key count — but the relational `documents.entity_count` column
+    /// was never refreshed (file 16 §3), so the invariant would fire on every
+    /// document. The authoritative per-doc entity count is the AGE graph;
+    /// this invariant samples documents and compares their relational
+    /// `entity_count` against a Cypher count keyed by the chunk-id prefix,
+    /// flagging CRITICAL drift so the admin endpoint (P-D2) can surface it.
+    ///
+    /// Skips docs in `processing`/`pending` state (mid-ingestion, E16) and
+    /// docs with 0 chunks (legitimately 0 entities, E15).
+    async fn check_inv_c_per_doc_entity_drift(&self, report: &mut InspectorReport) {
+        // Bail unless AGE is available — invariant is meaningless without it.
+        let age_ok: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+                .fetch_one(self.pool.as_ref())
+                .await
+                .unwrap_or(false);
+        if !age_ok {
+            return;
+        }
+
+        // Sample up to 50 terminal-state documents with chunks (E17: rotate
+        // by ordering on id so each run sees a different slice).
+        let sample_sql = r#"
+            SELECT id::text, chunk_count, entity_count
+            FROM documents
+            WHERE status IN ('indexed', 'completed', 'partial_failure', 'failed')
+              AND COALESCE(chunk_count, 0) > 0
+            ORDER BY id
+            LIMIT 50
+        "#;
+        let rows = match sqlx::query_as::<_, (String, i32, i32)>(sample_sql)
+            .fetch_all(self.pool.as_ref())
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(error = %e, "INV-C: failed to sample documents");
+                return;
+            }
+        };
+        if rows.is_empty() {
+            return;
+        }
+        let total = rows.len();
+
+        let mut drifted = 0usize;
+        let mut samples = Vec::new();
+        for (doc_id, _chunk_count, pg_entity_count) in rows {
+            // Direct Cypher via the AGE vertex table: count nodes whose
+            // source_ids array (or legacy source_id) starts with the doc's
+            // chunk prefix. Mirrors `pg_node_count_by_source_prefix`.
+            let prefix = format!("{}-chunk-", doc_id);
+            let escaped = prefix.replace('\'', "''");
+            let cypher = format!(
+                "MATCH (n:Node) WHERE \
+                    (n.source_ids IS NOT NULL AND \
+                     any(s IN n.source_ids WHERE s STARTS WITH '{}')) \
+                    OR (n.source_id IS NOT NULL AND n.source_id STARTS WITH '{}') \
+                 RETURN count(n)",
+                escaped, escaped
+            );
+            let age_sql = format!(
+                "SELECT * FROM cypher('{}', $$ {} $$) AS (result agtype)",
+                self.config.graph_name, cypher
+            );
+            // AGE returns agtype; coerce to text then parse.
+            let age_count: i64 = match sqlx::query_scalar::<_, String>(&age_sql)
+                .fetch_one(self.pool.as_ref())
+                .await
+                .ok()
+                .and_then(|s| s.trim_matches('"').parse::<i64>().ok())
+            {
+                Some(n) => n,
+                None => continue, // AGE query hiccup — skip, do not false-positive (E8)
+            };
+
+            if age_count as i32 != pg_entity_count {
+                drifted += 1;
+                if samples.len() < 5 {
+                    samples.push(format!("{doc_id}: pg={pg_entity_count} age={age_count}"));
+                }
+            }
+        }
+
+        if drifted > 0 {
+            let drift_rate = drifted as f64 / total as f64;
+            let severity = if drift_rate > 0.20 {
+                Severity::Critical
+            } else {
+                Severity::Warning
+            };
+            report.add_violation(InvariantViolation {
+                invariant_id: "INV-C".to_string(),
+                severity,
+                description: format!(
+                    "{drifted}/{total} sampled documents have entity_count drift vs AGE ({:.1}%)",
+                    drift_rate * 100.0
+                ),
+                count: drifted,
+                sample_ids: samples,
+            });
+        }
+    }
+
+    /// INV-04b (SPEC-021 P-D3): silent CQRS no-op detection.
+    ///
+    /// WHY: `PostgresEntitySink` swallows all SQL errors (file 12 §4.3), so a
+    /// deployment with `entity_sync_mode ∈ {dual_write, full}` but missing
+    /// migration 039 will silently never sync. Flag a WARNING when sync is
+    /// enabled, AGE has nodes, but `entities.sync_status='synced'` count is 0.
+    async fn check_inv04b_silent_sync_noop(&self, report: &mut InspectorReport) {
+        let mode: Option<String> = sqlx::query_scalar(
+            "SELECT value::text FROM server_config WHERE key = 'entity_sync_mode'",
+        )
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .unwrap_or(None);
+
+        let mode_str = mode.as_deref().unwrap_or("\"disabled\"");
+        let unquoted = mode_str.trim_matches('"');
+        if !matches!(unquoted, "dual_write" | "full") {
+            return; // sync disabled — no-op is expected
+        }
+
+        let age_ok: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+                .fetch_one(self.pool.as_ref())
+                .await
+                .unwrap_or(false);
+        if !age_ok {
+            return;
+        }
+
+        let age_count: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*)::bigint FROM {}._ag_label_vertex",
+            self.config.graph_name
+        ))
+        .fetch_one(self.pool.as_ref())
+        .await
+        .unwrap_or(0);
+
+        if age_count == 0 {
+            return; // E35: fresh deployment with no data
+        }
+
+        let synced_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM entities WHERE sync_status = 'synced'")
+                .fetch_one(self.pool.as_ref())
+                .await
+                .unwrap_or(0);
+
+        if synced_count == 0 {
+            report.add_violation(InvariantViolation {
+                invariant_id: "INV-04b".to_string(),
+                severity: Severity::Warning,
+                description: format!(
+                    "entity_sync_mode='{unquoted}' but 0 entities synced despite {age_count} AGE nodes — \
+                     PostgresEntitySink may be silently no-op'ing (check migration 039/040 and sink error logs)"
+                ),
+                count: 1,
+                sample_ids: vec![],
+            });
+        }
+    }
+
+    /// INV-D (SPEC-021 P-B3): orphan entity vectors.
+    ///
+    /// WHY: a vector with `metadata.type = 'entity'` whose `entity_name` no
+    /// longer exists as an AGE node is an orphan — typically left behind when
+    /// `delete_entity` removed the graph node but the vector deletion failed
+    /// (best-effort). These orphans surface in `query_local` results pointing
+    /// at non-existent entities. We sample up to 100 and flag the count.
+    async fn check_inv_d_orphan_entity_vectors(&self, report: &mut InspectorReport) {
+        let vec_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1)"
+        )
+        .bind(&self.config.vector_table)
+        .fetch_one(self.pool.as_ref())
+        .await
+        .unwrap_or(false);
+        if !vec_exists {
+            return;
+        }
+        let age_ok: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+                .fetch_one(self.pool.as_ref())
+                .await
+                .unwrap_or(false);
+        if !age_ok {
+            return;
+        }
+
+        // Pull entity vector ids + their entity_name metadata.
+        let sql = format!(
+            r#"SELECT v.id, v.metadata->>'entity_name' AS entity_name
+               FROM {vec} v
+               WHERE v.metadata->>'type' = 'entity'
+                 AND v.metadata ? 'entity_name'
+               LIMIT 100"#,
+            vec = self.config.vector_table
+        );
+        let rows = match sqlx::query_as::<_, (String, Option<String>)>(&sql)
+            .fetch_all(self.pool.as_ref())
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(error = %e, "INV-D: failed to scan entity vectors");
+                return;
+            }
+        };
+        if rows.is_empty() {
+            return;
+        }
+
+        let mut orphans = Vec::new();
+        for (vec_id, entity_name) in rows {
+            let Some(name) = entity_name else { continue };
+            // Check AGE for a node with this id (entity names are normalized to
+            // the node id). Use a parameterized cypher via the vertex table.
+            let escaped = name.replace('\'', "''");
+            let cypher = format!(
+                "MATCH (n:Node) WHERE n.id = '{}' OR n.name = '{}' RETURN count(n)",
+                escaped, escaped
+            );
+            let age_sql = format!(
+                "SELECT * FROM cypher('{}', $$ {} $$) AS (result agtype)",
+                self.config.graph_name, cypher
+            );
+            let count: i64 = match sqlx::query_scalar::<_, String>(&age_sql)
+                .fetch_one(self.pool.as_ref())
+                .await
+                .ok()
+                .and_then(|s| s.trim_matches('"').parse::<i64>().ok())
+            {
+                Some(n) => n,
+                None => continue, // AGE hiccup — skip, do not false-positive (E8)
+            };
+            if count == 0 {
+                orphans.push(vec_id);
+            }
+        }
+
+        if !orphans.is_empty() {
+            let severity = if orphans.len() >= 50 {
+                Severity::Critical
+            } else {
+                Severity::Warning
+            };
+            report.add_violation(InvariantViolation {
+                invariant_id: "INV-D".to_string(),
+                severity,
+                description: format!(
+                    "{} orphan entity vectors (no matching AGE node) — delete_entity cleanup residue",
+                    orphans.len()
+                ),
+                count: orphans.len(),
+                sample_ids: orphans.into_iter().take(5).collect(),
+            });
+        }
+    }
+
+    /// INV-D2 (SPEC-021 P-B3): orphan workspace tables.
+    ///
+    /// WHY: each workspace creates `eq_<workspace>_kv` and `eq_<workspace>_vectors`
+    /// tables. When a workspace is deleted from `workspaces`, its storage tables
+    /// are NOT dropped (no cascade), leaving orphan tables that consume disk and
+    /// confuse the inspector's per-workspace checks. We list storage tables
+    /// whose workspace id has no row in `workspaces`.
+    async fn check_inv_d2_orphan_workspace_tables(&self, report: &mut InspectorReport) {
+        let sql = r#"
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND (table_name LIKE 'eq_%_kv' OR table_name LIKE 'eq_%_vectors')
+              AND table_name NOT IN ('eq_eq_default_kv', 'eq_eq_default_vectors')
+        "#;
+        let tables = match sqlx::query_scalar::<_, String>(sql)
+            .fetch_all(self.pool.as_ref())
+            .await
+        {
+            Ok(t) => t,
+            Err(e) => {
+                warn!(error = %e, "INV-D2: failed to list workspace tables");
+                return;
+            }
+        };
+        if tables.is_empty() {
+            return;
+        }
+
+        // Extract the workspace id from `eq_<uuid>_kv|vectors`.
+        let mut orphans = Vec::new();
+        for table in &tables {
+            let parts: Vec<&str> = table.splitn(3, '_').collect();
+            // parts: ["eq", "<uuid>", "kv"/"vectors"]
+            if parts.len() < 3 {
+                continue;
+            }
+            let ws_id = parts[1];
+            let exists: bool =
+                sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM workspaces WHERE id::text = $1)")
+                    .bind(ws_id)
+                    .fetch_one(self.pool.as_ref())
+                    .await
+                    .unwrap_or(true); // on error, assume exists (avoid false positive)
+            if !exists {
+                orphans.push(table.clone());
+            }
+        }
+
+        if !orphans.is_empty() {
+            report.add_violation(InvariantViolation {
+                invariant_id: "INV-D2".to_string(),
+                severity: Severity::Warning,
+                description: format!(
+                    "{} orphan workspace storage table(s) — workspace deleted but tables remain",
+                    orphans.len()
+                ),
+                count: orphans.len(),
+                sample_ids: orphans.into_iter().take(5).collect(),
+            });
+        }
+    }
+
     fn build_repair_recommendations(&self, report: &mut InspectorReport) {
         for violation in &report.invariant_violations {
             let repair = match violation.invariant_id.as_str() {
                 "INV-01" => Some(RepairAction::DeleteOrphanedVectors {
                     count: violation.count,
                     ids: violation.sample_ids.clone(),
+                }),
+                "INV-D" => Some(RepairAction::DeleteOrphanedVectors {
+                    count: violation.count,
+                    ids: violation.sample_ids.clone(),
+                }),
+                "INV-D2" => Some(RepairAction::DeleteOrphanedWorkspaceTables {
+                    count: violation.count,
+                    tables: violation.sample_ids.clone(),
                 }),
                 "INV-04" => Some(RepairAction::ResyncEntitiesFromAge {
                     count: violation.count,
@@ -725,7 +1130,7 @@ impl StorageInspector {
         }
     }
 
-    async fn apply_repair(&self, repair: &RepairAction, dry_run: bool) -> Result<bool, String> {
+    pub async fn apply_repair(&self, repair: &RepairAction, dry_run: bool) -> Result<bool, String> {
         match repair {
             RepairAction::DeleteOrphanedVectors { .. } => {
                 if dry_run {
@@ -798,6 +1203,29 @@ impl StorageInspector {
                 // (requires AGE search_path setup; should run via apply.sql)
                 warn!("ResyncEntitiesFromAge: run migrations/support/040/apply.sql manually");
                 Ok(false)
+            }
+            RepairAction::DeleteOrphanedWorkspaceTables { tables, .. } => {
+                if dry_run {
+                    return Ok(false);
+                }
+                // SPEC-021 P-B3: Caution-tier — only reached via explicit admin
+                // trigger. Drop the orphan tables. Best-effort per table.
+                let mut dropped = 0;
+                for table in tables {
+                    // Defensive: only drop eq_*_kv / eq_*_vectors tables.
+                    if table.starts_with("eq_")
+                        && (table.ends_with("_kv") || table.ends_with("_vectors"))
+                    {
+                        let sql = format!("DROP TABLE IF EXISTS {table} CASCADE");
+                        match sqlx::query(&sql).execute(self.pool.as_ref()).await {
+                            Ok(_) => dropped += 1,
+                            Err(e) => {
+                                warn!(table = %table, error = %e, "INV-D2 repair: drop failed")
+                            }
+                        }
+                    }
+                }
+                Ok(dropped > 0)
             }
             RepairAction::LogOnly { message } => {
                 info!(message = %message, "StorageInspector log-only repair");

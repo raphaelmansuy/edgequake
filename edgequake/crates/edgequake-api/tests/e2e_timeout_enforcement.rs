@@ -93,7 +93,14 @@ async fn upload_document(app: &axum::Router, content: &str, title: &str) -> Valu
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CREATED);
+    // P-G2b: uploads always enqueue a background task → 202 Accepted (+ task_id
+    // + status "pending", no counts). The old 201 Created sync path is removed,
+    // but legacy 201 is still tolerated for forward-compat.
+    assert!(
+        response.status() == StatusCode::ACCEPTED || response.status() == StatusCode::CREATED,
+        "upload should return 202 (or legacy 201), got {}",
+        response.status()
+    );
     extract_json(response).await
 }
 
@@ -183,7 +190,14 @@ async fn test_timeout_small_document_upload_10s() {
     assert!(result.is_ok(), "Small doc upload: {}", result.unwrap_err());
     let body = result.unwrap();
     assert!(body["document_id"].is_string());
-    assert_eq!(body["status"], "processed");
+    // P-G2b: async upload returns status "pending" (was "processed" in the
+    // removed sync path). Counts are now null/absent and not asserted.
+    let status_str = body["status"].as_str().unwrap_or("");
+    assert!(
+        status_str == "pending" || status_str == "processed",
+        "expected pending (or legacy processed), got '{}'",
+        status_str
+    );
 }
 
 /// OODA-11: Medium document upload must complete within 30s.

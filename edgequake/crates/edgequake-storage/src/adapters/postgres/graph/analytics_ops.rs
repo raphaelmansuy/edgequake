@@ -124,6 +124,55 @@ impl PostgresAGEGraphStorage {
         Ok(count as usize)
     }
 
+    /// Count nodes whose `source_ids` array (or legacy `source_id`) contains
+    /// any entry starting with `prefix` (SPEC-021 P-A3).
+    ///
+    /// WHY: per-document entity_count fallback for the Documents list. A
+    /// single aggregate Cypher avoids materializing the nodes. We check both
+    /// the modern `source_ids` array and the legacy `source_id` pipe-delimited
+    /// string to match `collect_source_references` semantics.
+    pub(super) async fn pg_node_count_by_source_prefix(&self, prefix: &str) -> Result<usize> {
+        // WHY: avoid Cypher's `any(s IN n.source_ids WHERE s STARTS WITH ...)`
+        // which this AGE version rejects with "syntax error at or near WHERE".
+        // Mirror scan_ops.rs and do the prefix match in SQL against the JSONB
+        // view of each node's properties — same semantics, AGE-version-safe.
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        let escaped = Self::escape_sql_string(prefix);
+        let chunk = Self::escape_sql_string(&format!("{prefix}-chunk-"));
+        let props = "ag_catalog.agtype_to_json(v.properties)";
+        let sql = format!(
+            "SELECT count(*)::BIGINT FROM {graph}.\"_ag_label_vertex\" v \
+             WHERE ({props}::jsonb)->>'source_id' LIKE '{esc}%' \
+                OR ({props}::jsonb)->>'source_id' LIKE '%|{esc}%' \
+                OR ({props}::jsonb)->>'source_id' LIKE '{chunk}%' \
+                OR ({props}::jsonb)->>'source_id' LIKE '%|{chunk}%' \
+                OR EXISTS ( \
+                    SELECT 1 FROM jsonb_array_elements_text( \
+                        CASE \
+                            WHEN jsonb_typeof({props}::jsonb->'source_ids') = 'array' \
+                            THEN {props}::jsonb->'source_ids' \
+                            ELSE '[]'::jsonb \
+                        END \
+                    ) src \
+                    WHERE src LIKE '{esc}%' OR src LIKE '{chunk}%' OR src = '{esc}' \
+                )",
+            graph = self.graph_name,
+            props = props,
+            esc = escaped,
+            chunk = chunk
+        );
+
+        let count: i64 = sqlx::query_scalar(&sql)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("source-prefix node count failed: {e}")))?;
+        Ok(count as usize)
+    }
+
     pub(super) async fn pg_clear(&self) -> Result<()> {
         // Delete all nodes (edges will be deleted automatically with DETACH)
         let cypher = "MATCH (n:Node) DETACH DELETE n";

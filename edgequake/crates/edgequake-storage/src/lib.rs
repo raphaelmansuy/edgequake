@@ -57,8 +57,10 @@
 
 pub mod adapters;
 pub mod community;
+pub mod compensation;
 pub mod conversation_storage;
 pub mod conversation_types;
+pub mod entity_id;
 pub mod error;
 pub mod kv_key_schema;
 pub mod metadata_filter_sql;
@@ -66,13 +68,17 @@ pub mod pdf_storage;
 pub mod traits;
 pub mod vector_id;
 
+// Re-export entity identity (RC-6 / P-G1): single normalization entry point.
+pub use entity_id::{normalize_entity_name, EntityId};
+
 // Re-export community detection
 pub use community::{Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult};
 
 // Re-export PDF storage types
 pub use pdf_storage::{
-    calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, ExtractionMethod, ListPdfFilter,
-    PdfDocument, PdfDocumentStorage, PdfList, PdfProcessingStatus, UpdatePdfProcessingRequest,
+    calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, DocumentStatsUpdate,
+    ExtractionMethod, ListPdfFilter, PdfDocument, PdfDocumentStorage, PdfList, PdfProcessingStatus,
+    UpdatePdfProcessingRequest,
 };
 
 pub use conversation_storage::ConversationStorage;

@@ -165,6 +165,9 @@ fn api_v1_routes() -> Router<AppState> {
             "/admin/config/defaults",
             patch(handlers::update_server_defaults),
         )
+        // SPEC-021 P-D2: Storage health inspection + repair (admin-only)
+        .route("/admin/storage/inspect", get(handlers::storage_inspect))
+        .route("/admin/storage/repair", post(handlers::storage_repair))
         // Workspaces (Multi-tenancy)
         .route(
             "/tenants/{tenant_id}/workspaces",

@@ -24,11 +24,22 @@ import {
     reprocessDocument,
     retryTask,
 } from "@/lib/api/edgequake";
+import type { ReprocessMode } from "@/lib/api/edgequake";
 import type { Document } from "@/types";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+
+/**
+ * Variables accepted by the reprocess mutation.
+ * WHY: Centralizing this type keeps the mutationFn and onMutate signatures in
+ * sync so TanStack Query infers a single, consistent variables type.
+ */
+export interface ReprocessVariables {
+  id: string;
+  mode?: ReprocessMode;
+}
 
 /**
  * Options for useDocumentMutations hook.
@@ -70,7 +81,7 @@ export interface UseDocumentMutationsReturn {
   reprocessMutation: UseMutationResult<
     { track_id: string; message: string; count: number },
     Error,
-    string,
+    ReprocessVariables,
     unknown
   >;
 
@@ -201,8 +212,9 @@ export function useDocumentMutations(
    * Calls onReprocessSuccess callback to allow parent to show pipeline dialog.
    */
   const reprocessMutation = useMutation({
-    mutationFn: (documentId: string) => reprocessDocument(documentId, true),
-    onMutate: async (documentId: string) => {
+    mutationFn: ({ id, mode }: ReprocessVariables) =>
+      reprocessDocument(id, true, mode ?? "entities"),
+    onMutate: async ({ id: documentId }: ReprocessVariables) => {
       // Cancel any outgoing refetches so they don't overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: ["documents"] });
 

@@ -27,6 +27,7 @@
     "download": "下载",
     "tryAgain": "重试",
     "platform": "图谱RAG平台",
+    "uiVersion": "界面 v{{version}}",
     "navigation": "导航",
     "keyboardShortcuts": "键盘快捷键",
     "keyboardShortcutsDesc": "使用这些快捷键快速导航",
@@ -98,7 +99,8 @@
     "knowledgeGraph": "知识图谱",
     "query": "查询",
     "settings": "设置",
-    "language": "语言"
+    "language": "语言",
+    "apiVersion": "API v{{version}}"
   },
   "documents": {
     "title": "文档",
@@ -113,7 +115,7 @@
       "success": "{{count}} 个文件上传成功",
       "error": "{{count}} 个文件上传失败",
       "complete": "已上传！正在后台处理...",
-      "fileTooLarge": "文件 \"{{name}}\" 太大 ({{size}}MB)。最大限制为 10MB。",
+      "fileTooLarge": "文件 \"{{name}}\" 太大 ({{size}}MB)。最大限制为 {{limit}}。",
       "invalidType": "文件 \"{{name}}\" 格式不支持。支持格式：TXT、MD、JSON。",
       "allFailed": "所有 {{count}} 个文件上传失败",
       "partial": "已上传 {{success}} 个文件，{{failed}} 个失败",
@@ -250,6 +252,25 @@
       "failed": "重新处理失败",
       "success": "文档已加入重新处理队列",
       "successDesc": "该文档将被完全重新处理。"
+    },
+    "reprocessDialog": {
+      "title": "重新处理“{{name}}”",
+      "description": "选择如何重新处理此文档。",
+      "fullLabel": "从 PDF 重新转换（较慢，消耗视觉 token）",
+      "fullDescriptionPdf": "从存储的 PDF 字节重新运行 PDF -> markdown 转换，然后重新提取实体和关系。当 markdown 本身错误或过时时使用。",
+      "fullDescriptionNonPdf": "从头重新摄取源内容并重新运行完整的知识图谱流水线。",
+      "fullBadge": "最慢 · 消耗 token",
+      "entitiesLabel": "仅重新提取实体（复用现有 markdown）",
+      "entitiesDescriptionPdf": "保留缓存的 markdown，仅重新运行分块、实体/关系提取和嵌入。快速且经济。",
+      "entitiesDescriptionNonPdf": "在现有内容上重新运行知识图谱流水线。",
+      "entitiesBadge": "快速 · 无视觉",
+      "inflightWarning": "该文档正在处理中。请等待处理完成后再重新处理。",
+      "cancel": "取消",
+      "confirm": "重新处理",
+      "bulkTitle": "重新处理 {{count}} 个文档？",
+      "bulkDescription": "选择如何重新处理选中的文档。相同的模式将应用于所有文档。",
+      "fullDescriptionBulk": "为每个选中的 PDF 重新运行 PDF -> markdown 转换，然后重新提取实体。当 markdown 本身错误或过时时使用。非 PDF 文档将从头重新摄取。",
+      "entitiesDescriptionBulk": "保留缓存的 markdown，仅对每个选中的文档重新运行知识图谱流水线。快速且经济。"
     },
     "reprocessAll": {
       "confirm": "重试所有失败",

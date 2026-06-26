@@ -6,10 +6,9 @@
 
 use edgequake_query::context::{RetrievedChunk, RetrievedEntity, RetrievedRelationship};
 use edgequake_query::{
-    balance_context, retrieve_chunks_from_entities, truncate_entities, ChunkSelectionMethod,
-    KeywordExtractor, MockKeywordExtractor, SimpleTokenizer, Tokenizer, TruncationConfig,
+    balance_context, truncate_entities, KeywordExtractor, MockKeywordExtractor, SimpleTokenizer,
+    Tokenizer, TruncationConfig,
 };
-use edgequake_storage::{KVStorage, MemoryKVStorage};
 use std::sync::Arc;
 
 /// Test keyword extraction integration.
@@ -95,48 +94,6 @@ fn test_truncation_with_large_context() {
         total_tokens,
         config.max_total_tokens
     );
-}
-
-/// Test chunk retrieval from entities.
-#[tokio::test]
-async fn test_chunk_retrieval_from_entities() {
-    // Setup storage
-    let kv_storage: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("chunks"));
-    kv_storage.initialize().await.unwrap();
-
-    // Store some chunks with entity-mapped IDs
-    let chunks = vec![
-        (
-            "sarah_chen_chunk".to_string(),
-            serde_json::json!("Sarah Chen works on AI projects"),
-        ),
-        (
-            "entity1_chunk".to_string(),
-            serde_json::json!("Entity 1 description"),
-        ),
-    ];
-
-    kv_storage.upsert(&chunks).await.unwrap();
-
-    // Create entities
-    let entities = vec![
-        RetrievedEntity::new("Sarah Chen", "PERSON", "AI engineer"),
-        RetrievedEntity::new("Entity1", "TEST", "Test entity"),
-    ];
-
-    // Retrieve chunks using weight-based method
-    let retrieved_chunks = retrieve_chunks_from_entities(
-        &entities,
-        &kv_storage,
-        ChunkSelectionMethod::Weight,
-        None,
-        5,
-    )
-    .await
-    .unwrap();
-
-    // Should retrieve some chunks (actual count depends on ID mapping logic)
-    assert!(retrieved_chunks.len() <= entities.len());
 }
 
 /// Test truncation preserves entity order.

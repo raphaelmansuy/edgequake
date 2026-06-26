@@ -6,17 +6,15 @@
 //! - Query requests
 //! - Tokenization
 //! - Truncation
-//! - Query engine
+//! - Error handling
+//! - Concurrency (keyword extraction, tokenization)
 
 use std::sync::Arc;
 
-use edgequake_llm::MockProvider;
 use edgequake_query::{
-    ChunkSelectionMethod, Keywords, MockKeywordExtractor, MockTokenizer, QueryContext, QueryEngine,
-    QueryEngineConfig, QueryError, QueryMode, QueryRequest, RetrievedContext, SimpleTokenizer,
-    TruncationConfig,
+    Keywords, MockKeywordExtractor, MockTokenizer, QueryContext, QueryEngineConfig, QueryError,
+    QueryMode, QueryRequest, RetrievedContext, SimpleTokenizer, TruncationConfig,
 };
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
 
 // =============================================================================
 // Query Mode Tests
@@ -65,17 +63,23 @@ mod config_tests {
             default_mode: QueryMode::Local,
             max_chunks: 20,
             max_entities: 50,
+            max_relationships: 40,
             max_context_tokens: 8000,
             graph_depth: 3,
             min_score: 0.2,
-            include_sources: false,
             use_keyword_extraction: true,
+            use_adaptive_mode: false,
             truncation: TruncationConfig::default(),
+            keyword_cache_ttl_secs: 3600,
+            enable_rerank: false,
+            min_rerank_score: 0.1,
+            rerank_top_k: 10,
         };
 
         assert!(matches!(config.default_mode, QueryMode::Local));
         assert_eq!(config.max_chunks, 20);
         assert_eq!(config.max_entities, 50);
+        assert!(!config.enable_rerank);
     }
 
     #[test]
@@ -293,144 +297,6 @@ mod tokenizer_tests {
 }
 
 // =============================================================================
-// Chunk Selection Tests
-// =============================================================================
-
-mod chunk_selection_tests {
-    use super::*;
-
-    #[test]
-    fn test_chunk_selection_methods() {
-        let _weight = ChunkSelectionMethod::Weight;
-        let _vector = ChunkSelectionMethod::Vector;
-    }
-}
-
-// =============================================================================
-// Query Engine Integration Tests
-// =============================================================================
-
-mod engine_tests {
-    use super::*;
-
-    async fn create_test_engine() -> QueryEngine {
-        let vector = Arc::new(MemoryVectorStorage::new("test", 1536));
-        let graph = Arc::new(MemoryGraphStorage::new("test"));
-        vector.initialize().await.unwrap();
-        graph.initialize().await.unwrap();
-
-        let mock = Arc::new(MockProvider::new());
-
-        QueryEngine::new(
-            QueryEngineConfig::default(),
-            vector,
-            graph,
-            mock.clone(),
-            mock,
-        )
-    }
-
-    #[tokio::test]
-    async fn test_query_engine_creation() {
-        let _engine = create_test_engine().await;
-    }
-
-    #[tokio::test]
-    async fn test_query_engine_with_keyword_extractor() {
-        let engine = create_test_engine().await;
-        let extractor = Arc::new(MockKeywordExtractor::new());
-
-        let _engine = engine.with_keyword_extractor(extractor);
-    }
-
-    #[tokio::test]
-    async fn test_query_engine_with_tokenizer() {
-        let engine = create_test_engine().await;
-        let tokenizer = Arc::new(SimpleTokenizer);
-
-        let _engine = engine.with_tokenizer(tokenizer);
-    }
-
-    #[tokio::test]
-    async fn test_query_context_only() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("What is EdgeQuake?").context_only();
-
-        // With empty storage, should return empty context
-        let response = engine.query(request).await.unwrap();
-
-        assert!(response.context.chunks.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_query_with_mode_naive() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("Test query")
-            .with_mode(QueryMode::Naive)
-            .context_only();
-
-        let response = engine.query(request).await.unwrap();
-        assert!(matches!(response.mode, QueryMode::Naive));
-    }
-
-    #[tokio::test]
-    async fn test_query_with_mode_local() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("Test query")
-            .with_mode(QueryMode::Local)
-            .context_only();
-
-        let response = engine.query(request).await.unwrap();
-        assert!(matches!(response.mode, QueryMode::Local));
-    }
-
-    #[tokio::test]
-    async fn test_query_with_mode_global() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("Test query")
-            .with_mode(QueryMode::Global)
-            .context_only();
-
-        let response = engine.query(request).await.unwrap();
-        assert!(matches!(response.mode, QueryMode::Global));
-    }
-
-    #[tokio::test]
-    async fn test_query_with_mode_hybrid() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("Test query")
-            .with_mode(QueryMode::Hybrid)
-            .context_only();
-
-        let response = engine.query(request).await.unwrap();
-        assert!(matches!(response.mode, QueryMode::Hybrid));
-    }
-
-    #[tokio::test]
-    async fn test_query_with_mode_mix() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("Test query")
-            .with_mode(QueryMode::Mix)
-            .context_only();
-
-        let response = engine.query(request).await.unwrap();
-        assert!(matches!(response.mode, QueryMode::Mix));
-    }
-
-    #[tokio::test]
-    async fn test_query_prompt_only() {
-        let engine = create_test_engine().await;
-        let request = QueryRequest::new("What is EdgeQuake?").prompt_only();
-
-        let response = engine.query(request).await.unwrap();
-
-        // Prompt only returns the formatted prompt as the answer
-        // (may be empty if no context found)
-        assert!(response.answer.is_empty() || !response.answer.is_empty());
-    }
-}
-
-// =============================================================================
 // Error Handling Tests
 // =============================================================================
 
@@ -464,44 +330,6 @@ mod error_tests {
 mod concurrent_tests {
     use super::*;
     use tokio::task::JoinSet;
-
-    #[tokio::test]
-    async fn test_concurrent_queries() {
-        let vector = Arc::new(MemoryVectorStorage::new("test", 1536));
-        let graph = Arc::new(MemoryGraphStorage::new("test"));
-        vector.initialize().await.unwrap();
-        graph.initialize().await.unwrap();
-
-        let mock = Arc::new(MockProvider::new());
-
-        let engine = Arc::new(QueryEngine::new(
-            QueryEngineConfig::default(),
-            vector,
-            graph,
-            mock.clone(),
-            mock,
-        ));
-
-        let mut join_set = JoinSet::new();
-
-        for i in 0..5 {
-            let e = engine.clone();
-            let query = format!("Query number {}", i);
-
-            join_set.spawn(async move {
-                let request = QueryRequest::new(query).context_only();
-                e.query(request).await
-            });
-        }
-
-        let mut completed = 0;
-        while let Some(result) = join_set.join_next().await {
-            assert!(result.unwrap().is_ok());
-            completed += 1;
-        }
-
-        assert_eq!(completed, 5);
-    }
 
     #[tokio::test]
     async fn test_concurrent_keyword_extraction() {

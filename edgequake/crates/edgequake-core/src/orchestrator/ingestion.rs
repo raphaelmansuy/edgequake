@@ -450,58 +450,20 @@ impl EdgeQuake {
         chunk_ids: &[String],
         cause: String,
     ) -> Error {
-        Self::compensate_orphan_chunk_vectors(vector_storage, doc_id, chunk_ids, &cause).await;
+        // SPEC-021 P-C1: delegate to the shared compensation module so the
+        // orchestrator and processor paths converge on identical cleanup.
+        edgequake_storage::compensation::compensate_orphan_vectors(
+            vector_storage,
+            doc_id,
+            chunk_ids,
+            &[],
+            &cause,
+        )
+        .await;
         Error::internal(format!(
             "Knowledge graph merge failed for document {doc_id} ({cause}); \
              rolled back chunk vectors to avoid orphaned embeddings"
         ))
-    }
-
-    /// Best-effort saga compensation for a failed cross-store document write.
-    ///
-    /// Deletes the chunk vectors that Stage 2 already committed for `doc_id`
-    /// after the graph merge (the last fallible stage) failed, preventing
-    /// orphaned embeddings that would otherwise be retrievable yet disconnected
-    /// from the knowledge graph.
-    ///
-    /// WHY best-effort (no `?`, never returns an error): compensation runs on an
-    /// already-failing path. If cleanup itself fails we must NOT mask the
-    /// original merge error; instead we emit a structured `quarantine` log so an
-    /// operator (or a reconciliation job) can remove the residue out of band.
-    /// Deletion is keyed by the exact chunk IDs we wrote, so it is idempotent
-    /// and safe to retry.
-    async fn compensate_orphan_chunk_vectors(
-        vector_storage: &dyn VectorStorage,
-        doc_id: &str,
-        chunk_ids: &[String],
-        cause: &str,
-    ) {
-        // Nothing was written (e.g. a document with no embeddable chunks) — there
-        // is nothing to roll back.
-        if chunk_ids.is_empty() {
-            return;
-        }
-
-        match vector_storage.delete(chunk_ids).await {
-            Ok(()) => {
-                tracing::warn!(
-                    document_id = %doc_id,
-                    chunk_vectors_deleted = chunk_ids.len(),
-                    cause = %cause,
-                    "saga_compensation: rolled back chunk vectors after graph merge failure"
-                );
-            }
-            Err(cleanup_err) => {
-                tracing::error!(
-                    document_id = %doc_id,
-                    orphan_chunk_vectors = chunk_ids.len(),
-                    merge_cause = %cause,
-                    cleanup_error = %cleanup_err,
-                    "quarantine: failed to roll back chunk vectors after graph merge \
-                     failure; manual or reconciliation cleanup required"
-                );
-            }
-        }
     }
 
     /// Insert multiple documents.

@@ -5,13 +5,20 @@
 //! - Graph storage → Vector embeddings → Lineage tracking
 //!
 //! Tests small, medium, and large documents to verify pipeline robustness.
+//!
+//! P-G2b: uploads always enqueue a background task and return 202 ACCEPTED +
+//! `status: "pending"` + `task_id` (no counts). Tests that need a fully
+//! ingested document use the worker-backed app (`create_test_app_with_workers`)
+//! and `common::upload_and_wait` to poll the track-status endpoint.
+
+mod common;
 
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::{json, Value};
+use std::time::Duration;
 use tower::ServiceExt;
 
 // ============================================================================
@@ -153,51 +160,11 @@ and Google's research collaborations with universities, accelerates progress tow
 // Helper Functions
 // ============================================================================
 
-fn create_test_config() -> ServerConfig {
-    ServerConfig {
-        host: "127.0.0.1".to_string(),
-        port: 0,
-        enable_cors: false,
-        enable_compression: false,
-        enable_swagger: true,
-    }
-}
-
-fn create_test_app() -> axum::Router {
-    let server = Server::new(create_test_config(), AppState::test_state());
-    server.build_router()
-}
-
 async fn extract_json(response: axum::response::Response) -> Value {
     let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
         .await
         .expect("Failed to read response body");
     serde_json::from_slice(&bytes).expect("Failed to parse JSON")
-}
-
-async fn upload_document(app: &axum::Router, content: &str, title: &str) -> Value {
-    let request = json!({
-        "content": content,
-        "title": title,
-        "metadata": {"test": true}
-    });
-
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/api/v1/documents")
-                .header("Content-Type", "application/json")
-                .body(Body::from(serde_json::to_string(&request).unwrap()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
-    assert_eq!(response.status(), StatusCode::CREATED);
-    extract_json(response).await
 }
 
 async fn get_document(app: &axum::Router, document_id: &str) -> Value {
@@ -328,32 +295,17 @@ async fn delete_document(app: &axum::Router, document_id: &str) -> Value {
 
 #[tokio::test]
 async fn test_pipeline_small_document_extraction() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload small document
-    let upload_result = upload_document(&app, SMALL_DOCUMENT, "Small AI Research").await;
-
-    // Verify upload succeeded
-    assert!(upload_result.get("document_id").is_some());
-    let document_id = upload_result["document_id"].as_str().unwrap();
-
-    // Check chunk count (should be >= 1 for small doc)
-    let chunk_count = upload_result["chunk_count"].as_u64().unwrap_or(0);
-    assert!(
-        chunk_count >= 1,
-        "Small document should have at least 1 chunk"
-    );
-
-    // Entity and relationship counts are optional (depend on extractor)
-    // Mock provider may not have an extractor configured
-    let entity_count = upload_result["entity_count"].as_u64().unwrap_or(0);
-    let relationship_count = upload_result["relationship_count"].as_u64().unwrap_or(0);
-
-    // entity_count and relationship_count are u64, always non-negative
-    let _ = (entity_count, relationship_count);
+    // P-G2b: upload enqueues a background task; wait for it to reach a
+    // terminal processed state before asserting on ingestion results.
+    let (document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "Small AI Research", SMALL_DOCUMENT, Duration::from_secs(30))
+            .await;
 
     // In mock/test mode, extraction may legitimately end as completed or partial_failure.
-    let doc_details = get_document(&app, document_id).await;
+    let doc_details = get_document(app, document_id.as_str()).await;
     assert!(matches!(
         doc_details["status"].as_str(),
         Some("completed") | Some("partial_failure")
@@ -362,14 +314,15 @@ async fn test_pipeline_small_document_extraction() {
 
 #[tokio::test]
 async fn test_pipeline_small_document_entity_types() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document with clear entity types
-    let upload_result = upload_document(&app, SMALL_DOCUMENT, "Entity Type Test").await;
-    let _document_id = upload_result["document_id"].as_str().unwrap();
+    let (_document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "Entity Type Test", SMALL_DOCUMENT, Duration::from_secs(30))
+            .await;
 
     // Get graph to verify structure (mock may not have entities)
-    let graph = get_graph(&app).await;
+    let graph = get_graph(app).await;
 
     // Graph endpoint should return valid structure
     assert!(
@@ -400,34 +353,25 @@ async fn test_pipeline_small_document_entity_types() {
 
 #[tokio::test]
 async fn test_pipeline_medium_document_extraction() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload medium document
-    let upload_result = upload_document(&app, MEDIUM_DOCUMENT, "EdgeQuake Company Profile").await;
-
-    let document_id = upload_result["document_id"].as_str().unwrap();
-
-    // Medium document should have multiple chunks
-    let chunk_count = upload_result["chunk_count"].as_u64().unwrap_or(0);
-    assert!(
-        chunk_count >= 1,
-        "Medium document should have at least 1 chunk"
-    );
-
-    // Entity/relationship counts are optional (depend on extractor)
-    let entity_count = upload_result["entity_count"].as_u64().unwrap_or(0);
-    let relationship_count = upload_result["relationship_count"].as_u64().unwrap_or(0);
-    // entity_count and relationship_count are u64, always non-negative
-    let _ = (entity_count, relationship_count);
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "EdgeQuake Company Profile",
+        MEDIUM_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Verify document lineage endpoint returns valid JSON.
     // In mock/test mode the extraction payload may be sparse, so only assert
     // structural guarantees when the fields are present.
-    let lineage = get_document_lineage(&app, document_id).await;
+    let lineage = get_document_lineage(app, document_id.as_str()).await;
     assert!(lineage.is_object(), "Lineage endpoint should return JSON");
 
     if let Some(doc_id) = lineage.get("document_id").and_then(|v| v.as_str()) {
-        assert_eq!(doc_id, document_id);
+        assert_eq!(doc_id, document_id.as_str());
     }
     if let Some(entities) = lineage.get("entities") {
         assert!(
@@ -445,14 +389,15 @@ async fn test_pipeline_medium_document_extraction() {
 
 #[tokio::test]
 async fn test_pipeline_medium_document_keywords() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let upload_result = upload_document(&app, MEDIUM_DOCUMENT, "Keywords Test").await;
-    let _document_id = upload_result["document_id"].as_str().unwrap();
+    let (_document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "Keywords Test", MEDIUM_DOCUMENT, Duration::from_secs(30))
+            .await;
 
     // Get graph to check relationships have keywords
-    let graph = get_graph(&app).await;
+    let graph = get_graph(app).await;
     let empty_edges: Vec<serde_json::Value> = vec![];
     let edges = graph["edges"].as_array().unwrap_or(&empty_edges);
 
@@ -486,28 +431,19 @@ async fn test_pipeline_medium_document_keywords() {
 
 #[tokio::test]
 async fn test_pipeline_large_document_extraction() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload large document
-    let upload_result = upload_document(&app, LARGE_DOCUMENT, "Quantum Computing Overview").await;
-
-    let document_id = upload_result["document_id"].as_str().unwrap();
-
-    // Large document should have multiple chunks
-    let chunk_count = upload_result["chunk_count"].as_u64().unwrap_or(0);
-    assert!(
-        chunk_count >= 1,
-        "Large document should have multiple chunks"
-    );
-
-    // Entity/relationship counts are optional (depend on extractor)
-    let entity_count = upload_result["entity_count"].as_u64().unwrap_or(0);
-    let relationship_count = upload_result["relationship_count"].as_u64().unwrap_or(0);
-    // entity_count and relationship_count are u64, always non-negative
-    let _ = (entity_count, relationship_count);
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Quantum Computing Overview",
+        LARGE_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // In mock/test mode, extraction may legitimately end as completed or partial_failure.
-    let doc_details = get_document(&app, document_id).await;
+    let doc_details = get_document(app, document_id.as_str()).await;
     assert!(matches!(
         doc_details["status"].as_str(),
         Some("completed") | Some("partial_failure")
@@ -516,13 +452,15 @@ async fn test_pipeline_large_document_extraction() {
 
 #[tokio::test]
 async fn test_pipeline_large_document_embeddings() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let _upload_result = upload_document(&app, LARGE_DOCUMENT, "Embeddings Test").await;
+    let (_document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "Embeddings Test", LARGE_DOCUMENT, Duration::from_secs(30))
+            .await;
 
     // Query should work with embeddings
-    let query_result = query_rag(&app, "Who works on quantum computing at IBM?").await;
+    let query_result = query_rag(app, "Who works on quantum computing at IBM?").await;
 
     // Query should return a response
     assert!(query_result.get("response").is_some() || query_result.get("answer").is_some());
@@ -530,14 +468,14 @@ async fn test_pipeline_large_document_embeddings() {
 
 #[tokio::test]
 async fn test_pipeline_large_document_entity_deduplication() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document where entities are mentioned multiple times
-    let upload_result = upload_document(&app, LARGE_DOCUMENT, "Dedup Test").await;
-    let _document_id = upload_result["document_id"].as_str().unwrap();
+    let (_document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "Dedup Test", LARGE_DOCUMENT, Duration::from_secs(30)).await;
 
     // Get graph
-    let graph = get_graph(&app).await;
+    let graph = get_graph(app).await;
     let nodes = graph["nodes"].as_array().unwrap();
 
     // Check for duplicates (same name normalized differently)
@@ -562,14 +500,14 @@ async fn test_pipeline_large_document_entity_deduplication() {
 
 #[tokio::test]
 async fn test_lineage_entity_provenance() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let upload_result = upload_document(&app, MEDIUM_DOCUMENT, "Lineage Test").await;
-    let document_id = upload_result["document_id"].as_str().unwrap();
+    let (document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "Lineage Test", MEDIUM_DOCUMENT, Duration::from_secs(30)).await;
 
     // Get document lineage - endpoint should return valid response
-    let lineage = get_document_lineage(&app, document_id).await;
+    let lineage = get_document_lineage(app, document_id.as_str()).await;
 
     // Response should be valid JSON. In mock/test mode the lineage payload may
     // be partial, so only enforce structure for fields that are present.
@@ -579,7 +517,7 @@ async fn test_lineage_entity_provenance() {
     );
 
     if let Some(lineage_doc_id) = lineage.get("document_id").and_then(|v| v.as_str()) {
-        assert_eq!(lineage_doc_id, document_id);
+        assert_eq!(lineage_doc_id, document_id.as_str());
     }
 
     // If entities exist, verify their structure
@@ -613,14 +551,19 @@ async fn test_lineage_entity_provenance() {
 
 #[tokio::test]
 async fn test_lineage_relationship_provenance() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let upload_result = upload_document(&app, MEDIUM_DOCUMENT, "Relationship Lineage Test").await;
-    let document_id = upload_result["document_id"].as_str().unwrap();
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Relationship Lineage Test",
+        MEDIUM_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Get document lineage
-    let lineage = get_document_lineage(&app, document_id).await;
+    let lineage = get_document_lineage(app, document_id.as_str()).await;
 
     // Should have relationships
     let empty_relationships: Vec<serde_json::Value> = vec![];
@@ -649,14 +592,19 @@ async fn test_lineage_relationship_provenance() {
 
 #[tokio::test]
 async fn test_deletion_impact_analysis() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let upload_result = upload_document(&app, MEDIUM_DOCUMENT, "Impact Analysis Test").await;
-    let document_id = upload_result["document_id"].as_str().unwrap();
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Impact Analysis Test",
+        MEDIUM_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Get deletion impact
-    let impact = get_deletion_impact(&app, document_id).await;
+    let impact = get_deletion_impact(app, document_id.as_str()).await;
 
     // Should show chunks to delete
     assert!(impact.get("chunks_to_delete").is_some());
@@ -667,7 +615,7 @@ async fn test_deletion_impact_analysis() {
     assert_eq!(impact["preview_only"].as_bool(), Some(true));
 
     // Document should still exist after previewing deletion impact.
-    let doc = get_document(&app, document_id).await;
+    let doc = get_document(app, document_id.as_str()).await;
     assert!(matches!(
         doc["status"].as_str(),
         Some("completed") | Some("partial_failure")
@@ -676,25 +624,30 @@ async fn test_deletion_impact_analysis() {
 
 #[tokio::test]
 async fn test_cascade_delete() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let upload_result = upload_document(&app, SMALL_DOCUMENT, "Cascade Delete Test").await;
-    let document_id = upload_result["document_id"].as_str().unwrap();
+    let (document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Cascade Delete Test",
+        SMALL_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Count entities before deletion
-    let graph_before = get_graph(&app).await;
+    let graph_before = get_graph(app).await;
     let nodes_before = graph_before["nodes"].as_array().unwrap().len();
 
     // Delete document
-    let delete_result = delete_document(&app, document_id).await;
+    let delete_result = delete_document(app, document_id.as_str()).await;
 
     // Verify deletion counts
     assert!(delete_result["deleted"].as_bool().unwrap());
     assert!(delete_result["chunks_deleted"].as_u64().unwrap() >= 1);
 
     // Graph should have fewer or same entities (cascade delete)
-    let graph_after = get_graph(&app).await;
+    let graph_after = get_graph(app).await;
     let nodes_after = graph_after["nodes"].as_array().unwrap().len();
 
     assert!(
@@ -709,7 +662,9 @@ async fn test_cascade_delete() {
 
 #[tokio::test]
 async fn test_cost_pricing_endpoint() {
-    let app = create_test_app();
+    // No upload: only checks the pricing endpoint response shape, so the
+    // non-worker in-memory app is sufficient (no background task needed).
+    let app = common::create_test_app();
 
     let response = app
         .clone()
@@ -741,7 +696,8 @@ async fn test_cost_pricing_endpoint() {
 
 #[tokio::test]
 async fn test_cost_estimation_endpoint() {
-    let app = create_test_app();
+    // No upload: only checks the cost-estimate endpoint response shape.
+    let app = common::create_test_app();
 
     let request = json!({
         "model": "gpt-4o-mini",
@@ -778,13 +734,15 @@ async fn test_cost_estimation_endpoint() {
 
 #[tokio::test]
 async fn test_rag_query_after_ingestion() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload document
-    let _upload_result = upload_document(&app, MEDIUM_DOCUMENT, "RAG Query Test").await;
+    let (_document_id, _track_id, _final_status) =
+        common::upload_and_wait(app, "RAG Query Test", MEDIUM_DOCUMENT, Duration::from_secs(30))
+            .await;
 
     // Query about the document content
-    let query_result = query_rag(&app, "Who founded EdgeQuake Corporation?").await;
+    let query_result = query_rag(app, "Who founded EdgeQuake Corporation?").await;
 
     // Should return a response
     assert!(
@@ -795,13 +753,19 @@ async fn test_rag_query_after_ingestion() {
 
 #[tokio::test]
 async fn test_rag_query_with_context() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
-    // Upload large document with lots of context
-    let _upload_result = upload_document(&app, LARGE_DOCUMENT, "Context Query Test").await;
+    let (_document_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Context Query Test",
+        LARGE_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Query should use context
-    let query_result = query_rag(&app, "What companies are investing in quantum computing?").await;
+    let query_result = query_rag(app, "What companies are investing in quantum computing?").await;
 
     assert!(
         query_result.get("response").is_some() || query_result.get("answer").is_some(),
@@ -815,7 +779,8 @@ async fn test_rag_query_with_context() {
 
 #[tokio::test]
 async fn test_pipeline_status_endpoint() {
-    let app = create_test_app();
+    // No upload: only checks the pipeline-status endpoint response shape.
+    let app = common::create_test_app();
 
     let response = app
         .clone()
@@ -843,7 +808,8 @@ async fn test_pipeline_status_endpoint() {
 
 #[tokio::test]
 async fn test_multi_document_entity_merging() {
-    let app = create_test_app();
+    let workers = common::create_test_app_with_workers().await;
+    let app = workers.app();
 
     // Upload two documents that share entities
     let doc1 = r#"
@@ -856,14 +822,17 @@ async fn test_multi_document_entity_merging() {
     Sarah Chen's work on NLP has been widely recognized in the field.
     "#;
 
-    let result1 = upload_document(&app, doc1, "Doc 1 - Sarah Chen").await;
-    let result2 = upload_document(&app, doc2, "Doc 2 - Sarah Chen").await;
+    let (doc1_id, _t1, _s1) =
+        common::upload_and_wait(app, "Doc 1 - Sarah Chen", doc1, Duration::from_secs(30)).await;
+    let (doc2_id, _t2, _s2) =
+        common::upload_and_wait(app, "Doc 2 - Sarah Chen", doc2, Duration::from_secs(30)).await;
 
-    assert!(result1.get("document_id").is_some());
-    assert!(result2.get("document_id").is_some());
+    assert!(!doc1_id.is_empty());
+    assert!(!doc2_id.is_empty());
+    assert_ne!(doc1_id, doc2_id);
 
     // Get graph - Sarah Chen should appear once (merged)
-    let graph = get_graph(&app).await;
+    let graph = get_graph(app).await;
     let nodes = graph["nodes"].as_array().unwrap();
 
     let sarah_count = nodes

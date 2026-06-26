@@ -27,7 +27,22 @@ pub const MAX_QUERY_CHARS: usize = 10_000;
 pub const DEFAULT_GRAPH_SCAN_THRESHOLD_NODES: usize = 50_000;
 
 /// Max concurrent in-process full-graph materializations.
-pub const DEFAULT_GRAPH_MATERIALIZE_CONCURRENT: usize = 1;
+///
+/// WHY 4 (was 1): derived from the default DB pool budget, not a guess.
+/// Each materialization holds up to 3 concurrent DB connections (the
+/// `tokio::join!` of node_count_fast + edge_count_fast +
+/// get_popular_nodes_with_degree in `graph_stream.rs`). With the default
+/// pool of 32 and 8 connections reserved for non-graph traffic (frontend
+/// polling, admin), the safe ceiling is ⌊(32 - 8) / 3⌋ = 8. We pick 4 as
+/// the default — half the ceiling — to leave headroom for ingestion
+/// workers (which hold connections for the full embedding duration) while
+/// still absorbing the 2–3 request interactive burst from React StrictMode
+/// double-mount, tenant/workspace switch, and manual refetch.
+///
+/// The env clamp in `from_env()` is pool-aware: it derives the upper bound
+/// from `DATABASE_POOL_SIZE` so graph traffic alone can never exhaust the
+/// pool. Operators who raise the pool get a proportionally higher cap.
+pub const DEFAULT_GRAPH_MATERIALIZE_CONCURRENT: usize = 4;
 
 /// Fraction of cgroup memory reserved as headroom (0.0–1.0).
 pub const DEFAULT_MEM_HEADROOM_RATIO: f64 = 0.75;
@@ -77,9 +92,24 @@ impl ResourceBudgetConfig {
                 config.graph_scan_threshold_nodes = n.max(1_000);
             }
         }
+        // WHY the clamp is pool-aware: each graph materialization holds up to
+        // 3 concurrent DB connections (the `tokio::join!` of node_count_fast +
+        // edge_count_fast + get_popular_nodes_with_degree in graph_stream.rs).
+        // The cap must therefore be ⌊pool_size / 3⌋ so graph traffic alone can
+        // never exhaust the pool. We read DATABASE_POOL_SIZE (default 32) and
+        // reserve 8 connections for non-graph traffic (frontend polling, admin),
+        // giving an effective ceiling of ⌊(pool - 8) / 3⌋. The absolute upper
+        // bound is 8 (24 connections) so a misconfigured huge pool doesn't open
+        // an unreasonable number of concurrent heavy graph queries.
+        let db_pool_size: usize = std::env::var("DATABASE_POOL_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(32);
+        let pool_derived_max = db_pool_size.saturating_sub(8) / 3;
+        let materialize_max = pool_derived_max.clamp(1, 8);
         if let Ok(v) = std::env::var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT") {
             if let Ok(n) = v.parse::<usize>() {
-                config.graph_materialize_concurrent = n.clamp(1, 16);
+                config.graph_materialize_concurrent = n.clamp(1, materialize_max);
             }
         }
         if let Ok(v) = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS") {
@@ -128,7 +158,7 @@ mod tests {
         assert_eq!(budget.max_upload_bytes, 50 * 1024 * 1024);
         assert_eq!(budget.max_query_chars, 10_000);
         assert_eq!(budget.graph_scan_threshold_nodes, 50_000);
-        assert_eq!(budget.graph_materialize_concurrent, 1);
+        assert_eq!(budget.graph_materialize_concurrent, 4);
         assert_eq!(budget.graph_query_timeout_secs, 15);
     }
 
@@ -144,5 +174,44 @@ mod tests {
     #[test]
     fn orchestrator_context_tokens_align_with_sota() {
         assert_eq!(MAX_ORCHESTRATOR_CONTEXT_TOKENS, 30_000);
+    }
+
+    /// SPEC-021 R1: the graph materialization clamp must be pool-aware.
+    /// Each materialization holds 3 DB connections, so the cap must be
+    /// ⌊(pool - 8) / 3⌋ and never exceed 8, regardless of what the operator
+    /// requests — otherwise graph traffic alone could exhaust the pool.
+    #[test]
+    fn graph_materialize_concurrent_clamp_is_pool_aware() {
+        // Default pool (32): ⌊(32-8)/3⌋ = 8, requested 16 → clamped to 8.
+        std::env::set_var("DATABASE_POOL_SIZE", "32");
+        std::env::set_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT", "16");
+        let budget = ResourceBudgetConfig::from_env();
+        assert_eq!(budget.graph_materialize_concurrent, 8);
+        std::env::remove_var("DATABASE_POOL_SIZE");
+        std::env::remove_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT");
+
+        // Small pool (14): ⌊(14-8)/3⌋ = 2, requested 8 → clamped to 2.
+        std::env::set_var("DATABASE_POOL_SIZE", "14");
+        std::env::set_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT", "8");
+        let budget = ResourceBudgetConfig::from_env();
+        assert_eq!(budget.graph_materialize_concurrent, 2);
+        std::env::remove_var("DATABASE_POOL_SIZE");
+        std::env::remove_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT");
+
+        // Tiny pool (8): ⌊(8-8)/3⌋ = 0 → clamp(1, max=1) → 1 (floor).
+        std::env::set_var("DATABASE_POOL_SIZE", "8");
+        std::env::set_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT", "4");
+        let budget = ResourceBudgetConfig::from_env();
+        assert_eq!(budget.graph_materialize_concurrent, 1);
+        std::env::remove_var("DATABASE_POOL_SIZE");
+        std::env::remove_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT");
+
+        // Huge pool (200): ⌊(200-8)/3⌋ = 64 → clamp(1, 8) → 8 (absolute cap).
+        std::env::set_var("DATABASE_POOL_SIZE", "200");
+        std::env::set_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT", "64");
+        let budget = ResourceBudgetConfig::from_env();
+        assert_eq!(budget.graph_materialize_concurrent, 8);
+        std::env::remove_var("DATABASE_POOL_SIZE");
+        std::env::remove_var("EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT");
     }
 }

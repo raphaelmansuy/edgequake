@@ -5,9 +5,9 @@ use crate::context::QueryContext;
 use crate::error::Result;
 use edgequake_llm::traits::{ChatMessage, ImageData};
 
-use super::SOTAQueryEngine;
+use super::QueryEngine;
 
-impl SOTAQueryEngine {
+impl QueryEngine {
     /// Check if metadata matches tenant/workspace filter.
     ///
     /// DEPRECATED (SPEC-007): Prefer `query_filtered()` which pushes filtering to SQL.

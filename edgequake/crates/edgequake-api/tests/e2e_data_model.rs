@@ -24,6 +24,8 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tower::ServiceExt;
 
+mod common;
+
 // ============================================================================
 // Timeout Helper (shared pattern from OODA-11)
 // ============================================================================
@@ -83,7 +85,11 @@ async fn test_upload_request_defaults() {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED);
+        assert!(
+            response.status() == StatusCode::CREATED
+                || response.status() == StatusCode::ACCEPTED,
+            "Upload should return 201 or 202"
+        );
         let body = extract_json(response).await;
 
         // Verify response has required fields
@@ -235,7 +241,11 @@ async fn test_upload_response_structure() {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED);
+        assert!(
+            response.status() == StatusCode::CREATED
+                || response.status() == StatusCode::ACCEPTED,
+            "Upload should return 201 or 202"
+        );
         let body = extract_json(response).await;
 
         // Required fields per UploadDocumentResponse
@@ -243,20 +253,34 @@ async fn test_upload_response_structure() {
         assert!(body["status"].is_string(), "Missing status");
         assert!(body["track_id"].is_string(), "Missing track_id");
 
-        // Status should be "processed" for sync processing
+        // P-G2b: uploads enqueue a background task → status is "pending" and
+        // counts (chunk/entity/relationship) are null/absent until processing
+        // completes in the background.
         assert_eq!(
             body["status"].as_str().unwrap(),
-            "processed",
-            "Sync upload should return 'processed'"
+            "pending",
+            "Async upload should return 'pending'"
         );
 
-        // Chunk count should be present and >= 1
-        let chunk_count = body["chunk_count"].as_u64().unwrap_or(0);
-        assert!(chunk_count >= 1, "Should have at least 1 chunk");
-
-        // Entity/relationship counts should be present (u64 is inherently non-negative)
-        let _entity_count = body["entity_count"].as_u64().unwrap_or(0);
-        let _relationship_count = body["relationship_count"].as_u64().unwrap_or(0);
+        // Counts should be absent or null (not yet computed).
+        let chunk_count = body.get("chunk_count");
+        assert!(
+            chunk_count.is_none() || chunk_count.unwrap().is_null(),
+            "chunk_count should be null/absent for pending upload, got {:?}",
+            chunk_count
+        );
+        let entity_count = body.get("entity_count");
+        assert!(
+            entity_count.is_none() || entity_count.unwrap().is_null(),
+            "entity_count should be null/absent for pending upload, got {:?}",
+            entity_count
+        );
+        let relationship_count = body.get("relationship_count");
+        assert!(
+            relationship_count.is_none() || relationship_count.unwrap().is_null(),
+            "relationship_count should be null/absent for pending upload, got {:?}",
+            relationship_count
+        );
 
         body
     })
@@ -272,30 +296,19 @@ async fn test_upload_response_structure() {
 /// OODA-12: GET document returns consistent detail structure.
 #[tokio::test]
 async fn test_document_detail_response_structure() {
-    let result = with_timeout(Duration::from_secs(10), async {
-        let app = create_test_app();
+    let result = with_timeout(Duration::from_secs(30), async {
+        // P-G2b: detail's chunk_count/status reflect a fully-ingested document,
+        // so we need a real WorkerPool + upload_and_wait (not the no-worker app).
+        let workers = common::create_test_app_with_workers().await;
+        let app = workers.app();
 
-        // Upload first
-        let upload_req = json!({
-            "content": "Dr. Smith works at MIT on quantum physics.",
-            "title": "Detail Test"
-        });
-
-        let upload_resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/v1/documents")
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(serde_json::to_string(&upload_req).unwrap()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        let upload_body = extract_json(upload_resp).await;
-        let doc_id = upload_body["document_id"].as_str().unwrap().to_string();
+        let (doc_id, _track_id, _final_status) = common::upload_and_wait(
+            app,
+            "Detail Test",
+            "Dr. Smith works at MIT on quantum physics.",
+            Duration::from_secs(30),
+        )
+        .await;
 
         // GET document details
         let detail_resp = app
@@ -369,10 +382,11 @@ async fn test_unicode_content_handling() {
             .await
             .unwrap();
 
-        assert_eq!(
-            response.status(),
-            StatusCode::CREATED,
-            "Unicode content should be accepted"
+        assert!(
+            response.status() == StatusCode::CREATED
+                || response.status() == StatusCode::ACCEPTED,
+            "Unicode content should be accepted: {}",
+            response.status()
         );
 
         let body = extract_json(response).await;
@@ -414,10 +428,11 @@ async fn test_metadata_special_characters() {
             .await
             .unwrap();
 
-        assert_eq!(
-            response.status(),
-            StatusCode::CREATED,
-            "Special chars in metadata should be accepted"
+        assert!(
+            response.status() == StatusCode::CREATED
+                || response.status() == StatusCode::ACCEPTED,
+            "Special chars in metadata should be accepted: {}",
+            response.status()
         );
 
         body_from(response).await

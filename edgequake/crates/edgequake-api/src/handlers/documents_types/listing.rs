@@ -63,6 +63,11 @@ pub struct StatusCounts {
     pub failed: usize,
     /// Number of cancelled documents.
     pub cancelled: usize,
+    /// Number of documents with unknown/missing status (SPEC-021 P-B2).
+    /// WHY: a relational backfill row with `status = NULL` was silently
+    /// counted as `completed`, hiding ingestion state ambiguity. NULL status
+    /// is now its own bucket so the UI can render a neutral badge.
+    pub unknown: usize,
 }
 
 /// List documents response.

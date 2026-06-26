@@ -402,9 +402,85 @@ impl DocumentTaskProcessor {
                     .upsert(&[(metadata_key, json!(updated))])
                     .await
                     .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+
+                // SPEC-021 P-A1: mirror the stats into the relational
+                // `documents` table so the P5-01 relational read-model
+                // fallback returns accurate per-doc counts (fixes the
+                // "Completed / 0 entities" screenshot, file 16 §3).
+                //
+                // Best-effort: a failure here MUST NOT fail ingestion — the
+                // KV metadata write above is the authoritative stats carrier.
+                // The relational write only needs to converge eventually.
+                self.refresh_relational_document_stats(document_id, status, stats)
+                    .await;
             }
         }
 
         Ok(())
+    }
+
+    /// Best-effort relational stats refresh (SPEC-021 P-A1).
+    ///
+    /// WHY: `ensure_document_record` only writes `title/content/status`; the
+    /// `chunk_count`/`entity_count`/cost columns of `documents` were never
+    /// refreshed, so the P5-01 relational read-model fallback returned stale
+    /// `0` values. This mirrors the KV stats write into the relational table
+    /// so the per-doc read model converges with the KV truth.
+    ///
+    /// Non-fatal: logs a warn on error and returns. The KV metadata write is
+    /// the authoritative stats carrier; the relational write only needs to
+    /// converge eventually. No-op when `pdf_storage` is absent (memory mode or
+    /// when the postgres feature is disabled).
+    #[cfg(feature = "postgres")]
+    async fn refresh_relational_document_stats(
+        &self,
+        document_id: &str,
+        status: &str,
+        stats: &edgequake_pipeline::pipeline::ProcessingStats,
+    ) {
+        let Some(ref pdf_storage) = self.pdf_storage else {
+            return;
+        };
+        let Ok(doc_uuid) = uuid::Uuid::parse_str(document_id) else {
+            tracing::warn!(
+                document_id = document_id,
+                "refresh_relational_document_stats: not a UUID — skipping relational stats write"
+            );
+            return;
+        };
+
+        let update = edgequake_storage::DocumentStatsUpdate {
+            document_id: doc_uuid,
+            status,
+            chunk_count: stats.chunk_count as i32,
+            entity_count: stats.entity_count as i32,
+            relationship_count: stats.relationship_count as i32,
+            // cost_usd is f64 (0.0 when the mock provider is used); only
+            // surface a non-zero value to the relational column to avoid
+            // overwriting a prior real cost with a mock 0.0 on re-runs.
+            cost_usd: (stats.cost_usd > 0.0).then_some(stats.cost_usd),
+            input_tokens: (stats.input_tokens > 0).then_some(stats.input_tokens as i64),
+            output_tokens: (stats.output_tokens > 0).then_some(stats.output_tokens as i64),
+            total_tokens: (stats.total_tokens > 0).then_some(stats.total_tokens as i64),
+            error_message: stats.error_details.as_deref(),
+        };
+
+        if let Err(e) = pdf_storage.update_document_stats(&update).await {
+            tracing::warn!(
+                document_id = document_id,
+                error = %e,
+                "SPEC-021 P-A1: relational document stats refresh failed (non-fatal)"
+            );
+        }
+    }
+
+    #[cfg(not(feature = "postgres"))]
+    async fn refresh_relational_document_stats(
+        &self,
+        _document_id: &str,
+        _status: &str,
+        _stats: &edgequake_pipeline::pipeline::ProcessingStats,
+    ) {
+        // No-op: postgres feature disabled → no relational `documents` table.
     }
 }

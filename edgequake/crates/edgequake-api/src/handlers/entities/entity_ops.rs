@@ -12,7 +12,7 @@ use chrono::Utc;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
-use super::{node_to_entity_response, normalize_entity_name};
+use super::{node_to_entity_response, normalize_entity_name_for_graph};
 pub use crate::handlers::entities_types::{
     EntityExistsQuery, EntityExistsResponse, EntityNeighborhoodQuery, EntityNeighborhoodResponse,
     MergeDetails, MergeEntitiesRequest, MergeEntitiesResponse, NeighborhoodEdge, NeighborhoodNode,
@@ -171,7 +171,7 @@ async fn resolve_entity_node(
     state: &AppState,
     entity_name: &str,
 ) -> ApiResult<Option<edgequake_storage::GraphNode>> {
-    let normalized_name = normalize_entity_name(entity_name);
+    let normalized_name = normalize_entity_name_for_graph(entity_name);
 
     if let Some(node) = state
         .storage

@@ -37,9 +37,20 @@ pub async fn reprocess_failed(
     body: Option<Json<ReprocessFailedRequest>>,
 ) -> ApiResult<Json<ReprocessFailedResponse>> {
     let request = body.map(|b| b.0).unwrap_or_default();
+    // Resolve reprocess intent (DRY single knob). Default is EntitiesOnly so
+    // existing callers (failed-retry, bulk reprocess) keep current behavior.
+    let reprocess_mode = request
+        .mode
+        .as_deref()
+        .map(|m| {
+            m.parse::<edgequake_tasks::ReprocessMode>()
+                .unwrap_or(edgequake_tasks::ReprocessMode::EntitiesOnly)
+        })
+        .unwrap_or_default();
+    let restart_from_scratch = reprocess_mode.restart_from_scratch();
     debug!(
-        "reprocess_failed called with tenant context: tenant_id={:?}, workspace_id={:?}, document_id={:?}, force={}",
-        tenant_ctx.tenant_id, tenant_ctx.workspace_id, request.document_id, request.force
+        "reprocess_failed called with tenant context: tenant_id={:?}, workspace_id={:?}, document_id={:?}, force={}, mode={}",
+        tenant_ctx.tenant_id, tenant_ctx.workspace_id, request.document_id, request.force, reprocess_mode
     );
 
     // Generate new track ID for reprocess batch
@@ -108,6 +119,31 @@ pub async fn reprocess_failed(
 
     // Requeue documents for processing
     for (doc_id, _doc_key) in &docs_to_reprocess {
+        // Edge case: cancel any in-flight task for this document before requeueing.
+        // WHY: A force=true reprocess on a doc that is still processing (or has a
+        // lingering queued task) would race the worker. For Full re-conversion this
+        // is especially important — we clear markdown and must not let a concurrent
+        // task reuse half-cleared state. purge_persisted_tasks_for_document cancels
+        // and removes persisted tasks referencing this document id.
+        let workspace_id_for_tasks = tenant_ctx
+            .workspace_id
+            .as_deref()
+            .unwrap_or("default")
+            .to_string();
+        let purged = super::super::storage_helpers::purge_persisted_tasks_for_document(
+            &state,
+            doc_id,
+            None,
+            Some(&workspace_id_for_tasks),
+        )
+        .await;
+        if purged > 0 {
+            tracing::info!(
+                document_id = %doc_id,
+                tasks_purged = purged,
+                "Cancelled in-flight tasks before reprocessing"
+            );
+        }
         // OODA-08: Clean up partial graph data from previous attempt BEFORE requeueing
         // WHY: Without cleanup, reprocessing creates duplicate entities and corrupts source_ids
         //
@@ -183,6 +219,54 @@ pub async fn reprocess_failed(
         let task_created = if source_type.as_deref() == Some("pdf") {
             if let Some(ref pid_str) = pdf_id_str {
                 if let Ok(pdf_id_uuid) = uuid::Uuid::parse_str(pid_str) {
+                    // Edge case: empty-markdown fallback.
+                    // WHY: If the user picked EntitiesOnly (reuse markdown) but the
+                    // cached markdown is missing/empty, there is nothing to reuse —
+                    // entity extraction would run over an empty document. Auto-upgrade
+                    // to Full so the PDF is re-converted from scratch. This is a
+                    // safe, idempotent promotion: Full is a strict superset of
+                    // EntitiesOnly's work.
+                    #[allow(unused_mut)]
+                    let mut reprocess_mode = reprocess_mode;
+                    #[allow(unused_mut)]
+                    let mut restart_from_scratch = restart_from_scratch;
+                    if !restart_from_scratch {
+                        // `pdf_storage` is only present under the `postgres` feature
+                        // (StorageRuntime::pdf_storage is `#[cfg(feature = "postgres")]`).
+                        // Without postgres there is no cached markdown to inspect, so the
+                        // empty-markdown fallback is skipped and the caller's mode is honored.
+                        #[cfg(feature = "postgres")]
+                        if let Some(pdf_storage) = state.storage.pdf_storage.as_ref() {
+                            let needs_full = match pdf_storage.get_pdf(&pdf_id_uuid).await {
+                                Ok(Some(pdf)) => {
+                                    super::super::storage_helpers::pdf_needs_full_reconversion(
+                                        pdf.markdown_content.as_deref(),
+                                    )
+                                }
+                                // Unknown/missing row: cannot guarantee markdown, so
+                                // promote to Full to force a fresh conversion.
+                                Ok(None) => true,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        pdf_id = %pid_str,
+                                        error = %e,
+                                        "Failed to read PDF for empty-markdown fallback; defaulting to Full"
+                                    );
+                                    true
+                                }
+                            };
+                            if needs_full {
+                                tracing::info!(
+                                    document_id = %doc_id,
+                                    pdf_id = %pid_str,
+                                    "Reprocess entities requested but cached markdown is empty — upgrading to full re-conversion"
+                                );
+                                reprocess_mode = edgequake_tasks::ReprocessMode::Full;
+                                restart_from_scratch = true;
+                            }
+                        }
+                    }
+
                     // Update status to pending
                     if let Some(mut metadata) = metadata_opt.clone() {
                         if let Some(obj) = metadata.as_object_mut() {
@@ -230,6 +314,27 @@ pub async fn reprocess_failed(
 
                     use edgequake_tasks::{PdfProcessingData, Task, TaskType};
 
+                    // PDF re-conversion (Full mode): clear cached markdown so the
+                    // resume shortcut cannot reuse a stale conversion. The worker
+                    // also clears KV content/chunks when restart_from_scratch=true.
+                    if restart_from_scratch {
+                        if let Err(e) =
+                            super::super::storage_helpers::clear_document_markdown_and_content(
+                                &state,
+                                doc_id,
+                                &pdf_id_uuid,
+                            )
+                            .await
+                        {
+                            tracing::warn!(
+                                document_id = %doc_id,
+                                pdf_id = %pid_str,
+                                error = %e,
+                                "Failed to pre-clear markdown for full re-conversion, continuing"
+                            );
+                        }
+                    }
+
                     let pdf_task = PdfProcessingData {
                         pdf_id: pdf_id_uuid,
                         tenant_id: uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
@@ -244,7 +349,8 @@ pub async fn reprocess_failed(
                         // FIX-REBUILD: Reuse existing document ID
                         existing_document_id: Some(doc_id.clone()),
                         pdf_parser_backend,
-                        restart_from_scratch: false,
+                        restart_from_scratch,
+                        reprocess_mode: Some(reprocess_mode),
                     };
 
                     let task = Task::new(
@@ -400,6 +506,49 @@ pub async fn reprocess_failed(
                     Ok(None) | Err(_) => PdfParserBackend::from_env().unwrap_or_default(),
                 };
 
+                // Edge case: empty-markdown fallback for failed PDFs.
+                // WHY: A failed PDF typically has no/partial markdown. EntitiesOnly
+                // would re-extract over an empty document, so promote to Full when
+                // the cached markdown is missing/empty. Safe superset of work.
+                let mut restart_from_scratch = restart_from_scratch;
+                let mut reprocess_mode = reprocess_mode;
+                if !restart_from_scratch {
+                    let needs_full = match pdf_storage.get_pdf(&pdf.pdf_id).await {
+                        Ok(Some(p)) => super::super::storage_helpers::pdf_needs_full_reconversion(
+                            p.markdown_content.as_deref(),
+                        ),
+                        Ok(None) => true,
+                        Err(e) => {
+                            tracing::warn!(
+                                pdf_id = %pdf.pdf_id,
+                                error = %e,
+                                "Failed to read failed PDF for empty-markdown fallback; defaulting to Full"
+                            );
+                            true
+                        }
+                    };
+                    if needs_full {
+                        tracing::info!(
+                            pdf_id = %pdf.pdf_id,
+                            "Failed PDF has empty cached markdown — upgrading reprocess to full re-conversion"
+                        );
+                        reprocess_mode = edgequake_tasks::ReprocessMode::Full;
+                        restart_from_scratch = true;
+                    }
+                }
+
+                // Full re-conversion: clear any partial cached markdown so the
+                // resume shortcut cannot reuse a failed/partial conversion.
+                if restart_from_scratch {
+                    if let Err(e) = pdf_storage.clear_markdown(&pdf.pdf_id).await {
+                        tracing::warn!(
+                            pdf_id = %pdf.pdf_id,
+                            error = %e,
+                            "Failed to clear markdown for failed-PDF full re-conversion"
+                        );
+                    }
+                }
+
                 let task_data = PdfProcessingData {
                     pdf_id: pdf.pdf_id,
                     tenant_id: tenant_uuid,
@@ -409,7 +558,8 @@ pub async fn reprocess_failed(
                     vision_model: vision_model.clone(),
                     existing_document_id: pdf.document_id.map(|id| id.to_string()),
                     pdf_parser_backend,
-                    restart_from_scratch: false,
+                    restart_from_scratch,
+                    reprocess_mode: Some(reprocess_mode),
                 };
 
                 let track_id = format!("pdf-{}", Uuid::new_v4());

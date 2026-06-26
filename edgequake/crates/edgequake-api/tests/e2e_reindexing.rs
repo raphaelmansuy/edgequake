@@ -15,6 +15,8 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tower::ServiceExt;
 
+mod common;
+
 // WHY: The reprocess_failed handler at documents.rs:640 calls
 // Uuid::parse_str(&tenant_id). Without X-Tenant-ID header, tenant_id
 // defaults to "default" which is NOT a valid UUID → 422.
@@ -92,26 +94,34 @@ const DIFFERENT_CONTENT: &str = "Albert Einstein developed the theory of relativ
 /// OODA-14: Uploading same content twice now performs a clean re-ingestion.
 #[tokio::test]
 async fn test_duplicate_detection_same_content() {
-    let result = with_timeout(Duration::from_secs(30), async {
-        let app = create_test_app();
+    let result = with_timeout(Duration::from_secs(60), async {
+        // P-G2b: the first upload must finish processing before the second
+        // upload's dedup check, otherwise the second sees "still processing"
+        // and returns 200 duplicate_processing instead of re-ingesting.
+        let workers = common::create_test_app_with_workers().await;
+        let app = workers.app();
 
-        // First upload
-        let (status1, body1) = upload_text(&app, TEST_CONTENT, "First Upload").await;
-        assert_eq!(status1, StatusCode::CREATED, "First upload should succeed");
-        assert_eq!(body1["status"].as_str(), Some("processed"));
-        let doc_id_1 = body1["document_id"].as_str().unwrap().to_string();
+        // First upload — wait for it to fully ingest.
+        let (doc_id_1, _track1, _status1) = common::upload_and_wait(
+            app,
+            "First Upload",
+            TEST_CONTENT,
+            Duration::from_secs(30),
+        )
+        .await;
 
         // Second upload with same content should still succeed via re-ingestion.
-        let (status2, body2) = upload_text(&app, TEST_CONTENT, "Second Upload").await;
-        assert_eq!(
+        let (status2, body2) = upload_text(app, TEST_CONTENT, "Second Upload").await;
+        assert!(
+            status2 == StatusCode::CREATED || status2 == StatusCode::ACCEPTED,
+            "Duplicate re-ingestion should return 201 or 202: {} | body={}",
             status2,
-            StatusCode::CREATED,
-            "Duplicate re-ingestion should return 201 Created"
+            body2
         );
         assert_eq!(
             body2["status"].as_str(),
-            Some("processed"),
-            "Re-ingested duplicate should finish on the normal processed path"
+            Some("pending"),
+            "Re-ingested duplicate should return pending (background processing)"
         );
 
         let doc_id_2 = body2["document_id"].as_str().unwrap().to_string();
@@ -134,15 +144,20 @@ async fn test_different_content_not_duplicate() {
         let app = create_test_app();
 
         let (status1, body1) = upload_text(&app, TEST_CONTENT, "Doc A").await;
-        assert_eq!(status1, StatusCode::CREATED);
+        assert!(
+            status1 == StatusCode::CREATED || status1 == StatusCode::ACCEPTED,
+            "First upload should succeed: {}",
+            status1
+        );
 
         let (status2, body2) = upload_text(&app, DIFFERENT_CONTENT, "Doc B").await;
-        assert_eq!(
-            status2,
-            StatusCode::CREATED,
-            "Different content should create new doc"
+        assert!(
+            status2 == StatusCode::CREATED || status2 == StatusCode::ACCEPTED,
+            "Different content should create new doc: {}",
+            status2
         );
-        assert_eq!(body2["status"].as_str(), Some("processed"));
+        // P-G2b: status is "pending" until background processing completes.
+        assert_eq!(body2["status"].as_str(), Some("pending"));
 
         // Different document IDs
         assert_ne!(
@@ -161,20 +176,30 @@ async fn test_different_content_not_duplicate() {
 /// OODA-14: Same content with different title is still detected by content and re-ingested.
 #[tokio::test]
 async fn test_duplicate_ignores_title_difference() {
-    let result = with_timeout(Duration::from_secs(30), async {
-        let app = create_test_app();
+    let result = with_timeout(Duration::from_secs(60), async {
+        // P-G2b: first upload must finish processing before the second upload's
+        // dedup check, otherwise the second sees "still processing" and returns
+        // 200 duplicate_processing instead of re-ingesting.
+        let workers = common::create_test_app_with_workers().await;
+        let app = workers.app();
 
-        let (status1, body1) = upload_text(&app, TEST_CONTENT, "Title A").await;
-        assert_eq!(status1, StatusCode::CREATED);
-        let doc_id_1 = body1["document_id"].as_str().unwrap().to_string();
+        let (doc_id_1, _track1, _status1) = common::upload_and_wait(
+            app,
+            "Title A",
+            TEST_CONTENT,
+            Duration::from_secs(30),
+        )
+        .await;
 
-        let (status2, body2) = upload_text(&app, TEST_CONTENT, "Title B").await;
-        assert_eq!(
+        let (status2, body2) = upload_text(app, TEST_CONTENT, "Title B").await;
+        assert!(
+            status2 == StatusCode::CREATED || status2 == StatusCode::ACCEPTED,
+            "Same content with different title should re-ingest successfully: {} | body={}",
             status2,
-            StatusCode::CREATED,
-            "Same content with different title should re-ingest successfully"
+            body2
         );
-        assert_eq!(body2["status"].as_str(), Some("processed"));
+        // P-G2b: status is "pending" until background processing completes.
+        assert_eq!(body2["status"].as_str(), Some("pending"));
 
         let doc_id_2 = body2["document_id"].as_str().unwrap().to_string();
         assert_ne!(doc_id_1, doc_id_2, "Re-ingestion should create a fresh id");
@@ -336,7 +361,11 @@ async fn test_delete_and_reupload() {
 
         // Upload
         let (status1, body1) = upload_text(&app, TEST_CONTENT, "Delete+Reupload").await;
-        assert_eq!(status1, StatusCode::CREATED);
+        assert!(
+            status1 == StatusCode::CREATED || status1 == StatusCode::ACCEPTED,
+            "First upload should succeed: {}",
+            status1
+        );
         let doc_id_1 = body1["document_id"].as_str().unwrap().to_string();
 
         // Delete
@@ -359,14 +388,17 @@ async fn test_delete_and_reupload() {
         // Re-upload same content
         let (status2, body2) = upload_text(&app, TEST_CONTENT, "Re-uploaded").await;
 
-        // After deletion, the hash key should be cleaned up → new upload succeeds
+        // After deletion, the hash key should be cleaned up → new upload succeeds.
+        // P-G2b: a fresh upload enqueues a background task → 202 ACCEPTED.
         // Either:
-        // a) 201 CREATED (hash cleared) → fresh document
+        // a) 202 ACCEPTED (hash cleared) → fresh document
         // b) 200 OK duplicate (hash not cleared) → points to deleted doc
         //
         // Both are acceptable behaviors, but we should get a valid response
         assert!(
-            status2 == StatusCode::CREATED || status2 == StatusCode::OK,
+            status2 == StatusCode::CREATED
+                || status2 == StatusCode::ACCEPTED
+                || status2 == StatusCode::OK,
             "Re-upload should succeed, got {}",
             status2
         );
@@ -469,11 +501,19 @@ async fn test_multiple_uploads_consistent_graph() {
 
         // Upload doc A
         let (s1, _) = upload_text(&app, TEST_CONTENT, "Multi A").await;
-        assert_eq!(s1, StatusCode::CREATED);
+        assert!(
+            s1 == StatusCode::CREATED || s1 == StatusCode::ACCEPTED,
+            "Upload A should succeed: {}",
+            s1
+        );
 
         // Upload doc B (different content)
         let (s2, _) = upload_text(&app, DIFFERENT_CONTENT, "Multi B").await;
-        assert_eq!(s2, StatusCode::CREATED);
+        assert!(
+            s2 == StatusCode::CREATED || s2 == StatusCode::ACCEPTED,
+            "Upload B should succeed: {}",
+            s2
+        );
 
         // Graph should contain nodes from both documents
         let graph_resp = app

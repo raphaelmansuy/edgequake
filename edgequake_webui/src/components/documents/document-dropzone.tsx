@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useTranslation } from 'react-i18next';
+import { MAX_UPLOAD_LABEL } from '@/lib/api/upload-limits';
 
 /**
  * Props for the DocumentDropzone component.
@@ -90,7 +91,11 @@ export function DocumentDropzone({
         ) : (
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">
-              {t('documents.upload.uploadDrop', 'Drag & drop or click to upload')} • TXT, MD, JSON, PDF, PNG, JPG, GIF, WEBP (max 100MB)
+              {t(
+                'documents.upload.uploadDropWithLimit',
+                'Drag & drop or click to upload • TXT, MD, JSON, PDF, PNG, JPG, GIF, WEBP (max {{limit}})',
+                { limit: MAX_UPLOAD_LABEL },
+              )}
             </p>
             <p className="text-xs text-muted-foreground">
               {t(

@@ -109,13 +109,14 @@ async fn test_large_document_upload() {
         });
 
         let (status, body) = upload_json(&app, &payload).await;
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Large doc should upload successfully"
+        // P-G2b: uploads always enqueue a background task → 202 Accepted + pending.
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Large doc should upload successfully: {}",
+            status
         );
         assert!(body["document_id"].is_string());
-        assert_eq!(body["status"].as_str(), Some("processed"));
+        assert_eq!(body["status"].as_str(), Some("pending"));
 
         body
     })
@@ -147,6 +148,7 @@ async fn test_content_with_null_bytes() {
         // Should either succeed or return a clear error, but NOT panic
         assert!(
             status == StatusCode::CREATED
+                || status == StatusCode::ACCEPTED
                 || status == StatusCode::OK
                 || status == StatusCode::BAD_REQUEST
                 || status == StatusCode::UNPROCESSABLE_ENTITY,
@@ -154,8 +156,8 @@ async fn test_content_with_null_bytes() {
             status
         );
 
-        // If created, should have a document_id
-        if status == StatusCode::CREATED {
+        // If created/accepted, should have a document_id
+        if status == StatusCode::CREATED || status == StatusCode::ACCEPTED {
             assert!(body["document_id"].is_string());
         }
 
@@ -184,10 +186,10 @@ async fn test_title_path_traversal() {
 
         let (status, body) = upload_json(&app, &payload).await;
         // Should succeed (title is just metadata, not a file path)
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Path traversal in title should be treated as plain text"
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Path traversal in title should be treated as plain text: {}",
+            status
         );
         assert!(body["document_id"].is_string());
 
@@ -214,6 +216,7 @@ async fn test_very_long_title() {
         // Should either succeed or return validation error, not crash
         assert!(
             status == StatusCode::CREATED
+                || status == StatusCode::ACCEPTED
                 || status == StatusCode::BAD_REQUEST
                 || status == StatusCode::UNPROCESSABLE_ENTITY,
             "Long title should be handled, got {}",
@@ -250,10 +253,10 @@ async fn test_deeply_nested_metadata() {
         });
 
         let (status, body) = upload_json(&app, &payload).await;
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Deeply nested metadata should be accepted"
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Deeply nested metadata should be accepted: {}",
+            status
         );
         assert!(body["document_id"].is_string());
 
@@ -282,9 +285,8 @@ async fn test_extra_unknown_json_fields() {
         let (status, body) = upload_json(&app, &payload).await;
 
         // Should succeed — serde(deny_unknown_fields) should NOT be used on public API
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
             "Extra fields should be silently ignored, got {} body: {}",
             status,
             body
@@ -315,12 +317,12 @@ async fn test_mixed_line_endings() {
         });
 
         let (status, body) = upload_json(&app, &payload).await;
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Mixed line endings should be handled"
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Mixed line endings should be handled: {}",
+            status
         );
-        assert_eq!(body["status"].as_str(), Some("processed"));
+        assert_eq!(body["status"].as_str(), Some("pending"));
 
         body
     })
@@ -346,6 +348,7 @@ async fn test_content_only_newlines_tabs() {
         // Should either succeed (content is technically non-empty) or reject
         assert!(
             status == StatusCode::CREATED
+                || status == StatusCode::ACCEPTED
                 || status == StatusCode::BAD_REQUEST
                 || status == StatusCode::UNPROCESSABLE_ENTITY,
             "Newline-only content should be handled, got {}",
@@ -383,7 +386,12 @@ async fn test_rapid_sequential_uploads() {
 
             let app = server.build_router();
             let (status, body) = upload_json(&app, &payload).await;
-            assert_eq!(status, StatusCode::CREATED, "Upload {} should succeed", i);
+            assert!(
+                status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+                "Upload {} should succeed: {}",
+                i,
+                status
+            );
             doc_ids.push(body["document_id"].as_str().unwrap().to_string());
         }
 
@@ -445,10 +453,10 @@ async fn test_code_content_special_chars() {
         });
 
         let (status, body) = upload_json(&app, &payload).await;
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Code content should be accepted"
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Code content should be accepted: {}",
+            status
         );
         assert!(body["document_id"].is_string());
 

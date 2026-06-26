@@ -21,6 +21,11 @@ import {
   type GraphStreamMetadata,
   type GraphStreamStats,
 } from "@/lib/api/edgequake";
+import {
+  computeRetryDelay,
+  isTransientCongestionError,
+  sleepWithAbort,
+} from "@/lib/api/graph-stream-retry";
 import type { GraphEdge, GraphNode } from "@/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -302,42 +307,92 @@ export function useGraphStream(
 
     // WHY: Store the promise so concurrent calls can await the same request
     const streamPromise = (async () => {
-      try {
-        for await (const event of graphStream({
-          maxNodes,
-          batchSize,
-          startNode,
-        })) {
-          // Check if cancelled
-          if (abortControllerRef.current?.signal.aborted) {
-            break;
-          }
+      // SPEC-021 R3: retry transient congestion (graph materialization slot
+      // busy) with exponential backoff + jitter. Non-transient errors break
+      // out immediately so we never retry hopeless queries.
+      const maxRetries = 4;
+      const baseDelayMs = 500;
+      const maxDelayMs = 8000;
+      let attempt = 0;
 
-          processEvent(event);
-        }
-      } catch (err) {
-        // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") {
+      while (true) {
+        if (abortControllerRef.current?.signal.aborted) {
           return;
         }
+        try {
+          for await (const event of graphStream({
+            maxNodes,
+            batchSize,
+            startNode,
+          })) {
+            // Check if cancelled
+            if (abortControllerRef.current?.signal.aborted) {
+              break;
+            }
 
-        const error = err instanceof Error ? err : new Error("Stream failed");
-        setError(error);
-        setProgress((p) => ({
-          ...p,
-          phase: "error",
-          errorMessage: error.message,
-          durationMs: Date.now() - streamStartTimeRef.current,
-        }));
-        setIsStreaming(false);
-        onError?.(error);
-      } finally {
-        pendingRequestRef.current = null;
+            // SPEC-021 R3: intercept transient congestion before processEvent
+            // so we retry instead of surfacing a hard error to the user.
+            const transient = isTransientCongestionError(event);
+            if (transient.isTransient) {
+              if (attempt >= maxRetries) {
+                // Exhausted retries — surface as a hard error.
+                const exhausted = new Error(
+                  `Graph materialization capacity reached after ${maxRetries + 1} attempts`,
+                );
+                setError(exhausted);
+                setProgress((p) => ({
+                  ...p,
+                  phase: "error",
+                  errorMessage: exhausted.message,
+                  durationMs: Date.now() - streamStartTimeRef.current,
+                }));
+                setIsStreaming(false);
+                onError?.(exhausted);
+                return;
+              }
+              const delay = computeRetryDelay(
+                attempt,
+                baseDelayMs,
+                maxDelayMs,
+                transient.retryAfterSecs,
+              );
+              await sleepWithAbort(
+                delay,
+                abortControllerRef.current?.signal,
+              );
+              attempt += 1;
+              // Restart the stream from the top.
+              break;
+            }
+
+            processEvent(event);
+          }
+          // If the inner loop completed without a transient break, we're done.
+          return;
+        } catch (err) {
+          // Ignore abort errors
+          if (err instanceof Error && err.name === "AbortError") {
+            return;
+          }
+
+          const error = err instanceof Error ? err : new Error("Stream failed");
+          setError(error);
+          setProgress((p) => ({
+            ...p,
+            phase: "error",
+            errorMessage: error.message,
+            durationMs: Date.now() - streamStartTimeRef.current,
+          }));
+          setIsStreaming(false);
+          onError?.(error);
+          return;
+        }
       }
     })();
 
     pendingRequestRef.current = streamPromise;
     await streamPromise;
+    pendingRequestRef.current = null;
   }, [
     cancel,
     maxNodes,

@@ -397,6 +397,7 @@ impl DocumentTaskProcessor {
                             "workspace_id": data.workspace_id.to_string(),
                             "pdf_vision_model": stored_vision_model,
                             "pdf_extraction_method": stored_extraction_method.as_ref().map(|m| m.as_str()),
+                            "force_fresh_extraction": data.restart_from_scratch,
                         })),
                     };
 
@@ -839,6 +840,7 @@ impl DocumentTaskProcessor {
                 "pdf_vision_model": vision_model,
                 "pdf_extraction_method": extraction_method.as_str(),
                 "pdf_extraction_warning": extraction_warning,
+                "force_fresh_extraction": data.restart_from_scratch,
             })),
         };
 
@@ -1037,5 +1039,27 @@ mod tests {
     fn explicit_restart_bypasses_resume_shortcut() {
         assert!(!should_resume_pdf_conversion(true, true));
         assert!(should_restart_pdf_conversion(true, true));
+    }
+
+    /// ReprocessMode::Full is the single source of truth that drives the
+    /// restart flag, and that flag in turn drives the resume gate. This pins
+    /// the contract end-to-end at the logic level so a regression in either
+    /// link surfaces as a test failure.
+    #[test]
+    fn full_reprocess_mode_forces_fresh_conversion() {
+        let restart = edgequake_tasks::ReprocessMode::Full.restart_from_scratch();
+        assert!(restart, "Full mode must request a fresh conversion");
+        // With an existing document + restart=true the shortcut is bypassed
+        // and the conversion path is selected.
+        assert!(!should_resume_pdf_conversion(true, restart));
+        assert!(should_restart_pdf_conversion(true, restart));
+    }
+
+    #[test]
+    fn entities_reprocess_mode_keeps_resume_shortcut() {
+        let restart = edgequake_tasks::ReprocessMode::EntitiesOnly.restart_from_scratch();
+        assert!(!restart, "Entities mode must reuse cached markdown");
+        assert!(should_resume_pdf_conversion(true, restart));
+        assert!(!should_restart_pdf_conversion(true, restart));
     }
 }

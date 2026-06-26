@@ -10,7 +10,7 @@
  * - Delegates accepted files to upload handler
  *
  * @implements FEAT0001 - Document upload via drag-and-drop
- * @implements BR0301 - File size limit enforcement (100MB, matches backend DefaultBodyLimit)
+ * @implements BR0301 - File size limit enforcement (mirrors backend MAX_UPLOAD_BYTES)
  */
 "use client";
 
@@ -18,13 +18,15 @@ import type { TFunction } from "i18next";
 import { useCallback } from "react";
 import { useDropzone, type Accept } from "react-dropzone";
 import { toast } from "sonner";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/api/upload-limits";
 
 /**
- * Maximum file size: 100MB (matches backend DefaultBodyLimit::max(100 * 1024 * 1024)).
- * WHY: PDF documents can be large. Setting a frontend limit lower than the backend
- * creates a confusing UX where the user is rejected before reaching the server.
+ * Maximum file size for uploads. Sourced from `upload-limits.ts` (the
+ * client-side SSOT that mirrors the backend `MAX_UPLOAD_BYTES`). Override
+ * via `NEXT_PUBLIC_MAX_UPLOAD_BYTES` for deployments that raise the backend
+ * limit via `EDGEQUAKE_MAX_UPLOAD_BYTES`.
  */
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE = MAX_UPLOAD_BYTES;
 
 /**
  * Accepted file types for document upload.
@@ -104,10 +106,11 @@ export function useDocumentDropzone(
               const sizeMB = (rejection.file.size / (1024 * 1024)).toFixed(2);
               return t(
                 "documents.upload.fileTooLarge",
-                'File "{{name}}" is too large ({{size}}MB). Maximum size is 100MB.',
+                'File "{{name}}" is too large ({{size}}MB). Maximum size is {{limit}}.',
                 {
                   name: rejection.file.name,
                   size: sizeMB,
+                  limit: MAX_UPLOAD_LABEL,
                 },
               );
             }

@@ -20,7 +20,7 @@ mod test_queries;
 use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
-use edgequake_query::{QueryMode, QueryRequest, SOTAQueryConfig, SOTAQueryEngine};
+use edgequake_query::{QueryMode, QueryRequest, QueryEngineConfig, QueryEngine};
 use edgequake_storage::{
     GraphStorage, GraphStorageMutateOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
 };
@@ -339,15 +339,15 @@ async fn create_test_graph_storage() -> Arc<MemoryGraphStorage> {
 }
 
 /// Create the SOTA query engine for tests.
-async fn create_test_engine() -> SOTAQueryEngine {
+async fn create_test_engine() -> QueryEngine {
     let vector_storage = create_test_vector_storage().await;
     let graph_storage = create_test_graph_storage().await;
     let provider = create_mock_provider();
 
-    let config = SOTAQueryConfig::default();
+    let config = QueryEngineConfig::default();
 
     // Use with_mock_keywords for testing - avoids LLM calls for keyword extraction
-    SOTAQueryEngine::with_mock_keywords(
+    QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -357,7 +357,7 @@ async fn create_test_engine() -> SOTAQueryEngine {
 }
 
 /// Run a single query and assess quality.
-async fn run_query_and_assess(engine: &SOTAQueryEngine, test_query: &TestQuery) -> ResponseQuality {
+async fn run_query_and_assess(engine: &QueryEngine, test_query: &TestQuery) -> ResponseQuality {
     let mode = match test_query.mode {
         "global" => QueryMode::Global,
         "local" => QueryMode::Local,

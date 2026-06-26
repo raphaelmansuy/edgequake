@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE pdf_documents\n            SET markdown_content = NULL,\n                extraction_method = NULL,\n                extraction_errors = NULL\n            WHERE pdf_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "795d9f2fc43a7c30c1838f58301e4d2ccac796824869d94185db78a582c18456"
+}

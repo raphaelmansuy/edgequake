@@ -427,6 +427,45 @@ impl ApiError {
     }
 }
 
+/// SPEC-021 R2: single source of truth for the transient-congestion payload.
+///
+/// Both the HTTP 503 path (`ApiError::graph_materialization_busy`) and the
+/// SSE `error` event path (`graph_stream.rs`) describe the *same* condition.
+/// Without a shared struct, the SSE path re-typed the literal message string
+/// and silently dropped `retry_after_secs` — a DRY violation that made the
+/// streaming transport lossy vs the REST transport. This struct is the one
+/// place that defines the reason code + retry hint, so the two transports
+/// can never drift again.
+#[derive(Debug, Clone, Copy)]
+pub struct TransientCongestion {
+    /// Machine-readable reason code (e.g. `"transient_congestion"`).
+    pub reason: &'static str,
+    /// Seconds the client should wait before retrying.
+    pub retry_after_secs: u64,
+}
+
+impl TransientCongestion {
+    /// The transient-congestion payload for graph materialization capacity.
+    pub fn graph_materialization_busy() -> Self {
+        Self {
+            reason: "transient_congestion",
+            retry_after_secs: 5,
+        }
+    }
+
+    /// Build the SSE `error` event fields from this payload.
+    pub fn sse_error_fields(
+        self,
+        message: impl Into<String>,
+    ) -> (String, Option<String>, Option<u64>) {
+        (
+            message.into(),
+            Some(self.reason.to_string()),
+            Some(self.retry_after_secs),
+        )
+    }
+}
+
 /// Convert ProviderResolutionError to ApiError.
 ///
 /// This implementation provides a unified way to convert provider resolution

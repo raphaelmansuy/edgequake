@@ -27,7 +27,7 @@
 //!  │       ├── Has workspace.llm_provider?                                │
 //!  │       │   └── YES ──► create_safe_llm_provider() → source=Workspace │
 //!  │       │                                                              │
-//!  │       └── Neither? ──► None → use sota_engine's default              │
+//!  │       └── Neither? ──► None → use engine_impl's default              │
 //!  │                                                                      │
 //!  │  Result: llm_override = Arc<dyn LLMProvider>                        │
 //!  │  Used for: answer generation + keyword extraction (query-time only)  │

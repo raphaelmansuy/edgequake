@@ -152,12 +152,11 @@ pub async fn get_track_status(
             .iter()
             .filter(|d| d.status.as_deref() == Some("processing"))
             .count(),
+        // SPEC-021 P-B2: only count explicit completed/indexed, NOT NULL.
         completed: track_docs
             .iter()
             .filter(|d| {
-                d.status.is_none()
-                    || d.status.as_deref() == Some("completed")
-                    || d.status.as_deref() == Some("indexed")
+                d.status.as_deref() == Some("completed") || d.status.as_deref() == Some("indexed")
             })
             .count(),
         // FIX-5: Track partial_failure status
@@ -172,6 +171,24 @@ pub async fn get_track_status(
         cancelled: track_docs
             .iter()
             .filter(|d| d.status.as_deref() == Some("cancelled"))
+            .count(),
+        unknown: track_docs
+            .iter()
+            .filter(|d| {
+                d.status.is_none()
+                    || !matches!(
+                        d.status.as_deref(),
+                        Some(
+                            "pending"
+                                | "processing"
+                                | "completed"
+                                | "indexed"
+                                | "partial_failure"
+                                | "failed"
+                                | "cancelled"
+                        )
+                    )
+            })
             .count(),
     };
 

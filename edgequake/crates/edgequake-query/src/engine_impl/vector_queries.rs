@@ -11,9 +11,9 @@ use crate::vector_filter::{filter_by_type, VectorType};
 
 use edgequake_storage::traits::{MetadataFilter, VectorStorage};
 
-use super::{QueryEmbeddings, SOTAQueryEngine};
+use super::{QueryEmbeddings, QueryEngine};
 
-impl SOTAQueryEngine {
+impl QueryEngine {
     pub(super) async fn query_naive_with_vector_storage(
         &self,
         embeddings: &QueryEmbeddings,
@@ -71,16 +71,19 @@ impl SOTAQueryEngine {
         let entity_vectors = filter_by_type(vector_results, VectorType::Entity);
 
         // Step 2.5: Build entity scores map
+        // SPEC-021 P-E1: use the shared VectorId-based decoder so the storage
+        // ID is the authoritative entity-name source (metadata can drift).
         let entity_scores: HashMap<String, f32> = entity_vectors
             .iter()
             .filter(|r| r.score >= self.config.min_score)
             .map(|r| {
-                let entity_name = r
-                    .metadata
-                    .get("entity_name")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| r.id.clone());
+                let entity_name =
+                    crate::helpers::decode_entity_name_from_result(&r.id, &r.metadata);
+                let entity_name = if entity_name.is_empty() {
+                    r.id.clone()
+                } else {
+                    entity_name
+                };
                 (entity_name, r.score)
             })
             .collect();
@@ -89,12 +92,13 @@ impl SOTAQueryEngine {
         let entity_ids: Vec<String> = entity_vectors
             .iter()
             .filter(|r| r.score >= self.config.min_score)
-            .filter_map(|r| {
-                r.metadata
-                    .get("entity_name")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .or_else(|| Some(r.id.clone()))
+            .map(|r| {
+                let name = crate::helpers::decode_entity_name_from_result(&r.id, &r.metadata);
+                if name.is_empty() {
+                    r.id.clone()
+                } else {
+                    name
+                }
             })
             .take(self.config.max_entities)
             .collect();
@@ -375,14 +379,27 @@ impl SOTAQueryEngine {
             // NOTE: Don't return early - continue to chunk collection below
         } else {
             let graph = self.graph_read();
-            // Step 5: Batch fetch entity nodes
-            let nodes_map = graph.get_nodes_batch(&entity_ids).await?;
+            // Step 5: Batch fetch entity nodes AND degrees in one round-trip each
+            // (RC-8 / P-G3): the previous loop issued `node_degree(id)` per entity,
+            // an O(E) N+1 pattern. Local mode already used `node_degrees_batch`;
+            // Global now does the same so a graph with E entities performs exactly
+            // one degree-fetch call.
+            let (nodes_map, degrees) = tokio::join!(
+                graph.get_nodes_batch(&entity_ids),
+                graph.node_degrees_batch(&entity_ids),
+            );
+
+            let nodes_map = nodes_map?;
+            let degrees: HashMap<String, usize> =
+                degrees?.into_iter().collect();
 
             // WHY: Iterate entity_ids (Vec) for deterministic ordering instead of HashMap.
             // HashMap iteration order is random, causing non-deterministic results.
+            // E13: a node disappearing between `get_nodes_batch` and
+            // `node_degrees_batch` resolves to degree 0 via `unwrap_or(0)`.
             for id in &entity_ids {
                 if let Some(node) = nodes_map.get(id) {
-                    let degree = graph.node_degree(id).await?;
+                    let degree = degrees.get(id).copied().unwrap_or(0);
                     let entity = build_entity_from_node(id, &node.properties, degree, 0.5);
                     context.add_entity(entity);
                 }

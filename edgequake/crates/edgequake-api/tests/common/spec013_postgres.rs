@@ -100,6 +100,16 @@ pub fn require_database_url() -> String {
     })
 }
 
+/// Like `require_database_url` but returns `None` instead of panicking.
+///
+/// WHY: SPEC-013 Postgres E2E tests need a live database. When no database is
+/// configured (e.g. running `cargo test --workspace` without `make postgres-start`),
+/// the tests should SKIP instead of failing the whole suite. Each test calls
+/// `create_postgres_mock_app_or_skip()` and returns early when it yields `None`.
+pub fn try_database_url() -> Option<String> {
+    database_url()
+}
+
 fn test_server_config() -> ServerConfig {
     ServerConfig {
         host: "127.0.0.1".to_string(),
@@ -223,6 +233,21 @@ pub async fn create_postgres_mock_app() -> axum::Router {
     build_postgres_router(state).await
 }
 
+/// Like `create_postgres_mock_app` but returns `None` when no database is
+/// configured, so callers can skip the test instead of panicking.
+pub async fn create_postgres_mock_app_or_skip() -> Option<axum::Router> {
+    super::clear_provider_detection_env();
+    env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
+    env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
+
+    let url = try_database_url()?;
+    let state = AppState::new_postgres(url, "")
+        .await
+        .map_err(|e| eprintln!("SKIP: PostgreSQL AppState failed: {e}"))
+        .ok()?;
+    Some(build_postgres_router(state).await)
+}
+
 /// Build an Axum app backed by PostgreSQL with Mistral providers (live API calls).
 pub async fn create_postgres_mistral_app() -> axum::Router {
     let mistral_key =
@@ -240,4 +265,23 @@ pub async fn create_postgres_mistral_app() -> axum::Router {
         .unwrap_or_else(|e| panic!("PostgreSQL Mistral AppState failed: {e}"));
 
     build_postgres_router(state).await
+}
+
+/// Like `create_postgres_mistral_app` but returns `None` when no database or
+/// no `MISTRAL_API_KEY` is configured, so callers can skip instead of panicking.
+pub async fn create_postgres_mistral_app_or_skip() -> Option<axum::Router> {
+    let mistral_key = env::var("MISTRAL_API_KEY").ok()?;
+    super::clear_provider_detection_env();
+    env::set_var("MISTRAL_API_KEY", &mistral_key);
+    env::set_var("EDGEQUAKE_LLM_PROVIDER", "mistral");
+    env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mistral");
+    env::set_var("MISTRAL_EMBEDDING_MODEL", "mistral-embed");
+    env::set_var("EDGEQUAKE_EMBEDDING_BATCH_SIZE", "16");
+
+    let url = try_database_url()?;
+    let state = AppState::new_postgres(url, "")
+        .await
+        .map_err(|e| eprintln!("SKIP: PostgreSQL Mistral AppState failed: {e}"))
+        .ok()?;
+    Some(build_postgres_router(state).await)
 }

@@ -24,7 +24,7 @@ Handlers **must not** hardcode duplicate literals.
 | ID | Budget | Current value | Target SSOT | Current file | Env var |
 |----|--------|---------------|-------------|--------------|---------|
 | RB-MEM-001 | `GRAPH_SCAN_THRESHOLD_NODES` | *(missing)* | **50000** | *new* | `EDGEQUAKE_GRAPH_SCAN_THRESHOLD` |
-| RB-MEM-002 | `MAX_GRAPH_MATERIALIZE_CONCURRENT` | *(missing)* | **1** | *new* | `EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT` |
+| RB-MEM-002 | `MAX_GRAPH_MATERIALIZE_CONCURRENT` | *(missing)* | **4** (pool-aware clamp: `⌊(DATABASE_POOL_SIZE - 8) / 3⌋`, capped at 8) | *new* | `EDGEQUAKE_GRAPH_MATERIALIZE_CONCURRENT` |
 | RB-MEM-003 | `GRAPH_NODE_RESPONSE_MAX` | 500 | 500 | `graph_types.rs:93` | — |
 | RB-MEM-004 | `GRAPH_DEPTH_MAX` | 5 | 5 | `graph_types.rs:96` |
 | RB-MEM-005 | `MAX_UPLOAD_BYTES` | **50 MB** (drift: 100 MB server) | **52428800** | `config.rs:72` | — |

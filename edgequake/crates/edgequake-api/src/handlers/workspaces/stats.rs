@@ -43,12 +43,13 @@ pub async fn get_workspace_stats(
 
     // HYBRID APPROACH WITH CACHING: 4-tier performance optimization
     // See: logs/2026-01-26-18-00-storage-architecture-analysis.md
+    // See: specs/021-storage-study/06-first-principles/11-ux-zero-documents-root-cause-assessment.md
     //
     // Performance tiers:
     // 0. Cache (<1ms) - FASTEST, 60s TTL
-    // 1. PostgreSQL documents table (1-5ms) - Fast but currently empty
-    // 2. KV storage aggregation (15ms) - Moderate, current data source
-    // 3. AGE graph queries (50-200ms) - Slowest, last resort
+    // 1. PostgreSQL documents table (1-5ms) - primary for document_count (SPEC-021 P5-01)
+    // 2. KV storage aggregation (15ms) - fallback for legacy uploads + chunk metrics
+    // 3. AGE graph queries (50-200ms) - authoritative for entity/relationship counts
 
     use std::time::Instant;
     let start = Instant::now();
@@ -91,65 +92,55 @@ pub async fn get_workspace_stats(
 
 /// Fetch workspace stats from storage backends (uncached).
 ///
-/// FIX-ISSUE-81: Always use KV storage + Apache AGE graph as the single
-/// source of truth. The previous PostgreSQL-first fallback short-circuited
-/// when `document_count > 0` (e.g. 1 PDF in PostgreSQL), returning stale
-/// entity/relationship counts (0) from empty PostgreSQL tables while the
-/// accurate data lived in KV + AGE.
-///
-/// KV storage holds ALL documents (text, markdown, file, PDF), and AGE
-/// graph holds ALL entities and relationships — making them authoritative.
+/// SPEC-021 P5-01 (fixes UX "0 documents" when relational rows exist):
+/// - **document_count / storage_bytes**: `max(postgresql, kv)` — relational primary,
+///   KV fallback for legacy uploads that never dual-wrote.
+/// - **entity_count / relationship_count / entity_type_count**: AGE graph (always).
+/// - **chunk_count / embedding_count**: KV chunk keys for workspace documents.
 async fn fetch_workspace_stats_uncached(
     state: &AppState,
     workspace_id: Uuid,
     start: Instant,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
-    // ALWAYS use KV storage for document count (source of truth for ALL doc types)
-    // ALWAYS use AGE graph for entity/relationship counts (source of truth)
-    // This eliminates the PostgreSQL fallback that caused the KPI mismatch (Issue #81)
-    let stats = try_kv_storage_stats(state, workspace_id).await?;
+    let mut stats = try_kv_storage_stats(state, workspace_id).await?;
+    let kv_document_count = stats.document_count;
+    let kv_storage_bytes = stats.storage_bytes;
+
+    let mut method = "kv_storage";
+
+    if let Some((pg_docs, pg_bytes)) =
+        crate::document_read_model::postgres_document_metrics(state, workspace_id).await
+    {
+        stats.document_count =
+            crate::document_read_model::merge_document_count(pg_docs, kv_document_count);
+        stats.storage_bytes =
+            crate::document_read_model::merge_storage_bytes(pg_bytes, kv_storage_bytes);
+        method = if pg_docs >= kv_document_count {
+            "postgresql+kv"
+        } else {
+            "kv+postgresql"
+        };
+
+        if pg_docs > 0 && kv_document_count == 0 {
+            tracing::info!(
+                workspace_id = %workspace_id,
+                pg_document_count = pg_docs,
+                "SPEC-021: relational documents present but KV metadata missing for workspace"
+            );
+        }
+    }
+
     let elapsed = start.elapsed();
     tracing::info!(
         workspace_id = %workspace_id,
         duration_ms = elapsed.as_millis(),
-        method = "kv_storage",
+        method = method,
         document_count = stats.document_count,
         entity_count = stats.entity_count,
         relationship_count = stats.relationship_count,
-        "FIX-ISSUE-81: Workspace stats from KV+AGE (authoritative source)"
+        "Workspace stats from hybrid read model (SPEC-021 P5-01)"
     );
     Ok(stats)
-}
-
-/// Try to get stats from PostgreSQL documents table.
-///
-/// NOTE (FIX-ISSUE-81): This function is no longer called in the hot path.
-/// It is retained for future use when Phase 2 dual-write is fully complete
-/// and all upload paths populate the PostgreSQL `documents` table.
-/// At that point, it can be re-enabled as an optimization layer.
-#[allow(dead_code)]
-async fn try_postgres_stats(
-    state: &AppState,
-    workspace_id: Uuid,
-) -> Result<WorkspaceStatsResponse, ApiError> {
-    // WHY: Call workspace_service which has access to PgPool
-    // This uses the existing service layer with optimized SQL queries
-    let stats = state
-        .workspace_service
-        .get_workspace_stats(workspace_id)
-        .await
-        .map_err(|e| ApiError::Internal(format!("PostgreSQL stats query failed: {}", e)))?;
-
-    Ok(WorkspaceStatsResponse {
-        workspace_id: stats.workspace_id,
-        document_count: stats.document_count,
-        entity_count: stats.entity_count,
-        relationship_count: stats.relationship_count,
-        entity_type_count: 0, // PostgreSQL path doesn't have this yet; will be overridden by graph query
-        chunk_count: stats.chunk_count,
-        embedding_count: stats.embedding_count,
-        storage_bytes: stats.storage_bytes as u64,
-    })
 }
 
 /// Get stats from KV storage (moderate speed, current source of truth).

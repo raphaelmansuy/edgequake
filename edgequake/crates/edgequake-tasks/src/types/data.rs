@@ -16,6 +16,56 @@ pub struct DocumentUploadData {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Reprocess intent for a PDF document (DRY single knob).
+///
+/// - `Full`: re-run the PDF -> markdown conversion from the stored PDF bytes
+///   (vision/pdf2md), clearing any cached markdown. Chosen when the user
+///   explicitly wants re-conversion (Replace, or "Re-convert from PDF").
+/// - `EntitiesOnly`: reuse the existing cached markdown and only re-run the
+///   knowledge-graph pipeline (chunk / extract / embed). This is the safe
+///   default for retries of failed mid-pipeline runs.
+///
+/// WHY: `restart_from_scratch` alone was ambiguous and never set to `true` in
+/// production, so reprocessing silently reused stale markdown. Making intent
+/// explicit keeps the resume shortcut driven by a single, named source of
+/// truth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ReprocessMode {
+    /// Re-convert the PDF to markdown from scratch (vision tokens spent).
+    Full,
+    /// Reuse cached markdown; only re-run entity extraction (default).
+    #[default]
+    EntitiesOnly,
+}
+
+impl ReprocessMode {
+    /// Returns `true` when the PDF -> markdown conversion must be re-run.
+    pub fn restart_from_scratch(self) -> bool {
+        matches!(self, ReprocessMode::Full)
+    }
+}
+
+impl std::fmt::Display for ReprocessMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReprocessMode::Full => write!(f, "full"),
+            ReprocessMode::EntitiesOnly => write!(f, "entities"),
+        }
+    }
+}
+
+impl std::str::FromStr for ReprocessMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "full" | "reconvert" | "re-convert" => Ok(ReprocessMode::Full),
+            "entities" | "entities_only" | "extract" => Ok(ReprocessMode::EntitiesOnly),
+            other => Err(format!("unknown reprocess mode '{other}'")),
+        }
+    }
+}
+
 /// PDF processing task payload
 ///
 /// @implements SPEC-007: PDF Upload Support
@@ -67,6 +117,12 @@ pub struct PdfProcessingData {
     /// must be an explicit choice, not an accidental side effect of reprocessing.
     #[serde(default)]
     pub restart_from_scratch: bool,
+
+    /// Explicit reprocess intent. Backward compatible: older queued tasks and
+    /// fresh uploads leave this `None`, which behaves as `EntitiesOnly` for
+    /// retries and as a no-op for first-time uploads.
+    #[serde(default)]
+    pub reprocess_mode: Option<ReprocessMode>,
 }
 
 /// Text insert task payload
@@ -93,4 +149,59 @@ pub struct ReindexData {
     pub document_ids: Vec<String>,
     pub workspace_id: String,
     pub reason: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_mode_requests_fresh_conversion() {
+        assert!(ReprocessMode::Full.restart_from_scratch());
+    }
+
+    #[test]
+    fn entities_mode_reuses_markdown() {
+        assert!(!ReprocessMode::EntitiesOnly.restart_from_scratch());
+    }
+
+    #[test]
+    fn default_mode_is_entities_only() {
+        // Backward-compat: unspecified intent must not re-run vision conversion.
+        assert_eq!(ReprocessMode::default(), ReprocessMode::EntitiesOnly);
+    }
+
+    #[test]
+    fn from_str_accepts_aliases() {
+        assert_eq!(
+            "full".parse::<ReprocessMode>().unwrap(),
+            ReprocessMode::Full
+        );
+        assert_eq!(
+            "re-convert".parse::<ReprocessMode>().unwrap(),
+            ReprocessMode::Full
+        );
+        assert_eq!(
+            "entities".parse::<ReprocessMode>().unwrap(),
+            ReprocessMode::EntitiesOnly
+        );
+        assert_eq!(
+            "extract".parse::<ReprocessMode>().unwrap(),
+            ReprocessMode::EntitiesOnly
+        );
+    }
+
+    #[test]
+    fn from_str_rejects_unknown() {
+        assert!("banana".parse::<ReprocessMode>().is_err());
+    }
+
+    #[test]
+    fn display_roundtrips_serde() {
+        // serde rename_all = "lowercase" must match Display so the API query
+        // param and the JSON payload use the same vocabulary.
+        let full = serde_json::to_string(&ReprocessMode::Full).unwrap();
+        assert_eq!(full, "\"full\"");
+        assert_eq!(ReprocessMode::Full.to_string(), "full");
+    }
 }

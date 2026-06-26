@@ -300,7 +300,10 @@ async fn spec013_mistral_pdf_ingest_and_query_is_systematic() {
     }
 
     // App is configured to use Mistral providers (live).
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let suffix = Uuid::new_v4();
 
     // 1) Fresh tenant
@@ -488,7 +491,10 @@ async fn spec013_mistral_pdf_ingestion_edge_cases_are_mitigated() {
         return;
     }
 
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let (tenant_id, workspace_id) =
         create_fresh_tenant_and_workspace(&app, "SPEC013 Edge Cases").await;
 
@@ -733,7 +739,10 @@ async fn spec013_mistral_concurrent_pdf_uploads_converge_to_one_document() {
         return;
     }
 
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let (tenant_id, workspace_id) =
         create_fresh_tenant_and_workspace(&app, "SPEC013 Concurrent").await;
 
@@ -866,7 +875,10 @@ async fn spec013_mistral_query_is_isolated_across_workspaces() {
         return;
     }
 
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let (tenant_id, workspace_a) =
         create_fresh_tenant_and_workspace(&app, "SPEC013 Isolation A").await;
     let workspace_b = create_second_workspace(&app, &tenant_id, "SPEC013 Isolation B").await;
@@ -962,7 +974,10 @@ async fn spec013_mistral_query_is_isolated_across_tenants() {
         return;
     }
 
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let (tenant_a, workspace_a) = create_fresh_tenant_and_workspace(&app, "SPEC013 Tenant A").await;
     let (tenant_b, workspace_b) = create_fresh_tenant_and_workspace(&app, "SPEC013 Tenant B").await;
 
@@ -1039,7 +1054,10 @@ async fn spec013_mistral_force_reindex_during_processing_is_safe() {
         return;
     }
 
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let (tenant_id, workspace_id) =
         create_fresh_tenant_and_workspace(&app, "SPEC013 Force Reindex").await;
 
@@ -1147,7 +1165,10 @@ async fn spec013_mistral_rejected_upload_does_not_poison_query_sources() {
         return;
     }
 
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let (tenant_id, workspace_id) =
         create_fresh_tenant_and_workspace(&app, "SPEC013 Reject Poison").await;
 

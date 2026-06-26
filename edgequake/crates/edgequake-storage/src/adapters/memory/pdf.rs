@@ -24,8 +24,17 @@ struct DocumentRecord {
     title: String,
     #[allow(dead_code)]
     content: String,
-    #[allow(dead_code)]
     status: String,
+    // SPEC-021 P-A1: denormalized stats mirrored from KV metadata so the
+    // relational read-model fallback returns accurate per-doc counts.
+    chunk_count: i32,
+    entity_count: i32,
+    relationship_count: i32,
+    cost_usd: Option<f64>,
+    input_tokens: Option<i64>,
+    output_tokens: Option<i64>,
+    total_tokens: Option<i64>,
+    error_message: Option<String>,
 }
 
 /// In-memory implementation of [`PdfDocumentStorage`].
@@ -229,6 +238,17 @@ impl PdfDocumentStorage for MemoryPdfStorage {
         Ok(())
     }
 
+    async fn clear_markdown(&self, pdf_id: &Uuid) -> Result<()> {
+        let mut pdfs = self.pdfs.write().map_err(map_lock_err)?;
+        if let Some(doc) = pdfs.get_mut(pdf_id) {
+            doc.markdown_content = None;
+            doc.extraction_method = None;
+            doc.extraction_errors = None;
+        }
+        // Missing row is treated as success (nothing to clear).
+        Ok(())
+    }
+
     async fn count_pdfs(
         &self,
         workspace_id: &Uuid,
@@ -263,8 +283,46 @@ impl PdfDocumentStorage for MemoryPdfStorage {
                 title: title.to_string(),
                 content: content.to_string(),
                 status: status.to_string(),
+                ..Default::default()
             },
         );
+        Ok(())
+    }
+
+    async fn update_document_stats(&self, stats: &DocumentStatsUpdate<'_>) -> Result<()> {
+        // SPEC-021 P-A1: mirror the postgres UPDATE semantics in memory.
+        // Race-safe: if the row is missing we log-and-skip (matches postgres).
+        let mut documents = self.documents.write().map_err(map_lock_err)?;
+        match documents.get_mut(&stats.document_id) {
+            Some(rec) => {
+                rec.chunk_count = stats.chunk_count.max(0);
+                rec.entity_count = stats.entity_count.max(0);
+                rec.relationship_count = stats.relationship_count.max(0);
+                if stats.cost_usd.is_some() {
+                    rec.cost_usd = stats.cost_usd;
+                }
+                if stats.input_tokens.is_some() {
+                    rec.input_tokens = stats.input_tokens;
+                }
+                if stats.output_tokens.is_some() {
+                    rec.output_tokens = stats.output_tokens;
+                }
+                if stats.total_tokens.is_some() {
+                    rec.total_tokens = stats.total_tokens;
+                }
+                if stats.error_message.is_some() {
+                    rec.error_message = stats.error_message.map(|s| s.to_string());
+                }
+                rec.status = stats.status.to_string();
+            }
+            None => {
+                // Mirror the postgres race warning so tests can assert on it.
+                tracing::warn!(
+                    document_id = %stats.document_id,
+                    "update_document_stats: documents row not found (memory) — stats not persisted"
+                );
+            }
+        }
         Ok(())
     }
 
@@ -348,5 +406,42 @@ mod tests {
             storage.get_pdf(&pdf_id).await.unwrap().unwrap().document_id,
             Some(doc_id)
         );
+    }
+
+    #[tokio::test]
+    async fn clear_markdown_resets_cached_conversion() {
+        // WHY: reprocess mode=full must invalidate the cached markdown so the
+        // resume shortcut cannot serve stale content on the next run.
+        let storage = MemoryPdfStorage::new();
+        let ws = Uuid::new_v4();
+        let pdf_id = storage.create_pdf(sample_pdf_request(ws)).await.unwrap();
+
+        storage
+            .update_pdf_processing(UpdatePdfProcessingRequest {
+                pdf_id,
+                processing_status: PdfProcessingStatus::Completed,
+                extraction_method: Some(ExtractionMethod::Vision),
+                markdown_content: Some("# Cached\n\nmarkdown".into()),
+                extraction_errors: None,
+                document_id: None,
+                vision_model: None,
+            })
+            .await
+            .unwrap();
+
+        storage.clear_markdown(&pdf_id).await.unwrap();
+
+        let after = storage.get_pdf(&pdf_id).await.unwrap().unwrap();
+        assert!(after.markdown_content.is_none());
+        assert!(after.extraction_method.is_none());
+        assert!(after.extraction_errors.is_none());
+    }
+
+    #[tokio::test]
+    async fn clear_markdown_is_idempotent_for_missing_pdf() {
+        let storage = MemoryPdfStorage::new();
+        let unknown = Uuid::new_v4();
+        // Missing row must not error — full reprocess should still succeed.
+        storage.clear_markdown(&unknown).await.unwrap();
     }
 }

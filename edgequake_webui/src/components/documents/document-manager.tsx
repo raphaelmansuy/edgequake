@@ -46,6 +46,8 @@ import { DocumentPreviewRightPanel } from './document-preview-right-panel';
 import { DocumentTableSection } from './document-table-section';
 import { DocumentToolbarSection } from './document-toolbar-section';
 import { DuplicateUploadDialog } from './duplicate-upload-dialog';
+import { BulkReprocessDialog, type BulkReprocessChoice } from './bulk-reprocess-dialog';
+import { ReprocessDialog, type ReprocessChoice } from './reprocess-dialog';
 import { isProcessingStatus } from './status-badge';
 
 export function DocumentManager() {
@@ -58,6 +60,19 @@ export function DocumentManager() {
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
+
+  // Reprocess choice dialog state.
+  // WHY: Reprocessing a completed PDF must let the user choose between a full
+  // PDF -> markdown re-conversion (slower, spends vision tokens) and a fast
+  // entity-only re-extraction (reuses cached markdown). The dialog collects the
+  // intent before calling reprocessMutation with the chosen mode.
+  const [reprocessTarget, setReprocessTarget] = useState<Document | null>(null);
+
+  // Bulk reprocess choice dialog state.
+  // WHY: The toolbar Reprocess button acts on every selected document at once.
+  // We show one choice dialog (full vs entities) whose mode applies to the
+  // whole batch, instead of prompting per document.
+  const [bulkReprocessOpen, setBulkReprocessOpen] = useState(false);
 
   // SPEC-002: Document viewer dialog state for PDF/Markdown side-by-side view
   const [viewerDialogOpen, setViewerDialogOpen] = useState(false);
@@ -246,7 +261,12 @@ export function DocumentManager() {
             pdfParserBackend={pdfParserBackend}
             onPdfParserBackendChange={setPdfParserBackend}
             selectedCount={selectedCount}
-            onBulkReprocess={handleBulkReprocess}
+            onBulkReprocess={() => {
+              // WHY: Open the bulk choice dialog so the user picks full
+              // re-conversion vs. entity-only before reprocessing the batch.
+              if (selectedCount === 0) return;
+              setBulkReprocessOpen(true);
+            }}
             onBulkDelete={handleBulkDelete}
             onClearSelection={handleClearSelection}
             uploadingFiles={uploadingFiles}
@@ -275,7 +295,13 @@ export function DocumentManager() {
         onViewDetails={handleViewDetails}
         onViewInGraph={handleViewInGraph}
         onViewPdf={handleViewPdf}
-        onRetry={(id) => reprocessMutation.mutate(id)}
+        onRetry={(id) => reprocessMutation.mutate({ id })}
+        onReprocess={(id) => {
+          // WHY: Open the choice dialog for the target document so the user can
+          // pick between full PDF re-conversion and entity-only re-extraction.
+          const target = documents.find((d) => d.id === id) ?? null;
+          setReprocessTarget(target ?? ({ id } as Document));
+        }}
         onCancel={(trackId) => cancelMutation.mutate(trackId)}
         onDelete={(id) => deleteMutation.mutate(id)}
         isRetrying={reprocessMutation.isPending}
@@ -300,7 +326,13 @@ export function DocumentManager() {
         onClose={handlePreviewClose}
         selectedDocument={selectedDocument}
         onDelete={(id) => deleteMutation.mutate(id)}
-        onReprocess={(id) => reprocessMutation.mutate(id)}
+        onReprocess={(id) => {
+          // WHY: Open the choice dialog for the target document so the user can
+          // pick between full re-conversion and entity-only re-extraction. For
+          // non-PDF docs the dialog still shows but the mode only affects PDFs.
+          const target = documents.find((d) => d.id === id) ?? null;
+          setReprocessTarget(target ?? ({ id } as Document));
+        }}
         onViewInGraph={handleViewInGraph}
         onViewFull={(doc) => router.push(`/documents/${doc.id}`)}
         isDeleting={deleteMutation.isPending}
@@ -315,6 +347,30 @@ export function DocumentManager() {
         open={pendingDuplicates.length > 0}
         duplicates={pendingDuplicates}
         onResolve={resolvePendingDuplicates}
+      />
+
+      {/* Reprocess choice dialog — lets the user choose full PDF re-conversion
+          vs. entity-only re-extraction before queueing the reprocess task. */}
+      <ReprocessDialog
+        open={reprocessTarget !== null}
+        document={reprocessTarget}
+        onConfirm={(choice: ReprocessChoice) => {
+          if (!reprocessTarget?.id) return;
+          reprocessMutation.mutate({ id: reprocessTarget.id, mode: choice.mode });
+          setReprocessTarget(null);
+        }}
+        onCancel={() => setReprocessTarget(null)}
+      />
+
+      {/* Bulk reprocess choice dialog — one mode applied to all selected docs. */}
+      <BulkReprocessDialog
+        open={bulkReprocessOpen}
+        count={selectedCount}
+        onConfirm={(choice: BulkReprocessChoice) => {
+          setBulkReprocessOpen(false);
+          void handleBulkReprocess(choice.mode);
+        }}
+        onCancel={() => setBulkReprocessOpen(false)}
       />
     </div>
   );

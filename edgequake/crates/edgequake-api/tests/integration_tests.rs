@@ -122,8 +122,15 @@ async fn test_upload_document() {
         .await
         .unwrap();
 
-    // WHY: POST /documents returns 201 Created per REST semantics (UC0001)
-    assert_eq!(response.status(), StatusCode::CREATED);
+    // WHY: POST /documents enqueues a background task (P-G2b) → returns 202
+    // Accepted with `task_id` + `status: "pending"` and no counts. The legacy
+    // 201 Created sync path is removed but still tolerated for forward-compat.
+    let status = response.status();
+    assert!(
+        status == StatusCode::ACCEPTED || status == StatusCode::CREATED,
+        "upload should return 202 (or legacy 201), got {}",
+        status
+    );
 
     let json = parse_json(response).await;
     assert!(json.get("document_id").is_some());

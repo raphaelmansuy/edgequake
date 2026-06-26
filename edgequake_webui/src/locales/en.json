@@ -31,6 +31,7 @@
     "waiting": "Waiting...",
     "failed": "Failed",
     "platform": "Graph-RAG Platform",
+    "uiVersion": "UI v{{version}}",
     "navigation": "Navigation",
     "keyboardShortcuts": "Keyboard Shortcuts",
     "keyboardShortcutsDesc": "Use these shortcuts to navigate quickly",
@@ -98,7 +99,8 @@
     "knowledgeGraph": "Knowledge Graph",
     "query": "Query",
     "settings": "Settings",
-    "language": "Language"
+    "language": "Language",
+    "apiVersion": "API v{{version}}"
   },
   "documents": {
     "title": "Documents",
@@ -115,7 +117,7 @@
       "allFailed": "All {{count}} file(s) failed to upload",
       "partial": "Uploaded {{success}} file(s), {{failed}} failed",
       "complete": "Uploaded! Processing in background...",
-      "fileTooLarge": "File \"{{name}}\" is too large ({{size}}MB). Maximum size is 10MB.",
+      "fileTooLarge": "File \"{{name}}\" is too large ({{size}}MB). Maximum size is {{limit}}.",
       "invalidType": "File \"{{name}}\" has an unsupported format. Supported: TXT, MD, JSON.",
       "viewInGraph": "View in Graph",
       "duplicateSkipped": "Duplicate (skipped)",
@@ -148,6 +150,25 @@
       "success": "Document queued for reprocessing",
       "failed": "Reprocess failed",
       "successDesc": "The document will be fully reprocessed."
+    },
+    "reprocessDialog": {
+      "title": "Reprocess \"{{name}}\"",
+      "description": "Choose how this document should be reprocessed.",
+      "fullLabel": "Re-convert from PDF (slower, uses vision tokens)",
+      "fullDescriptionPdf": "Re-runs PDF -> markdown conversion from the stored PDF bytes, then re-extracts entities and relationships. Use this when the markdown itself is wrong or stale.",
+      "fullDescriptionNonPdf": "Re-ingests the source content from scratch and re-runs the full knowledge-graph pipeline.",
+      "fullBadge": "Slowest · costs tokens",
+      "entitiesLabel": "Re-extract entities only (reuse existing markdown)",
+      "entitiesDescriptionPdf": "Keeps the cached markdown and only re-runs chunking, entity/relationship extraction, and embedding. Fast and cheap.",
+      "entitiesDescriptionNonPdf": "Re-runs the knowledge-graph pipeline over the existing content.",
+      "entitiesBadge": "Fast · no vision",
+      "inflightWarning": "This document is currently processing. Wait for it to finish before reprocessing.",
+      "cancel": "Cancel",
+      "confirm": "Reprocess",
+      "bulkTitle": "Reprocess {{count}} documents?",
+      "bulkDescription": "Choose how the selected documents should be reprocessed. The same mode applies to all of them.",
+      "fullDescriptionBulk": "Re-runs PDF -> markdown conversion for every selected PDF, then re-extracts entities. Use this when the markdown itself is wrong or stale. Non-PDF docs are re-ingested from scratch.",
+      "entitiesDescriptionBulk": "Keeps cached markdown and only re-runs the knowledge-graph pipeline for every selected document. Fast and cheap."
     },
     "reset": {
       "button": "Reset Status",

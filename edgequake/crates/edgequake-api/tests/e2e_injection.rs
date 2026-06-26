@@ -21,6 +21,20 @@ use serde_json::{json, Value};
 use tower::ServiceExt;
 
 // ============================================================================
+// Test workspace UUIDs (SPEC-021: workspace isolation requires distinct UUIDs)
+// ============================================================================
+// WHY: `workspace_id_from_tenant` resolves the X-Workspace-ID header via
+// `workspace_id_uuid()` → `resolve_context_uuid`. Non-UUID strings (e.g.
+// "ws-owner") fail to parse and fall back to the default workspace UUID, so
+// two "different" non-UUID workspaces silently resolve to the same default
+// and cross-workspace isolation tests see 200 instead of 404. Using distinct
+// UUIDs makes the isolation enforceable.
+const WS_OWNER: &str = "00000000-0000-0000-0000-0000000000a1";
+const WS_ATTACKER: &str = "00000000-0000-0000-0000-0000000000a2";
+const WS_ISOLATION_A: &str = "00000000-0000-0000-0000-0000000000b1";
+const WS_ISOLATION_B: &str = "00000000-0000-0000-0000-0000000000b2";
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -439,9 +453,9 @@ async fn test_list_injections_workspace_isolation() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri("/api/v1/workspaces/ws-isolation-a/injection")
+                .uri(format!("/api/v1/workspaces/{}/injection", WS_ISOLATION_A))
                 .header("content-type", "application/json")
-                .header("x-workspace-id", "ws-isolation-a")
+                .header("x-workspace-id", WS_ISOLATION_A)
                 .body(Body::from(body_a.to_string()))
                 .unwrap(),
         )
@@ -453,8 +467,8 @@ async fn test_list_injections_workspace_isolation() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/api/v1/workspaces/ws-isolation-b/injections")
-                .header("x-workspace-id", "ws-isolation-b")
+                .uri(format!("/api/v1/workspaces/{}/injections", WS_ISOLATION_B))
+                .header("x-workspace-id", WS_ISOLATION_B)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -551,9 +565,9 @@ async fn test_get_injection_detail_wrong_workspace() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri("/api/v1/workspaces/ws-owner/injection")
+                .uri(format!("/api/v1/workspaces/{}/injection", WS_OWNER))
                 .header("content-type", "application/json")
-                .header("x-workspace-id", "ws-owner")
+                .header("x-workspace-id", WS_OWNER)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )
@@ -568,9 +582,10 @@ async fn test_get_injection_detail_wrong_workspace() {
             Request::builder()
                 .method("GET")
                 .uri(format!(
-                    "/api/v1/workspaces/ws-attacker/injections/{injection_id}"
+                    "/api/v1/workspaces/{}/injections/{injection_id}",
+                    WS_ATTACKER
                 ))
-                .header("x-workspace-id", "ws-attacker")
+                .header("x-workspace-id", WS_ATTACKER)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1348,7 +1363,9 @@ async fn test_put_injection_file_name_fallback() {
 #[tokio::test]
 async fn test_delete_injection_cleans_graph_nodes() {
     let (app, state) = create_test_app_with_state();
-    let ws = "ws-del-graph";
+    // SPEC-021: use a UUID workspace so the handler's workspace_id_from_tenant
+    // resolves to the same value the test uses to build doc_id.
+    let ws = WS_OWNER;
 
     // --- Step 1: Create injection with explicit workspace header so the handler
     // uses ws as the workspace_id (not the "default" fallback).
@@ -1451,7 +1468,9 @@ async fn test_delete_injection_cleans_graph_nodes() {
 #[tokio::test]
 async fn test_delete_injection_preserves_shared_graph_nodes() {
     let (app, state) = create_test_app_with_state();
-    let ws = "ws-del-shared";
+    // SPEC-021: use a UUID workspace so the handler's workspace_id_from_tenant
+    // resolves to the same value the test uses to build doc_id.
+    let ws = WS_ISOLATION_A;
 
     let body =
         serde_json::json!({ "name": "Shared Node Test", "content": "SharedEntity = shared." });
@@ -1720,8 +1739,7 @@ async fn test_delete_injection_wrong_workspace_is_404() {
     let app = create_test_app();
 
     // Create in ws-owner
-    let (_, put_body) =
-        put_injection_ws(&app, "ws-del-owner", "Owner Secret", "Owner content.").await;
+    let (_, put_body) = put_injection_ws(&app, WS_OWNER, "Owner Secret", "Owner content.").await;
     let id = put_body["injection_id"].as_str().unwrap();
 
     // Attempt delete from ws-attacker → must be 404
@@ -1730,9 +1748,10 @@ async fn test_delete_injection_wrong_workspace_is_404() {
             Request::builder()
                 .method("DELETE")
                 .uri(format!(
-                    "/api/v1/workspaces/ws-del-attacker/injections/{id}"
+                    "/api/v1/workspaces/{}/injections/{id}",
+                    WS_ATTACKER
                 ))
-                .header("x-workspace-id", "ws-del-attacker")
+                .header("x-workspace-id", WS_ATTACKER)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1936,10 +1955,10 @@ async fn test_patch_injection_updates_updated_at() {
 async fn test_patch_injection_wrong_workspace_is_404() {
     let app = create_test_app();
 
-    let (_, put_body) = put_injection_ws(&app, "ws-patch-owner", "Owner", "Owner content.").await;
+    let (_, put_body) = put_injection_ws(&app, WS_OWNER, "Owner", "Owner content.").await;
     let id = put_body["injection_id"].as_str().unwrap();
 
-    let (status, _) = patch_injection(&app, "ws-patch-attacker", id, Some("Hijacked"), None).await;
+    let (status, _) = patch_injection(&app, WS_ATTACKER, id, Some("Hijacked"), None).await;
     assert_eq!(
         status,
         StatusCode::NOT_FOUND,

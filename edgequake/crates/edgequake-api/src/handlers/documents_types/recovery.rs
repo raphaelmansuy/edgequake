@@ -31,6 +31,17 @@ pub struct ReprocessFailedRequest {
     /// Force reprocess even if document is not failed. Default: false.
     #[serde(default)]
     pub force: bool,
+
+    /// Reprocess intent for PDF documents.
+    /// - `entities` (default): reuse cached markdown, only re-run the KG pipeline.
+    /// - `full`: re-run PDF -> markdown conversion from the stored PDF bytes
+    ///   (spends vision tokens) before re-running the KG pipeline.
+    ///
+    /// WHY: Users must be able to re-convert a PDF to markdown when the cached
+    /// conversion is stale or was produced with a different vision model.
+    /// Non-PDF documents ignore this field.
+    #[serde(default)]
+    pub mode: Option<String>,
 }
 
 /// WHY: Manual Default impl ensures max_documents defaults to 100 (same as serde default),
@@ -42,6 +53,7 @@ impl Default for ReprocessFailedRequest {
             track_id: None,
             max_documents: default_max_reprocess(),
             force: false,
+            mode: None,
         }
     }
 }

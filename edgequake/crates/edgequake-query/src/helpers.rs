@@ -6,7 +6,7 @@
 //! # WHY This Module Exists
 //!
 //! Before this extraction, the same patterns were repeated 5-7 times
-//! across `sota_engine.rs`. This caused:
+//! across `engine_impl.rs`. This caused:
 //! - Inconsistent handling of edge cases
 //! - Hard-to-maintain code (changes required 7 edits)
 //! - Risk of divergent implementations
@@ -20,6 +20,55 @@ use serde_json::Value;
 
 use crate::context::{RetrievedChunk, RetrievedEntity, RetrievedRelationship};
 use edgequake_storage::traits::VectorSearchResult;
+
+/// Decode the entity name from a vector search result (SPEC-021 P-E1 / R-SOLID-04).
+///
+/// WHY: the writer stores entity vectors with id `entity:{name}` (text_insert.rs)
+/// and mirrors the name into `metadata.entity_name`. The graph node id is the
+/// bare `{name}` (e.g. "ALPHA"). Both the storage ID and metadata encode the
+/// same name at write time, but:
+///   - `metadata.entity_name` is the explicit canonical name and is what the
+///     graph node id uses, so it is preferred when present.
+///   - The storage ID is used as a fallback for legacy vectors that carry no
+///     `entity_name` metadata (the `entity:` prefix is stripped to recover the
+///     bare name). This also covers the P-C3 drift case where a partial delete
+///     refreshes metadata without `entity_name`.
+///
+/// This keeps a single decoding rule in one place (DRY) and avoids misreading
+/// chunk/relationship IDs as entity names (SOLID — single responsibility).
+///
+/// P-G6a: moved here from the deleted `strategies/mod.rs`; the query engine is
+/// the only remaining caller, so the helper lives with the other shared
+/// retrieval helpers rather than in a dead strategies module.
+pub(crate) fn decode_entity_name_from_result(
+    storage_id: &str,
+    metadata: &serde_json::Value,
+) -> String {
+    use edgequake_storage::vector_id::VectorId;
+
+    // 1. Prefer the explicit canonical name in metadata.
+    if let Some(name) = metadata
+        .get("entity_name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.strip_prefix("entity:").unwrap_or(s).to_string())
+    {
+        if !name.is_empty() {
+            return name;
+        }
+    }
+
+    // 2. Fall back to decoding the storage ID (must be an Entity variant).
+    VectorId::from_storage_id(storage_id)
+        .and_then(|vid| match vid {
+            VectorId::Entity { name } => Some(
+                name.strip_prefix("entity:")
+                    .map(|s| s.to_string())
+                    .unwrap_or(name),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
 
 /// Source tracking information extracted from entity nodes.
 ///

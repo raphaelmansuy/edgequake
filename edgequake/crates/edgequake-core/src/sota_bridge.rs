@@ -10,7 +10,7 @@ use crate::types::{
     QueryResult, QueryStats,
 };
 use edgequake_query::engine::{QueryRequest, QueryResponse};
-use edgequake_query::SOTAQueryEngine;
+use edgequake_query::QueryEngine;
 
 /// Convert core query params to SOTA request.
 pub fn params_to_request(query: &str, params: &QueryParams) -> QueryRequest {
@@ -47,7 +47,7 @@ pub fn params_to_request(query: &str, params: &QueryParams) -> QueryRequest {
 
 /// Execute a core-style query via SOTA engine (Bypass handled by pipeline).
 pub async fn query_via_sota(
-    engine: &SOTAQueryEngine,
+    engine: &QueryEngine,
     llm: &std::sync::Arc<dyn edgequake_llm::traits::LLMProvider>,
     query: &str,
     params: QueryParams,

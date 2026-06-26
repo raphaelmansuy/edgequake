@@ -35,7 +35,7 @@
 //! │   ├── Vector Storage (embeddings)
 //! │   └── Graph Storage (entities, relationships)
 //! ├── Services
-//! │   ├── QueryEngine (hybrid search)
+//! │   ├── QueryEngine (SOTA RAG search)
 //! │   ├── Pipeline (document processing)
 //! │   ├── ConversationService
 //! │   └── WorkspaceService

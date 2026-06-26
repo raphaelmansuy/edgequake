@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::{
-    ExtractedKeywords, KeywordExtractor, QueryIntent, QueryMode, QueryRequest, SOTAQueryConfig,
-    SOTAQueryEngine,
+    ExtractedKeywords, KeywordExtractor, QueryIntent, QueryMode, QueryRequest, QueryEngineConfig,
+    QueryEngine,
 };
 use edgequake_storage::{
     GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, MemoryGraphStorage,
@@ -421,8 +421,8 @@ async fn test_keyword_validation_drops_nonexistent() {
     let provider = Arc::new(MockProvider::new());
 
     // Create engine with custom keyword extractor
-    let config = SOTAQueryConfig::default();
-    let _engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let _engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage.clone(),
@@ -449,8 +449,8 @@ async fn test_mixed_keyword_query_succeeds() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -484,8 +484,8 @@ async fn test_fallback_when_all_keywords_dropped() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage.clone(),
@@ -512,8 +512,8 @@ async fn test_valid_keywords_preserved() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage.clone(),
@@ -542,8 +542,8 @@ async fn test_adjacent_domain_query() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -574,8 +574,8 @@ async fn test_local_mode_entity_focus() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -599,8 +599,8 @@ async fn test_global_mode_theme_focus() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -624,8 +624,8 @@ async fn test_hybrid_mode_combined() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -653,8 +653,8 @@ async fn test_french_query_with_accents() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -678,8 +678,8 @@ async fn test_complex_french_comparative() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -708,8 +708,8 @@ async fn test_all_ooda_queries_execute() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -778,8 +778,8 @@ async fn test_keyword_cache_reuse() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -819,8 +819,8 @@ async fn test_empty_query_handling() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -845,8 +845,8 @@ async fn test_long_query_handling() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -877,8 +877,8 @@ async fn test_special_characters_query() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage,
@@ -948,8 +948,8 @@ async fn test_full_ooda_integration() {
     let graph_storage = create_automotive_graph_storage().await;
     let provider = Arc::new(MockProvider::new());
 
-    let config = SOTAQueryConfig::default();
-    let engine = SOTAQueryEngine::with_mock_keywords(
+    let config = QueryEngineConfig::default();
+    let engine = QueryEngine::with_mock_keywords(
         config,
         vector_storage,
         graph_storage.clone(),
