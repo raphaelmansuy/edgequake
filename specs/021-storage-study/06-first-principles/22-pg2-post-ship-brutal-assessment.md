@@ -5,10 +5,8 @@
 > **Commit**: `404ce915` — `feat(pipeline,api,core): P-G2 single IngestionPersister path (RC-7)`
 > **Method**: Four-lens review (GraphRAG, LightRAG, AI Engineer, System Engineer) +
 > First Principles + DRY/SOLID + flakiness audit. Brutal and honest.
-> **Verdict**: RC-7 **structural divergence is closed**. Correctness for **new writes**
-> via the merger path is **materially improved**. The ship is **not** the plan-19 §2.2
-> trait-backed persister, **not** byte-identical across callers, and **not** production-E2E
-> proven. Treat P-G2 as **Phase 1 of 3**, not done-done.
+> **Verdict**: RC-7 **closed**. P-G2b/c shipped 2026-06-26 — see **`23-pg2-gaps-closed.md`**.
+> This file remains the **pre-closure forensic record**.
 
 ---
 

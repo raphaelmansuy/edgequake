@@ -5,13 +5,47 @@ use std::collections::HashMap;
 use edgequake_storage::{EntityId, GraphNode, GraphStorage, VectorStorage};
 
 use crate::error::Result;
-use crate::extractor::ExtractedEntity;
+use crate::extractor::{ExtractedEntity, ExtractionResult};
 
 use super::{merge_descriptions, metadata};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
-    /// Merge a single entity, returning true if it was newly created.
-    pub(super) async fn merge_entity(&self, entity: ExtractedEntity) -> Result<bool> {
+    /// Collect batched entity vector upserts for all extractions (P-G4-merger).
+    pub(super) fn collect_entity_vector_batch(
+        &self,
+        results: &[ExtractionResult],
+    ) -> Vec<(String, Vec<f32>, serde_json::Value)> {
+        let mut batch = Vec::new();
+        for result in results {
+            for entity in &result.entities {
+                let entity_id = EntityId::new(&entity.name);
+                if entity_id.is_empty() {
+                    continue;
+                }
+                let Some(embedding) = entity.embedding.as_ref() else {
+                    continue;
+                };
+                let scope = metadata::TenantScope {
+                    tenant_id: &self.tenant_id,
+                    workspace_id: &self.workspace_id,
+                };
+                let metadata = metadata::entity_vector_metadata(&entity, &entity_id, scope);
+                batch.push((
+                    entity_id.as_vector_id(),
+                    embedding.clone(),
+                    metadata,
+                ));
+            }
+        }
+        batch
+    }
+
+    /// Merge a single entity (graph only — vectors batched in `merge()`).
+    pub(super) async fn merge_entity(
+        &self,
+        entity: ExtractedEntity,
+        artifacts: &mut super::MergeArtifacts,
+    ) -> Result<bool> {
         // RC-6 / P-G1: identity is a newtype. The graph node id and the entity
         // vector id are both derived from this single `EntityId`, so they can
         // never diverge. Skip writes for empty identities (E1).
@@ -24,25 +58,6 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             return Ok(false);
         }
         let entity_key: String = entity_id.as_graph_node_id().to_string();
-
-        // Store entity embedding with type metadata (for Local query mode).
-        // The vector id and the metadata's entity_name are both derived from
-        // `entity_id`, so the query decoder recovers exactly the graph node id.
-        if let Some(embedding) = &entity.embedding {
-            let scope = metadata::TenantScope {
-                tenant_id: &self.tenant_id,
-                workspace_id: &self.workspace_id,
-            };
-            let metadata = metadata::entity_vector_metadata(&entity, &entity_id, scope);
-
-            self.vector_storage
-                .upsert(&[(
-                    entity_id.as_vector_id(),
-                    embedding.clone(),
-                    metadata,
-                )])
-                .await?;
-        }
 
         // Check if entity exists
         let existing = self.graph_storage.get_node(&entity_key).await?;
@@ -62,6 +77,12 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                 self.graph_storage
                     .upsert_node(&node.id, node.properties)
                     .await?;
+                artifacts.graph_nodes_created.push(entity_key.clone());
+                if entity.embedding.is_some() {
+                    artifacts
+                        .entity_vector_ids
+                        .push(entity_id.as_vector_id());
+                }
                 true
             }
         };

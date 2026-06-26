@@ -472,8 +472,8 @@ pure waste.
 | RC-6 | **CRITICAL** | ✅ Fixed (new writes) / ⚠️ legacy | Entity identity SSOT; async raw-name path removed via P-G2 merger delegation | plan-19 P-G1 + P-G2a |
 | RC-7 | **CRITICAL** | ✅ FIXED (structural) | Three ingestion paths collapsed to `persist_processing_result` (P-G2a) | plan-19 P-G2, plan-21, plan-22 |
 | RC-8 | **HIGH** | ✅ FIXED | Global mode N+1 `node_degree` | plan-19 P-G3 |
-| RC-9 | **HIGH** | ⚠️ Moved | Processor O(C)/O(E) loops **removed** (P-G2a); O(E) remains in `merger/entity.rs` | plan-19 P-G4-merger |
-| RC-10 | **HIGH** | ⛔ OPEN | Partial merge leaves entity-vector/graph orphans; chunk-only compensation | plan-19 P-G5 |
+| RC-9 | **HIGH** | ✅ FIXED | Merger batched vector upserts (P-G4-merger) | plan-23 |
+| RC-10 | **HIGH** | ✅ FIXED (new writes) | `compensate_merge_failure` + `MergeArtifacts` | plan-23 P-G5 |
 | RC-11 | **HIGH** | ⛔ NEW | Two query engines + dead strategies + dead `chunk_retrieval.rs`; API fake rerank contradicts engine BM25 | plan-19 P-G6 |
 | RC-12 | **MEDIUM** | ⛔ NEW | O(W) KV `keys()` scans on reprocess + PDF resume | plan-19 P-G7 |
 | RC-13 | **MEDIUM** | ⛔ NEW | Bypass mode broken at HTTP; Mix mode == Hybrid (docs lie) | plan-19 P-G8 |

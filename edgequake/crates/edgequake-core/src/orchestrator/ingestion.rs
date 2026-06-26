@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use edgequake_pipeline::{
     ChunkVectorBuildOptions, GleaningConfig, GleaningExtractor, IngestionPersistConfig,
-    IngestionPersistContext, LLMExtractor, MergerConfig, persist_processing_result, Pipeline,
-    PipelineConfig,
+    IngestionPersistContext, IngestionPersistSettings, LLMExtractor, persist_processing_result,
+    Pipeline, PipelineConfig,
 };
 
 use crate::error::{Error, Result};
@@ -298,20 +298,19 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("LLM provider not initialized"))?;
 
-        let persist_config = IngestionPersistConfig {
-            merger_config: MergerConfig {
+        let persist_config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings {
                 use_llm_summarization: self.config.use_llm_summarization,
-                ..Default::default()
             },
-            relational_sink: self.relational_sink.clone(),
-            llm_provider: Some(llm.clone()),
-        };
+            self.relational_sink.clone(),
+            Some(llm.clone()),
+        );
 
-        let persist_ctx = IngestionPersistContext {
-            document_id: doc_id.clone(),
-            tenant_id: self.config.tenant_id.clone(),
-            workspace_id: self.config.workspace_id.clone(),
-        };
+        let persist_ctx = IngestionPersistContext::new(
+            doc_id.clone(),
+            self.config.tenant_id.clone(),
+            self.config.workspace_id.clone(),
+        );
 
         let persist_out = persist_processing_result(
             graph_storage.clone(),
@@ -319,7 +318,7 @@ impl EdgeQuake {
             &persist_config,
             &persist_ctx,
             &processing_result,
-            ChunkVectorBuildOptions::default(),
+            ChunkVectorBuildOptions::STANDARD,
         )
         .await
         .map_err(|e| Error::internal(format!("Persistence failed: {}", e)))?;

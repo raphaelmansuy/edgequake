@@ -5,4 +5,5 @@ mod ingestion_persister;
 pub use ingestion_persister::{
     build_chunk_vector_batch, persist_processing_result, ChunkVectorBuildOptions,
     IngestionPersistConfig, IngestionPersistContext, IngestionPersistOutput,
+    IngestionPersistSettings,
 };

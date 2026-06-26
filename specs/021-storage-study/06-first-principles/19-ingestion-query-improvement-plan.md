@@ -30,10 +30,10 @@
 | Layer | Verdict | Evidence |
 |-------|---------|----------|
 | Entity identity SSOT | ✅ **Fixed (new writes)** / ⚠️ **legacy data** | P-G1 `EntityId` newtype wired; P-G1b backfill still admin-gated |
-| Ingestion persistence | ✅ **P-G2a structural SSOT** | `persist_processing_result` — one function body (plan-21); config/metadata parity gaps → plan-22 |
-| Merger vector/graph writes | ❌ **O(E) sequential in merger** | `merger/entity.rs:38-64` per-entity upsert (P-G4-merger open; processor N+1 loops **removed**) |
-| Processor edge prefetch | ✅ **Removed with P-G2** | Manual edge batch + prefetch deleted from `text_insert.rs` |
-| Saga compensation | ⚠️ Partial | Chunk vectors compensated on merge fail; entity vectors + partial graph still leak (P-G5 open) |
+| Ingestion persistence | ✅ **Done** | P-G2 `persist_processing_result` + config SSOT (plan-21, plan-23) |
+| Merger vector/graph writes | ✅ **Batched** | Entity + rel vectors batched in `merge()` (P-G4-merger) |
+| Processor edge prefetch | ✅ **Removed** | Manual edge batch deleted with P-G2 |
+| Saga compensation | ✅ **Extended** | `compensate_merge_failure` — chunks + new vectors + new graph (P-G5) |
 | Query: Global mode | ✅ **Fixed** | P-G3 batched `node_degrees_batch` |
 | Query: Mix mode | ❌ **alias of Hybrid** (docs lie) | P-G8 open |
 | Query: Bypass mode | ❌ **broken at HTTP** | P-G8 open |
@@ -46,10 +46,8 @@
 | PDF ingest idempotency | ✅ **Fixed (best-effort)** | P-G14 admission SSOT + single-flight; see §12.4 for race caveats |
 | Vision PDF OOM guard | ✅ **Fixed (conservative)** | P-G13 `PdfVisionSemaphore` + cloud concurrency cap 2; throughput trade-off |
 
-**RC-7 (P-G2a) structural divergence is closed**: orchestrator and async processor
-delegate to `edgequake-pipeline::persist_processing_result`. Sync upload removed by
-P-G2b. **Honest caveat** (plan-22): caller config differs (`MergerConfig`, chunk
-lineage metadata); misnamed memory "E2E" test; merger still O(E); saga partial.
+**RC-7 / P-G2 closed** (plan-21, plan-23): config parity, batched merger vectors,
+extended saga, worker E2E. Trait persister (P-G2d) deferred by design.
 
 ---
 

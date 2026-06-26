@@ -213,10 +213,16 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     pub async fn merge(&self, results: Vec<ExtractionResult>) -> Result<MergeStats> {
         let mut stats = MergeStats::default();
 
+        // P-G4-merger: batch entity vector upserts (one round-trip per document).
+        let entity_vector_batch = self.collect_entity_vector_batch(&results);
+        if !entity_vector_batch.is_empty() {
+            self.vector_storage.upsert(&entity_vector_batch).await?;
+        }
+
         for result in results {
             // Merge entities first
             for entity in result.entities {
-                match self.merge_entity(entity).await {
+                match self.merge_entity(entity, &mut stats.artifacts).await {
                     Ok(was_new) => {
                         if was_new {
                             stats.entities_created += 1;
@@ -236,9 +242,15 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 }
             }
 
+            // P-G4-merger: batch relationship vector upserts before graph writes.
+            let rel_vector_batch = self.collect_relationship_vector_batch(&result.relationships);
+            if !rel_vector_batch.is_empty() {
+                self.vector_storage.upsert(&rel_vector_batch).await?;
+            }
+
             // Then merge relationships
             for rel in result.relationships {
-                match self.merge_relationship(rel).await {
+                match self.merge_relationship(rel, &mut stats.artifacts).await {
                     Ok(was_new) => {
                         if was_new {
                             stats.relationships_created += 1;
@@ -280,6 +292,22 @@ pub struct MergeStats {
 
     /// Number of errors encountered.
     pub errors: usize,
+
+    /// Graph/vector IDs written in this session — used for P-G5 saga compensation.
+    pub artifacts: MergeArtifacts,
+}
+
+/// IDs created during a single merge attempt (for rollback on failure).
+#[derive(Debug, Clone, Default)]
+pub struct MergeArtifacts {
+    /// Entity vector IDs upserted for newly created graph nodes.
+    pub entity_vector_ids: Vec<String>,
+    /// Relationship vector IDs upserted for newly created edges.
+    pub relationship_vector_ids: Vec<String>,
+    /// Graph node IDs created (not updated) in this session.
+    pub graph_nodes_created: Vec<String>,
+    /// Graph edge endpoints created (not updated) in this session.
+    pub graph_edges_created: Vec<(String, String)>,
 }
 
 impl MergeStats {
@@ -476,6 +504,7 @@ mod tests {
             relationships_created: 10,
             relationships_updated: 2,
             errors: 0,
+            artifacts: MergeArtifacts::default(),
         };
 
         assert_eq!(stats.total_entities(), 8);
@@ -644,7 +673,8 @@ mod tests {
             source_file_path: None,
         };
 
-        merger.merge_entity(entity).await.unwrap();
+        let mut artifacts = MergeArtifacts::default();
+        merger.merge_entity(entity, &mut artifacts).await.unwrap();
 
         let calls = spy.calls.lock().unwrap().clone();
         assert!(
