@@ -45,6 +45,33 @@ pub(super) fn get_pdf_storage(_state: &AppState) -> ApiResult<Arc<dyn PdfDocumen
     ))
 }
 
+/// Reprocess intent carried into a PDF processing task.
+///
+/// WHY: Grouping the three reprocessing knobs into a single struct keeps
+/// `create_pdf_processing_task` under the clippy argument limit (SRP/DRY) and
+/// gives Replace (`force_reindex`) and Reprocess a shared vocabulary for
+/// "reuse the existing document id" + "re-run conversion from scratch".
+#[derive(Debug, Clone, Default)]
+pub(super) struct PdfReprocessIntent {
+    /// When `Some`, the worker reuses this document id (in-place reprocessing)
+    /// instead of minting a new UUID. Used by Replace (`force_reindex`) and
+    /// Reprocess.
+    pub existing_document_id: Option<String>,
+    /// When `true`, the worker ignores any cached `markdown_content` and
+    /// re-runs PDF -> markdown conversion. Used by Replace and Reprocess
+    /// `mode=full`.
+    pub restart_from_scratch: bool,
+    /// Explicit reprocess mode echoed into the task payload for observability.
+    pub reprocess_mode: Option<edgequake_tasks::ReprocessMode>,
+}
+
+impl PdfReprocessIntent {
+    /// Fresh upload: mint a new document id, no restart, no mode.
+    pub(super) fn fresh() -> Self {
+        Self::default()
+    }
+}
+
 /// Create PDF processing background task.
 pub(super) async fn create_pdf_processing_task(
     state: &AppState,
@@ -52,6 +79,7 @@ pub(super) async fn create_pdf_processing_task(
     pdf_id: Uuid,
     options: &PdfUploadOptions,
     workspace: Option<&Workspace>,
+    intent: PdfReprocessIntent,
 ) -> ApiResult<String> {
     let workspace_id = context
         .workspace_id_uuid()
@@ -76,9 +104,10 @@ pub(super) async fn create_pdf_processing_task(
         } else {
             None
         },
-        existing_document_id: None, // Fresh upload — create new document
+        existing_document_id: intent.existing_document_id,
         pdf_parser_backend: options.resolved_backend(workspace),
-        restart_from_scratch: false,
+        restart_from_scratch: intent.restart_from_scratch,
+        reprocess_mode: intent.reprocess_mode,
     };
 
     let track_id = format!("pdf-{}", Uuid::new_v4());

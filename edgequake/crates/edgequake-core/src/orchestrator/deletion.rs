@@ -48,6 +48,65 @@ fn count_source_removals(
     (fully_removed, partially_updated)
 }
 
+/// SPEC-021 P-C3: refresh an entity vector's metadata after a partial document
+/// deletion so it no longer references the deleted document's chunk IDs.
+///
+/// WHY: when an entity is shared across documents and one is deleted, the AGE
+/// node's `source_ids` is updated (P-C2 path above), but the entity's vector
+/// embedding still carries `metadata.source_chunk_ids` pointing at the deleted
+/// chunks. `query_local` would then surface the entity with stale provenance.
+/// We re-upsert the vector with the same embedding but refreshed metadata.
+///
+/// Best-effort: a failure is logged, not propagated — the AGE node update is
+/// the authoritative change; the vector metadata is a denormalized cache.
+async fn refresh_entity_vector_metadata(
+    vector_storage: &dyn edgequake_storage::traits::VectorStorage,
+    entity_id: &str,
+    deleted_document_id: &str,
+    chunk_prefix: &str,
+    remaining_sources: &[String],
+) {
+    // Fetch the current vector + metadata so we preserve the embedding.
+    match vector_storage.get_by_ids(&[entity_id.to_string()]).await {
+        Ok(vectors) if !vectors.is_empty() => {
+            let (id, embedding) = &vectors[0];
+            // Re-read full metadata via get_by_id isn't available; reconstruct
+            // from the entity_id and remaining sources. We upsert with the
+            // refreshed source_chunk_ids so query_local provenance is correct.
+            let metadata = serde_json::json!({
+                "type": "entity",
+                "entity_name": entity_id.strip_prefix("entity:").unwrap_or(entity_id),
+                "source_chunk_ids": remaining_sources,
+                "document_id": remaining_sources.first().map(|s| {
+                    // best-effort doc id from first remaining source chunk
+                    s.split("-chunk-").next().unwrap_or(s)
+                }).unwrap_or(deleted_document_id),
+            });
+            if let Err(e) = vector_storage
+                .upsert(&[(id.clone(), embedding.clone(), metadata)])
+                .await
+            {
+                tracing::warn!(
+                    entity = %entity_id,
+                    error = %e,
+                    "P-C3: entity vector metadata refresh failed (best-effort)"
+                );
+            }
+        }
+        Ok(_) => {
+            // No vector for this entity — nothing to refresh.
+        }
+        Err(e) => {
+            tracing::warn!(
+                entity = %entity_id,
+                error = %e,
+                "P-C3: entity vector lookup failed (best-effort) — metadata not refreshed"
+            );
+        }
+    }
+    let _ = chunk_prefix; // reserved for future finer-grained filtering
+}
+
 impl EdgeQuake {
     pub async fn delete_document(&self, document_id: &str) -> Result<DocumentDeletionResult> {
         if !self.initialized {
@@ -90,6 +149,20 @@ impl EdgeQuake {
 
         result.chunks_deleted = chunk_ids.len();
 
+        // SPEC-021 P-C2: delete the chunk VECTORS too — the KV chunk keys and
+        // the vector IDs share the `{doc_id}-chunk-{n}` form, so the same IDs
+        // identify both. Without this, deletion left orphaned chunk embeddings
+        // retrievable via query_local (file 17 §4 gap 3).
+        if !chunk_ids.is_empty() {
+            if let Err(e) = vector_storage.delete(&chunk_ids).await {
+                tracing::warn!(
+                    document_id = %document_id,
+                    error = %e,
+                    "P-C2: chunk vector deletion failed (best-effort) — orphan vectors may remain"
+                );
+            }
+        }
+
         let source_prefixes = document_source_prefixes(document_id);
         let node_filter = NodeListFilter::default();
         let affected_nodes = graph_storage
@@ -128,7 +201,21 @@ impl EdgeQuake {
                 let mut updated_props = node.properties.clone();
                 updated_props.insert("source_ids".to_string(), serde_json::json!(remaining));
                 updated_props.remove("source_id");
-                graph_storage.upsert_node(&node.id, updated_props).await?;
+                graph_storage
+                    .upsert_node(&node.id, updated_props.clone())
+                    .await?;
+                // SPEC-021 P-C3: refresh the entity vector's metadata so it no
+                // longer references the deleted document's chunk IDs. Without
+                // this, query_local can still surface the entity via a vector
+                // whose metadata points at the now-deleted document.
+                refresh_entity_vector_metadata(
+                    vector_storage.as_ref(),
+                    &node.id,
+                    &document_id,
+                    &chunk_prefix,
+                    &remaining,
+                )
+                .await;
                 // SPEC-021 P3-02: best-effort relational sync — sources partially removed
                 self.relational_sink
                     .remove_entity_sources(

@@ -3,6 +3,7 @@
  */
 
 import { api } from "../client";
+import { buildQueryString, withQuery } from "../query-params";
 
 import type {
   EnhancedPipelineStatus,
@@ -21,21 +22,16 @@ export async function getTasksList(params?: {
   page?: number;
   page_size?: number;
 }): Promise<import("@/types").TaskListResponse> {
-  const searchParams = new URLSearchParams();
-  // CRITICAL: Include tenant_id and workspace_id for multi-tenancy isolation
-  if (params?.tenant_id) searchParams.set("tenant_id", params.tenant_id);
-  if (params?.workspace_id)
-    searchParams.set("workspace_id", params.workspace_id);
-  if (params?.status) searchParams.set("status", params.status);
-  if (params?.task_type) searchParams.set("task_type", params.task_type);
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size)
-    searchParams.set("page_size", String(params.page_size));
-
-  const query = searchParams.toString();
-  return api.get<import("@/types").TaskListResponse>(
-    `/tasks${query ? `?${query}` : ""}`,
-  );
+  // CRITICAL: tenant_id and workspace_id drive multi-tenancy isolation.
+  const query = buildQueryString({
+    tenant_id: params?.tenant_id,
+    workspace_id: params?.workspace_id,
+    status: params?.status,
+    task_type: params?.task_type,
+    page: params?.page,
+    page_size: params?.page_size,
+  });
+  return api.get<import("@/types").TaskListResponse>(withQuery("/tasks", query));
 }
 
 export async function getPipelineStatus(
@@ -43,8 +39,7 @@ export async function getPipelineStatus(
   workspace_id?: string,
 ): Promise<PipelineStatus> {
   try {
-    // Use the tasks list endpoint to derive pipeline status
-    // CRITICAL: Pass tenant_id and workspace_id for proper isolation
+    // Derive pipeline status from the tasks list endpoint (multi-tenant scoped).
     const result = await getTasksList({
       tenant_id,
       workspace_id,
@@ -61,8 +56,10 @@ export async function getPipelineStatus(
       statistics: result.statistics,
     };
   } catch (error) {
-    console.error("[getPipelineStatus] Error:", error);
-    // Return empty status if endpoint fails
+    // WHY console.warn (not console.error): Next.js dev promotes
+    // console.error to a full-screen overlay. A failing pipeline-status
+    // fetch must not crash the dashboard. Callers see an empty status.
+    console.warn("[getPipelineStatus] Error:", error);
     return {
       is_busy: false,
       running_tasks: 0,

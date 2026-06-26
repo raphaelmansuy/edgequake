@@ -348,7 +348,7 @@ pub struct EdgeQuake {
     pipeline: Option<Arc<Pipeline>>,
 
     /// Query engine.
-    query_engine: Option<Arc<edgequake_query::SOTAQueryEngine>>,
+    query_engine: Option<Arc<edgequake_query::QueryEngine>>,
 
     /// CQRS relational entity sink (SPEC-021 P3-01/P3-02).
     /// Defaults to NoopEntitySink — set via `with_relational_sink()` to enable dual-write.
@@ -505,16 +505,16 @@ impl EdgeQuake {
             .ok_or_else(|| Error::config("Vector storage not set"))?;
 
         // Initialize SOTA query engine from edgequake-query (SPEC-017 unified path)
-        use edgequake_query::SOTAQueryConfig;
-        let sota_engine = edgequake_query::SOTAQueryEngine::new(
-            SOTAQueryConfig::default(),
+        use edgequake_query::QueryEngineConfig;
+        let engine_impl = edgequake_query::QueryEngine::new(
+            QueryEngineConfig::default(),
             vector_storage.clone(),
             graph_storage.clone(),
             embedding.clone(),
             llm.clone(),
         );
 
-        self.query_engine = Some(Arc::new(sota_engine));
+        self.query_engine = Some(Arc::new(engine_impl));
 
         self.initialized = true;
         tracing::info!("EdgeQuake initialized successfully");

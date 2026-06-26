@@ -701,3 +701,113 @@ pub(super) async fn delete_document_for_reingestion(
 
     Ok(true)
 }
+
+/// Clear cached PDF markdown + KV content/chunks so a full re-conversion runs.
+///
+/// @implements PDF re-conversion on Replace / Reprocess (Full mode).
+///
+/// WHY (DRY): Both the duplicate-dialog Replace path (`force_reindex`) and the
+/// Reprocess handler (`mode=full`) need to invalidate the cached PDF->markdown
+/// conversion before queueing a task with `restart_from_scratch=true`. Without
+/// this, the `pdf_processing` resume shortcut reuses `pdf_documents.markdown_content`
+/// and the PDF is never re-converted — exactly the "no re-conversion" bug.
+///
+/// This helper is best-effort for non-fatal stores: KV chunk/content deletion
+/// failures are logged but do not abort, because the worker's own
+/// `restart_from_scratch=true` path also clears these keys. The PDF markdown
+/// clear is the authoritative signal that flips the resume shortcut off.
+///
+/// # Arguments
+///
+/// * `state` - Application state
+/// * `document_id` - KV document ID whose content/chunks should be cleared
+/// * `pdf_id` - PDF row whose `markdown_content` should be NULLed
+///
+/// # Returns
+///
+/// * `Ok(())` - Cleanup attempted (failures logged as warnings)
+/// * `Err(ApiError)` - Only if KV key listing itself fails
+pub(crate) async fn clear_document_markdown_and_content(
+    state: &AppState,
+    document_id: &str,
+    pdf_id: &Uuid,
+) -> Result<(), ApiError> {
+    // 1. Clear cached markdown in the PDF row so the resume shortcut cannot
+    //    reuse a stale conversion. This is the authoritative re-conversion
+    //    signal for the worker.
+    #[cfg(feature = "postgres")]
+    if let Some(ref pdf_storage) = state.storage.pdf_storage {
+        if let Err(e) = pdf_storage.clear_markdown(pdf_id).await {
+            tracing::warn!(
+                pdf_id = %pdf_id,
+                document_id = %document_id,
+                error = %e,
+                "Failed to clear cached PDF markdown before re-conversion"
+            );
+        }
+    }
+    let _ = pdf_id; // unused when postgres feature is off
+
+    // 2. Best-effort: clear KV content + chunk keys so stale text is not
+    //    served from KV during the re-conversion window.
+    let keys = state.storage.kv_storage.keys().await?;
+    let prefix = format!("{}-", document_id);
+    let keys_to_delete: Vec<String> = keys
+        .iter()
+        .filter(|k| {
+            k.starts_with(&prefix)
+                && (k.ends_with("-content") || k.starts_with(&format!("{}-chunk-", document_id)))
+        })
+        .cloned()
+        .collect();
+
+    if !keys_to_delete.is_empty() {
+        if let Err(e) = state.storage.kv_storage.delete(&keys_to_delete).await {
+            tracing::warn!(
+                document_id = %document_id,
+                error = %e,
+                "Failed to clear KV content/chunks before re-conversion"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Decide whether a PDF must be fully re-converted because there is no usable
+/// cached markdown to reuse.
+///
+/// WHY (DRY + SOLID): The Reprocess handler exposes two intents — `Full`
+/// (re-convert from PDF) and `EntitiesOnly` (reuse cached markdown). When the
+/// user picks `EntitiesOnly` but the cached markdown is missing or empty,
+/// there is nothing to reuse and entity extraction would run over an empty
+/// document. This pure predicate centralizes that "empty markdown" check so
+/// both the KV-PDF branch and the failed-PDF branch of the reprocess handler
+/// apply identical fallback semantics and stay testable without a live store.
+///
+/// Returns `true` when `markdown` is `None` or trims to an empty string.
+pub(crate) fn pdf_needs_full_reconversion(markdown: Option<&str>) -> bool {
+    markdown.map_or(true, |md| md.trim().is_empty())
+}
+
+#[cfg(test)]
+mod reconvert_tests {
+    use super::pdf_needs_full_reconversion;
+
+    #[test]
+    fn none_markdown_requires_full() {
+        assert!(pdf_needs_full_reconversion(None));
+    }
+
+    #[test]
+    fn empty_markdown_requires_full() {
+        assert!(pdf_needs_full_reconversion(Some("")));
+        assert!(pdf_needs_full_reconversion(Some("   \n\t ")));
+    }
+
+    #[test]
+    fn non_empty_markdown_reuses_entities() {
+        assert!(!pdf_needs_full_reconversion(Some("# Hello\nworld")));
+        assert!(!pdf_needs_full_reconversion(Some("x")));
+    }
+}

@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module HomePage
  * @description Dashboard home page with stats, recent activity, and quick actions.
@@ -7,10 +9,13 @@
  * @implements FEAT0902 - Quick action shortcuts
  *
  * @enforces BR0850 - Stats refresh on tenant/workspace change
+ * @enforces SPEC-021 stabilization - ApiErrorBoundary isolates API-driven
+ *   render failures so a not-yet-ready backend cannot crash the page.
  */
-'use client';
 
 import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
+import { ApiErrorBoundary } from '@/components/shared/api-error-boundary';
+import { BackendStatusBanner } from '@/components/shared/backend-status-banner';
 import { DynamicBreadcrumb } from '@/components/layout/dynamic-breadcrumb';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
@@ -24,13 +29,13 @@ import { useTranslation } from 'react-i18next';
 
 export default function Home() {
   const { t } = useTranslation();
-  
+
   // Enable global keyboard shortcuts
   useKeyboardShortcuts();
 
   // Get tenant context for query keys
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
-  
+
   // Check if context is ready for API calls
   const hasContext = !!selectedTenantId && !!selectedWorkspaceId;
 
@@ -69,69 +74,72 @@ export default function Home() {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
+        <BackendStatusBanner />
         <div className="border-b px-6 py-2 bg-muted/30">
           <DynamicBreadcrumb />
         </div>
         <main id="main-content" className="flex-1 overflow-auto" tabIndex={-1}>
-          <div className="p-6 space-y-6">
-            {/* Header */}
-            <div>
-              <h1 className="text-2xl font-bold">
-                {t('dashboard.title', 'Dashboard')}
-              </h1>
-              <p className="text-muted-foreground">
-                {t('dashboard.welcome', 'Welcome to EdgeQuake - Your Knowledge Graph RAG Platform')}
-              </p>
-            </div>
+          <ApiErrorBoundary>
+            <div className="p-6 space-y-6">
+              {/* Header */}
+              <div>
+                <h1 className="text-2xl font-bold">
+                  {t('dashboard.title', 'Dashboard')}
+                </h1>
+                <p className="text-muted-foreground">
+                  {t('dashboard.welcome', 'Welcome to EdgeQuake - Your Knowledge Graph RAG Platform')}
+                </p>
+              </div>
 
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <StatsCard
-                title={t('dashboard.stats.documents', 'Documents')}
-                value={documentCount}
-                description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
-                icon={FileText}
-                isLoading={isLoadingStats || isLoadingDocs}
-              />
-              <StatsCard
-                title={t('dashboard.stats.entities', 'Entities')}
-                value={entityCount}
-                description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
-                icon={Users}
-                isLoading={isLoadingStats}
-              />
-              <StatsCard
-                title={t('dashboard.stats.relationships', 'Relationships')}
-                value={relationshipCount}
-                description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
-                icon={GitMerge}
-                isLoading={isLoadingStats}
-              />
-              <StatsCard
-                title={t('dashboard.stats.entityTypes', 'Entity Types')}
-                value={entityTypes}
-                description={t('dashboard.stats.entityTypesDesc', 'Unique categories')}
-                icon={Network}
-                isLoading={isLoadingStats}
-              />
-            </div>
-
-            {/* Quick Actions */}
-            <QuickActions />
-
-            {/* Recent Activity and System Status */}
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <RecentActivity 
-                  documents={recentDocuments} 
-                  isLoading={isLoadingDocs}
+              {/* Stats Cards */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <StatsCard
+                  title={t('dashboard.stats.documents', 'Documents')}
+                  value={documentCount}
+                  description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
+                  icon={FileText}
+                  isLoading={isLoadingStats || isLoadingDocs}
+                />
+                <StatsCard
+                  title={t('dashboard.stats.entities', 'Entities')}
+                  value={entityCount}
+                  description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
+                  icon={Users}
+                  isLoading={isLoadingStats}
+                />
+                <StatsCard
+                  title={t('dashboard.stats.relationships', 'Relationships')}
+                  value={relationshipCount}
+                  description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
+                  icon={GitMerge}
+                  isLoading={isLoadingStats}
+                />
+                <StatsCard
+                  title={t('dashboard.stats.entityTypes', 'Entity Types')}
+                  value={entityTypes}
+                  description={t('dashboard.stats.entityTypesDesc', 'Unique categories')}
+                  icon={Network}
+                  isLoading={isLoadingStats}
                 />
               </div>
-              <div>
-                <SystemStatus />
+
+              {/* Quick Actions */}
+              <QuickActions />
+
+              {/* Recent Activity and System Status */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <RecentActivity
+                    documents={recentDocuments}
+                    isLoading={isLoadingDocs}
+                  />
+                </div>
+                <div>
+                  <SystemStatus />
+                </div>
               </div>
             </div>
-          </div>
+          </ApiErrorBoundary>
         </main>
       </div>
     </div>

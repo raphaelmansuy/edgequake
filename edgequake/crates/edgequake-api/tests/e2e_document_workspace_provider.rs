@@ -326,21 +326,29 @@ async fn test_document_http_upload_with_workspace() {
         .await
         .unwrap();
 
-    // Document upload should succeed with 201 Created OR fail with 500 if
-    // the workspace-specific provider cannot be created (e.g., mock provider
-    // not registered in production ProviderFactory)
-    // Both outcomes are valid - the key is that the workspace ID was processed
+    // P-G2b: uploads always enqueue a background task and return 202 Accepted
+    // (+ task_id + status "pending", no counts). The old 201 Created sync path
+    // is removed. A 500 is still tolerated if the workspace-specific provider
+    // cannot be created (e.g., mock provider not registered in production
+    // ProviderFactory) — the key is that the workspace ID was processed.
+    let status = response.status();
     assert!(
-        response.status() == StatusCode::CREATED
-            || response.status() == StatusCode::INTERNAL_SERVER_ERROR,
-        "Expected CREATED or INTERNAL_SERVER_ERROR, got {}",
-        response.status()
+        status == StatusCode::ACCEPTED
+            || status == StatusCode::CREATED
+            || status == StatusCode::INTERNAL_SERVER_ERROR,
+        "Expected ACCEPTED/CREATED or INTERNAL_SERVER_ERROR, got {}",
+        status
     );
 
-    // If successful, verify document_id is returned
-    if response.status() == StatusCode::CREATED {
+    // If successful, verify document_id is returned (and, on the async path,
+    // a task_id). Counts are intentionally NOT asserted (now null/absent).
+    if status == StatusCode::ACCEPTED || status == StatusCode::CREATED {
         let body = extract_json(response).await;
-        assert!(body.get("document_id").is_some());
+        assert!(body.get("document_id").is_some(), "missing document_id: {body}");
+        assert!(
+            body.get("task_id").is_some() || status == StatusCode::CREATED,
+            "async upload must return task_id: {body}"
+        );
     }
 }
 
@@ -365,8 +373,19 @@ async fn test_document_http_upload_without_workspace() {
         .await
         .unwrap();
 
-    // Should work with default provider - returns 201 Created
-    assert_eq!(response.status(), StatusCode::CREATED);
+    // P-G2b: uploads always enqueue a background task and return 202 Accepted
+    // (+ task_id + status "pending"). The old 201 Created sync path is removed.
+    let status = response.status();
+    assert!(
+        status == StatusCode::ACCEPTED || status == StatusCode::CREATED,
+        "Expected ACCEPTED (or legacy CREATED), got {}",
+        status
+    );
+    let body = extract_json(response).await;
+    assert!(body.get("document_id").is_some(), "missing document_id: {body}");
+    if status == StatusCode::ACCEPTED {
+        assert!(body.get("task_id").is_some(), "async upload must return task_id: {body}");
+    }
 }
 
 /// Test LM Studio workspace configuration

@@ -129,8 +129,10 @@ export interface DocumentTableRowProps {
   onViewInGraph: (doc: Document) => void;
   /** Called when View PDF action is triggered */
   onViewPdf: (doc: Document) => void;
-  /** Called when Retry action is triggered */
+  /** Called when Retry action is triggered (failed-doc quick retry, no dialog) */
   onRetry: (docId: string) => void;
+  /** Called when Reprocess action is triggered (opens the choice dialog) */
+  onReprocess: (docId: string) => void;
   /** Called when Cancel action is triggered */
   onCancel: (trackId: string) => void;
   /** Called when Delete action is triggered */
@@ -158,6 +160,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onReprocess,
   onCancel,
   onDelete,
   isRetrying,
@@ -297,7 +300,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
             doc={doc}
             onViewPdf={onViewPdf}
             onCancel={onCancel}
-            onReprocess={onRetry}
+            onReprocess={onReprocess}
             onDelete={onDelete}
             isCancelling={isCancelling}
           />

@@ -36,7 +36,7 @@ use edgequake_core::{
 };
 use edgequake_llm::MockProvider;
 use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
+use edgequake_query::{QueryEngineConfig, QueryEngine};
 use edgequake_storage::{
     GraphStorage, KVStorage, MemoryWorkspaceVectorRegistry, PgVectorStorage,
     PostgresAGEGraphStorage, PostgresConfig, PostgresKVStorage, VectorStorage,
@@ -157,18 +157,9 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
     let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
     let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
-    // Query engines
-    let query_config = QueryEngineConfig::default();
-    let query_engine = Arc::new(QueryEngine::new(
-        query_config,
-        Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-        Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-        Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-        Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-    ));
-
-    let sota_engine = Arc::new(SOTAQueryEngine::with_mock_keywords(
-        SOTAQueryConfig::default(),
+    // Query engine (SOTA — the single production engine; legacy engine deleted P-G6a)
+    let engine_impl = Arc::new(QueryEngine::with_mock_keywords(
+        QueryEngineConfig::default(),
         Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
         Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
         Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -198,8 +189,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
             vision_llm_provider: None,
             embedding_provider: Arc::clone(&mock_provider)
                 as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            query_engine,
-            sota_engine,
+            engine_impl,
             pipeline,
             models_config: Arc::new(ModelsConfig::builtin_defaults()),
         },
@@ -218,6 +208,10 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
         },
         audit_logger: None,
         migration_bootstrap: None,
+        resource_guard: edgequake_core::ResourceGuard::default(),
+        graph_materialize: std::sync::Arc::new(edgequake_core::GraphMaterializationSemaphore::new(
+            4,
+        )),
     }
 }
 

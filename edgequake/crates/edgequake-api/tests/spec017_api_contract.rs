@@ -165,7 +165,7 @@ fn spec017_no_duplicate_pipeline_builder_bodies() {
 fn spec017_shared_query_bootstrap() {
     let bootstrap = read_crate_src("src/state/query_bootstrap.rs");
     assert!(
-        bootstrap.contains("build_production_query_engines"),
+        bootstrap.contains("build_production_query_engine"),
         "shared query bootstrap required (API-DRY-003)"
     );
     assert!(
@@ -176,7 +176,7 @@ fn spec017_shared_query_bootstrap() {
     for rel in ["src/state/memory.rs", "src/state/postgres.rs"] {
         let src = read_crate_src(rel);
         assert!(
-            src.contains("query_bootstrap::build_production_query_engines"),
+            src.contains("query_bootstrap::build_production_query_engine"),
             "{rel} must use shared query bootstrap"
         );
         assert!(

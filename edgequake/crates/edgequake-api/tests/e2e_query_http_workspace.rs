@@ -249,10 +249,13 @@ async fn test_query_http_workspace_provider_isolation() {
         )
         .await
         .unwrap();
-    // OpenAI-style config may fail in test environments without credentials.
+    // OpenAI-style config may fail in test environments without (valid)
+    // credentials. P-G6c maps upstream LLM/embedding failures to 502 Bad Gateway,
+    // so accept OK, 500, or 502 as "real provider failed or succeeded in test env".
     assert!(
         response_a.status() == StatusCode::OK
             || response_a.status() == StatusCode::INTERNAL_SERVER_ERROR
+            || response_a.status() == StatusCode::BAD_GATEWAY
     );
 
     // Query workspace B (need fresh router since oneshot consumes it)
@@ -513,9 +516,13 @@ async fn test_query_http_workspace_openai_config() {
         .await
         .unwrap();
 
+    // OpenAI config may fail in test environments without valid credentials.
+    // P-G6c maps upstream LLM/embedding failures to 502 Bad Gateway, so accept
+    // OK, 500, or 502.
     assert!(
         response.status() == StatusCode::OK
             || response.status() == StatusCode::INTERNAL_SERVER_ERROR
+            || response.status() == StatusCode::BAD_GATEWAY
     );
 
     if response.status() == StatusCode::OK {

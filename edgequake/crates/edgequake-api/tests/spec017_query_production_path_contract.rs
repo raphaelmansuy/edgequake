@@ -12,11 +12,11 @@ fn read_crate_src(rel: &str) -> String {
 }
 
 #[test]
-fn spec017_query_execution_service_uses_sota_engine_only() {
+fn spec017_query_execution_service_uses_engine_impl_only() {
     let src = read_crate_src("src/services/query_execution.rs");
     assert!(
-        src.contains("sota_engine"),
-        "execute_sota_query must use sota_engine"
+        src.contains("engine_impl"),
+        "execute_sota_query must use engine_impl"
     );
     assert!(
         !src.contains("query_engine"),
@@ -25,13 +25,13 @@ fn spec017_query_execution_service_uses_sota_engine_only() {
 }
 
 #[test]
-fn spec017_ollama_handlers_use_sota_engine_only() {
+fn spec017_ollama_handlers_use_engine_impl_only() {
     for rel in [
         "src/handlers/ollama/chat.rs",
         "src/handlers/ollama/generate.rs",
     ] {
         let src = read_crate_src(rel);
-        assert!(src.contains("sota_engine"), "{rel} must use sota_engine");
+        assert!(src.contains("engine_impl"), "{rel} must use engine_impl");
         assert!(
             !src.contains("query_engine"),
             "{rel} must not reference legacy query_engine"

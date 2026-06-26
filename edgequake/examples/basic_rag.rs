@@ -167,7 +167,7 @@ async fn main() -> anyhow::Result<()> {
     println!("\nNext steps:");
     println!("  1. Add an LLM provider for intelligent extraction");
     println!("  2. Add an embedding provider for vector search");
-    println!("  3. Use the full QueryEngine for RAG queries");
+    println!("  3. Use the full query engine for RAG queries");
 
     Ok(())
 }

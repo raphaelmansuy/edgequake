@@ -12,7 +12,8 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::services::{
-    cascade_remove_document_sources, record_compliance_event, ContentHasher, DocumentSourceScope,
+    cascade_remove_document_sources, record_compliance_event, CascadeStats, ContentHasher,
+    DocumentSourceScope,
 };
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
@@ -260,13 +261,31 @@ pub async fn delete_document(
     // SPEC-006 P1: bounded document-scoped cascade (no get_all_nodes/edges)
     let scope =
         DocumentSourceScope::with_key_prefix(document_id.clone(), actual_key_prefix.clone());
-    let cascade_stats = cascade_remove_document_sources(
+    // WHY non-fatal: the graph cascade cleans up derivative entities/edges. A
+    // graph hiccup (AGE Cypher error, transient connection drop, lazy-label
+    // table not yet created) must NOT block the user from deleting their
+    // document or turn a successful deletion into a 500. KV/vector/relational
+    // cleanup below is the authoritative data removal; graph rows are best-effort
+    // and can be reconciled later. This fixes the "delete returns 500 even though
+    // the document is gone" symptom seen on large ingestions.
+    let cascade_stats = match cascade_remove_document_sources(
         &state.storage.graph_storage,
         Some(&workspace_vector_storage),
         Some(&tenant_ctx),
         &scope,
     )
-    .await?;
+    .await
+    {
+        Ok(stats) => stats,
+        Err(e) => {
+            tracing::error!(
+                document_id = %document_id,
+                error = %e,
+                "Graph cascade delete failed (non-fatal) — proceeding with KV/vector/relational cleanup"
+            );
+            CascadeStats::default()
+        }
+    };
     let entities_removed = cascade_stats.entities_removed;
     let entities_updated = cascade_stats.entities_updated;
     let relationships_removed = cascade_stats.relationships_removed;

@@ -36,22 +36,27 @@ const WORKSPACE_ID: &str = "cccccccc-0018-0018-0018-cccccccccccc";
 #[tokio::test]
 async fn test_basic_query_response_structure() {
     let result = with_timeout(Duration::from_secs(30), async {
-        let app = create_test_app();
+        // P-G2b: uploads always enqueue a background task (202 + pending). Use a
+        // worker-backed app and wait for ingestion to complete so the query has
+        // something to retrieve.
+        let workers = common::create_test_app_with_workers().await;
+        let app = workers.app();
 
-        // Upload a document first so there's something to query
-        let upload = json!({
-            "content": "Dr. Marie Curie conducted pioneering research on radioactivity. She discovered polonium and radium.",
-            "title": "Marie Curie"
-        });
-        let (status, _) = post_json(&app, "/api/v1/documents", &upload).await;
-        assert_eq!(status, StatusCode::CREATED);
+        // Upload + wait until the document reaches a terminal ingested state.
+        common::upload_and_wait(
+            app,
+            "Marie Curie",
+            "Dr. Marie Curie conducted pioneering research on radioactivity. She discovered polonium and radium.",
+            Duration::from_secs(30),
+        )
+        .await;
 
         // Execute query
         let query = json!({
             "query": "What did Marie Curie discover?",
             "mode": "naive"
         });
-        let (status, body) = post_json(&app, "/api/v1/query", &query).await;
+        let (status, body) = post_json(app, "/api/v1/query", &query).await;
         assert_eq!(status, StatusCode::OK, "Query should return 200: {}", body);
 
         // WHY: QueryResponse has answer, mode, sources, stats fields.

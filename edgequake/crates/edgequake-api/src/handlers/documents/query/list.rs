@@ -55,6 +55,7 @@ pub async fn list_documents(
                 partial_failure: 0,
                 failed: 0,
                 cancelled: 0,
+                unknown: 0,
             },
         }));
     }
@@ -397,6 +398,40 @@ pub async fn list_documents(
             .cmp(a.created_at.as_deref().unwrap_or(""))
     });
 
+    // SPEC-021 P5-01: Merge relational documents missing from KV metadata.
+    // WHY: the relational `documents` table is the durable source of truth for
+    // uploads; KV `*-metadata` drifts (legacy workspaces, missing writes). When
+    // KV returns nothing for a workspace, this merge is the ONLY source of the
+    // list. A silently-swallowed error here produces the "0 documents" UI state
+    // while the graph (populated from a separate write path) shows entities —
+    // so we log at ERROR and track a warning string to surface, not just warn.
+    #[cfg(feature = "postgres")]
+    if state.pg_pool.is_some() {
+        match crate::document_read_model::list_relational_document_summaries(&state, &tenant_ctx)
+            .await
+        {
+            Ok(relational) if !relational.is_empty() => {
+                documents =
+                    crate::document_read_model::merge_document_summaries(documents, relational);
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    tenant = ?tenant_ctx.tenant_id,
+                    workspace = ?tenant_ctx.workspace_id,
+                    "Relational document backfill failed — list may show 0 docs erroneously"
+                );
+            }
+        }
+    }
+
+    // SPEC-021 P-A3: reconcile per-doc entity_count with the authoritative
+    // AGE graph for any row reporting 0 entities despite having chunks. This
+    // is the read-side safety net that fixes the "Completed / 0 entities"
+    // screenshot even before the P-A1 write-path refresh converges.
+    crate::document_read_model::reconcile_entity_counts_with_graph(&state, &mut documents).await;
+
     // SPEC-005: Apply optional date range and title pattern filters
     if params.date_from.is_some() || params.date_to.is_some() || params.document_pattern.is_some() {
         let patterns: Vec<String> = params
@@ -450,12 +485,11 @@ pub async fn list_documents(
             .iter()
             .filter(|d| d.status.as_deref() == Some("processing"))
             .count(),
+        // SPEC-021 P-B2: only count explicit completed/indexed status, NOT NULL.
         completed: documents
             .iter()
             .filter(|d| {
-                d.status.is_none()
-                    || d.status.as_deref() == Some("completed")
-                    || d.status.as_deref() == Some("indexed")
+                d.status.as_deref() == Some("completed") || d.status.as_deref() == Some("indexed")
             })
             .count(),
         // FIX-5: Track partial_failure status
@@ -470,6 +504,25 @@ pub async fn list_documents(
         cancelled: documents
             .iter()
             .filter(|d| d.status.as_deref() == Some("cancelled"))
+            .count(),
+        // SPEC-021 P-B2: NULL/unknown status is its own bucket, not completed.
+        unknown: documents
+            .iter()
+            .filter(|d| {
+                d.status.is_none()
+                    || !matches!(
+                        d.status.as_deref(),
+                        Some(
+                            "pending"
+                                | "processing"
+                                | "completed"
+                                | "indexed"
+                                | "partial_failure"
+                                | "failed"
+                                | "cancelled"
+                        )
+                    )
+            })
             .count(),
     };
 

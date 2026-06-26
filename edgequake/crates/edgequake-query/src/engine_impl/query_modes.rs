@@ -8,9 +8,9 @@ use crate::context::QueryContext;
 use crate::error::Result;
 use crate::keywords::ExtractedKeywords;
 
-use super::{QueryEmbeddings, SOTAQueryEngine};
+use super::{QueryEmbeddings, QueryEngine};
 
-impl SOTAQueryEngine {
+impl QueryEngine {
     pub(super) async fn query_local(
         &self,
         keywords: &ExtractedKeywords,
@@ -99,19 +99,19 @@ impl SOTAQueryEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sota_engine::{SOTAQueryConfig, SOTAQueryEngine};
+    use crate::engine_impl::{QueryEngineConfig, QueryEngine};
     use edgequake_llm::MockProvider;
     use edgequake_storage::traits::VectorStorage;
     use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};
     use std::sync::Arc;
 
-    fn make_engine(vector_storage: Arc<MemoryVectorStorage>) -> SOTAQueryEngine {
+    fn make_engine(vector_storage: Arc<MemoryVectorStorage>) -> QueryEngine {
         let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
         let embedding_provider: Arc<dyn crate::EmbeddingProvider> =
             Arc::new(MockProvider::default());
         let llm_provider: Arc<dyn crate::LLMProvider> = Arc::new(MockProvider::default());
-        SOTAQueryEngine::new(
-            SOTAQueryConfig::default(),
+        QueryEngine::new(
+            QueryEngineConfig::default(),
             vector_storage as Arc<dyn VectorStorage>,
             graph_storage,
             embedding_provider,

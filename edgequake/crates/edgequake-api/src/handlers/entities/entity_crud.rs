@@ -18,7 +18,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
-use super::{node_to_entity_response, normalize_entity_name};
+use super::{node_to_entity_response, normalize_entity_name_for_graph};
 pub use crate::handlers::entities_types::{
     ChangesSummary, CreateEntityRequest, CreateEntityResponse, DeleteEntityQuery,
     DeleteEntityResponse, EntityStatistics, GetEntityResponse, ListEntitiesQuery,
@@ -114,7 +114,7 @@ pub async fn create_entity(
     tenant_ctx: TenantContext,
     Json(req): Json<CreateEntityRequest>,
 ) -> ApiResult<Json<CreateEntityResponse>> {
-    let entity_name = normalize_entity_name(&req.entity_name);
+    let entity_name = normalize_entity_name_for_graph(&req.entity_name);
 
     // Check if entity already exists
     if state
@@ -188,7 +188,7 @@ pub async fn get_entity(
     State(state): State<AppState>,
     Path(entity_name): Path<String>,
 ) -> ApiResult<Json<GetEntityResponse>> {
-    let entity_name = normalize_entity_name(&entity_name);
+    let entity_name = normalize_entity_name_for_graph(&entity_name);
 
     // Get entity node
     let node = state
@@ -281,7 +281,7 @@ pub async fn update_entity(
     Path(entity_name): Path<String>,
     Json(req): Json<UpdateEntityRequest>,
 ) -> ApiResult<Json<UpdateEntityResponse>> {
-    let entity_name = normalize_entity_name(&entity_name);
+    let entity_name = normalize_entity_name_for_graph(&entity_name);
 
     // Get existing entity
     let mut node = state
@@ -369,7 +369,7 @@ pub async fn delete_entity(
     Path(entity_name): Path<String>,
     Query(params): Query<DeleteEntityQuery>,
 ) -> ApiResult<Json<DeleteEntityResponse>> {
-    let entity_name = normalize_entity_name(&entity_name);
+    let entity_name = normalize_entity_name_for_graph(&entity_name);
 
     // Check confirmation
     if !params.confirm {

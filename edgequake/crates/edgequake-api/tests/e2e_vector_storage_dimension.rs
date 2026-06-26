@@ -346,9 +346,10 @@ async fn test_workspace_creation_without_dimension() {
         .await
         .expect("Should create workspace");
 
-    // Should default to 768
+    // "mock-embed" is not a known model in `known_embedding_dimension`, so the
+    // workspace falls back to DEFAULT_EMBEDDING_DIMENSION (1536).
     assert_eq!(
-        workspace.embedding_dimension, 768,
-        "Default dimension should be 768"
+        workspace.embedding_dimension, 1536,
+        "Default dimension should be 1536 (DEFAULT_EMBEDDING_DIMENSION)"
     );
 }

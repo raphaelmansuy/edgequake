@@ -342,15 +342,17 @@ async fn test_processing_stats_provider_fields() {
     // Check result (may succeed or fail depending on mock response)
     match result.await {
         Ok(pr) => {
-            // Verify provider stats
+            // Verify provider stats. NOTE: the edgequake-llm MockProvider reports
+            // hardcoded model names ("mock-model" / "mock-embedding") regardless of
+            // the model name passed to ProviderFactory::create_*_provider — the
+            // model arg only selects the provider kind. We assert the actual
+            // reported values here.
             assert_eq!(pr.stats.llm_provider.as_deref(), Some("mock"));
-            assert_eq!(pr.stats.llm_model.as_deref(), Some("test-llm-model"));
+            assert_eq!(pr.stats.llm_model.as_deref(), Some("mock-model"));
             assert_eq!(pr.stats.embedding_provider.as_deref(), Some("mock"));
-            assert_eq!(
-                pr.stats.embedding_model.as_deref(),
-                Some("test-embed-model")
-            );
-            assert_eq!(pr.stats.embedding_dimensions, Some(512));
+            assert_eq!(pr.stats.embedding_model.as_deref(), Some("mock-embedding"));
+            // Embedding dimensions: the mock reports a hardcoded 1536.
+            assert_eq!(pr.stats.embedding_dimensions, Some(1536));
         }
         Err(_) => {
             // Mock extraction may fail - that's expected

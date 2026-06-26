@@ -409,11 +409,74 @@ async fn process_pdf_upload_parts(
                 "OODA-08: Force re-indexing requested for existing PDF: id={}, document_id={:?}",
                 existing.pdf_id, existing.document_id
             );
-            if let Some(document_id) = existing.document_id {
-                if let Err(e) = clear_document_derived_data(state, &document_id.to_string()).await {
+            // Replace = TRUE re-conversion: reuse the existing document id so the
+            // old document is updated in-place (no orphan), and force
+            // restart_from_scratch so the PDF -> markdown conversion re-runs.
+            let existing_document_id = existing.document_id.map(|id| id.to_string());
+            if let Some(ref document_id) = existing_document_id {
+                if let Err(e) = clear_document_derived_data(state, document_id).await {
                     warn!(
                         "Failed to clear document data during re-index: {} (continuing anyway)",
                         e
+                    );
+                }
+                // Clear cached markdown + KV content/chunks so the resume shortcut
+                // cannot reuse the stale conversion. This is the authoritative
+                // re-conversion signal (DRY with reprocess mode=full).
+                if let Err(e) =
+                    crate::handlers::documents::storage_helpers::clear_document_markdown_and_content(
+                        state,
+                        document_id,
+                        &existing.pdf_id,
+                    )
+                    .await
+                {
+                    warn!(
+                        "Failed to clear cached markdown during re-index: {} (continuing anyway)",
+                        e
+                    );
+                }
+
+                // Reset the existing document's KV metadata so the UI shows it
+                // returning to processing on the SAME document id (no new UUID).
+                let metadata_key = format!("{}-metadata", document_id);
+                if let Ok(Some(mut metadata)) =
+                    state.storage.kv_storage.get_by_id(&metadata_key).await
+                {
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("status".to_string(), serde_json::json!("processing"));
+                        obj.insert("current_stage".to_string(), serde_json::json!("converting"));
+                        obj.insert("stage_progress".to_string(), serde_json::json!(0.0));
+                        obj.insert("error_message".to_string(), serde_json::Value::Null);
+                        if let Some(track) = options.track_id.as_ref() {
+                            obj.insert("track_id".to_string(), serde_json::json!(track));
+                        }
+                        let _ = state
+                            .storage
+                            .kv_storage
+                            .upsert(&[(metadata_key.clone(), metadata)])
+                            .await;
+                    }
+                }
+
+                // Cancel any in-flight task for this document before requeueing.
+                let ws_for_tasks = context
+                    .workspace_id
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string());
+                let purged =
+                    crate::handlers::documents::storage_helpers::purge_persisted_tasks_for_document(
+                        state,
+                        document_id,
+                        None,
+                        Some(&ws_for_tasks),
+                    )
+                    .await;
+                if purged > 0 {
+                    info!(
+                        document_id = %document_id,
+                        tasks_purged = purged,
+                        "Cancelled in-flight tasks before force re-index"
                     );
                 }
             }
@@ -429,6 +492,11 @@ async fn process_pdf_upload_parts(
                 existing.pdf_id,
                 &options,
                 workspace.as_ref(),
+                super::helpers::PdfReprocessIntent {
+                    existing_document_id: existing_document_id.clone(),
+                    restart_from_scratch: true, // re-run PDF -> markdown conversion
+                    reprocess_mode: Some(edgequake_tasks::ReprocessMode::Full),
+                },
             )
             .await?;
 
@@ -445,11 +513,11 @@ async fn process_pdf_upload_parts(
             let estimated_time = estimate_processing_time(&[], existing.page_count);
             return Ok(PdfUploadResponse {
                 pdf_id: existing.pdf_id.to_string(),
-                document_id: None,
+                document_id: existing_document_id,
                 status: "reindexing".to_string(),
                 task_id: task_id.to_string(),
                 track_id: options.track_id.clone(),
-                message: "Re-indexing document. Previous graph/vector data cleared.".to_string(),
+                message: "Re-indexing document. PDF will be re-converted to markdown and graph/vector data cleared.".to_string(),
                 estimated_time_seconds: estimated_time,
                 metadata: PdfMetadata {
                     filename: existing.filename,
@@ -555,8 +623,15 @@ async fn process_pdf_upload_parts(
         }
     };
 
-    let task_id =
-        create_pdf_processing_task(state, context, pdf_id, &options, workspace.as_ref()).await?;
+    let task_id = create_pdf_processing_task(
+        state,
+        context,
+        pdf_id,
+        &options,
+        workspace.as_ref(),
+        super::helpers::PdfReprocessIntent::fresh(), // fresh upload — mint a new document id
+    )
+    .await?;
     let effective_track_id = options.track_id.clone().unwrap_or_else(|| task_id.clone());
     state
         .tasks

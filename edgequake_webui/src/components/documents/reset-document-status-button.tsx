@@ -107,12 +107,15 @@ export function ResetDocumentStatusButton({
   // WHY: reprocessDocument() sends { document_id } to the backend, which expects the
   // document's `id` field (KV metadata key) — NOT the track_id.  Passing track_id
   // caused the backend to silently find zero matching documents to reprocess.
+  // WHY mode=full: this button is labelled "Full Reprocess", so it must request a
+  // true PDF -> markdown re-conversion (not the silent entity-only default that the
+  // resume shortcut would otherwise serve).
   const reprocessMutation = useMutation({
     mutationFn: () => {
       if (!document.id) {
         throw new Error('No document id available for reprocessing');
       }
-      return reprocessDocument(document.id);
+      return reprocessDocument(document.id, true, 'full');
     },
     onSuccess: () => {
       toast.success(

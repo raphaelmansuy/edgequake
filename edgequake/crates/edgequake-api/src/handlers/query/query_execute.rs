@@ -226,34 +226,33 @@ pub async fn execute_query(
     // Convert sources from context
     let mut sources = Vec::new();
 
-    // Apply simple relevance-based reranking if enabled
-    // In a production environment, this would call an external reranker service (e.g., Cohere)
-    let reranked = request.enable_rerank;
-    let rerank_time_ms = if reranked {
-        // Simulate rerank time for now - actual implementation would call rerank API
-        Some(5u64)
-    } else {
-        None
-    };
+    // P-G6c (RC-11): the FAKE rerank that previously lived here is removed.
+    // The real rerank already ran inside the SOTA pipeline's `pipeline_finalize`
+    // (`query_pipeline.rs`): when `enable_rerank` is true AND a reranker is
+    // configured, `context.chunks` is reordered by the real `Reranker` trait.
+    // The API layer must NOT mutate scores or invent a `rerank_time_ms`. We only
+    // report truthfully whether reranking was applied, and preserve the chunk
+    // ordering the engine already produced.
+    let reranker_configured = state.query.engine_impl.has_reranker();
+    let rerank_requested = request.enable_rerank;
+    let reranked = rerank_requested && reranker_configured;
+    // The engine folds rerank time into `retrieval_time_ms`; this layer has no
+    // separate measurement, so report `None` (never a fabricated value).
+    let rerank_time_ms: Option<u64> = None;
 
-    // Get rerank_top_k or default to all results
+    // When reranking was applied, honor the request's `rerank_top_k` by
+    // truncating the chunk sources to the engine-ordered top-K. The chunks
+    // arrive here already in final (rerank) order, so we truncate in place.
     let rerank_top_k = request.rerank_top_k.unwrap_or(usize::MAX);
 
-    // Build chunk sources with rerank scores
+    // Build chunk sources from the (already rerank-ordered) context chunks.
+    // Scores are passed through unchanged — no fake mutation.
     let mut ref_counter = 1usize;
     let mut chunk_sources: Vec<SourceReference> = result
         .context
         .chunks
         .iter()
         .map(|chunk| {
-            // Calculate simulated rerank score based on original score
-            let rerank_score = if reranked {
-                // Normalize score to 0-1 range and apply slight boost
-                Some((chunk.score.min(1.0) * 0.95 + 0.05).min(1.0))
-            } else {
-                None
-            };
-
             let ref_id = ref_counter;
             ref_counter += 1;
 
@@ -261,7 +260,9 @@ pub async fn execute_query(
                 source_type: "chunk".to_string(),
                 id: chunk.id.clone(),
                 score: chunk.score,
-                rerank_score,
+                // No fabricated rerank score. The chunk order already reflects
+                // any reranking done by the engine.
+                rerank_score: None,
                 snippet: Some(chunk.content.chars().take(200).collect()),
                 reference_id: Some(ref_id),
                 document_id: chunk.document_id.clone(),
@@ -288,14 +289,9 @@ pub async fn execute_query(
             .starts_with("injection::")
     });
 
-    // Sort by rerank score if reranking is enabled
+    // Truncate to the rerank top-K when reranking was applied. The chunk order
+    // is already the rerank order produced by the engine.
     if reranked {
-        chunk_sources.sort_by(|a, b| {
-            b.rerank_score
-                .unwrap_or(0.0)
-                .partial_cmp(&a.rerank_score.unwrap_or(0.0))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
         chunk_sources.truncate(rerank_top_k);
     }
 

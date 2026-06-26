@@ -45,25 +45,22 @@ pub use entity_ops::*;
 // Re-export DTOs from entities_types module
 pub use crate::handlers::entities_types::*;
 
-use edgequake_storage::GraphNode;
+use edgequake_storage::{normalize_entity_name, GraphNode};
 
 // ============================================================================
 // Shared Helper Functions
 // ============================================================================
 
-/// Normalize entity name to UPPERCASE with underscores.
+/// Normalize entity name using the single canonical normalizer (RC-6 / P-G1).
 ///
-/// # Enforces
-///
-/// - **BR0008**: Entity names are normalized to UPPERCASE_WITH_UNDERSCORES
-///
-/// # WHY: Deduplication Key
-///
-/// Entity names serve as primary keys in the graph. Normalization ensures:
-/// - "John Smith" and "john smith" map to same entity
-/// - Case variations don't create duplicate nodes
-pub(super) fn normalize_entity_name(name: &str) -> String {
-    name.to_uppercase().replace(' ', "_")
+/// Entity identity must be constructed in exactly one way across all writers
+/// (ingestion paths and manual CRUD). Delegating to
+/// `edgequake_storage::normalize_entity_name` guarantees manual entity/edge
+/// creation produces ids identical to the ingestion paths, so a manually
+/// created "John Doe" merges with an ingested "JOHN_DOE" instead of
+/// fragmenting the graph.
+pub(super) fn normalize_entity_name_for_graph(name: &str) -> String {
+    normalize_entity_name(name)
 }
 
 /// Convert GraphNode to EntityResponse.
@@ -113,12 +110,12 @@ mod tests {
     #[test]
     fn test_normalize_entity_name() {
         assert_eq!(
-            normalize_entity_name("quantum computing"),
+            normalize_entity_name_for_graph("quantum computing"),
             "QUANTUM_COMPUTING"
         );
-        assert_eq!(normalize_entity_name("AI"), "AI");
+        assert_eq!(normalize_entity_name_for_graph("AI"), "AI");
         assert_eq!(
-            normalize_entity_name("Machine Learning"),
+            normalize_entity_name_for_graph("Machine Learning"),
             "MACHINE_LEARNING"
         );
     }
@@ -126,14 +123,14 @@ mod tests {
     #[test]
     fn test_normalize_entity_name_edge_cases() {
         // Single space replaced with underscore
-        assert_eq!(normalize_entity_name("hello world"), "HELLO_WORLD");
-        // Multiple spaces become multiple underscores (current behavior)
-        assert_eq!(normalize_entity_name("hello  world"), "HELLO__WORLD");
+        assert_eq!(normalize_entity_name_for_graph("hello world"), "HELLO_WORLD");
+        // Canonical normalizer collapses runs of whitespace (split_whitespace)
+        assert_eq!(normalize_entity_name_for_graph("hello  world"), "HELLO_WORLD");
         // Empty string
-        assert_eq!(normalize_entity_name(""), "");
+        assert_eq!(normalize_entity_name_for_graph(""), "");
         // Already uppercase
         assert_eq!(
-            normalize_entity_name("ALREADY UPPERCASE"),
+            normalize_entity_name_for_graph("ALREADY UPPERCASE"),
             "ALREADY_UPPERCASE"
         );
     }

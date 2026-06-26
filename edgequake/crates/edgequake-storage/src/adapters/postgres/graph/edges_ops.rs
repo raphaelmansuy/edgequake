@@ -63,28 +63,31 @@ impl PostgresAGEGraphStorage {
             "target_id".to_string(),
             serde_json::Value::String(target.to_string()),
         );
-        let props_cypher = Self::properties_to_cypher(&props_with_ids);
-
-        // SC1: collapse the old 3-round-trip MERGE-nodes / DELETE-edge /
-        // CREATE-edge dance into ONE idempotent Cypher statement.
-        //
-        // WHY single statement: the previous pattern issued three separate
-        // `cypher_execute` calls per edge. Under concurrent ingestion the
-        // DELETE-then-CREATE window also created a race where two writers could
-        // both delete and then both create, yielding duplicate EDGE rows.
-        //
-        // WHY MERGE on (source_id, target_id): MERGE keyed only on the edge's
-        // logical identity guarantees at-most-one edge between the pair, and the
-        // trailing `SET r +=` overlays the latest properties (last-write-wins)
-        // without ever producing a duplicate. This is the canonical AGE upsert.
+        // WHY: AGE 1.6.0 does NOT support `ON CREATE SET` (apache/age#2347 is
+        // unreleased) — "syntax error at or near ON". `SET r = <variable map>`
+        // fails (apache/age#1634). The version-safe pattern is per-key
+        // `SET r.key = <literal>` expanded inline — verified against AGE 1.6.0
+        // to persist on both freshly-MERGEd and existing edges. source_id /
+        // target_id are the MERGE key and are persisted by the MERGE pattern.
+        let mut set_clauses: Vec<String> = Vec::with_capacity(props_with_ids.len());
+        for (k, v) in &props_with_ids {
+            if k == "source_id" || k == "target_id" {
+                continue;
+            }
+            set_clauses.push(format!("r.{} = {}", k, Self::value_to_cypher(v)));
+        }
+        let set_clause = if set_clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" SET {}", set_clauses.join(", "))
+        };
         let cypher = format!(
             "MERGE (a:Node {{node_id: '{src}'}}) \
              MERGE (b:Node {{node_id: '{tgt}'}}) \
-             MERGE (a)-[r:EDGE {{source_id: '{src}', target_id: '{tgt}'}}]->(b) \
-             SET r += {props}",
+             MERGE (a)-[r:EDGE {{source_id: '{src}', target_id: '{tgt}'}}]->(b){set_clause}",
             src = escaped_source,
             tgt = escaped_target,
-            props = props_cypher
+            set_clause = set_clause
         );
         self.cypher_execute(&cypher).await
     }
@@ -95,7 +98,7 @@ impl PostgresAGEGraphStorage {
     /// `source_id`/`target_id` plus the edge properties; MERGE on the endpoint
     /// nodes then MERGE on the relationship keyed by (source_id, target_id)
     /// guarantees at-most-one edge per pair (no DELETE/CREATE race), and
-    /// `SET r += props` applies last-write-wins property updates.
+    /// `SET r.key = e.key` (per-key) applies last-write-wins property updates.
     pub(super) async fn pg_upsert_edges_batch(
         &self,
         edges: &[(String, String, HashMap<String, serde_json::Value>)],
@@ -123,13 +126,36 @@ impl PostgresAGEGraphStorage {
                 })
                 .collect();
 
+            // WHY: AGE 1.6.0 does NOT support `ON CREATE SET` (apache/age#2347
+            // is unreleased) and `SET r = <variable map>` fails
+            // (apache/age#1634). The version-safe pattern is per-key
+            // `SET r.key = e.key` referencing the UNWIND row — verified against
+            // AGE 1.6.0 to persist on both fresh and existing edges.
+            // source_id/target_id are the MERGE key (persisted by MERGE).
+            let mut set_keys: Vec<&str> = Vec::with_capacity(32);
+            if let Some((_, _, props)) = chunk.first() {
+                for k in props.keys() {
+                    if k != "source_id" && k != "target_id" {
+                        set_keys.push(k.as_str());
+                    }
+                }
+            }
+            let set_clause = if set_keys.is_empty() {
+                String::new()
+            } else {
+                let sets: Vec<String> = set_keys
+                    .iter()
+                    .map(|k| format!("r.{} = e.{}", k, k))
+                    .collect();
+                format!(" SET {}", sets.join(", "))
+            };
             let cypher = format!(
                 "UNWIND [{}] AS e \
                  MERGE (a:Node {{node_id: e.source_id}}) \
                  MERGE (b:Node {{node_id: e.target_id}}) \
-                 MERGE (a)-[r:EDGE {{source_id: e.source_id, target_id: e.target_id}}]->(b) \
-                 SET r += e",
-                rows.join(", ")
+                 MERGE (a)-[r:EDGE {{source_id: e.source_id, target_id: e.target_id}}]->(b){}",
+                rows.join(", "),
+                set_clause
             );
             self.cypher_execute(&cypher).await?;
         }

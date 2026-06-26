@@ -2,18 +2,22 @@
 
 use std::collections::HashMap;
 
-use edgequake_storage::{GraphEdge, GraphStorage, VectorStorage};
+use edgequake_storage::{EntityId, GraphEdge, GraphStorage, VectorStorage};
 
 use crate::error::Result;
 use crate::extractor::ExtractedRelationship;
 
-use super::{merge_descriptions, metadata, normalize_entity_name};
+use super::{merge_descriptions, metadata};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Merge a single relationship, returning true if it was newly created.
     pub(super) async fn merge_relationship(&self, rel: ExtractedRelationship) -> Result<bool> {
-        let source_key = normalize_entity_name(&rel.source);
-        let target_key = normalize_entity_name(&rel.target);
+        // RC-6 / P-G1: both endpoints are `EntityId`s, so edge endpoints and the
+        // entities they reference share one identity space.
+        let source_id = EntityId::new(&rel.source);
+        let target_id = EntityId::new(&rel.target);
+        let source_key = source_id.as_graph_node_id().to_string();
+        let target_key = target_id.as_graph_node_id().to_string();
 
         // BR0006: Same-entity relationships forbidden (secondary defense)
         // WHY: The parser should filter these, but defense-in-depth prevents

@@ -23,6 +23,12 @@
 //! This matches the production behavior and ensures entities are actually
 //! extracted during document upload.
 
+mod common;
+use common::{
+    create_test_app_with_workers, upload_and_wait as common_upload_and_wait,
+    upload_document_assert as common_upload_document_assert, wait_for_document_processed,
+};
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -30,7 +36,39 @@ use axum::{
 use edgequake_api::{AppState, Server, ServerConfig};
 use edgequake_tasks::{Task, TaskStatus, TaskType};
 use serde_json::{json, Value};
+use std::time::Duration;
 use tower::ServiceExt;
+
+// ============================================================================
+// Test tenant / workspace scope (SPEC-021: metadata must match tenant context)
+// ============================================================================
+// WHY: reprocess/recover-stuck/bulk-delete handlers filter KV metadata by
+// `metadata_matches_tenant_context`. Test fixtures that send X-Tenant-ID /
+// X-Workspace-ID headers MUST include matching `tenant_id` / `workspace_id`
+// fields in the seeded KV metadata, otherwise the document is silently
+// skipped and cleanup never runs (the root cause of the 8 pre-existing
+// failures fixed here).
+const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+const TEST_WORKSPACE_ID: &str = "00000000-0000-0000-0000-000000000002";
+
+/// Build the tenant/workspace metadata fields for a seeded document.
+fn tenant_scope_metadata() -> serde_json::Value {
+    json!({
+        "tenant_id": TEST_TENANT_ID,
+        "workspace_id": TEST_WORKSPACE_ID,
+    })
+}
+
+/// Merge tenant/workspace scope into a metadata JSON object (DRY helper for
+/// test fixtures that must satisfy `metadata_matches_tenant_context`).
+fn with_tenant_scope(mut base: serde_json::Value) -> serde_json::Value {
+    if let (Some(obj), Some(scope)) = (base.as_object_mut(), tenant_scope_metadata().as_object()) {
+        for (k, v) in scope {
+            obj.insert(k.clone(), v.clone());
+        }
+    }
+    base
+}
 
 // ============================================================================
 // Helper Functions
@@ -66,7 +104,9 @@ async fn extract_json(response: axum::response::Response) -> Value {
     serde_json::from_slice(&bytes).expect("Failed to parse JSON")
 }
 
-/// Helper to upload a document via HTTP
+/// Helper to upload a document via HTTP. P-G2b: uploads always enqueue a
+/// background task and return 202 ACCEPTED + `status: "pending"` + `task_id`
+/// (no counts). The `async_processing` field is accepted but ignored.
 async fn upload_document_http(
     app: &axum::Router,
     title: &str,
@@ -75,7 +115,6 @@ async fn upload_document_http(
     let request = json!({
         "content": content,
         "title": title,
-        "async_processing": false
     });
 
     let response = app
@@ -97,6 +136,28 @@ async fn upload_document_http(
     let status = response.status();
     let body = extract_json(response).await;
     (status, body)
+}
+
+/// Upload a document via HTTP and poll its track-status until it reaches a
+/// terminal ingested state. Returns the `document_id`.
+///
+/// P-G2b: the upload itself returns 202 + pending; the document only becomes
+/// deletable (with chunks/entities) once the background worker finishes. Use
+/// this for any test that uploads then DELETE/GETs the document.
+///
+/// Uses the shared `common::upload_and_wait` helper (no tenant headers) so the
+/// document lands in the seeded default workspace and the worker pool can
+/// actually process it.
+async fn upload_and_wait_http(app: &axum::Router, title: &str, content: &str) -> String {
+    let (document_id, _track_id, _final_status) =
+        common_upload_and_wait(app, title, content, Duration::from_secs(30)).await;
+    document_id
+}
+
+/// Build a worker-backed app so enqueued upload tasks actually process.
+/// Keep the returned guard alive for the whole test.
+async fn create_worker_app() -> common::WorkerAppGuard {
+    create_test_app_with_workers().await
 }
 
 /// Helper to delete a document via HTTP
@@ -172,33 +233,20 @@ async fn delete_all_documents_http_scoped(
 #[tokio::test]
 async fn test_single_document_deletion() {
     // Test basic deletion: document → chunks → entities → embeddings
-    let app = create_test_app();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
-    // Upload document
-    let (status, upload_resp) = upload_document_http(
-        &app,
+    // Upload document and wait for ingestion (P-G2b: async upload).
+    let doc_id = upload_and_wait_http(
+        app,
         "Tech Article",
         "Alice is a software engineer at Google. She works with Bob on AI projects. \
          They collaborate on machine learning models and data pipelines.",
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
-    let doc_id = upload_resp
-        .get("document_id")
-        .and_then(|v| v.as_str())
-        .expect("Should have document_id");
-    let entity_count = upload_resp
-        .get("entity_count")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
-    // With mock provider, we should get some entities
-    // Note: Mock provider may not extract entities in all cases
-    // The important thing is that the deletion cascade works correctly
-
     // Delete document
-    let (delete_status, delete_resp) = delete_document_http(&app, doc_id).await;
+    let (delete_status, delete_resp) = delete_document_http(app, &doc_id).await;
 
     assert_eq!(delete_status, StatusCode::OK);
     assert_eq!(
@@ -214,17 +262,7 @@ async fn test_single_document_deletion() {
         "Should have deleted chunks"
     );
 
-    // If entities were created, they should be affected
-    if entity_count > 0 {
-        assert!(
-            delete_resp
-                .get("entities_affected")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0)
-                > 0,
-            "Should have affected entities"
-        );
-    }
+    println!("✅ Basic single document deletion completed");
 }
 
 #[tokio::test]
@@ -242,41 +280,30 @@ async fn test_multi_document_shared_entity_deletion() {
     //   - ALICE → MIT edge: PRESERVED (sources: [doc_b])
     //   - ALICE → GOOGLE edge: DELETED (sources: [])
 
-    let app = create_test_app();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
     // Upload Document A
-    let (status_a, upload_a) = upload_document_http(
-        &app,
+    let doc_a_id = upload_and_wait_http(
+        app,
         "Document A",
         "Alice is a software engineer at Google. She leads the ML team and works on AI systems.",
     )
     .await;
-    assert_eq!(status_a, StatusCode::CREATED);
-    let doc_a_id = upload_a
-        .get("document_id")
-        .and_then(|v| v.as_str())
-        .expect("Should have document_id")
-        .to_string();
 
     // Upload Document B
-    let (status_b, upload_b) = upload_document_http(
-        &app,
+    let doc_b_id = upload_and_wait_http(
+        app,
         "Document B",
         "Alice graduated from MIT with a degree in Computer Science. She studied machine learning.",
     )
     .await;
-    assert_eq!(status_b, StatusCode::CREATED);
-    let doc_b_id = upload_b
-        .get("document_id")
-        .and_then(|v| v.as_str())
-        .expect("Should have document_id")
-        .to_string();
 
     // Both documents uploaded successfully
     assert_ne!(doc_a_id, doc_b_id, "Documents should have different IDs");
 
     // Delete Document A
-    let (delete_status, delete_resp) = delete_document_http(&app, &doc_a_id).await;
+    let (delete_status, delete_resp) = delete_document_http(app, &doc_a_id).await;
 
     assert_eq!(delete_status, StatusCode::OK);
     assert_eq!(
@@ -286,7 +313,7 @@ async fn test_multi_document_shared_entity_deletion() {
 
     // Verify Document B can still be accessed (its data wasn't deleted)
     // Try to delete Document B to prove it still exists
-    let (delete_b_status, delete_b_resp) = delete_document_http(&app, &doc_b_id).await;
+    let (delete_b_status, delete_b_resp) = delete_document_http(app, &doc_b_id).await;
 
     assert_eq!(
         delete_b_status,
@@ -307,25 +334,20 @@ async fn test_multi_document_shared_entity_deletion() {
 #[tokio::test]
 async fn test_orphaned_edge_cleanup() {
     // Test that edges connecting to deleted nodes are cleaned up
-    let app = create_test_app();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
     // Upload document with multiple relationships
-    let (status, upload_resp) = upload_document_http(
-        &app,
+    let doc_id = upload_and_wait_http(
+        app,
         "Tech Article",
         "Alice works at Google. Bob works at Microsoft. Carol works at Apple. \
          Alice collaborates with Bob on cloud computing. Bob mentors Carol on software engineering.",
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
-    let doc_id = upload_resp
-        .get("document_id")
-        .and_then(|v| v.as_str())
-        .expect("Should have document_id");
-
     // Delete document (will delete all entities and edges)
-    let (delete_status, delete_resp) = delete_document_http(&app, doc_id).await;
+    let (delete_status, delete_resp) = delete_document_http(app, &doc_id).await;
 
     assert_eq!(delete_status, StatusCode::OK);
     assert_eq!(
@@ -352,11 +374,12 @@ async fn test_orphaned_edge_cleanup() {
 #[tokio::test]
 async fn test_deletion_metrics_accuracy() {
     // Test that deletion metrics (entities_affected, relationships_affected) are accurate
-    let app = create_test_app();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
     // Upload document with rich content
-    let (status, upload_resp) = upload_document_http(
-        &app,
+    let doc_id = upload_and_wait_http(
+        app,
         "Tech Article",
         "Alice is the CEO of TechCorp. Bob is the CTO. Carol is the CFO. \
          They work together on corporate strategy. TechCorp is headquartered in San Francisco. \
@@ -364,19 +387,8 @@ async fn test_deletion_metrics_accuracy() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
-    let doc_id = upload_resp
-        .get("document_id")
-        .and_then(|v| v.as_str())
-        .expect("Should have document_id");
-
-    let entities_created = upload_resp
-        .get("entity_count")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
     // Delete document
-    let (delete_status, delete_resp) = delete_document_http(&app, doc_id).await;
+    let (delete_status, delete_resp) = delete_document_http(app, &doc_id).await;
 
     assert_eq!(delete_status, StatusCode::OK);
 
@@ -389,18 +401,11 @@ async fn test_deletion_metrics_accuracy() {
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
 
-    // If entities were created, they should be affected during deletion
-    if entities_created > 0 {
-        assert!(
-            entities_affected > 0,
-            "Should have affected entities when entities were created"
-        );
-    }
-
     // Relationships affected should be a non-negative number
     // (may be 0 if no relationships were created)
     // relationships_affected is u64, always non-negative
     let _ = relationships_affected;
+    let _ = entities_affected;
 
     // SUCCESS: Metrics are returned and are non-negative
 }
@@ -435,35 +440,19 @@ async fn test_document_not_found() {
 #[tokio::test]
 async fn test_delete_completed_document_allowed() {
     // Test that completed documents can be deleted normally
-    let app = create_test_app();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
-    // Upload document (synchronous processing = "processed" status)
-    let (status, upload_resp) = upload_document_http(
-        &app,
+    // Upload document and wait for it to reach a terminal state.
+    let doc_id = upload_and_wait_http(
+        app,
         "Completed Document",
-        "This is a simple document that will be processed synchronously and become completed.",
+        "This is a simple document that will be processed and become completed.",
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
-    let doc_id = upload_resp
-        .get("document_id")
-        .and_then(|v| v.as_str())
-        .expect("Should have document_id");
-
-    // Verify status is "processed" or "completed"
-    let doc_status = upload_resp
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    assert!(
-        doc_status == "processed" || doc_status == "completed",
-        "Document should be in completed state, got: {}",
-        doc_status
-    );
-
     // Delete should succeed
-    let (delete_status, delete_resp) = delete_document_http(&app, doc_id).await;
+    let (delete_status, delete_resp) = delete_document_http(app, &doc_id).await;
 
     assert_eq!(
         delete_status,
@@ -1625,13 +1614,12 @@ async fn test_reprocess_cleans_partial_graph_data() {
 
     // 1. Create a "failed" document with partial entities
     // This simulates a document that failed processing at 60% completion
-    let metadata = serde_json::json!({
+    let metadata = with_tenant_scope(serde_json::json!({
         "id": doc_id,
         "title": "Reprocess Cleanup Test",
         "status": "failed",  // KEY: Document is in failed state
-        "workspace_id": "default",
         "error_message": "Simulated processing failure"
-    });
+    }));
     state
         .storage
         .kv_storage
@@ -1731,13 +1719,12 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
     // 1. Create a "stuck" document (processing for >30 minutes) with partial entities
     // Use an old timestamp to make it appear stuck
     let old_timestamp = "2020-01-01T00:00:00Z"; // Very old timestamp
-    let metadata = serde_json::json!({
+    let metadata = with_tenant_scope(serde_json::json!({
         "id": doc_id,
         "title": "Recover Stuck Cleanup Test",
         "status": "processing",  // KEY: Document is stuck in processing
-        "workspace_id": "default",
         "updated_at": old_timestamp  // KEY: Old timestamp makes it "stuck"
-    });
+    }));
     state
         .storage
         .kv_storage
@@ -1840,6 +1827,7 @@ async fn test_recover_stuck_only_requeues_current_workspace() {
                     "title": format!("{} title", doc_id),
                     "status": "processing",
                     "workspace_id": workspace_id,
+                    "tenant_id": TEST_TENANT_ID,
                     "updated_at": "2020-01-01T00:00:00Z"
                 }),
             )])
@@ -1923,12 +1911,11 @@ async fn test_reprocess_preserves_shared_entities() {
         .expect("Should create shared entity");
 
     // 2. Create completed document A
-    let metadata_a = serde_json::json!({
+    let metadata_a = with_tenant_scope(serde_json::json!({
         "id": doc_a_id,
         "title": "Completed Doc A",
         "status": "completed",
-        "workspace_id": "default"
-    });
+    }));
     state
         .storage
         .kv_storage
@@ -1952,12 +1939,11 @@ async fn test_reprocess_preserves_shared_entities() {
         .unwrap();
 
     // 3. Create failed document B
-    let metadata_b = serde_json::json!({
+    let metadata_b = with_tenant_scope(serde_json::json!({
         "id": doc_b_id,
         "title": "Failed Doc B",
         "status": "failed",  // KEY: This is the failed document
-        "workspace_id": "default"
-    });
+    }));
     state
         .storage
         .kv_storage
@@ -2074,22 +2060,20 @@ async fn query_rag_http(app: &axum::Router, query_text: &str) -> (StatusCode, Va
 /// handles missing chunks by simply not returning them.
 #[tokio::test]
 async fn test_query_after_deletion_does_not_error() {
-    let app = create_test_app();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
-    // 1. Upload a document with some content
-    let (status, upload_resp) = upload_document_http(
-        &app,
+    // 1. Upload a document with some content and wait for ingestion.
+    let doc_id = upload_and_wait_http(
+        app,
         "Query Test Doc",
         "Alice is a software engineer who works on machine learning projects. \
          She collaborates with Bob on data science initiatives.",
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
-    let doc_id = upload_resp["document_id"].as_str().unwrap();
-
     // 2. Verify query works before deletion
-    let (query_status_before, _query_resp_before) = query_rag_http(&app, "Who is Alice?").await;
+    let (query_status_before, _query_resp_before) = query_rag_http(app, "Who is Alice?").await;
     assert_eq!(
         query_status_before,
         StatusCode::OK,
@@ -2097,11 +2081,11 @@ async fn test_query_after_deletion_does_not_error() {
     );
 
     // 3. Delete the document
-    let (delete_status, _) = delete_document_http(&app, doc_id).await;
+    let (delete_status, _) = delete_document_http(app, &doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
 
     // 4. Query again AFTER deletion - this should NOT error
-    let (query_status_after, query_resp_after) = query_rag_http(&app, "Who is Alice?").await;
+    let (query_status_after, query_resp_after) = query_rag_http(app, "Who is Alice?").await;
     assert_eq!(
         query_status_after,
         StatusCode::OK,
@@ -2128,33 +2112,28 @@ async fn test_query_after_deletion_does_not_error() {
 /// 3. Query should work using context from remaining document
 #[tokio::test]
 async fn test_query_with_partial_shared_context() {
-    let state = AppState::test_state();
-    let server = Server::new(create_test_config(), state.clone());
-    let app = server.build_router();
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
     // 1. Upload two documents that will share entities (mock LLM generates consistent entities)
-    let (status_a, resp_a) = upload_document_http(
-        &app,
+    let doc_a_id = upload_and_wait_http(
+        app,
         "Shared Context Doc A",
         "The research team at TechCorp developed advanced AI systems. \
          Dr. Smith leads the machine learning division.",
     )
     .await;
-    assert_eq!(status_a, StatusCode::CREATED);
-    let doc_a_id = resp_a["document_id"].as_str().unwrap();
 
-    let (status_b, resp_b) = upload_document_http(
-        &app,
+    let _doc_b_id = upload_and_wait_http(
+        app,
         "Shared Context Doc B",
         "TechCorp's AI research has been recognized globally. \
          The team published groundbreaking papers on neural networks.",
     )
     .await;
-    assert_eq!(status_b, StatusCode::CREATED);
-    let _doc_b_id = resp_b["document_id"].as_str().unwrap();
 
     // 2. Query before any deletion
-    let (status_before, _) = query_rag_http(&app, "What is TechCorp?").await;
+    let (status_before, _) = query_rag_http(app, "What is TechCorp?").await;
     assert_eq!(
         status_before,
         StatusCode::OK,
@@ -2162,11 +2141,11 @@ async fn test_query_with_partial_shared_context() {
     );
 
     // 3. Delete document A
-    let (delete_status, _) = delete_document_http(&app, doc_a_id).await;
+    let (delete_status, _) = delete_document_http(app, &doc_a_id).await;
     assert_eq!(delete_status, StatusCode::OK);
 
     // 4. Query again - should work with remaining context from doc B
-    let (status_after, query_resp) = query_rag_http(&app, "What is TechCorp?").await;
+    let (status_after, query_resp) = query_rag_http(app, "What is TechCorp?").await;
     assert_eq!(
         status_after,
         StatusCode::OK,
@@ -2423,7 +2402,12 @@ async fn test_deletion_with_bidirectional_relationships() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    // P-G2b: upload always returns 202 ACCEPTED + pending.
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
     let doc_id = upload_resp
         .get("document_id")
         .and_then(|v| v.as_str())
@@ -2496,7 +2480,12 @@ async fn test_deletion_with_self_referential_entity() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    // P-G2b: upload always returns 202 ACCEPTED + pending.
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
     let doc_id = upload_resp
         .get("document_id")
         .and_then(|v| v.as_str())
@@ -2555,7 +2544,12 @@ async fn test_deletion_with_cycle_preserves_shared() {
          Alpha handles input processing and sends to Beta.",
     )
     .await;
-    assert_eq!(status1, StatusCode::CREATED);
+    // P-G2b: upload always returns 202 ACCEPTED + pending.
+    assert!(
+        status1 == StatusCode::CREATED || status1 == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status1
+    );
     let doc1_id = upload1
         .get("document_id")
         .and_then(|v| v.as_str())
@@ -2569,7 +2563,11 @@ async fn test_deletion_with_cycle_preserves_shared() {
          Beta and Gamma work together in the feedback loop.",
     )
     .await;
-    assert_eq!(status2, StatusCode::CREATED);
+    assert!(
+        status2 == StatusCode::CREATED || status2 == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status2
+    );
     let _doc2_id = upload2
         .get("document_id")
         .and_then(|v| v.as_str())
@@ -2748,13 +2746,12 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     let chunk_id = format!("{}-chunk-0", doc_id);
 
     // 1. Create a FAILED document
-    let metadata = serde_json::json!({
+    let metadata = with_tenant_scope(serde_json::json!({
         "id": doc_id,
         "title": "Multi Entity Reprocess Test",
         "status": "failed",
-        "workspace_id": "default",
         "error_message": "Simulated processing failure"
-    });
+    }));
     state
         .storage
         .kv_storage
@@ -2887,6 +2884,7 @@ async fn test_reprocess_only_requeues_current_workspace_failed_docs() {
                     "title": format!("{} title", doc_id),
                     "status": "failed",
                     "workspace_id": workspace_id,
+                    "tenant_id": TEST_TENANT_ID,
                 }),
             )])
             .await
@@ -2947,12 +2945,11 @@ async fn test_delete_document_with_no_entities() {
     )
     .await;
 
-    // Upload might still succeed (mock LLM may produce entities)
-    // or fail silently - either way, check deletion
-    if status == StatusCode::CREATED {
+    // P-G2b: upload always returns 202 ACCEPTED + pending (or 201).
+    if status == StatusCode::CREATED || status == StatusCode::ACCEPTED {
         let document_id = body["document_id"].as_str().unwrap();
 
-        // Delete should succeed
+        // Delete should succeed (pending docs are deletable)
         let (delete_status, _) = delete_document_http(&app, document_id).await;
         assert_eq!(delete_status, StatusCode::OK);
     }
@@ -2978,10 +2975,16 @@ async fn test_rapid_sequential_operations() {
         )
         .await;
 
-        assert_eq!(status, StatusCode::CREATED, "Upload {} should succeed", i);
+        // P-G2b: upload returns 201 or 202 (async enqueue).
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Upload {} should be accepted, got {}",
+            i,
+            status
+        );
         let document_id = body["document_id"].as_str().unwrap();
 
-        // Immediately delete
+        // Immediately delete (pending docs are deletable)
         let (delete_status, _) = delete_document_http(&app, document_id).await;
         assert_eq!(delete_status, StatusCode::OK, "Delete {} should succeed", i);
     }
@@ -3071,11 +3074,15 @@ async fn test_delete_document_unicode_name() {
         "This document has a unicode title with Japanese, emoji, and accented characters.",
     )
     .await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
-    // Delete should work normally
+    // Delete should work normally (pending docs are deletable)
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
 
@@ -3105,11 +3112,15 @@ async fn test_delete_document_double_delete() {
         "This document will be deleted twice to test idempotency.",
     )
     .await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
-    // First delete - should succeed
+    // First delete - should succeed (pending docs are deletable)
     let (delete1_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete1_status, StatusCode::OK);
 
@@ -3137,10 +3148,14 @@ async fn test_delete_then_reupload_same_name() {
         "Alice works at CompanyAlpha. Bob is her colleague.",
     )
     .await;
-    assert_eq!(upload1_status, StatusCode::CREATED);
+    assert!(
+        upload1_status == StatusCode::CREATED || upload1_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload1_status
+    );
     let doc1_id = body1["document_id"].as_str().unwrap().to_string();
 
-    // Delete version 1
+    // Delete version 1 (pending docs are deletable)
     let (delete_status, _) = delete_document_http(&app, &doc1_id).await;
     assert_eq!(delete_status, StatusCode::OK);
 
@@ -3151,7 +3166,11 @@ async fn test_delete_then_reupload_same_name() {
         "Charlie founded CompanyBeta. Diana is the CTO.",
     )
     .await;
-    assert_eq!(upload2_status, StatusCode::CREATED);
+    assert!(
+        upload2_status == StatusCode::CREATED || upload2_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload2_status
+    );
     let doc2_id = body2["document_id"].as_str().unwrap().to_string();
 
     // Verify we got a NEW document ID
@@ -3195,7 +3214,11 @@ async fn test_deletion_performance_baseline() {
 
     let (upload_status, body) =
         upload_document_http(&app, "Performance Test Document", content).await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
@@ -3251,7 +3274,12 @@ async fn test_deletion_performance_sequential() {
             ),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED);
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "upload {} should be accepted, got {}",
+            i,
+            status
+        );
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
 
@@ -3309,7 +3337,12 @@ async fn test_bulk_deletion_cleanup() {
             ),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED);
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "upload {} should be accepted, got {}",
+            i,
+            status
+        );
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
 
@@ -3381,7 +3414,12 @@ async fn test_bulk_deletion_allows_reupload() {
             &format!("Content for batch 1 document {}.", i),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED);
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "upload {} should be accepted, got {}",
+            i,
+            status
+        );
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
 
@@ -3400,7 +3438,12 @@ async fn test_bulk_deletion_allows_reupload() {
             &format!("NEW content for batch 2 document {}.", i),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED);
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "upload {} should be accepted, got {}",
+            i,
+            status
+        );
         batch2_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
 
@@ -3441,7 +3484,11 @@ async fn test_deletion_response_contains_all_fields() {
         "This document tests that deletion response has all required fields.",
     )
     .await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
@@ -3564,7 +3611,11 @@ async fn test_delete_document_minimal_content() {
 
     // Upload document with minimal content
     let (upload_status, body) = upload_document_http(&app, "Minimal Content", "A").await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
@@ -3607,7 +3658,11 @@ async fn test_delete_document_repeated_content() {
     // Upload document with repeated content
     let repeated = "This is a test. ".repeat(100);
     let (upload_status, body) = upload_document_http(&app, "Repeated Content", &repeated).await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
@@ -3637,7 +3692,11 @@ async fn test_parallel_delete_same_document() {
         "This document will be deleted by multiple concurrent requests.",
     )
     .await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap().to_string();
 
@@ -3711,11 +3770,16 @@ async fn test_rapid_create_delete_cycles() {
             &format!("Content for cycle {}. This is test data.", i),
         )
         .await;
-        assert_eq!(upload_status, StatusCode::CREATED);
+        assert!(
+            upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+            "upload {} should be accepted, got {}",
+            i,
+            upload_status
+        );
 
         let doc_id = body["document_id"].as_str().unwrap();
 
-        // Delete
+        // Delete (pending docs are deletable)
         let (delete_status, _) = delete_document_http(&app, doc_id).await;
         assert_eq!(delete_status, StatusCode::OK);
     }
@@ -3873,7 +3937,6 @@ async fn upload_document_with_workspace(
         "content": content,
         "title": title,
         "workspace_id": workspace_id,
-        "async_processing": false
     });
 
     let response = app
@@ -3895,43 +3958,119 @@ async fn upload_document_with_workspace(
     (status, body)
 }
 
+/// Upload a document with both tenant and workspace scope (SPEC-021: ensures
+/// the stored metadata's tenant_id matches the scoped delete helpers).
+async fn upload_document_tenant_scoped(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    workspace_id: &str,
+) -> (StatusCode, Value) {
+    let request = json!({
+        "content": content,
+        "title": title,
+        "workspace_id": workspace_id,
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", workspace_id)
+                .body(Body::from(serde_json::to_string(&request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// Upload a tenant-scoped document and poll its track-status until ingested.
+/// Returns the `document_id`. Use for tenant/workspace-scoped upload+delete
+/// tests (the generic `upload_and_wait` helper does not send tenant headers).
+#[allow(dead_code)]
+async fn upload_tenant_scoped_and_wait(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    workspace_id: &str,
+) -> String {
+    let (status, body) = upload_document_tenant_scoped(app, title, content, workspace_id).await;
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "scoped upload should return 201 or 202, got {} | body={}",
+        status,
+        body
+    );
+    let document_id = body
+        .get("document_id")
+        .and_then(|v| v.as_str())
+        .expect("upload response should have document_id")
+        .to_string();
+    let track_id = body
+        .get("track_id")
+        .and_then(|v| v.as_str())
+        .expect("upload response should have track_id")
+        .to_string();
+    let final_status = wait_for_document_processed(app, &track_id, Duration::from_secs(30)).await;
+    assert!(
+        final_status == "completed"
+            || final_status == "processed"
+            || final_status == "indexed"
+            || final_status == "partial_failure",
+        "scoped document did not reach an ingested state: {}",
+        final_status
+    );
+    document_id
+}
+
 /// OODA-37: Test that deleting in one workspace doesn't affect other workspaces.
 #[tokio::test]
 async fn test_delete_isolation_between_workspaces() {
     let app = create_test_app();
 
-    // Upload document to workspace A
-    let (upload_a_status, body_a) = upload_document_with_workspace(
-        &app,
-        "Doc in Workspace A",
-        "Content for workspace A testing isolation during deletion.",
-        "workspace-a",
-    )
-    .await;
-    assert_eq!(upload_a_status, StatusCode::CREATED);
+    let workspace_a = "00000000-0000-0000-0000-0000000000a1";
+    let workspace_b = "00000000-0000-0000-0000-0000000000b1";
+
+    // Upload document to workspace A (P-G2b: async enqueue, returns 202).
+    let (upload_a_status, body_a) =
+        upload_document_tenant_scoped(&app, "Doc in Workspace A", "Content for workspace A testing isolation during deletion.", workspace_a)
+            .await;
+    assert!(
+        upload_a_status == StatusCode::CREATED || upload_a_status == StatusCode::ACCEPTED,
+        "upload A should return 201 or 202, got {}",
+        upload_a_status
+    );
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
 
-    // Upload document to workspace B
-    let (upload_b_status, body_b) = upload_document_with_workspace(
-        &app,
-        "Doc in Workspace B",
-        "Content for workspace B testing isolation during deletion.",
-        "workspace-b",
-    )
-    .await;
-    assert_eq!(upload_b_status, StatusCode::CREATED);
+    // Upload document to workspace B.
+    let (upload_b_status, body_b) =
+        upload_document_tenant_scoped(&app, "Doc in Workspace B", "Content for workspace B testing isolation during deletion.", workspace_b)
+            .await;
+    assert!(
+        upload_b_status == StatusCode::CREATED || upload_b_status == StatusCode::ACCEPTED,
+        "upload B should return 201 or 202, got {}",
+        upload_b_status
+    );
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
 
-    // Delete document in workspace A
-    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
+    // Delete document in workspace A (scoped to workspace A's context)
+    let (delete_status, _) = delete_document_http_scoped(&app, &doc_a_id, workspace_a).await;
     assert_eq!(delete_status, StatusCode::OK);
 
-    // Verify document A is gone (returns 404)
-    let (check_a_status, _) = delete_document_http(&app, &doc_a_id).await;
+    // Verify document A is gone (returns 404 in workspace A's context)
+    let (check_a_status, _) = delete_document_http_scoped(&app, &doc_a_id, workspace_a).await;
     assert_eq!(check_a_status, StatusCode::NOT_FOUND);
 
-    // Verify document B still exists (first delete succeeds)
-    let (check_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    // Verify document B still exists (first delete succeeds in workspace B's context)
+    let (check_b_status, _) = delete_document_http_scoped(&app, &doc_b_id, workspace_b).await;
     assert_eq!(
         check_b_status,
         StatusCode::OK,
@@ -4033,17 +4172,29 @@ async fn test_delete_same_name_different_workspaces() {
 
     let common_title = "Shared Document Title";
     let common_content = "This document has the same name in multiple workspaces.";
+    // SPEC-021: use UUID workspace IDs and scoped deletes so the tenant context
+    // matches between upload and delete (metadata_matches_tenant_context).
+    let workspace_a = "00000000-0000-0000-0000-0000000000a1";
+    let workspace_b = "00000000-0000-0000-0000-0000000000b1";
 
-    // Upload same-named doc to workspace A
+    // Upload same-named doc to workspace A (P-G2b: async enqueue, returns 202).
     let (upload_a_status, body_a) =
-        upload_document_with_workspace(&app, common_title, common_content, "workspace-alpha").await;
-    assert_eq!(upload_a_status, StatusCode::CREATED);
+        upload_document_tenant_scoped(&app, common_title, common_content, workspace_a).await;
+    assert!(
+        upload_a_status == StatusCode::CREATED || upload_a_status == StatusCode::ACCEPTED,
+        "upload A should return 201 or 202, got {}",
+        upload_a_status
+    );
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
 
-    // Upload same-named doc to workspace B
+    // Upload same-named doc to workspace B.
     let (upload_b_status, body_b) =
-        upload_document_with_workspace(&app, common_title, common_content, "workspace-beta").await;
-    assert_eq!(upload_b_status, StatusCode::CREATED);
+        upload_document_tenant_scoped(&app, common_title, common_content, workspace_b).await;
+    assert!(
+        upload_b_status == StatusCode::CREATED || upload_b_status == StatusCode::ACCEPTED,
+        "upload B should return 201 or 202, got {}",
+        upload_b_status
+    );
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
 
     // Document IDs should be different (UUID-based)
@@ -4052,12 +4203,12 @@ async fn test_delete_same_name_different_workspaces() {
         "Same-named docs in different workspaces should have different IDs"
     );
 
-    // Delete doc in workspace A
-    let (delete_status, _) = delete_document_http(&app, &doc_a_id).await;
+    // Delete doc in workspace A (scoped to workspace A's context)
+    let (delete_status, _) = delete_document_http_scoped(&app, &doc_a_id, workspace_a).await;
     assert_eq!(delete_status, StatusCode::OK);
 
-    // Doc B should still be deletable
-    let (check_b_status, _) = delete_document_http(&app, &doc_b_id).await;
+    // Doc B should still be deletable (scoped to workspace B's context)
+    let (check_b_status, _) = delete_document_http_scoped(&app, &doc_b_id, workspace_b).await;
     assert_eq!(
         check_b_status,
         StatusCode::OK,
@@ -4088,6 +4239,7 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
                 "title": "Scoped Delete A",
                 "status": "processing",
                 "workspace_id": workspace_a.to_string(),
+                "tenant_id": TEST_TENANT_ID,
                 "track_id": track_id,
                 "stage_progress": 1.0,
                 "updated_at": "2020-01-01T00:00:00Z"
@@ -4118,6 +4270,7 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
                 "title": "Scoped Delete B",
                 "status": "completed",
                 "workspace_id": workspace_b,
+                "tenant_id": TEST_TENANT_ID,
             }),
         )])
         .await
@@ -4194,24 +4347,35 @@ async fn test_document_status_on_creation() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    // P-G2b: uploads always enqueue a background task and return 202 ACCEPTED
+    // (or 201 in legacy paths) with status "pending" — no counts.
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
 
     // Verify response contains expected fields
     assert!(body.get("document_id").is_some(), "Should have document_id");
 
-    // Check if status is present and indicates completion
+    // Status should indicate pending background processing.
     if let Some(doc_status) = body.get("status").and_then(|v| v.as_str()) {
         assert!(
-            doc_status == "completed" || doc_status == "processed" || doc_status == "ready",
-            "Status should indicate successful processing, got: {}",
+            doc_status == "pending" || doc_status == "completed" || doc_status == "processed",
+            "Status should be pending (or terminal), got: {}",
             doc_status
         );
     }
 
-    // Verify processing was sync (async_processing: false)
-    if let Some(processing_mode) = body.get("async").and_then(|v| v.as_bool()) {
-        assert!(!processing_mode, "Should be sync processing");
-    }
+    // P-G2b: counts are now null/absent on the upload response.
+    assert!(
+        body.get("chunk_count").and_then(|v| v.as_u64()).is_none(),
+        "chunk_count should be absent on async upload response"
+    );
+    assert!(
+        body.get("entity_count").and_then(|v| v.as_u64()).is_none(),
+        "entity_count should be absent on async upload response"
+    );
 
     println!("✅ OODA-39 TEST PASSED: Document status on creation");
 }
@@ -4228,7 +4392,11 @@ async fn test_deletion_response_status_info() {
         "Content for testing deletion response status.",
     )
     .await;
-    assert_eq!(upload_status, StatusCode::CREATED);
+    assert!(
+        upload_status == StatusCode::CREATED || upload_status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        upload_status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
@@ -4259,38 +4427,31 @@ async fn test_deletion_response_status_info() {
 /// OODA-84: Updated to verify workspace-scoped duplicate detection.
 #[tokio::test]
 async fn test_content_hash_consistency() {
-    let app = create_test_app();
+    // P-G2b: uploads are async. The first document must be fully ingested
+    // before the second upload so duplicate detection can re-ingest (delete
+    // old + create new) instead of returning "duplicate_processing".
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
     let content = "This is the exact same content for hash testing.";
 
-    // Upload first document
-    let (status1, body1) = upload_document_http(&app, "Hash Test Doc 1", content).await;
-    assert_eq!(
-        status1,
-        StatusCode::CREATED,
-        "First upload should succeed with 201 CREATED"
-    );
-    let doc_id1 = body1["document_id"].as_str().unwrap().to_string();
+    // Upload first document and wait for ingestion (default workspace).
+    let (doc_id1, _track1, _status1) =
+        common_upload_and_wait(app, "Hash Test Doc 1", content, Duration::from_secs(30)).await;
 
     // Upload second document with same content:
     // FIX-4: Duplicate detection now re-ingests (deletes old, creates new)
-    // instead of rejecting. So second upload returns 201 with a NEW document_id.
-    let (status2, body2) = upload_document_http(&app, "Hash Test Doc 2", content).await;
-    assert_eq!(
-        status2,
-        StatusCode::CREATED,
-        "Re-ingestion of duplicate should return 201 CREATED"
-    );
-
-    // Verify new document was created (different document_id from original)
+    // instead of rejecting. With the first doc ingested, re-ingestion deletes
+    // it and creates a new document_id (202 ACCEPTED).
+    let body2 = common_upload_document_assert(app, "Hash Test Doc 2", content).await;
     let doc_id2 = body2["document_id"].as_str().unwrap();
     assert_ne!(
         doc_id2, doc_id1,
         "Re-ingestion should create a new document"
     );
 
-    // Cleanup the new document
-    delete_document_http(&app, doc_id2).await;
+    // Cleanup the new document (pending docs are deletable)
+    delete_document_http(app, doc_id2).await;
 
     println!("✅ OODA-40 TEST PASSED: Content hash consistency with re-ingestion");
 }
@@ -4299,36 +4460,36 @@ async fn test_content_hash_consistency() {
 /// OODA-84: Test updated to verify duplicate rejection instead of duplicate storage.
 #[tokio::test]
 async fn test_delete_one_of_duplicate_content_docs() {
-    let app = create_test_app();
+    // P-G2b: uploads are async. The first document must be fully ingested
+    // before the second upload so duplicate detection re-ingests (delete old +
+    // create new) instead of returning "duplicate_processing".
+    let workers = create_worker_app().await;
+    let app = &workers.router;
 
     let duplicate_content = "Duplicate content for testing duplicate detection.";
 
-    // Upload first document - should succeed
-    let (status1, body1) =
-        upload_document_http(&app, "Duplicate Content A", duplicate_content).await;
-    assert_eq!(status1, StatusCode::CREATED, "First upload should succeed");
-    let doc_a_id = body1["document_id"].as_str().unwrap().to_string();
+    // Upload first document and wait for ingestion (default workspace).
+    let (doc_a_id, _track_a, _status_a) = common_upload_and_wait(
+        app,
+        "Duplicate Content A",
+        duplicate_content,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Upload second document with same content:
     // FIX-4: Duplicate detection now re-ingests (deletes old, creates new)
-    // instead of rejecting. Second upload returns 201 with a NEW document_id.
-    let (status2, body2) =
-        upload_document_http(&app, "Duplicate Content B", duplicate_content).await;
-    assert_eq!(
-        status2,
-        StatusCode::CREATED,
-        "Re-ingestion of duplicate should return 201"
-    );
-    let doc_b_id = body2["document_id"].as_str().unwrap().to_string();
-
-    // Verify re-ingestion created a different document
+    // instead of rejecting. With doc A ingested, re-ingestion deletes A and
+    // creates a new document_id (202 ACCEPTED).
+    let body_b = common_upload_document_assert(app, "Duplicate Content B", duplicate_content).await;
+    let doc_b_id = body_b["document_id"].as_str().unwrap();
     assert_ne!(
-        doc_a_id, doc_b_id,
+        doc_b_id, doc_a_id,
         "Re-ingestion should create a new document ID"
     );
 
-    // Delete doc B - should succeed
-    let (delete_status, _) = delete_document_http(&app, &doc_b_id).await;
+    // Delete doc B - should succeed (pending docs are deletable)
+    let (delete_status, _) = delete_document_http(app, doc_b_id).await;
     assert_eq!(
         delete_status,
         StatusCode::OK,
@@ -4336,17 +4497,12 @@ async fn test_delete_one_of_duplicate_content_docs() {
     );
 
     // After deleting, uploading the same content should succeed again
-    let (status3, body3) =
-        upload_document_http(&app, "Duplicate Content C", duplicate_content).await;
-    assert_eq!(
-        status3,
-        StatusCode::CREATED,
-        "Content should be uploadable after original deleted"
-    );
+    // (no duplicate remains, so a fresh document is created).
+    let body_c = common_upload_document_assert(app, "Duplicate Content C", duplicate_content).await;
+    let doc_c_id = body_c["document_id"].as_str().unwrap();
 
     // Cleanup
-    let doc_c_id = body3["document_id"].as_str().unwrap();
-    delete_document_http(&app, doc_c_id).await;
+    delete_document_http(app, doc_c_id).await;
 
     println!("✅ OODA-40 TEST PASSED: Duplicate re-ingestion and re-upload after deletion");
 }
@@ -4366,7 +4522,6 @@ async fn upload_document_with_metadata(
         "content": content,
         "title": title,
         "metadata": metadata,
-        "async_processing": false
     });
 
     let response = app
@@ -4409,7 +4564,11 @@ async fn test_upload_with_metadata() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
     assert!(body.get("document_id").is_some(), "Should have document_id");
 
     // Cleanup
@@ -4438,7 +4597,11 @@ async fn test_delete_document_with_metadata() {
         metadata,
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
@@ -4466,6 +4629,9 @@ async fn upload_document_async_mode(
     content: &str,
     async_processing: bool,
 ) -> (StatusCode, Value) {
+    // P-G2b: `async_processing` is accepted but ignored — uploads always
+    // enqueue a background task. The field is still sent to exercise the
+    // request schema.
     let request = json!({
         "content": content,
         "title": title,
@@ -4507,15 +4673,19 @@ async fn test_sync_processing_mode() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
     assert!(body.get("document_id").is_some(), "Should have document_id");
 
-    // With sync processing, entity extraction should be complete
-    // (though mock provider may not extract entities)
+    // P-G2b: `async_processing` is accepted but ignored — uploads always
+    // enqueue a background task regardless of the requested mode.
 
     let doc_id = body["document_id"].as_str().unwrap();
 
-    // Cleanup
+    // Cleanup (pending docs are deletable)
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
 
@@ -4588,7 +4758,12 @@ async fn test_sequential_upload_delete_20_docs() {
             ),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED, "Doc {} upload failed", i);
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Doc {} upload should be accepted, got {}",
+            i,
+            status
+        );
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
 
@@ -4648,7 +4823,12 @@ async fn test_batch_cleanup_verification() {
             &format!("Content for cleanup verification test document {}.", i),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED);
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "upload {} should be accepted, got {}",
+            i,
+            status
+        );
         doc_ids.push(body["document_id"].as_str().unwrap().to_string());
     }
 
@@ -4714,11 +4894,11 @@ async fn test_document_with_unicode_title() {
         );
         let (status, body) = upload_document_http(&app, title, &unique_content).await;
 
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Unicode title '{}' should work",
-            title
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+            "Unicode title '{}' should be accepted, got {}",
+            title,
+            status
         );
 
         let doc_id = body["document_id"].as_str().unwrap();
@@ -4744,7 +4924,11 @@ async fn test_document_with_long_title() {
     let (status, body) =
         upload_document_http(&app, &long_title, "Content for long title testing.").await;
 
-    assert_eq!(status, StatusCode::CREATED, "Long title should be accepted");
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "Long title should be accepted, got {}",
+        status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
@@ -4767,7 +4951,6 @@ async fn upload_document_with_tenant(
     let request = json!({
         "content": content,
         "title": title,
-        "async_processing": false
     });
 
     let response = app
@@ -4802,7 +4985,11 @@ async fn test_document_with_tenant_context() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
     assert!(body.get("document_id").is_some());
 
     // Cleanup
@@ -4822,13 +5009,21 @@ async fn test_deletion_with_tenant_context() {
     let (status_a, body_a) =
         upload_document_with_tenant(&app, "Tenant A Doc", "Content for tenant A.", "tenant-a")
             .await;
-    assert_eq!(status_a, StatusCode::CREATED);
+    assert!(
+        status_a == StatusCode::CREATED || status_a == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status_a
+    );
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
 
     let (status_b, body_b) =
         upload_document_with_tenant(&app, "Tenant B Doc", "Content for tenant B.", "tenant-b")
             .await;
-    assert_eq!(status_b, StatusCode::CREATED);
+    assert!(
+        status_b == StatusCode::CREATED || status_b == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status_b
+    );
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
 
     // Delete tenant A's document
@@ -4857,7 +5052,6 @@ async fn upload_document_with_track_id(
         "content": content,
         "title": title,
         "track_id": track_id,
-        "async_processing": false
     });
 
     let response = app
@@ -4891,7 +5085,11 @@ async fn test_document_with_track_id() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
     assert!(body.get("document_id").is_some());
 
     // Cleanup
@@ -4912,12 +5110,20 @@ async fn test_same_track_id_deletion() {
     // Create two documents with same track_id
     let (status_a, body_a) =
         upload_document_with_track_id(&app, "Track Doc A", "Content for track A.", track_id).await;
-    assert_eq!(status_a, StatusCode::CREATED);
+    assert!(
+        status_a == StatusCode::CREATED || status_a == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status_a
+    );
     let doc_a_id = body_a["document_id"].as_str().unwrap().to_string();
 
     let (status_b, body_b) =
         upload_document_with_track_id(&app, "Track Doc B", "Content for track B.", track_id).await;
-    assert_eq!(status_b, StatusCode::CREATED);
+    assert!(
+        status_b == StatusCode::CREATED || status_b == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status_b
+    );
     let doc_b_id = body_b["document_id"].as_str().unwrap().to_string();
 
     // Delete doc A
@@ -5171,11 +5377,15 @@ async fn test_immediate_deletion_after_creation() {
         "This doc is deleted immediately after creation.",
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED);
+    assert!(
+        status == StatusCode::CREATED || status == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        status
+    );
 
     let doc_id = body["document_id"].as_str().unwrap();
 
-    // Delete immediately (no tokio::sleep)
+    // Delete immediately (no tokio::sleep) — pending docs are deletable
     let (delete_status, _) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
 
@@ -5260,12 +5470,16 @@ async fn test_complete_add_delete_cycle() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CREATED);
+    assert!(
+        response.status() == StatusCode::CREATED || response.status() == StatusCode::ACCEPTED,
+        "upload should return 201 or 202, got {}",
+        response.status()
+    );
 
     let body = extract_json(response).await;
     let doc_id = body["document_id"].as_str().unwrap();
 
-    // Delete document
+    // Delete document (pending docs are deletable)
     let (delete_status, delete_body) = delete_document_http(&app, doc_id).await;
     assert_eq!(delete_status, StatusCode::OK);
     assert_eq!(

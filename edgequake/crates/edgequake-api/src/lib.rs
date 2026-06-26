@@ -94,6 +94,7 @@
 
 pub mod cache_manager;
 pub mod document_metadata;
+pub mod document_read_model;
 pub mod error;
 pub mod file_validation;
 pub mod handlers;

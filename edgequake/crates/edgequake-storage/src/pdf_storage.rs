@@ -241,6 +241,43 @@ pub struct ListPdfFilter {
     pub page_size: Option<usize>,
 }
 
+/// Denormalized per-document stats written to the relational `documents` table
+/// after every ingestion (SPEC-021 P-A1).
+///
+/// WHY: the `documents.entity_count` / `chunk_count` columns existed but were
+/// never refreshed by any production writer, so the relational read-model
+/// fallback (P5-01) served stale `0` values — the "Completed / 0 entities"
+/// screenshot. This struct is the single payload passed to
+/// [`PdfDocumentStorage::update_document_stats`], keeping the writer contract
+/// DRY across the postgres and memory adapters.
+///
+/// All counts are clamped to `>= 0` by the implementation before being written.
+/// `cost_usd` / token fields are `Option` because mock-provider ingestions and
+/// legacy rows legitimately carry no cost.
+#[derive(Debug, Clone, Default)]
+pub struct DocumentStatsUpdate<'a> {
+    /// Document id whose row should be refreshed.
+    pub document_id: Uuid,
+    /// Final ingestion status string (`"completed"`, `"partial_failure"`, ...).
+    pub status: &'a str,
+    /// Number of chunks produced by the pipeline.
+    pub chunk_count: i32,
+    /// Number of entities extracted (matches KV `metadata.entity_count`).
+    pub entity_count: i32,
+    /// Number of relationships extracted.
+    pub relationship_count: i32,
+    /// LLM cost in USD, if tracked.
+    pub cost_usd: Option<f64>,
+    /// LLM input tokens, if tracked.
+    pub input_tokens: Option<i64>,
+    /// LLM output tokens, if tracked.
+    pub output_tokens: Option<i64>,
+    /// LLM total tokens, if tracked.
+    pub total_tokens: Option<i64>,
+    /// Terminal/partial-failure diagnostic text, if any.
+    pub error_message: Option<&'a str>,
+}
+
 /// PDF list response with pagination.
 #[derive(Debug, Clone, Serialize)]
 pub struct PdfList {
@@ -374,6 +411,27 @@ pub trait PdfDocumentStorage: Send + Sync {
     /// * `Err(StorageError)` - If deletion fails
     async fn delete_pdf(&self, pdf_id: &Uuid) -> Result<()>;
 
+    /// Clear the cached markdown conversion for a PDF.
+    ///
+    /// WHY: `update_pdf_processing` uses `COALESCE($markdown, markdown_content)`,
+    /// so passing `None` leaves the old markdown untouched. To force a true
+    /// PDF -> markdown re-conversion (Replace / "Re-convert from PDF"), the
+    /// cached markdown must be explicitly NULLed out so the resume shortcut in
+    /// `pdf_processing` cannot reuse it.
+    ///
+    /// Also clears `extraction_method` and `extraction_errors` so stale
+    /// metadata from a previous conversion does not leak into the new run.
+    ///
+    /// # Arguments
+    ///
+    /// * `pdf_id` - PDF identifier
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Markdown cleared (or PDF row not found, treated as success)
+    /// * `Err(StorageError)` - If the update fails
+    async fn clear_markdown(&self, pdf_id: &Uuid) -> Result<()>;
+
     /// Get PDF count by workspace and status.
     ///
     /// # Arguments
@@ -410,6 +468,24 @@ pub trait PdfDocumentStorage: Send + Sync {
         content: &str,
         status: &str,
     ) -> Result<()>;
+
+    /// Refresh the denormalized stat/cost columns of a `documents` row after
+    /// ingestion (SPEC-021 P-A1/P-A2).
+    ///
+    /// WHY: `ensure_document_record` only inserts/updates `title/content/status`.
+    /// The `chunk_count`/`entity_count`/`relationship_count`/cost columns were
+    /// never written, so the relational read-model fallback (P5-01) returned
+    /// stale `0` values. This method closes the write-path gap.
+    ///
+    /// The implementation MUST be idempotent and race-safe (upsert semantics):
+    /// if the `documents` row does not yet exist (race with
+    /// `ensure_document_record`), the call is a no-op that logs a warning
+    /// rather than an error — the next `ensure_document_record` + a follow-up
+    /// stats refresh will converge. Implementations clamp counts to `>= 0`.
+    ///
+    /// Best-effort by design: callers MUST treat an error here as non-fatal
+    /// (the KV metadata write remains the authoritative stats carrier).
+    async fn update_document_stats(&self, stats: &DocumentStatsUpdate<'_>) -> Result<()>;
 
     /// Delete a document row from the `documents` relational table.
     ///

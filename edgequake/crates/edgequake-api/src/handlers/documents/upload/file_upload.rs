@@ -12,7 +12,6 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::services::{record_compliance_event, ContentHasher};
 use crate::state::AppState;
-use edgequake_pipeline::normalize_entity_name;
 
 use crate::file_validation::{image_mime_type, is_image_extension, validate_file};
 #[allow(unused_imports)]
@@ -396,10 +395,19 @@ pub async fn upload_file(
                 &workspace_id_for_storage,
             );
 
-            // WHY: Normalize entity names to UPPERCASE_UNDERSCORE before storage.
-            // Without this, variants like "Systems Thinking" and "systems thinking"
-            // are stored as separate nodes, bypassing deduplication in the merger.
-            let entity_key = normalize_entity_name(&entity.name);
+            // RC-6 / P-G1: entity identity is the normalized `EntityId`. The
+            // graph node id, the vector id, and metadata.entity_name are all
+            // derived from it so they can never diverge.
+            let entity_id = edgequake_storage::EntityId::new(&entity.name);
+            if entity_id.is_empty() {
+                tracing::warn!(
+                    document_id = %document_id,
+                    raw_name = %entity.name,
+                    "Skipping entity with empty normalized name"
+                );
+                continue;
+            }
+            let entity_key = entity_id.as_graph_node_id().to_string();
             match state
                 .storage
                 .graph_storage
@@ -425,7 +433,7 @@ pub async fn upload_file(
             if let Some(embedding) = &entity.embedding {
                 let mut metadata = serde_json::json!({
                     "type": "entity",
-                    "entity_name": entity.name,
+                    "entity_name": entity_id.as_str(),
                     "entity_type": entity.entity_type,
                     "description": entity.description,
                     "document_id": document_id,
@@ -436,20 +444,24 @@ pub async fn upload_file(
                 }
                 metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
 
-                // Use normalized entity key as vector ID for dedup (matches graph node ID)
-                let entity_id = format!("entity:{}", entity_key);
+                let vector_id = entity_id.as_vector_id();
                 if let Err(e) = workspace_vector_storage
-                    .upsert(&[(entity_id.clone(), embedding.clone(), metadata)])
+                    .upsert(&[(vector_id.clone(), embedding.clone(), metadata)])
                     .await
                 {
-                    tracing::error!(entity_id = %entity_id, error = %e, "VECTOR STORAGE: Failed to store entity embedding");
+                    tracing::error!(entity_id = %vector_id, error = %e, "VECTOR STORAGE: Failed to store entity embedding");
                 } else {
-                    tracing::info!(entity_id = %entity_id, "VECTOR STORAGE: Entity embedding stored OK");
+                    tracing::info!(entity_id = %vector_id, "VECTOR STORAGE: Entity embedding stored OK");
                 }
             }
         }
 
         for relationship in &extraction.relationships {
+            // RC-6 / P-G1: edge endpoints are normalized EntityIds.
+            let src_key =
+                edgequake_storage::EntityId::new(&relationship.source).as_graph_node_id().to_string();
+            let tgt_key =
+                edgequake_storage::EntityId::new(&relationship.target).as_graph_node_id().to_string();
             let mut properties = std::collections::HashMap::new();
             properties.insert(
                 "relation_type".to_string(),
@@ -484,7 +496,7 @@ pub async fn upload_file(
             let _ = state
                 .storage
                 .graph_storage
-                .upsert_edge(&relationship.source, &relationship.target, properties)
+                .upsert_edge(&src_key, &tgt_key, properties)
                 .await;
         }
     }

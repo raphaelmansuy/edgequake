@@ -27,6 +27,7 @@
     "download": "Télécharger",
     "tryAgain": "Réessayer",
     "platform": "Plateforme Graph-RAG",
+    "uiVersion": "UI v{{version}}",
     "navigation": "Navigation",
     "keyboardShortcuts": "Raccourcis clavier",
     "keyboardShortcutsDesc": "Utilisez ces raccourcis pour naviguer rapidement",
@@ -98,7 +99,8 @@
     "knowledgeGraph": "Graphe de connaissances",
     "query": "Requête",
     "settings": "Paramètres",
-    "language": "Langue"
+    "language": "Langue",
+    "apiVersion": "API v{{version}}"
   },
   "documents": {
     "title": "Documents",
@@ -113,7 +115,7 @@
       "success": "{{count}} fichier(s) téléchargé(s) avec succès",
       "error": "{{count}} fichier(s) ont échoué",
       "complete": "Téléchargé ! Traitement en cours...",
-      "fileTooLarge": "Le fichier \"{{name}}\" est trop volumineux ({{size}}Mo). La taille maximale est de 10Mo.",
+      "fileTooLarge": "Le fichier \"{{name}}\" est trop volumineux ({{size}}Mo). La taille maximale est de {{limit}}.",
       "invalidType": "Le fichier \"{{name}}\" a un format non supporté. Formats supportés : TXT, MD, JSON.",
       "allFailed": "Les {{count}} fichier(s) ont tous échoué",
       "partial": "{{success}} fichier(s) téléchargé(s), {{failed}} en échec",
@@ -250,6 +252,25 @@
       "failed": "Échec du retraitement",
       "success": "Document mis en file d'attente pour retraitement",
       "successDesc": "Le document sera entièrement retraité."
+    },
+    "reprocessDialog": {
+      "title": "Retraiter « {{name}} »",
+      "description": "Choisissez comment retraiter ce document.",
+      "fullLabel": "Reconvertir depuis le PDF (plus lent, utilise des tokens de vision)",
+      "fullDescriptionPdf": "Relance la conversion PDF -> markdown depuis les octets PDF stockés, puis réextrait les entités et relations. À utiliser lorsque le markdown est incorrect ou obsolète.",
+      "fullDescriptionNonPdf": "Ré-ingère le contenu source depuis le début et relance le pipeline complet du graphe de connaissances.",
+      "fullBadge": "Le plus lent · coûte des tokens",
+      "entitiesLabel": "Réextraire uniquement les entités (réutiliser le markdown existant)",
+      "entitiesDescriptionPdf": "Conserve le markdown en cache et relance uniquement le découpage, l'extraction d'entités/relations et l'embedding. Rapide et économique.",
+      "entitiesDescriptionNonPdf": "Relance le pipeline du graphe de connaissances sur le contenu existant.",
+      "entitiesBadge": "Rapide · pas de vision",
+      "inflightWarning": "Ce document est actuellement en cours de traitement. Attendez la fin du traitement avant de relancer.",
+      "cancel": "Annuler",
+      "confirm": "Retraiter",
+      "bulkTitle": "Retraiter {{count}} documents ?",
+      "bulkDescription": "Choisissez comment retraiter les documents sélectionnés. Le même mode s'applique à tous.",
+      "fullDescriptionBulk": "Relance la conversion PDF -> markdown pour chaque PDF sélectionné, puis réextrait les entités. À utiliser lorsque le markdown est incorrect ou obsolète. Les documents non-PDF sont ré-ingérés depuis le début.",
+      "entitiesDescriptionBulk": "Conserve le markdown en cache et relance uniquement le pipeline du graphe de connaissances pour chaque document sélectionné. Rapide et économique."
     },
     "reprocessAll": {
       "confirm": "Retenter tous les échecs",

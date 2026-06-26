@@ -23,6 +23,25 @@ use serde_json::{json, Value};
 use tower::ServiceExt;
 
 // ============================================================================
+// Test tenant/workspace UUIDs (SPEC-021: isolation requires distinct UUIDs)
+// ============================================================================
+// WHY: `metadata_matches_tenant_context` resolves X-Tenant-ID / X-Workspace-ID
+// via UUID parsing; non-UUID strings fall back to the default tenant/workspace,
+// so two "different" non-UUID tenants silently resolve to the same default and
+// isolation tests see cross-tenant data. Distinct UUIDs make isolation real.
+const TENANT_A: &str = "00000000-0000-0000-0000-000000000001";
+const TENANT_B: &str = "00000000-0000-0000-0000-000000000002";
+const WS_A: &str = "00000000-0000-0000-0000-0000000000a1";
+const WS_B: &str = "00000000-0000-0000-0000-0000000000a2";
+const SHARED_TENANT: &str = "00000000-0000-0000-0000-000000000003";
+const WS_1: &str = "00000000-0000-0000-0000-0000000000b1";
+const WS_2: &str = "00000000-0000-0000-0000-0000000000b2";
+const VICTIM_TENANT: &str = "00000000-0000-0000-0000-000000000004";
+const VICTIM_WS: &str = "00000000-0000-0000-0000-0000000000c1";
+const ATTACKER_TENANT: &str = "00000000-0000-0000-0000-000000000005";
+const ATTACKER_WS: &str = "00000000-0000-0000-0000-0000000000c2";
+
+// ============================================================================
 // Test Utilities
 // ============================================================================
 
@@ -77,8 +96,8 @@ mod tenant_isolation_tests {
                     .method("POST")
                     .uri("/api/v1/documents")
                     .header("Content-Type", "application/json")
-                    .header("X-Tenant-ID", "tenant-a")
-                    .header("X-Workspace-ID", "workspace-a")
+                    .header("X-Tenant-ID", TENANT_A)
+                    .header("X-Workspace-ID", WS_A)
                     .body(Body::from(
                         json!({
                             "content": "This is a secret document for Tenant A about Project Alpha",
@@ -114,8 +133,8 @@ mod tenant_isolation_tests {
                 Request::builder()
                     .method("GET")
                     .uri("/api/v1/documents")
-                    .header("X-Tenant-ID", "tenant-b")
-                    .header("X-Workspace-ID", "workspace-b")
+                    .header("X-Tenant-ID", TENANT_B)
+                    .header("X-Workspace-ID", WS_B)
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -161,8 +180,8 @@ mod tenant_isolation_tests {
                     .method("POST")
                     .uri("/api/v1/documents")
                     .header("Content-Type", "application/json")
-                    .header("X-Tenant-ID", "shared-tenant")
-                    .header("X-Workspace-ID", "workspace-1")
+                    .header("X-Tenant-ID", SHARED_TENANT)
+                    .header("X-Workspace-ID", WS_1)
                     .body(Body::from(
                         json!({
                             "content": "Workspace 1 specific content about Finance Reports",
@@ -189,8 +208,8 @@ mod tenant_isolation_tests {
                     .method("POST")
                     .uri("/api/v1/documents")
                     .header("Content-Type", "application/json")
-                    .header("X-Tenant-ID", "shared-tenant")
-                    .header("X-Workspace-ID", "workspace-2")
+                    .header("X-Tenant-ID", SHARED_TENANT)
+                    .header("X-Workspace-ID", WS_2)
                     .body(Body::from(
                         json!({
                             "content": "Workspace 2 specific content about HR Policies",
@@ -216,8 +235,8 @@ mod tenant_isolation_tests {
                 Request::builder()
                     .method("GET")
                     .uri("/api/v1/documents")
-                    .header("X-Tenant-ID", "shared-tenant")
-                    .header("X-Workspace-ID", "workspace-1")
+                    .header("X-Tenant-ID", SHARED_TENANT)
+                    .header("X-Workspace-ID", WS_1)
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -247,8 +266,8 @@ mod tenant_isolation_tests {
                 Request::builder()
                     .method("GET")
                     .uri("/api/v1/documents")
-                    .header("X-Tenant-ID", "shared-tenant")
-                    .header("X-Workspace-ID", "workspace-2")
+                    .header("X-Tenant-ID", SHARED_TENANT)
+                    .header("X-Workspace-ID", WS_2)
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -491,8 +510,8 @@ mod attack_vector_tests {
                     .method("POST")
                     .uri("/api/v1/documents")
                     .header("Content-Type", "application/json")
-                    .header("X-Tenant-ID", "victim-tenant")
-                    .header("X-Workspace-ID", "victim-ws")
+                    .header("X-Tenant-ID", VICTIM_TENANT)
+                    .header("X-Workspace-ID", VICTIM_WS)
                     .body(Body::from(
                         json!({
                             "content": "SECRET: Credit card numbers and passwords stored here",
@@ -512,8 +531,8 @@ mod attack_vector_tests {
                 Request::builder()
                     .method("GET")
                     .uri("/api/v1/documents")
-                    .header("X-Tenant-ID", "attacker-tenant")
-                    .header("X-Workspace-ID", "attacker-ws")
+                    .header("X-Tenant-ID", ATTACKER_TENANT)
+                    .header("X-Workspace-ID", ATTACKER_WS)
                     .body(Body::empty())
                     .unwrap(),
             )

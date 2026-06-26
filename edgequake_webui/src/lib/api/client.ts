@@ -1,10 +1,14 @@
 /**
  * @module api-client
  * @description Base API client for EdgeQuake backend.
- * Provides fetch wrapper with error handling and streaming support.
+ *
+ * Provides a fetch wrapper with error handling, auth-token refresh, and
+ * unified logging. Session context (tokens, tenant IDs, traceparent) lives
+ * in `client-context.ts`; SSE streaming lives in `stream-client.ts`; the
+ * backend readiness probe lives in `backend-readiness.ts`. This module owns
+ * only the request/response transport.
  *
  * @implements FEAT0700 - Unified API client with error handling
- * @implements FEAT0770 - SSE streaming client
  * @implements FEAT0771 - Request/response interceptors
  *
  * @enforces BR0700 - All requests include auth headers
@@ -14,10 +18,44 @@
 
 import { getRuntimeApiBaseUrl, getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 import type { ApiError } from "@/types";
+import {
+  adoptTraceparentFromResponse,
+  clearTokens,
+  generateRequestId,
+  generateTraceparent,
+  getClientTraceContext,
+  getOrCreateUserId,
+  getTenantContext,
+  getTokens,
+  setTokens,
+} from "./client-context";
+import { streamClient } from "./stream-client";
 
 export const SERVER_BASE_URL = getRuntimeServerBaseUrl();
 
-// Custom error classes
+// Re-export session context so existing `import { ... } from "./client"` keeps working.
+export {
+  setTokens,
+  getTokens,
+  clearTokens,
+  getOrCreateUserId,
+  setTenantContext,
+  getTenantContext,
+  generateTraceparent,
+  getClientTraceContext,
+  adoptTraceparentFromResponse,
+} from "./client-context";
+
+// Re-export streaming + readiness (SRP modules).
+export { streamClient } from "./stream-client";
+export {
+  isBackendReady,
+  _resetBackendReadinessCache,
+  type ReadinessProbeClient,
+} from "./backend-readiness";
+
+// === Custom error classes =============================================
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -53,311 +91,24 @@ export class NetworkError extends Error {
   }
 }
 
-// Token management
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
+// === Shared options + logging =========================================
 
-export function setTokens(access: string, refresh: string): void {
-  accessToken = access;
-  refreshToken = refresh;
-  if (typeof window !== "undefined") {
-    localStorage.setItem("accessToken", access);
-    localStorage.setItem("refreshToken", refresh);
-  }
-}
-
-export function getTokens(): {
-  accessToken: string | null;
-  refreshToken: string | null;
-} {
-  if (typeof window !== "undefined" && !accessToken) {
-    accessToken = localStorage.getItem("accessToken");
-    refreshToken = localStorage.getItem("refreshToken");
-  }
-  return { accessToken, refreshToken };
-}
-
-export function clearTokens(): void {
-  accessToken = null;
-  refreshToken = null;
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-  }
-}
-
-// Current tenant/workspace/user context
-let currentTenantId: string | null = null;
-let currentWorkspaceId: string | null = null;
-let currentUserId: string | null = null;
-
-const TRACEPARENT_STORAGE_KEY = "edgequake_traceparent";
-
-/** Random lowercase hex string (cryptographic when available). */
-function randomHex(byteLength: number): string {
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(byteLength);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  }
-  let out = "";
-  for (let i = 0; i < byteLength * 2; i++) {
-    out += Math.floor(Math.random() * 16).toString(16);
-  }
-  return out;
-}
-
-/**
- * W3C traceparent for browser → API correlation (SPEC-018).
- * Reuses stored trace id from prior API response when present.
- */
-export function generateTraceparent(): string {
-  if (typeof window !== "undefined") {
-    const stored = sessionStorage.getItem(TRACEPARENT_STORAGE_KEY);
-    if (stored?.startsWith("00-")) {
-      const parts = stored.split("-");
-      if (parts.length >= 4 && parts[1].length === 32) {
-        return `00-${parts[1]}-${randomHex(8)}-01`;
-      }
-    }
-  }
-  return `00-${randomHex(16)}-${randomHex(8)}-01`;
-}
-
-/** Current browser trace context for client-side error logs (W3C, no OTEL SDK required). */
-export function getClientTraceContext(): {
-  traceparent: string | null;
-  trace_id: string | null;
-} {
-  if (typeof window === "undefined") {
-    return { traceparent: null, trace_id: null };
-  }
-  const traceparent = sessionStorage.getItem(TRACEPARENT_STORAGE_KEY);
-  const trace_id =
-    traceparent?.startsWith("00-") && traceparent.split("-")[1]?.length === 32
-      ? traceparent.split("-")[1]
-      : null;
-  return { traceparent, trace_id };
-}
-
-/** Persist traceparent from API response for subsequent requests. */
-export function adoptTraceparentFromResponse(response: Response): void {
-  const tp = response.headers?.get?.("traceparent");
-  if (tp?.startsWith("00-") && typeof window !== "undefined") {
-    sessionStorage.setItem(TRACEPARENT_STORAGE_KEY, tp);
-  }
-}
-
-// Generate a UUID v4 for anonymous users
-function generateUUID(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-// Get or create anonymous user ID
-export function getOrCreateUserId(): string {
-  if (typeof window !== "undefined") {
-    let userId = localStorage.getItem("userId");
-    if (!userId) {
-      userId = generateUUID();
-      localStorage.setItem("userId", userId);
-    }
-    return userId;
-  }
-  // For server-side, generate a temporary ID
-  return generateUUID();
-}
-
-export function setTenantContext(tenantId: string, workspaceId?: string): void {
-  currentTenantId = tenantId;
-  currentWorkspaceId = workspaceId || null;
-  if (typeof window !== "undefined") {
-    localStorage.setItem("tenantId", tenantId);
-    if (workspaceId) {
-      localStorage.setItem("workspaceId", workspaceId);
-    }
-  }
-}
-
-export function getTenantContext(): {
-  tenantId: string | null;
-  workspaceId: string | null;
-  userId: string | null;
-} {
-  if (typeof window !== "undefined" && !currentTenantId) {
-    currentTenantId = localStorage.getItem("tenantId");
-    currentWorkspaceId = localStorage.getItem("workspaceId");
-    currentUserId = getOrCreateUserId();
-  }
-  return {
-    tenantId: currentTenantId,
-    workspaceId: currentWorkspaceId,
-    userId: currentUserId,
-  };
-}
-
-// Headers builder
-function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
-  const headers = new Headers(customHeaders);
-
-  // Only set Content-Type to application/json if body is not FormData
-  // For FormData, the browser will set Content-Type with the boundary automatically
-  if (!headers.has("Content-Type") && !(body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const { accessToken: token } = getTokens();
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  // SPEC-018: Per-request correlation for distributed tracing / support tickets
-  if (!headers.has("X-Request-ID")) {
-    headers.set(
-      "X-Request-ID",
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : generateUUID(),
-    );
-  }
-
-  if (!headers.has("traceparent")) {
-    headers.set("traceparent", generateTraceparent());
-  }
-
-  const { tenantId, workspaceId, userId } = getTenantContext();
-  if (tenantId) {
-    headers.set("X-Tenant-ID", tenantId);
-  }
-  if (workspaceId) {
-    headers.set("X-Workspace-ID", workspaceId);
-  }
-  // Always include user ID for conversation APIs
-  const effectiveUserId = userId || getOrCreateUserId();
-  headers.set("X-User-ID", effectiveUserId);
-
-  return headers;
-}
-
-/** Resolve URL for backend root endpoints (/health, /ready) — not under /api/v1. */
-export function resolveServerRootUrl(endpoint: string): string {
-  if (endpoint.startsWith("http")) {
-    return endpoint;
-  }
-  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-  const serverBaseUrl = getRuntimeServerBaseUrl();
-  return serverBaseUrl ? `${serverBaseUrl}${path}` : path;
-}
-
-export interface ServerRootClientOptions extends RequestInit {
-  /**
-   * Probe failures (health/ready) are handled by callers — avoid console.error
-   * in dev, which triggers the Next.js global error overlay (see MermaidBlock).
-   */
+export interface ClientErrorLogOptions {
   silent?: boolean;
 }
 
-/**
- * GET/POST to backend server root (health, readiness). Uses unified error handling.
- * No auth headers — probes must work before login.
- * @implements UI-DRY-003
- */
-export async function serverRootClient<T>(
-  endpoint: string,
-  options: ServerRootClientOptions = {},
-): Promise<T> {
-  const { silent = false, ...fetchOptions } = options;
-  const url = resolveServerRootUrl(endpoint);
-
-  try {
-    const response = await fetch(url, {
-      ...fetchOptions,
-      method: fetchOptions.method ?? "GET",
-    });
-
-    if (!response.ok) {
-      throw await handleErrorResponse(response, { silent });
-    }
-
-    const text = await response.text();
-    if (!text) {
-      return {} as T;
-    }
-
-    return JSON.parse(text) as T;
-  } catch (error) {
-    if (error instanceof ApiRequestError) {
-      throw error;
-    }
-    if (error instanceof TypeError) {
-      const networkErr = new NetworkError();
-      logClientNetworkError(networkErr, { silent });
-      throw networkErr;
-    }
-    throw error;
-  }
-}
-
-// Main API client function
-export async function apiClient<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${getRuntimeApiBaseUrl()}${endpoint}`;
-
-  const config: RequestInit = {
-    ...options,
-    headers: buildHeaders(options.headers, options.body),
-  };
-
-  try {
-    const response = await fetch(url, config);
-
-    // Handle 401 - try to refresh token
-    if (response.status === 401) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        // Retry the request with new token
-        config.headers = buildHeaders(options.headers, options.body);
-        const retryResponse = await fetch(url, config);
-        if (!retryResponse.ok) {
-          throw await handleErrorResponse(retryResponse);
-        }
-        return retryResponse.json() as Promise<T>;
-      }
-      throw new AuthError();
-    }
-
-    if (!response.ok) {
-      adoptTraceparentFromResponse(response);
-      throw await handleErrorResponse(response);
-    }
-
-    adoptTraceparentFromResponse(response);
-
-    // Handle empty responses
-    const text = await response.text();
-    if (!text) {
-      return {} as T;
-    }
-
-    return JSON.parse(text) as T;
-  } catch (error) {
-    if (error instanceof ApiRequestError || error instanceof AuthError) {
-      throw error;
-    }
-    if (error instanceof TypeError) {
-      const networkErr = new NetworkError();
-      logClientNetworkError(networkErr);
-      throw networkErr;
-    }
-    throw error;
-  }
+export interface ApiClientOptions extends RequestInit {
+  /**
+   * Suppress console.error on transport failures (default: false).
+   *
+   * WHY: Next.js dev overlay promotes any console.error to a full-screen
+   * error modal. Health probes and background polls must use silent:true so
+   * a not-yet-ready backend does not crash the dashboard on boot.
+   *
+   * Non-silent calls (user-initiated mutations, page loads) still log via
+   * console.warn — visible in devtools but never promoted to the overlay.
+   */
+  silent?: boolean;
 }
 
 /** Structured payload for client-side error logging (explicit context). */
@@ -374,10 +125,6 @@ export function apiErrorLogPayload(err: ApiRequestError): Record<string, unknown
     traceparent: trace.traceparent,
     trace_id: trace.trace_id,
   };
-}
-
-interface ClientErrorLogOptions {
-  silent?: boolean;
 }
 
 /** Log API errors at the correct level with full backend context. */
@@ -397,7 +144,15 @@ export function logClientApiError(
   }
 }
 
-/** Log transport failures (no HTTP response) with trace context. */
+/** Log transport failures (no HTTP response) with trace context.
+ *
+ * WHY console.warn (not console.error): Next.js dev promotes console.error
+ * to a full-screen error overlay, which crashes the dashboard whenever the
+ * backend is briefly unavailable (cold start, restart, network blip). The
+ * underlying failure is still thrown to callers — they decide UX via
+ * React Query's `isError` / retry policies. console.warn keeps the failure
+ * visible in devtools without hijacking the page.
+ */
 export function logClientNetworkError(
   err: NetworkError,
   options: ClientErrorLogOptions = {},
@@ -415,11 +170,60 @@ export function logClientNetworkError(
     console.debug("[edgequake] Network probe failed", payload);
     return;
   }
-  console.error("[edgequake] Network error", payload);
+  console.warn("[edgequake] Network error", payload);
 }
 
-// Error response handler
-async function handleErrorResponse(
+// === Headers + URL resolution =========================================
+
+/** Build the request headers: Content-Type, Authorization, X-Request-ID,
+ * traceparent, and tenant/workspace/user context. */
+export function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Headers {
+  const headers = new Headers(customHeaders);
+
+  // For FormData, the browser sets Content-Type with the boundary automatically.
+  if (!headers.has("Content-Type") && !(body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const { accessToken: token } = getTokens();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  // SPEC-018: Per-request correlation for distributed tracing / support tickets
+  if (!headers.has("X-Request-ID")) {
+    headers.set(
+      "X-Request-ID",
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : generateRequestId(),
+    );
+  }
+
+  if (!headers.has("traceparent")) {
+    headers.set("traceparent", generateTraceparent());
+  }
+
+  const { tenantId, workspaceId, userId } = getTenantContext();
+  if (tenantId) headers.set("X-Tenant-ID", tenantId);
+  if (workspaceId) headers.set("X-Workspace-ID", workspaceId);
+  headers.set("X-User-ID", userId || getOrCreateUserId());
+
+  return headers;
+}
+
+/** Resolve URL for backend root endpoints (/health, /ready) — not under /api/v1. */
+export function resolveServerRootUrl(endpoint: string): string {
+  if (endpoint.startsWith("http")) return endpoint;
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const serverBaseUrl = getRuntimeServerBaseUrl();
+  return serverBaseUrl ? `${serverBaseUrl}${path}` : path;
+}
+
+// === Error response normalization =====================================
+
+/** Normalize a non-2xx response into an `ApiRequestError` with diagnostics. */
+export async function handleErrorResponse(
   response: Response,
   options: ClientErrorLogOptions = {},
 ): Promise<ApiRequestError> {
@@ -448,27 +252,117 @@ async function handleErrorResponse(
       response.statusText || "Request failed",
       response.status,
     );
-    if (requestId) {
-      err.details = { request_id: requestId };
-    }
+    if (requestId) err.details = { request_id: requestId };
     logClientApiError(err, options);
     return err;
   }
 }
 
-// Token refresh
+// === Server-root probe client (no auth) ===============================
+
+export interface ServerRootClientOptions extends RequestInit {
+  /** Probe failures (health/ready) are handled by callers — avoid
+   * console.error in dev, which triggers the Next.js global error overlay. */
+  silent?: boolean;
+}
+
+/** GET/POST to backend server root (health, readiness). No auth headers —
+ * probes must work before login. @implements UI-DRY-003 */
+export async function serverRootClient<T>(
+  endpoint: string,
+  options: ServerRootClientOptions = {},
+): Promise<T> {
+  const { silent = false, ...fetchOptions } = options;
+  const url = resolveServerRootUrl(endpoint);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      method: fetchOptions.method ?? "GET",
+    });
+
+    if (!response.ok) {
+      throw await handleErrorResponse(response, { silent });
+    }
+
+    const text = await response.text();
+    return text ? (JSON.parse(text) as T) : ({} as T);
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw error;
+    if (error instanceof TypeError) {
+      const networkErr = new NetworkError();
+      logClientNetworkError(networkErr, { silent });
+      throw networkErr;
+    }
+    throw error;
+  }
+}
+
+// === Main API client ==================================================
+
+/** Main API client function. */
+export async function apiClient<T>(
+  endpoint: string,
+  options: ApiClientOptions = {},
+): Promise<T> {
+  const { silent = false, ...fetchOptions } = options;
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${getRuntimeApiBaseUrl()}${endpoint}`;
+
+  const config: RequestInit = {
+    ...fetchOptions,
+    headers: buildHeaders(fetchOptions.headers, fetchOptions.body),
+  };
+
+  try {
+    const response = await fetch(url, config);
+
+    // Handle 401 - try to refresh token
+    if (response.status === 401) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        config.headers = buildHeaders(fetchOptions.headers, fetchOptions.body);
+        const retryResponse = await fetch(url, config);
+        if (!retryResponse.ok) {
+          throw await handleErrorResponse(retryResponse, { silent });
+        }
+        return retryResponse.json() as Promise<T>;
+      }
+      throw new AuthError();
+    }
+
+    if (!response.ok) {
+      adoptTraceparentFromResponse(response);
+      throw await handleErrorResponse(response, { silent });
+    }
+
+    adoptTraceparentFromResponse(response);
+
+    const text = await response.text();
+    return text ? (JSON.parse(text) as T) : ({} as T);
+  } catch (error) {
+    if (error instanceof ApiRequestError || error instanceof AuthError) {
+      throw error;
+    }
+    if (error instanceof TypeError) {
+      const networkErr = new NetworkError();
+      logClientNetworkError(networkErr, { silent });
+      throw networkErr;
+    }
+    throw error;
+  }
+}
+
+/** Token refresh — used by the main client on 401. */
 async function tryRefreshToken(): Promise<boolean> {
   const { refreshToken: refresh } = getTokens();
-  if (!refresh) {
-    return false;
-  }
+  if (!refresh) return false;
 
   try {
     const response = await fetch(`${getRuntimeApiBaseUrl()}/auth/refresh`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refresh }),
     });
 
@@ -492,168 +386,40 @@ async function tryRefreshToken(): Promise<boolean> {
 }
 
 /** Dispatch a browser event so AuthGuard can react to permanent auth failures. */
-function dispatchAuthFailure(): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('auth:logout-required'));
+export function dispatchAuthFailure(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth:logout-required"));
   }
 }
 
-// Streaming API client for SSE (Server-Sent Events) responses
-// SSE format: "data: <content>\n\n" for each event
-export async function* streamClient<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): AsyncGenerator<T, void, unknown> {
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${getRuntimeApiBaseUrl()}${endpoint}`;
+// === Convenience methods ==============================================
 
-  const config: RequestInit = {
-    ...options,
-    headers: buildHeaders(options.headers),
-  };
-
-  const response = await fetch(url, config);
-
-  if (!response.ok) {
-    throw await handleErrorResponse(response);
-  }
-
-  if (!response.body) {
-    throw new Error("Response body is null");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        // Process any remaining buffer
-        if (buffer.trim()) {
-          const parsed = parseSSEData(buffer);
-          if (parsed !== null) {
-            yield parsed as T;
-          }
-        }
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Process complete SSE events (separated by double newlines)
-      // SSE format: "data: <content>\n\n"
-      const events = buffer.split("\n\n");
-      buffer = events.pop() || "";
-
-      for (const event of events) {
-        const parsed = parseSSEData(event);
-        if (parsed !== null) {
-          yield parsed as T;
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-// Parse SSE data line(s) and return the content
-// SSE format: "data: <content>" or multiple "data: " lines for multiline content
-// Note: SSE spec says "data:" followed by optional space, then content
-// We need to remove the SSE-mandated space but preserve content-internal spaces
-function parseSSEData(event: string): unknown {
-  const lines = event.split("\n");
-  const dataChunks: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("data:")) {
-      // Extract content after "data:"
-      // SSE format allows "data:<content>" or "data: <content>" (with optional space)
-      let content = trimmed.slice(5);
-      // Remove the single SSE-mandated space if present at the start
-      // But preserve the actual token content (which may have its own leading space)
-      if (content.startsWith(" ")) {
-        content = content.slice(1);
-      }
-      if (content) {
-        dataChunks.push(content);
-      }
-    } else if (
-      trimmed.startsWith("event:") ||
-      trimmed.startsWith("id:") ||
-      trimmed.startsWith("retry:")
-    ) {
-      // Ignore other SSE fields for now
-      continue;
-    } else if (trimmed && !trimmed.startsWith(":")) {
-      // Non-SSE line - might be plain content or NDJSON fallback
-      dataChunks.push(trimmed);
-    }
-  }
-
-  if (dataChunks.length === 0) {
-    return null;
-  }
-
-  // Join data chunks - preserve spaces for word separation
-  const data = dataChunks.join("");
-
-  // Try to parse as JSON first (structured response)
-  try {
-    return JSON.parse(data);
-  } catch {
-    // Not JSON, return as raw text wrapped in expected format
-    return { type: "token", content: data };
-  }
-}
-
-// Convenience methods
 export const api = {
-  get: <T>(endpoint: string, options?: RequestInit) =>
+  get: <T>(endpoint: string, options?: ApiClientOptions) =>
     apiClient<T>(endpoint, { ...options, method: "GET" }),
 
-  post: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
+  post: <T>(endpoint: string, data?: unknown, options?: ApiClientOptions) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "POST",
-      body:
-        data instanceof FormData
-          ? data
-          : data
-            ? JSON.stringify(data)
-            : undefined,
+      body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     }),
 
-  put: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
+  put: <T>(endpoint: string, data?: unknown, options?: ApiClientOptions) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PUT",
-      body:
-        data instanceof FormData
-          ? data
-          : data
-            ? JSON.stringify(data)
-            : undefined,
+      body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     }),
 
-  patch: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>
+  patch: <T>(endpoint: string, data?: unknown, options?: ApiClientOptions) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PATCH",
-      body:
-        data instanceof FormData
-          ? data
-          : data
-            ? JSON.stringify(data)
-            : undefined,
+      body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     }),
 
-  delete: <T>(endpoint: string, options?: RequestInit) =>
+  delete: <T>(endpoint: string, options?: ApiClientOptions) =>
     apiClient<T>(endpoint, { ...options, method: "DELETE" }),
 
   stream: <T>(endpoint: string, data?: unknown, options?: RequestInit) =>

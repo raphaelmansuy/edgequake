@@ -108,6 +108,16 @@ pub trait WorkspaceService: Send + Sync {
     /// Get workspace statistics.
     async fn get_workspace_stats(&self, workspace_id: Uuid) -> Result<WorkspaceStats>;
 
+    /// Seed the built-in default tenant + workspace at their canonical UUIDs.
+    ///
+    /// No-op for production backends that bootstrap the default workspace
+    /// themselves (e.g. via migrations). The in-memory test backend overrides
+    /// this so that ingestion paths resolving `workspace_id = "default"` find a
+    /// real workspace record (P-G2b: async upload requires it).
+    async fn seed_default_workspace(&self) {
+        // default no-op
+    }
+
     // ============ Metrics Operations ============
 
     /// Record a metrics snapshot for time-series analysis.

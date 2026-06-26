@@ -22,10 +22,22 @@ impl<'a> TenantScope<'a> {
 }
 
 /// Build entity vector metadata for Local query mode retrieval.
-pub fn entity_vector_metadata(entity: &ExtractedEntity, scope: TenantScope<'_>) -> Value {
+///
+/// `entity_id` is the normalized [`EntityId`] used for both the graph node id
+/// and the vector storage id (RC-6 / P-G1). The `entity_name` metadata field
+/// is set to the *normalized* name so the query decoder
+/// (`decode_entity_name_from_result`) recovers the same id the graph uses for
+/// `get_nodes_batch` — never the raw extraction name, which would fragment
+/// lookups.
+pub fn entity_vector_metadata(
+    entity: &ExtractedEntity,
+    entity_id: &edgequake_storage::EntityId,
+    scope: TenantScope<'_>,
+) -> Value {
+    let normalized_name = entity_id.as_str();
     let mut metadata = json!({
         "type": "entity",
-        "entity_name": entity.name,
+        "entity_name": normalized_name,
         "entity_type": entity.entity_type,
         "description": entity.description,
         "source_chunk_ids": entity.source_chunk_ids,

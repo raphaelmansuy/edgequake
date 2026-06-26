@@ -195,3 +195,159 @@ pub async fn update_server_defaults(
         note: Some("Applies to newly created tenants only. Not retroactive.".to_string()),
     }))
 }
+
+// ── Storage health endpoints (SPEC-021 P-D2) ──────────────────────────────────
+
+/// GET /api/v1/admin/storage/inspect — full storage health report (admin-only).
+///
+/// Runs `StorageInspector::inspect()` and returns the full report: schema
+/// drift, invariant violations (INV-01/03/04/05/C/D/D2/04b), and recommended
+/// repairs. Read-only — never mutates data.
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/storage/inspect",
+    responses(
+        (status = 200, description = "Storage inspection report", body = crate::storage_inspector::InspectorReport),
+        (status = 503, description = "Postgres feature disabled — inspector unavailable"),
+    ),
+    tags = ["admin"]
+)]
+pub async fn storage_inspect(
+    State(state): State<AppState>,
+) -> Result<Json<crate::storage_inspector::InspectorReport>, ApiError> {
+    #[cfg(feature = "postgres")]
+    {
+        use crate::storage_inspector::{InspectorConfig, StorageInspector};
+        let pool = state
+            .pg_pool
+            .as_ref()
+            .ok_or_else(|| ApiError::Internal("Postgres pool not available".into()))?;
+        let inspector = StorageInspector::new(
+            std::sync::Arc::new(pool.clone()),
+            InspectorConfig::default(),
+        );
+        let report = inspector.inspect().await;
+        Ok(Json(report))
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = state;
+        Err(ApiError::ServiceUnavailable {
+            message: "Storage inspector requires the postgres feature".into(),
+            retry_after_secs: 0,
+        })
+    }
+}
+
+/// POST /api/v1/admin/storage/repair — trigger repairs (admin-only).
+///
+/// Body controls behavior:
+/// - `dry_run: true` (default): returns what WOULD be repaired, applies nothing.
+/// - `dry_run: false`: applies SAFE-tier repairs only. CAUTION-tier repairs
+///   (e.g. dropping orphan workspace tables) are NEVER auto-applied — they
+///   require a separate explicit `tier: "caution"` opt-in.
+/// - `tier: "caution"` + `dry_run: false`: also applies CAUTION-tier repairs.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct StorageRepairRequest {
+    /// If true, only return what would be repaired (no mutations). Default: true.
+    #[serde(default = "default_true")]
+    pub dry_run: bool,
+    /// Repair tier to apply. "safe" (default) only applies SAFE-tier repairs.
+    /// "caution" also applies CAUTION-tier repairs (e.g. dropping orphan tables).
+    #[serde(default)]
+    pub tier: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct StorageRepairResponse {
+    pub dry_run: bool,
+    pub applied: Vec<crate::storage_inspector::RepairAction>,
+    pub skipped: Vec<crate::storage_inspector::RepairAction>,
+    pub report: crate::storage_inspector::InspectorReport,
+}
+
+/// POST /api/v1/admin/storage/repair
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/storage/repair",
+    request_body = StorageRepairRequest,
+    responses(
+        (status = 200, description = "Repair result", body = StorageRepairResponse),
+        (status = 503, description = "Postgres feature disabled"),
+    ),
+    tags = ["admin"]
+)]
+pub async fn storage_repair(
+    State(state): State<AppState>,
+    Json(request): Json<StorageRepairRequest>,
+) -> Result<Json<StorageRepairResponse>, ApiError> {
+    use crate::storage_inspector::RepairTier;
+
+    #[cfg(feature = "postgres")]
+    {
+        use crate::storage_inspector::{InspectorConfig, StorageInspector};
+        let pool = state
+            .pg_pool
+            .as_ref()
+            .ok_or_else(|| ApiError::Internal("Postgres pool not available".into()))?;
+        let inspector = StorageInspector::new(
+            std::sync::Arc::new(pool.clone()),
+            InspectorConfig::default(),
+        );
+        let report = inspector.inspect().await;
+
+        let allow_caution = request
+            .tier
+            .as_deref()
+            .map(|t| t.eq_ignore_ascii_case("caution"))
+            .unwrap_or(false);
+
+        let mut applied = Vec::new();
+        let mut skipped = Vec::new();
+        for repair in &report.recommended_repairs {
+            let tier = repair.tier();
+            if tier == RepairTier::Manual {
+                skipped.push(repair.clone());
+                continue;
+            }
+            if tier == RepairTier::Caution && !allow_caution {
+                skipped.push(repair.clone());
+                continue;
+            }
+            if request.dry_run {
+                skipped.push(repair.clone());
+                continue;
+            }
+            match inspector.apply_repair(repair, false).await {
+                Ok(true) => {
+                    tracing::info!(repair = %repair.description(), "Admin repair applied");
+                    applied.push(repair.clone());
+                }
+                Ok(false) => skipped.push(repair.clone()),
+                Err(e) => {
+                    tracing::warn!(repair = %repair.description(), error = %e, "Admin repair failed");
+                    skipped.push(repair.clone());
+                }
+            }
+        }
+
+        Ok(Json(StorageRepairResponse {
+            dry_run: request.dry_run,
+            applied,
+            skipped,
+            report,
+        }))
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (state, request);
+        Err(ApiError::ServiceUnavailable {
+            message: "Storage repair requires the postgres feature".into(),
+            retry_after_secs: 0,
+        })
+    }
+}

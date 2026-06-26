@@ -16,7 +16,11 @@
  */
 "use client";
 
-import { deleteDocument, reprocessDocument } from "@/lib/api/edgequake";
+import {
+  deleteDocument,
+  reprocessDocument,
+  type ReprocessMode,
+} from "@/lib/api/edgequake";
 import type { Document } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
@@ -79,9 +83,11 @@ export interface UseBulkSelectionReturn {
 
   /**
    * Reprocess all selected documents.
+   * @param mode Reprocess intent: "entities" (reuse markdown, default) or
+   *             "full" (re-run PDF -> markdown conversion for selected PDFs).
    * Shows progress toast and invalidates cache.
    */
-  handleBulkReprocess: () => Promise<void>;
+  handleBulkReprocess: (mode?: ReprocessMode) => Promise<void>;
 
   /**
    * Whether a bulk delete operation is in progress.
@@ -227,86 +233,90 @@ export function useBulkSelection({
    * WHY: Bulk reprocess is more efficient than one-by-one.
    * Uses optimistic update to immediately show "pending" status for all selected docs.
    */
-  const handleBulkReprocess = useCallback(async () => {
-    const idsToReprocess = Array.from(selectedIds);
-    if (idsToReprocess.length === 0) return;
+  const handleBulkReprocess = useCallback(
+    async (mode: ReprocessMode = "entities") => {
+      const idsToReprocess = Array.from(selectedIds);
+      if (idsToReprocess.length === 0) return;
 
-    setIsBulkReprocessing(true);
-    let successCount = 0;
-    let errorCount = 0;
+      setIsBulkReprocessing(true);
+      let successCount = 0;
+      let errorCount = 0;
 
-    // Cancel outgoing refetches and snapshot for rollback
-    await queryClient.cancelQueries({ queryKey: ["documents"] });
-    const previousDocuments = queryClient.getQueriesData({
-      queryKey: ["documents"],
-    });
+      // Cancel outgoing refetches and snapshot for rollback
+      await queryClient.cancelQueries({ queryKey: ["documents"] });
+      const previousDocuments = queryClient.getQueriesData({
+        queryKey: ["documents"],
+      });
 
-    // Optimistically update all selected documents to "pending"
-    const idsSet = new Set(idsToReprocess);
-    queryClient.setQueriesData(
-      { queryKey: ["documents"] },
-      (oldData: { items?: Document[] } | undefined) => {
-        if (!oldData?.items) return oldData;
-        return {
-          ...oldData,
-          items: oldData.items.map((doc: Document) =>
-            idsSet.has(doc.id)
-              ? {
-                  ...doc,
-                  status: "pending",
-                  error_message: undefined,
-                  current_stage: undefined,
-                }
-              : doc,
-          ),
-        };
-      },
-    );
+      // Optimistically update all selected documents to "pending"
+      const idsSet = new Set(idsToReprocess);
+      queryClient.setQueriesData(
+        { queryKey: ["documents"] },
+        (oldData: { items?: Document[] } | undefined) => {
+          if (!oldData?.items) return oldData;
+          return {
+            ...oldData,
+            items: oldData.items.map((doc: Document) =>
+              idsSet.has(doc.id)
+                ? {
+                    ...doc,
+                    status: "pending",
+                    error_message: undefined,
+                    current_stage: undefined,
+                  }
+                : doc,
+            ),
+          };
+        },
+      );
 
-    try {
-      for (const id of idsToReprocess) {
-        try {
-          const doc = documents.find((d) => d.id === id);
-          if (!doc?.id) {
+      try {
+        for (const id of idsToReprocess) {
+          try {
+            const doc = documents.find((d) => d.id === id);
+            if (!doc?.id) {
+              errorCount++;
+              continue;
+            }
+            // WHY: reprocessDocument expects the document's `id` (KV metadata key),
+            // not its track_id.  Using track_id caused silent no-ops on the backend.
+            // mode propagates the bulk re-conversion intent to the backend.
+            await reprocessDocument(doc.id, true, mode);
+            successCount++;
+          } catch {
             errorCount++;
-            continue;
           }
-          // WHY: reprocessDocument expects the document's `id` (KV metadata key),
-          // not its track_id.  Using track_id caused silent no-ops on the backend.
-          await reprocessDocument(doc.id);
-          successCount++;
-        } catch {
-          errorCount++;
         }
-      }
 
-      if (successCount > 0) {
-        toast.success(
-          t("documents.bulk.reprocessSuccess", { count: successCount }) ||
-            `Queued ${successCount} document(s) for reprocessing`,
-        );
-        queryClient.invalidateQueries({ queryKey: ["documents"] });
-        queryClient.invalidateQueries({ queryKey: ["pipeline-status"] });
+        if (successCount > 0) {
+          toast.success(
+            t("documents.bulk.reprocessSuccess", { count: successCount }) ||
+              `Queued ${successCount} document(s) for reprocessing`,
+          );
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          queryClient.invalidateQueries({ queryKey: ["pipeline-status"] });
+        }
+        if (errorCount > 0) {
+          // Partial failure: rollback optimistic update for failed ones
+          // and refetch to get accurate state
+          toast.error(
+            t("documents.bulk.reprocessFailed", { count: errorCount }) ||
+              `Failed to queue ${errorCount} document(s)`,
+          );
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+        }
+      } catch {
+        // Full failure: rollback all optimistic updates
+        for (const [queryKey, data] of previousDocuments) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      } finally {
+        setIsBulkReprocessing(false);
+        setSelectedIds(new Set());
       }
-      if (errorCount > 0) {
-        // Partial failure: rollback optimistic update for failed ones
-        // and refetch to get accurate state
-        toast.error(
-          t("documents.bulk.reprocessFailed", { count: errorCount }) ||
-            `Failed to queue ${errorCount} document(s)`,
-        );
-        queryClient.invalidateQueries({ queryKey: ["documents"] });
-      }
-    } catch {
-      // Full failure: rollback all optimistic updates
-      for (const [queryKey, data] of previousDocuments) {
-        queryClient.setQueryData(queryKey, data);
-      }
-    } finally {
-      setIsBulkReprocessing(false);
-      setSelectedIds(new Set());
-    }
-  }, [selectedIds, documents, queryClient, t]);
+    },
+    [selectedIds, documents, queryClient, t],
+  );
 
   return {
     selectedIds,

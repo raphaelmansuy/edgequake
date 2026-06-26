@@ -232,6 +232,10 @@ impl GraphStorageAnalyticsOps for PostgresAGEGraphStorage {
         self.pg_distinct_node_type_count_by_workspace(workspace_id)
             .await
     }
+
+    async fn node_count_by_source_prefix(&self, prefix: &str) -> Result<usize> {
+        self.pg_node_count_by_source_prefix(prefix).await
+    }
 }
 
 #[async_trait]

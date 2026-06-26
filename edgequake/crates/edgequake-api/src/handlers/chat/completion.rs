@@ -190,7 +190,7 @@ pub async fn chat_completion(
     // Priority order:
     //   1. Request-specified provider/model (explicit user selection)
     //   2. Workspace-configured provider/model (workspace settings)
-    //   3. Server default (sota_engine's default provider)
+    //   3. Server default (engine_impl's default provider)
     // Supports both formats:
     //   - Legacy format: provider="provider/model" (e.g., "ollama/gemma3:12b")
     //   - New format: provider="provider", model="model_name"

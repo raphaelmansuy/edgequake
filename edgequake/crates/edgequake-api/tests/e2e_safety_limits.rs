@@ -11,7 +11,7 @@
 
 use edgequake_api::safety_limits::{
     create_safe_llm_provider, SafetyLimitsConfig, ABSOLUTE_MAX_TOKENS, DEFAULT_MAX_TOKENS,
-    DEFAULT_TIMEOUT_SECS,
+    DEFAULT_TIMEOUT_SECS, MAXIMUM_TIMEOUT_SECS,
 };
 use edgequake_core::types::CreateWorkspaceRequest;
 use edgequake_core::Tenant;
@@ -59,7 +59,7 @@ fn test_safety_limits_from_env() {
 
     let config = SafetyLimitsConfig::from_env();
     assert_eq!(config.max_tokens, ABSOLUTE_MAX_TOKENS);
-    assert_eq!(config.timeout.as_secs(), 600); // Max is 600 seconds
+    assert_eq!(config.timeout.as_secs(), MAXIMUM_TIMEOUT_SECS); // Max is 3600 seconds
 
     clean_provider_env();
 }
@@ -285,8 +285,8 @@ fn test_timeout_configuration() {
     let config = SafetyLimitsConfig::new(1000, 10000);
     assert_eq!(
         config.timeout.as_secs(),
-        600,
-        "Should clamp to maximum 600 seconds"
+        MAXIMUM_TIMEOUT_SECS,
+        "Should clamp to maximum {MAXIMUM_TIMEOUT_SECS} seconds"
     );
 }
 
@@ -303,7 +303,7 @@ fn test_strict_config() {
 fn test_permissive_config() {
     let config = SafetyLimitsConfig::permissive();
     assert_eq!(config.max_tokens, ABSOLUTE_MAX_TOKENS);
-    assert_eq!(config.timeout.as_secs(), 600);
+    assert_eq!(config.timeout.as_secs(), MAXIMUM_TIMEOUT_SECS);
 }
 
 // ============================================================================

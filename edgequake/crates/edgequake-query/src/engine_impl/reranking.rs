@@ -1,11 +1,11 @@
 use crate::keywords::ExtractedKeywords;
 
-use super::SOTAQueryEngine;
+use super::QueryEngine;
 
 // WHY: validate_keywords makes N graph search calls for N keywords.
 // Using parallel execution eliminates the N×RTT sequential latency.
 
-impl SOTAQueryEngine {
+impl QueryEngine {
     pub(super) async fn rerank_chunks(
         &self,
         query: &str,

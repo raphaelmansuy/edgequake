@@ -212,7 +212,17 @@ export type GraphStreamEvent =
       edges_count: number;
       duration_ms: number;
     }
-  | { type: "error"; message: string };
+  | {
+      type: "error";
+      message: string;
+      /** Machine-readable reason code. `"transient_congestion"` indicates
+       * the graph materialization slot was busy and the client should retry
+       * (SPEC-021 R2). Absent for non-transient errors. */
+      reason?: string;
+      /** Seconds the client should wait before retrying, when the error is
+       * transient congestion. Mirrors the HTTP 503 `retry_after_secs`. */
+      retry_after_secs?: number;
+    };
 
 /**
  * Options for streaming graph fetch.

@@ -18,6 +18,8 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tower::ServiceExt;
 
+mod common;
+
 const TEST_TENANT_ID: &str = "11111111-1111-1111-1111-111111111111";
 const TEST_WORKSPACE_ID: &str = "22222222-2222-2222-2222-222222222222";
 
@@ -375,37 +377,31 @@ async fn test_provider_status() {
 /// OODA-17: Upload document and verify status transitions.
 #[tokio::test]
 async fn test_document_status_after_upload() {
-    let result = with_timeout(Duration::from_secs(10), async {
-        let app = create_test_app();
+    let result = with_timeout(Duration::from_secs(30), async {
+        // P-G2b: uploads enqueue a background task → need a real worker pool so
+        // the task actually processes and the document reaches a terminal state.
+        // upload_and_wait uses the seeded default workspace (no tenant headers),
+        // which is what the strict worker processor is wired to resolve.
+        let workers = common::create_test_app_with_workers().await;
+        let app = workers.app();
 
-        // Upload document
-        let payload = json!({
-            "content": "Albert Einstein developed the theory of relativity. His famous equation E=mc² describes the relationship between energy and mass.",
-            "title": "Pipeline Status Test"
-        });
-
-        let (status, body) = post_json(&app, "/api/v1/documents", &payload).await;
-        assert_eq!(status, StatusCode::CREATED);
-
-        let doc_id = body["document_id"].as_str().unwrap();
-        let upload_status = body["status"].as_str().unwrap();
-
-        // After sync upload, status should be "processed" or "completed"
-        assert!(
-            upload_status == "processed" || upload_status == "completed",
-            "Upload status should be processed/completed, got '{}'",
-            upload_status
-        );
+        let (doc_id, _track_id, final_status) = common::upload_and_wait(
+            app,
+            "Pipeline Status Test",
+            "Albert Einstein developed the theory of relativity. His famous equation E=mc² describes the relationship between energy and mass.",
+            Duration::from_secs(30),
+        )
+        .await;
 
         // Verify document details include entity/chunk counts
         let (detail_status, detail) =
-            get_endpoint(&app, &format!("/api/v1/documents/{}", doc_id)).await;
+            common::get_endpoint(app, &format!("/api/v1/documents/{}", doc_id)).await;
         assert_eq!(detail_status, StatusCode::OK);
 
         // Should have metadata
-        assert!(detail.is_object(), "Detail should be an object");
+        assert!(detail.is_object(), "Detail should be an object: {}", detail);
 
-        detail
+        final_status
     })
     .await;
 
@@ -415,21 +411,39 @@ async fn test_document_status_after_upload() {
 /// OODA-17: Upload + list shows correct document count and status.
 #[tokio::test]
 async fn test_list_shows_upload_status() {
-    let result = with_timeout(Duration::from_secs(10), async {
-        let app = create_test_app();
+    let result = with_timeout(Duration::from_secs(30), async {
+        // P-G2b: uploads enqueue background tasks → need a real worker pool so
+        // the documents actually ingest and appear in the list. Use the seeded
+        // default workspace (no tenant headers) so strict resolution succeeds.
+        let workers = common::create_test_app_with_workers().await;
+        let app = workers.app();
 
         // Upload 3 documents
         for i in 0..3 {
-            let payload = json!({
-                "content": format!("Document {} content for status tracking test.", i),
-                "title": format!("Status Doc {}", i)
-            });
-            let (status, _) = post_json(&app, "/api/v1/documents", &payload).await;
-            assert_eq!(status, StatusCode::CREATED, "Upload {} should succeed", i);
+            let (_, _, final_status) = common::upload_and_wait(
+                app,
+                &format!("Status Doc {}", i),
+                &format!("Document {} content for status tracking test.", i),
+                Duration::from_secs(30),
+            )
+            .await;
+            assert!(
+                final_status == "completed"
+                    || final_status == "processed"
+                    || final_status == "indexed"
+                    || final_status == "partial_failure",
+                "document {} did not reach an ingested state: {}",
+                i,
+                final_status
+            );
         }
 
-        // List should show all 3
-        let (status, list) = get_endpoint(&app, "/api/v1/documents").await;
+        // List should show all 3. P-G2b: the list endpoint filters by
+        // tenant/workspace context; use the default tenant/workspace headers so
+        // the uploaded documents (stored in the seeded default workspace) are
+        // visible.
+        let (status, list) =
+            common::get_with_tenant(app, "/api/v1/documents", "default", "default", "default").await;
         assert_eq!(status, StatusCode::OK);
 
         let total = list["total"].as_u64().unwrap_or(0);

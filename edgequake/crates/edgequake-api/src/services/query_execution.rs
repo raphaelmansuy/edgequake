@@ -59,7 +59,7 @@ pub async fn execute_sota_query(
             debug!(has_llm_override, "SOTA query: workspace embedding + vector");
             state
                 .query
-                .sota_engine
+                .engine_impl
                 .query_with_full_config(request, embedding, vector_storage, llm_override)
                 .await
         }
@@ -70,11 +70,11 @@ pub async fn execute_sota_query(
             );
             state
                 .query
-                .sota_engine
+                .engine_impl
                 .query_with_full_config(
                     request,
                     embedding,
-                    state.query.sota_engine.default_vector_storage(),
+                    state.query.engine_impl.default_vector_storage(),
                     llm_override,
                 )
                 .await
@@ -86,10 +86,10 @@ pub async fn execute_sota_query(
             );
             state
                 .query
-                .sota_engine
+                .engine_impl
                 .query_with_full_config(
                     request,
-                    state.query.sota_engine.default_embedding_provider(),
+                    state.query.engine_impl.default_embedding_provider(),
                     vector_storage,
                     llm_override,
                 )
@@ -100,11 +100,11 @@ pub async fn execute_sota_query(
             if let Some(llm) = llm_override {
                 state
                     .query
-                    .sota_engine
+                    .engine_impl
                     .query_with_llm_provider(request, llm)
                     .await
             } else {
-                state.query.sota_engine.query(request).await
+                state.query.engine_impl.query(request).await
             }
         }
     };
@@ -159,7 +159,7 @@ pub async fn execute_sota_query_stream(
             );
             state
                 .query
-                .sota_engine
+                .engine_impl
                 .query_stream_with_full_config(request, embedding, vector_storage, llm_override)
                 .await
         }
@@ -170,11 +170,11 @@ pub async fn execute_sota_query_stream(
             );
             state
                 .query
-                .sota_engine
+                .engine_impl
                 .query_stream_with_full_config(
                     request,
                     embedding,
-                    state.query.sota_engine.default_vector_storage(),
+                    state.query.engine_impl.default_vector_storage(),
                     llm_override,
                 )
                 .await
@@ -186,10 +186,10 @@ pub async fn execute_sota_query_stream(
             );
             state
                 .query
-                .sota_engine
+                .engine_impl
                 .query_stream_with_full_config(
                     request,
-                    state.query.sota_engine.default_embedding_provider(),
+                    state.query.engine_impl.default_embedding_provider(),
                     vector_storage,
                     llm_override,
                 )
@@ -200,13 +200,13 @@ pub async fn execute_sota_query_stream(
             if let Some(llm) = llm_override {
                 state
                     .query
-                    .sota_engine
+                    .engine_impl
                     .query_stream_with_context_and_llm(request, llm)
                     .await
             } else {
                 state
                     .query
-                    .sota_engine
+                    .engine_impl
                     .query_stream_with_context(request)
                     .await
             }

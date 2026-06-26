@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::debug;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, TransientCongestion};
 use crate::handlers::graph_types::*;
 use crate::middleware::TenantContext;
 use crate::services::{admit_graph_materialization, run_timed_graph_query};
@@ -71,10 +71,34 @@ pub async fn stream_graph(
 
         let _materialize_guard = match admit_graph_materialization(&state_clone) {
             Ok(guard) => guard,
-            Err(_) => {
+            Err(ApiError::ServiceUnavailable {
+                message,
+                retry_after_secs,
+            }) => {
+                // WHY: reuse the single TransientCongestion SSOT so the SSE
+                // error event carries the same reason + retry_after_secs as
+                // the HTTP 503 would. Previously the SSE path sent only the
+                // bare string and the client could not retry intelligently.
+                let payload = TransientCongestion {
+                    reason: "transient_congestion",
+                    retry_after_secs,
+                };
+                let (msg, reason, retry) = payload.sse_error_fields(message);
                 let _ = tx
                     .send(GraphStreamEvent::Error {
-                        message: "Graph materialization capacity reached".into(),
+                        message: msg,
+                        reason,
+                        retry_after_secs: retry,
+                    })
+                    .await;
+                return;
+            }
+            Err(other) => {
+                let _ = tx
+                    .send(GraphStreamEvent::Error {
+                        message: other.to_string(),
+                        reason: None,
+                        retry_after_secs: None,
                     })
                     .await;
                 return;
@@ -131,6 +155,8 @@ pub async fn stream_graph(
                 let _ = tx
                     .send(GraphStreamEvent::Error {
                         message: e.to_string(),
+                        reason: None,
+                        retry_after_secs: None,
                     })
                     .await;
                 return;
@@ -219,6 +245,8 @@ pub async fn stream_graph(
                 let _ = tx
                     .send(GraphStreamEvent::Error {
                         message: format!("Failed to fetch edges: {}", e),
+                        reason: None,
+                        retry_after_secs: None,
                     })
                     .await;
                 return;

@@ -12,14 +12,14 @@ use crate::error::{QueryError, Result};
 use crate::modes::QueryMode;
 use edgequake_storage::traits::VectorStorage;
 
-use super::super::SOTAQueryEngine;
+use super::super::QueryEngine;
 use super::query_pipeline::QueryProviders;
 
 type TokenStream = futures::stream::BoxStream<'static, std::result::Result<String, QueryError>>;
 
-impl SOTAQueryEngine {
+impl QueryEngine {
     /// Legacy v1 streaming: tokens only (uses default providers + shared pipeline).
-    pub async fn query_stream(&self, request: crate::engine::QueryRequest) -> Result<TokenStream> {
+    pub async fn query_stream(&self, request: crate::types::QueryRequest) -> Result<TokenStream> {
         let (_, _, stream) = self.query_stream_with_context(request).await?;
         Ok(stream)
     }
@@ -27,7 +27,7 @@ impl SOTAQueryEngine {
     /// Streaming query returning context + token stream (default providers).
     pub async fn query_stream_with_context(
         &self,
-        request: crate::engine::QueryRequest,
+        request: crate::types::QueryRequest,
     ) -> Result<(QueryContext, QueryMode, TokenStream)> {
         self.stream_with_providers(
             request,
@@ -44,7 +44,7 @@ impl SOTAQueryEngine {
     /// Streaming query with LLM override for keyword extraction and answer generation.
     pub async fn query_stream_with_context_and_llm(
         &self,
-        request: crate::engine::QueryRequest,
+        request: crate::types::QueryRequest,
         llm_provider: Arc<dyn crate::LLMProvider>,
     ) -> Result<(QueryContext, QueryMode, TokenStream)> {
         let llm = llm_provider.clone();
@@ -63,7 +63,7 @@ impl SOTAQueryEngine {
     /// Streaming query with full workspace embedding/vector config + optional LLM override.
     pub async fn query_stream_with_full_config(
         &self,
-        request: crate::engine::QueryRequest,
+        request: crate::types::QueryRequest,
         embedding_provider: Arc<dyn crate::EmbeddingProvider>,
         vector_storage: Arc<dyn VectorStorage>,
         llm_provider: Option<Arc<dyn crate::LLMProvider>>,
@@ -82,7 +82,7 @@ impl SOTAQueryEngine {
 
     async fn stream_with_providers(
         &self,
-        request: crate::engine::QueryRequest,
+        request: crate::types::QueryRequest,
         providers: QueryProviders<'_>,
     ) -> Result<(QueryContext, QueryMode, TokenStream)> {
         let answer_llm = providers.answer_llm.clone();
@@ -94,7 +94,7 @@ impl SOTAQueryEngine {
 
     async fn stream_answer_from_context(
         &self,
-        request: &crate::engine::QueryRequest,
+        request: &crate::types::QueryRequest,
         context: QueryContext,
         mode: QueryMode,
         llm_override: Option<Arc<dyn crate::LLMProvider>>,

@@ -7,12 +7,12 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::{
-    modes::QueryMode, QueryContext, QueryRequest, SOTAQueryConfig, SOTAQueryEngine,
+    modes::QueryMode, QueryContext, QueryRequest, QueryEngineConfig, QueryEngine,
 };
 use edgequake_storage::traits::VectorStorage;
 use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};
 
-async fn setup_engine_with_chunk() -> SOTAQueryEngine {
+async fn setup_engine_with_chunk() -> QueryEngine {
     let vector_storage = Arc::new(MemoryVectorStorage::new("spec017", 1536));
     vector_storage.initialize().await.expect("init vs");
     // MockProvider::embed_one returns default [0.1; 1536] on first pop — seed chunk to match.
@@ -29,8 +29,8 @@ async fn setup_engine_with_chunk() -> SOTAQueryEngine {
     let graph_storage = Arc::new(MemoryGraphStorage::new("spec017"));
     let provider = Arc::new(MockProvider::new());
 
-    SOTAQueryEngine::with_mock_keywords(
-        SOTAQueryConfig {
+    QueryEngine::with_mock_keywords(
+        QueryEngineConfig {
             use_keyword_extraction: false,
             default_mode: QueryMode::Naive,
             ..Default::default()

@@ -1,4 +1,4 @@
-//! EdgeQuake Query - SOTA Query Engine for RAG
+//! EdgeQuake Query - Query Engine for RAG
 //!
 //! # Implements
 //!
@@ -40,18 +40,17 @@
 //!
 //! # Key Components
 //!
-//! - [`SOTAQueryEngine`]: Main engine implementing LightRAG algorithm
+//! - [`QueryEngine`]: Main engine implementing LightRAG algorithm
 //! - [`QueryMode`]: Enum of all supported query modes
 //! - [`QueryContext`]: Retrieved context (entities, relationships, chunks)
 //! - [`TruncationConfig`]: Token budget configuration
 //!
 //! # See Also
 //!
-//! - [`crate::sota_engine`] for the SOTA implementation
+//! - [`crate::engine_impl`] for the engine implementation
 //! - [`crate::keywords`] for keyword extraction
 //! - [`crate::truncation`] for token budgeting
 
-pub mod chunk_retrieval;
 pub mod context;
 pub mod context_filter;
 pub mod engine;
@@ -59,19 +58,15 @@ pub mod error;
 pub mod helpers;
 pub mod keywords;
 pub mod modes;
-pub mod sota_engine;
-pub mod strategies;
+pub mod engine_impl;
 pub mod tokenizer;
 pub mod truncation;
+pub mod types;
 pub mod vector_filter;
 
-pub use chunk_retrieval::{
-    merge_chunks, retrieve_chunks_from_entities, retrieve_chunks_from_relationships,
-    ChunkSelectionMethod,
-};
 pub use context::{QueryContext, RetrievedContext};
 pub use engine::{
-    ConversationMessage, QueryEngine, QueryEngineConfig, QueryRequest, QueryResponse,
+    ConversationMessage, QueryRequest, QueryResponse, QueryStats,
 };
 pub use error::{QueryError, Result};
 // Re-export keywords module types
@@ -82,11 +77,7 @@ pub use keywords::{
     KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor, QueryIntent,
 };
 pub use modes::QueryMode;
-pub use sota_engine::{QueryEmbeddings, SOTAQueryConfig, SOTAQueryEngine};
-pub use strategies::{
-    create_strategy, GlobalStrategy, HybridStrategy, LocalStrategy, MixStrategy, NaiveStrategy,
-    QueryStrategy, StrategyConfig,
-};
+pub use engine_impl::{QueryEmbeddings, QueryEngineConfig, QueryEngine};
 pub use tokenizer::{MockTokenizer, SimpleTokenizer, Tokenizer};
 pub use truncation::{
     balance_context, truncate_chunks, truncate_entities, truncate_relationships, TruncationConfig,

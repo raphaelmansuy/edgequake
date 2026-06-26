@@ -1,89 +1,23 @@
-//! Entity name normalization utilities.
+//! Entity name normalization — thin re-export of the canonical implementation.
 //!
-//! Provides consistent entity naming across extractions to ensure
-//! proper graph node merging.
+//! # WHY THIS DELEGATES
 //!
-//! # WHY Normalization Matters
+//! The single source of truth for entity-name normalization lives in
+//! `edgequake-storage::entity_id` (RC-6 / P-G1), because entity identity is a
+//! storage concept and `edgequake-storage` is the lowest layer (the pipeline
+//! depends on storage, not the reverse). Duplicating the algorithm here would
+//! reintroduce the three-convention divergence this module was created to fix.
 //!
-//! Without normalization, the same entity extracted from different chunks might
-//! be stored as separate nodes in the knowledge graph:
-//!
-//! - "John Doe" (from chunk 1)
-//! - "john doe" (from chunk 2)  
-//! - "JOHN DOE" (from chunk 3)
-//! - "The John Doe" (from chunk 4)
-//!
-//! This leads to:
-//! 1. **Graph fragmentation**: Same entity exists as multiple disconnected nodes
-//! 2. **Lost relationships**: Edges only connect to one variant
-//! 3. **Query failures**: Search for "John Doe" misses "JOHN DOE" nodes
-//! 4. **Inflated entity counts**: 4 nodes instead of 1
-//!
-//! By normalizing to `JOHN_DOE`, all references merge into a single node,
-//! preserving the complete relationship graph.
+//! This module re-exports the canonical function so existing imports
+//! (`edgequake_pipeline::prompts::normalize_entity_name`) keep working with no
+//! behavioral change.
 
-/// Normalize entity name to consistent format.
-///
-/// Applies the following transformations:
-/// - Trims whitespace
-/// - Removes common prefixes (The, A, An)
-/// - Removes possessive suffixes ('s)
-/// - Converts to title case
-/// - Replaces spaces with underscores
-/// - Converts to uppercase
-///
-/// # Examples
-///
-/// ```rust
-/// use edgequake_pipeline::prompts::normalize_entity_name;
-///
-/// assert_eq!(normalize_entity_name("John Doe"), "JOHN_DOE");
-/// assert_eq!(normalize_entity_name("the company"), "COMPANY");
-/// assert_eq!(normalize_entity_name("  Sarah  Chen  "), "SARAH_CHEN");
-/// ```
-pub fn normalize_entity_name(raw_name: &str) -> String {
-    let trimmed = raw_name.trim();
-
-    // Remove common prefixes that don't add identity
-    let without_prefix = trimmed
-        .strip_prefix("The ")
-        .or_else(|| trimmed.strip_prefix("the "))
-        .or_else(|| trimmed.strip_prefix("A "))
-        .or_else(|| trimmed.strip_prefix("a "))
-        .or_else(|| trimmed.strip_prefix("An "))
-        .or_else(|| trimmed.strip_prefix("an "))
-        .unwrap_or(trimmed);
-
-    // Split by whitespace, normalize each word (removing possessives), and rejoin
-    without_prefix
-        .split_whitespace()
-        .filter(|w| !w.is_empty())
-        .map(|word| {
-            // Remove possessive suffix from each word
-            let without_possessive = word
-                .strip_suffix("'s")
-                .or_else(|| word.strip_suffix("'s"))
-                .unwrap_or(word);
-            to_title_case(without_possessive)
-        })
-        .collect::<Vec<_>>()
-        .join("_")
-        .to_uppercase()
-}
-
-/// Convert a word to title case (first letter uppercase, rest lowercase).
-fn to_title_case(word: &str) -> String {
-    let mut chars = word.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(first) => first
-            .to_uppercase()
-            .chain(chars.flat_map(|c| c.to_lowercase()))
-            .collect(),
-    }
-}
+pub use edgequake_storage::entity_id::normalize_entity_name;
 
 /// Normalize for comparison (more lenient than storage normalization).
+///
+/// This is a *display/comparison* helper only — it is never used to construct
+/// storage ids. Storage ids are built via [`edgequake_storage::EntityId`].
 #[allow(dead_code)]
 pub fn normalize_for_comparison(name: &str) -> String {
     name.trim()
@@ -164,7 +98,6 @@ mod tests {
 
     #[test]
     fn test_special_characters_preserved() {
-        // Hyphens and other meaningful characters should be preserved
         assert_eq!(normalize_entity_name("New-York"), "NEW-YORK");
         assert_eq!(normalize_entity_name("C++"), "C++");
     }

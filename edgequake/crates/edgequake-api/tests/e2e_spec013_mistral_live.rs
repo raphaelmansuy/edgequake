@@ -33,7 +33,10 @@ async fn spec013_workspace_created_with_mistral_providers() {
         eprintln!("SKIP: MISTRAL_API_KEY or DATABASE_URL not set");
         return;
     }
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let tenant_res = app
@@ -82,7 +85,10 @@ async fn spec013_mistral_health_reports_mistral_provider() {
         eprintln!("SKIP: MISTRAL_API_KEY or DATABASE_URL not set");
         return;
     }
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let response = app
         .oneshot(
             Request::builder()
@@ -110,7 +116,10 @@ async fn spec013_mistral_ingest_short_document() {
     if !mistral_available() {
         return;
     }
-    let app = spec013_postgres::create_postgres_mistral_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mistral_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL / MISTRAL_API_KEY configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let tenant_res = app

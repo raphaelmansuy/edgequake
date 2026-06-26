@@ -96,7 +96,7 @@ pub use storage::{
 };
 pub use tenant_limiter::TenantConcurrencyLimiter;
 pub use types::{
-    ChunkProgress, DirectoryScanData, DocumentUploadData, PdfProcessingData, ReindexData, Task,
-    TaskFailureInfo, TaskProgress, TaskStatus, TaskType, TextInsertData,
+    ChunkProgress, DirectoryScanData, DocumentUploadData, PdfProcessingData, ReindexData,
+    ReprocessMode, Task, TaskFailureInfo, TaskProgress, TaskStatus, TaskType, TextInsertData,
 };
 pub use worker::{SharedTaskProcessor, TaskProcessor, WorkerPool, WorkerPoolConfig};

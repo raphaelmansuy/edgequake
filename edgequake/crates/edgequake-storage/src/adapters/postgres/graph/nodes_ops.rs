@@ -57,12 +57,30 @@ impl PostgresAGEGraphStorage {
             "node_id".to_string(),
             serde_json::Value::String(node_id.to_string()),
         );
-        let props_cypher = Self::properties_to_cypher(&props_with_id);
 
-        // Use MERGE to upsert the node
+        // WHY: AGE 1.6.0 does NOT support `ON CREATE SET` (added only in the
+        // unreleased dev branch, apache/age#2347) — it raises "syntax error at
+        // or near ON". `SET n = <variable map>` fails with "properties()
+        // argument must resolve to a scalar value" (apache/age#1634). The
+        // stable, version-safe pattern is per-key `SET n.key = <literal>`
+        // expanded inline — verified against AGE 1.6.0 for both fresh and
+        // existing vertices. node_id is the MERGE key and is left untouched.
+        let mut set_clauses: Vec<String> = Vec::with_capacity(props_with_id.len());
+        for (k, v) in &props_with_id {
+            if k == "node_id" {
+                continue;
+            }
+            set_clauses.push(format!("n.{} = {}", k, Self::value_to_cypher(v)));
+        }
+        let set_clause = if set_clauses.is_empty() {
+            // node_id-only node: still set node_id so a fresh MERGE persists it.
+            format!("n.node_id = '{}'", escaped_id)
+        } else {
+            set_clauses.join(", ")
+        };
         let cypher = format!(
-            "MERGE (n:Node {{node_id: '{}'}}) SET n = {}",
-            escaped_id, props_cypher
+            "MERGE (n:Node {{node_id: '{}'}}) SET {}",
+            escaped_id, set_clause
         );
 
         self.cypher_execute(&cypher).await?;
@@ -117,11 +135,38 @@ impl PostgresAGEGraphStorage {
                 })
                 .collect();
 
+            // WHY: AGE 1.6.0 does NOT support `ON CREATE SET` (apache/age#2347
+            // is unreleased) — it raises "syntax error at or near ON". `SET n =
+            // props` (variable map) fails with "properties() argument must
+            // resolve to a scalar value" (apache/age#1634). The version-safe
+            // pattern is per-key `SET n.key = props.key` referencing the UNWIND
+            // row variable — verified against AGE 1.6.0 to persist on both
+            // freshly-MERGEd and existing vertices. Keys are surfaced inline
+            // (AGE's cypher() SQL wrapper does not forward sqlx bind params).
+            let mut set_keys: Vec<&str> = Vec::with_capacity(64);
+            // Collect the property key set from the first row (uniform schema
+            // across entities in a batch). node_id is the MERGE key — excluded.
+            if let Some((_, props)) = chunk.first() {
+                for k in props.keys() {
+                    if k != "node_id" {
+                        set_keys.push(k.as_str());
+                    }
+                }
+            }
+            let set_clause = if set_keys.is_empty() {
+                String::new()
+            } else {
+                let sets: Vec<String> = set_keys
+                    .iter()
+                    .map(|k| format!("n.{} = props.{}", k, k))
+                    .collect();
+                format!(" SET {}", sets.join(", "))
+            };
             let cypher = format!(
                 "UNWIND [{}] AS props \
-                 MERGE (n:Node {{node_id: props.node_id}}) \
-                 SET n = props",
-                rows.join(", ")
+                 MERGE (n:Node {{node_id: props.node_id}}){}",
+                rows.join(", "),
+                set_clause
             );
             self.cypher_execute(&cypher).await?;
         }

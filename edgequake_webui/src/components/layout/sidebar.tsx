@@ -23,7 +23,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { APP_VERSION } from '@/lib/app-version';
+import { APP_VERSION, APP_VERSION_NUMBER } from '@/lib/app-version';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import { Activity, BookOpen, ChevronLeft, ChevronRight, DollarSign, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal } from 'lucide-react';
@@ -177,7 +177,7 @@ function SidebarContent({
                   {!collapsed && (
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-semibold truncate">EdgeQuake</span>
-                      <span className="text-[9px] text-muted-foreground">{APP_VERSION}</span>
+                      <span className="text-[9px] text-muted-foreground">{t('common.uiVersion', { version: APP_VERSION_NUMBER })}</span>
                     </div>
                   )}
                 </div>

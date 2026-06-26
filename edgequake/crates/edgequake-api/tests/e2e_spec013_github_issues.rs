@@ -21,7 +21,10 @@ use tower::ServiceExt;
 #[tokio::test]
 #[serial]
 async fn spec013_issue232_list_api_keys_after_create() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
 
     let create = app
         .clone()
@@ -64,7 +67,10 @@ async fn spec013_issue232_list_api_keys_after_create() {
 #[tokio::test]
 #[serial]
 async fn spec013_issue216_update_workspace_entity_types() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let (_, tenant_body) = post_json(
@@ -142,7 +148,10 @@ async fn spec013_issue216_update_workspace_entity_types() {
 #[tokio::test]
 #[serial]
 async fn spec013_entity_types_strict_persist_and_defaults() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let (_, tenant_body) = post_json(
@@ -223,7 +232,10 @@ async fn spec013_entity_types_strict_persist_and_defaults() {
 #[tokio::test]
 #[serial]
 async fn spec013_issue231_document_upload_workspace_header() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let (_, tenant_body) = post_json(
@@ -267,7 +279,10 @@ async fn spec013_issue231_document_upload_workspace_header() {
 #[tokio::test]
 #[serial]
 async fn spec013_issue231_models_endpoint_reports_defaults() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let response = app
         .oneshot(
             Request::builder()
@@ -287,7 +302,10 @@ async fn spec013_issue231_models_endpoint_reports_defaults() {
 #[tokio::test]
 #[serial]
 async fn spec013_issue233_workspace_create_without_models_uses_server_defaults() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let (_, tenant_body) = post_json(
@@ -320,7 +338,10 @@ async fn spec013_issue233_workspace_create_without_models_uses_server_defaults()
 #[tokio::test]
 #[serial]
 async fn spec013_health_storage_mode_is_postgresql() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let response = app
         .oneshot(
             Request::builder()
@@ -370,7 +391,10 @@ fn multipart_pdf_body(
 #[tokio::test]
 #[serial]
 async fn spec013_pdf_cancel_while_processing_is_accepted() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let (_, tenant_body) = post_json(
@@ -554,7 +578,10 @@ async fn spec013_pdf_cancel_on_completed_returns_conflict_live() {
 #[tokio::test]
 #[serial]
 async fn spec013_workspace_reset_llm_embedding_to_server_default() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let (_, tenant_body) = post_json(

@@ -58,7 +58,10 @@ fn multipart_pdf_files(filenames: &[&str], field_name: &str) -> (String, Vec<u8>
 #[tokio::test]
 #[serial]
 async fn spec014_batch_text_upload_accepts_multiple_files() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let tenant = app
@@ -123,7 +126,10 @@ async fn spec014_batch_text_upload_accepts_multiple_files() {
 #[tokio::test]
 #[serial]
 async fn spec014_batch_pdf_upload_accepts_multiple_files() {
-    let app = spec013_postgres::create_postgres_mock_app().await;
+    let Some(app) = spec013_postgres::create_postgres_mock_app_or_skip().await else {
+        eprintln!("SKIP: no PostgreSQL DATABASE_URL configured");
+        return;
+    };
     let suffix = uuid::Uuid::new_v4();
 
     let tenant = app

@@ -67,6 +67,8 @@ export interface DocumentTableSectionProps {
   onViewPdf: (doc: Document) => void;
   /** Handler for retry action */
   onRetry: (id: string) => void;
+  /** Handler for reprocess action (opens the choice dialog) */
+  onReprocess: (id: string) => void;
   /** Handler for cancel action */
   onCancel: (trackId: string) => void;
   /** Handler for delete action */
@@ -113,6 +115,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onReprocess,
   onCancel,
   onDelete,
   isRetrying,
@@ -187,6 +190,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                       onViewInGraph={onViewInGraph}
                       onViewPdf={onViewPdf}
                       onRetry={onRetry}
+                      onReprocess={onReprocess}
                       onCancel={onCancel}
                       onDelete={onDelete}
                       isRetrying={isRetrying}

@@ -38,6 +38,7 @@ import { Circle, LogOut, Monitor, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { HeaderTenantSelector } from './header-tenant-selector';
 import { MobileSidebar } from './sidebar';
 
@@ -46,6 +47,7 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 export function Header() {
   const { setTheme } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const { isAuthenticated, user, logout } = useAuthStore();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('checking');
   const [version, setVersion] = useState<string>('');
@@ -116,7 +118,7 @@ export function Header() {
                 />
                 <span className="hidden sm:inline font-medium">
                   {connectionStatus === 'connected'
-                    ? `v${version}`
+                    ? t('header.apiVersion', { version })
                     : connectionStatus === 'disconnected'
                     ? 'Offline'
                     : '...'}
@@ -125,7 +127,7 @@ export function Header() {
             </TooltipTrigger>
             <TooltipContent>
               {connectionStatus === 'connected'
-                ? `Connected to EdgeQuake API v${version}`
+                ? t('header.apiVersion', { version })
                 : connectionStatus === 'disconnected'
                 ? 'Cannot connect to EdgeQuake API'
                 : 'Checking connection...'}

@@ -11,6 +11,9 @@ description = "REST API server for EdgeQuake"
 default = []
 otel = ["edgequake-observability/otel"]
 postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
+# SPEC-021 P-E3: enables the EdgeQuake orchestrator for contract tests.
+# Forwarded to edgequake-core so `#[cfg(feature = "pipeline")]` test gates work.
+pipeline = ["edgequake-core/pipeline"]
 # Vision mode for PDF extraction using edgequake-pdf2md (bundled pdfium, no system deps)
 vision = []
 
@@ -68,6 +71,10 @@ async-stream = "0.3"
 
 [dev-dependencies]
 edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
+# SPEC-021 P-E3: enable the orchestrator (pipeline) for the ingest→delete
+# contract test. The `pipeline` feature is also added to the api crate so
+# `#[cfg(feature = "pipeline")]` gates in tests activate during `cargo test`.
+edgequake-core = { path = "../edgequake-core", features = ["pipeline"] }
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 sqlx = { workspace = true, features = [

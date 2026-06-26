@@ -2,28 +2,45 @@
 
 use std::collections::HashMap;
 
-use edgequake_storage::{GraphNode, GraphStorage, VectorStorage};
+use edgequake_storage::{EntityId, GraphNode, GraphStorage, VectorStorage};
 
 use crate::error::Result;
 use crate::extractor::ExtractedEntity;
 
-use super::{merge_descriptions, metadata, normalize_entity_name};
+use super::{merge_descriptions, metadata};
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Merge a single entity, returning true if it was newly created.
     pub(super) async fn merge_entity(&self, entity: ExtractedEntity) -> Result<bool> {
-        let entity_key = normalize_entity_name(&entity.name);
+        // RC-6 / P-G1: identity is a newtype. The graph node id and the entity
+        // vector id are both derived from this single `EntityId`, so they can
+        // never diverge. Skip writes for empty identities (E1).
+        let entity_id = EntityId::new(&entity.name);
+        if entity_id.is_empty() {
+            tracing::warn!(
+                raw_name = %entity.name,
+                "Skipping entity with empty normalized name"
+            );
+            return Ok(false);
+        }
+        let entity_key: String = entity_id.as_graph_node_id().to_string();
 
-        // Store entity embedding with type metadata (for Local query mode)
+        // Store entity embedding with type metadata (for Local query mode).
+        // The vector id and the metadata's entity_name are both derived from
+        // `entity_id`, so the query decoder recovers exactly the graph node id.
         if let Some(embedding) = &entity.embedding {
             let scope = metadata::TenantScope {
                 tenant_id: &self.tenant_id,
                 workspace_id: &self.workspace_id,
             };
-            let metadata = metadata::entity_vector_metadata(&entity, scope);
+            let metadata = metadata::entity_vector_metadata(&entity, &entity_id, scope);
 
             self.vector_storage
-                .upsert(&[(entity_key.clone(), embedding.clone(), metadata)])
+                .upsert(&[(
+                    entity_id.as_vector_id(),
+                    embedding.clone(),
+                    metadata,
+                )])
                 .await?;
         }
 
@@ -200,7 +217,8 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
 
     /// Create a new entity node.
     fn create_entity_node(&self, entity: &ExtractedEntity) -> Result<GraphNode> {
-        let entity_key = normalize_entity_name(&entity.name);
+        let entity_id = EntityId::new(&entity.name);
+        let entity_key = entity_id.as_graph_node_id().to_string();
 
         let mut properties = HashMap::new();
         properties.insert(

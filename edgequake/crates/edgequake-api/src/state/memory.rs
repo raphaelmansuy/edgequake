@@ -14,7 +14,7 @@ use edgequake_core::InMemoryConversationService;
 use edgequake_core::InMemoryWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
-use edgequake_query::{QueryEngine, QueryEngineConfig, SOTAQueryConfig, SOTAQueryEngine};
+use edgequake_query::{QueryEngineConfig, QueryEngine};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
 #[cfg(feature = "postgres")]
 use edgequake_storage::adapters::memory::{MemoryConversationStorage, MemoryPdfStorage};
@@ -63,8 +63,7 @@ impl AppState {
         graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
         llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
         embedding_provider: Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-        query_engine: Arc<QueryEngine>,
-        sota_engine: Arc<SOTAQueryEngine>,
+        engine_impl: Arc<QueryEngine>,
         pipeline: Arc<Pipeline>,
         task_storage: edgequake_tasks::SharedTaskStorage,
         task_queue: edgequake_tasks::SharedTaskQueue,
@@ -87,8 +86,7 @@ impl AppState {
                 llm_provider,
                 vision_llm_provider: None,
                 embedding_provider,
-                query_engine,
-                sota_engine,
+                engine_impl,
                 pipeline,
                 models_config: super::bundled_models::bundled_models_config(),
             },
@@ -180,7 +178,7 @@ impl AppState {
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
         let reranker = create_bm25_reranker();
-        let (query_engine, sota_engine) = super::query_bootstrap::build_production_query_engines(
+        let engine_impl = super::query_bootstrap::build_production_query_engine(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
@@ -215,8 +213,7 @@ impl AppState {
                 llm_provider: Arc::clone(&llm_provider),
                 vision_llm_provider: None,
                 embedding_provider: Arc::clone(&embedding_provider),
-                query_engine,
-                sota_engine,
+                engine_impl,
                 pipeline,
                 models_config: super::bundled_models::bundled_models_config(),
             },
@@ -262,19 +259,9 @@ impl AppState {
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
-        // Create legacy query engine (for backward compatibility)
-        let query_config = QueryEngineConfig::default();
-        let query_engine = Arc::new(QueryEngine::new(
-            query_config,
-            Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
-            Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-            Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-        ));
-
         // Create SOTA query engine with mock keywords for testing
-        let sota_engine = Arc::new(SOTAQueryEngine::with_mock_keywords(
-            SOTAQueryConfig::default(),
+        let engine_impl = Arc::new(QueryEngine::with_mock_keywords(
+            QueryEngineConfig::default(),
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
@@ -310,8 +297,7 @@ impl AppState {
                 vision_llm_provider: None,
                 embedding_provider: Arc::clone(&mock_provider)
                     as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-                query_engine,
-                sota_engine,
+                engine_impl,
                 pipeline,
                 models_config: Arc::new(ModelsConfig::builtin_defaults()),
             },

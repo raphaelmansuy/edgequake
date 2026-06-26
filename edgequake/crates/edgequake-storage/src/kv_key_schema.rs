@@ -100,7 +100,7 @@ pub mod kv_keys {
     /// Key for a keyword extraction cache entry.
     ///
     /// `hash` is the SHA-256 hex of the query string.
-    /// TTL: 24 hours (from `SOTAQueryConfig::keyword_cache_ttl_secs`).
+    /// TTL: 24 hours (from `QueryEngineConfig::keyword_cache_ttl_secs`).
     #[inline]
     pub fn keyword_cache(hash: &str) -> String {
         format!("{hash}-kwcache")

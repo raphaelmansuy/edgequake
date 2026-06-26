@@ -311,7 +311,7 @@ impl AppState {
         tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
         let reranker = create_bm25_reranker();
-        let (query_engine, sota_engine) = super::query_bootstrap::build_production_query_engines(
+        let engine_impl = super::query_bootstrap::build_production_query_engine(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
@@ -357,8 +357,7 @@ impl AppState {
                     as Arc<dyn edgequake_llm::traits::LLMProvider>,
                 vision_llm_provider: super::provider_setup::resolve_vision_llm_provider(),
                 embedding_provider: Arc::clone(&embedding_provider),
-                query_engine,
-                sota_engine,
+                engine_impl,
                 pipeline,
                 models_config: super::bundled_models::bundled_models_config(),
             },
@@ -411,6 +410,9 @@ impl AppState {
                     "Storage auto-repairs applied at startup"
                 );
             }
+            // SPEC-021 P-D1: re-enable the hourly invariant monitor so drift
+            // accumulating after startup is detected and SAFE-tier auto-repaired.
+            std::sync::Arc::new(inspector).spawn_hourly_monitor();
         }
 
         Ok(app_state)

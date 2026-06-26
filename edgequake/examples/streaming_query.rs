@@ -1,7 +1,7 @@
 //! Streaming query example demonstrating EdgeQuake's streaming capabilities.
 //!
 //! This example shows how to:
-//! 1. Set up a query engine with streaming support
+//! 1. Set up the query engine with streaming support
 //! 2. Execute streaming queries
 //! 3. Handle streamed responses
 //!
@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
-use edgequake_query::{QueryEngine, QueryEngineConfig, QueryMode, QueryRequest};
+use edgequake_query::{QueryMode, QueryRequest, QueryEngineConfig, QueryEngine};
 use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryVectorStorage};
 use futures::StreamExt;
 
@@ -25,19 +25,9 @@ async fn main() -> anyhow::Result<()> {
     let vector_storage = Arc::new(MemoryVectorStorage::new("demo", 1536));
     let graph_storage = Arc::new(MemoryGraphStorage::new("demo"));
 
-    // 2. Create query engine
+    // 2. Create query engine (SOTA engine is the single production engine).
     let query_engine = QueryEngine::new(
-        QueryEngineConfig {
-            default_mode: QueryMode::Naive,
-            max_chunks: 5,
-            max_entities: 10,
-            max_context_tokens: 2000,
-            graph_depth: 2,
-            min_score: 0.1,
-            include_sources: true,
-            use_keyword_extraction: false,
-            truncation: edgequake_query::TruncationConfig::default(),
-        },
+        QueryEngineConfig::default(),
         vector_storage.clone(),
         graph_storage.clone(),
         mock_provider.clone(),

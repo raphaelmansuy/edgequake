@@ -1,4 +1,4 @@
-//! SOTA Query Engine - LightRAG-inspired implementation.
+//! Query Engine - LightRAG-inspired implementation.
 //!
 //! # Implements
 //!
@@ -11,7 +11,7 @@
 //! - **FEAT0106**: Bypass Mode (direct LLM)
 //! - **FEAT0107**: LLM-Based Keyword Extraction
 //! - **FEAT0108**: Smart Context Truncation
-//! - **FEAT0109**: SOTA Query Delegation
+//! - **FEAT0109**: Query Delegation
 //!
 //! # Enforces
 //!
@@ -87,9 +87,9 @@ use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_llm::Reranker;
 use edgequake_storage::traits::{GraphReadView, GraphStorage, VectorStorage};
 
-/// Configuration for the SOTA query engine.
+/// Configuration for the query engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SOTAQueryConfig {
+pub struct QueryEngineConfig {
     /// Default query mode.
     pub default_mode: QueryMode,
 
@@ -133,7 +133,7 @@ pub struct SOTAQueryConfig {
     pub rerank_top_k: usize,
 }
 
-impl Default for SOTAQueryConfig {
+impl Default for QueryEngineConfig {
     fn default() -> Self {
         Self {
             default_mode: QueryMode::Hybrid,
@@ -170,7 +170,7 @@ impl Default for SOTAQueryConfig {
                 max_total_tokens: 30000,
             },
             keyword_cache_ttl_secs: 24 * 60 * 60, // 24 hours
-            enable_rerank: true,                  // Enable by default for SOTA quality
+            enable_rerank: true,                  // Enable by default for retrieval quality
             // WHY 0.1: BM25 scores can be low for short documents or simple queries.
             // 0.3 was too aggressive and filtered out valid chunks. 0.1 matches min_score.
             min_rerank_score: 0.1,
@@ -275,7 +275,7 @@ impl QueryEmbeddings {
         // When keyword extraction is off, high/low texts equal the query string.
         // Batch-embed three slots so providers (e.g. MockProvider queue) can supply
         // distinct query / high_level / low_level vectors — required for Local/Global
-        // mode ranking (SPEC-017 / e2e_sota_engine chunk-ranking contract).
+        // mode ranking (SPEC-017 / e2e_engine_impl chunk-ranking contract).
         if high_level_text == query && low_level_text == query {
             let texts = vec![query.to_string(), query.to_string(), query.to_string()];
             let embeds = embedder.embed(&texts).await.map_err(QueryError::from)?;
@@ -312,8 +312,8 @@ impl QueryEmbeddings {
     }
 }
 
-pub struct SOTAQueryEngine {
-    config: SOTAQueryConfig,
+pub struct QueryEngine {
+    config: QueryEngineConfig,
     vector_storage: Arc<dyn VectorStorage>,
     graph_storage: Arc<dyn GraphStorage>,
     embedding_provider: Arc<dyn EmbeddingProvider>,
@@ -327,10 +327,10 @@ pub struct SOTAQueryEngine {
     keyword_validation_cache: Arc<tokio::sync::RwLock<std::collections::HashMap<String, bool>>>,
 }
 
-impl SOTAQueryEngine {
-    /// Create a new SOTA query engine.
+impl QueryEngine {
+    /// Create a new query engine.
     pub fn new(
-        config: SOTAQueryConfig,
+        config: QueryEngineConfig,
         vector_storage: Arc<dyn VectorStorage>,
         graph_storage: Arc<dyn GraphStorage>,
         embedding_provider: Arc<dyn EmbeddingProvider>,
@@ -374,7 +374,7 @@ impl SOTAQueryEngine {
 
     /// Create with mock keyword extractor (for testing).
     pub fn with_mock_keywords(
-        config: SOTAQueryConfig,
+        config: QueryEngineConfig,
         vector_storage: Arc<dyn VectorStorage>,
         graph_storage: Arc<dyn GraphStorage>,
         embedding_provider: Arc<dyn EmbeddingProvider>,
@@ -410,10 +410,22 @@ impl SOTAQueryEngine {
     }
 }
 
-impl SOTAQueryEngine {
+impl QueryEngine {
     /// Get the query configuration.
-    pub fn config(&self) -> &SOTAQueryConfig {
+    pub fn config(&self) -> &QueryEngineConfig {
         &self.config
+    }
+
+    /// Whether a reranker is configured on this engine.
+    ///
+    /// WHY (P-G6c / RC-11): the sync `/query` handler must report `reranked`
+    /// and `rerank_time_ms` truthfully. The real rerank happens inside
+    /// `pipeline_finalize` only when `reranker.is_some()`; without this
+    /// accessor the API layer could not distinguish "rerank requested but no
+    /// reranker configured" from "rerank actually applied", and previously
+    /// faked the scores instead.
+    pub fn has_reranker(&self) -> bool {
+        self.reranker.is_some()
     }
 
     /// Get the engine's default embedding provider.
@@ -448,8 +460,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sota_config_default() {
-        let config = SOTAQueryConfig::default();
+    fn test_query_engine_config_default() {
+        let config = QueryEngineConfig::default();
         assert_eq!(config.default_mode, QueryMode::Hybrid);
         assert!(config.use_keyword_extraction);
         assert!(config.use_adaptive_mode);
@@ -473,16 +485,16 @@ mod tests {
         use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};
         use std::sync::Arc;
 
-        /// Helper to create a minimal SOTAQueryEngine for prompt tests.
-        fn create_prompt_test_engine() -> SOTAQueryEngine {
+        /// Helper to create a minimal QueryEngine for prompt tests.
+        fn create_prompt_test_engine() -> QueryEngine {
             let vector_storage = Arc::new(MemoryVectorStorage::new("test", 384));
             let graph_storage = Arc::new(MemoryGraphStorage::new("test"));
             let embedding_provider: Arc<dyn crate::EmbeddingProvider> =
                 Arc::new(MockProvider::default());
             let llm_provider: Arc<dyn crate::LLMProvider> = Arc::new(MockProvider::default());
 
-            SOTAQueryEngine::new(
-                SOTAQueryConfig::default(),
+            QueryEngine::new(
+                QueryEngineConfig::default(),
                 vector_storage,
                 graph_storage,
                 embedding_provider,
@@ -571,6 +583,15 @@ mod tests {
             let prompt = engine.build_prompt("query", &empty_context, Some("Be concise"));
             assert!(prompt.contains("couldn't find any relevant information"));
             assert!(!prompt.contains("---Additional Instructions---"));
+        }
+
+        /// P-G6c (RC-11): a default engine has no reranker, so `has_reranker`
+        /// must report `false`. The sync `/query` handler uses this to report
+        /// `reranked` truthfully instead of faking a rerank.
+        #[test]
+        fn test_has_reranker_false_by_default() {
+            let engine = create_prompt_test_engine();
+            assert!(!engine.has_reranker());
         }
     }
 }

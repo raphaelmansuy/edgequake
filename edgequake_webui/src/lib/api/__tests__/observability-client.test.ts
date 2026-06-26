@@ -67,7 +67,7 @@ describe("SPEC-018 observability client", () => {
     process.env.EDGEQUAKE_API_URL = "http://backend.test:8080/api/v1";
     const { api, apiErrorLogPayload } = await import("../client");
 
-    const err = await api.get("/documents/missing").catch((e) => e);
+    const err = (await api.get("/documents/missing").catch((e) => e)) as import("../client").ApiRequestError;
     expect(err).toMatchObject({
       status: 404,
       code: "NOT_FOUND",
@@ -88,7 +88,11 @@ describe("SPEC-018 observability client", () => {
     expect(logPayload).toHaveProperty("trace_id");
   });
 
-  it("logs network errors with trace context", async () => {
+  it("logs network errors with trace context (warn, not error)", async () => {
+    // WHY console.warn: Next.js dev promotes console.error to a full-screen
+    // overlay, which crashes the dashboard on backend cold start. Network
+    // errors are still thrown to callers; the log level only controls dev UX.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
 
@@ -96,10 +100,29 @@ describe("SPEC-018 observability client", () => {
     const { api } = await import("../client");
 
     await expect(api.get("/health")).rejects.toThrow("Network request failed");
-    expect(errorSpy).toHaveBeenCalled();
-    const payload = errorSpy.mock.calls[0][1] as Record<string, unknown>;
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+    const payload = warnSpy.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.code).toBe("NETWORK_ERROR");
     expect(payload.source).toBe("webui_client");
     expect(payload).toHaveProperty("trace_id");
+  });
+
+  it("silent apiClient requests suppress warn/error (dev overlay safe)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+
+    process.env.EDGEQUAKE_API_URL = "http://backend.test:8080/api/v1";
+    const { api } = await import("../client");
+
+    await expect(
+      api.get("/health", { silent: true }),
+    ).rejects.toThrow("Network request failed");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalled();
   });
 });
