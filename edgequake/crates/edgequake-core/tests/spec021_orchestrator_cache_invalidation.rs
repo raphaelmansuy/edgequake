@@ -12,12 +12,7 @@ use edgequake_storage::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage,
 };
 
-const EXTRACTION_JSON: &str = r#"{
-  "entities": [
-    {"name": "Sarah Chen", "type": "PERSON", "description": "Chief architect"}
-  ],
-  "relationships": []
-}"#;
+const EXTRACTION_JSON: &str = edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON;
 
 #[tokio::test]
 async fn spec021_orchestrator_insert_invalidates_query_result_cache() {
@@ -86,10 +81,65 @@ async fn spec021_orchestrator_insert_invalidates_query_result_cache() {
 }
 
 #[test]
-fn spec021_orchestrator_ingestion_calls_invalidate_result_cache() {
+fn spec021_orchestrator_ingestion_calls_invalidate_query_result_cache() {
     let src = include_str!("../src/orchestrator/ingestion.rs");
     assert!(
-        src.contains("invalidate_result_cache"),
-        "orchestrator ingestion must invalidate query cache after persist"
+        src.contains("invalidate_query_result_cache"),
+        "orchestrator ingestion must invalidate via QueryResultCacheInvalidator port"
     );
+}
+
+#[tokio::test]
+async fn spec021_orchestrator_default_engine_invalidates_cache_on_insert() {
+    let mock = Arc::new(MockProvider::new());
+    for _ in 0..8 {
+        mock.add_response(edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON)
+            .await;
+    }
+
+    let kv = Arc::new(MemoryKVStorage::new("cache-default"));
+    let vector = Arc::new(MemoryVectorStorage::new("cache-default", 1536));
+    let graph = Arc::new(MemoryGraphStorage::new("cache-default"));
+    vector.initialize().await.unwrap();
+    graph.initialize().await.unwrap();
+
+    let mut config = EdgeQuakeConfig::default();
+    config.enable_gleaning = false;
+
+    let mut eq = EdgeQuake::new(config);
+    eq.set_storage_backends(
+        Arc::clone(&kv),
+        Arc::clone(&vector),
+        Arc::clone(&graph),
+    );
+    eq = eq
+        .with_providers(
+            Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+        )
+        .with_storage_config(StorageConfig {
+            backend: StorageBackend::Memory,
+            ..Default::default()
+        });
+    eq.initialize().await.expect("init");
+
+    let engine = eq
+        .query_engine()
+        .expect("default initialize must wire query engine");
+    let cache = engine.result_cache().expect("default engine has result cache");
+
+    let mut req = QueryRequest::new("default engine cache bust");
+    req.context_only = true;
+    req.mode = Some(QueryMode::Hybrid);
+
+    engine.query(req.clone()).await.expect("prime");
+    engine.query(req.clone()).await.expect("cached");
+    assert_eq!(cache.hits(), 1);
+
+    eq.insert("Sarah Chen works on EdgeQuake.", None)
+        .await
+        .expect("insert");
+
+    engine.query(req).await.expect("post-insert");
+    assert_eq!(cache.misses(), 2);
 }

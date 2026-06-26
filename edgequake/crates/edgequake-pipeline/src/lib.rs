@@ -71,6 +71,7 @@ pub mod sanitizer;
 pub mod stage_bridge;
 pub mod summarizer;
 pub mod table_preprocessor;
+pub mod test_fixtures;
 pub mod validation;
 
 pub use cache::{
@@ -144,6 +145,7 @@ pub use stage_bridge::{
     unified_to_pipeline_stage, unified_to_tasks_phase_slug,
 };
 pub use summarizer::{DescriptionSummarizer, LLMSummarizer, SimpleSummarizer, SummarizerConfig};
+pub use test_fixtures::SPEC021_SARAH_CHEN_EXTRACTION_JSON;
 pub use table_preprocessor::{
     preprocess_tabular_content, PreprocessResult, TablePreprocessorConfig,
 };

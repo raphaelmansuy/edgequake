@@ -39,16 +39,8 @@ pub const TEST_USER_ID: &str = "bbbbbbbb-0019-0019-0019-bbbbbbbbbbbb";
 /// Default test workspace ID (valid UUID for workspace-scoped operations).
 pub const TEST_WORKSPACE_ID: &str = "cccccccc-0019-0019-0019-cccccccccccc";
 
-/// Deterministic mock LLM extraction for worker ingest E2E (aligned with `sc2_sc5_ingestion`).
-pub const SPEC021_WORKER_EXTRACTION_JSON: &str = r#"{
-  "entities": [
-    {"name": "Sarah Chen", "type": "PERSON", "description": "Chief architect"},
-    {"name": "EdgeQuake", "type": "SYSTEM", "description": "RAG system in Rust"}
-  ],
-  "relationships": [
-    {"source": "Sarah Chen", "target": "EdgeQuake", "type": "LEADS", "description": "Sarah leads EdgeQuake"}
-  ]
-}"#;
+/// Deterministic mock LLM extraction for worker ingest E2E (DRY — see `edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON`).
+pub use edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON as SPEC021_WORKER_EXTRACTION_JSON;
 
 /// Environment variables that influence provider auto-detection.
 ///
@@ -194,6 +186,7 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
     shutdown_test_worker_pool().await;
 
     use edgequake_llm::MockProvider;
+    std::env::set_var("EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE", "1");
     let mock_provider = Arc::new(MockProvider::new());
     for _ in 0..32 {
         mock_provider

@@ -1,31 +1,27 @@
-# 24 — Plan-19 Gap Closure (2026-06-26, rev.4)
+# 24 — Plan-19 Gap Closure (2026-06-26, rev.5)
 
-> **Supersedes:** remaining items in plan-19 §6 and §13 (post P-G2 closure pass)
+> **Supersedes:** plan-19 §6 and §13 closure record
 
-## Closed in this pass
+## Closed (rev.4–5)
 
 | Gap | Fix | Evidence |
 |-----|-----|----------|
-| **P-G4-graph** | Batch `get_nodes_batch` + `upsert_nodes_batch`; batch edges | `merger/entity.rs`, `merger/relationship.rs` |
-| **P-G2d** | `IngestionPersister` trait + `DefaultIngestionPersister::from_settings` | `ingestion_persister.rs`, contract tests |
-| **P-G8-http** | HTTP Bypass + Mix (+ stats) | `e2e_spec021_query_modes_http.rs` |
-| **P-G9** | Result cache + invalidation on worker + orchestrator persist | `query_result_cache.rs`, worker + orchestrator E2E |
-| **P-G9-DIP** | `QueryResultCacheInvalidator`; processor `Arc<dyn …>` | `spec021_processor_cache_invalidator_contract.rs` |
-| **Orchestrator cache** | `with_query_engine` + `invalidate_result_cache()` after persist | `ingestion.rs`, `spec021_orchestrator_cache_invalidation.rs` |
-| **Worker graph E2E** | Seeded mock + provider override → `completed` + `SARAH_CHEN` node | `safety_limits` test hook, `e2e_spec021_ingestion_persister.rs` |
-| **DRY merger** | Batch-only path (removed single shims) | `merger/entity.rs`, `merger/relationship.rs` |
-| **DRY test state** | `build_test_state` + `build_ingestion_pipeline` (not `default_pipeline`) | `memory.rs` |
+| **P-G9 orchestrator default** | `initialize()` default engine gets embedding + result cache | `orchestrator/mod.rs`, `spec021_orchestrator_default_engine_invalidates_cache_on_insert` |
+| **P-G9 DIP orchestrator** | `QueryResultCacheInvalidator` on persist | `ingestion.rs` |
+| **DRY fixture** | `SPEC021_SARAH_CHEN_EXTRACTION_JSON` in pipeline | `test_fixtures.rs`; sc2 + worker + orchestrator tests |
+| **Test override safety** | Env gate `EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE=1` | `safety_limits.rs`, `spec021_test_provider_override_contract.rs` |
+| *(rev.4 items)* | Worker graph E2E, batch merger, persister trait, HTTP modes, worker cache | see git `4e01f78d`, `64fcd808` |
 
 ## Honest remaining (accepted)
 
-| Item | Status | Notes |
-|------|--------|-------|
-| P-G1b legacy backfill | Admin-only | Never auto-run |
-| Full 8-step persister | Deferred | KV/relational/lineage in processor |
-| Postgres UNWIND worker E2E | Deferred | Adapter contracts elsewhere |
-| GraphRAG communities | Out of scope | §8 |
-| Mix HTTP weight ordering | Engine-only | `contract_query_modes.rs` |
-| Default orchestrator engine | No result cache | Callers must `with_query_engine` for P-G9 |
+| Item | Status |
+|------|--------|
+| P-G1b legacy backfill | Admin-only |
+| Full 8-step persister | Deferred |
+| Postgres worker E2E | Deferred |
+| GraphRAG communities | Out of scope |
+| Mix HTTP weight ordering | Engine-only |
+| Core vs API query engine | No reranker in core default path |
 
 ## Verification
 

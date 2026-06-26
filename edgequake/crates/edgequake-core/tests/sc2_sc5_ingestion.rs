@@ -35,15 +35,7 @@ const EMBED_DIM: usize = 1536;
 
 /// Extraction response shared by all successful inserts. Any valid response
 /// works, so identical responses make concurrency ordering irrelevant.
-const EXTRACTION_JSON: &str = r#"{
-  "entities": [
-    {"name": "Sarah Chen", "type": "PERSON", "description": "Chief architect"},
-    {"name": "EdgeQuake", "type": "SYSTEM", "description": "RAG system in Rust"}
-  ],
-  "relationships": [
-    {"source": "Sarah Chen", "target": "EdgeQuake", "type": "LEADS", "description": "Sarah leads EdgeQuake"}
-  ]
-}"#;
+const EXTRACTION_JSON: &str = edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON;
 
 const SMALL_DOCUMENT: &str =
     "Sarah Chen leads the EdgeQuake project. EdgeQuake is a RAG system written in Rust.";
