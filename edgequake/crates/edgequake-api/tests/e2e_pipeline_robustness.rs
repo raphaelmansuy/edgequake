@@ -443,7 +443,8 @@ async fn test_list_shows_upload_status() {
         // the uploaded documents (stored in the seeded default workspace) are
         // visible.
         let (status, list) =
-            common::get_with_tenant(app, "/api/v1/documents", "default", "default", "default").await;
+            common::get_with_tenant(app, "/api/v1/documents", "default", "default", "default")
+                .await;
         assert_eq!(status, StatusCode::OK);
 
         let total = list["total"].as_u64().unwrap_or(0);

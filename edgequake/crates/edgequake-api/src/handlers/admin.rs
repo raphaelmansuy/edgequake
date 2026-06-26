@@ -351,3 +351,103 @@ pub async fn storage_repair(
         })
     }
 }
+
+// ── Legacy entity reconciliation (SPEC-021 P-G1b) ─────────────────────────────
+
+/// GET /api/v1/admin/entities/reconcile — dry-run plan for repairing legacy
+/// un-normalized graph nodes + entity vectors (P-G1b / RC-6 follow-up).
+///
+/// Read-only. Returns the merge groups, edge rewrites, and vector re-keys that
+/// WOULD be applied, plus a `confirm_token` to pass to the POST execute
+/// endpoint. Never mutates data.
+#[derive(Debug, Serialize)]
+pub struct ReconcilePlanResponse {
+    pub plan: edgequake_storage::entity_reconcile::ReconcilePlan,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/entities/reconcile",
+    responses(
+        (status = 200, description = "Dry-run reconciliation plan (JSON)"),
+        (status = 500, description = "Storage scan failed"),
+    ),
+    tags = ["admin"]
+)]
+pub async fn entity_reconcile_plan(
+    State(state): State<AppState>,
+) -> Result<Json<ReconcilePlanResponse>, ApiError> {
+    let graph = state.storage.graph_storage.as_ref();
+    let vectors = state.storage.vector_storage.as_ref();
+    let plan = edgequake_storage::entity_reconcile::plan(graph, vectors)
+        .await
+        .map_err(|e| ApiError::Internal(format!("reconcile plan failed: {e}")))?;
+    Ok(Json(ReconcilePlanResponse { plan }))
+}
+
+/// POST /api/v1/admin/entities/reconcile — apply a reconciliation plan.
+///
+/// Destructive. The request body MUST carry the `confirm_token` returned by the
+/// GET plan endpoint for the SAME graph state; a stale/wrong token is refused
+/// without mutating anything. Best-effort and idempotent.
+///
+/// The body is an arbitrary JSON object with `confirm_token` and `plan` fields
+/// (the exact shape returned by the GET plan endpoint). We deserialize it into
+/// the typed `ReconcileExecuteRequest` so the storage layer can verify the
+/// confirm token against the plan contents.
+#[derive(Debug, Deserialize)]
+pub struct ReconcileExecuteRequest {
+    /// The confirm token from the dry-run plan. Required.
+    pub confirm_token: String,
+    /// The plan to apply (must match the token).
+    pub plan: edgequake_storage::entity_reconcile::ReconcilePlan,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReconcileExecuteResponse {
+    pub result: edgequake_storage::entity_reconcile::ReconcileResult,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/entities/reconcile",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Reconciliation applied (JSON)"),
+        (status = 400, description = "Confirm token mismatch (nothing applied)"),
+        (status = 500, description = "Apply failed"),
+    ),
+    tags = ["admin"]
+)]
+pub async fn entity_reconcile_execute(
+    State(state): State<AppState>,
+    body: axum::extract::Json<serde_json::Value>,
+) -> Result<Json<ReconcileExecuteResponse>, ApiError> {
+    let request: ReconcileExecuteRequest = serde_json::from_value(body.0)
+        .map_err(|e| ApiError::BadRequest(format!("invalid reconcile request body: {e}")))?;
+    let graph = state.storage.graph_storage.as_ref();
+    let vectors = state.storage.vector_storage.as_ref();
+    let result = edgequake_storage::entity_reconcile::execute(
+        graph,
+        vectors,
+        &request.plan,
+        &request.confirm_token,
+    )
+    .await
+    .map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("confirm token") {
+            ApiError::BadRequest(msg)
+        } else {
+            ApiError::Internal(format!("reconcile execute failed: {msg}"))
+        }
+    })?;
+    tracing::info!(
+        nodes_merged = result.nodes_merged,
+        edges_rewritten = result.edges_rewritten,
+        vectors_rekeyed = result.vectors_rekeyed,
+        errors = result.errors.len(),
+        "Admin entity reconciliation applied"
+    );
+    Ok(Json(ReconcileExecuteResponse { result }))
+}

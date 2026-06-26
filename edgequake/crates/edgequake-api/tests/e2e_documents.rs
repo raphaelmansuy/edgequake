@@ -56,7 +56,8 @@ async fn test_upload_document_success() {
 async fn test_upload_document_minimal() {
     let app = create_test_app();
 
-    let body = upload_document_assert(&app, "Minimal", "A minimal document with just content.").await;
+    let body =
+        upload_document_assert(&app, "Minimal", "A minimal document with just content.").await;
     assert!(body.get("document_id").is_some());
     // P-G2b: status is pending until the background task finishes.
     assert_eq!(body.get("status").and_then(|v| v.as_str()), Some("pending"));
@@ -208,7 +209,10 @@ async fn test_list_documents_after_upload() {
 
     let docs = body.get("documents").and_then(|v| v.as_array());
     assert!(docs.is_some());
-    assert!(!docs.unwrap().is_empty(), "uploaded document should appear in list");
+    assert!(
+        !docs.unwrap().is_empty(),
+        "uploaded document should appear in list"
+    );
 }
 
 // ============================================================================
@@ -230,7 +234,10 @@ async fn test_get_document_success() {
 
     let (status, body) = get_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body.get("id").and_then(|v| v.as_str()), Some(document_id.as_str()));
+    assert_eq!(
+        body.get("id").and_then(|v| v.as_str()),
+        Some(document_id.as_str())
+    );
     assert!(body.get("status").is_some());
 }
 
@@ -360,8 +367,14 @@ async fn test_upload_returns_accepted_pending_with_task_id() {
         .and_then(|v| v.as_str())
         .expect("track_id present")
         .to_string();
-    let task_id = body.get("task_id").and_then(|v| v.as_str()).map(String::from);
-    assert!(task_id.is_some(), "task_id should be present for async upload");
+    let task_id = body
+        .get("task_id")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    assert!(
+        task_id.is_some(),
+        "task_id should be present for async upload"
+    );
 
     let final_status = wait_for_document_processed(&app, &track_id, Duration::from_secs(30)).await;
     assert!(

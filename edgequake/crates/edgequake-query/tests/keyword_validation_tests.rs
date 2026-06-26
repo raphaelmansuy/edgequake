@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::{
-    ExtractedKeywords, KeywordExtractor, QueryIntent, QueryMode, QueryRequest, QueryEngineConfig,
-    QueryEngine,
+    ExtractedKeywords, KeywordExtractor, QueryEngine, QueryEngineConfig, QueryIntent, QueryMode,
+    QueryRequest,
 };
 use edgequake_storage::{
     GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, MemoryGraphStorage,

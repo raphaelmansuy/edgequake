@@ -102,13 +102,9 @@ async fn test_duplicate_detection_same_content() {
         let app = workers.app();
 
         // First upload — wait for it to fully ingest.
-        let (doc_id_1, _track1, _status1) = common::upload_and_wait(
-            app,
-            "First Upload",
-            TEST_CONTENT,
-            Duration::from_secs(30),
-        )
-        .await;
+        let (doc_id_1, _track1, _status1) =
+            common::upload_and_wait(app, "First Upload", TEST_CONTENT, Duration::from_secs(30))
+                .await;
 
         // Second upload with same content should still succeed via re-ingestion.
         let (status2, body2) = upload_text(app, TEST_CONTENT, "Second Upload").await;
@@ -183,13 +179,8 @@ async fn test_duplicate_ignores_title_difference() {
         let workers = common::create_test_app_with_workers().await;
         let app = workers.app();
 
-        let (doc_id_1, _track1, _status1) = common::upload_and_wait(
-            app,
-            "Title A",
-            TEST_CONTENT,
-            Duration::from_secs(30),
-        )
-        .await;
+        let (doc_id_1, _track1, _status1) =
+            common::upload_and_wait(app, "Title A", TEST_CONTENT, Duration::from_secs(30)).await;
 
         let (status2, body2) = upload_text(app, TEST_CONTENT, "Title B").await;
         assert!(

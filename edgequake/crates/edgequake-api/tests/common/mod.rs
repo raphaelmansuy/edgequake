@@ -437,9 +437,13 @@ pub async fn wait_for_document_processed(
 ) -> String {
     let deadline = std::time::Instant::now() + timeout;
     loop {
-        let (status, body) = get_endpoint(app, &format!("/api/v1/documents/track/{}", track_id)).await;
+        let (status, body) =
+            get_endpoint(app, &format!("/api/v1/documents/track/{}", track_id)).await;
         if status.is_success() {
-            let complete = body.get("is_complete").and_then(|v| v.as_bool()).unwrap_or(false);
+            let complete = body
+                .get("is_complete")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             if complete {
                 if let Some(docs) = body.get("documents").and_then(|v| v.as_array()) {
                     if let Some(first) = docs.first() {
@@ -481,7 +485,10 @@ pub async fn upload_and_wait(
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    assert!(!document_id.is_empty(), "upload response missing document_id");
+    assert!(
+        !document_id.is_empty(),
+        "upload response missing document_id"
+    );
     assert!(!track_id.is_empty(), "upload response missing track_id");
     let final_status = wait_for_document_processed(app, &track_id, timeout).await;
     assert!(
@@ -494,4 +501,3 @@ pub async fn upload_and_wait(
     );
     (document_id, track_id, final_status)
 }
-

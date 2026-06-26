@@ -61,6 +61,7 @@ pub mod compensation;
 pub mod conversation_storage;
 pub mod conversation_types;
 pub mod entity_id;
+pub mod entity_reconcile;
 pub mod error;
 pub mod kv_key_schema;
 pub mod metadata_filter_sql;

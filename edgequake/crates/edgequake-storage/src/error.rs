@@ -25,6 +25,10 @@ pub enum StorageError {
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
 
+    /// Invalid input (e.g. a stale confirm token for an admin repair job).
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     /// Transaction failed
     #[error("Transaction failed: {0}")]
     Transaction(String),

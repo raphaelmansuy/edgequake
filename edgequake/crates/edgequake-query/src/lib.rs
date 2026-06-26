@@ -51,25 +51,25 @@
 //! - [`crate::keywords`] for keyword extraction
 //! - [`crate::truncation`] for token budgeting
 
+pub mod cache;
 pub mod context;
 pub mod context_filter;
 pub mod engine;
+pub mod engine_impl;
 pub mod error;
 pub mod helpers;
 pub mod keywords;
 pub mod modes;
-pub mod engine_impl;
 pub mod tokenizer;
 pub mod truncation;
 pub mod types;
 pub mod vector_filter;
 
 pub use context::{QueryContext, RetrievedContext};
-pub use engine::{
-    ConversationMessage, QueryRequest, QueryResponse, QueryStats,
-};
+pub use engine::{ConversationMessage, QueryRequest, QueryResponse, QueryStats};
 pub use error::{QueryError, Result};
 // Re-export keywords module types
+pub use engine_impl::{QueryEmbeddings, QueryEngine, QueryEngineConfig};
 #[cfg(feature = "postgres")]
 pub use keywords::PostgresKeywordCache;
 pub use keywords::{
@@ -77,7 +77,6 @@ pub use keywords::{
     KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor, QueryIntent,
 };
 pub use modes::QueryMode;
-pub use engine_impl::{QueryEmbeddings, QueryEngineConfig, QueryEngine};
 pub use tokenizer::{MockTokenizer, SimpleTokenizer, Tokenizer};
 pub use truncation::{
     balance_context, truncate_chunks, truncate_entities, truncate_relationships, TruncationConfig,

@@ -283,13 +283,16 @@ impl DocumentTaskProcessor {
             let content_key = edgequake_storage::kv_keys::doc_content(&early_doc_id);
             let _ = self.kv_storage.delete(&[content_key]).await;
 
-            // Remove old chunk entries
-            let all_keys = self.kv_storage.keys().await.unwrap_or_default();
+            // P-G7 (RC-12): use the index-friendly `keys_with_prefix` instead
+            // of scanning every key and filtering in-memory. The chunk-id prefix
+            // `{doc_id}-chunk-` is index-friendly (B-tree prefix scan in
+            // Postgres). This collapses an O(W) full-table scan into O(log N + K).
             let chunk_prefix = edgequake_storage::kv_keys::doc_chunk_prefix(&early_doc_id);
-            let chunk_keys: Vec<String> = all_keys
-                .into_iter()
-                .filter(|k| k.starts_with(&chunk_prefix))
-                .collect();
+            let chunk_keys: Vec<String> = self
+                .kv_storage
+                .keys_with_prefix(&chunk_prefix)
+                .await
+                .unwrap_or_default();
             if !chunk_keys.is_empty() {
                 info!(
                     document_id = %early_doc_id,

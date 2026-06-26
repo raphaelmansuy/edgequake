@@ -750,14 +750,19 @@ pub(crate) async fn clear_document_markdown_and_content(
 
     // 2. Best-effort: clear KV content + chunk keys so stale text is not
     //    served from KV during the re-conversion window.
-    let keys = state.storage.kv_storage.keys().await?;
-    let prefix = format!("{}-", document_id);
+    // P-G7 (RC-12): index-friendly prefix scan for this document's keys
+    // instead of scanning every key in the workspace. The subset is then
+    // filtered in-memory to the content/chunk keys (a tiny set per doc).
+    let doc_prefix = format!("{}-", document_id);
+    let keys: Vec<String> = state
+        .storage
+        .kv_storage
+        .keys_with_prefix(&doc_prefix)
+        .await?;
+    let chunk_prefix = format!("{}-chunk-", document_id);
     let keys_to_delete: Vec<String> = keys
         .iter()
-        .filter(|k| {
-            k.starts_with(&prefix)
-                && (k.ends_with("-content") || k.starts_with(&format!("{}-chunk-", document_id)))
-        })
+        .filter(|k| k.ends_with("-content") || k.starts_with(&chunk_prefix))
         .cloned()
         .collect();
 

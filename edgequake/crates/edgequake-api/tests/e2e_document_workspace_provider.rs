@@ -344,7 +344,10 @@ async fn test_document_http_upload_with_workspace() {
     // a task_id). Counts are intentionally NOT asserted (now null/absent).
     if status == StatusCode::ACCEPTED || status == StatusCode::CREATED {
         let body = extract_json(response).await;
-        assert!(body.get("document_id").is_some(), "missing document_id: {body}");
+        assert!(
+            body.get("document_id").is_some(),
+            "missing document_id: {body}"
+        );
         assert!(
             body.get("task_id").is_some() || status == StatusCode::CREATED,
             "async upload must return task_id: {body}"
@@ -382,9 +385,15 @@ async fn test_document_http_upload_without_workspace() {
         status
     );
     let body = extract_json(response).await;
-    assert!(body.get("document_id").is_some(), "missing document_id: {body}");
+    assert!(
+        body.get("document_id").is_some(),
+        "missing document_id: {body}"
+    );
     if status == StatusCode::ACCEPTED {
-        assert!(body.get("task_id").is_some(), "async upload must return task_id: {body}");
+        assert!(
+            body.get("task_id").is_some(),
+            "async upload must return task_id: {body}"
+        );
     }
 }
 

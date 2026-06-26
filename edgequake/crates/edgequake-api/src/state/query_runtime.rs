@@ -26,7 +26,7 @@ pub struct QueryRuntime {
 mod tests {
     use super::*;
     use edgequake_llm::MockProvider;
-    use edgequake_query::{QueryEngineConfig, QueryEngine};
+    use edgequake_query::{QueryEngine, QueryEngineConfig};
     use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryVectorStorage};
 
     #[test]

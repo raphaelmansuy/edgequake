@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use edgequake_llm::{EmbeddingProvider, MockProvider};
 use edgequake_query::{
-    ExtractedKeywords, KeywordExtractor, Keywords, MockKeywordExtractor, QueryIntent, QueryMode,
-    QueryRequest, QueryEngineConfig, QueryEngine,
+    ExtractedKeywords, KeywordExtractor, Keywords, MockKeywordExtractor, QueryEngine,
+    QueryEngineConfig, QueryIntent, QueryMode, QueryRequest,
 };
 use edgequake_storage::{
     GraphStorage, GraphStorageMutateOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
@@ -285,6 +285,7 @@ mod sota_config_tests {
             enable_rerank: true,
             min_rerank_score: 0.3,
             rerank_top_k: 10,
+            ..Default::default()
         };
 
         assert_eq!(config.default_mode, QueryMode::Local);
@@ -870,14 +871,9 @@ mod reranker_integration_tests {
 
         let reranker = Arc::new(BM25Reranker::new());
 
-        let engine = QueryEngine::with_mock_keywords(
-            config,
-            vector_storage,
-            graph_storage,
-            embedding,
-            llm,
-        )
-        .with_reranker(reranker);
+        let engine =
+            QueryEngine::with_mock_keywords(config, vector_storage, graph_storage, embedding, llm)
+                .with_reranker(reranker);
 
         let request = QueryRequest::new("EdgeQuake knowledge graph").with_mode(QueryMode::Naive);
 
@@ -1166,8 +1162,7 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Local)
@@ -1290,8 +1285,7 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Global)
@@ -1388,8 +1382,7 @@ mod chunk_ranking_and_hybrid_tests {
         let mut config = base_config();
         config.max_chunks = 1; // Only keep the single best chunk
 
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Local)
@@ -1476,8 +1469,7 @@ mod chunk_ranking_and_hybrid_tests {
         let mut config = base_config();
         config.max_chunks = 3; // Keep only top 3
 
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("test query")
             .with_mode(QueryMode::Local)
@@ -1595,8 +1587,7 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("hybrid test")
             .with_mode(QueryMode::Hybrid)
@@ -1699,8 +1690,7 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("dedup test")
             .with_mode(QueryMode::Hybrid)
@@ -1809,8 +1799,7 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("multi entity")
             .with_mode(QueryMode::Local)
@@ -1882,8 +1871,7 @@ mod chunk_ranking_and_hybrid_tests {
         enqueue_directional_embeddings(&provider).await;
 
         let config = base_config();
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider);
 
         let request = QueryRequest::new("empty chunks test")
             .with_mode(QueryMode::Local)
@@ -2011,9 +1999,8 @@ mod chunk_ranking_and_hybrid_tests {
 
         let reranker: Arc<dyn Reranker> = Arc::new(BM25Reranker::new());
 
-        let engine =
-            QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider)
-                .with_reranker(reranker);
+        let engine = QueryEngine::with_mock_keywords(config, vs, gs, provider.clone(), provider)
+            .with_reranker(reranker);
 
         let request = QueryRequest::new("EdgeQuake knowledge graph")
             .with_mode(QueryMode::Local)

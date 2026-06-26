@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_pipeline::{LLMExtractor, Pipeline};
-use edgequake_query::{QueryEngineConfig, QueryEngine};
+use edgequake_query::{QueryEngine, QueryEngineConfig};
 use edgequake_storage::traits::{GraphStorage, VectorStorage};
 
 /// Build the default ingestion pipeline with workspace-configurable providers.
@@ -42,6 +42,10 @@ pub fn build_production_query_engine(
             embedding_provider,
             llm_provider,
         )
-        .with_reranker(reranker),
+        .with_reranker(reranker)
+        // P-G9 (RC-14): memoize query embeddings to skip redundant embedding
+        // round-trips for repeated queries. Ingestion `embed` (batch) is
+        // delegated unchanged, so this is query-path only.
+        .with_embedding_cache(),
     )
 }

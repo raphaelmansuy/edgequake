@@ -61,13 +61,23 @@ pub async fn reprocess_failed(
     );
 
     // Get all metadata keys
-    let all_keys: Vec<String> = state.storage.kv_storage.keys().await?;
+    // P-G7 (RC-12): use the index-friendly `keys_with_suffix` instead of
+    // scanning every key in the workspace and filtering in-memory. The Postgres
+    // adapter overrides this with a `reverse(key)` expression-index scan
+    // (O(log N + K)); other adapters filter in-process. Either way the caller
+    // no longer pays an O(W) full-table scan on every reprocess.
+    let all_keys: Vec<String> = state
+        .storage
+        .kv_storage
+        .keys_with_suffix("-metadata")
+        .await?;
 
     let mut docs_to_reprocess = Vec::new();
     let mut requeued_ids = Vec::new();
 
-    // Find documents to reprocess
-    for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
+    // Find documents to reprocess. `all_keys` already contains only
+    // `*-metadata` keys (P-G7), so no suffix filter is needed here.
+    for key in all_keys.iter() {
         if docs_to_reprocess.len() >= request.max_documents {
             break;
         }

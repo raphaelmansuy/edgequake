@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
 use edgequake_query::{
-    modes::QueryMode, QueryContext, QueryRequest, QueryEngineConfig, QueryEngine,
+    modes::QueryMode, QueryContext, QueryEngine, QueryEngineConfig, QueryRequest,
 };
 use edgequake_storage::traits::VectorStorage;
 use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};

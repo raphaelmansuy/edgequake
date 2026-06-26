@@ -507,6 +507,7 @@ fn storage_error_category(e: &edgequake_storage::error::StorageError) -> &'stati
         StorageError::AlreadyExists(_) => "already_exists",
         StorageError::Conflict(_) => "conflict",
         StorageError::InvalidQuery(_) => "invalid_query",
+        StorageError::InvalidInput(_) => "invalid_input",
         StorageError::Transaction(_) => "transaction",
         StorageError::Serialization(_) => "serialization",
         StorageError::Database(_) => "database",

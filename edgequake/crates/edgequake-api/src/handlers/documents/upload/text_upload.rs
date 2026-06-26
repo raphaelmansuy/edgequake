@@ -11,9 +11,9 @@ use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
 
+use crate::handlers::documents::storage_helpers::delete_document_for_reingestion;
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
-use crate::handlers::documents::storage_helpers::delete_document_for_reingestion;
 use crate::handlers::documents_types::*;
 
 /// Upload a document for processing.

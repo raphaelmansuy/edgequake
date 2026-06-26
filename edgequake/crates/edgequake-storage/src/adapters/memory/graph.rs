@@ -487,6 +487,21 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
         Ok(())
     }
 
+    /// P-G10 / RC-15: real batch — ONE lock acquisition for all nodes, not N.
+    /// Matches the contract documented on `GraphStorageMutateOps`.
+    async fn upsert_nodes_batch(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        let mut nodes_map = self.nodes.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+        for (node_id, properties) in nodes {
+            nodes_map.insert(node_id.clone(), properties.clone());
+            adjacency.entry(node_id.clone()).or_default();
+        }
+        Ok(())
+    }
+
     async fn delete_node(&self, node_id: &str) -> Result<()> {
         let mut nodes = self.nodes.write().map_err(super::lock::map_lock_err)?;
         let mut edges = self.edges.write().map_err(super::lock::map_lock_err)?;
@@ -536,6 +551,28 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
             .or_default()
             .insert(source.to_string());
 
+        Ok(())
+    }
+
+    /// P-G10 / RC-15: real batch — ONE lock acquisition for all edges, not N.
+    async fn upsert_edges_batch(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        let mut edges_map = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+        for (source, target, properties) in edges {
+            let key = Self::edge_key(source, target);
+            edges_map.insert(key, properties.clone());
+            adjacency
+                .entry(source.clone())
+                .or_default()
+                .insert(target.clone());
+            adjacency
+                .entry(target.clone())
+                .or_default()
+                .insert(source.clone());
+        }
         Ok(())
     }
 

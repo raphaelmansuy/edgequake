@@ -409,9 +409,13 @@ async fn test_query_clean_tenant() {
     let app = ctx.app();
 
     // Upload document first and wait for ingestion (P-G2b).
-    let (_doc_id, _track_id, _final_status) =
-        common::upload_and_wait(app, "Query Test Document", ENTITY_DOCUMENT, Duration::from_secs(30))
-            .await;
+    let (_doc_id, _track_id, _final_status) = common::upload_and_wait(
+        app,
+        "Query Test Document",
+        ENTITY_DOCUMENT,
+        Duration::from_secs(30),
+    )
+    .await;
 
     // Query - mock provider returns deterministic results
     let (status, result) = common::post_json(
@@ -495,8 +499,12 @@ async fn test_query_timeout_30s() {
             Duration::from_secs(25),
         )
         .await;
-        common::post_json(app, "/api/v1/query", &json!({ "query": "Tell me about EdgeQuake" }))
-            .await
+        common::post_json(
+            app,
+            "/api/v1/query",
+            &json!({ "query": "Tell me about EdgeQuake" }),
+        )
+        .await
     })
     .await;
 
@@ -525,10 +533,7 @@ async fn test_multiple_documents_same_tenant() {
     assert!(!doc2_id.is_empty());
 
     // Documents should have different IDs
-    assert_ne!(
-        doc1_id, doc2_id,
-        "Each document should get a unique ID"
-    );
+    assert_ne!(doc1_id, doc2_id, "Each document should get a unique ID");
 }
 
 /// OODA-10: Test tenant creation with model configuration (SPEC-032).

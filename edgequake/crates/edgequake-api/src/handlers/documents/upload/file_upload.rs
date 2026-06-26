@@ -458,10 +458,12 @@ pub async fn upload_file(
 
         for relationship in &extraction.relationships {
             // RC-6 / P-G1: edge endpoints are normalized EntityIds.
-            let src_key =
-                edgequake_storage::EntityId::new(&relationship.source).as_graph_node_id().to_string();
-            let tgt_key =
-                edgequake_storage::EntityId::new(&relationship.target).as_graph_node_id().to_string();
+            let src_key = edgequake_storage::EntityId::new(&relationship.source)
+                .as_graph_node_id()
+                .to_string();
+            let tgt_key = edgequake_storage::EntityId::new(&relationship.target)
+                .as_graph_node_id()
+                .to_string();
             let mut properties = std::collections::HashMap::new();
             properties.insert(
                 "relation_type".to_string(),

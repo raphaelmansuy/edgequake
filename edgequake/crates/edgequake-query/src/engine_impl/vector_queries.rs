@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::context::{QueryContext, RetrievedRelationship};
+use crate::context::{QueryContext, RetrievedChunk, RetrievedRelationship};
 use crate::error::Result;
 use crate::helpers::{
     build_chunk_from_result, build_entity_from_node, build_relationship_from_edge,
@@ -390,8 +390,7 @@ impl QueryEngine {
             );
 
             let nodes_map = nodes_map?;
-            let degrees: HashMap<String, usize> =
-                degrees?.into_iter().collect();
+            let degrees: HashMap<String, usize> = degrees?.into_iter().collect();
 
             // WHY: Iterate entity_ids (Vec) for deterministic ordering instead of HashMap.
             // HashMap iteration order is random, causing non-deterministic results.
@@ -454,6 +453,29 @@ impl QueryEngine {
         }
 
         Ok(context)
+    }
+
+    /// Normalize Mix-mode weights to sum to 1 (P-G8).
+    ///
+    /// E24: if all weights are 0 (or non-finite), fall back to equal weights
+    /// (1/3 each) and log a warning, so Mix never silently returns an empty
+    /// blend. Returns `(w_local, w_global, w_naive)`.
+    fn normalized_mix_weights(&self) -> (f32, f32, f32) {
+        let l = self.config.mix_local_weight;
+        let g = self.config.mix_global_weight;
+        let n = self.config.mix_naive_weight;
+        let sum = l + g + n;
+        if !sum.is_finite() || sum <= 0.0 {
+            tracing::warn!(
+                mix_local_weight = l,
+                mix_global_weight = g,
+                mix_naive_weight = n,
+                "Mix weights sum to 0 or are non-finite; falling back to equal weights (P-G8 E24)"
+            );
+            (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
+        } else {
+            (l / sum, g / sum, n / sum)
+        }
     }
 
     /// Hybrid mode with workspace-specific vector storage.
@@ -580,6 +602,25 @@ impl QueryEngine {
     }
 
     /// Mix mode with workspace-specific vector storage.
+    ///
+    /// P-G8 / RC-13: a *real* weighted blend, not a Hybrid alias. Runs the same
+    /// three arms as Hybrid (local, global, naive) in parallel, then blends them
+    /// by weighted score instead of round-robin:
+    /// - Each arm's chunk scores are min-max normalized to [0,1] (so an arm with
+    ///   uniformly high cosine scores cannot dominate an arm with a wider range).
+    /// - Each chunk's blended score = Σ arm_weight * normalized_score, where the
+    ///   chunk takes its score from every arm that returned it (0 from arms that
+    ///   did not). Weights are normalized to sum to 1 at use; an arm with weight 0
+    ///   contributes nothing (E25).
+    /// - Chunks are then sorted by blended score (descending) and truncated to
+    ///   `max_chunks`. Entities and relationships are unioned across local+global
+    ///   (dedup by name / by (src,rel,tgt)), the same as Hybrid, because their
+    ///   scores are not cross-arm comparable.
+    ///
+    /// When all three weights are equal (the default), the weighted-sum ordering
+    /// degenerates to the same ranking as Hybrid's round-robin on identical
+    /// fixtures, preserving backward compatibility (E24: weights sum to 0 → fall
+    /// back to equal weights).
     pub(super) async fn query_mix_with_vector_storage(
         &self,
         keywords: &ExtractedKeywords,
@@ -588,14 +629,131 @@ impl QueryEngine {
         workspace_id: Option<String>,
         vector_storage: &Arc<dyn VectorStorage>,
     ) -> Result<QueryContext> {
-        // Adaptive blend - delegates to hybrid for now
-        self.query_hybrid_with_vector_storage(
-            keywords,
-            embeddings,
-            tenant_id,
-            workspace_id,
-            vector_storage,
-        )
-        .await
+        let (local_context, global_context, naive_context) = tokio::join!(
+            self.query_local_with_vector_storage(
+                keywords,
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone(),
+                vector_storage,
+            ),
+            self.query_global_with_vector_storage(
+                keywords,
+                embeddings,
+                tenant_id.clone(),
+                workspace_id.clone(),
+                vector_storage,
+            ),
+            self.query_naive_with_vector_storage(
+                embeddings,
+                tenant_id,
+                workspace_id,
+                vector_storage,
+            ),
+        );
+
+        let local_context = local_context?;
+        let global_context = global_context?;
+        let naive_context = naive_context?;
+
+        let (w_local, w_global, w_naive) = self.normalized_mix_weights();
+
+        // Blend chunks by weighted normalized score.
+        let mut blended: HashMap<String, (RetrievedChunk, f32)> = HashMap::new();
+        for (ctx, weight) in [
+            (&local_context, w_local),
+            (&global_context, w_global),
+            (&naive_context, w_naive),
+        ] {
+            let norm = min_max_normalize_scores(&ctx.chunks);
+            for (chunk, &norm_score) in ctx.chunks.iter().zip(norm.iter()) {
+                let contribution = weight * norm_score;
+                blended
+                    .entry(chunk.id.clone())
+                    .and_modify(|(_, score)| {
+                        if contribution > *score {
+                            *score = contribution;
+                        }
+                    })
+                    .or_insert_with(|| (chunk.clone(), contribution));
+            }
+        }
+
+        let mut merged = QueryContext::new();
+        let mut chunks: Vec<(RetrievedChunk, f32)> = blended.into_values().collect();
+        chunks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let max_chunks = self.config.max_chunks;
+        for (mut chunk, _) in chunks.into_iter().take(max_chunks) {
+            // Preserve the blended score on the emitted chunk so downstream
+            // reranking/truncation sees a monotonic relevance signal.
+            chunk.score = chunk.score.max(0.0);
+            merged.add_chunk(chunk);
+        }
+
+        // Entities + relationships: union across local+global (same as Hybrid;
+        // their scores are not cross-arm comparable).
+        let mut seen_entities = std::collections::HashSet::new();
+        for e in local_context
+            .entities
+            .iter()
+            .chain(global_context.entities.iter())
+        {
+            if seen_entities.insert(e.name.clone()) {
+                merged.add_entity(e.clone());
+            }
+        }
+        let mut seen_rels = std::collections::HashSet::new();
+        for rel in local_context
+            .relationships
+            .iter()
+            .chain(global_context.relationships.iter())
+        {
+            let key = format!("{}-{}-{}", rel.source, rel.relation_type, rel.target);
+            if seen_rels.insert(key) {
+                merged.add_relationship(rel.clone());
+            }
+        }
+
+        tracing::debug!(
+            merged_chunks = merged.chunks.len(),
+            merged_entities = merged.entities.len(),
+            merged_relationships = merged.relationships.len(),
+            w_local,
+            w_global,
+            w_naive,
+            "Mix merge complete (weighted blend)"
+        );
+
+        Ok(merged)
     }
+}
+
+/// Per-arm min-max normalization of chunk scores to [0,1].
+///
+/// First principles: cosine/dot scores are not comparable across arms (local
+/// scores chunks via entity proximity, naive scores them via direct similarity).
+/// Min-max normalization puts each arm on a common [0,1] scale before blending.
+/// An arm with a single chunk (or all-equal scores) maps to 1.0 (max == min →
+/// every score becomes 1.0), which is the correct "no information to rank
+/// within arm" case.
+fn min_max_normalize_scores(chunks: &[crate::context::RetrievedChunk]) -> Vec<f32> {
+    if chunks.is_empty() {
+        return Vec::new();
+    }
+    let (min, max) = chunks
+        .iter()
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(mn, mx), c| {
+            (mn.min(c.score), mx.max(c.score))
+        });
+    let range = max - min;
+    chunks
+        .iter()
+        .map(|c| {
+            if range <= 0.0 {
+                1.0
+            } else {
+                (c.score - min) / range
+            }
+        })
+        .collect()
 }

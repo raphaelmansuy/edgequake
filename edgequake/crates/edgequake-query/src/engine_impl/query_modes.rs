@@ -99,7 +99,7 @@ impl QueryEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine_impl::{QueryEngineConfig, QueryEngine};
+    use crate::engine_impl::{QueryEngine, QueryEngineConfig};
     use edgequake_llm::MockProvider;
     use edgequake_storage::traits::VectorStorage;
     use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};

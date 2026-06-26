@@ -15,7 +15,7 @@ use edgequake_storage::traits::VectorStorage;
 use super::super::QueryEngine;
 use super::query_pipeline::QueryProviders;
 
-type TokenStream = futures::stream::BoxStream<'static, std::result::Result<String, QueryError>>;
+pub(super) use super::super::TokenStream;
 
 impl QueryEngine {
     /// Legacy v1 streaming: tokens only (uses default providers + shared pipeline).
@@ -99,6 +99,23 @@ impl QueryEngine {
         mode: QueryMode,
         llm_override: Option<Arc<dyn crate::LLMProvider>>,
     ) -> Result<(QueryContext, QueryMode, TokenStream)> {
+        // P-G11 (RC-16): vision parity. When the request carries images, use
+        // the vision-capable `chat` path (the `stream` trait method cannot carry
+        // images). E30: vision-LLm failure falls back to text-only stream inside
+        // `stream_vision_answer`.
+        if let Some(images) = request.images.as_ref().filter(|i| !i.is_empty()) {
+            let stream = self
+                .stream_vision_answer(
+                    &request.query,
+                    &context,
+                    llm_override,
+                    request.system_prompt.as_deref(),
+                    images,
+                )
+                .await?;
+            return Ok((context, mode, stream));
+        }
+
         if context.is_empty() {
             return Ok((
                 context,
