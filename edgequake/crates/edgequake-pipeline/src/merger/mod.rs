@@ -220,26 +220,16 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         }
 
         for result in results {
-            // Merge entities first
-            for entity in result.entities {
-                match self.merge_entity(entity, &mut stats.artifacts).await {
-                    Ok(was_new) => {
-                        if was_new {
-                            stats.entities_created += 1;
-                        } else {
-                            stats.entities_updated += 1;
-                        }
-                    }
-                    Err(e) => {
-                        stats.errors += 1;
-                        tracing::warn!(
-                            error.source = "pipeline_merger",
-                            error.action = "merge_entity",
-                            error.message = %e,
-                            "Failed to merge entity"
-                        );
-                    }
-                }
+            // P-G4-graph: batch entity graph writes (one get_nodes_batch + upsert_nodes_batch).
+            let entities = result.entities;
+            if let Err(e) = self.merge_entities_batch(entities, &mut stats).await {
+                stats.errors += 1;
+                tracing::warn!(
+                    error.source = "pipeline_merger",
+                    error.action = "merge_entities_batch",
+                    error.message = %e,
+                    "Failed to merge entity batch"
+                );
             }
 
             // P-G4-merger: batch relationship vector upserts before graph writes.
@@ -248,26 +238,16 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 self.vector_storage.upsert(&rel_vector_batch).await?;
             }
 
-            // Then merge relationships
-            for rel in result.relationships {
-                match self.merge_relationship(rel, &mut stats.artifacts).await {
-                    Ok(was_new) => {
-                        if was_new {
-                            stats.relationships_created += 1;
-                        } else {
-                            stats.relationships_updated += 1;
-                        }
-                    }
-                    Err(e) => {
-                        stats.errors += 1;
-                        tracing::warn!(
-                            error.source = "pipeline_merger",
-                            error.action = "merge_relationship",
-                            error.message = %e,
-                            "Failed to merge relationship"
-                        );
-                    }
-                }
+            // P-G4-graph: batch relationship graph writes.
+            let relationships = result.relationships;
+            if let Err(e) = self.merge_relationships_batch(relationships, &mut stats).await {
+                stats.errors += 1;
+                tracing::warn!(
+                    error.source = "pipeline_merger",
+                    error.action = "merge_relationships_batch",
+                    error.message = %e,
+                    "Failed to merge relationship batch"
+                );
             }
         }
 
