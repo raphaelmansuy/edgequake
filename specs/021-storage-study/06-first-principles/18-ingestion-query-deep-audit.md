@@ -13,6 +13,11 @@
 > *algorithmic and architectural* layer. File 17 fixed *which column is read*; this file
 > audits *how data is written and retrieved*. New CRITICAL findings (RC-6..RC-11) are
 > introduced here and carried into plan-19.
+>
+> **⚠️ Supersession (2026-06-26, post-`404ce915`)**: §1–§2 ingestion claims describe
+> **pre-P-G2** code. RC-7 is fixed (structural); RC-6 fixed for **new writes** via merger.
+> For current ingestion truth, read **21-pg2-ingestion-persister-plan.md** and
+> **22-pg2-post-ship-brutal-assessment.md**. Keep this file as forensic history.
 
 ---
 
@@ -464,11 +469,11 @@ pure waste.
 
 | ID | Severity | Status | Finding | Fixed by |
 |----|----------|--------|---------|----------|
-| RC-6 | **CRITICAL** | ⛔ NEW | Entity identity SSOT broken; async processor uses raw names → duplicate nodes + invisible vectors | plan-19 P-G1 |
-| RC-7 | **CRITICAL** | ✅ FIXED | Three ingestion paths collapsed to `persist_processing_result` (P-G2) | plan-19 P-G2, plan-21 |
-| RC-8 | **HIGH** | ⛔ NEW | Global mode N+1 `node_degree` (Local fixed, Global not) | plan-19 P-G3 |
-| RC-9 | **HIGH** | ⛔ NEW | Processor per-chunk and per-entity vector writes are O(C)/O(E) round-trips | plan-19 P-G4 |
-| RC-10 | **HIGH** | ⛔ NEW | Edge-batch / entity-vector / sync-upload failures leave orphans (compensation.rs aspirational) | plan-19 P-G5 |
+| RC-6 | **CRITICAL** | ✅ Fixed (new writes) / ⚠️ legacy | Entity identity SSOT; async raw-name path removed via P-G2 merger delegation | plan-19 P-G1 + P-G2a |
+| RC-7 | **CRITICAL** | ✅ FIXED (structural) | Three ingestion paths collapsed to `persist_processing_result` (P-G2a) | plan-19 P-G2, plan-21, plan-22 |
+| RC-8 | **HIGH** | ✅ FIXED | Global mode N+1 `node_degree` | plan-19 P-G3 |
+| RC-9 | **HIGH** | ⚠️ Moved | Processor O(C)/O(E) loops **removed** (P-G2a); O(E) remains in `merger/entity.rs` | plan-19 P-G4-merger |
+| RC-10 | **HIGH** | ⛔ OPEN | Partial merge leaves entity-vector/graph orphans; chunk-only compensation | plan-19 P-G5 |
 | RC-11 | **HIGH** | ⛔ NEW | Two query engines + dead strategies + dead `chunk_retrieval.rs`; API fake rerank contradicts engine BM25 | plan-19 P-G6 |
 | RC-12 | **MEDIUM** | ⛔ NEW | O(W) KV `keys()` scans on reprocess + PDF resume | plan-19 P-G7 |
 | RC-13 | **MEDIUM** | ⛔ NEW | Bypass mode broken at HTTP; Mix mode == Hybrid (docs lie) | plan-19 P-G8 |

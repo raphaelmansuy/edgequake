@@ -30,10 +30,10 @@
 | Layer | Verdict | Evidence |
 |-------|---------|----------|
 | Entity identity SSOT | ✅ **Fixed (new writes)** / ⚠️ **legacy data** | P-G1 `EntityId` newtype wired; P-G1b backfill still admin-gated |
-| Ingestion persistence | ✅ **Fixed** | P-G2 `persist_processing_result` — orchestrator + processor share one function body (plan-21) |
-| Processor vector writes | ❌ **O(C)+O(E) round-trips** | `text_insert.rs:686-714, 988-1022` (P-G4 open) |
-| Processor edge prefetch | ❌ **O(R) N+1** | `text_insert.rs:830-844` |
-| Saga compensation | ⚠️ Partial | wired only for node-batch failure; edges/entity-vectors/sync-upload leak (P-G5 open) |
+| Ingestion persistence | ✅ **P-G2a structural SSOT** | `persist_processing_result` — one function body (plan-21); config/metadata parity gaps → plan-22 |
+| Merger vector/graph writes | ❌ **O(E) sequential in merger** | `merger/entity.rs:38-64` per-entity upsert (P-G4-merger open; processor N+1 loops **removed**) |
+| Processor edge prefetch | ✅ **Removed with P-G2** | Manual edge batch + prefetch deleted from `text_insert.rs` |
+| Saga compensation | ⚠️ Partial | Chunk vectors compensated on merge fail; entity vectors + partial graph still leak (P-G5 open) |
 | Query: Global mode | ✅ **Fixed** | P-G3 batched `node_degrees_batch` |
 | Query: Mix mode | ❌ **alias of Hybrid** (docs lie) | P-G8 open |
 | Query: Bypass mode | ❌ **broken at HTTP** | P-G8 open |
@@ -46,9 +46,10 @@
 | PDF ingest idempotency | ✅ **Fixed (best-effort)** | P-G14 admission SSOT + single-flight; see §12.4 for race caveats |
 | Vision PDF OOM guard | ✅ **Fixed (conservative)** | P-G13 `PdfVisionSemaphore` + cloud concurrency cap 2; throughput trade-off |
 
-**RC-7 (P-G2) is closed**: orchestrator and async processor delegate to
-`edgequake-pipeline::persist_processing_result` (chunk vectors + `KnowledgeGraphMerger`
-+ shared compensation). Sync upload path removed by P-G2b.
+**RC-7 (P-G2a) structural divergence is closed**: orchestrator and async processor
+delegate to `edgequake-pipeline::persist_processing_result`. Sync upload removed by
+P-G2b. **Honest caveat** (plan-22): caller config differs (`MergerConfig`, chunk
+lineage metadata); misnamed memory "E2E" test; merger still O(E); saga partial.
 
 ---
 
@@ -214,7 +215,8 @@ with combined `source_chunk_ids` and merged degree.
 
 **Tests**: `edgequake-pipeline/tests/contract_ingestion_persistence.rs` (double-persist
 dedup); `edgequake-api/tests/e2e_spec021_ingestion_persister.rs`; `sc2_sc5_ingestion`
-still green. `make test-spec021` includes P-G2 contracts.
+still green. `make test-spec021` includes P-G2 contracts. **Brutal post-ship review**:
+`22-pg2-post-ship-brutal-assessment.md`.
 
 **Design delivered** (first principles / DRY / SOLID):
 
