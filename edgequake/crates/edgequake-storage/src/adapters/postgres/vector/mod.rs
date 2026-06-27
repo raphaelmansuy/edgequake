@@ -51,6 +51,8 @@ pub struct PgVectorStorage {
     pub(crate) hnsw_m: u32,
     pub(crate) hnsw_ef_construction: u32,
     pub(crate) prefix: String,
+    /// Companion KV table for chunk text SSOT (SPEC-024 2.5 FTS join).
+    pub(crate) kv_table_name: String,
     pub(crate) iterative_scan_supported: Arc<OnceCell<bool>>,
 }
 
@@ -60,6 +62,7 @@ impl PgVectorStorage {
         let prefix = config.table_prefix();
         let table_name = format!("public.eq_{}_vectors", prefix);
         let stats_table_name = format!("public.eq_{}_vectors_stats", prefix);
+        let kv_table_name = format!("public.eq_{}_kv", prefix);
 
         Self {
             pool,
@@ -72,6 +75,7 @@ impl PgVectorStorage {
             hnsw_m: config.hnsw_m,
             hnsw_ef_construction: config.hnsw_ef_construction,
             prefix,
+            kv_table_name,
             iterative_scan_supported: Arc::new(OnceCell::new()),
         }
     }

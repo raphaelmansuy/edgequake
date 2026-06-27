@@ -10,6 +10,7 @@ pub mod graph_community;
 pub mod graph_materialization;
 pub mod ingest_admission;
 pub mod ingestion_persist;
+pub mod injection_process;
 pub mod pdf_admission_registry;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
@@ -34,6 +35,10 @@ pub use ingest_admission::{
 pub use ingestion_persist::{
     build_chunk_kv_records, persist_ingestion_result, persist_with_providers,
     resolve_relational_sink, tag_injection_sources, PersistIngestionParams,
+};
+pub use injection_process::{
+    build_injection_metadata, injection_doc_id, injection_list_prefix, injection_meta_key,
+    run_injection_pipeline, write_injection_status,
 };
 pub use pdf_admission_registry::PdfAdmissionRegistry;
 pub use pdf_workspace_dedup::{

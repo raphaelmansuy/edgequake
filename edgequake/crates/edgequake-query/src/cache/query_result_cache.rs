@@ -15,7 +15,11 @@ use crate::modes::QueryMode;
 use crate::types::QueryRequest;
 
 fn cache_key(request: &QueryRequest, mode: QueryMode) -> String {
+    let workspace = request
+        .workspace_id()
+        .unwrap_or_else(|| "default".to_string());
     let mut hasher = DefaultHasher::new();
+    workspace.hash(&mut hasher);
     request.query.hash(&mut hasher);
     format!("{:?}", mode).hash(&mut hasher);
     if let Some(ids) = &request.allowed_document_ids {
@@ -31,7 +35,7 @@ fn cache_key(request: &QueryRequest, mode: QueryMode) -> String {
             }
         }
     }
-    format!("ctx:{:x}", hasher.finish())
+    format!("ws:{}:ctx:{:x}", workspace, hasher.finish())
 }
 
 struct Entry {
@@ -75,6 +79,13 @@ impl QueryResultCache {
     /// Alias for ingestion hooks (P-G9 invalidation API).
     pub fn invalidate_all(&self) {
         self.bump_epoch();
+    }
+
+    /// Invalidate cached contexts for a single workspace (SPEC-024 Phase 1.4).
+    pub fn invalidate_workspace(&self, workspace_id: &str) {
+        let prefix = format!("ws:{}:", workspace_id);
+        let mut cache = self.cache.write().expect("cache lock");
+        cache.retain(|key, _| !key.starts_with(&prefix));
     }
 
     pub fn hits(&self) -> u64 {

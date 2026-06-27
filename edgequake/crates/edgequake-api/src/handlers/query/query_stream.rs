@@ -102,7 +102,7 @@ pub async fn stream_query(
         .mode
         .as_ref()
         .and_then(|m| QueryMode::parse(m))
-        .unwrap_or(QueryMode::Hybrid);
+        .unwrap_or(QueryMode::Mix);
 
     // Build engine query request with tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);

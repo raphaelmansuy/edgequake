@@ -17,6 +17,7 @@ fn spec022_bootstrap_wires_reranker_and_caches() {
         Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
         Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
         Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        None,
     );
 
     // Smoke: engine is constructible with default config (reranker wired internally).

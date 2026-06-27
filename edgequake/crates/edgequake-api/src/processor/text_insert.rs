@@ -580,45 +580,6 @@ impl DocumentTaskProcessor {
                 .await;
         }
 
-        // Store chunks in KV storage
-        // OODA-05: Include position metadata and token count for lineage traceability
-        // WHY: Each chunk must carry its exact position in the source document so that
-        // lineage queries can map entity → chunk → source location without extra lookups.
-        let chunks: Vec<(String, serde_json::Value)> = result
-            .chunks
-            .iter()
-            .map(|c| {
-                (
-                    c.id.clone(),
-                    json!({
-                        "content": c.content,
-                        "document_id": document_id,
-                        "index": c.index,
-                        "start_line": c.start_line,
-                        "end_line": c.end_line,
-                        "start_offset": c.start_offset,
-                        "end_offset": c.end_offset,
-                        "token_count": c.token_count,
-                    }),
-                )
-            })
-            .collect();
-
-        if let Err(e) = self.kv_storage.upsert(&chunks).await {
-            let error_msg = format!("Failed to store chunks: {}", e);
-            edgequake_observability::ErrorEvent::log_domain_error(
-                "task_processor",
-                "store_chunks",
-                &error_msg,
-                json!({ "document_id": document_id, "chunk_count": chunks.len() }),
-            );
-
-            self.update_document_status(&document_id, "failed", Some(&error_msg))
-                .await?;
-
-            return Err(edgequake_tasks::TaskError::Storage(error_msg));
-        }
-
         // Extract tenant_id and workspace_id from metadata for scoping
         let tenant_id = data
             .metadata
@@ -717,8 +678,7 @@ impl DocumentTaskProcessor {
                 .await;
         }
 
-        // SPEC-021 P-G2: single persist path — chunk vectors + KnowledgeGraphMerger
-        // (replaces manual upsert_nodes_batch / entity-vector / upsert_edges_batch).
+        // SPEC-021 P-G2: single persist path — KV chunks + chunk vectors + KnowledgeGraphMerger
         let mut storage_errors: Vec<String> = Vec::new();
 
         let chunk_embeddings_stored = match crate::services::persist_with_providers(
@@ -728,6 +688,7 @@ impl DocumentTaskProcessor {
                 .map(|e| e.as_ref() as &dyn edgequake_query::QueryResultCacheInvalidator),
             self.graph_storage.clone(),
             workspace_vector_storage.clone(),
+            self.kv_storage.clone(),
             self.relational_sink.clone(),
             crate::services::PersistIngestionParams::for_document(
                 &document_id,
@@ -735,6 +696,7 @@ impl DocumentTaskProcessor {
                 workspace_id_meta.clone(),
                 &result,
                 ChunkVectorBuildOptions::STANDARD,
+                Some(&data.file_source),
             ),
         )
         .await

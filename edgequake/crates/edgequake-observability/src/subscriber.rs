@@ -260,6 +260,50 @@ where
         .with_span_events(span_events)
 }
 
+/// Resolve the active log format label for operator dashboards (`"plain"` | `"json"`).
+pub fn log_format_label(format: LogFormat) -> &'static str {
+    match format {
+        LogFormat::Plain => "plain",
+        LogFormat::Json => "json",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_env_var<F: FnOnce()>(key: &str, value: Option<&str>, f: F) {
+        let previous = std::env::var(key).ok();
+        match value {
+            Some(v) => std::env::set_var(key, v),
+            None => std::env::remove_var(key),
+        }
+        f();
+        match previous {
+            Some(v) => std::env::set_var(key, v),
+            None => std::env::remove_var(key),
+        }
+    }
+
+    #[test]
+    fn contract_edgequake_log_format_from_env() {
+        with_env_var("EDGEQUAKE_LOG_FORMAT", Some("json"), || {
+            let cfg = ObservabilityConfig::from_env();
+            assert_eq!(cfg.log_format, LogFormat::Json);
+            assert_eq!(log_format_label(cfg.log_format), "json");
+        });
+        with_env_var("EDGEQUAKE_LOG_FORMAT", Some("plain"), || {
+            let cfg = ObservabilityConfig::from_env();
+            assert_eq!(cfg.log_format, LogFormat::Plain);
+        });
+        with_env_var("EDGEQUAKE_LOG_FORMAT", None, || {
+            let cfg = ObservabilityConfig::from_env();
+            assert_eq!(cfg.log_format, LogFormat::Plain);
+            assert_eq!(log_format_label(cfg.log_format), "plain");
+        });
+    }
+}
+
 fn warn_on_otel_misconfiguration(config: &ObservabilityConfig) {
     let endpoint_set = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
         .map(|v| !v.trim().is_empty())

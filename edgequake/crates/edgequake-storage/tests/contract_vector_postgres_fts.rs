@@ -1,11 +1,12 @@
 //! SPEC-023 I10 — Postgres native FTS on vector chunk content.
 
 #[test]
-fn contract_postgres_vector_fts_uses_ts_rank_cd() {
+fn contract_postgres_vector_fts_joins_kv_for_chunk_text() {
     let fts = include_str!("../src/adapters/postgres/vector/fts.rs");
     assert!(fts.contains("ts_rank_cd"));
     assert!(fts.contains("websearch_to_tsquery"));
-    assert!(fts.contains("content_tsv"));
+    assert!(fts.contains("k.value->>'content'"));
+    assert!(fts.contains("LEFT JOIN"));
 }
 
 #[test]

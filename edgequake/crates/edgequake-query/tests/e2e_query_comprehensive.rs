@@ -35,7 +35,7 @@ mod query_mode_tests {
     #[test]
     fn test_query_mode_default() {
         let config = QueryEngineConfig::default();
-        assert!(matches!(config.default_mode, QueryMode::Hybrid));
+        assert!(matches!(config.default_mode, QueryMode::Mix));
     }
 }
 

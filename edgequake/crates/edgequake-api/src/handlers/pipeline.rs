@@ -200,6 +200,21 @@ pub async fn get_queue_metrics(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get queue metrics: {}", e)))?;
 
+    let pressure = crate::task_queue_pressure::assess_queue_pressure(metrics.pending_count);
+    let failed_count = state
+        .tasks
+        .storage
+        .get_statistics(edgequake_tasks::storage::TaskFilter::default())
+        .await
+        .map(|s| s.failed)
+        .unwrap_or(0);
+    crate::task_queue_pressure::publish_queue_observability(
+        metrics.pending_count,
+        metrics.processing_count,
+        failed_count,
+        &pressure,
+    );
+
     Ok(Json(QueueMetricsResponse {
         pending_count: metrics.pending_count,
         processing_count: metrics.processing_count,
@@ -212,5 +227,9 @@ pub async fn get_queue_metrics(
         estimated_queue_time_seconds: metrics.estimated_queue_time_seconds,
         rate_limited: metrics.rate_limited,
         timestamp: metrics.timestamp.to_rfc3339(),
+        pressure: pressure.level.as_str().to_string(),
+        pending_warn_threshold: pressure.pending_warn_threshold,
+        pending_critical_threshold: pressure.pending_critical_threshold,
+        operator_action: pressure.operator_action,
     }))
 }

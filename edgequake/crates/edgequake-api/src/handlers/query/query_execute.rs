@@ -99,7 +99,7 @@ pub async fn execute_query(
         .mode
         .as_ref()
         .and_then(|m| QueryMode::parse(m))
-        .unwrap_or(QueryMode::Hybrid);
+        .unwrap_or(QueryMode::Mix);
 
     // Build engine query request with conversation history and tenant context
     let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
@@ -128,6 +128,10 @@ pub async fn execute_query(
     }
     if let Some(ref workspace_id) = tenant_ctx.workspace_id {
         engine_request = engine_request.with_workspace_id(workspace_id.clone());
+    }
+
+    if let Some(max) = request.max_results {
+        engine_request.max_results = Some(max);
     }
 
     if request.context_only {
@@ -242,9 +246,7 @@ pub async fn execute_query(
     let reranker_configured = state.query.engine_impl.has_reranker();
     let rerank_requested = request.enable_rerank;
     let reranked = rerank_requested && reranker_configured;
-    // The engine folds rerank time into `retrieval_time_ms`; this layer has no
-    // separate measurement, so report `None` (never a fabricated value).
-    let rerank_time_ms: Option<u64> = None;
+    let rerank_time_ms = result.stats.rerank_time_ms;
 
     // When reranking was applied, honor the request's `rerank_top_k` by
     // truncating the chunk sources to the engine-ordered top-K. The chunks

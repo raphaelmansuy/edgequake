@@ -86,8 +86,8 @@ async fn spec021_orchestrator_insert_invalidates_query_result_cache() {
 fn spec021_orchestrator_ingestion_calls_invalidate_query_result_cache() {
     let src = include_str!("../src/orchestrator/ingestion.rs");
     assert!(
-        src.contains("invalidate_query_result_cache"),
-        "orchestrator ingestion must invalidate via QueryResultCacheInvalidator port"
+        src.contains("invalidate_query_result_cache_for_workspace"),
+        "orchestrator ingestion must invalidate workspace-scoped cache when configured"
     );
 }
 

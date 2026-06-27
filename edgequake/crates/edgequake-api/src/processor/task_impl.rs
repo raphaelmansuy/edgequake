@@ -58,6 +58,18 @@ impl TaskProcessor for DocumentTaskProcessor {
 
                 self.process_pdf_processing(task, data, cancel_token).await
             }
+            TaskType::KnowledgeInjection => {
+                let data: KnowledgeInjectionData =
+                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                        edgequake_tasks::TaskError::InvalidPayload(format!(
+                            "Invalid KnowledgeInjectionData: {}",
+                            e
+                        ))
+                    })?;
+
+                self.process_knowledge_injection(task, data, cancel_token)
+                    .await
+            }
         }
     }
 
@@ -146,5 +158,31 @@ impl TaskProcessor for DocumentTaskProcessor {
         tokio::spawn(async move {
             state.remove_pdf_progress(&track_id).await;
         });
+
+        // SPEC-024: Mark injection KV metadata failed on permanent task failure.
+        if task.task_type == TaskType::KnowledgeInjection {
+            if let Ok(data) =
+                serde_json::from_value::<KnowledgeInjectionData>(task.task_data.clone())
+            {
+                crate::services::injection_process::write_injection_status(
+                    &self.kv_storage,
+                    &data.meta_key,
+                    &data.injection_id,
+                    &data.name,
+                    &data.content,
+                    &data.workspace_id,
+                    &data.source_type,
+                    data.source_filename.as_deref(),
+                    "failed",
+                    data.version,
+                    0,
+                    None,
+                    &data.doc_id,
+                    &data.created_at,
+                    Some(error_msg),
+                )
+                .await;
+            }
+        }
     }
 }

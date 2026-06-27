@@ -59,6 +59,101 @@ pub struct HealthResponse {
     /// When false, document uploads may fail silently.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_storage_enabled: Option<bool>,
+
+    /// Operational signals for dashboards (SPEC-024 Phase 4.3).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operational: Option<OperationalHealth>,
+}
+
+/// Task queue + query engine operational snapshot (SPEC-024 Phase 4.3).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct OperationalHealth {
+    pub task_queue: TaskQueueHealthSnapshot,
+    pub query_engine: QueryEngineHealthSnapshot,
+    /// Structured logging / OTLP runtime config (SPEC-024 Phase 4.5).
+    pub observability: ObservabilityHealthSnapshot,
+    /// KV ↔ relational document read-model reconciliation (SPEC-024 Phase 4.6).
+    pub read_model: ReadModelHealthSnapshot,
+    /// Migration bootstrap summary (SPEC-024 pass 10 — operator visibility).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub migration: Option<MigrationHealthSnapshot>,
+    /// Ingest execution model (SPEC-024 pass 12 — uniformity).
+    pub ingestion: IngestionHealthSnapshot,
+    /// Chunk storage layout (SPEC-024 pass 12 — storage efficiency).
+    pub storage: StorageHealthSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct IngestionHealthSnapshot {
+    /// All API document uploads enqueue worker tasks (no sync HTTP persist).
+    pub execution_model: String,
+    /// Persist saga SSOT trait name for operators.
+    pub persist_ssot: String,
+    /// Duplicate uploads re-ingest when prior doc is not actively processing.
+    pub duplicate_reingest_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StorageHealthSnapshot {
+    /// Authoritative chunk text location.
+    pub chunk_text_ssot: String,
+    /// Vector row metadata references chunk id instead of inline body.
+    pub vector_metadata_ref: String,
+    /// Chunk KV writes happen inside IngestionPersister (not a second path).
+    pub chunk_kv_in_persister: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MigrationHealthSnapshot {
+    pub latest_version: Option<i64>,
+    pub source_ids_indexes_ready: bool,
+    pub pgvector_iterative_scan_capable: bool,
+    pub ready_for_traffic: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskQueueHealthSnapshot {
+    pub pending: u64,
+    pub processing: u64,
+    pub failed: u64,
+    /// Backpressure label: `normal`, `elevated`, or `critical`.
+    pub pressure: String,
+    pub pending_warn_threshold: u64,
+    pub pending_critical_threshold: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator_action: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct QueryEngineHealthSnapshot {
+    /// Default query mode (e.g. `"mix"`, `"hybrid"`).
+    pub default_mode: String,
+    pub reranker_configured: bool,
+    pub community_refresh_debounce_secs: u64,
+    /// Hybrid mode chunk merge: `"round_robin"` (LightRAG) or `"rrf"`.
+    pub hybrid_fusion: String,
+    /// Mix mode chunk merge: `"rrf"` (default) or `"weighted"`.
+    pub mix_fusion: String,
+    /// Workspaces with debounced Louvain refresh scheduled (scale coalescing signal).
+    pub community_refresh_scheduled_workspaces: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ObservabilityHealthSnapshot {
+    /// Active log format: `"plain"` or `"json"` (`EDGEQUAKE_LOG_FORMAT`).
+    pub log_format: String,
+    /// Whether OTLP export is enabled at runtime.
+    pub otel_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ReadModelHealthSnapshot {
+    /// Merge rule for document counts and list backfill.
+    pub merge_strategy: String,
+    /// Relational `documents` table backfill when KV metadata is missing.
+    pub relational_backfill_enabled: bool,
+    /// Per-document entity_count reconciled against AGE graph on list.
+    pub entity_count_graph_reconcile: bool,
 }
 
 /// Build metadata embedded at compile time.
@@ -204,6 +299,7 @@ mod tests {
             schema: None,
             providers: None,
             pdf_storage_enabled: None,
+            operational: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"status\":\"healthy\""));
@@ -240,6 +336,7 @@ mod tests {
             }),
             providers: None,
             pdf_storage_enabled: None,
+            operational: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"schema\""));
@@ -295,6 +392,7 @@ mod tests {
             schema: None,
             providers: None,
             pdf_storage_enabled: None,
+            operational: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         // llm_provider_name should be skipped when None
@@ -365,6 +463,7 @@ mod tests {
                 },
             }),
             pdf_storage_enabled: Some(true),
+            operational: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"providers\""));

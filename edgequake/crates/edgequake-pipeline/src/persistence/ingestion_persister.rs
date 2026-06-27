@@ -8,8 +8,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use edgequake_llm::LLMProvider;
-use edgequake_storage::{compensation, GraphStorage, VectorStorage};
-use serde_json::json;
+use edgequake_storage::{compensation, traits::KVStorage, GraphStorage, VectorStorage};
 
 use crate::merger::{KnowledgeGraphMerger, MergeStats, MergerConfig, RelationalEntitySink};
 use crate::pipeline::ProcessingResult;
@@ -55,11 +54,13 @@ impl DefaultIngestionPersister {
         settings: IngestionPersistSettings,
         relational_sink: Arc<dyn RelationalEntitySink>,
         llm_provider: Option<Arc<dyn LLMProvider>>,
+        kv_storage: Option<Arc<dyn KVStorage>>,
     ) -> Self {
         Self::new(
             graph_storage,
             vector_storage,
-            IngestionPersistConfig::from_settings(settings, relational_sink, llm_provider),
+            IngestionPersistConfig::from_settings(settings, relational_sink, llm_provider)
+                .with_kv_storage(kv_storage),
         )
     }
 }
@@ -162,6 +163,8 @@ pub struct IngestionPersistConfig {
     pub merger_config: MergerConfig,
     pub relational_sink: Arc<dyn RelationalEntitySink>,
     pub llm_provider: Option<Arc<dyn LLMProvider>>,
+    /// When set, chunk text is written to KV before vector upsert (SPEC-024 2.5 SSOT).
+    pub kv_storage: Option<Arc<dyn KVStorage>>,
 }
 
 impl IngestionPersistConfig {
@@ -178,7 +181,13 @@ impl IngestionPersistConfig {
             },
             relational_sink,
             llm_provider,
+            kv_storage: None,
         }
+    }
+
+    pub fn with_kv_storage(mut self, kv_storage: Option<Arc<dyn KVStorage>>) -> Self {
+        self.kv_storage = kv_storage;
+        self
     }
 }
 
@@ -200,36 +209,7 @@ pub fn build_chunk_vector_batch(
         .iter()
         .filter_map(|chunk| {
             let embedding = chunk.embedding.as_ref()?;
-            let mut metadata = json!({
-                "type": "chunk",
-                "document_id": ctx.document_id,
-                "index": chunk.index,
-                "content": chunk.content,
-            });
-
-            if options.include_lineage_metadata {
-                metadata["start_line"] = json!(chunk.start_line);
-                metadata["end_line"] = json!(chunk.end_line);
-                metadata["start_offset"] = json!(chunk.start_offset);
-                metadata["end_offset"] = json!(chunk.end_offset);
-                metadata["token_count"] = json!(chunk.token_count);
-            }
-
-            if let Some(tenant_id) = &ctx.tenant_id {
-                metadata["tenant_id"] = json!(tenant_id);
-            }
-            if let Some(workspace_id) = &ctx.workspace_id {
-                metadata["workspace_id"] = json!(workspace_id);
-            }
-            if let Some(source_type) = &ctx.source_type {
-                metadata["source_type"] = json!(source_type);
-                metadata["source"] = json!(source_type);
-            }
-            if let Some(source_file_path) = &ctx.source_file_path {
-                metadata["source_file_path"] = json!(source_file_path);
-            }
-            metadata["source_document_id"] = json!(ctx.document_id);
-
+            let metadata = crate::chunk_storage::build_chunk_vector_metadata(chunk, ctx, options);
             Some((chunk.id.clone(), embedding.clone(), metadata))
         })
         .collect()
@@ -263,6 +243,19 @@ async fn persist_processing_result_impl(
     result: &ProcessingResult,
     chunk_options: ChunkVectorBuildOptions,
 ) -> Result<IngestionPersistOutput> {
+    if let Some(kv) = &config.kv_storage {
+        let records = crate::chunk_storage::build_chunk_kv_records(
+            &ctx.document_id,
+            ctx.source_file_path.as_deref(),
+            result,
+        );
+        if !records.is_empty() {
+            kv.upsert(&records)
+                .await
+                .map_err(crate::error::PipelineError::StorageError)?;
+        }
+    }
+
     let chunk_vectors = build_chunk_vector_batch(result, ctx, chunk_options);
     let chunk_vector_ids: Vec<String> = chunk_vectors.iter().map(|(id, _, _)| id.clone()).collect();
 
@@ -292,7 +285,11 @@ async fn persist_processing_result_impl(
 
     match merge_result {
         Ok(stats) if stats.errors == 0 => {
-            edgequake_storage::refresh_community_index(graph_storage.clone()).await;
+            edgequake_storage::schedule_community_index_refresh(
+                graph_storage.clone(),
+                ctx.workspace_id.clone(),
+            )
+            .await;
             Ok(IngestionPersistOutput {
                 chunk_vector_ids,
                 merge_stats: stats,
@@ -357,7 +354,7 @@ mod tests {
     use super::*;
     use crate::chunker::TextChunk;
     use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
-    use edgequake_storage::{GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage};
+    use edgequake_storage::{GraphStorageReadOps, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
 
     fn sample_result() -> ProcessingResult {
         let chunk = TextChunk {
@@ -388,6 +385,42 @@ mod tests {
             stats: Default::default(),
             lineage: None,
         }
+    }
+
+    #[tokio::test]
+    async fn persist_writes_chunk_kv_when_configured() {
+        let graph = Arc::new(MemoryGraphStorage::new("kv-test"));
+        let vector = Arc::new(MemoryVectorStorage::new("kv-test", 4));
+        let kv = Arc::new(MemoryKVStorage::new("kv-test"));
+        vector.initialize().await.unwrap();
+
+        let config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings::default(),
+            Arc::new(crate::merger::NoopEntitySink),
+            None,
+        )
+        .with_kv_storage(Some(kv.clone()));
+
+        persist_processing_result(
+            graph,
+            vector,
+            &config,
+            &IngestionPersistContext::new("doc1", None, None),
+            &sample_result(),
+            ChunkVectorBuildOptions::STANDARD,
+        )
+        .await
+        .expect("persist");
+
+        let chunk_kv = kv.get_by_id("doc1-chunk-0").await.unwrap();
+        assert!(chunk_kv.is_some(), "chunk text must live in KV when configured");
+        assert_eq!(
+            chunk_kv
+                .as_ref()
+                .and_then(|v| v.get("content"))
+                .and_then(|c| c.as_str()),
+            Some("Sarah Chen leads EdgeQuake.")
+        );
     }
 
     #[tokio::test]

@@ -101,6 +101,14 @@ pub struct FileUploadResponse {
     /// Processing status.
     pub status: String,
 
+    /// Background task ID when upload is async (SPEC-024 Phase 1.1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+
+    /// Track ID for status polling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_id: Option<String>,
+
     /// Number of chunks created.
     pub chunk_count: usize,
 

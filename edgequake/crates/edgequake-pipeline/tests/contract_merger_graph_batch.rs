@@ -63,6 +63,7 @@ async fn contract_batch_merge_creates_all_entity_nodes() {
         },
         Arc::new(NoopEntitySink),
         None,
+        None,
     );
 
     persister

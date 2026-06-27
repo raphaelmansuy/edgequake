@@ -25,23 +25,34 @@ impl PgVectorStorage {
         let pool = self.pool.get().await?;
         let mf = metadata_filter.cloned().unwrap_or_default();
         let has_id_filter = filter_ids.map(|ids| !ids.is_empty()).unwrap_or(false);
-        let filter_sql = mf.build_sql(has_id_filter, 2);
+        let filter_sql = mf.build_sql_with_alias(has_id_filter, 2, Some("v"));
 
-        let mut conditions = vec!["content_tsv @@ websearch_to_tsquery('english', $1)".to_string()];
+        let mut conditions = vec![
+            "to_tsvector('english', coalesce(v.metadata->>'content', k.value->>'content', '')) \
+             @@ websearch_to_tsquery('english', $1)"
+                .to_string(),
+        ];
         conditions.extend(filter_sql.conditions);
 
         let where_clause = format!("WHERE {}", conditions.join(" AND "));
 
         let sql = format!(
             r#"
-            SELECT id, metadata,
-                   ts_rank_cd(content_tsv, websearch_to_tsquery('english', $1))::float4 AS score
-            FROM {}
-            {}
+            SELECT v.id, v.metadata,
+                   ts_rank_cd(
+                       to_tsvector('english', coalesce(v.metadata->>'content', k.value->>'content', '')),
+                       websearch_to_tsquery('english', $1)
+                   )::float4 AS score
+            FROM {vectors} v
+            LEFT JOIN {kv} k ON k.key = v.id
+            {where_clause}
             ORDER BY score DESC
-            LIMIT ${}
+            LIMIT ${limit_param}
             "#,
-            self.table_name, where_clause, filter_sql.next_param
+            vectors = self.table_name,
+            kv = self.kv_table_name,
+            where_clause = where_clause,
+            limit_param = filter_sql.next_param
         );
 
         use sqlx::postgres::PgArguments;

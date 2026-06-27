@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use edgequake_llm::reranker::BM25Reranker;
+use edgequake_query::fusion::MixFusionMode;
 use edgequake_query::sparse_retrieval;
 use edgequake_query::QueryEngineConfig;
 use edgequake_storage::traits::VectorSearchResult;
@@ -45,6 +46,7 @@ async fn contract_in_memory_bm25_fallback_promotes_exact_token_match() {
         &storage,
         None,
         Some(&reranker),
+        None,
         &config,
     )
     .await;
@@ -57,6 +59,22 @@ async fn contract_in_memory_bm25_fallback_promotes_exact_token_match() {
         chunks[0].id, "chunk_bm25_top",
         "in-memory BM25 fusion must rank exact token match above pure vector leader"
     );
+}
+
+#[test]
+fn contract_sparse_fusion_env_modes() {
+    std::env::remove_var("EDGEQUAKE_SPARSE_FUSION");
+    assert_eq!(
+        sparse_retrieval::sparse_fusion_mode_from_env(),
+        MixFusionMode::Weighted
+    );
+
+    std::env::set_var("EDGEQUAKE_SPARSE_FUSION", "rrf");
+    assert_eq!(
+        sparse_retrieval::sparse_fusion_mode_from_env(),
+        MixFusionMode::Rrf
+    );
+    std::env::remove_var("EDGEQUAKE_SPARSE_FUSION");
 }
 
 #[test]

@@ -9,22 +9,22 @@ use sqlx::PgPool;
 use tracing::{info, warn};
 
 /// Size-aware index DDL — SSOT: `migrations/support/038/apply.sql`
-const SQL_038_APPLY: &str = include_str!("../../../../migrations/support/038/apply.sql");
+pub(super) const SQL_038_APPLY: &str = include_str!("../../../../../migrations/support/038/apply.sql");
 
 /// Entity backfill — SSOT: `migrations/support/040/apply.sql`
-const SQL_040_APPLY: &str = include_str!("../../../../migrations/support/040/apply.sql");
+pub(super) const SQL_040_APPLY: &str = include_str!("../../../../../migrations/support/040/apply.sql");
 
 /// pgvector upgrade + ANN reindex — SSOT: `migrations/support/042/apply.sql`
-const SQL_042_APPLY: &str = include_str!("../../../../migrations/support/042/apply.sql");
+pub(super) const SQL_042_APPLY: &str = include_str!("../../../../../migrations/support/042/apply.sql");
 
 /// Apache AGE extension upgrade — SSOT: `migrations/support/043/apply.sql`
-const SQL_043_APPLY: &str = include_str!("../../../../migrations/support/043/apply.sql");
+pub(super) const SQL_043_APPLY: &str = include_str!("../../../../../migrations/support/043/apply.sql");
 
 /// Community labels marker — SSOT: `migrations/support/044/apply.sql`
-const SQL_044_APPLY: &str = include_str!("../../../../migrations/support/044/apply.sql");
+pub(super) const SQL_044_APPLY: &str = include_str!("../../../../../migrations/support/044/apply.sql");
 
 /// Vector content FTS — SSOT: `migrations/support/045/apply.sql`
-const SQL_045_APPLY: &str = include_str!("../../../../migrations/support/045/apply.sql");
+pub(super) const SQL_045_APPLY: &str = include_str!("../../../../../migrations/support/045/apply.sql");
 
 /// sqlx migration version marker (no blocking DDL in sqlx file).
 pub const MIGRATION_038_VERSION: i64 = 38;
@@ -230,11 +230,11 @@ pub async fn run_postgres_migrations(
         }
     }
 
-    let migration_038 = reconcile_migration_038(pool, &applied_this_run).await?;
-    let migration_042 = reconcile_migration_042(pool, &applied_after, &applied_this_run).await?;
-    let migration_043 = reconcile_migration_043(pool, &applied_after, &applied_this_run).await?;
-    let migration_044 = reconcile_migration_044(pool, &applied_after, &applied_this_run).await?;
-    let migration_045 = reconcile_migration_045(pool, &applied_after, &applied_this_run).await?;
+    let migration_038 = reconcile::reconcile_migration_038(pool, &applied_this_run).await?;
+    let migration_042 = reconcile::reconcile_migration_042(pool, &applied_after, &applied_this_run).await?;
+    let migration_043 = reconcile::reconcile_migration_043(pool, &applied_after, &applied_this_run).await?;
+    let migration_044 = reconcile::reconcile_migration_044(pool, &applied_after, &applied_this_run).await?;
+    let migration_045 = reconcile::reconcile_migration_045(pool, &applied_after, &applied_this_run).await?;
 
     // SPEC-021 P2-02c: Kick off the CQRS entity backfill in the background
     // if migration 040 has been applied but the backfill hasn't completed yet.
@@ -244,7 +244,7 @@ pub async fn run_postgres_migrations(
     if should_backfill {
         let pool_clone = pool.clone();
         tokio::spawn(async move {
-            reconcile_migration_040_background(&pool_clone).await;
+            reconcile::reconcile_migration_040_background(&pool_clone).await;
         });
     }
 
@@ -368,458 +368,10 @@ async fn fetch_applied_versions(pool: &PgPool) -> Result<HashSet<i64>, sqlx::Err
     Ok(rows.into_iter().collect())
 }
 
-async fn set_large_graph_threshold(pool: &PgPool, threshold: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("SELECT set_config('edgequake.migration_large_graph_threshold', $1, false)")
-        .bind(threshold.to_string())
-        .execute(pool)
-        .await?;
-    Ok(())
-}
+mod helpers;
+mod reconcile;
 
-async fn reconcile_migration_038(
-    pool: &PgPool,
-    applied_this_run: &[i64],
-) -> Result<Migration038Report, sqlx::Error> {
-    let age_available = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'age')",
-    )
-    .fetch_one(pool)
-    .await?;
-
-    if !age_available {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_038_skip",
-            reason = "age_not_installed",
-            "Skipping migration 038 index verify — Apache AGE not installed"
-        );
-        return Ok(Migration038Report {
-            age_available: false,
-            graphs_checked: 0,
-            indexes_ready: true,
-            indexes_repaired_inline: false,
-            deferred_large_graphs: Vec::new(),
-            missing_indexes: Vec::new(),
-            operator_action: None,
-        });
-    }
-
-    let threshold = large_graph_threshold();
-    let mut graph_statuses = audit_graph_indexes(pool).await?;
-    let graphs_checked = graph_statuses.len();
-    let had_missing = graph_statuses.iter().any(|s| !s.missing_indexes.is_empty());
-    let marker_just_applied = applied_this_run.contains(&MIGRATION_038_VERSION);
-
-    if had_missing || marker_just_applied {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_038_apply_start",
-            had_missing,
-            marker_just_applied,
-            threshold,
-            "Running size-aware migration 038 apply"
-        );
-        set_large_graph_threshold(pool, threshold).await?;
-        sqlx::query(SQL_038_APPLY).execute(pool).await?;
-        graph_statuses = audit_graph_indexes(pool).await?;
-    }
-
-    let mut missing_indexes: Vec<String> = Vec::new();
-    let mut deferred_large_graphs: Vec<String> = Vec::new();
-
-    for status in &graph_statuses {
-        if status.missing_indexes.is_empty() {
-            info!(
-                target: "edgequake.migration",
-                step = "migration_038_graph_ok",
-                graph = %status.graph_name,
-                vertices = status.vertex_count,
-                "All source_ids indexes present"
-            );
-            continue;
-        }
-
-        for idx in &status.missing_indexes {
-            missing_indexes.push(format!("{}.{}", status.graph_name, idx));
-        }
-
-        let vertices = status.vertex_count.unwrap_or(0);
-        if vertices >= threshold {
-            deferred_large_graphs.push(format!("{} ({} vertices)", status.graph_name, vertices));
-        }
-    }
-
-    let indexes_ready = missing_indexes.is_empty();
-    let operator_action = if indexes_ready {
-        None
-    } else {
-        Some(
-            "Run: ./edgequake/scripts/migrations/apply_038.sh --apply --concurrent --yes"
-                .to_string(),
-        )
-    };
-
-    Ok(Migration038Report {
-        age_available: true,
-        graphs_checked,
-        indexes_ready,
-        indexes_repaired_inline: had_missing && indexes_ready,
-        deferred_large_graphs,
-        missing_indexes,
-        operator_action,
-    })
-}
-
-pub fn large_graph_threshold() -> i64 {
-    std::env::var("EDGEQUAKE_MIGRATION_LARGE_GRAPH_THRESHOLD")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(500_000)
-}
-
-struct GraphIndexAudit {
-    graph_name: String,
-    vertex_count: Option<i64>,
-    missing_indexes: Vec<String>,
-}
-
-async fn audit_graph_indexes(pool: &PgPool) -> Result<Vec<GraphIndexAudit>, sqlx::Error> {
-    #[derive(sqlx::FromRow)]
-    struct GraphRow {
-        name: String,
-    }
-
-    let graphs: Vec<GraphRow> =
-        sqlx::query_as("SELECT name FROM ag_catalog.ag_graph ORDER BY name")
-            .fetch_all(pool)
-            .await?;
-
-    let mut results = Vec::new();
-
-    for graph in graphs {
-        let graph_name = graph.name;
-        let idx_prefix = graph_name.replace('.', "_");
-
-        let vertex_tbl: Option<String> = sqlx::query_scalar("SELECT to_regclass($1)::text")
-            .bind(format!("{}.\"_ag_label_vertex\"", graph_name))
-            .fetch_one(pool)
-            .await?;
-
-        let edge_tbl: Option<String> = sqlx::query_scalar("SELECT to_regclass($1)::text")
-            .bind(format!("{}.\"_ag_label_edge\"", graph_name))
-            .fetch_one(pool)
-            .await?;
-
-        let vertex_count = if vertex_tbl.is_some() {
-            let count: i64 = sqlx::query_scalar(&format!(
-                "SELECT COUNT(*)::bigint FROM {}.\"_ag_label_vertex\"",
-                quote_schema(&graph_name)
-            ))
-            .fetch_one(pool)
-            .await?;
-            Some(count)
-        } else {
-            None
-        };
-
-        let mut missing_indexes = Vec::new();
-        let expected = [
-            (
-                vertex_tbl.is_some(),
-                format!("idx_{idx_prefix}_vertex_source_id"),
-            ),
-            (
-                vertex_tbl.is_some(),
-                format!("idx_{idx_prefix}_vertex_source_ids_gin"),
-            ),
-            (
-                edge_tbl.is_some(),
-                format!("idx_{idx_prefix}_edge_source_ids_gin"),
-            ),
-        ];
-
-        for (required, index_name) in expected {
-            if !required {
-                continue;
-            }
-            let exists: bool = sqlx::query_scalar(
-                "SELECT EXISTS(
-                    SELECT 1 FROM pg_indexes
-                    WHERE schemaname = $1 AND indexname = $2
-                )",
-            )
-            .bind(&graph_name)
-            .bind(&index_name)
-            .fetch_one(pool)
-            .await?;
-
-            if !exists {
-                missing_indexes.push(index_name);
-            }
-        }
-
-        results.push(GraphIndexAudit {
-            graph_name,
-            vertex_count,
-            missing_indexes,
-        });
-    }
-
-    Ok(results)
-}
-
-fn quote_schema(name: &str) -> String {
-    format!("\"{}\"", name.replace('"', "\"\""))
-}
-
-/// Return true if pgvector `extversion` is >= 0.8.0 (iterative-scan GUCs).
-fn pgvector_supports_iterative_scan(version: &str) -> bool {
-    let mut parts = version
-        .split(|c: char| !c.is_ascii_digit())
-        .filter(|s| !s.is_empty())
-        .filter_map(|s| s.parse::<u32>().ok());
-    let major = parts.next();
-    let minor = parts.next().unwrap_or(0);
-    match major {
-        Some(0) => minor >= 8,
-        Some(_) => true,
-        None => false,
-    }
-}
-
-async fn reconcile_migration_042(
-    pool: &PgPool,
-    applied_after: &HashSet<i64>,
-    applied_this_run: &[i64],
-) -> Result<Migration042Report, sqlx::Error> {
-    let pgvector_available: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
-            .fetch_one(pool)
-            .await?;
-
-    if !pgvector_available {
-        return Ok(Migration042Report {
-            pgvector_available: false,
-            extversion_before: None,
-            extversion_after: None,
-            shipped_extversion: None,
-            iterative_scan_capable: false,
-            indexes_rebuilt: false,
-            vector_tables_checked: 0,
-        });
-    }
-
-    let extversion_before: Option<String> =
-        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
-            .fetch_optional(pool)
-            .await?;
-
-    let shipped_extversion: Option<String> = sqlx::query_scalar(
-        "SELECT default_version FROM pg_available_extensions WHERE name = 'vector'",
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    let marker_applied = applied_this_run.contains(&MIGRATION_042_VERSION);
-    let marker_present = applied_after.contains(&MIGRATION_042_VERSION);
-    let needs_apply = marker_applied
-        || (marker_present
-            && extversion_before
-                .as_deref()
-                .map(pgvector_supports_iterative_scan)
-                == Some(false));
-
-    if needs_apply {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_042_apply_start",
-            marker_applied,
-            extversion = ?extversion_before,
-            "Running pgvector upgrade + ANN index rebuild (migration 042)"
-        );
-        sqlx::query(SQL_042_APPLY).execute(pool).await?;
-    }
-
-    let extversion_after: Option<String> =
-        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
-            .fetch_optional(pool)
-            .await?;
-
-    let vector_tables_checked: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'eq\\_%\\_vectors' ESCAPE '\\'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
-
-    let iterative_scan_capable = extversion_after
-        .as_deref()
-        .map(pgvector_supports_iterative_scan)
-        .unwrap_or(false);
-
-    Ok(Migration042Report {
-        pgvector_available: true,
-        extversion_before,
-        extversion_after,
-        shipped_extversion,
-        iterative_scan_capable,
-        indexes_rebuilt: needs_apply,
-        vector_tables_checked: vector_tables_checked as usize,
-    })
-}
-
-async fn reconcile_migration_043(
-    pool: &PgPool,
-    applied_after: &HashSet<i64>,
-    applied_this_run: &[i64],
-) -> Result<Migration043Report, sqlx::Error> {
-    let age_available: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'age')")
-            .fetch_one(pool)
-            .await?;
-
-    if !age_available {
-        return Ok(Migration043Report {
-            age_available: false,
-            extversion_before: None,
-            extversion_after: None,
-            extension_updated: false,
-        });
-    }
-
-    let extversion_before: Option<String> =
-        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'age'")
-            .fetch_optional(pool)
-            .await?;
-
-    let marker_applied = applied_this_run.contains(&MIGRATION_043_VERSION);
-    let marker_present = applied_after.contains(&MIGRATION_043_VERSION);
-    let needs_apply = marker_applied || marker_present;
-
-    if needs_apply {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_043_apply_start",
-            marker_applied,
-            extversion = ?extversion_before,
-            "Running Apache AGE extension upgrade (migration 043)"
-        );
-        sqlx::query(SQL_043_APPLY).execute(pool).await?;
-    }
-
-    let extversion_after: Option<String> =
-        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'age'")
-            .fetch_optional(pool)
-            .await?;
-
-    Ok(Migration043Report {
-        age_available: true,
-        extversion_before,
-        extversion_after,
-        extension_updated: needs_apply,
-    })
-}
-
-async fn reconcile_migration_044(
-    pool: &PgPool,
-    applied_after: &HashSet<i64>,
-    applied_this_run: &[i64],
-) -> Result<Migration044Report, sqlx::Error> {
-    let marker_applied = applied_this_run.contains(&MIGRATION_044_VERSION);
-    let marker_present = applied_after.contains(&MIGRATION_044_VERSION);
-    let needs_apply = marker_applied || marker_present;
-
-    if needs_apply {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_044_apply_start",
-            marker_applied,
-            "Recording migration 044 community labels marker"
-        );
-        sqlx::query(SQL_044_APPLY).execute(pool).await?;
-    }
-
-    Ok(Migration044Report {
-        marker_present,
-        apply_executed: needs_apply,
-    })
-}
-
-async fn reconcile_migration_045(
-    pool: &PgPool,
-    applied_after: &HashSet<i64>,
-    applied_this_run: &[i64],
-) -> Result<Migration045Report, sqlx::Error> {
-    let marker_applied = applied_this_run.contains(&MIGRATION_045_VERSION);
-    let marker_present = applied_after.contains(&MIGRATION_045_VERSION);
-    let needs_apply = marker_applied || marker_present;
-
-    if needs_apply {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_045_apply_start",
-            marker_applied,
-            "Adding vector content_tsv GIN indexes (migration 045)"
-        );
-        sqlx::query(SQL_045_APPLY).execute(pool).await?;
-    }
-
-    Ok(Migration045Report {
-        marker_present,
-        apply_executed: needs_apply,
-    })
-}
-
-/// Background task: run the CQRS entity backfill (migration 040 apply.sql).
-///
-/// WHY background: The apply.sql can take minutes on large corpora.
-/// We check `entity_sync_mode` first — if it's already 'full', nothing to do.
-async fn reconcile_migration_040_background(pool: &PgPool) {
-    // Check current sync mode
-    let mode: Option<String> =
-        sqlx::query_scalar("SELECT value::text FROM server_config WHERE key = 'entity_sync_mode'")
-            .fetch_optional(pool)
-            .await
-            .unwrap_or(None);
-
-    let mode_str = mode.as_deref().unwrap_or("\"disabled\"");
-    if mode_str.contains("full") {
-        info!(
-            target: "edgequake.migration",
-            step = "migration_040_skip",
-            "CQRS backfill already complete (entity_sync_mode=full)"
-        );
-        return;
-    }
-
-    info!(
-        target: "edgequake.migration",
-        step = "migration_040_start",
-        entity_sync_mode = %mode_str,
-        "Starting CQRS entity backfill in background (SPEC-021 P2-02c)"
-    );
-
-    // Execute the backfill script as a series of individual statements
-    // (each statement is separated by the DO $$ ... $$ boundary)
-    // The apply.sql is a single large DO block, so execute it directly.
-    match sqlx::raw_sql(SQL_040_APPLY).execute(pool).await {
-        Ok(_) => {
-            info!(
-                target: "edgequake.migration",
-                step = "migration_040_complete",
-                "CQRS entity backfill complete (entity_sync_mode=full)"
-            );
-        }
-        Err(e) => {
-            warn!(
-                target: "edgequake.migration",
-                step = "migration_040_failed",
-                error = %e,
-                "CQRS entity backfill failed — will retry on next restart"
-            );
-        }
-    }
-}
+pub use helpers::large_graph_threshold;
 
 #[cfg(test)]
 mod tests {
@@ -919,8 +471,8 @@ mod tests {
 
     #[test]
     fn pgvector_iterative_scan_version_gate() {
-        assert!(pgvector_supports_iterative_scan("0.8.0"));
-        assert!(!pgvector_supports_iterative_scan("0.7.4"));
+        assert!(helpers::pgvector_supports_iterative_scan("0.8.0"));
+        assert!(!helpers::pgvector_supports_iterative_scan("0.7.4"));
     }
 
     #[test]

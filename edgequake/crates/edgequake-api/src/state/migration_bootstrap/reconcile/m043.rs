@@ -1,0 +1,60 @@
+//! Migration 043 — Apache AGE extension upgrade.
+
+use std::collections::HashSet;
+
+use sqlx::PgPool;
+use tracing::info;
+
+use super::super::{Migration043Report, MIGRATION_043_VERSION, SQL_043_APPLY};
+
+pub async fn reconcile_migration_043(
+    pool: &PgPool,
+    applied_after: &HashSet<i64>,
+    applied_this_run: &[i64],
+) -> Result<Migration043Report, sqlx::Error> {
+    let age_available: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'age')")
+            .fetch_one(pool)
+            .await?;
+
+    if !age_available {
+        return Ok(Migration043Report {
+            age_available: false,
+            extversion_before: None,
+            extversion_after: None,
+            extension_updated: false,
+        });
+    }
+
+    let extversion_before: Option<String> =
+        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'age'")
+            .fetch_optional(pool)
+            .await?;
+
+    let marker_applied = applied_this_run.contains(&MIGRATION_043_VERSION);
+    let marker_present = applied_after.contains(&MIGRATION_043_VERSION);
+    let needs_apply = marker_applied || marker_present;
+
+    if needs_apply {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_043_apply_start",
+            marker_applied,
+            extversion = ?extversion_before,
+            "Running Apache AGE extension upgrade (migration 043)"
+        );
+        sqlx::query(SQL_043_APPLY).execute(pool).await?;
+    }
+
+    let extversion_after: Option<String> =
+        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'age'")
+            .fetch_optional(pool)
+            .await?;
+
+    Ok(Migration043Report {
+        age_available: true,
+        extversion_before,
+        extversion_after,
+        extension_updated: needs_apply,
+    })
+}

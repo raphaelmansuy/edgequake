@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
 use super::{
-    create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
+    AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
 };
 use crate::cache_manager::CacheManager;
 use edgequake_audit::AuditLogger;
@@ -314,13 +314,12 @@ impl AppState {
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
         tracing::info!("✓ Task storage: PostgreSQL (persistent across restarts)");
 
-        let reranker = create_bm25_reranker();
         let engine_impl = super::query_bootstrap::build_production_query_engine(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
-            reranker,
+            Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
         );
 
         // Create workspace vector registry for per-workspace dimensions

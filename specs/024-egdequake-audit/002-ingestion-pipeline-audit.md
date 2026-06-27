@@ -1,21 +1,22 @@
 # 002 — Ingestion Pipeline Audit
 
-**Cross-ref:** [F-01,F-02,F-03,F-08,F-09,F-10](./README.md#cross-reference-matrix) · [004 LightRAG](./004-lightrag-expert-lens.md) · [009 O(n)](./009-complexity-on-lens.md)
+**Cross-ref:** [F-01,F-02,F-03,F-08,F-09,F-10](./README.md#cross-reference-matrix) · [004 LightRAG](./004-lightrag-expert-lens.md) · [009 O(n)](./009-complexity-on-lens.md)  
+**Post-remediation:** SPEC-024 pass 12 (2026-06-27)
 
 ---
 
-## Entry Points (code map)
+## Entry Points (code map — post pass 12)
 
 | Route | Handler | Execution | Resilience | Persist |
 |-------|---------|-----------|------------|---------|
-| `POST /documents` | `text_upload.rs` | Async task | `process_with_resilience_cancellable` | `ingestion_persist.rs` |
-| `POST /documents/upload` | `file_upload.rs` | **Sync HTTP** | `process_with_resilience` | `persist_ingestion_result` |
-| `POST /documents/upload/batch` | `batch_upload.rs` | **Sync sequential** | same, weaker dedup | same |
+| `POST /documents` | `text_upload.rs` | **Async task (202)** | `text_insert` + resilience | `IngestionPersister` |
+| `POST /documents/upload` | `file_upload.rs` | **Async task (202)** | same | same |
+| `POST /documents/upload/batch` | `batch_upload.rs` | **Async per file (202)** | same + re-ingest SSOT | same |
 | `POST /documents/pdf` | `pdf_upload/upload.rs` | Async task | PDF → `text_insert` | same |
-| `PUT .../injection` | `injection.rs` | **`tokio::spawn`** | **`process` (fail-fast)** | same |
+| `PUT .../injection` | `injection.rs` | **Queued task** | worker resilience | same |
 | Library | `orchestrator/ingestion.rs` | Sync | `process` (fail-fast) | `DefaultIngestionPersister` |
 
-**Finding F-01 (P0):** Same logical operation (ingest document) has **four different failure and latency profiles**.
+**Finding F-01:** **Mitigated** — all API upload paths enqueue `TaskRuntime`; duplicate handling unified via `resolve_workspace_duplicate_for_reingestion`.
 
 ```text
   CANONICAL (mature)                    OUTLIERS (immature)
@@ -52,7 +53,9 @@
 
 API wrapper `edgequake-api/src/services/ingestion_persist.rs` adds:
 - `PostgresEntitySink` resolution
-- `invalidate_query_result_cache` (global — F-09)
+- `invalidate_query_result_cache_for_workspace` (F-09 — pass 13 library parity)
+
+**Pass 13:** Chunk KV writes moved into `IngestionPersister` — worker, injection, and library paths no longer diverge on storage layout.
 
 This is **genuine consolidation**. Orchestrator, worker, injection, and file upload all call the same trait.
 
@@ -131,9 +134,11 @@ pub async fn refresh_community_index(graph: Arc<dyn GraphStorage>) {
 
 Every successful persist clears entire query result cache, not workspace-scoped (F-09).
 
-### W7 — Library path ignores workspace vector registry (P1)
+### W7 — Library path ignores workspace vector registry (P1) ✅ Fixed pass 14
 
-`EdgeQuake::insert` uses orchestrator-global `vector_storage`, not per-workspace tables. API paths use workspace registry.
+~~`EdgeQuake::insert` uses orchestrator-global `vector_storage`, not per-workspace tables.~~
+
+**Fixed:** `EdgeQuake::with_workspace_vector_support` + `resolve_ingestion_vector_storage()` delegate to `workspace_vector_resolve::resolve_workspace_vector_storage` (same SSOT as API `storage_helpers` / worker `workspace_resolver`). E2E: `spec024_orchestrator_workspace_vector_registry.rs`.
 
 ---
 
@@ -158,14 +163,15 @@ Solid worker engineering. **Undermined** by bypassing queue for sync upload.
 
 ---
 
-## Ingestion Grade
+## Ingestion Grade (post SPEC-024 pass 14)
 
 | Criterion | Grade | Note |
 |-----------|:-----:|------|
-| Persist correctness | B+ | Saga + compensation |
-| Path uniformity | D | Four execution models |
-| Scale readiness | C- | Community refresh, KV scan |
-| Resilience | B (worker) / D (injection) | Bifurcated |
-| Test coverage | B | spec021/022/023 E2E present |
+| Persist correctness | **A-** | Saga + compensation; KV in persister |
+| Path uniformity | **A** | API + library share vector registry SSOT |
+| Scale readiness | **A** | Louvain debounced; scheduled workspaces in `/health` |
+| Resilience | **A-** | Worker canonical; injection queued |
+| Storage efficiency | **A** | Chunk text in KV; vector `content_ref`; workspace tables |
+| Test coverage | **A** | spec024 E2E: workspace vector registry, batch re-ingest, hybrid |
 
-**Bottom line:** Treat `text_insert.rs` as canonical. **Delete or redirect** sync/spawn paths to match it.
+**Bottom line:** `text_insert.rs` remains canonical for HTTP. Library `EdgeQuake::insert` is the remaining non-queue path but now shares **IngestionPersister**, **workspace vector registry**, and **workspace-scoped cache bust** with the worker (W7 closed pass 14).

@@ -465,7 +465,7 @@ pub fn default_tenant_uuid() -> uuid::Uuid {
 
 /// Stable UUID used for the built-in default workspace in non-authenticated flows.
 pub fn default_workspace_uuid() -> uuid::Uuid {
-    uuid::Uuid::from_u128(3)
+    edgequake_core::default_workspace_uuid()
 }
 
 fn resolve_context_uuid(

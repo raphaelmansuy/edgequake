@@ -53,6 +53,7 @@ pub mod types;
 pub mod utils;
 pub mod workspace_model_update;
 pub mod workspace_service;
+pub mod workspace_vector_resolve;
 
 // Production service implementations (feature-gated)
 #[cfg(feature = "postgres")]
@@ -84,6 +85,10 @@ pub use tenant_manager::{TenantConfig, TenantKBKey, TenantRAGManager, TenantServ
 // Re-export workspace service
 pub use workspace_service::{
     InMemoryWorkspaceService, UpdateTenantQuotaResult, WorkspaceService, WorkspaceServiceFactory,
+};
+pub use workspace_vector_resolve::{
+    default_workspace_uuid, resolve_workspace_uuid, resolve_workspace_vector_storage,
+    WorkspaceVectorResolveInput, WorkspaceVectorResolvePolicy,
 };
 
 // Re-export conversation service

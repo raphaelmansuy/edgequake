@@ -35,7 +35,9 @@ use crate::state::AppState;
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{
     BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth,
-    ProvidersHealth, SchemaHealth, SourceIdsIndexHealth,
+    ObservabilityHealthSnapshot, OperationalHealth, ProvidersHealth, QueryEngineHealthSnapshot,
+    ReadModelHealthSnapshot, SchemaHealth, SourceIdsIndexHealth, StorageHealthSnapshot,
+    TaskQueueHealthSnapshot, IngestionHealthSnapshot, MigrationHealthSnapshot,
 };
 
 /// Deep health check with component status.
@@ -93,11 +95,18 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     // WHY: OODA-14 - Mission requires schema version verification
     let schema = get_schema_health(&state).await;
     let storage_degraded = !kv_ok || !vector_ok || !graph_ok;
+
+    let operational = build_operational_health(&state).await;
+    let queue_overloaded = operational
+        .as_ref()
+        .is_some_and(|op| crate::task_queue_pressure::health_degraded_by_queue(op.task_queue.pending));
+
     let status = if schema
         .as_ref()
         .and_then(|s| s.source_ids_indexes.as_ref())
         .is_some_and(|m| !m.ready)
         || storage_degraded
+        || queue_overloaded
     {
         "degraded"
     } else {
@@ -142,9 +151,103 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         schema,
         providers,
         pdf_storage_enabled,
+        operational,
     };
 
     Ok(Json(response))
+}
+
+async fn build_operational_health(state: &AppState) -> Option<OperationalHealth> {
+    use crate::task_queue_pressure::{assess_queue_pressure, publish_queue_observability};
+    use edgequake_observability::{log_format_label, ObservabilityConfig};
+    use edgequake_query::{
+        fusion::{mix_fusion_mode_from_env, mix_fusion_mode_label},
+        hybrid_merge::{hybrid_fusion_mode_from_env, hybrid_fusion_mode_label},
+    };
+    use edgequake_storage::{community_refresh_debounce_secs, pending_community_refresh_workspaces};
+
+    let task_stats = state
+        .tasks
+        .storage
+        .get_statistics(edgequake_tasks::storage::TaskFilter::default())
+        .await
+        .ok()?;
+
+    let obs_cfg = ObservabilityConfig::from_env();
+    let engine = &state.query.engine_impl;
+
+    #[cfg(feature = "postgres")]
+    let relational_backfill_enabled = state.pg_pool.is_some();
+    #[cfg(not(feature = "postgres"))]
+    let relational_backfill_enabled = false;
+
+    let pressure = assess_queue_pressure(task_stats.pending);
+    publish_queue_observability(
+        task_stats.pending,
+        task_stats.processing,
+        task_stats.failed,
+        &pressure,
+    );
+
+    let community_scheduled = pending_community_refresh_workspaces().await as u64;
+
+    Some(OperationalHealth {
+        task_queue: TaskQueueHealthSnapshot {
+            pending: task_stats.pending,
+            processing: task_stats.processing,
+            failed: task_stats.failed,
+            pressure: pressure.level.as_str().to_string(),
+            pending_warn_threshold: pressure.pending_warn_threshold,
+            pending_critical_threshold: pressure.pending_critical_threshold,
+            operator_action: pressure.operator_action.clone(),
+        },
+        query_engine: QueryEngineHealthSnapshot {
+            default_mode: engine.config().default_mode.to_string(),
+            reranker_configured: engine.has_reranker(),
+            community_refresh_debounce_secs: community_refresh_debounce_secs(),
+            hybrid_fusion: hybrid_fusion_mode_label(hybrid_fusion_mode_from_env()).to_string(),
+            mix_fusion: mix_fusion_mode_label(mix_fusion_mode_from_env()).to_string(),
+            community_refresh_scheduled_workspaces: community_scheduled,
+        },
+        observability: ObservabilityHealthSnapshot {
+            log_format: log_format_label(obs_cfg.log_format).to_string(),
+            otel_enabled: obs_cfg.otel_enabled,
+        },
+        read_model: ReadModelHealthSnapshot {
+            merge_strategy: crate::document_read_model::MERGE_STRATEGY.to_string(),
+            relational_backfill_enabled,
+            entity_count_graph_reconcile: true,
+        },
+        migration: build_migration_health_snapshot(state),
+        ingestion: IngestionHealthSnapshot {
+            execution_model: "worker_queue".to_string(),
+            persist_ssot: "IngestionPersister".to_string(),
+            duplicate_reingest_enabled: true,
+        },
+        storage: StorageHealthSnapshot {
+            chunk_text_ssot: "kv".to_string(),
+            vector_metadata_ref: "content_ref".to_string(),
+            chunk_kv_in_persister: true,
+        },
+    })
+}
+
+#[cfg(feature = "postgres")]
+fn build_migration_health_snapshot(state: &AppState) -> Option<MigrationHealthSnapshot> {
+    let report = state.migration_bootstrap.as_ref()?;
+    Some(MigrationHealthSnapshot {
+        latest_version: report.latest_version,
+        source_ids_indexes_ready: report.migration_038.indexes_ready,
+        pgvector_iterative_scan_capable: report.migration_042.iterative_scan_capable,
+        ready_for_traffic: crate::state::migration_bootstrap::is_ready_for_traffic(
+            &state.migration_bootstrap,
+        ),
+    })
+}
+
+#[cfg(not(feature = "postgres"))]
+fn build_migration_health_snapshot(_state: &AppState) -> Option<MigrationHealthSnapshot> {
+    None
 }
 
 /// Query database schema health from _sqlx_migrations table.

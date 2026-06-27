@@ -679,6 +679,7 @@ impl std::str::FromStr for crate::types::TaskType {
             "scan" => Ok(crate::types::TaskType::Scan),
             "reindex" => Ok(crate::types::TaskType::Reindex),
             "pdf_processing" => Ok(crate::types::TaskType::PdfProcessing),
+            "knowledge_injection" => Ok(crate::types::TaskType::KnowledgeInjection),
             _ => Err(format!("Invalid task type: {}", s)),
         }
     }

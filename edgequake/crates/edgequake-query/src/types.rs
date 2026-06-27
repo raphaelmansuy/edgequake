@@ -285,6 +285,10 @@ pub struct QueryStats {
 
     /// Number of tokens generated.
     pub generated_tokens: usize,
+
+    /// Time spent in reranking (ms), when a reranker was applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rerank_time_ms: Option<u64>,
 }
 
 #[cfg(test)]

@@ -29,7 +29,9 @@ pub use request_context::{
     trace_id_from_request_id, RequestContext, CORRELATION_ID_HEADER, REQUEST_ID_HEADER,
     TRACEPARENT_HEADER, TRACESTATE_HEADER,
 };
-pub use subscriber::{init_observability, ObservabilityConfig, ObservabilityGuard};
+pub use subscriber::{
+    init_observability, log_format_label, LogFormat, ObservabilityConfig, ObservabilityGuard,
+};
 #[cfg(feature = "otel")]
 pub use trace_context::{extract_from_headers, inject_current_context};
 
@@ -37,5 +39,5 @@ pub use trace_context::{extract_from_headers, inject_current_context};
 pub use metrics::{
     init_metrics, record_db_pool_stats, record_document_processing, record_http_request,
     record_llm_request, record_pipeline_error, record_query_completed, record_rate_limit_exceeded,
-    record_storage_error, render_prometheus_metrics,
+    record_storage_error, record_task_queue_stats, render_prometheus_metrics,
 };

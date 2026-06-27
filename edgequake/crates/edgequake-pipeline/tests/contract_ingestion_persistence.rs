@@ -79,6 +79,55 @@ async fn contract_double_persist_merges_to_single_normalized_entity() {
     );
 }
 
+#[tokio::test]
+async fn contract_chunk_vector_metadata_uses_content_ref_not_inline_body() {
+    let graph = Arc::new(MemoryGraphStorage::new("dedupe"));
+    let vector = Arc::new(MemoryVectorStorage::new("dedupe", EMBED_DIM));
+    vector.initialize().await.unwrap();
+
+    let config = IngestionPersistConfig::from_settings(
+        IngestionPersistSettings {
+            use_llm_summarization: false,
+        },
+        Arc::new(NoopEntitySink),
+        None,
+    );
+    let ctx = sample_persist_context();
+    let result = sample_processing_result();
+
+    persist_processing_result(
+        graph,
+        vector.clone(),
+        &config,
+        &ctx,
+        &result,
+        ChunkVectorBuildOptions::STANDARD,
+    )
+    .await
+    .expect("persist");
+
+    let chunk_vectors = vector
+        .query(&vec![0.0_f32; EMBED_DIM], 10, None)
+        .await
+        .unwrap();
+    let chunk_meta = chunk_vectors
+        .iter()
+        .find(|r| r.metadata.get("type").and_then(|v| v.as_str()) == Some("chunk"))
+        .expect("chunk vector row");
+
+    assert!(
+        chunk_meta.metadata.get("content").is_none(),
+        "vector metadata must not duplicate chunk text (SPEC-024 2.5)"
+    );
+    assert_eq!(
+        chunk_meta
+            .metadata
+            .get("content_ref")
+            .and_then(|v| v.as_str()),
+        Some(result.chunks[0].id.as_str())
+    );
+}
+
 #[test]
 fn contract_persist_config_parity_across_callers() {
     let settings = IngestionPersistSettings {
@@ -221,6 +270,7 @@ async fn contract_persister_trait_matches_free_function() {
         vector2.clone(),
         settings,
         Arc::new(NoopEntitySink),
+        None,
         None,
     );
     use edgequake_pipeline::IngestionPersister;

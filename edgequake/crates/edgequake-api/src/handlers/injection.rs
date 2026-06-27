@@ -15,19 +15,12 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::services::{
+    build_injection_metadata, injection_doc_id, injection_list_prefix, injection_meta_key,
+};
 use crate::state::AppState;
 
 pub use super::injection_types::*;
-
-/// Stable document ID prefix for injection artifacts.
-fn injection_doc_id(workspace_id: &str, injection_id: &str) -> String {
-    format!("injection::{}::{}", workspace_id, injection_id)
-}
-
-/// KV metadata key for an injection entry.
-fn injection_meta_key(workspace_id: &str, injection_id: &str) -> String {
-    format!("injection::{}::{}-metadata", workspace_id, injection_id)
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DRY Primitives — validation, serialization, background task
@@ -83,10 +76,7 @@ fn str_field_or(val: &serde_json::Value, key: &str, default: &str) -> String {
 }
 
 /// Build the canonical JSON metadata record for an injection KV entry.
-///
-/// WHY: All three create/update paths (text PUT, file PUT, PATCH) produce the same
-/// metadata shape.  A single builder prevents fields drifting out of sync across copies.
-#[allow(clippy::too_many_arguments)]
+#[inline]
 fn build_meta(
     injection_id: &str,
     name: &str,
@@ -103,30 +93,88 @@ fn build_meta(
     updated_at: &str,
     error: Option<&str>,
 ) -> serde_json::Value {
-    let mut v = serde_json::json!({
-        "id": injection_id,
-        "name": name,
-        "content": content,
-        "workspace_id": workspace_id,
-        "source_type": source_type,
-        "status": status,
-        "version": version,
-        "entity_count": entity_count,
-        "source_document_id": doc_id,
-        "created_at": created_at,
-        "updated_at": updated_at,
-    });
-    if let Some(ids) = chunk_ids {
-        v["chunk_ids"] = serde_json::json!(ids);
-    }
-    if let Some(fname) = source_filename {
-        v["source_filename"] = serde_json::json!(fname);
-    }
-    if let Some(err) = error {
-        v["error"] = serde_json::json!(err);
-    }
-    v
+    build_injection_metadata(
+        injection_id,
+        name,
+        content,
+        workspace_id,
+        source_type,
+        source_filename,
+        status,
+        version,
+        entity_count,
+        chunk_ids,
+        doc_id,
+        created_at,
+        updated_at,
+        error,
+    )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task enqueue (SPEC-024 Phase 1.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct InjectionEnqueueParams {
+    doc_id: String,
+    content: String,
+    workspace_id: String,
+    meta_key: String,
+    injection_id: String,
+    name: String,
+    source_type: String,
+    source_filename: Option<String>,
+    version: u32,
+    created_at: String,
+    data_tenant_id: Option<String>,
+}
+
+/// Enqueue a knowledge injection for worker processing (retriable, visible in tasks table).
+async fn enqueue_injection_processing(
+    state: &AppState,
+    tenant_ctx: &TenantContext,
+    params: InjectionEnqueueParams,
+) -> ApiResult<()> {
+    use edgequake_tasks::{KnowledgeInjectionData, Task, TaskType};
+
+    let tenant_id = uuid::Uuid::parse_str(&tenant_ctx.tenant_id_or_default()).map_err(|_| {
+        ApiError::ValidationError("Invalid tenant ID".to_string())
+    })?;
+    let workspace_uuid =
+        crate::middleware::resolve_workspace_uuid(Some(&params.workspace_id)).ok_or_else(|| {
+            ApiError::ValidationError(format!("Invalid workspace ID: {}", params.workspace_id))
+        })?;
+
+    let task_data = KnowledgeInjectionData {
+        doc_id: params.doc_id,
+        content: params.content,
+        workspace_id: params.workspace_id,
+        meta_key: params.meta_key,
+        injection_id: params.injection_id,
+        name: params.name,
+        source_type: params.source_type,
+        source_filename: params.source_filename,
+        version: params.version,
+        created_at: params.created_at,
+        data_tenant_id: params.data_tenant_id,
+    };
+
+    let task = Task::new(
+        tenant_id,
+        workspace_uuid,
+        TaskType::KnowledgeInjection,
+        serde_json::to_value(task_data).map_err(|e| {
+            ApiError::BadRequest(format!("Failed to serialize injection task: {e}"))
+        })?,
+    );
+
+    state.enqueue_task(task).await?;
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRY Primitives — validation, serialization
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Deserialize a JSON KV value into an `InjectionSummary`.
 fn summary_from_meta(val: &serde_json::Value) -> InjectionSummary {
@@ -168,102 +216,6 @@ fn detail_from_meta(val: &serde_json::Value) -> InjectionDetailResponse {
         created_at: str_field(val, "created_at"),
         updated_at: str_field(val, "updated_at"),
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Background task helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// All context needed to run an injection pipeline task and record its result.
-struct InjectionTaskContext {
-    app_state: AppState,
-    pipeline: std::sync::Arc<edgequake_pipeline::Pipeline>,
-    graph_storage: std::sync::Arc<dyn edgequake_storage::traits::GraphStorage>,
-    vector_storage: std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>,
-    kv_storage: std::sync::Arc<dyn edgequake_storage::traits::KVStorage>,
-    doc_id: String,
-    content: String,
-    workspace_id: String,
-    data_tenant_id: Option<String>,
-    meta_key: String,
-    injection_id: String,
-    name: String,
-    source_type: String,
-    source_filename: Option<String>,
-    version: u32,
-    created_at: String,
-}
-
-/// Spawn a background task that runs the injection pipeline and writes back
-/// success/failure metadata to KV.
-///
-/// WHY: All three create paths (text PUT, file PUT, PATCH content-changed) share
-/// the same spawn-and-record pattern.  Centralising it prevents the copies from
-/// drifting (e.g. one forgetting to persist `chunk_ids`).
-fn spawn_injection_processing(ctx: InjectionTaskContext) {
-    tokio::spawn(async move {
-        match process_injection_pipeline(
-            &ctx.app_state,
-            &ctx.pipeline,
-            ctx.graph_storage,
-            ctx.vector_storage,
-            &ctx.doc_id,
-            &ctx.content,
-            &ctx.workspace_id,
-            ctx.data_tenant_id,
-        )
-        .await
-        {
-            Ok((entity_count, chunk_ids)) => {
-                let meta = build_meta(
-                    &ctx.injection_id,
-                    &ctx.name,
-                    &ctx.content,
-                    &ctx.workspace_id,
-                    &ctx.source_type,
-                    ctx.source_filename.as_deref(),
-                    "completed",
-                    ctx.version,
-                    entity_count,
-                    Some(&chunk_ids),
-                    &ctx.doc_id,
-                    &ctx.created_at,
-                    &Utc::now().to_rfc3339(),
-                    None,
-                );
-                let _ = ctx.kv_storage.upsert(&[(ctx.meta_key, meta)]).await;
-                info!(
-                    injection_id = %ctx.injection_id,
-                    entity_count,
-                    "Injection processing completed"
-                );
-            }
-            Err(e) => {
-                warn!(
-                    injection_id = %ctx.injection_id,
-                    error = %e,
-                    "Injection processing failed"
-                );
-                let meta = build_meta(
-                    &ctx.injection_id,
-                    &ctx.name,
-                    &ctx.content,
-                    &ctx.workspace_id,
-                    &ctx.source_type,
-                    ctx.source_filename.as_deref(),
-                    "failed",
-                    ctx.version,
-                    0,
-                    None,
-                    &ctx.doc_id,
-                    &ctx.created_at,
-                    &Utc::now().to_rfc3339(),
-                    Some(&e.to_string()),
-                );
-                let _ = ctx.kv_storage.upsert(&[(ctx.meta_key, meta)]).await;
-            }
-        }
-    });
 }
 
 // ============================================================================
@@ -332,30 +284,29 @@ pub async fn put_injection(
         "Created knowledge injection entry"
     );
 
-    // WHY: Use workspace-specific pipeline to ensure embedding dimensions match the
-    // workspace's vector storage table. Using the global pipeline (e.g. Ollama 768-dim)
-    // with a workspace configured for OpenAI (1536-dim) causes silent dimension mismatch
-    // errors in merge_entity, producing entity_count=0 despite successful LLM extraction.
-    let workspace_pipeline = state.create_workspace_pipeline(&workspace_id).await;
-    let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
-    spawn_injection_processing(InjectionTaskContext {
-        app_state: state.clone(),
-        pipeline: workspace_pipeline,
-        graph_storage: state.storage.graph_storage.clone(),
-        vector_storage: inj_ctx.vector_storage,
-        kv_storage: state.storage.kv_storage.clone(),
-        doc_id,
-        content: request.content,
-        workspace_id: workspace_id.clone(),
-        data_tenant_id: inj_ctx.data_tenant_id,
-        meta_key,
-        injection_id: injection_id.clone(),
-        name,
-        source_type: "text".to_string(),
-        source_filename: None,
-        version: 1,
-        created_at: now,
-    });
+    // Resolve workspace tenant_id for vector metadata scoping (OODA-231.1).
+    let data_tenant_id = resolve_injection_context(&state, &workspace_id)
+        .await
+        .data_tenant_id;
+
+    enqueue_injection_processing(
+        &state,
+        &tenant_ctx,
+        InjectionEnqueueParams {
+            doc_id,
+            content: request.content,
+            workspace_id: workspace_id.clone(),
+            meta_key,
+            injection_id: injection_id.clone(),
+            name,
+            source_type: "text".to_string(),
+            source_filename: None,
+            version: 1,
+            created_at: now,
+            data_tenant_id,
+        },
+    )
+    .await?;
 
     Ok((
         StatusCode::ACCEPTED,
@@ -386,8 +337,8 @@ pub async fn list_injections(
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<ListInjectionsResponse>> {
     let workspace_id = workspace_id_from_tenant(&tenant_ctx);
-    let prefix = format!("injection::{}", workspace_id);
-    let keys = state.storage.kv_storage.keys().await?;
+    let prefix = injection_list_prefix(&workspace_id);
+    let keys = state.storage.kv_storage.keys_with_prefix(&prefix).await?;
 
     let mut items: Vec<InjectionSummary> = Vec::new();
     for key in keys
@@ -506,11 +457,11 @@ pub async fn delete_injection(
     }
 
     // 3. Delete all KV entries (metadata + chunks + content).
-    let keys = state.storage.kv_storage.keys().await?;
-    let kv_ids_to_delete: Vec<String> = keys
-        .into_iter()
-        .filter(|k| k.starts_with(&doc_id) || *k == meta_key)
-        .collect();
+    let keys = state.storage.kv_storage.keys_with_prefix(&doc_id).await?;
+    let mut kv_ids_to_delete: Vec<String> = keys;
+    if !kv_ids_to_delete.iter().any(|k| k == &meta_key) {
+        kv_ids_to_delete.push(meta_key);
+    }
     if !kv_ids_to_delete.is_empty() {
         debug!(
             count = kv_ids_to_delete.len(),
@@ -630,29 +581,27 @@ pub async fn update_injection(
     info!(injection_id = %injection_id, content_changed, new_version, "Updated injection entry");
 
     if content_changed {
-        // WHY: Resolve workspace-specific storage BEFORE the spawn (SPEC-033, OODA-231.1).
-        // WHY: Use workspace-specific pipeline to match embedding dimensions (prevents
-        // silent entity_count=0 when global embedder dimension != workspace vector table dim).
-        let workspace_pipeline = state.create_workspace_pipeline(&workspace_id).await;
-        let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
-        spawn_injection_processing(InjectionTaskContext {
-            app_state: state.clone(),
-            pipeline: workspace_pipeline,
-            graph_storage: state.storage.graph_storage.clone(),
-            vector_storage: inj_ctx.vector_storage,
-            kv_storage: state.storage.kv_storage.clone(),
-            doc_id,
-            content: new_content,
-            workspace_id: workspace_id.clone(),
-            data_tenant_id: inj_ctx.data_tenant_id,
-            meta_key,
-            injection_id: injection_id.clone(),
-            name: new_name,
-            source_type,
-            source_filename,
-            version: new_version,
-            created_at,
-        });
+        let data_tenant_id = resolve_injection_context(&state, &workspace_id)
+            .await
+            .data_tenant_id;
+        enqueue_injection_processing(
+            &state,
+            &tenant_ctx,
+            InjectionEnqueueParams {
+                doc_id,
+                content: new_content,
+                workspace_id: workspace_id.clone(),
+                meta_key,
+                injection_id: injection_id.clone(),
+                name: new_name,
+                source_type,
+                source_filename,
+                version: new_version,
+                created_at,
+                data_tenant_id,
+            },
+        )
+        .await?;
     }
 
     Ok(Json(PutInjectionResponse {
@@ -810,29 +759,27 @@ pub async fn put_injection_file(
         "Created file injection entry"
     );
 
-    // WHY: Resolve workspace-specific storage BEFORE the spawn (SPEC-033, OODA-231.1).
-    // WHY: Use workspace-specific pipeline to match embedding dimensions (prevents
-    // silent entity_count=0 when global embedder dimension != workspace vector table dim).
-    let workspace_pipeline = state.create_workspace_pipeline(&workspace_id).await;
-    let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
-    spawn_injection_processing(InjectionTaskContext {
-        app_state: state.clone(),
-        pipeline: workspace_pipeline,
-        graph_storage: state.storage.graph_storage.clone(),
-        vector_storage: inj_ctx.vector_storage,
-        kv_storage: state.storage.kv_storage.clone(),
-        doc_id,
-        content,
-        workspace_id: workspace_id.clone(),
-        data_tenant_id: inj_ctx.data_tenant_id,
-        meta_key,
-        injection_id: injection_id.clone(),
-        name,
-        source_type: "file".to_string(),
-        source_filename: Some(filename),
-        version: 1,
-        created_at: now,
-    });
+    let data_tenant_id = resolve_injection_context(&state, &workspace_id)
+        .await
+        .data_tenant_id;
+    enqueue_injection_processing(
+        &state,
+        &tenant_ctx,
+        InjectionEnqueueParams {
+            doc_id,
+            content,
+            workspace_id: workspace_id.clone(),
+            meta_key,
+            injection_id: injection_id.clone(),
+            name,
+            source_type: "file".to_string(),
+            source_filename: Some(filename),
+            version: 1,
+            created_at: now,
+            data_tenant_id,
+        },
+    )
+    .await?;
 
     Ok((
         StatusCode::ACCEPTED,
@@ -945,62 +892,4 @@ async fn resolve_injection_context(
         vector_storage,
         data_tenant_id,
     }
-}
-
-// ============================================================================
-// Pipeline Processing (internal)
-// ============================================================================
-
-/// Process injection content through the standard pipeline with injection tagging.
-///
-/// SPEC-023 I1: delegates to `IngestionPersister` (vectors → merge → saga) and
-/// invalidates the query cache — same path as document upload.
-#[allow(clippy::too_many_arguments)]
-async fn process_injection_pipeline(
-    state: &AppState,
-    pipeline: &std::sync::Arc<edgequake_pipeline::Pipeline>,
-    graph_storage: std::sync::Arc<dyn edgequake_storage::traits::GraphStorage>,
-    vector_storage: std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>,
-    doc_id: &str,
-    content: &str,
-    workspace_id: &str,
-    tenant_id: Option<String>,
-) -> std::result::Result<(u32, Vec<String>), Box<dyn std::error::Error + Send + Sync>> {
-    use edgequake_pipeline::ChunkVectorBuildOptions;
-
-    let mut result = pipeline
-        .process(doc_id, content)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
-
-    crate::services::tag_injection_sources(&mut result, doc_id);
-
-    let relational_sink = crate::services::resolve_relational_sink(state).await;
-    let persist_out = crate::services::persist_ingestion_result(
-        state,
-        graph_storage,
-        vector_storage,
-        relational_sink,
-        crate::services::PersistIngestionParams {
-            document_id: doc_id,
-            tenant_id,
-            workspace_id: workspace_id.to_string(),
-            result: &result,
-            chunk_options: ChunkVectorBuildOptions::STANDARD,
-            source_type: Some("injection"),
-            source_file_path: Some("injection"),
-        },
-    )
-    .await
-    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
-
-    let entity_count = (persist_out.merge_stats.entities_created
-        + persist_out.merge_stats.entities_updated) as u32;
-
-    info!(
-        entity_count,
-        chunk_count = persist_out.chunk_vector_ids.len(),
-        "Injection pipeline processing complete"
-    );
-    Ok((entity_count, persist_out.chunk_vector_ids))
 }

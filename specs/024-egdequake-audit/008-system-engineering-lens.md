@@ -1,6 +1,7 @@
 # 008 — System Engineering Lens
 
-**Cross-ref:** [002 Ingestion](./002-ingestion-pipeline-audit.md) · [007 Postgres](./007-postgres-age-pgvector-lens.md) · [F-01,F-09,F-10](./README.md#cross-reference-matrix)
+**Cross-ref:** [002 Ingestion](./002-ingestion-pipeline-audit.md) · [007 Postgres](./007-postgres-age-pgvector-lens.md) · [012 Plan](./012-improvement-plan.md)  
+**Post-remediation:** SPEC-024 pass 11 (2026-06-27)
 
 ---
 
@@ -17,13 +18,13 @@
          v                   v                   v
   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
   │ TaskRuntime │    │ QueryEngine │    │  AppState   │
-  │ + WorkerPool│    │ (engine_impl)│   │ 25+ deps    │
+  │ + WorkerPool│    │ engine_impl │    │ (bootstrap) │
   └──────┬──────┘    └─────────────┘    └─────────────┘
          │
          v
   ┌─────────────┐         ┌─────────────┐
   │ PostgreSQL  │         │ LLM Provider│
-  │ tasks table │         │ Ollama/OpenAI│
+  │ tasks + docs│         │ Ollama/OpenAI│
   └─────────────┘         └─────────────┘
 ```
 
@@ -40,44 +41,27 @@
 | Circuit breaker on timeouts | `worker.rs` | Good |
 | Tenant concurrency limiter | `worker.rs` | Good — fair queuing |
 | Cooperative cancellation | `CancellationRegistry` | Good |
-| Pipeline checkpoints | `text_insert.rs` | Good — async path only |
-| Saga compensation | `compensation.rs` | Good — vector/graph only |
+| Pipeline checkpoints | `text_insert.rs` | Good — worker path |
+| Saga compensation | `compensation.rs` | Good — vector/graph |
 | PDF single-flight admission | `ingest_admission.rs` | Good |
+| Async file/batch upload | `file_upload.rs`, `batch_upload.rs` | Good — 202 + queue |
+| Injection as queued task | `TaskType::KnowledgeInjection` | Good |
+| Debounced community index | `community_index_service.rs` | Good |
+| Workspace-scoped cache bust | `QueryResultCache::invalidate_workspace` | Good |
 
 ---
 
-## Reliability Gaps
+## Reliability Gaps — Remediation Status (SPEC-024)
 
-### G1 — Split brain ingestion (F-01, P0)
+| ID | Gap | Status | Evidence |
+|----|-----|:------:|----------|
+| G1 | Split brain ingestion (F-01) | **Fixed** | Uploads → `TaskRuntime`; `e2e_spec024_async_file_upload.rs` |
+| G2 | Global cache invalidation (F-09) | **Fixed** | Workspace-scoped epoch; `contract_workspace_cache_invalidation.rs` |
+| G3 | Injection fire-and-forget | **Fixed** | `TaskType::KnowledgeInjection`; worker E2E |
+| G4 | Best-effort dual-write KPI drift | **Mitigated** | `document_read_model.rs` merge + `/health` read_model snapshot |
+| G5 | Strict workspace not enforced | **Fixed** | Production bootstrap + worker strict mode |
 
-Sync HTTP upload bypasses queue → no checkpoint, no cancel, blocks connection, different timeout semantics.
-
-**Blast radius:** Gateway timeout kills ingest mid-pipeline; client retries → duplicate work unless hash dedup catches it.
-
-### G2 — Global cache invalidation (F-09, P1)
-
-Every ingest bumps query result cache epoch globally.
-
-```text
-  ingest doc in workspace A  ──> invalidate ALL cached context_only queries
-                                      in workspaces B, C, ...
-```
-
-Under ingest load, query cache **never hits**.
-
-### G3 — Injection fire-and-forget (P1)
-
-`tokio::spawn` without task tracking — no queue visibility, no retry, no backpressure.
-
-### G4 — Best-effort dual-write (P1)
-
-KV metadata vs `documents` table — failures logged, not reconciled.
-
-Dashboard KPIs (`document_read_model.rs`) can show stale counts.
-
-### G5 — Strict workspace mode not enforced everywhere (P0)
-
-Documented silent fallback when `strict_workspace_mode=false`. Production should **hard-fail** if workspace providers missing.
+**Remaining (P2):** Sustained overload can still grow the `tasks` table — **fully monitored** (pass 11): `task_queue_pressure` labels, structured warn/error logs, Prometheus gauges, `/health` degraded when critical. Scale workers or reduce ingest rate when alerts fire.
 
 ---
 
@@ -97,55 +81,54 @@ Documented silent fallback when `strict_workspace_mode=false`. Production should
   Worker pool (fixed size)
        │
        v
-  LLM + Postgres (unbounded queue depth?)
+  LLM + Postgres
+       │
+       v
+  Queue pressure SSOT (pass 10–11): task_queue_pressure.rs
+  - EDGEQUAKE_QUEUE_PENDING_WARN / _CRITICAL
+  - /health + queue-metrics: pressure + operator_action
+  - /health status degraded when critical
+  - publish_queue_observability → Prometheus gauges + structured logs
+  - edgequake_task_queue_{pending,processing,failed}
 ```
 
-**Gap:** Task queue depth monitoring not evident in hot path code. Risk of unbounded `tasks` table growth under sustained overload.
+**Operator visibility:** `/health` → `operational.task_queue` (counts + **pressure**), `query_engine`, `observability`, `read_model`, `migration` (Postgres).
 
 ---
 
-## Failure Mode Matrix
+## Failure Mode Matrix (post Phase 1)
 
-| Failure | Worker path | Sync upload | Injection |
-|---------|:-----------:|:-----------:|:---------:|
-| LLM timeout | partial_failure | HTTP 500 | metadata failed |
-| Persist fail | retry task | orphan KV | spawn error swallowed |
-| Server crash | checkpoint resume | lost in-flight | lost in-flight |
+| Failure | Worker path | Async upload | Injection |
+|---------|:-----------:|:------------:|:---------:|
+| LLM timeout | partial_failure | task retry | task retry |
+| Persist fail | retry task | task retry | task retry |
+| Server crash | checkpoint resume | task resume | task resume |
 | Duplicate upload | hash dedup | hash dedup | N/A |
-| Cancel mid-flight | cooperative | client disconnect | no cancel |
+| Cancel mid-flight | cooperative | cooperative | cooperative |
 
 ---
 
-## Observability (code-visible only)
+## Observability (code-visible)
 
-- `tracing` crate used (not println) ✓
-- Stage metadata on documents for UI polling ✓
-- WebSocket events in processor ✓
-- `rerank_time_ms` not exposed separately at API
+| Signal | Status |
+|--------|:------:|
+| `tracing` + `EDGEQUAKE_LOG_FORMAT=json` | ✅ |
+| `rerank_time_ms` engine → query API | ✅ |
+| `rerank_time_ms` engine → chat API | ✅ (pass 9) |
+| Task queue depth in `/health` | ✅ |
+| Queue metrics endpoint | ✅ |
+| Prometheus task-queue gauges | ✅ (pass 11) |
+| Structured queue pressure logs | ✅ warn/error on elevated/critical |
+| Fusion config in `/health` | ✅ hybrid_fusion + mix_fusion |
 
-Full observability spec in 018 — not re-audited here.
-
----
-
-## Deployment & Migrations
-
-- Postgres extensions verified via `verify-postgres-extensions.sh`
-- Migration bootstrap runs support SQL for extension upgrades
-- Pre-commit warns if migration without checksum update
-
-**Ops risk:** Long-running Louvain on ingest extends task duration → worker heartbeat stress, tenant slot hogging.
+Full OTEL stack: SPEC-018 (opt-in build feature).
 
 ---
 
 ## System Engineering Verdict
 
-**Grade: B- (worker) / D (overall consistency)**
+**Grade: A (post SPEC-024 pass 11)** — was **B- / D (consistency)**
 
-Individual components (worker, postgres adapters, admission) are **production-grade**. System-level weaknesses come from **multiple ingestion paths** and **global cache invalidation** — classic integration debt after feature accretion.
+Individual components remain production-grade. Phase 1 eliminated split-brain ingestion; Phase 4 closed observability gaps. Queue depth under overload is **monitored end-to-end** (health + Prometheus + logs + degraded status). Remaining P2: **`migration_bootstrap/mod.rs` orchestration** (~565 LOC) — reconcile hooks now per-migration (`reconcile/m038..m045.rs`).
 
-**Top 3 system fixes:**
-1. Enqueue all ingests through `TaskRuntime`
-2. Workspace-scoped cache epoch
-3. Track injection as queued tasks, not spawn
-
-See [012-improvement-plan.md](./012-improvement-plan.md) Phase 1.
+**See:** [012-improvement-plan.md](./012-improvement-plan.md)

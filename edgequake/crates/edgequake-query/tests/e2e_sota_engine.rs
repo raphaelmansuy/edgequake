@@ -260,7 +260,7 @@ mod sota_config_tests {
     fn test_sota_config_default() {
         let config = QueryEngineConfig::default();
 
-        assert_eq!(config.default_mode, QueryMode::Hybrid);
+        assert_eq!(config.default_mode, QueryMode::Mix);
         assert!(config.use_keyword_extraction);
         assert!(config.use_adaptive_mode);
         assert!(config.max_entities > 0);
@@ -315,7 +315,7 @@ mod engine_impl_creation_tests {
             provider,
         );
 
-        assert_eq!(engine.config().default_mode, QueryMode::Hybrid);
+        assert_eq!(engine.config().default_mode, QueryMode::Mix);
     }
 
     #[tokio::test]
@@ -1918,7 +1918,7 @@ mod chunk_ranking_and_hybrid_tests {
         );
         assert_eq!(config.truncation.max_entity_tokens, 10000);
         assert_eq!(config.truncation.max_relation_tokens, 10000);
-        assert_eq!(config.default_mode, QueryMode::Hybrid);
+        assert_eq!(config.default_mode, QueryMode::Mix);
         assert!(config.use_keyword_extraction);
         assert!(config.use_adaptive_mode);
         assert!(config.enable_rerank);

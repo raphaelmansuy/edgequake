@@ -14,34 +14,42 @@ use super::{QueryEmbeddings, QueryEngine};
 impl QueryEngine {
     pub(super) async fn query_local(
         &self,
+        query_text: &str,
         keywords: &ExtractedKeywords,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        max_chunks: usize,
     ) -> Result<QueryContext> {
         self.query_local_with_vector_storage(
+            query_text,
             keywords,
             embeddings,
             tenant_id,
             workspace_id,
             &self.vector_storage,
+            max_chunks,
         )
         .await
     }
 
     pub(super) async fn query_global(
         &self,
+        query_text: &str,
         keywords: &ExtractedKeywords,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        max_chunks: usize,
     ) -> Result<QueryContext> {
         self.query_global_with_vector_storage(
+            query_text,
             keywords,
             embeddings,
             tenant_id,
             workspace_id,
             &self.vector_storage,
+            max_chunks,
         )
         .await
     }
@@ -53,6 +61,7 @@ impl QueryEngine {
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        max_chunks: usize,
     ) -> Result<QueryContext> {
         self.query_hybrid_with_vector_storage(
             query_text,
@@ -61,6 +70,7 @@ impl QueryEngine {
             tenant_id,
             workspace_id,
             &self.vector_storage,
+            max_chunks,
         )
         .await
     }
@@ -73,6 +83,7 @@ impl QueryEngine {
         tenant_id: Option<String>,
         workspace_id: Option<String>,
         mix_weights: Option<&MixWeightOverride>,
+        max_chunks: usize,
     ) -> Result<QueryContext> {
         self.query_mix_with_vector_storage(
             query_text,
@@ -82,6 +93,7 @@ impl QueryEngine {
             workspace_id,
             &self.vector_storage,
             mix_weights,
+            max_chunks,
         )
         .await
     }
@@ -92,6 +104,7 @@ impl QueryEngine {
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        max_chunks: usize,
     ) -> Result<QueryContext> {
         self.query_naive_with_vector_storage(
             query_text,
@@ -99,6 +112,7 @@ impl QueryEngine {
             tenant_id,
             workspace_id,
             &self.vector_storage,
+            max_chunks,
         )
         .await
     }
@@ -162,7 +176,7 @@ mod tests {
         };
 
         let ctx = engine
-            .query_naive("chunk content", &embeddings, None, None)
+            .query_naive("chunk content", &embeddings, None, None, 20)
             .await
             .expect("query_naive must not error");
 
@@ -204,7 +218,7 @@ mod tests {
         };
 
         let ctx = engine
-            .query_naive("t1 data", &embeddings, Some("t1".into()), None)
+            .query_naive("t1 data", &embeddings, Some("t1".into()), None, 20)
             .await
             .expect("query_naive must not error");
 
@@ -235,7 +249,7 @@ mod tests {
         };
 
         let default_ctx = engine
-            .query_hybrid("alpha", &keywords, &embeddings, None, None)
+            .query_hybrid("alpha", &keywords, &embeddings, None, None, 20)
             .await
             .unwrap();
         let workspace_ctx = engine
@@ -246,6 +260,7 @@ mod tests {
                 None,
                 None,
                 &(storage as Arc<dyn VectorStorage>),
+                20,
             )
             .await
             .unwrap();

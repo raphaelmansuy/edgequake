@@ -9,6 +9,30 @@
 //!   KV-only in memory/test mode.
 //! - **entity_count / relationship_count**: always AGE graph (see `stats.rs`).
 
+/// Operator-visible merge rule (SPEC-024 Phase 4.6).
+pub const MERGE_STRATEGY: &str = "max(postgresql, kv)";
+
+/// Snapshot of KV vs relational drift for dashboards (read-only, cheap).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentDriftSnapshot {
+    pub postgres_count: usize,
+    pub kv_count: usize,
+    pub merged_count: usize,
+    pub drift_detected: bool,
+}
+
+/// Detect whether KV and relational stores disagree on document count.
+#[inline]
+pub fn detect_document_drift(postgres_count: usize, kv_count: usize) -> DocumentDriftSnapshot {
+    let merged_count = merge_document_count(postgres_count, kv_count);
+    DocumentDriftSnapshot {
+        postgres_count,
+        kv_count,
+        merged_count,
+        drift_detected: postgres_count != kv_count,
+    }
+}
+
 use crate::handlers::documents_types::DocumentSummary;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -275,6 +299,21 @@ mod tests {
         assert_eq!(merge_document_count(7, 0), 7);
         assert_eq!(merge_document_count(0, 3), 3);
         assert_eq!(merge_document_count(2, 5), 5);
+    }
+
+    #[test]
+    fn detect_document_drift_flags_mismatch() {
+        let no_drift = detect_document_drift(3, 3);
+        assert!(!no_drift.drift_detected);
+        assert_eq!(no_drift.merged_count, 3);
+
+        let pg_only = detect_document_drift(5, 0);
+        assert!(pg_only.drift_detected);
+        assert_eq!(pg_only.merged_count, 5);
+
+        let kv_only = detect_document_drift(0, 2);
+        assert!(kv_only.drift_detected);
+        assert_eq!(kv_only.merged_count, 2);
     }
 
     #[test]

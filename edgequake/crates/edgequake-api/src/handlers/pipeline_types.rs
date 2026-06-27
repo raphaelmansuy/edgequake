@@ -126,6 +126,19 @@ pub struct QueueMetricsResponse {
 
     /// When these metrics were captured (ISO 8601).
     pub timestamp: String,
+
+    /// Backpressure label: `normal`, `elevated`, or `critical` (SSOT: `task_queue_pressure`).
+    pub pressure: String,
+
+    /// Warn threshold (`EDGEQUAKE_QUEUE_PENDING_WARN`, default 100).
+    pub pending_warn_threshold: u64,
+
+    /// Critical threshold (`EDGEQUAKE_QUEUE_PENDING_CRITICAL`).
+    pub pending_critical_threshold: u64,
+
+    /// Operator guidance when backlog is elevated or critical.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator_action: Option<String>,
 }
 
 // ============================================================================
@@ -199,6 +212,10 @@ mod tests {
             estimated_queue_time_seconds: 312.0,
             rate_limited: false,
             timestamp: "2025-01-28T10:30:00Z".to_string(),
+            pressure: "normal".to_string(),
+            pending_warn_threshold: 100,
+            pending_critical_threshold: 500,
+            operator_action: None,
         };
 
         let json = serde_json::to_string(&response).unwrap();
