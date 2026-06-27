@@ -176,6 +176,7 @@ fn detail_from_meta(val: &serde_json::Value) -> InjectionDetailResponse {
 
 /// All context needed to run an injection pipeline task and record its result.
 struct InjectionTaskContext {
+    app_state: AppState,
     pipeline: std::sync::Arc<edgequake_pipeline::Pipeline>,
     graph_storage: std::sync::Arc<dyn edgequake_storage::traits::GraphStorage>,
     vector_storage: std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>,
@@ -202,6 +203,7 @@ struct InjectionTaskContext {
 fn spawn_injection_processing(ctx: InjectionTaskContext) {
     tokio::spawn(async move {
         match process_injection_pipeline(
+            &ctx.app_state,
             &ctx.pipeline,
             ctx.graph_storage,
             ctx.vector_storage,
@@ -337,6 +339,7 @@ pub async fn put_injection(
     let workspace_pipeline = state.create_workspace_pipeline(&workspace_id).await;
     let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
     spawn_injection_processing(InjectionTaskContext {
+        app_state: state.clone(),
         pipeline: workspace_pipeline,
         graph_storage: state.storage.graph_storage.clone(),
         vector_storage: inj_ctx.vector_storage,
@@ -633,6 +636,7 @@ pub async fn update_injection(
         let workspace_pipeline = state.create_workspace_pipeline(&workspace_id).await;
         let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
         spawn_injection_processing(InjectionTaskContext {
+            app_state: state.clone(),
             pipeline: workspace_pipeline,
             graph_storage: state.storage.graph_storage.clone(),
             vector_storage: inj_ctx.vector_storage,
@@ -812,6 +816,7 @@ pub async fn put_injection_file(
     let workspace_pipeline = state.create_workspace_pipeline(&workspace_id).await;
     let inj_ctx = resolve_injection_context(&state, &workspace_id).await;
     spawn_injection_processing(InjectionTaskContext {
+        app_state: state.clone(),
         pipeline: workspace_pipeline,
         graph_storage: state.storage.graph_storage.clone(),
         vector_storage: inj_ctx.vector_storage,
@@ -948,9 +953,11 @@ async fn resolve_injection_context(
 
 /// Process injection content through the standard pipeline with injection tagging.
 ///
-/// Uses `Pipeline::process()` to chunk + extract entities, then merges into graph
-/// with source_type=injection metadata so citations can be filtered.
+/// SPEC-023 I1: delegates to `IngestionPersister` (vectors → merge → saga) and
+/// invalidates the query cache — same path as document upload.
+#[allow(clippy::too_many_arguments)]
 async fn process_injection_pipeline(
+    state: &AppState,
     pipeline: &std::sync::Arc<edgequake_pipeline::Pipeline>,
     graph_storage: std::sync::Arc<dyn edgequake_storage::traits::GraphStorage>,
     vector_storage: std::sync::Arc<dyn edgequake_storage::traits::VectorStorage>,
@@ -959,71 +966,41 @@ async fn process_injection_pipeline(
     workspace_id: &str,
     tenant_id: Option<String>,
 ) -> std::result::Result<(u32, Vec<String>), Box<dyn std::error::Error + Send + Sync>> {
-    use edgequake_pipeline::{KnowledgeGraphMerger, MergerConfig};
+    use edgequake_pipeline::ChunkVectorBuildOptions;
 
-    // Process through standard pipeline
-    let result = pipeline.process(doc_id, content).await?;
+    let mut result = pipeline
+        .process(doc_id, content)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
 
-    let merger_config = MergerConfig::default();
-    let merger = KnowledgeGraphMerger::new(merger_config, graph_storage, vector_storage.clone())
-        .with_tenant_context(tenant_id.clone(), Some(workspace_id.to_string()));
+    crate::services::tag_injection_sources(&mut result, doc_id);
 
-    // Tag and merge entities with injection source tracking
-    let mut tagged_extractions = Vec::new();
-    for extraction in &result.extractions {
-        let mut tagged = extraction.clone();
-        for entity in &mut tagged.entities {
-            entity.source_document_id = Some(doc_id.to_string());
-            entity.source_file_path = Some("injection".to_string());
-            if entity.source_chunk_ids.is_empty() {
-                entity.source_chunk_ids = vec![format!("{}-chunk-0", doc_id)];
-            }
-        }
-        for rel in &mut tagged.relationships {
-            rel.source_document_id = Some(doc_id.to_string());
-            rel.source_file_path = Some("injection".to_string());
-            if rel.source_chunk_id.is_none() {
-                rel.source_chunk_id = Some(format!("{}-chunk-0", doc_id));
-            }
-        }
-        tagged_extractions.push(tagged);
-    }
+    let relational_sink = crate::services::resolve_relational_sink(state).await;
+    let persist_out = crate::services::persist_ingestion_result(
+        state,
+        graph_storage,
+        vector_storage,
+        relational_sink,
+        crate::services::PersistIngestionParams {
+            document_id: doc_id,
+            tenant_id,
+            workspace_id: workspace_id.to_string(),
+            result: &result,
+            chunk_options: ChunkVectorBuildOptions::STANDARD,
+            source_type: Some("injection"),
+            source_file_path: Some("injection"),
+        },
+    )
+    .await
+    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
 
-    let merge_stats = merger.merge(tagged_extractions).await?;
-    let entity_count = (merge_stats.entities_created + merge_stats.entities_updated) as u32;
-
-    // Store chunk embeddings in vector storage with injection metadata
-    let mut stored_chunk_ids = Vec::new();
-    for chunk in &result.chunks {
-        if let Some(ref embedding) = chunk.embedding {
-            let chunk_id = chunk.id.clone();
-            let metadata = serde_json::json!({
-                "type": "chunk",
-                "source": "injection",
-                "source_type": "injection",
-                "source_document_id": doc_id,
-                "source_file_path": "injection",
-                "content": chunk.content.chars().take(500).collect::<String>(),
-                "workspace_id": workspace_id,
-                // WHY: tenant_id is required by MetadataFilter SQL (AND semantics); omitting it
-                // causes zero results when querying workspace-specific vector storage (OODA-231.1).
-                "tenant_id": tenant_id.as_deref().unwrap_or(""),
-            });
-            if let Err(e) = vector_storage
-                .upsert(&[(chunk_id.clone(), embedding.clone(), metadata)])
-                .await
-            {
-                warn!(error = %e, "Failed to store injection chunk embedding");
-            } else {
-                stored_chunk_ids.push(chunk_id);
-            }
-        }
-    }
+    let entity_count = (persist_out.merge_stats.entities_created
+        + persist_out.merge_stats.entities_updated) as u32;
 
     info!(
         entity_count,
-        chunk_count = stored_chunk_ids.len(),
+        chunk_count = persist_out.chunk_vector_ids.len(),
         "Injection pipeline processing complete"
     );
-    Ok((entity_count, stored_chunk_ids))
+    Ok((entity_count, persist_out.chunk_vector_ids))
 }

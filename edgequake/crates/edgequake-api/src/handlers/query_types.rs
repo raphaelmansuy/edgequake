@@ -54,6 +54,31 @@ pub struct ConversationMessage {
     pub content: String,
 }
 
+/// Per-request Mix mode weight overrides (SPEC-022 P-H6).
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+pub struct MixWeightRequest {
+    #[serde(default)]
+    pub local: Option<f32>,
+    #[serde(default)]
+    pub global: Option<f32>,
+    #[serde(default)]
+    pub naive: Option<f32>,
+}
+
+impl MixWeightRequest {
+    pub(crate) fn to_engine_override(&self) -> edgequake_query::MixWeightOverride {
+        edgequake_query::MixWeightOverride {
+            local: self.local,
+            global: self.global,
+            naive: self.naive,
+        }
+    }
+
+    pub(crate) fn is_set(&self) -> bool {
+        self.local.is_some() || self.global.is_some() || self.naive.is_some()
+    }
+}
+
 /// Query request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct QueryRequest {
@@ -121,6 +146,11 @@ pub struct QueryRequest {
     /// @implements SPEC-005: Document date and pattern filters
     #[serde(default)]
     pub document_filter: Option<DocumentFilter>,
+
+    /// Per-request Mix mode weight overrides (SPEC-022 P-H6).
+    /// Example: `{"local": 0, "global": 0, "naive": 1}` for naive-only blend.
+    #[serde(default)]
+    pub mix_weights: Option<MixWeightRequest>,
 
     /// Optional HTTP headers to propagate to the upstream LLM provider call.
     ///

@@ -51,15 +51,20 @@
 //! - [`crate::keywords`] for keyword extraction
 //! - [`crate::truncation`] for token budgeting
 
+pub mod bootstrap;
 pub mod cache;
+pub mod community_global;
 pub mod context;
 pub mod context_filter;
 pub mod engine;
 pub mod engine_impl;
 pub mod error;
+pub mod fusion;
 pub mod helpers;
 pub mod keywords;
+pub mod mix_weights;
 pub mod modes;
+pub mod sparse_retrieval;
 pub mod tokenizer;
 pub mod truncation;
 pub mod types;
@@ -69,6 +74,8 @@ pub use context::{QueryContext, RetrievedContext};
 pub use engine::{ConversationMessage, QueryRequest, QueryResponse, QueryStats};
 pub use error::{QueryError, Result};
 // Re-export keywords module types
+pub use bootstrap::{build_production_query_engine, create_production_reranker};
+pub use cache::{QueryResultCache, QueryResultCacheInvalidator};
 pub use engine_impl::{QueryEmbeddings, QueryEngine, QueryEngineConfig};
 #[cfg(feature = "postgres")]
 pub use keywords::PostgresKeywordCache;
@@ -76,12 +83,12 @@ pub use keywords::{
     CachedKeywordExtractor, ExtractedKeywords, InMemoryKeywordCache, KeywordCache,
     KeywordExtractor, Keywords, LLMKeywordExtractor, MockKeywordExtractor, QueryIntent,
 };
+pub use mix_weights::MixWeightOverride;
 pub use modes::QueryMode;
 pub use tokenizer::{MockTokenizer, SimpleTokenizer, Tokenizer};
 pub use truncation::{
     balance_context, truncate_chunks, truncate_entities, truncate_relationships, TruncationConfig,
 };
-pub use cache::{QueryResultCache, QueryResultCacheInvalidator};
 
 // Re-export EmbeddingProvider and LLMProvider for workspace-specific query execution
 pub use edgequake_llm::traits::EmbeddingProvider;

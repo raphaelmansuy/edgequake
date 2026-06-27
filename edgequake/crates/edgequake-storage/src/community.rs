@@ -533,7 +533,6 @@ fn calculate_modularity(
 mod tests {
     use super::*;
     use crate::adapters::memory::MemoryGraphStorage;
-    use crate::traits::GraphStorageMutateOps;
 
     fn test_graph() -> Arc<dyn GraphStorage> {
         Arc::new(MemoryGraphStorage::new("test"))

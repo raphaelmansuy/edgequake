@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use edgequake_llm::MockProvider;
-use edgequake_query::{QueryMode, QueryRequest, QueryEngineConfig, QueryEngine};
+use edgequake_query::{QueryEngine, QueryEngineConfig, QueryMode, QueryRequest};
 use edgequake_storage::adapters::memory::{MemoryGraphStorage, MemoryVectorStorage};
 use futures::StreamExt;
 

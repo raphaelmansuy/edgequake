@@ -720,28 +720,26 @@ impl DocumentTaskProcessor {
         // SPEC-021 P-G2: single persist path — chunk vectors + KnowledgeGraphMerger
         // (replaces manual upsert_nodes_batch / entity-vector / upsert_edges_batch).
         let mut storage_errors: Vec<String> = Vec::new();
-        let persist_ctx = IngestionPersistContext::new(
-            document_id.clone(),
-            tenant_id.clone(),
-            Some(workspace_id_meta.clone()),
-        );
 
-        let persister = DefaultIngestionPersister::from_settings(
+        let chunk_embeddings_stored = match crate::services::persist_with_providers(
+            self.llm_provider.clone(),
+            self.query_cache_invalidator
+                .as_ref()
+                .map(|e| e.as_ref() as &dyn edgequake_query::QueryResultCacheInvalidator),
             self.graph_storage.clone(),
             workspace_vector_storage.clone(),
-            IngestionPersistSettings::default(),
             self.relational_sink.clone(),
-            Some(self.llm_provider.clone()),
-        );
-
-        let chunk_embeddings_stored = match persister
-            .persist(&persist_ctx, &result, ChunkVectorBuildOptions::STANDARD)
-            .await
+            crate::services::PersistIngestionParams::for_document(
+                &document_id,
+                tenant_id.clone(),
+                workspace_id_meta.clone(),
+                &result,
+                ChunkVectorBuildOptions::STANDARD,
+            ),
+        )
+        .await
         {
             Ok(out) => {
-                if let Some(invalidator) = &self.query_cache_invalidator {
-                    invalidator.invalidate_query_result_cache();
-                }
                 info!(
                     document_id = %document_id,
                     chunk_vectors = out.chunk_vector_ids.len(),

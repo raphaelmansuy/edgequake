@@ -480,10 +480,8 @@ pub async fn list_documents(
         pending: documents
             .iter()
             .filter(|d| {
-                matches!(
-                    d.status.as_deref(),
-                    Some("pending" | "queued")
-                ) || d.current_stage.as_deref() == Some("queued")
+                matches!(d.status.as_deref(), Some("pending" | "queued"))
+                    || d.current_stage.as_deref() == Some("queued")
             })
             .count(),
         processing: documents

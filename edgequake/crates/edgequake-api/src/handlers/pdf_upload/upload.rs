@@ -500,8 +500,10 @@ async fn process_pdf_upload_parts(
             )
             .await?;
 
-            let effective_track_id =
-                options.track_id.clone().unwrap_or_else(|| enqueue.track_id.clone());
+            let effective_track_id = options
+                .track_id
+                .clone()
+                .unwrap_or_else(|| enqueue.track_id.clone());
             state
                 .tasks
                 .pipeline_state
@@ -658,7 +660,10 @@ async fn process_pdf_upload_parts(
     .await
     .map_err(|e| ApiError::Internal(format!("Failed to provision queued document: {e}")))?;
 
-    let effective_track_id = options.track_id.clone().unwrap_or_else(|| enqueue.track_id.clone());
+    let effective_track_id = options
+        .track_id
+        .clone()
+        .unwrap_or_else(|| enqueue.track_id.clone());
     state
         .tasks
         .pipeline_state

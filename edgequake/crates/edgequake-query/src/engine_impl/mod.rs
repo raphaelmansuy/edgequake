@@ -141,6 +141,15 @@ pub struct QueryEngineConfig {
     pub mix_local_weight: f32,
     pub mix_global_weight: f32,
     pub mix_naive_weight: f32,
+
+    /// Enable BM25 sparse retrieval fused with vector ANN (SPEC-023 I10, default on).
+    pub enable_bm25_retrieval: bool,
+
+    /// Expand global mode with co-community entities (SPEC-023 I6, default on).
+    pub enable_community_global: bool,
+
+    /// Vector candidate pool multiplier for BM25 fusion in naive mode.
+    pub bm25_candidate_multiplier: usize,
 }
 
 impl Default for QueryEngineConfig {
@@ -190,6 +199,17 @@ impl Default for QueryEngineConfig {
             mix_local_weight: 1.0,
             mix_global_weight: 1.0,
             mix_naive_weight: 1.0,
+            enable_bm25_retrieval: std::env::var("EDGEQUAKE_BM25_RETRIEVAL")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "false" | "0" | "off"))
+                .unwrap_or(true),
+            enable_community_global: std::env::var("EDGEQUAKE_COMMUNITY_GLOBAL")
+                .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "false" | "0" | "off"))
+                .unwrap_or(true),
+            bm25_candidate_multiplier: std::env::var("EDGEQUAKE_BM25_CANDIDATE_MULTIPLIER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5)
+                .clamp(2, 20),
         }
     }
 }
@@ -413,14 +433,8 @@ impl QueryEngine {
         self.with_result_cache_config(1_000, std::time::Duration::from_secs(300))
     }
 
-    pub fn with_result_cache_config(
-        mut self,
-        max_size: usize,
-        ttl: std::time::Duration,
-    ) -> Self {
-        self.result_cache = Some(Arc::new(crate::cache::QueryResultCache::new(
-            max_size, ttl,
-        )));
+    pub fn with_result_cache_config(mut self, max_size: usize, ttl: std::time::Duration) -> Self {
+        self.result_cache = Some(Arc::new(crate::cache::QueryResultCache::new(max_size, ttl)));
         self
     }
 

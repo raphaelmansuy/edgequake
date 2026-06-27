@@ -318,6 +318,28 @@ pub trait VectorStorage: Send + Sync {
         let _ = metadata_filter;
         self.query(query_embedding, top_k, filter_ids).await
     }
+
+    /// Whether this backend exposes PostgreSQL native FTS (`ts_rank_cd`) for sparse retrieval.
+    ///
+    /// Memory and other adapters return `false`; callers fall back to in-memory BM25 reranking.
+    fn supports_native_text_search(&self) -> bool {
+        false
+    }
+
+    /// Full-text search over chunk content with the same metadata filters as [`Self::query_filtered`].
+    ///
+    /// PostgreSQL adapters rank with `ts_rank_cd` (BM25-like) over a GIN-indexed `content_tsv`
+    /// column. Default: empty vec (not supported).
+    async fn text_search_filtered(
+        &self,
+        query_text: &str,
+        top_k: usize,
+        filter_ids: Option<&[String]>,
+        metadata_filter: Option<&MetadataFilter>,
+    ) -> Result<Vec<VectorSearchResult>> {
+        let _ = (query_text, top_k, filter_ids, metadata_filter);
+        Ok(Vec::new())
+    }
 }
 
 #[cfg(test)]

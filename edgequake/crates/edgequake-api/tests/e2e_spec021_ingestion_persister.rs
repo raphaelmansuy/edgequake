@@ -19,8 +19,7 @@ async fn spec021_worker_upload_produces_chunks_and_graph_on_success() {
 
     assert!(!doc_id.is_empty());
 
-    let (_status, detail) =
-        common::get_endpoint(app, &format!("/api/v1/documents/{doc_id}")).await;
+    let (_status, detail) = common::get_endpoint(app, &format!("/api/v1/documents/{doc_id}")).await;
     let chunk_count = detail["chunk_count"].as_u64().unwrap_or(0);
     assert!(
         chunk_count >= 1,
@@ -32,8 +31,8 @@ async fn spec021_worker_upload_produces_chunks_and_graph_on_success() {
         "seeded mock extraction must yield completed status, not partial_failure"
     );
 
-    use edgequake_storage::EntityId;
     use edgequake_storage::traits::GraphStorageReadOps;
+    use edgequake_storage::EntityId;
     let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
     assert!(
         workers

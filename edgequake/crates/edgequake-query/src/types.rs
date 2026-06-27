@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::context::QueryContext;
+use crate::mix_weights::MixWeightOverride;
 use crate::modes::QueryMode;
 
 /// A query request — the caller-facing contract for asking the engine a
@@ -89,6 +90,11 @@ pub struct QueryRequest {
     /// @implements FEAT0240: Image attachment in chat
     #[serde(default)]
     pub images: Option<Vec<edgequake_llm::traits::ImageData>>,
+
+    /// Per-request Mix mode weight overrides (SPEC-022 P-H6).
+    /// Unset fields inherit from `QueryEngineConfig` defaults (1.0 each).
+    #[serde(default)]
+    pub mix_weights: Option<MixWeightOverride>,
 }
 
 /// A single message in conversation history.
@@ -119,6 +125,7 @@ impl QueryRequest {
             system_prompt: None,
             allowed_document_ids: None,
             images: None,
+            mix_weights: None,
         }
     }
 

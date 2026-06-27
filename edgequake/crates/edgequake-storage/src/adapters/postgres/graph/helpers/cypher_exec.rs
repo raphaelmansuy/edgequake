@@ -1,4 +1,4 @@
-//! Cypher execution helpers (SPEC-017 P1-12).
+//! Cypher execution helpers (SPEC-017 P1-12, SPEC-022 P-H7 parameterized Cypher).
 
 use sqlx::Row;
 
@@ -7,6 +7,79 @@ use crate::error::{Result, StorageError};
 use super::super::PostgresAGEGraphStorage;
 
 impl PostgresAGEGraphStorage {
+    /// Build the outer SQL for a parameterized Cypher call (AGE prepared-statement pattern).
+    fn cypher_bound_sql(graph_name: &str, cypher: &str, columns: &[&str], execute: bool) -> String {
+        let tag = Self::dollar_quote_tag(cypher);
+        if execute {
+            return format!(
+                "{} SELECT * FROM cypher('{}', {} {} {}, $1::agtype) AS (a agtype);",
+                Self::age_session_setup_sql(),
+                graph_name,
+                tag,
+                cypher,
+                tag
+            );
+        }
+        let as_clause = columns
+            .iter()
+            .map(|c| format!("{} agtype", c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_clause = columns
+            .iter()
+            .map(|c| format!("agtype_to_json({}) as {}", c, c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "SELECT {} FROM cypher('{}', {} {} {}, $1::agtype) AS ({})",
+            select_clause, graph_name, tag, cypher, tag, as_clause
+        )
+    }
+
+    /// Run read Cypher with bound agtype parameters (no string interpolation of user values).
+    pub(in crate::adapters::postgres::graph) async fn cypher_query_bound(
+        &self,
+        cypher: &str,
+        columns: &[&str],
+        params: &serde_json::Value,
+    ) -> Result<Vec<sqlx::postgres::PgRow>> {
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        Self::setup_age_session(&mut conn).await?;
+
+        let sql = Self::cypher_bound_sql(&self.graph_name, cypher, columns, false);
+        let rows = sqlx::query(&sql)
+            .bind(params)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Parameterized Cypher query failed: {}", e))
+            })?;
+
+        Ok(rows)
+    }
+
+    /// Run write Cypher with bound agtype parameters.
+    pub(in crate::adapters::postgres::graph) async fn cypher_execute_bound(
+        &self,
+        cypher: &str,
+        params: &serde_json::Value,
+    ) -> Result<()> {
+        let pool = self.pool.get().await?;
+        let sql = Self::cypher_bound_sql(&self.graph_name, cypher, &[], true);
+        sqlx::query(&sql)
+            .bind(params)
+            .execute(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Parameterized Cypher execute failed: {}", e))
+            })?;
+        Ok(())
+    }
+
     pub(in crate::adapters::postgres::graph) async fn cypher_query(
         &self,
         cypher: &str,

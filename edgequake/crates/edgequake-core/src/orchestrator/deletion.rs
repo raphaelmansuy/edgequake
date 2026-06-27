@@ -139,7 +139,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?;
 
-        let chunk_prefix = kv_keys::doc_chunk_prefix(&document_id);
+        let chunk_prefix = kv_keys::doc_chunk_prefix(document_id);
         let keys = kv_storage.keys().await?;
         let chunk_ids: Vec<String> = keys
             .iter()
@@ -211,7 +211,7 @@ impl EdgeQuake {
                 refresh_entity_vector_metadata(
                     vector_storage.as_ref(),
                     &node.id,
-                    &document_id,
+                    document_id,
                     &chunk_prefix,
                     &remaining,
                 )
@@ -259,8 +259,8 @@ impl EdgeQuake {
         }
 
         let mut keys_to_delete = chunk_ids;
-        let metadata_key = kv_keys::doc_metadata(&document_id);
-        let content_key = kv_keys::doc_content(&document_id);
+        let metadata_key = kv_keys::doc_metadata(document_id);
+        let content_key = kv_keys::doc_content(document_id);
         if keys.contains(&metadata_key) {
             keys_to_delete.push(metadata_key);
         }
@@ -310,7 +310,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?;
 
-        let chunk_prefix = kv_keys::doc_chunk_prefix(&document_id);
+        let chunk_prefix = kv_keys::doc_chunk_prefix(document_id);
         let keys = kv_storage.keys().await?;
         result.chunks_deleted = keys.iter().filter(|k| k.starts_with(&chunk_prefix)).count();
 

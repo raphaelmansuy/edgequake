@@ -16,12 +16,7 @@ pub struct PdfAdmissionRegistry {
 
 impl PdfAdmissionRegistry {
     /// Register `track_id` for `(workspace_id, pdf_id)` or return an existing holder.
-    pub fn try_register(
-        &self,
-        workspace_id: Uuid,
-        pdf_id: Uuid,
-        track_id: &str,
-    ) -> Option<String> {
+    pub fn try_register(&self, workspace_id: Uuid, pdf_id: Uuid, track_id: &str) -> Option<String> {
         let mut map = self.slots.lock().expect("pdf admission registry lock");
         let key = (workspace_id, pdf_id);
         if let Some(existing) = map.get(&key) {

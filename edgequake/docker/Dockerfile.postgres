@@ -1,44 +1,70 @@
-# PostgreSQL with pgvector and Apache AGE extensions
+# EdgeQuake PostgreSQL — pgvector + Apache AGE + contrib FTS extensions
+#
+# SSOT extension pins (update here + migration_bootstrap on major bumps):
+#   PostgreSQL 16 (bookworm)
+#   pgvector     v0.8.3  — https://github.com/pgvector/pgvector/releases
+#   Apache AGE   1.6.0   — tag PG16/v1.6.0-rc0 (official PG16 release)
+#   contrib      pg_trgm, btree_gin, uuid-ossp (postgresql-contrib-16)
+
 FROM postgres:16-bookworm
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
+ARG PGVECTOR_VERSION=v0.8.3
+ARG AGE_GIT_REF=PG16/v1.6.0-rc0
+
+LABEL org.edgequake.postgres.version="16-bookworm" \
+      org.edgequake.pgvector.version="0.8.3" \
+      org.edgequake.age.version="1.6.0" \
+      org.edgequake.extensions="vector,age,pg_trgm,btree_gin,uuid-ossp"
+
+# Build pgvector + AGE; keep runtime contrib packages for FTS/trigram indexes.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     postgresql-server-dev-16 \
+    postgresql-contrib-16 \
+    ca-certificates \
     curl \
     git \
     flex \
     bison \
     && rm -rf /var/lib/apt/lists/*
 
-# Build and install pgvector
-# OPTFLAGS="" disables SIMD/SVE optimizations that cause SIGILL on Docker Desktop VMs
-# (Docker Desktop on macOS does not expose SVE to containers even on Apple Silicon)
-RUN cd /tmp && \
-    git clone --branch v0.7.4 https://github.com/pgvector/pgvector.git && \
-    cd pgvector && \
-    make OPTFLAGS="" && \
-    make install && \
+# pgvector — OPTFLAGS="" avoids SIGILL on Docker Desktop VMs without SVE
+RUN set -eux; \
+    cd /tmp; \
+    git clone --depth 1 --branch "${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git; \
+    cd pgvector; \
+    make OPTFLAGS=""; \
+    make install; \
     rm -rf /tmp/pgvector
 
-# Build and install Apache AGE
-RUN cd /tmp && \
-    git clone --branch PG16/v1.6.0-rc0 https://github.com/apache/age.git && \
-    cd age && \
-    make && \
-    make install && \
+# Apache AGE (graph extension)
+RUN set -eux; \
+    cd /tmp; \
+    git clone --depth 1 --branch "${AGE_GIT_REF}" https://github.com/apache/age.git; \
+    cd age; \
+    make; \
+    make install; \
     rm -rf /tmp/age
 
-# Clean up build dependencies
-RUN apt-get remove -y \
+# Drop build toolchain only — keep postgresql-contrib-16 at runtime.
+RUN apt-get purge -y --auto-remove \
     build-essential \
     postgresql-server-dev-16 \
     git \
-    && apt-get autoremove -y \
+    curl \
+    flex \
+    bison \
     && rm -rf /var/lib/apt/lists/*
 
-# Expose standard PostgreSQL port
-EXPOSE 5432
+# Fail the image build if extensions are missing or wrong version.
+RUN set -eux; \
+    test -f /usr/share/postgresql/16/extension/vector.control; \
+    test -f /usr/share/postgresql/16/extension/age.control; \
+    test -f /usr/share/postgresql/16/extension/pg_trgm.control; \
+    test -f /usr/share/postgresql/16/extension/btree_gin.control; \
+    test -f /usr/share/postgresql/16/extension/uuid-ossp.control; \
+    grep -q "default_version = '0.8.3'" /usr/share/postgresql/16/extension/vector.control; \
+    grep -q "default_version = '1.6.0'" /usr/share/postgresql/16/extension/age.control
 
-# Run PostgreSQL
+EXPOSE 5432
 CMD ["postgres"]

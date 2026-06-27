@@ -148,7 +148,10 @@ pub(super) async fn create_pdf_processing_task(
     let track_id = format!("pdf-{}", Uuid::new_v4());
 
     if let Some(existing_track_id) =
-        state.tasks.pdf_admission.try_register(workspace_id, pdf_id, &track_id)
+        state
+            .tasks
+            .pdf_admission
+            .try_register(workspace_id, pdf_id, &track_id)
     {
         return Ok(PdfProcessingEnqueueResult {
             track_id: existing_track_id,

@@ -269,6 +269,10 @@ impl AppState {
                 Install Apache AGE extension for full functionality.",
                 e
             );
+        } else {
+            edgequake_storage::spawn_community_backfill_if_needed(
+                Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>
+            );
         }
 
         tracing::info!("PostgreSQL storage backends initialized successfully");

@@ -47,7 +47,7 @@ impl DocumentTaskProcessor {
         status: &str,
         error_message: Option<&str>,
     ) -> TaskResult<()> {
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&document_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(document_id);
 
         // SPEC-002: Map legacy status names to unified stage names
         let unified_stage = match status {
@@ -159,7 +159,7 @@ impl DocumentTaskProcessor {
         pdf_id: Option<&str>,
         track_id: Option<&str>,
     ) -> TaskResult<()> {
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&document_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(document_id);
 
         // Get existing metadata or create new
         let existing = self
@@ -296,7 +296,7 @@ impl DocumentTaskProcessor {
         status: &str,
         stats: &edgequake_pipeline::pipeline::ProcessingStats,
     ) -> TaskResult<()> {
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&document_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(document_id);
 
         // Get existing metadata
         if let Ok(Some(existing)) = self.kv_storage.get_by_id(&metadata_key).await {

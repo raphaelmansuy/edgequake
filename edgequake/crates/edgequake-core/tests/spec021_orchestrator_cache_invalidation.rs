@@ -9,10 +9,20 @@ use edgequake_llm::MockProvider;
 use edgequake_query::engine::QueryRequest;
 use edgequake_query::{QueryEngine, QueryEngineConfig, QueryMode};
 use edgequake_storage::{
-    MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage,
+    GraphStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage,
 };
 
 const EXTRACTION_JSON: &str = edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON;
+
+fn memory_config(namespace: &str) -> EdgeQuakeConfig {
+    EdgeQuakeConfig::new()
+        .with_namespace(namespace)
+        .with_gleaning(false, 0)
+        .with_storage(StorageConfig {
+            backend: StorageBackend::Memory,
+            ..Default::default()
+        })
+}
 
 #[tokio::test]
 async fn spec021_orchestrator_insert_invalidates_query_result_cache() {
@@ -31,7 +41,7 @@ async fn spec021_orchestrator_insert_invalidates_query_result_cache() {
         QueryEngine::with_mock_keywords(
             QueryEngineConfig::default(),
             Arc::clone(&vector) as Arc<dyn VectorStorage>,
-            Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&graph) as Arc<dyn GraphStorage>,
             Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
             Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::LLMProvider>,
         )
@@ -39,25 +49,17 @@ async fn spec021_orchestrator_insert_invalidates_query_result_cache() {
     );
     let cache = engine.result_cache().expect("result cache");
 
-    let mut config = EdgeQuakeConfig::default();
-    config.enable_gleaning = false;
-
-    let mut eq = EdgeQuake::new(config);
-    eq.set_storage_backends(
-        Arc::clone(&kv),
-        Arc::clone(&vector),
-        Arc::clone(&graph),
-    );
-    eq = eq
+    let mut eq = EdgeQuake::new(memory_config("cache-inv"))
+        .with_storage_backends(
+            Arc::clone(&kv) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            Arc::clone(&vector) as Arc<dyn VectorStorage>,
+            Arc::clone(&graph) as Arc<dyn GraphStorage>,
+        )
         .with_providers(
             Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::LLMProvider>,
             Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
         )
-        .with_query_engine(Arc::clone(&engine))
-        .with_storage_config(StorageConfig {
-            backend: StorageBackend::Memory,
-            ..Default::default()
-        });
+        .with_query_engine(Arc::clone(&engine));
     eq.initialize().await.expect("init");
 
     let mut req = QueryRequest::new("orchestrator cache bust sarah");
@@ -103,30 +105,24 @@ async fn spec021_orchestrator_default_engine_invalidates_cache_on_insert() {
     vector.initialize().await.unwrap();
     graph.initialize().await.unwrap();
 
-    let mut config = EdgeQuakeConfig::default();
-    config.enable_gleaning = false;
-
-    let mut eq = EdgeQuake::new(config);
-    eq.set_storage_backends(
-        Arc::clone(&kv),
-        Arc::clone(&vector),
-        Arc::clone(&graph),
-    );
-    eq = eq
+    let mut eq = EdgeQuake::new(memory_config("cache-default"))
+        .with_storage_backends(
+            Arc::clone(&kv) as Arc<dyn edgequake_storage::traits::KVStorage>,
+            Arc::clone(&vector) as Arc<dyn VectorStorage>,
+            Arc::clone(&graph) as Arc<dyn GraphStorage>,
+        )
         .with_providers(
             Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::LLMProvider>,
             Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
-        )
-        .with_storage_config(StorageConfig {
-            backend: StorageBackend::Memory,
-            ..Default::default()
-        });
+        );
     eq.initialize().await.expect("init");
 
     let engine = eq
         .query_engine()
         .expect("default initialize must wire query engine");
-    let cache = engine.result_cache().expect("default engine has result cache");
+    let cache = engine
+        .result_cache()
+        .expect("default engine has result cache");
 
     let mut req = QueryRequest::new("default engine cache bust");
     req.context_only = true;

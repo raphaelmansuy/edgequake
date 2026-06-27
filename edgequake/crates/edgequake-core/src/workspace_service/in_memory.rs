@@ -66,7 +66,13 @@ impl InMemoryWorkspaceService {
             self.tenants.write().await.insert(tenant_id, tenant);
         }
 
-        if self.get_workspace(workspace_id).await.ok().flatten().is_none() {
+        if self
+            .get_workspace(workspace_id)
+            .await
+            .ok()
+            .flatten()
+            .is_none()
+        {
             let now = chrono::Utc::now();
             let ws = Workspace {
                 workspace_id,

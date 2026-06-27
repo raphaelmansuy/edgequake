@@ -91,11 +91,8 @@ use crate::pipeline_progress_callback::PipelineProgressCallback;
 use crate::state::SharedWorkspaceService;
 use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::{
-    ChunkProgressCallback, ChunkProgressUpdate, ChunkVectorBuildOptions,
-    EmbedProgressCallback, EmbedProgressUpdate, IngestionPersistContext,
-    DefaultIngestionPersister, IngestionPersistSettings, IngestionPersister, NoopEntitySink,
-    Pipeline,
-    RelationalEntitySink,
+    ChunkProgressCallback, ChunkProgressUpdate, ChunkVectorBuildOptions, EmbedProgressCallback,
+    EmbedProgressUpdate, NoopEntitySink, Pipeline, RelationalEntitySink,
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{
@@ -323,10 +320,7 @@ impl DocumentTaskProcessor {
     }
 
     /// P-G14: Persist task identity updates during PDF ingestion.
-    pub fn with_task_storage(
-        mut self,
-        task_storage: edgequake_tasks::SharedTaskStorage,
-    ) -> Self {
+    pub fn with_task_storage(mut self, task_storage: edgequake_tasks::SharedTaskStorage) -> Self {
         self.task_storage = Some(task_storage);
         self
     }

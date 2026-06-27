@@ -119,6 +119,7 @@ pub async fn compensate_orphan_graph_writes(
 
 /// Full merge-stage compensation: chunk vectors, new-entity vectors, new-edge
 /// vectors, and newly created graph nodes/edges (P-G5 SSOT).
+#[allow(clippy::too_many_arguments)] // saga rollback mirrors merge stage arity
 pub async fn compensate_merge_failure(
     graph_storage: &dyn GraphStorage,
     vector_storage: &dyn VectorStorage,
@@ -140,10 +141,12 @@ pub async fn compensate_merge_failure(
     .await;
 
     if !relationship_vector_ids.is_empty() {
-        compensate_orphan_vectors(vector_storage, doc_id, &[], relationship_vector_ids, cause).await;
+        compensate_orphan_vectors(vector_storage, doc_id, &[], relationship_vector_ids, cause)
+            .await;
     }
 
-    compensate_orphan_graph_writes(graph_storage, doc_id, nodes_created, edges_created, cause).await;
+    compensate_orphan_graph_writes(graph_storage, doc_id, nodes_created, edges_created, cause)
+        .await;
 }
 
 #[cfg(test)]
@@ -181,10 +184,7 @@ mod tests {
         graph
             .upsert_node(
                 "NEW_NODE",
-                std::collections::HashMap::from([(
-                    "label".to_string(),
-                    serde_json::json!("New"),
-                )]),
+                std::collections::HashMap::from([("label".to_string(), serde_json::json!("New"))]),
             )
             .await
             .unwrap();

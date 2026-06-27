@@ -7,6 +7,7 @@
 use crate::context::QueryContext;
 use crate::error::Result;
 use crate::keywords::ExtractedKeywords;
+use crate::mix_weights::MixWeightOverride;
 
 use super::{QueryEmbeddings, QueryEngine};
 
@@ -47,12 +48,14 @@ impl QueryEngine {
 
     pub(super) async fn query_hybrid(
         &self,
+        query_text: &str,
         keywords: &ExtractedKeywords,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
     ) -> Result<QueryContext> {
         self.query_hybrid_with_vector_storage(
+            query_text,
             keywords,
             embeddings,
             tenant_id,
@@ -64,28 +67,34 @@ impl QueryEngine {
 
     pub(super) async fn query_mix(
         &self,
+        query_text: &str,
         keywords: &ExtractedKeywords,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        mix_weights: Option<&MixWeightOverride>,
     ) -> Result<QueryContext> {
         self.query_mix_with_vector_storage(
+            query_text,
             keywords,
             embeddings,
             tenant_id,
             workspace_id,
             &self.vector_storage,
+            mix_weights,
         )
         .await
     }
 
     pub(super) async fn query_naive(
         &self,
+        query_text: &str,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
     ) -> Result<QueryContext> {
         self.query_naive_with_vector_storage(
+            query_text,
             embeddings,
             tenant_id,
             workspace_id,
@@ -153,7 +162,7 @@ mod tests {
         };
 
         let ctx = engine
-            .query_naive(&embeddings, None, None)
+            .query_naive("chunk content", &embeddings, None, None)
             .await
             .expect("query_naive must not error");
 
@@ -195,7 +204,7 @@ mod tests {
         };
 
         let ctx = engine
-            .query_naive(&embeddings, Some("t1".into()), None)
+            .query_naive("t1 data", &embeddings, Some("t1".into()), None)
             .await
             .expect("query_naive must not error");
 
@@ -226,11 +235,12 @@ mod tests {
         };
 
         let default_ctx = engine
-            .query_hybrid(&keywords, &embeddings, None, None)
+            .query_hybrid("alpha", &keywords, &embeddings, None, None)
             .await
             .unwrap();
         let workspace_ctx = engine
             .query_hybrid_with_vector_storage(
+                "alpha",
                 &keywords,
                 &embeddings,
                 None,

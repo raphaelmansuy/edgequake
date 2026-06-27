@@ -8,11 +8,14 @@ use uuid::Uuid;
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
+use crate::services::{
+    build_chunk_kv_records, persist_ingestion_result, resolve_relational_sink,
+    PersistIngestionParams,
+};
 use crate::state::AppState;
 
 use crate::file_validation::validate_file;
-#[allow(unused_imports)]
-use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
+use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_strict;
 use crate::handlers::documents_types::*;
 use axum_extra::extract::Multipart;
 
@@ -41,7 +44,6 @@ pub async fn upload_files_batch(
     let mut duplicates = 0usize;
     let mut failed = 0usize;
 
-    // Collect all files first
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
 
     while let Some(field) = multipart
@@ -68,8 +70,18 @@ pub async fn upload_files_batch(
     }
 
     let workspace_id = tenant_ctx.workspace_id_or_default();
+    let tenant_id = tenant_ctx.tenant_id.clone();
+
     for (filename, content) in files {
-        let result = process_single_file(&state, &filename, &content, &workspace_id).await;
+        let result = process_single_file(
+            &state,
+            &tenant_ctx,
+            &filename,
+            &content,
+            &workspace_id,
+            tenant_id.clone(),
+        )
+        .await;
 
         match result {
             Ok((doc_id, is_duplicate)) => {
@@ -116,26 +128,18 @@ pub async fn upload_files_batch(
 }
 
 /// Process a single file and return (document_id, is_duplicate).
-///
-/// WHY-OODA81: workspace_id parameter enables workspace-scoped duplicate detection.
-/// Same document in different workspaces is allowed (multi-tenancy support).
-///
-/// Note: Uses default vector storage for batch uploads without tenant context.
-/// For workspace-specific storage, use the main upload_file endpoint with tenant context.
 async fn process_single_file(
     state: &AppState,
+    _tenant_ctx: &TenantContext,
     filename: &str,
     content: &[u8],
     workspace_id: &str,
+    tenant_id: Option<String>,
 ) -> Result<(String, bool), ApiError> {
-    // Validate file (size, extension, UTF-8, non-empty)
     let (_extension, text_content, _mime_type) =
         validate_file(filename, content, state.config.max_document_size)?;
 
-    // WHY-OODA83: Use ContentHasher service for consistent hash computation (DRY)
     let content_hash = ContentHasher::hash_bytes(content);
-
-    // WHY-OODA81+83: Use ContentHasher for workspace-scoped hash key
     let hash_key = ContentHasher::workspace_hash_key(workspace_id, &content_hash);
     if let Some(existing) = state.storage.kv_storage.get_by_id(&hash_key).await? {
         if let Some(doc_id) = existing.as_str() {
@@ -143,20 +147,16 @@ async fn process_single_file(
         }
     }
 
-    // Generate document ID
     let document_id = Uuid::new_v4().to_string();
 
-    // Store hash mapping
     state
         .storage
         .kv_storage
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
 
-    // Process through pipeline (resilient - tolerates partial chunk failures)
-    let result = state
-        .query
-        .pipeline
+    let workspace_pipeline = state.create_workspace_pipeline(workspace_id).await;
+    let result = workspace_pipeline
         .process_with_resilience(&document_id, &text_content, None)
         .await?;
 
@@ -170,45 +170,27 @@ async fn process_single_file(
         );
     }
 
-    // Store chunks
-    let chunks: Vec<(String, serde_json::Value)> = result
-        .chunks
-        .iter()
-        .map(|c| {
-            (
-                c.id.clone(),
-                serde_json::json!({
-                    "content": c.content,
-                    "document_id": document_id,
-                    "index": c.index,
-                    "source_file": filename,
-                }),
-            )
-        })
-        .collect();
-
+    let chunks = build_chunk_kv_records(&document_id, filename, &result);
     state.storage.kv_storage.upsert(&chunks).await?;
 
-    // Store chunk embeddings in vector storage for semantic search
-    // Note: Batch upload uses default vector storage since there's no workspace context.
-    // For workspace-specific storage, use the main upload_file endpoint with tenant context.
-    for chunk in &result.chunks {
-        if let Some(embedding) = &chunk.embedding {
-            let metadata = serde_json::json!({
-                "type": "chunk",
-                "document_id": document_id,
-                "index": chunk.index,
-                "content": chunk.content,
-                "source_file": filename,
-            });
+    let workspace_vector_storage = get_workspace_vector_storage_strict(state, workspace_id).await?;
+    let relational_sink = resolve_relational_sink(state).await;
 
-            let _ = state
-                .storage
-                .vector_storage
-                .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
-                .await;
-        }
-    }
+    persist_ingestion_result(
+        state,
+        state.storage.graph_storage.clone(),
+        workspace_vector_storage,
+        relational_sink,
+        PersistIngestionParams::for_document(
+            &document_id,
+            tenant_id,
+            workspace_id.to_string(),
+            &result,
+            edgequake_pipeline::ChunkVectorBuildOptions::STANDARD,
+        ),
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Batch upload persist failed: {}", e)))?;
 
     Ok((document_id, false))
 }
