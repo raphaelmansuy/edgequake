@@ -93,11 +93,13 @@ impl PgWorkspaceVectorRegistry {
         .with_vector_index(VectorIndexType::HNSW);
 
         // Create storage with workspace-specific dimension on the shared pool
+        let default_chunk_kv = base_config.qualified_kv_table();
         let storage = PgVectorStorage::with_pool_and_dimension(
             shared_pool.clone(),
             pg_config,
             config.dimension,
-        );
+        )
+        .with_chunk_kv_table(default_chunk_kv);
 
         // OODA-228: Ensure table has correct dimension BEFORE initialize
         // WHY: If embedding provider changed (e.g., OpenAI 1536 → Ollama 768),

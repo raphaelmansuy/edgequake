@@ -22,7 +22,7 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 
-use super::config::PostgresConfig;
+use super::config::{qualified_kv_table_name, PostgresConfig};
 use super::connection::PostgresPool;
 use super::row_count_stats::{self, RowCountStatsConfig};
 use crate::error::{Result, StorageError};
@@ -56,7 +56,7 @@ impl PostgresKVStorage {
     /// Create KV storage using a shared connection pool (SPEC-011).
     pub fn with_pool(pool: PostgresPool, config: PostgresConfig) -> Self {
         let prefix = config.table_prefix();
-        let table_name = format!("public.eq_{}_kv", prefix);
+        let table_name = qualified_kv_table_name(&prefix);
         let stats_table_name = format!("public.eq_{}_kv_stats", prefix);
         let namespace = config.namespace.clone();
 

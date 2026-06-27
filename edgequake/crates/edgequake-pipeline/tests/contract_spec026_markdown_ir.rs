@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use edgequake_pipeline::{
-    extract_markdown_blocks, format_breadcrumb, format_section_context,
-    truncate_section_context, Chunker, ChunkerConfig, ChunkingStrategy, MarkdownChunking,
-    SectionMetadata, text_with_section_context,
-};
 use edgequake_pipeline::prompts::{json_extraction_prompt, EntityExtractionSchema};
+use edgequake_pipeline::{
+    extract_markdown_blocks, format_breadcrumb, format_section_context, text_with_section_context,
+    truncate_section_context, Chunker, ChunkerConfig, ChunkingStrategy, MarkdownChunking,
+    SectionMetadata,
+};
 
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(format!(
@@ -21,7 +21,10 @@ fn fixture(name: &str) -> String {
 fn markdown_ir_builds_heading_stack() {
     let md = "# Install\n\nBody one.\n\n## Prerequisites\n\nBody two.";
     let blocks = extract_markdown_blocks(md);
-    let prereq = blocks.iter().find(|b| b.heading == "Prerequisites").unwrap();
+    let prereq = blocks
+        .iter()
+        .find(|b| b.heading == "Prerequisites")
+        .unwrap();
     assert_eq!(prereq.parent_headings, vec!["Install"]);
 }
 
@@ -55,13 +58,11 @@ async fn markdown_chunk_carries_section_metadata() {
     };
     let chunker = Chunker::with_strategy(config, Arc::new(MarkdownChunking));
     let chunks = chunker.chunk_async(&md, "doc").await.unwrap();
-    let advanced = chunks
-        .iter()
-        .find(|c| {
-            c.section.as_ref().is_some_and(|s| {
-                s.heading_path.iter().any(|h| h == "Advanced")
-            })
-        });
+    let advanced = chunks.iter().find(|c| {
+        c.section
+            .as_ref()
+            .is_some_and(|s| s.heading_path.iter().any(|h| h == "Advanced"))
+    });
     assert!(
         advanced.is_some(),
         "expected Advanced section chunk, got paths: {:?}",

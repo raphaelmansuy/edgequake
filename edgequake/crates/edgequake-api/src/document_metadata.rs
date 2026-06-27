@@ -31,6 +31,41 @@ pub fn is_active_processing_status(status: &str) -> bool {
     )
 }
 
+/// Prefer the fresher of two metadata snapshots when KV returns duplicates
+/// (e.g. staging + legacy final shell during in-flight ingestion).
+pub fn should_prefer_incoming_document_metadata(
+    existing_updated_at: Option<&str>,
+    existing_status: Option<&str>,
+    existing_stage: Option<&str>,
+    incoming_updated_at: Option<&str>,
+    incoming_status: Option<&str>,
+    incoming_stage: Option<&str>,
+) -> bool {
+    fn parse_ts(value: Option<&str>) -> Option<i64> {
+        value.and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.timestamp())
+    }
+
+    fn is_stale_upload_shell(status: Option<&str>, stage: Option<&str>) -> bool {
+        status.map(str::to_lowercase).as_deref() == Some("pending")
+            && stage.map(str::to_lowercase).as_deref() == Some("uploading")
+    }
+
+    let existing_ts = parse_ts(existing_updated_at).unwrap_or(0);
+    let incoming_ts = parse_ts(incoming_updated_at).unwrap_or(0);
+    if incoming_ts != existing_ts {
+        return incoming_ts > existing_ts;
+    }
+
+    let existing_stale = is_stale_upload_shell(existing_status, existing_stage);
+    let incoming_stale = is_stale_upload_shell(incoming_status, incoming_stage);
+    if existing_stale != incoming_stale {
+        return !incoming_stale;
+    }
+
+    true
+}
+
 /// Heuristic for legacy rows that stored informational notices in `error_message`.
 pub fn is_informational_notice(message: &str) -> bool {
     let lower = message.to_lowercase();
@@ -139,5 +174,25 @@ mod tests {
             normalize_notice_fields(Some("chunking"), None, Some("Using EdgeParse".into()));
         assert!(err.is_none());
         assert_eq!(warn.as_deref(), Some("Using EdgeParse"));
+    }
+
+    #[test]
+    fn prefers_fresher_metadata_over_stale_upload_shell() {
+        assert!(should_prefer_incoming_document_metadata(
+            Some("2026-06-27T10:00:00+00:00"),
+            Some("pending"),
+            Some("uploading"),
+            Some("2026-06-27T10:00:01+00:00"),
+            Some("chunking"),
+            Some("chunking"),
+        ));
+        assert!(!should_prefer_incoming_document_metadata(
+            Some("2026-06-27T10:00:01+00:00"),
+            Some("chunking"),
+            Some("chunking"),
+            Some("2026-06-27T10:00:00+00:00"),
+            Some("pending"),
+            Some("uploading"),
+        ));
     }
 }

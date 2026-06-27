@@ -39,6 +39,7 @@ mod pdf_list_query;
 mod pdf_storage_impl;
 pub mod rls;
 mod row_count_stats;
+mod schema;
 mod vector;
 mod workspace_vector;
 

@@ -30,13 +30,13 @@ pub fn extract_markdown_blocks(content: &str) -> Vec<MarkdownBlock> {
     let mut block_start: usize = 0;
     let mut byte_offset: usize = 0;
 
-    let mut flush = |blocks: &mut Vec<MarkdownBlock>,
-                     cur_lines: &mut Vec<String>,
-                     cur_heading: &str,
-                     cur_level: u8,
-                     cur_parents: &[String],
-                     block_start: usize,
-                     byte_offset: usize| {
+    let flush = |blocks: &mut Vec<MarkdownBlock>,
+                 cur_lines: &mut Vec<String>,
+                 cur_heading: &str,
+                 cur_level: u8,
+                 cur_parents: &[String],
+                 block_start: usize,
+                 byte_offset: usize| {
         if cur_lines.is_empty() {
             return;
         }
@@ -118,10 +118,7 @@ pub fn extract_markdown_blocks(content: &str) -> Vec<MarkdownBlock> {
 }
 
 fn clean_heading(raw: &str) -> String {
-    raw.trim()
-        .trim_end_matches(|c: char| c == '#')
-        .trim()
-        .to_string()
+    raw.trim().trim_end_matches('#').trim().to_string()
 }
 
 #[cfg(test)]
@@ -133,7 +130,10 @@ mod tests {
         let md = "# Install\n\nBody one.\n\n## Prerequisites\n\nBody two.";
         let blocks = extract_markdown_blocks(md);
         assert!(blocks.len() >= 2);
-        let prereq = blocks.iter().find(|b| b.heading == "Prerequisites").unwrap();
+        let prereq = blocks
+            .iter()
+            .find(|b| b.heading == "Prerequisites")
+            .unwrap();
         assert_eq!(prereq.parent_headings, vec!["Install"]);
         assert_eq!(prereq.level, 2);
     }

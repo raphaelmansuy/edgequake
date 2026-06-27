@@ -298,7 +298,20 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
-                doc_metadata.insert(id.to_string(), meta);
+                if let Some(existing) = doc_metadata.get(id) {
+                    if crate::document_metadata::should_prefer_incoming_document_metadata(
+                        existing.updated_at.as_deref(),
+                        existing.status.as_deref(),
+                        existing.current_stage.as_deref(),
+                        meta.updated_at.as_deref(),
+                        meta.status.as_deref(),
+                        meta.current_stage.as_deref(),
+                    ) {
+                        doc_metadata.insert(id.to_string(), meta);
+                    }
+                } else {
+                    doc_metadata.insert(id.to_string(), meta);
+                }
             }
         }
     }

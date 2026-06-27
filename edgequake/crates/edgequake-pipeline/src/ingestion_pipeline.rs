@@ -55,7 +55,7 @@ pub fn build_chunker_config(
     chunk_options: Option<&ChunkOptions>,
 ) -> ChunkerConfig {
     let mut chunk_size = calculate_adaptive_chunk_size(document_size_bytes);
-    let mut chunk_overlap = adaptive_chunk_overlap(chunk_size);
+    let chunk_overlap = adaptive_chunk_overlap(chunk_size);
 
     // Recursive/markdown use LightRAG nominal 1200 when doc is small (adaptive still caps large docs).
     if strategy != ChunkStrategy::Fixed && document_size_bytes <= 50_000 {
@@ -187,10 +187,7 @@ mod tests {
             separators: Vec::new(),
         };
         let cfg = build_chunker_config(text.len(), ChunkStrategy::Recursive, Some(&opts));
-        let chunks = RecursiveCharacterChunking
-            .chunk(text, &cfg)
-            .await
-            .unwrap();
+        let chunks = RecursiveCharacterChunking.chunk(text, &cfg).await.unwrap();
         assert!(
             chunks.len() >= 3,
             "expected >=3 chunks with token_size=15, got {}",

@@ -697,6 +697,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_update_document_status_staging_metadata() {
+        let pipeline = create_test_pipeline();
+        let (kv, vector, vector_registry, graph) = create_test_storages();
+        let pipeline_state = PipelineState::new();
+
+        let doc_id = "test-doc-staging-status";
+        let staging_key = edgequake_storage::kv_keys::staging_doc_metadata(doc_id);
+        kv.upsert(&[(
+            staging_key.clone(),
+            json!({
+                "id": doc_id,
+                "status": "pending",
+                "current_stage": "uploading",
+            }),
+        )])
+        .await
+        .unwrap();
+
+        let processor = DocumentTaskProcessor::new(
+            pipeline,
+            create_test_llm_provider(),
+            kv.clone(),
+            vector,
+            vector_registry,
+            graph,
+            pipeline_state,
+        );
+
+        processor
+            .update_document_status(doc_id, "chunking", None)
+            .await
+            .unwrap();
+
+        let metadata = kv.get_by_id(&staging_key).await.unwrap().unwrap();
+        assert_eq!(metadata["status"], "chunking");
+        assert_eq!(metadata["current_stage"], "chunking");
+    }
+
+    #[tokio::test]
     async fn test_update_document_status_nonexistent_doc() {
         let pipeline = create_test_pipeline();
         let (kv, vector, vector_registry, graph) = create_test_storages();

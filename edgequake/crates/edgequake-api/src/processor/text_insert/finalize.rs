@@ -41,13 +41,9 @@ impl DocumentTaskProcessor {
                     .map(String::from)
             }),
         ) {
-            if let Err(e) = crate::services::promote_staging_to_final(
-                &self.kv_storage,
-                &document_id,
-                &ws,
-                hash,
-            )
-            .await
+            if let Err(e) =
+                crate::services::promote_staging_to_final(&self.kv_storage, &document_id, &ws, hash)
+                    .await
             {
                 warn!(
                     document_id = %document_id,
@@ -208,10 +204,11 @@ impl DocumentTaskProcessor {
             .and_then(|m| m.get("chunk_strategy"))
             .and_then(|v| v.as_str())
             .or(result.stats.chunking_strategy.as_deref());
-        let section_context_used = result
-            .chunks
-            .iter()
-            .any(|c| c.section.as_ref().is_some_and(|s| !s.heading_path.is_empty()));
+        let section_context_used = result.chunks.iter().any(|c| {
+            c.section
+                .as_ref()
+                .is_some_and(|s| !s.heading_path.is_empty())
+        });
         edgequake_observability::record_document_processing_with_labels(
             "text_insert",
             "pipeline",

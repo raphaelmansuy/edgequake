@@ -57,10 +57,8 @@ pub async fn upload_document(
         .clone()
         .unwrap_or_else(|| "Untitled".to_string());
 
-    let (chunk_strategy, chunk_options) = parse_upload_chunk_fields(
-        request.chunk_strategy.as_deref(),
-        request.chunk_options,
-    );
+    let (chunk_strategy, chunk_options) =
+        parse_upload_chunk_fields(request.chunk_strategy.as_deref(), request.chunk_options);
 
     let outcome = admit_document_for_processing(
         &state,

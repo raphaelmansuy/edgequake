@@ -2,6 +2,7 @@
 
 use super::super::config::VectorIndexType;
 use super::super::row_count_stats::{self, RowCountStatsConfig};
+use super::super::schema;
 use super::PgVectorStorage;
 use crate::error::{Result, StorageError};
 
@@ -125,30 +126,7 @@ impl PgVectorStorage {
             Err(_) => return Ok(false),
         };
 
-        let (schema, table) = if self.table_name.contains('.') {
-            let parts: Vec<&str> = self.table_name.split('.').collect();
-            (parts[0], parts[1])
-        } else {
-            ("public", self.table_name.as_str())
-        };
-
-        let sql = r#"
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_schema = $1 AND table_name = $2
-            )
-        "#;
-
-        let exists: (bool,) = sqlx::query_as(sql)
-            .bind(schema)
-            .bind(table)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to check table existence: {}", e))
-            })?;
-
-        Ok(exists.0)
+        schema::relation_exists(&pool, &self.table_name).await
     }
 
     /// Add GIN-backed `content_tsv` for native Postgres FTS on chunk content (SPEC-023 I10).

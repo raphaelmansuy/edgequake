@@ -91,11 +91,7 @@ impl RecursiveCharacterChunking {
             if text.is_empty() {
                 return Vec::new();
             }
-            return vec![(
-                text.to_string(),
-                base_offset,
-                base_offset + text.len(),
-            )];
+            return vec![(text.to_string(), base_offset, base_offset + text.len())];
         }
 
         let mut positions = Vec::new();
@@ -120,10 +116,7 @@ impl RecursiveCharacterChunking {
         }
 
         for (index, &sep_start) in positions.iter().enumerate() {
-            let end = positions
-                .get(index + 1)
-                .copied()
-                .unwrap_or(text.len());
+            let end = positions.get(index + 1).copied().unwrap_or(text.len());
             if end > sep_start {
                 let start = floor_char_boundary(text, sep_start);
                 let end = floor_char_boundary(text, end);
@@ -157,7 +150,7 @@ impl RecursiveCharacterChunking {
                 }
             }
             chars.push_str(fragment);
-            char_offsets.extend((*start..*end).map(|i| i));
+            char_offsets.extend(*start..*end);
         }
 
         let (left, right) = if strip_whitespace {
@@ -180,8 +173,7 @@ impl RecursiveCharacterChunking {
 
         let text: String = chars.chars().skip(left).take(right - left).collect();
         let start = char_offsets[left];
-        let end = char_offsets[right - 1]
-            + text.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
+        let end = char_offsets[right - 1] + text.chars().last().map(|c| c.len_utf8()).unwrap_or(1);
         Some((text, start, end))
     }
 
@@ -211,7 +203,11 @@ impl RecursiveCharacterChunking {
             let split_len = recursive_token_len(&split.0);
             let with_sep = total
                 + split_len
-                + if current_doc.is_empty() { 0 } else { separator_len };
+                + if current_doc.is_empty() {
+                    0
+                } else {
+                    separator_len
+                };
 
             if with_sep > chunk_size {
                 if total > chunk_size {
@@ -228,7 +224,8 @@ impl RecursiveCharacterChunking {
                         docs.push(doc);
                     }
                     while total > chunk_overlap
-                        || (total + split_len
+                        || (total
+                            + split_len
                             + if current_doc.is_empty() {
                                 0
                             } else {
@@ -379,7 +376,8 @@ impl ChunkingStrategy for RecursiveCharacterChunking {
         let chunk_size = config.chunk_size.max(1);
         let chunk_overlap = config.chunk_overlap;
 
-        let pieces = Self::split_text_with_spans(content, 0, &separators, chunk_size, chunk_overlap);
+        let pieces =
+            Self::split_text_with_spans(content, 0, &separators, chunk_size, chunk_overlap);
 
         Ok(pieces
             .into_iter()
@@ -410,12 +408,10 @@ mod tests {
     fn default_separators_match_lightrag() {
         assert_eq!(
             default_recursive_separators(),
-            vec![
-                "\n\n", "\n", "。", "！", "？", "；", "，", " ", ""
-            ]
-            .into_iter()
-            .map(String::from)
-            .collect::<Vec<_>>()
+            vec!["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>()
         );
     }
 
@@ -429,7 +425,10 @@ mod tests {
             separators: default_recursive_separators(),
             ..Default::default()
         };
-        let chunks = RecursiveCharacterChunking.chunk(text, &config).await.unwrap();
+        let chunks = RecursiveCharacterChunking
+            .chunk(text, &config)
+            .await
+            .unwrap();
         assert!(chunks.len() >= 2);
     }
 
@@ -451,10 +450,7 @@ mod tests {
             .chunk(&text, &config)
             .await
             .unwrap();
-        let starts: Vec<_> = chunks
-            .iter()
-            .filter_map(|c| c.start_offset)
-            .collect();
+        let starts: Vec<_> = chunks.iter().filter_map(|c| c.start_offset).collect();
         assert_eq!(
             chunks.len(),
             3,
@@ -477,13 +473,7 @@ mod tests {
         ))
         .unwrap();
         let splits = RecursiveCharacterChunking::split_literal_with_spans(text.as_str(), "\n\n", 0);
-        let merged = RecursiveCharacterChunking::merge_splits_with_spans(
-            &splits,
-            "",
-            15,
-            0,
-            true,
-        );
+        let merged = RecursiveCharacterChunking::merge_splits_with_spans(&splits, "", 15, 0, true);
         assert_eq!(
             merged.len(),
             3,

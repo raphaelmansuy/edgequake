@@ -75,8 +75,17 @@ mod tests {
         assert!(!chunks.is_empty());
         let setup = chunks
             .iter()
-            .find(|c| c.section.as_ref().is_some_and(|s| s.heading_path.contains(&"Setup".to_string())))
+            .find(|c| {
+                c.section
+                    .as_ref()
+                    .is_some_and(|s| s.heading_path.contains(&"Setup".to_string()))
+            })
             .expect("setup section chunk");
-        assert!(setup.section.as_ref().unwrap().heading_path.contains(&"Guide".to_string()));
+        assert!(setup
+            .section
+            .as_ref()
+            .unwrap()
+            .heading_path
+            .contains(&"Guide".to_string()));
     }
 }

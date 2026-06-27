@@ -83,7 +83,8 @@ impl Pipeline {
                     "Reducing chunk_size to fit embedding model context (2x safety margin)"
                 );
                 self.config.chunker.chunk_size = max_safe;
-                self.chunker = resolve_chunker(self.config.chunk_strategy, self.config.chunker.clone());
+                self.chunker =
+                    resolve_chunker(self.config.chunk_strategy, self.config.chunker.clone());
             }
         }
         self.embedding_provider = Some(provider);

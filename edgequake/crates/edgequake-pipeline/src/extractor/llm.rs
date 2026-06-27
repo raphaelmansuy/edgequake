@@ -83,7 +83,8 @@ where
 {
     /// Build the extraction prompt.
     fn build_prompt(&self, chunk: &TextChunk) -> String {
-        let text = crate::prompts::text_with_section_context(&chunk.content, chunk.section.as_ref());
+        let text =
+            crate::prompts::text_with_section_context(&chunk.content, chunk.section.as_ref());
         crate::prompts::json_extraction_prompt(&text, &self.entity_schema)
     }
 
