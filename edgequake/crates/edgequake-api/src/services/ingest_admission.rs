@@ -13,9 +13,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use edgequake_storage::traits::KVStorage;
-use edgequake_tasks::{
-    PdfProcessingData, SharedTaskStorage, Task,
-};
+use edgequake_tasks::{PdfProcessingData, SharedTaskStorage, Task};
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -45,7 +43,8 @@ pub async fn resolve_pdf_ingest_document_id(
 
     let pdf_id_str = pdf_id.to_string();
     if let Some(doc_id) =
-        find_kv_document_id_for_pdf(state.storage.kv_storage.as_ref(), &pdf_id_str, tenant_ctx).await
+        find_kv_document_id_for_pdf(state.storage.kv_storage.as_ref(), &pdf_id_str, tenant_ctx)
+            .await
     {
         return doc_id;
     }
@@ -75,7 +74,8 @@ pub async fn resolve_worker_pdf_document_id(
 
     let pdf_id_str = pdf_id.to_string();
     if let Some(tenant_ctx) = tenant_ctx {
-        if let Some(doc_id) = find_kv_document_id_for_pdf(kv_storage.as_ref(), &pdf_id_str, tenant_ctx).await
+        if let Some(doc_id) =
+            find_kv_document_id_for_pdf(kv_storage.as_ref(), &pdf_id_str, tenant_ctx).await
         {
             persist_pdf_task_document_id(task, &doc_id, task_storage).await?;
             return Ok(doc_id);
@@ -216,9 +216,7 @@ pub async fn provision_queued_pdf_document_shell(
         "updated_at": Utc::now().to_rfc3339(),
     });
 
-    kv_storage
-        .upsert(&[(metadata_key, metadata)])
-        .await
+    kv_storage.upsert(&[(metadata_key, metadata)]).await
 }
 
 #[cfg(test)]

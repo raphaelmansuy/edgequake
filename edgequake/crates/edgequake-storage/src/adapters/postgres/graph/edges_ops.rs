@@ -8,15 +8,9 @@ use crate::traits::GraphEdge;
 
 impl PostgresAGEGraphStorage {
     pub(super) async fn pg_has_edge(&self, source: &str, target: &str) -> Result<bool> {
-        let escaped_source = Self::escape_cypher_string(source);
-        let escaped_target = Self::escape_cypher_string(target);
-
-        let cypher = format!(
-            "MATCH (a:Node {{node_id: '{}'}})-[r:EDGE]->(b:Node {{node_id: '{}'}}) RETURN r LIMIT 1",
-            escaped_source, escaped_target
-        );
-
-        let rows = self.cypher_query(&cypher, &["r"]).await?;
+        let cypher = "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) RETURN r LIMIT 1";
+        let params = serde_json::json!({ "source_id": source, "target_id": target });
+        let rows = self.cypher_query_bound(cypher, &["r"], &params).await?;
         Ok(!rows.is_empty())
     }
 
@@ -25,15 +19,10 @@ impl PostgresAGEGraphStorage {
         source: &str,
         target: &str,
     ) -> Result<Option<GraphEdge>> {
-        let escaped_source = Self::escape_cypher_string(source);
-        let escaped_target = Self::escape_cypher_string(target);
-
-        let cypher = format!(
-            "MATCH (a:Node {{node_id: '{}'}})-[r:EDGE]->(b:Node {{node_id: '{}'}}) RETURN r",
-            escaped_source, escaped_target
-        );
-
-        let rows = self.cypher_query(&cypher, &["r"]).await?;
+        let cypher =
+            "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) RETURN r";
+        let params = serde_json::json!({ "source_id": source, "target_id": target });
+        let rows = self.cypher_query_bound(cypher, &["r"], &params).await?;
 
         if rows.is_empty() {
             return Ok(None);
@@ -164,15 +153,10 @@ impl PostgresAGEGraphStorage {
     }
 
     pub(super) async fn pg_delete_edge(&self, source: &str, target: &str) -> Result<()> {
-        let escaped_source = Self::escape_cypher_string(source);
-        let escaped_target = Self::escape_cypher_string(target);
-
-        let cypher = format!(
-            "MATCH (a:Node {{node_id: '{}'}})-[r:EDGE]->(b:Node {{node_id: '{}'}}) DELETE r",
-            escaped_source, escaped_target
-        );
-
-        self.cypher_execute(&cypher).await
+        let cypher =
+            "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) DELETE r";
+        let params = serde_json::json!({ "source_id": source, "target_id": target });
+        self.cypher_execute_bound(cypher, &params).await
     }
 
     pub(super) async fn pg_get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {

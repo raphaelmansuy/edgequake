@@ -285,6 +285,7 @@ pub async fn storage_repair(
     State(state): State<AppState>,
     Json(request): Json<StorageRepairRequest>,
 ) -> Result<Json<StorageRepairResponse>, ApiError> {
+    #[cfg(feature = "postgres")]
     use crate::storage_inspector::RepairTier;
 
     #[cfg(feature = "postgres")]

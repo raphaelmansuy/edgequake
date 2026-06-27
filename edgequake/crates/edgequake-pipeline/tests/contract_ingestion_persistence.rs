@@ -58,11 +58,12 @@ async fn contract_double_persist_merges_to_single_normalized_entity() {
         graph.get_node(&node_id).await.unwrap().is_some(),
         "normalized graph node must exist"
     );
-    let nodes = graph
-        .get_nodes_by_ids(&[node_id.clone()])
-        .await
-        .unwrap();
-    assert_eq!(nodes.len(), 1, "duplicate persist must not fork graph nodes");
+    let nodes = graph.get_nodes_by_ids(&[node_id.clone()]).await.unwrap();
+    assert_eq!(
+        nodes.len(),
+        1,
+        "duplicate persist must not fork graph nodes"
+    );
 
     let chunk_vectors = vector
         .query(&vec![0.0_f32; EMBED_DIM], 100, None)
@@ -72,7 +73,10 @@ async fn contract_double_persist_merges_to_single_normalized_entity() {
         .iter()
         .filter(|r| r.metadata.get("type").and_then(|v| v.as_str()) == Some("chunk"))
         .count();
-    assert_eq!(chunk_count, 1, "chunk vectors should not duplicate on re-persist");
+    assert_eq!(
+        chunk_count, 1,
+        "chunk vectors should not duplicate on re-persist"
+    );
 }
 
 #[test]
@@ -82,8 +86,7 @@ fn contract_persist_config_parity_across_callers() {
     };
     let sink: Arc<dyn edgequake_pipeline::RelationalEntitySink> = Arc::new(NoopEntitySink);
 
-    let orchestrator_style =
-        IngestionPersistConfig::from_settings(settings, sink.clone(), None);
+    let orchestrator_style = IngestionPersistConfig::from_settings(settings, sink.clone(), None);
     let processor_style = IngestionPersistConfig::from_settings(settings, sink, None);
 
     assert_eq!(
@@ -94,8 +97,14 @@ fn contract_persist_config_parity_across_callers() {
         orchestrator_style.merger_config.max_description_length,
         MergerConfig::default().max_description_length
     );
-    assert_eq!(ChunkVectorBuildOptions::STANDARD.include_lineage_metadata, true);
-    assert_eq!(ChunkVectorBuildOptions::default(), ChunkVectorBuildOptions::STANDARD);
+    assert_eq!(
+        ChunkVectorBuildOptions::STANDARD.include_lineage_metadata,
+        true
+    );
+    assert_eq!(
+        ChunkVectorBuildOptions::default(),
+        ChunkVectorBuildOptions::STANDARD
+    );
 }
 
 #[tokio::test]
@@ -116,25 +125,19 @@ async fn contract_cross_document_entity_merge() {
     doc_a.document_id = "doc-a".to_string();
     doc_a.chunks[0].id = "doc-a-chunk-0".to_string();
     doc_a.extractions[0].source_chunk_id = "doc-a-chunk-0".to_string();
-    doc_a.extractions[0].entities[0] = edgequake_pipeline::ExtractedEntity::new(
-        "Sarah Chen",
-        "PERSON",
-        "Engineer",
-    )
-    .with_source_chunk_id("doc-a-chunk-0")
-    .with_importance(0.9);
+    doc_a.extractions[0].entities[0] =
+        edgequake_pipeline::ExtractedEntity::new("Sarah Chen", "PERSON", "Engineer")
+            .with_source_chunk_id("doc-a-chunk-0")
+            .with_importance(0.9);
 
     let mut doc_b = sample_processing_result();
     doc_b.document_id = "doc-b".to_string();
     doc_b.chunks[0].id = "doc-b-chunk-0".to_string();
     doc_b.extractions[0].source_chunk_id = "doc-b-chunk-0".to_string();
-    doc_b.extractions[0].entities[0] = edgequake_pipeline::ExtractedEntity::new(
-        "Sarah Chen",
-        "PERSON",
-        "Engineer",
-    )
-    .with_source_chunk_id("doc-b-chunk-0")
-    .with_importance(0.9);
+    doc_b.extractions[0].entities[0] =
+        edgequake_pipeline::ExtractedEntity::new("Sarah Chen", "PERSON", "Engineer")
+            .with_source_chunk_id("doc-b-chunk-0")
+            .with_importance(0.9);
 
     persist_processing_result(
         graph.clone(),
@@ -159,7 +162,11 @@ async fn contract_cross_document_entity_merge() {
     .expect("doc b");
 
     let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
-    let node = graph.get_node(&node_id).await.unwrap().expect("merged node");
+    let node = graph
+        .get_node(&node_id)
+        .await
+        .unwrap()
+        .expect("merged node");
     let chunk_ids: Vec<String> = node
         .properties
         .get("source_chunk_ids")
@@ -226,7 +233,5 @@ async fn contract_persister_trait_matches_free_function() {
         free.chunk_vector_ids.len(),
         trait_out.chunk_vector_ids.len()
     );
-    assert!(
-        trait_out.merge_stats.entities_created + trait_out.merge_stats.entities_updated > 0
-    );
+    assert!(trait_out.merge_stats.entities_created + trait_out.merge_stats.entities_updated > 0);
 }

@@ -240,7 +240,10 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
 
             // P-G4-graph: batch relationship graph writes.
             let relationships = result.relationships;
-            if let Err(e) = self.merge_relationships_batch(relationships, &mut stats).await {
+            if let Err(e) = self
+                .merge_relationships_batch(relationships, &mut stats)
+                .await
+            {
                 stats.errors += 1;
                 tracing::warn!(
                     error.source = "pipeline_merger",

@@ -28,6 +28,7 @@ use super::config::{PostgresConfig, VectorIndexType};
 use super::connection::PostgresPool;
 
 mod ddl;
+mod fts;
 mod migration;
 mod search_tuning;
 mod storage_impl;

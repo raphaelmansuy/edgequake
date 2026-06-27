@@ -35,7 +35,7 @@ Different questions require fundamentally different retrieval strategies. Consid
 | ------------------------------------------------------------ | ---------------------------------------------------- |
 | "What is the greenhouse effect?"                             | **Vector search** - Find semantically similar chunks |
 | "How does Sarah Chen's work relate to atmospheric modeling?" | **Graph traversal** - Follow entity relationships    |
-| "What are the main themes in this document?"                 | **Community detection** - Analyze topic clusters     |
+| "What are the main themes in this document?"                 | **Global mode** - Relationship-vector search + degree fallback (not GraphRAG community reports) |
 | "Explain Sarah Chen's contributions to climate research"     | **Both** - Entity + broader context                  |
 
 A single retrieval strategy cannot optimally serve all these query types. EdgeQuake's multi-mode system allows you to match the strategy to your question.
@@ -309,46 +309,36 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ## Global Mode
 
-> **FEAT0103**: Community-based summarization
+> **FEAT0103**: Relationship-centric global search (SPEC-023 I2)
 
-Global mode focuses on high-level topic clusters identified during indexing. It's ideal for theme analysis and summary questions.
+Global mode uses **high-level query embeddings** against **relationship vectors** in the vector store, then batch-fetches connected entities and their source chunks. When no relationship vectors match, it falls back to **high-degree nodes** in the graph.
+
+**Important:** This is **not** Microsoft GraphRAG community-report search. EdgeQuake does not generate hierarchical community summaries at query time today.
 
 ### How It Works
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      GLOBAL MODE FLOW                           │
+│                      GLOBAL MODE FLOW (actual)                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  Query: "What are the main themes in this document?"            │
+│  Query: "What themes connect these research entities?"          │
 │         │                                                       │
 │         ▼                                                       │
-│  ┌─────────────────────────────────────────────────┐            │
-│  │  Community Detection (pre-computed during index)│            │
-│  │                                                 │            │
-│  │  ┌─────────────────┐  ┌─────────────────┐       │            │
-│  │  │   Community 1   │  │   Community 2   │       │            │
-│  │  │   "Climate"     │  │   "Technology"  │       │            │
-│  │  │                 │  │                 │       │            │
-│  │  │  • IPCC         │  │  • MACHINE_     │       │            │
-│  │  │  • SARAH_CHEN   │  │    LEARNING     │       │            │
-│  │  │  • CO2_LEVELS   │  │  • NEURAL_NET   │       │            │
-│  │  │  • WARMING      │  │  • PREDICTION   │       │            │
-│  │  └─────────────────┘  └─────────────────┘       │            │
-│  │           │                    │                │            │
-│  │           ▼                    ▼                │            │
-│  │  ┌─────────────────────────────────────┐        │            │
-│  │  │        Community Summaries          │        │            │
-│  │  │  "Climate: Research focuses on..."  │        │            │
-│  │  │  "Technology: ML applications..."   │        │            │
-│  │  └─────────────────────────────────────┘        │            │
-│  └─────────────────────────────────────────────────┘            │
-│                      │                                          │
-│                      ▼                                          │
-│             ┌─────────────────┐                                 │
-│             │ LLM Generation  │                                 │
-│             │ (theme synthesis)│                                │
-│             └─────────────────┘                                 │
+│  High-level keyword embedding                                   │
+│         │                                                       │
+│         ▼                                                       │
+│  Vector ANN on type=relationship rows                           │
+│         │                                                       │
+│         ├── hits ──► src/tgt entities + relationship text       │
+│         │                                                       │
+│         └── empty ──► popular nodes by degree (graph fallback)  │
+│         │                                                       │
+│         ▼                                                       │
+│  Batch node + degree fetch (no N+1)                             │
+│         │                                                       │
+│         ▼                                                       │
+│  Collect linked chunk IDs → chunk vector re-rank                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```

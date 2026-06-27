@@ -193,6 +193,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            mix_weights: None,
             extra_headers: None,
         };
 
@@ -221,6 +222,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            mix_weights: None,
             extra_headers: None,
         };
 
@@ -272,6 +274,7 @@ mod tests {
                 llm_model: None,
                 system_prompt: None,
                 document_filter: None,
+                mix_weights: None,
                 extra_headers: None,
             };
 
@@ -308,6 +311,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            mix_weights: None,
             extra_headers: None,
         };
 
@@ -336,6 +340,7 @@ mod tests {
             llm_model: None,
             system_prompt: None,
             document_filter: None,
+            mix_weights: None,
             extra_headers: None,
         };
 

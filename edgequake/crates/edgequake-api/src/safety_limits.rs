@@ -31,12 +31,9 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 /// E2E test hook — when set (and `EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE=1`),
 /// workspace pipeline factory reuses seeded mock providers (SPEC-021 worker tests).
-static TEST_PROVIDER_OVERRIDE: Mutex<
-    Option<(
-        Arc<dyn LLMProvider>,
-        Arc<dyn EmbeddingProvider>,
-    )>,
-> = Mutex::new(None);
+#[allow(clippy::type_complexity)]
+static TEST_PROVIDER_OVERRIDE: Mutex<Option<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)>> =
+    Mutex::new(None);
 
 const TEST_PROVIDER_OVERRIDE_ENV: &str = "EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE";
 
@@ -48,13 +45,16 @@ pub fn set_test_provider_override(
     if std::env::var(TEST_PROVIDER_OVERRIDE_ENV).as_deref() != Ok("1") {
         return;
     }
-    *TEST_PROVIDER_OVERRIDE.lock().expect("test provider override mutex") =
-        Some((llm, embedding));
+    *TEST_PROVIDER_OVERRIDE
+        .lock()
+        .expect("test provider override mutex") = Some((llm, embedding));
 }
 
 /// Clear E2E provider override (call from `WorkerAppGuard` drop).
 pub fn clear_test_provider_override() {
-    *TEST_PROVIDER_OVERRIDE.lock().expect("test provider override mutex") = None;
+    *TEST_PROVIDER_OVERRIDE
+        .lock()
+        .expect("test provider override mutex") = None;
 }
 
 fn test_provider_override() -> Option<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {

@@ -79,6 +79,8 @@ impl PgVectorStorage {
         );
         sqlx::query(&tenant_idx).execute(&pool).await.ok();
 
+        self.ensure_content_fts(&pool).await?;
+
         self.ensure_row_count_stats(&pool).await?;
 
         Ok(())
@@ -147,5 +149,46 @@ impl PgVectorStorage {
             })?;
 
         Ok(exists.0)
+    }
+
+    /// Add GIN-backed `content_tsv` for native Postgres FTS on chunk content (SPEC-023 I10).
+    pub(crate) async fn ensure_content_fts(&self, pool: &sqlx::PgPool) -> Result<()> {
+        let table_only = self
+            .table_name
+            .split('.')
+            .next_back()
+            .unwrap_or(&self.table_name);
+
+        let add_col = format!(
+            r#"
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = '{table_only}'
+                      AND column_name = 'content_tsv'
+                ) THEN
+                    ALTER TABLE {table}
+                    ADD COLUMN content_tsv TSVECTOR
+                    GENERATED ALWAYS AS (
+                        to_tsvector('english', coalesce(metadata->>'content', ''))
+                    ) STORED;
+                END IF;
+            END $$;
+            "#,
+            table_only = table_only,
+            table = self.table_name
+        );
+
+        sqlx::query(&add_col).execute(pool).await.ok();
+
+        let fts_idx = format!(
+            "CREATE INDEX IF NOT EXISTS eq_{}_vectors_content_tsv_idx ON {} USING GIN (content_tsv)",
+            self.prefix, self.table_name
+        );
+        sqlx::query(&fts_idx).execute(pool).await.ok();
+
+        Ok(())
     }
 }

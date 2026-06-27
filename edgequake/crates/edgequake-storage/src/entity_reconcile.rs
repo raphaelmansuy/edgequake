@@ -378,6 +378,7 @@ fn merge_description(
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // in-memory tests use full-graph loaders
 mod tests {
     use super::*;
     use crate::traits::{GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, VectorStorage};

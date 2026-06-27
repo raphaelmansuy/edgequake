@@ -10,7 +10,9 @@ use edgequake_query::QueryMode;
 async fn spec021_query_cache_invalidates_on_engine_bump() {
     let state = AppState::test_state();
     let engine = Arc::clone(&state.query.engine_impl);
-    let cache = engine.result_cache().expect("production engine has result cache");
+    let cache = engine
+        .result_cache()
+        .expect("production engine has result cache");
 
     let mut req = QueryRequest::new("repeatable context query");
     req.context_only = true;

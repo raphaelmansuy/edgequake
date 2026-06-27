@@ -134,6 +134,12 @@ pub async fn execute_query(
         engine_request = engine_request.context_only();
     }
 
+    if let Some(ref mix_weights) = request.mix_weights {
+        if mix_weights.is_set() {
+            engine_request.mix_weights = Some(mix_weights.to_engine_override());
+        }
+    }
+
     if request.prompt_only {
         engine_request = engine_request.prompt_only();
     }

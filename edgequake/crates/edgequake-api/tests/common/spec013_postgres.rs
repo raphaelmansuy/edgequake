@@ -134,7 +134,7 @@ async fn shutdown_worker_pool() {
 }
 
 /// Start worker pool for this test's `AppState` (shuts down any prior pool first).
-async fn start_worker_pool(state: &mut AppState) {
+pub async fn start_worker_pool(state: &mut AppState) {
     shutdown_worker_pool().await;
 
     let mut processor = DocumentTaskProcessor::with_workspace_support_strict(

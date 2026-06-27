@@ -9,6 +9,7 @@ pub mod document_graph_cascade;
 pub mod graph_community;
 pub mod graph_materialization;
 pub mod ingest_admission;
+pub mod ingestion_persist;
 pub mod pdf_admission_registry;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
@@ -29,6 +30,10 @@ pub use ingest_admission::{
     admit_pdf_processing_enqueue, persist_pdf_task_document_id,
     provision_queued_pdf_document_shell, resolve_pdf_ingest_document_id,
     resolve_worker_pdf_document_id, QueuedPdfDocumentShell,
+};
+pub use ingestion_persist::{
+    build_chunk_kv_records, persist_ingestion_result, persist_with_providers,
+    resolve_relational_sink, tag_injection_sources, PersistIngestionParams,
 };
 pub use pdf_admission_registry::PdfAdmissionRegistry;
 pub use pdf_workspace_dedup::{

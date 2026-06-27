@@ -275,6 +275,7 @@ impl QueryEngine {
                 }
                 QueryMode::Hybrid => {
                     self.query_hybrid_with_vector_storage(
+                        &request.query,
                         keywords,
                         embeddings,
                         tenant,
@@ -285,16 +286,19 @@ impl QueryEngine {
                 }
                 QueryMode::Mix => {
                     self.query_mix_with_vector_storage(
+                        &request.query,
                         keywords,
                         embeddings,
                         tenant,
                         workspace,
                         vector_storage,
+                        request.mix_weights.as_ref(),
                     )
                     .await
                 }
                 QueryMode::Naive => {
                     self.query_naive_with_vector_storage(
+                        &request.query,
                         embeddings,
                         tenant,
                         workspace,
@@ -314,14 +318,24 @@ impl QueryEngine {
                         .await
                 }
                 QueryMode::Hybrid => {
-                    self.query_hybrid(keywords, embeddings, tenant, workspace)
+                    self.query_hybrid(&request.query, keywords, embeddings, tenant, workspace)
                         .await
                 }
                 QueryMode::Mix => {
-                    self.query_mix(keywords, embeddings, tenant, workspace)
+                    self.query_mix(
+                        &request.query,
+                        keywords,
+                        embeddings,
+                        tenant,
+                        workspace,
+                        request.mix_weights.as_ref(),
+                    )
+                    .await
+                }
+                QueryMode::Naive => {
+                    self.query_naive(&request.query, embeddings, tenant, workspace)
                         .await
                 }
-                QueryMode::Naive => self.query_naive(embeddings, tenant, workspace).await,
                 QueryMode::Bypass => Ok(QueryContext::default()),
             },
         }

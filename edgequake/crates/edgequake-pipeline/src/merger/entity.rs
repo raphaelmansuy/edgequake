@@ -29,12 +29,8 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                     tenant_id: &self.tenant_id,
                     workspace_id: &self.workspace_id,
                 };
-                let metadata = metadata::entity_vector_metadata(&entity, &entity_id, scope);
-                batch.push((
-                    entity_id.as_vector_id(),
-                    embedding.clone(),
-                    metadata,
-                ));
+                let metadata = metadata::entity_vector_metadata(entity, &entity_id, scope);
+                batch.push((entity_id.as_vector_id(), embedding.clone(), metadata));
             }
         }
         batch
@@ -75,11 +71,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
 
         for (entity, key) in valid.into_iter().zip(keys.iter()) {
             match self
-                .build_entity_node_batch_entry(
-                    &entity,
-                    existing_map.get(key),
-                    &mut stats.artifacts,
-                )
+                .build_entity_node_batch_entry(&entity, existing_map.get(key), &mut stats.artifacts)
                 .await
             {
                 Ok((node_id, properties, is_new)) => {
@@ -137,15 +129,13 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
 
         match existing.cloned() {
             Some(mut node) => {
-                self.update_entity_node(&mut node, &entity).await?;
+                self.update_entity_node(&mut node, entity).await?;
                 Ok((node.id.clone(), node.properties, false))
             }
             None => {
-                let node = self.create_entity_node(&entity)?;
+                let node = self.create_entity_node(entity)?;
                 if entity.embedding.is_some() {
-                    artifacts
-                        .entity_vector_ids
-                        .push(entity_id.as_vector_id());
+                    artifacts.entity_vector_ids.push(entity_id.as_vector_id());
                 }
                 artifacts.graph_nodes_created.push(entity_key);
                 Ok((node.id, node.properties, true))

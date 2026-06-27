@@ -551,4 +551,19 @@ impl VectorStorage for PgVectorStorage {
 
         Ok(results)
     }
+
+    fn supports_native_text_search(&self) -> bool {
+        true
+    }
+
+    async fn text_search_filtered(
+        &self,
+        query_text: &str,
+        top_k: usize,
+        filter_ids: Option<&[String]>,
+        metadata_filter: Option<&MetadataFilter>,
+    ) -> Result<Vec<VectorSearchResult>> {
+        self.postgres_text_search_filtered(query_text, top_k, filter_ids, metadata_filter)
+            .await
+    }
 }

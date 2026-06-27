@@ -7,7 +7,10 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use edgequake_api::handlers::health::readiness_check;
-use edgequake_api::state::migration_bootstrap::{Migration038Report, MigrationBootstrapReport};
+use edgequake_api::state::migration_bootstrap::{
+    Migration038Report, Migration042Report, Migration043Report, Migration044Report,
+    Migration045Report, MigrationBootstrapReport,
+};
 use edgequake_api::AppState;
 
 fn degraded_bootstrap_report() -> MigrationBootstrapReport {
@@ -25,6 +28,29 @@ fn degraded_bootstrap_report() -> MigrationBootstrapReport {
             operator_action: Some(
                 "./edgequake/scripts/migrations/apply_038.sh --apply --concurrent --yes".into(),
             ),
+        },
+        migration_042: Migration042Report {
+            pgvector_available: true,
+            extversion_before: Some("0.8.0".into()),
+            extversion_after: Some("0.8.0".into()),
+            shipped_extversion: Some("0.8.3".into()),
+            iterative_scan_capable: true,
+            indexes_rebuilt: false,
+            vector_tables_checked: 0,
+        },
+        migration_043: Migration043Report {
+            age_available: true,
+            extversion_before: Some("1.6.0".into()),
+            extversion_after: Some("1.6.0".into()),
+            extension_updated: false,
+        },
+        migration_044: Migration044Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_045: Migration045Report {
+            marker_present: true,
+            apply_executed: false,
         },
     }
 }

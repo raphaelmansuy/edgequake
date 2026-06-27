@@ -65,7 +65,29 @@ Canonical `EDGEQUAKE_*` variables take precedence when both are set.
 | --- | --- | --- |
 | `edgequake` | `8080` | EdgeQuake API server |
 | `frontend` | `3000` | Next.js web UI |
-| `postgres` | `5432` | PostgreSQL with `pgvector` and Apache AGE |
+| `postgres` | `5432` | PostgreSQL with `pgvector` 0.8.3, Apache AGE 1.6.0, `pg_trgm`, `btree_gin` |
+
+## PostgreSQL Image (extensions)
+
+Built from `Dockerfile.postgres` with pinned stable extensions:
+
+| Extension | Version | Purpose |
+| --- | --- | --- |
+| `vector` (pgvector) | 0.8.3 | embedding ANN + iterative scan |
+| `age` (Apache AGE) | 1.6.0 | property graph / Cypher |
+| `pg_trgm` | contrib | trigram fuzzy search |
+| `btree_gin` | contrib | GIN btree operator classes |
+| `uuid-ossp` | contrib | legacy UUID helpers |
+
+Build and verify locally:
+
+```bash
+cd edgequake/docker
+docker build -f Dockerfile.postgres -t edgequake-postgres:local .
+bash verify-postgres-extensions.sh edgequake-postgres:local
+```
+
+Or via Makefile from repo root: `make postgres-image-build`
 
 ## Common Commands
 

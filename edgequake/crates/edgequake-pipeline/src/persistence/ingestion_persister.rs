@@ -11,9 +11,7 @@ use edgequake_llm::LLMProvider;
 use edgequake_storage::{compensation, GraphStorage, VectorStorage};
 use serde_json::json;
 
-use crate::merger::{
-    KnowledgeGraphMerger, MergeStats, MergerConfig, RelationalEntitySink,
-};
+use crate::merger::{KnowledgeGraphMerger, MergeStats, MergerConfig, RelationalEntitySink};
 use crate::pipeline::ProcessingResult;
 use crate::summarizer::{LLMSummarizer, SummarizerConfig};
 use crate::Result;
@@ -92,6 +90,10 @@ pub struct IngestionPersistContext {
     pub document_id: String,
     pub tenant_id: Option<String>,
     pub workspace_id: Option<String>,
+    /// Optional vector metadata (e.g. `"injection"` for SPEC-0002 citation filtering).
+    pub source_type: Option<String>,
+    /// Optional vector metadata path label (e.g. `"injection"`).
+    pub source_file_path: Option<String>,
 }
 
 impl IngestionPersistContext {
@@ -104,7 +106,20 @@ impl IngestionPersistContext {
             document_id: document_id.into(),
             tenant_id,
             workspace_id,
+            source_type: None,
+            source_file_path: None,
         }
+    }
+
+    /// Attach optional source metadata written into chunk vector rows.
+    pub fn with_source_metadata(
+        mut self,
+        source_type: Option<String>,
+        source_file_path: Option<String>,
+    ) -> Self {
+        self.source_type = source_type;
+        self.source_file_path = source_file_path;
+        self
     }
 }
 
@@ -206,6 +221,14 @@ pub fn build_chunk_vector_batch(
             if let Some(workspace_id) = &ctx.workspace_id {
                 metadata["workspace_id"] = json!(workspace_id);
             }
+            if let Some(source_type) = &ctx.source_type {
+                metadata["source_type"] = json!(source_type);
+                metadata["source"] = json!(source_type);
+            }
+            if let Some(source_file_path) = &ctx.source_file_path {
+                metadata["source_file_path"] = json!(source_file_path);
+            }
+            metadata["source_document_id"] = json!(ctx.document_id);
 
             Some((chunk.id.clone(), embedding.clone(), metadata))
         })
@@ -247,22 +270,20 @@ async fn persist_processing_result_impl(
         vector_storage
             .upsert(&chunk_vectors)
             .await
-            .map_err(|e| crate::error::PipelineError::StorageError(e))?;
+            .map_err(crate::error::PipelineError::StorageError)?;
     }
 
-    let mut merger =
-        KnowledgeGraphMerger::new(
-            config.merger_config.clone(),
-            graph_storage.clone(),
-            vector_storage.clone(),
-        )
-        .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
-        .with_relational_sink(config.relational_sink.clone());
+    let mut merger = KnowledgeGraphMerger::new(
+        config.merger_config.clone(),
+        graph_storage.clone(),
+        vector_storage.clone(),
+    )
+    .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
+    .with_relational_sink(config.relational_sink.clone());
 
     if config.merger_config.use_llm_summarization {
         if let Some(llm) = config.llm_provider.clone() {
-            let summarizer =
-                Arc::new(LLMSummarizer::new(llm, SummarizerConfig::default()));
+            let summarizer = Arc::new(LLMSummarizer::new(llm, SummarizerConfig::default()));
             merger = merger.with_summarizer(summarizer);
         }
     }
@@ -270,10 +291,13 @@ async fn persist_processing_result_impl(
     let merge_result = merger.merge(result.extractions.clone()).await;
 
     match merge_result {
-        Ok(stats) if stats.errors == 0 => Ok(IngestionPersistOutput {
-            chunk_vector_ids,
-            merge_stats: stats,
-        }),
+        Ok(stats) if stats.errors == 0 => {
+            edgequake_storage::refresh_community_index(graph_storage.clone()).await;
+            Ok(IngestionPersistOutput {
+                chunk_vector_ids,
+                merge_stats: stats,
+            })
+        }
         Ok(stats) => {
             let cause = format!(
                 "{} knowledge-graph merge error(s) during persist",
@@ -392,13 +416,7 @@ mod tests {
         assert_eq!(out.chunk_vector_ids.len(), 1);
         assert!(out.merge_stats.entities_created + out.merge_stats.entities_updated > 0);
         assert!(vector.get_by_id("doc1-chunk-0").await.unwrap().is_some());
-        assert!(
-            graph
-                .get_node("SARAH_CHEN")
-                .await
-                .unwrap()
-                .is_some()
-        );
+        assert!(graph.get_node("SARAH_CHEN").await.unwrap().is_some());
     }
 
     #[test]

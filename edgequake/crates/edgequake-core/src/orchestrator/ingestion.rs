@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use edgequake_pipeline::{
     ChunkVectorBuildOptions, DefaultIngestionPersister, GleaningConfig, GleaningExtractor,
-    IngestionPersistContext, IngestionPersistSettings, IngestionPersister, LLMExtractor,
-    Pipeline, PipelineConfig,
+    IngestionPersistContext, IngestionPersistSettings, IngestionPersister, LLMExtractor, Pipeline,
+    PipelineConfig,
 };
 
 use crate::error::{Error, Result};

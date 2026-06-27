@@ -37,9 +37,7 @@ pub async fn postgres_document_metrics(
     state: &AppState,
     workspace_id: Uuid,
 ) -> Option<(usize, u64)> {
-    if state.pg_pool.is_none() {
-        return None;
-    }
+    state.pg_pool.as_ref()?;
 
     let stats = state
         .workspace_service
@@ -59,6 +57,7 @@ pub async fn postgres_document_metrics(
 }
 
 /// Normalize relational status values to the strings expected by the WebUI.
+#[cfg(feature = "postgres")]
 fn normalize_relational_status(status: &str) -> String {
     match status {
         "indexed" => "completed".to_string(),
@@ -236,13 +235,8 @@ pub async fn reconcile_entity_counts_with_graph(
     let candidates: Vec<(usize, String)> = documents
         .iter()
         .enumerate()
-        .filter(|(_, d)| d.entity_count.unwrap_or(0) == 0)
-        .filter_map(|(i, d)| {
-            // Only worth querying AGE if the doc actually has chunks (a doc
-            // with 0 chunks legitimately has 0 entities and a partial_failure
-            // status already). Use chunk_count as the heuristic.
-            (d.chunk_count > 0).then(|| (i, d.id.clone()))
-        })
+        .filter(|(_, d)| d.entity_count.unwrap_or(0) == 0 && d.chunk_count > 0)
+        .map(|(i, d)| (i, d.id.clone()))
         .collect();
 
     if candidates.is_empty() {

@@ -9,10 +9,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use edgequake_api::services::{provision_queued_pdf_document_shell, QueuedPdfDocumentShell};
 use edgequake_api::{AppState, Server, ServerConfig};
-use edgequake_api::services::{
-    provision_queued_pdf_document_shell, QueuedPdfDocumentShell,
-};
 use edgequake_core::{CreateWorkspaceRequest, Tenant, TenantPlan};
 use edgequake_tasks::{TaskStatus, TaskType};
 use serde_json::json;
@@ -66,19 +64,12 @@ async fn spec021_live_endpoint_returns_ok() {
     let app = Server::new(test_config(), state).build_router();
 
     let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/live")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/live").body(Body::empty()).unwrap())
         .await
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 16)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 16).await.unwrap();
     assert_eq!(body.as_ref(), b"OK");
 }
 
@@ -149,7 +140,10 @@ async fn spec021_single_flight_reuses_active_pdf_task() {
         .expect("active task");
     assert_eq!(found.track_id, track_id);
 
-    state.tasks.pdf_admission.try_register(workspace_id, pdf_id, "other-track");
+    state
+        .tasks
+        .pdf_admission
+        .try_register(workspace_id, pdf_id, "other-track");
     let registry_hit = state.tasks.pdf_admission.get(workspace_id, pdf_id);
     assert_eq!(registry_hit.as_deref(), Some("other-track"));
 }

@@ -28,10 +28,13 @@
 //! | INV-04 | CQRS sync lag (entities vs AGE) | entities, AGE |
 //! | INV-05 | No stuck PDFs (processing > 1h) | pdf_documents |
 
+#[cfg(feature = "postgres")]
 use std::sync::Arc;
+
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "postgres")]
 use tracing::{info, warn};
 
 #[cfg(feature = "postgres")]
@@ -188,6 +191,7 @@ impl InspectorReport {
         }
     }
 
+    #[cfg(feature = "postgres")]
     fn add_schema_issue(&mut self, issue: SchemaDriftIssue) {
         match issue.severity {
             Severity::Critical => self.has_critical = true,
@@ -197,6 +201,7 @@ impl InspectorReport {
         self.schema_issues.push(issue);
     }
 
+    #[cfg(feature = "postgres")]
     fn add_violation(&mut self, v: InvariantViolation) {
         match v.severity {
             Severity::Critical => self.has_critical = true,
@@ -211,6 +216,7 @@ impl InspectorReport {
 pub struct StorageInspector {
     #[cfg(feature = "postgres")]
     pool: Arc<PgPool>,
+    #[allow(dead_code)] // read by postgres inspect/repair paths only
     config: InspectorConfig,
 }
 
@@ -254,28 +260,33 @@ impl StorageInspector {
 
     /// Auto-repair SAFE-tier issues. Returns list of applied repairs.
     pub async fn auto_repair_safe(&self, report: &InspectorReport) -> Vec<RepairAction> {
-        let mut applied = Vec::new();
-
         #[cfg(feature = "postgres")]
-        for repair in &report.recommended_repairs {
-            if repair.tier() != RepairTier::Safe {
-                continue;
+        {
+            let mut applied = Vec::new();
+            for repair in &report.recommended_repairs {
+                if repair.tier() != RepairTier::Safe {
+                    continue;
+                }
+                match self.apply_repair(repair, false).await {
+                    Ok(true) => {
+                        info!(repair = %repair.description(), "Auto-repair applied (SAFE)");
+                        applied.push(repair.clone());
+                    }
+                    Ok(false) => {
+                        info!(repair = %repair.description(), "Auto-repair: nothing to do");
+                    }
+                    Err(e) => {
+                        warn!(repair = %repair.description(), error = %e, "Auto-repair failed");
+                    }
+                }
             }
-            match self.apply_repair(repair, false).await {
-                Ok(true) => {
-                    info!(repair = %repair.description(), "Auto-repair applied (SAFE)");
-                    applied.push(repair.clone());
-                }
-                Ok(false) => {
-                    info!(repair = %repair.description(), "Auto-repair: nothing to do");
-                }
-                Err(e) => {
-                    warn!(repair = %repair.description(), error = %e, "Auto-repair failed");
-                }
-            }
+            applied
         }
-
-        applied
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = report;
+            Vec::new()
+        }
     }
 
     /// Dry-run: return what would be repaired without changing data.

@@ -16,6 +16,7 @@ use super::{QueryEmbeddings, QueryEngine};
 impl QueryEngine {
     pub(super) async fn query_naive_with_vector_storage(
         &self,
+        query_text: &str,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
@@ -23,15 +24,32 @@ impl QueryEngine {
     ) -> Result<QueryContext> {
         let mut context = QueryContext::new();
 
-        // WHY: Use vector_type filter at the SQL layer so LIMIT operates only on chunk
-        // vectors. Without this, large graphs (60k+ entities) cause the top-k results
-        // to be dominated by entity vectors, leaving 0 chunks after in-memory filtering.
-        // SPEC-007: tenant/workspace/type filter pushed to storage layer via query_filtered.
         let mf = MetadataFilter::from_tenant_workspace_type(tenant_id, workspace_id, "chunk");
 
+        let candidate_k = self
+            .config
+            .max_chunks
+            .saturating_mul(self.config.bm25_candidate_multiplier);
+
         let results = vector_storage
-            .query_filtered(&embeddings.query, self.config.max_chunks, None, mf.as_ref())
+            .query_filtered(&embeddings.query, candidate_k, None, mf.as_ref())
             .await?;
+
+        if crate::sparse_retrieval::bm25_retrieval_enabled(&self.config) {
+            let chunks = crate::sparse_retrieval::fuse_vector_and_bm25_chunks(
+                query_text,
+                &results,
+                vector_storage,
+                mf.as_ref(),
+                self.reranker.as_deref(),
+                &self.config,
+            )
+            .await;
+            for chunk in chunks {
+                context.add_chunk(chunk);
+            }
+            return Ok(context);
+        }
 
         for result in results
             .iter()
@@ -405,6 +423,16 @@ impl QueryEngine {
             }
         }
 
+        crate::community_global::expand_global_context_with_communities(
+            &self.config,
+            &mut context,
+            &mut entity_ids,
+            self.graph_read(),
+            tenant_id.clone(),
+            workspace_id.clone(),
+        )
+        .await?;
+
         // Step 6: Collect source_chunk_ids from entities and relationships
         // WHY-OODA230: Must retrieve chunks via their IDs, not by semantic similarity.
         // The old approach (semantic search + filter_by_type) returned 0 chunks because
@@ -455,32 +483,10 @@ impl QueryEngine {
         Ok(context)
     }
 
-    /// Normalize Mix-mode weights to sum to 1 (P-G8).
-    ///
-    /// E24: if all weights are 0 (or non-finite), fall back to equal weights
-    /// (1/3 each) and log a warning, so Mix never silently returns an empty
-    /// blend. Returns `(w_local, w_global, w_naive)`.
-    fn normalized_mix_weights(&self) -> (f32, f32, f32) {
-        let l = self.config.mix_local_weight;
-        let g = self.config.mix_global_weight;
-        let n = self.config.mix_naive_weight;
-        let sum = l + g + n;
-        if !sum.is_finite() || sum <= 0.0 {
-            tracing::warn!(
-                mix_local_weight = l,
-                mix_global_weight = g,
-                mix_naive_weight = n,
-                "Mix weights sum to 0 or are non-finite; falling back to equal weights (P-G8 E24)"
-            );
-            (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
-        } else {
-            (l / sum, g / sum, n / sum)
-        }
-    }
-
     /// Hybrid mode with workspace-specific vector storage.
     pub(super) async fn query_hybrid_with_vector_storage(
         &self,
+        query_text: &str,
         keywords: &ExtractedKeywords,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
@@ -508,6 +514,7 @@ impl QueryEngine {
                 vector_storage,
             ),
             self.query_naive_with_vector_storage(
+                query_text,
                 embeddings,
                 tenant_id.clone(),
                 workspace_id.clone(),
@@ -621,13 +628,16 @@ impl QueryEngine {
     /// degenerates to the same ranking as Hybrid's round-robin on identical
     /// fixtures, preserving backward compatibility (E24: weights sum to 0 → fall
     /// back to equal weights).
+    #[allow(clippy::too_many_arguments)] // mix mode needs per-arm storage + weight overrides
     pub(super) async fn query_mix_with_vector_storage(
         &self,
+        query_text: &str,
         keywords: &ExtractedKeywords,
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
         vector_storage: &Arc<dyn VectorStorage>,
+        mix_weights: Option<&crate::mix_weights::MixWeightOverride>,
     ) -> Result<QueryContext> {
         let (local_context, global_context, naive_context) = tokio::join!(
             self.query_local_with_vector_storage(
@@ -645,6 +655,7 @@ impl QueryEngine {
                 vector_storage,
             ),
             self.query_naive_with_vector_storage(
+                query_text,
                 embeddings,
                 tenant_id,
                 workspace_id,
@@ -656,38 +667,68 @@ impl QueryEngine {
         let global_context = global_context?;
         let naive_context = naive_context?;
 
-        let (w_local, w_global, w_naive) = self.normalized_mix_weights();
-
-        // Blend chunks by weighted normalized score.
-        let mut blended: HashMap<String, (RetrievedChunk, f32)> = HashMap::new();
-        for (ctx, weight) in [
-            (&local_context, w_local),
-            (&global_context, w_global),
-            (&naive_context, w_naive),
-        ] {
-            let norm = min_max_normalize_scores(&ctx.chunks);
-            for (chunk, &norm_score) in ctx.chunks.iter().zip(norm.iter()) {
-                let contribution = weight * norm_score;
-                blended
-                    .entry(chunk.id.clone())
-                    .and_modify(|(_, score)| {
-                        if contribution > *score {
-                            *score = contribution;
-                        }
-                    })
-                    .or_insert_with(|| (chunk.clone(), contribution));
-            }
-        }
+        let (w_local, w_global, w_naive) =
+            crate::mix_weights::normalized_mix_weights(&self.config, mix_weights);
 
         let mut merged = QueryContext::new();
-        let mut chunks: Vec<(RetrievedChunk, f32)> = blended.into_values().collect();
-        chunks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        let max_chunks = self.config.max_chunks;
-        for (mut chunk, _) in chunks.into_iter().take(max_chunks) {
-            // Preserve the blended score on the emitted chunk so downstream
-            // reranking/truncation sees a monotonic relevance signal.
-            chunk.score = chunk.score.max(0.0);
-            merged.add_chunk(chunk);
+
+        if crate::fusion::mix_fusion_mode_from_env() == crate::fusion::MixFusionMode::Rrf {
+            let mut chunk_lookup: HashMap<String, RetrievedChunk> = HashMap::new();
+            for ctx in [&local_context, &global_context, &naive_context] {
+                for chunk in &ctx.chunks {
+                    chunk_lookup
+                        .entry(chunk.id.clone())
+                        .or_insert_with(|| chunk.clone());
+                }
+            }
+
+            let ranked_lists = [
+                local_context.chunks.iter().map(|c| c.id.clone()).collect(),
+                global_context.chunks.iter().map(|c| c.id.clone()).collect(),
+                naive_context.chunks.iter().map(|c| c.id.clone()).collect(),
+            ];
+            let weights = [w_local, w_global, w_naive];
+            let fused = crate::fusion::reciprocal_rank_fusion(
+                &ranked_lists,
+                &weights,
+                crate::fusion::RRF_K,
+            );
+            for chunk in crate::fusion::chunks_from_rrf_ranking(
+                &fused,
+                &chunk_lookup,
+                self.config.max_chunks,
+            ) {
+                merged.add_chunk(chunk);
+            }
+        } else {
+            // Blend chunks by weighted normalized score.
+            let mut blended: HashMap<String, (RetrievedChunk, f32)> = HashMap::new();
+            for (ctx, weight) in [
+                (&local_context, w_local),
+                (&global_context, w_global),
+                (&naive_context, w_naive),
+            ] {
+                let norm = min_max_normalize_scores(&ctx.chunks);
+                for (chunk, &norm_score) in ctx.chunks.iter().zip(norm.iter()) {
+                    let contribution = weight * norm_score;
+                    blended
+                        .entry(chunk.id.clone())
+                        .and_modify(|(_, score)| {
+                            if contribution > *score {
+                                *score = contribution;
+                            }
+                        })
+                        .or_insert_with(|| (chunk.clone(), contribution));
+                }
+            }
+
+            let mut chunks: Vec<(RetrievedChunk, f32)> = blended.into_values().collect();
+            chunks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            let max_chunks = self.config.max_chunks;
+            for (mut chunk, score) in chunks.into_iter().take(max_chunks) {
+                chunk.score = score.max(0.0);
+                merged.add_chunk(chunk);
+            }
         }
 
         // Entities + relationships: union across local+global (same as Hybrid;

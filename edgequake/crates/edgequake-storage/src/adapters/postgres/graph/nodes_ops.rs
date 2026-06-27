@@ -9,21 +9,16 @@ use crate::traits::{GraphEdge, GraphNode};
 
 impl PostgresAGEGraphStorage {
     pub(super) async fn pg_has_node(&self, node_id: &str) -> Result<bool> {
-        let escaped_id = Self::escape_cypher_string(node_id);
-        let cypher = format!(
-            "MATCH (n:Node {{node_id: '{}'}}) RETURN n LIMIT 1",
-            escaped_id
-        );
-
-        let rows = self.cypher_query(&cypher, &["n"]).await?;
+        let cypher = "MATCH (n:Node {node_id: $node_id}) RETURN n LIMIT 1";
+        let params = serde_json::json!({ "node_id": node_id });
+        let rows = self.cypher_query_bound(cypher, &["n"], &params).await?;
         Ok(!rows.is_empty())
     }
 
     pub(super) async fn pg_get_node(&self, node_id: &str) -> Result<Option<GraphNode>> {
-        let escaped_id = Self::escape_cypher_string(node_id);
-        let cypher = format!("MATCH (n:Node {{node_id: '{}'}}) RETURN n", escaped_id);
-
-        let rows = self.cypher_query(&cypher, &["n"]).await?;
+        let cypher = "MATCH (n:Node {node_id: $node_id}) RETURN n";
+        let params = serde_json::json!({ "node_id": node_id });
+        let rows = self.cypher_query_bound(cypher, &["n"], &params).await?;
 
         if rows.is_empty() {
             return Ok(None);
@@ -183,15 +178,9 @@ impl PostgresAGEGraphStorage {
     }
 
     pub(super) async fn pg_delete_node(&self, node_id: &str) -> Result<()> {
-        let escaped_id = Self::escape_cypher_string(node_id);
-
-        // Use DETACH DELETE to remove node and all connected edges
-        let cypher = format!(
-            "MATCH (n:Node {{node_id: '{}'}}) DETACH DELETE n",
-            escaped_id
-        );
-
-        self.cypher_execute(&cypher).await
+        let cypher = "MATCH (n:Node {node_id: $node_id}) DETACH DELETE n";
+        let params = serde_json::json!({ "node_id": node_id });
+        self.cypher_execute_bound(cypher, &params).await
     }
 
     /// FAST OPTIMIZED: Get node degree using native SQL.

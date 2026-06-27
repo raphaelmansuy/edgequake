@@ -33,7 +33,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                 workspace_id: &self.workspace_id,
             };
             let metadata =
-                metadata::relationship_vector_metadata(&rel, source_key, target_key, scope);
+                metadata::relationship_vector_metadata(rel, source_key, target_key, scope);
             batch.push((rel_id, embedding.clone(), metadata));
         }
         batch
@@ -112,10 +112,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             }
         }
         for (key, label) in placeholders {
-            placeholder_batch.push((
-                key.clone(),
-                self.placeholder_node_properties(&label),
-            ));
+            placeholder_batch.push((key.clone(), self.placeholder_node_properties(&label)));
             stats.artifacts.graph_nodes_created.push(key);
         }
 
@@ -141,10 +138,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             } else {
                 let edge = self.create_relationship_edge(&source_key, &target_key, &rel)?;
                 if rel.embedding.is_some() {
-                    let rel_id = format!(
-                        "{}->{}:{}",
-                        source_key, target_key, rel.relation_type
-                    );
+                    let rel_id = format!("{}->{}:{}", source_key, target_key, rel.relation_type);
                     stats.artifacts.relationship_vector_ids.push(rel_id);
                 }
                 stats

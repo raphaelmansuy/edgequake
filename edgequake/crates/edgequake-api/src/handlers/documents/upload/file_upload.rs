@@ -286,222 +286,56 @@ pub async fn upload_file(
         );
     }
 
-    // Store chunks in KV storage
-    let chunks: Vec<(String, serde_json::Value)> = result
-        .chunks
-        .iter()
-        .map(|c| {
-            (
-                c.id.clone(),
-                serde_json::json!({
-                    "content": c.content,
-                    "document_id": document_id,
-                    "index": c.index,
-                    "source_file": filename,
-                }),
-            )
-        })
-        .collect();
-
+    // Store chunks in KV storage (outside persister scope — same as text_insert)
+    let chunks = crate::services::build_chunk_kv_records(&document_id, &filename, &result);
     state.storage.kv_storage.upsert(&chunks).await?;
 
-    // SPEC-033: Get workspace-specific vector storage for file embeddings
-    // WHY-OODA223: STRICT mode - fail loudly if workspace storage unavailable
-    // to prevent file embeddings from being stored in the wrong (global) table
     let workspace_vector_storage =
         get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
 
-    // Store chunk embeddings in vector storage for semantic search
-    let mut chunk_embeddings_stored = 0;
-    for chunk in &result.chunks {
-        if let Some(embedding) = &chunk.embedding {
-            let mut metadata = serde_json::json!({
-                "type": "chunk",
-                "document_id": document_id,
-                "index": chunk.index,
-                "content": chunk.content,
-                "source_file": filename,
-            });
+    let relational_sink = crate::services::resolve_relational_sink(&state).await;
+    let persist_result = crate::services::persist_ingestion_result(
+        &state,
+        state.storage.graph_storage.clone(),
+        workspace_vector_storage,
+        relational_sink,
+        crate::services::PersistIngestionParams::for_document(
+            &document_id,
+            tenant_id_for_storage.clone(),
+            workspace_id_for_storage.clone(),
+            &result,
+            edgequake_pipeline::ChunkVectorBuildOptions::STANDARD,
+        ),
+    )
+    .await;
 
-            // Add tenant and workspace IDs if present
-            if let Some(ref tid) = tenant_id_for_storage {
-                metadata["tenant_id"] = serde_json::json!(tid);
-            }
-            metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
-
-            match workspace_vector_storage
-                .upsert(&[(chunk.id.clone(), embedding.clone(), metadata)])
-                .await
-            {
-                Ok(_) => {
-                    chunk_embeddings_stored += 1;
-                    tracing::info!(chunk_id = %chunk.id, "VECTOR STORAGE: Chunk embedding stored OK");
-                }
-                Err(e) => {
-                    tracing::error!(chunk_id = %chunk.id, error = %e, "VECTOR STORAGE: Failed to store chunk embedding");
-                }
-            }
-        }
-    }
-    tracing::info!(
-        chunk_embeddings_stored = chunk_embeddings_stored,
-        total_chunks = result.chunks.len(),
-        "VECTOR STORAGE: Chunk embedding storage complete"
-    );
-
-    // Store entities and relationships in graph storage
-    tracing::info!(
-        extraction_count = result.extractions.len(),
-        "GRAPH STORAGE: Processing extractions"
-    );
-    for extraction in &result.extractions {
-        tracing::info!(
-            entity_count = extraction.entities.len(),
-            relationship_count = extraction.relationships.len(),
-            "GRAPH STORAGE: Extraction content"
+    let persist_failed = persist_result.is_err();
+    if let Err(ref e) = persist_result {
+        tracing::error!(
+            document_id = %document_id,
+            error = %e,
+            "File upload persist failed (P-H1 IngestionPersister)"
         );
-        for entity in &extraction.entities {
-            tracing::info!(
-                entity_name = %entity.name,
-                entity_type = %entity.entity_type,
-                source_chunk_ids = ?entity.source_chunk_ids,
-                "GRAPH STORAGE: Storing entity with chunk linkage"
-            );
-            let mut properties = std::collections::HashMap::new();
-            properties.insert(
-                "entity_type".to_string(),
-                serde_json::json!(entity.entity_type),
-            );
-            properties.insert(
-                "description".to_string(),
-                serde_json::json!(entity.description),
-            );
-            properties.insert(
-                "importance".to_string(),
-                serde_json::json!(entity.importance),
-            );
-            properties.insert(
-                "source_ids".to_string(),
-                serde_json::json!(vec![&document_id]),
-            );
-            // CRITICAL: Store source_chunk_ids for Local/Global query mode chunk retrieval
-            properties.insert(
-                "source_chunk_ids".to_string(),
-                serde_json::json!(&entity.source_chunk_ids),
-            );
-            crate::handlers::documents::storage_helpers::insert_graph_tenant_scope(
-                &mut properties,
-                &tenant_id_for_storage,
-                &workspace_id_for_storage,
-            );
-
-            // RC-6 / P-G1: entity identity is the normalized `EntityId`. The
-            // graph node id, the vector id, and metadata.entity_name are all
-            // derived from it so they can never diverge.
-            let entity_id = edgequake_storage::EntityId::new(&entity.name);
-            if entity_id.is_empty() {
-                tracing::warn!(
-                    document_id = %document_id,
-                    raw_name = %entity.name,
-                    "Skipping entity with empty normalized name"
-                );
-                continue;
-            }
-            let entity_key = entity_id.as_graph_node_id().to_string();
-            match state
-                .storage
-                .graph_storage
-                .upsert_node(&entity_key, properties)
-                .await
-            {
-                Ok(_) => {
-                    tracing::info!(entity_name = %entity.name, "GRAPH STORAGE: Entity stored OK")
-                }
-                Err(e) => {
-                    tracing::error!(entity_name = %entity.name, error = %e, "GRAPH STORAGE: Failed to store entity")
-                }
-            }
-
-            // CRITICAL: Also store entity embedding in vector storage for query_local retrieval
-            tracing::info!(
-                entity_name = %entity.name,
-                has_embedding = entity.embedding.is_some(),
-                embedding_dim = entity.embedding.as_ref().map(|e| e.len()).unwrap_or(0),
-                "Checking entity embedding for storage"
-            );
-            // SPEC-033: Use workspace-specific vector storage for entity embeddings
-            if let Some(embedding) = &entity.embedding {
-                let mut metadata = serde_json::json!({
-                    "type": "entity",
-                    "entity_name": entity_id.as_str(),
-                    "entity_type": entity.entity_type,
-                    "description": entity.description,
-                    "document_id": document_id,
-                    "source_chunk_ids": entity.source_chunk_ids,
-                });
-                if let Some(ref tid) = tenant_id_for_storage {
-                    metadata["tenant_id"] = serde_json::json!(tid);
-                }
-                metadata["workspace_id"] = serde_json::json!(&workspace_id_for_storage);
-
-                let vector_id = entity_id.as_vector_id();
-                if let Err(e) = workspace_vector_storage
-                    .upsert(&[(vector_id.clone(), embedding.clone(), metadata)])
-                    .await
-                {
-                    tracing::error!(entity_id = %vector_id, error = %e, "VECTOR STORAGE: Failed to store entity embedding");
-                } else {
-                    tracing::info!(entity_id = %vector_id, "VECTOR STORAGE: Entity embedding stored OK");
-                }
-            }
-        }
-
-        for relationship in &extraction.relationships {
-            // RC-6 / P-G1: edge endpoints are normalized EntityIds.
-            let src_key = edgequake_storage::EntityId::new(&relationship.source)
-                .as_graph_node_id()
-                .to_string();
-            let tgt_key = edgequake_storage::EntityId::new(&relationship.target)
-                .as_graph_node_id()
-                .to_string();
-            let mut properties = std::collections::HashMap::new();
-            properties.insert(
-                "relation_type".to_string(),
-                serde_json::json!(relationship.relation_type),
-            );
-            properties.insert(
-                "description".to_string(),
-                serde_json::json!(relationship.description),
-            );
-            properties.insert("weight".to_string(), serde_json::json!(relationship.weight));
-            properties.insert(
-                "keywords".to_string(),
-                serde_json::json!(relationship.keywords),
-            );
-            properties.insert(
-                "source_ids".to_string(),
-                serde_json::json!(vec![&document_id]),
-            );
-            // CRITICAL: Store source_chunk_id for relationship chunk linkage
-            if let Some(ref chunk_id) = relationship.source_chunk_id {
-                properties.insert(
-                    "source_chunk_ids".to_string(),
-                    serde_json::json!(vec![chunk_id]),
-                );
-            }
-            crate::handlers::documents::storage_helpers::insert_graph_tenant_scope(
-                &mut properties,
-                &tenant_id_for_storage,
-                &workspace_id_for_storage,
-            );
-
-            let _ = state
-                .storage
-                .graph_storage
-                .upsert_edge(&src_key, &tgt_key, properties)
-                .await;
-        }
+    } else if let Ok(ref out) = persist_result {
+        tracing::info!(
+            document_id = %document_id,
+            chunk_vectors = out.chunk_vector_ids.len(),
+            entities = out.merge_stats.entities_created + out.merge_stats.entities_updated,
+            relationships = out.merge_stats.relationships_created
+                + out.merge_stats.relationships_updated,
+            "File upload persist completed via IngestionPersister"
+        );
     }
+
+    let final_status = if persist_failed {
+        "failed"
+    } else if result.stats.failed_chunks > 0
+        || (result.stats.entity_count == 0 && result.stats.chunk_count > 0)
+    {
+        "partial_failure"
+    } else {
+        "completed"
+    };
 
     // Update document metadata with completion stats and lineage
     let completed_metadata = serde_json::json!({
@@ -517,14 +351,13 @@ pub async fn upload_file(
         "track_id": track_id,
         "created_at": Utc::now().to_rfc3339(),
         "processed_at": Utc::now().to_rfc3339(),
-        "status": "completed",
+        "status": final_status,
         "chunk_count": result.stats.chunk_count,
         "entity_count": result.stats.entity_count,
         "relationship_count": result.stats.relationship_count,
         "tenant_id": tenant_id_for_storage,
         "workspace_id": workspace_id_for_storage,
         "custom_metadata": metadata,
-        // Lineage information
         "llm_model": result.stats.llm_model,
         "embedding_model": result.stats.embedding_model,
         "embedding_dimensions": result.stats.embedding_dimensions,
@@ -540,6 +373,13 @@ pub async fn upload_file(
         .kv_storage
         .upsert(&[(doc_metadata_key, completed_metadata)])
         .await?;
+
+    if persist_failed {
+        return Err(ApiError::Internal(format!(
+            "Knowledge graph persist failed: {}",
+            persist_result.unwrap_err()
+        )));
+    }
 
     // FIX-ISSUE-81 Phase 2: Dual-write document record to PostgreSQL
     // WHY: Without this, file uploads only write to KV storage. The PostgreSQL

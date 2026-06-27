@@ -9,7 +9,9 @@ use edgequake_pipeline::{
     DefaultIngestionPersister, ExtractedEntity, ExtractedRelationship, ExtractionResult,
     IngestionPersistSettings, IngestionPersister, NoopEntitySink, ProcessingResult, TextChunk,
 };
-use edgequake_storage::{EntityId, GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    EntityId, GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+};
 
 #[tokio::test]
 async fn contract_batch_merge_creates_all_entity_nodes() {
@@ -43,7 +45,9 @@ async fn contract_batch_merge_creates_all_entity_nodes() {
         chunks: vec![chunk],
         extractions: vec![ExtractionResult {
             entities,
-            relationships: vec![ExtractedRelationship::new("Entity 0", "Entity 1", "RELATES")],
+            relationships: vec![ExtractedRelationship::new(
+                "Entity 0", "Entity 1", "RELATES",
+            )],
             source_chunk_id: "doc-batch-chunk-0".to_string(),
             ..Default::default()
         }],

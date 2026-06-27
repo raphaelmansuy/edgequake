@@ -23,6 +23,14 @@ fn cache_key(request: &QueryRequest, mode: QueryMode) -> String {
             id.hash(&mut hasher);
         }
     }
+    // SPEC-022 P-H6: Mix ordering depends on per-request weights — must not share cache entries.
+    if mode == QueryMode::Mix {
+        if let Some(mw) = &request.mix_weights {
+            if mw.is_set() {
+                format!("{:?}", mw).hash(&mut hasher);
+            }
+        }
+    }
     format!("ctx:{:x}", hasher.finish())
 }
 
@@ -108,7 +116,13 @@ impl QueryResultCache {
                 cache.remove(&old_key);
             }
         }
-        cache.insert(key, Entry { context, expires_at });
+        cache.insert(
+            key,
+            Entry {
+                context,
+                expires_at,
+            },
+        );
     }
 
     pub fn record_miss(&self) {
@@ -133,6 +147,36 @@ mod tests {
 
         assert!(cache.get(&req, QueryMode::Hybrid).is_some());
         assert_eq!(cache.hits(), 2);
+    }
+
+    #[test]
+    fn mix_mode_cache_separates_weight_skews() {
+        let cache = QueryResultCache::with_defaults();
+        let mut req_a = QueryRequest::new("kg entity");
+        req_a.context_only = true;
+        req_a.mode = Some(QueryMode::Mix);
+        req_a.mix_weights = Some(crate::mix_weights::MixWeightOverride {
+            local: Some(0.0),
+            global: Some(0.0),
+            naive: Some(1.0),
+        });
+
+        let mut req_b = QueryRequest::new("kg entity");
+        req_b.context_only = true;
+        req_b.mode = Some(QueryMode::Mix);
+        req_b.mix_weights = Some(crate::mix_weights::MixWeightOverride {
+            local: Some(1.0),
+            global: Some(0.0),
+            naive: Some(0.0),
+        });
+
+        let mut ctx_a = QueryContext::default();
+        ctx_a.add_chunk(crate::context::RetrievedChunk::new("a", "a", 1.0));
+        cache.put(&req_a, QueryMode::Mix, ctx_a);
+        assert!(
+            cache.get(&req_b, QueryMode::Mix).is_none(),
+            "different mix weights must not share result cache entries"
+        );
     }
 
     #[test]

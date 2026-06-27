@@ -4,7 +4,7 @@
 //!
 //! - **FEAT0101**: Naive Mode - Vector similarity only
 //! - **FEAT0102**: Local Mode - Entity-centric graph
-//! - **FEAT0103**: Global Mode - Community summaries
+//! - **FEAT0103**: Global Mode - Relationship-vector global search
 //! - **FEAT0104**: Hybrid Mode - Local + Global combined
 //! - **FEAT0105**: Mix Mode - Weighted naive + graph
 //! - **FEAT0106**: Bypass Mode - Direct LLM (no RAG)
@@ -19,7 +19,7 @@
 //!
 //! - "What is machine learning?" → **Naive** (simple concept lookup)
 //! - "How does Alice work with Bob?" → **Local** (entity relationships)
-//! - "What are the main themes in this document?" → **Global** (topic clusters)
+//! - "What are the main themes in this document?" → **Global** (relationship vectors + degree fallback)
 //! - "Tell me about Project X and its impact" → **Hybrid** (entities + context)
 //!
 //! ## Mode Selection Guidelines
@@ -28,7 +28,7 @@
 //! |--------------|-----------|------|-----|
 //! | Factual/specific | Naive | FEAT0101 | Direct vector match, fast |
 //! | Entity relationships | Local | FEAT0102 | Explores entity neighborhood |
-//! | Broad/thematic | Global | FEAT0103 | Uses community detection |
+//! | Broad/thematic | Global | FEAT0103 | Relationship-vector search; not GraphRAG community reports |
 //! | Complex/multi-faceted | Hybrid | FEAT0104 | Both approaches combined |
 //! | Custom weights needed | Mix | FEAT0105 | Configurable blend |
 //! | Testing/debugging | Bypass | FEAT0106 | Skip RAG entirely |
@@ -40,7 +40,7 @@
 //! --------|-------|----------|-------------
 //! Naive   | Fast  | Good     | Small (chunks only)
 //! Local   | Med   | High     | Medium (entity + neighbors)
-//! Global  | Slow  | High     | Large (community summaries)
+//! Global  | Med   | High     | Medium (relationship vectors + graph context)
 //! Hybrid  | Slow  | Best     | Large (both approaches)
 //! ```
 //!
@@ -61,8 +61,9 @@ pub enum QueryMode {
     /// Good for specific entity queries.
     Local,
 
-    /// Community-based search using graph clusters.
-    /// Good for broad topic queries.
+    /// Relationship-centric global search using high-level embeddings over
+    /// relationship vectors, with degree-based fallback when no relationship
+    /// vectors match. **Not** GraphRAG hierarchical community reports (SPEC-023 I2).
     Global,
 
     /// Combines local and global approaches.

@@ -495,13 +495,16 @@ impl TaskStorage for PostgresTaskStorage {
                 .get("task_data")
                 .cloned()
                 .unwrap_or(serde_json::json!({}));
-            let metadata = payload.get("metadata").cloned().and_then(|v| {
-                if v.is_null() {
-                    None
-                } else {
-                    Some(v)
-                }
-            });
+            let metadata =
+                payload.get("metadata").cloned().and_then(
+                    |v| {
+                        if v.is_null() {
+                            None
+                        } else {
+                            Some(v)
+                        }
+                    },
+                );
             let progress = payload.get("progress").cloned().and_then(|v| {
                 if v.is_null() {
                     None

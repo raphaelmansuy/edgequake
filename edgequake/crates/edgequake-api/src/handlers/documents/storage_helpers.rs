@@ -33,6 +33,7 @@ fn parse_explicit_workspace_uuid(workspace_id: Option<&str>) -> Option<Uuid> {
 ///
 /// WHY: Workspace stats (`node_count_by_workspace`) filter AGE nodes by
 /// `workspace_id`. Sync text upload must set this on every graph write.
+#[allow(dead_code)] // unit-tested; graph write call sites land in SPEC-022 ingest persister
 pub(crate) fn insert_graph_tenant_scope(
     properties: &mut std::collections::HashMap<String, serde_json::Value>,
     tenant_id: &Option<String>,
@@ -791,8 +792,9 @@ pub(crate) async fn clear_document_markdown_and_content(
 /// apply identical fallback semantics and stay testable without a live store.
 ///
 /// Returns `true` when `markdown` is `None` or trims to an empty string.
+#[allow(dead_code)] // unit-tested; reprocess handler wiring in progress
 pub(crate) fn pdf_needs_full_reconversion(markdown: Option<&str>) -> bool {
-    markdown.map_or(true, |md| md.trim().is_empty())
+    markdown.is_none_or(|md| md.trim().is_empty())
 }
 
 #[cfg(test)]

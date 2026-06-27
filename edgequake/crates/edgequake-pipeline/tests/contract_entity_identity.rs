@@ -10,9 +10,7 @@
 
 use std::sync::Arc;
 
-use edgequake_pipeline::{
-    ExtractionResult, ExtractedEntity, KnowledgeGraphMerger, MergerConfig,
-};
+use edgequake_pipeline::{ExtractedEntity, ExtractionResult, KnowledgeGraphMerger, MergerConfig};
 use edgequake_storage::traits::{GraphStorage, GraphStorageReadOps, VectorStorage};
 use edgequake_storage::{EntityId, MemoryGraphStorage, MemoryVectorStorage};
 
@@ -105,7 +103,10 @@ async fn casing_variants_collapse_to_one_node_and_one_vector() {
         .find(|h| h.id == vector_id)
         .expect("the entity vector must be retrievable by its id");
     assert_eq!(
-        entity_hit.metadata.get("entity_name").and_then(|v| v.as_str()),
+        entity_hit
+            .metadata
+            .get("entity_name")
+            .and_then(|v| v.as_str()),
         Some("JOHN_DOE"),
         "metadata.entity_name must be the normalized name, not the raw extraction name"
     );

@@ -133,7 +133,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 .PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory kill-app stop clean build test lint format \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
-        db-start db-stop db-wait db-logs db-shell docker-network-diagnose stop-docker-services \
+        db-start db-stop db-wait db-logs db-shell postgres-image-build docker-network-diagnose stop-docker-services \
         docker-build docker-up docker-prebuilt docker-prebuilt-down docker-prebuilt-logs docker-ps-prebuilt docker-api-only docker-down docker-logs \
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
@@ -1021,10 +1021,18 @@ db-start: ## Start PostgreSQL container
 	if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
 		for i in 1 2 3 4 5; do \
 			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
-				echo "$(GREEN)✓ Existing edgequake-postgres container is already running and reachable$(RESET)"; \
-				_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
-				printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
-				exit 0; \
+				_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" /usr/share/postgresql/16/extension/vector.control 2>/dev/null || true); \
+				case "$$_PV_SHIP" in \
+					0.8.*|0.9.*|[1-9]*) \
+						echo "$(GREEN)✓ Existing edgequake-postgres container is already running and reachable$(RESET)"; \
+						_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+						printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+						exit 0 ;; \
+					*) \
+						echo "$(YELLOW)→ edgequake-postgres ships pgvector $$_PV_SHIP (< 0.8); rebuilding container...$(RESET)"; \
+						docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+						break ;; \
+				esac; \
 			fi; \
 			sleep 2; \
 		done; \
@@ -1036,10 +1044,18 @@ db-start: ## Start PostgreSQL container
 		docker start edgequake-postgres >/dev/null 2>&1 || true; \
 		for i in 1 2 3 4 5; do \
 			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
-				echo "$(GREEN)✓ Existing edgequake-postgres container is ready$(RESET)"; \
-				_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
-				printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
-				exit 0; \
+				_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" /usr/share/postgresql/16/extension/vector.control 2>/dev/null || true); \
+				case "$$_PV_SHIP" in \
+					0.8.*|0.9.*|[1-9]*) \
+						echo "$(GREEN)✓ Existing edgequake-postgres container is ready$(RESET)"; \
+						_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
+						printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+						exit 0 ;; \
+					*) \
+						echo "$(YELLOW)→ edgequake-postgres ships pgvector $$_PV_SHIP (< 0.8); rebuilding container...$(RESET)"; \
+						docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+						break ;; \
+				esac; \
 			fi; \
 			sleep 2; \
 		done; \
@@ -1059,7 +1075,7 @@ db-start: ## Start PostgreSQL container
 		exit 1; \
 	fi; \
 	TMP_LOG=$$(mktemp); \
-	if cd $(DOCKER_DIR) && POSTGRES_PORT="$$_DB_PORT" docker compose up -d postgres >"$$TMP_LOG" 2>&1; then \
+	if cd $(DOCKER_DIR) && POSTGRES_PORT="$$_DB_PORT" docker compose up -d --build postgres >"$$TMP_LOG" 2>&1; then \
 		cat "$$TMP_LOG"; \
 		rm -f "$$TMP_LOG"; \
 	else \
@@ -1081,9 +1097,23 @@ db-start: ## Start PostgreSQL container
 		echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; \
 	fi; \
 	echo "$(GREEN)✓ Database is ready$(RESET)"; \
+	_PV_DB=$$(docker exec edgequake-postgres psql -U edgequake -d edgequake -tAc "SELECT extversion FROM pg_extension WHERE extname = 'vector'" 2>/dev/null | tr -d '[:space:]' || true); \
+	_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" /usr/share/postgresql/16/extension/vector.control 2>/dev/null | tr -d '[:space:]' || true); \
+	if [ -n "$$_PV_DB" ] && [ -n "$$_PV_SHIP" ] && [ "$$_PV_DB" != "$$_PV_SHIP" ]; then \
+		echo "$(YELLOW)→ Upgrading pgvector catalog $$_PV_DB → $$_PV_SHIP (ALTER EXTENSION vector UPDATE)...$(RESET)"; \
+		docker exec edgequake-postgres psql -U edgequake -d edgequake -c "ALTER EXTENSION vector UPDATE;" >/dev/null 2>&1 || \
+			echo "$(YELLOW)  pgvector catalog upgrade deferred to backend migration 042$(RESET)"; \
+	fi; \
 	_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
 	printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
 	echo "$(GREEN)✓ Effective DATABASE_URL written to /tmp/edgequake-db-url$(RESET)"
+
+postgres-image-build: ## Build and verify edgequake-postgres Docker image (pgvector 0.8.3 + AGE 1.6.0)
+	@echo "$(BLUE)Building edgequake-postgres image...$(RESET)"
+	@cd $(DOCKER_DIR) && docker build -f Dockerfile.postgres -t edgequake-postgres:local .
+	@chmod +x $(DOCKER_DIR)/verify-postgres-extensions.sh
+	@bash $(DOCKER_DIR)/verify-postgres-extensions.sh edgequake-postgres:local
+	@echo "$(GREEN)✓ edgequake-postgres:local ready$(RESET)"
 
 db-stop: ## Stop PostgreSQL container
 	@echo "$(BLUE)Stopping PostgreSQL...$(RESET)"
