@@ -44,8 +44,8 @@
 //! Hybrid  | Slow  | Best     | Large (both approaches)
 //! ```
 //!
-//! Hybrid is the default because it provides the best accuracy for most
-//! real-world queries, which often combine specific entities with broader context.
+//! Mix is the production default (runtime + serde). Hybrid remains the LightRAG
+//! round-robin interleave mode for explicit API requests.
 
 use serde::{Deserialize, Serialize};
 
@@ -66,11 +66,6 @@ pub enum QueryMode {
     /// vectors match. **Not** GraphRAG hierarchical community reports (SPEC-023 I2).
     Global,
 
-    /// Combines local and global approaches.
-    /// Balances specificity and coverage.
-    #[default]
-    Hybrid,
-
     /// Weighted combination of naive and graph-based retrieval (FEAT0105 / P-G8).
     ///
     /// Runs the Local, Global, and Naive arms in parallel and blends them by
@@ -78,7 +73,14 @@ pub enum QueryMode {
     /// round-robin. Weights are `QueryEngineConfig::{mix_local_weight,
     /// mix_global_weight, mix_naive_weight}` and need not sum to 1. Equal
     /// weights preserve Hybrid's ordering on identical fixtures.
+    ///
+    /// **Production default** (runtime + serde): Mix with RRF fusion.
+    #[default]
     Mix,
+
+    /// Combines local and global approaches via round-robin interleave (LightRAG Hybrid).
+    /// Balances specificity and coverage.
+    Hybrid,
 
     /// Direct LLM query without RAG retrieval (FEAT0106).
     Bypass,

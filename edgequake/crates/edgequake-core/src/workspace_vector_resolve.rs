@@ -68,9 +68,7 @@ pub async fn resolve_workspace_vector_storage(
     let workspace_id_raw = input.workspace_id.map(str::trim).unwrap_or("");
     if workspace_id_raw.is_empty() {
         if allow_fallback {
-            tracing::warn!(
-                "Empty workspace ID — using default vector storage (non-strict mode)"
-            );
+            tracing::warn!("Empty workspace ID — using default vector storage (non-strict mode)");
             return Ok(default_storage);
         }
         return Err(Error::validation(

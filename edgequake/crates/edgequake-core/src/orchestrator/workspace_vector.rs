@@ -30,9 +30,7 @@ impl EdgeQuake {
     }
 
     /// Resolve vector storage for [`super::ingestion::EdgeQuake::insert`].
-    pub(super) async fn resolve_ingestion_vector_storage(
-        &self,
-    ) -> Result<Arc<dyn VectorStorage>> {
+    pub(super) async fn resolve_ingestion_vector_storage(&self) -> Result<Arc<dyn VectorStorage>> {
         let default_storage = self
             .vector_storage
             .as_ref()
@@ -54,10 +52,7 @@ impl EdgeQuake {
             default_storage,
             self.workspace_service.as_deref(),
             self.config.embedding_dim,
-            WorkspaceVectorResolveInput::new(
-                self.config.workspace_id.as_deref(),
-                "default",
-            ),
+            WorkspaceVectorResolveInput::new(self.config.workspace_id.as_deref(), "default"),
             policy,
         )
         .await

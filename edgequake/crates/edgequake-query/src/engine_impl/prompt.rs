@@ -4,7 +4,9 @@ use std::sync::Arc;
 use futures::stream::StreamExt;
 
 use crate::context::QueryContext;
+use crate::conversation_context::{self, DEFAULT_CONVERSATION_TURN_LIMIT};
 use crate::error::Result;
+use crate::types::ConversationMessage;
 use edgequake_llm::traits::{ChatMessage, ImageData};
 
 use super::QueryEngine;
@@ -86,6 +88,7 @@ impl QueryEngine {
         query: &str,
         context: &QueryContext,
         system_prompt_extension: Option<&str>,
+        conversation_history: &[ConversationMessage],
     ) -> String {
         if context.is_empty() {
             return "I'm sorry, but I couldn't find any relevant information in my knowledge base to answer your question.".to_string();
@@ -93,6 +96,12 @@ impl QueryEngine {
 
         let (context_text, additional_instructions) =
             Self::format_context_section(context, system_prompt_extension);
+        let conversation_section = conversation_context::format_conversation_history(
+            conversation_history,
+            DEFAULT_CONVERSATION_TURN_LIMIT,
+        )
+        .map(|section| format!("\n{section}\n"))
+        .unwrap_or_default();
 
         format!(
             r#"---Role---
@@ -122,7 +131,7 @@ The answer must integrate relevant facts from the Knowledge Graph and Document C
 ---Context---
 
 {context_text}
-
+{conversation_section}
 ---User Query---
 
 {query}"#
@@ -199,6 +208,7 @@ Generate a comprehensive, well-structured answer that integrates observations fr
         llm_override: Option<&Arc<dyn crate::LLMProvider>>,
         system_prompt_extension: Option<&str>,
         images: Option<&[ImageData]>,
+        conversation_history: &[ConversationMessage],
     ) -> Result<(String, usize)> {
         if context.is_empty() {
             return Ok((
@@ -223,22 +233,37 @@ Generate a comprehensive, well-structured answer that integrates observations fr
         // chat-API round-trip for providers that support both.
         let response = if let Some(imgs) = images.filter(|i| !i.is_empty()) {
             let system_text = self.build_vision_system_message(context, system_prompt_extension);
+            let user_text = conversation_context::query_with_conversation_context(
+                query,
+                conversation_history,
+                DEFAULT_CONVERSATION_TURN_LIMIT,
+            );
             let messages = vec![
                 ChatMessage::system(&system_text),
-                ChatMessage::user_with_images(query, imgs.to_vec()),
+                ChatMessage::user_with_images(&user_text, imgs.to_vec()),
             ];
             match provider.chat(&messages, None).await {
                 Ok(r) => r,
                 Err(e) => {
                     tracing::warn!(error = %e, "Vision chat failed; retrying as text-only query");
                     provider
-                        .complete(&self.build_prompt(query, context, system_prompt_extension))
+                        .complete(&self.build_prompt(
+                            query,
+                            context,
+                            system_prompt_extension,
+                            conversation_history,
+                        ))
                         .await?
                 }
             }
         } else {
             provider
-                .complete(&self.build_prompt(query, context, system_prompt_extension))
+                .complete(&self.build_prompt(
+                    query,
+                    context,
+                    system_prompt_extension,
+                    conversation_history,
+                ))
                 .await?
         };
 
@@ -251,9 +276,17 @@ Generate a comprehensive, well-structured answer that integrates observations fr
         query: &str,
         context: &QueryContext,
         system_prompt_extension: Option<&str>,
+        conversation_history: &[ConversationMessage],
     ) -> Result<(String, usize)> {
-        self.generate_answer_with_provider(query, context, None, system_prompt_extension, None)
-            .await
+        self.generate_answer_with_provider(
+            query,
+            context,
+            None,
+            system_prompt_extension,
+            None,
+            conversation_history,
+        )
+        .await
     }
 
     /// Generate a *direct* LLM answer with no retrieval context (P-G8 / RC-13).
@@ -344,7 +377,7 @@ Generate a comprehensive, well-structured answer that integrates observations fr
                     "Streaming vision chat failed; falling back to text-only stream"
                 );
                 // Text-only fallback: prefer streaming if supported, else one-shot.
-                let prompt = self.build_prompt(query, context, system_prompt_extension);
+                let prompt = self.build_prompt(query, context, system_prompt_extension, &[]);
                 if provider.supports_streaming() {
                     provider
                         .stream(&prompt)

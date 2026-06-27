@@ -7,7 +7,9 @@ use std::sync::Arc;
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::MockProvider;
 use edgequake_storage::traits::KVStorage;
-use edgequake_storage::{GraphStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage};
+use edgequake_storage::{
+    GraphStorage, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage, VectorStorage,
+};
 
 const EXTRACTION_JSON: &str = edgequake_pipeline::SPEC021_SARAH_CHEN_EXTRACTION_JSON;
 

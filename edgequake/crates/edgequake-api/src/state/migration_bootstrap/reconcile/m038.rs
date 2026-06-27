@@ -2,10 +2,7 @@ use sqlx::PgPool;
 use tracing::info;
 
 use super::super::helpers::{large_graph_threshold, quote_schema, set_large_graph_threshold};
-use super::super::{
-
-    Migration038Report, MIGRATION_038_VERSION, SQL_038_APPLY,
-};
+use super::super::{Migration038Report, MIGRATION_038_VERSION, SQL_038_APPLY};
 
 pub async fn reconcile_migration_038(
     pool: &PgPool,
@@ -101,7 +98,6 @@ pub async fn reconcile_migration_038(
     })
 }
 
-
 struct GraphIndexAudit {
     graph_name: String,
     vertex_count: Option<i64>,
@@ -192,5 +188,3 @@ async fn audit_graph_indexes(pool: &PgPool) -> Result<Vec<GraphIndexAudit>, sqlx
 
     Ok(results)
 }
-
-

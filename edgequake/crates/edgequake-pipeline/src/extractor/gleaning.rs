@@ -84,8 +84,10 @@ impl GleaningExtractor {
     }
 
     /// Build the gleaning prompt.
-    fn build_gleaning_prompt(&self, text: &str, previous_entities: &[String]) -> String {
-        crate::prompts::json_gleaning_prompt(text, previous_entities)
+    fn build_gleaning_prompt(&self, chunk: &TextChunk, previous_entities: &[String]) -> String {
+        let text =
+            crate::prompts::text_with_section_context(&chunk.content, chunk.section.as_ref());
+        crate::prompts::json_gleaning_prompt(&text, previous_entities)
     }
 
     /// Parse gleaning response via shared JSON parser (normalization + BR0006 filters).
@@ -170,7 +172,7 @@ impl EntityExtractor for GleaningExtractor {
                 result.entities.iter().map(|e| e.name.clone()).collect();
 
             // Build and execute gleaning prompt
-            let gleaning_prompt = self.build_gleaning_prompt(&chunk.content, &entity_names);
+            let gleaning_prompt = self.build_gleaning_prompt(chunk, &entity_names);
 
             let response = self
                 .llm_provider

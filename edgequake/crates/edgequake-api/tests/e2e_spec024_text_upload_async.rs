@@ -51,12 +51,10 @@ async fn spec024_text_upload_returns_202_and_persists_via_worker() {
     assert_eq!(final_status, "completed");
 
     let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
-    assert!(
-        workers
-            .graph_storage
-            .get_node(&node_id)
-            .await
-            .expect("graph read")
-            .is_some()
-    );
+    assert!(workers
+        .graph_storage
+        .get_node(&node_id)
+        .await
+        .expect("graph read")
+        .is_some());
 }

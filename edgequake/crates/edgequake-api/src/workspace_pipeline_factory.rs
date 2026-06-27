@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use edgequake_core::WorkspaceService;
-use edgequake_pipeline::{LLMExtractor, Pipeline};
+use edgequake_pipeline::{build_ingestion_pipeline, IngestionPipelineOptions, Pipeline};
 use tracing::{error, info, warn};
 
 use crate::safety_limits::{create_safe_embedding_provider, create_safe_llm_provider};
@@ -44,6 +44,21 @@ impl WorkspacePipelineFactory {
         workspace_id: &str,
         policy: PipelineFallbackPolicy,
     ) -> Result<Arc<Pipeline>, String> {
+        self.resolve_for_ingestion(
+            workspace_id,
+            policy,
+            IngestionPipelineOptions::from_document_size(0),
+        )
+        .await
+    }
+
+    /// Resolve a document-scoped pipeline (adaptive chunk + gleaning).
+    pub async fn resolve_for_ingestion(
+        &self,
+        workspace_id: &str,
+        policy: PipelineFallbackPolicy,
+        options: IngestionPipelineOptions,
+    ) -> Result<Arc<Pipeline>, String> {
         let workspace_uuid = match crate::middleware::resolve_workspace_uuid(Some(workspace_id)) {
             Some(uuid) => uuid,
             None => {
@@ -68,7 +83,8 @@ impl WorkspacePipelineFactory {
             }
         };
 
-        let llm_provider = create_safe_llm_provider(&ws.llm_provider, &ws.llm_model);
+        let extract_role = edgequake_core::resolve_role_llm(&ws, edgequake_core::LlmRole::Extract);
+        let llm_provider = create_safe_llm_provider(&extract_role.provider, &extract_role.model);
         let embedding_provider = create_safe_embedding_provider(
             &ws.embedding_provider,
             &ws.embedding_model,
@@ -88,12 +104,12 @@ impl WorkspacePipelineFactory {
                     edgequake_pipeline::prompts::EntityExtractionSchema::from_workspace_metadata(
                         &ws.metadata,
                     );
-                let extractor = Arc::new(LLMExtractor::new(llm).with_entity_schema(entity_schema));
-                Ok(Arc::new(
-                    Pipeline::default_pipeline()
-                        .with_extractor(extractor)
-                        .with_embedding_provider(embedding),
-                ))
+                Ok(Arc::new(build_ingestion_pipeline(
+                    llm,
+                    embedding,
+                    entity_schema,
+                    options,
+                )))
             }
             (Err(llm_err), Ok(_)) => {
                 error!(

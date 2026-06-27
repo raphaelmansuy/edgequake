@@ -563,8 +563,8 @@ impl QueryEngine {
     }
 }
 
-mod prompt;
 mod modes;
+mod prompt;
 mod query_entry;
 mod query_modes;
 mod reranking;
@@ -635,7 +635,7 @@ mod tests {
             let engine = create_prompt_test_engine();
             let context = test_context();
 
-            let prompt = engine.build_prompt("What is Rust?", &context, None);
+            let prompt = engine.build_prompt("What is Rust?", &context, None, &[]);
 
             assert!(prompt.contains("---Role---"));
             assert!(prompt.contains("---Instructions---"));
@@ -654,6 +654,7 @@ mod tests {
                 "What is Rust?",
                 &context,
                 Some("Always respond in French. Be concise."),
+                &[],
             );
 
             assert!(prompt.contains("---Role---"));
@@ -683,11 +684,11 @@ mod tests {
             let context = test_context();
 
             // Empty string should behave like None
-            let prompt = engine.build_prompt("What is Rust?", &context, Some(""));
+            let prompt = engine.build_prompt("What is Rust?", &context, Some(""), &[]);
             assert!(!prompt.contains("---Additional Instructions---"));
 
             // Whitespace-only should also behave like None
-            let prompt = engine.build_prompt("What is Rust?", &context, Some("   \n\t  "));
+            let prompt = engine.build_prompt("What is Rust?", &context, Some("   \n\t  "), &[]);
             assert!(!prompt.contains("---Additional Instructions---"));
         }
 
@@ -697,7 +698,7 @@ mod tests {
             let empty_context = QueryContext::default();
 
             // Empty context should return a "no information" message regardless of system_prompt
-            let prompt = engine.build_prompt("query", &empty_context, Some("Be concise"));
+            let prompt = engine.build_prompt("query", &empty_context, Some("Be concise"), &[]);
             assert!(prompt.contains("couldn't find any relevant information"));
             assert!(!prompt.contains("---Additional Instructions---"));
         }

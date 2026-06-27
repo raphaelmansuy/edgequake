@@ -9,7 +9,10 @@ pub fn large_graph_threshold() -> i64 {
         .unwrap_or(500_000)
 }
 
-pub(super) async fn set_large_graph_threshold(pool: &PgPool, threshold: i64) -> Result<(), sqlx::Error> {
+pub(super) async fn set_large_graph_threshold(
+    pool: &PgPool,
+    threshold: i64,
+) -> Result<(), sqlx::Error> {
     sqlx::query("SELECT set_config('edgequake.migration_large_graph_threshold', $1, false)")
         .bind(threshold.to_string())
         .execute(pool)

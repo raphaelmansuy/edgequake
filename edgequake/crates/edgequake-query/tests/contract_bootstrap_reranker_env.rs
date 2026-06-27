@@ -4,8 +4,8 @@
 async fn contract_cross_encoder_uses_bi_encoder_with_mock_embedding() {
     use std::sync::Arc;
 
-    use edgequake_llm::MockProvider;
     use edgequake_llm::traits::EmbeddingProvider;
+    use edgequake_llm::MockProvider;
     use edgequake_query::create_production_reranker_with_embedding;
 
     std::env::remove_var("JINA_API_KEY");
@@ -16,9 +16,8 @@ async fn contract_cross_encoder_uses_bi_encoder_with_mock_embedding() {
     std::env::set_var("EDGEQUAKE_RERANKER", "cross_encoder");
 
     let mock = Arc::new(MockProvider::new());
-    let reranker = create_production_reranker_with_embedding(Some(
-        mock as Arc<dyn EmbeddingProvider>,
-    ));
+    let reranker =
+        create_production_reranker_with_embedding(Some(mock as Arc<dyn EmbeddingProvider>));
     assert_eq!(reranker.name(), "bi-encoder");
 
     let docs = vec![

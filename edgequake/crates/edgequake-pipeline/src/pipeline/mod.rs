@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use edgequake_llm::traits::EmbeddingProvider;
 
-use crate::chunker::Chunker;
+use crate::chunker::{resolve_chunker, Chunker};
 use crate::extractor::EntityExtractor;
 
 pub use config::{
@@ -49,7 +49,7 @@ impl Pipeline {
             max_concurrent = config.max_concurrent_extractions,
             "Pipeline created (effective extraction config)"
         );
-        let chunker = Chunker::new(config.chunker.clone());
+        let chunker = resolve_chunker(config.chunk_strategy, config.chunker.clone());
 
         Self {
             config,
@@ -83,7 +83,7 @@ impl Pipeline {
                     "Reducing chunk_size to fit embedding model context (2x safety margin)"
                 );
                 self.config.chunker.chunk_size = max_safe;
-                self.chunker = Chunker::new(self.config.chunker.clone());
+                self.chunker = resolve_chunker(self.config.chunk_strategy, self.config.chunker.clone());
             }
         }
         self.embedding_provider = Some(provider);

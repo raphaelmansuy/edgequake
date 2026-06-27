@@ -59,13 +59,13 @@ impl TaskProcessor for DocumentTaskProcessor {
                 self.process_pdf_processing(task, data, cancel_token).await
             }
             TaskType::KnowledgeInjection => {
-                let data: KnowledgeInjectionData =
-                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
-                        edgequake_tasks::TaskError::InvalidPayload(format!(
-                            "Invalid KnowledgeInjectionData: {}",
-                            e
-                        ))
-                    })?;
+                let data: KnowledgeInjectionData = serde_json::from_value(task.task_data.clone())
+                    .map_err(|e| {
+                    edgequake_tasks::TaskError::InvalidPayload(format!(
+                        "Invalid KnowledgeInjectionData: {}",
+                        e
+                    ))
+                })?;
 
                 self.process_knowledge_injection(task, data, cancel_token)
                     .await

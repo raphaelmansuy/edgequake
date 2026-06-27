@@ -354,7 +354,9 @@ mod tests {
     use super::*;
     use crate::chunker::TextChunk;
     use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
-    use edgequake_storage::{GraphStorageReadOps, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage};
+    use edgequake_storage::{
+        GraphStorageReadOps, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
+    };
 
     fn sample_result() -> ProcessingResult {
         let chunk = TextChunk {
@@ -367,6 +369,7 @@ mod tests {
             start_offset: 0,
             end_offset: 28,
             token_count: 5,
+            section: None,
         };
         ProcessingResult {
             document_id: "doc1".to_string(),
@@ -413,7 +416,10 @@ mod tests {
         .expect("persist");
 
         let chunk_kv = kv.get_by_id("doc1-chunk-0").await.unwrap();
-        assert!(chunk_kv.is_some(), "chunk text must live in KV when configured");
+        assert!(
+            chunk_kv.is_some(),
+            "chunk text must live in KV when configured"
+        );
         assert_eq!(
             chunk_kv
                 .as_ref()

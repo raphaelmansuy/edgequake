@@ -34,10 +34,10 @@ use crate::state::AppState;
 
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{
-    BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, LlmProviderHealth,
-    ObservabilityHealthSnapshot, OperationalHealth, ProvidersHealth, QueryEngineHealthSnapshot,
-    ReadModelHealthSnapshot, SchemaHealth, SourceIdsIndexHealth, StorageHealthSnapshot,
-    TaskQueueHealthSnapshot, IngestionHealthSnapshot, MigrationHealthSnapshot,
+    BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, IngestionHealthSnapshot,
+    LlmProviderHealth, MigrationHealthSnapshot, ObservabilityHealthSnapshot, OperationalHealth,
+    ProvidersHealth, QueryEngineHealthSnapshot, ReadModelHealthSnapshot, SchemaHealth,
+    SourceIdsIndexHealth, StorageHealthSnapshot, TaskQueueHealthSnapshot,
 };
 
 /// Deep health check with component status.
@@ -97,9 +97,9 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     let storage_degraded = !kv_ok || !vector_ok || !graph_ok;
 
     let operational = build_operational_health(&state).await;
-    let queue_overloaded = operational
-        .as_ref()
-        .is_some_and(|op| crate::task_queue_pressure::health_degraded_by_queue(op.task_queue.pending));
+    let queue_overloaded = operational.as_ref().is_some_and(|op| {
+        crate::task_queue_pressure::health_degraded_by_queue(op.task_queue.pending)
+    });
 
     let status = if schema
         .as_ref()
@@ -164,7 +164,9 @@ async fn build_operational_health(state: &AppState) -> Option<OperationalHealth>
         fusion::{mix_fusion_mode_from_env, mix_fusion_mode_label},
         hybrid_merge::{hybrid_fusion_mode_from_env, hybrid_fusion_mode_label},
     };
-    use edgequake_storage::{community_refresh_debounce_secs, pending_community_refresh_workspaces};
+    use edgequake_storage::{
+        community_refresh_debounce_secs, pending_community_refresh_workspaces,
+    };
 
     let task_stats = state
         .tasks

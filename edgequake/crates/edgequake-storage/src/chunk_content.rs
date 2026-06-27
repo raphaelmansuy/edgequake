@@ -17,10 +17,7 @@ pub fn content_from_kv_value(value: &Value) -> Option<String> {
 }
 
 /// Resolve content for a chunk id: inline metadata (legacy) or KV lookup.
-pub fn content_from_metadata_or_kv(
-    metadata: &Value,
-    kv_content: Option<&str>,
-) -> String {
+pub fn content_from_metadata_or_kv(metadata: &Value, kv_content: Option<&str>) -> String {
     metadata
         .get("content")
         .and_then(|v| v.as_str())

@@ -3,9 +3,9 @@
 //! Query intent determines which retrieval strategy to use:
 //! - Factual: Entity-focused (Local mode preferred)
 //! - Relational: Relationship-focused (Global mode preferred)  
-//! - Exploratory: Broad coverage (Hybrid mode preferred)
-//! - Comparative: Multi-entity (Special handling)
-//! - Procedural: Step-by-step (Chunk-focused)
+//! - Exploratory: Broad coverage (Naive vector search — cheap single arm)
+//! - Comparative: Multi-entity (Local entity retrieval)
+//! - Procedural: Step-by-step (Mix — chunks + graph fusion)
 
 use serde::{Deserialize, Serialize};
 
@@ -25,27 +25,30 @@ pub enum QueryIntent {
     Relational,
 
     /// "Tell me about X" - Broad exploration
-    /// Preferred mode: Hybrid (comprehensive)
+    /// Preferred mode: Naive (vector-only, avoids triple-arm Hybrid/Mix)
     #[default]
     Exploratory,
 
     /// "Compare X and Y" - Multiple entities in parallel
-    /// Preferred mode: Hybrid with parallel entity retrieval
+    /// Preferred mode: Local (entity-centric per comparison target)
     Comparative,
 
     /// "How to do X?" - Step-by-step instructions
-    /// Preferred mode: Mix (chunks important for procedures)
+    /// Preferred mode: Mix (chunks + graph fusion for procedures)
     Procedural,
 }
 
 impl QueryIntent {
     /// Get the recommended query mode for this intent.
+    ///
+    /// SPEC-025 6.4: reserve expensive Mix/Hybrid for procedural queries only;
+    /// exploratory and comparative paths use single-arm modes.
     pub fn recommended_mode(&self) -> crate::modes::QueryMode {
         match self {
             QueryIntent::Factual => crate::modes::QueryMode::Local,
             QueryIntent::Relational => crate::modes::QueryMode::Global,
-            QueryIntent::Exploratory => crate::modes::QueryMode::Hybrid,
-            QueryIntent::Comparative => crate::modes::QueryMode::Hybrid,
+            QueryIntent::Exploratory => crate::modes::QueryMode::Naive,
+            QueryIntent::Comparative => crate::modes::QueryMode::Local,
             QueryIntent::Procedural => crate::modes::QueryMode::Mix,
         }
     }
@@ -219,6 +222,18 @@ mod tests {
         assert_eq!(
             QueryIntent::Relational.recommended_mode(),
             crate::modes::QueryMode::Global
+        );
+        assert_eq!(
+            QueryIntent::Exploratory.recommended_mode(),
+            crate::modes::QueryMode::Naive
+        );
+        assert_eq!(
+            QueryIntent::Comparative.recommended_mode(),
+            crate::modes::QueryMode::Local
+        );
+        assert_eq!(
+            QueryIntent::Procedural.recommended_mode(),
+            crate::modes::QueryMode::Mix
         );
     }
 }

@@ -19,6 +19,7 @@ pub fn sample_processing_result() -> ProcessingResult {
         start_offset: 0,
         end_offset: 28,
         token_count: 5,
+        section: None,
     };
     ProcessingResult {
         document_id: "doc1".to_string(),

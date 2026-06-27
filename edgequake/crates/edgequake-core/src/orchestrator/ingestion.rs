@@ -2,12 +2,11 @@
 //!
 //! Contains `insert()`, `insert_batch()`, and adaptive chunk size calculation.
 
-use std::sync::Arc;
-
+use edgequake_pipeline::prompts::EntityExtractionSchema;
 use edgequake_pipeline::{
-    ChunkVectorBuildOptions, DefaultIngestionPersister, GleaningConfig, GleaningExtractor,
-    IngestionPersistContext, IngestionPersistSettings, IngestionPersister, LLMExtractor, Pipeline,
-    PipelineConfig,
+    build_ingestion_pipeline, ChunkVectorBuildOptions, DefaultIngestionPersister,
+    IngestionPersistContext, IngestionPersistSettings, IngestionPersister,
+    IngestionPipelineOptions,
 };
 
 use crate::error::{Error, Result};
@@ -40,28 +39,10 @@ use super::EdgeQuake;
 /// let chunk_size = calculate_adaptive_chunk_size(80_000);  // 80KB → 800 tokens
 /// let chunk_size = calculate_adaptive_chunk_size(200_000); // 200KB → 600 tokens
 /// ```
+/// @deprecated Use [`edgequake_pipeline::calculate_adaptive_chunk_size`] (SSOT).
+#[allow(dead_code)]
 fn calculate_adaptive_chunk_size(document_size_bytes: usize) -> usize {
-    // Based on LightRAG best practices and empirical testing:
-    // - Small documents (<50KB): Use standard 1200 tokens
-    // - Medium documents (50-100KB): Use reduced 800 tokens
-    // - Large documents (>100KB): Use minimal 600 tokens
-    //
-    // WHY these thresholds:
-    // - 50KB ≈ 12,500 tokens → ~10 chunks at 1200 tokens (manageable)
-    // - 100KB ≈ 25,000 tokens → ~31 chunks at 800 tokens (reasonable)
-    // - 150KB ≈ 37,500 tokens → ~62 chunks at 600 tokens (many but necessary)
-    //
-    // Smaller chunks for large documents reduce:
-    // 1. LLM timeout risk (less context per request)
-    // 2. Entity extraction complexity (focused scope)
-    // 3. Memory pressure (smaller batches)
-    if document_size_bytes > 100_000 {
-        600 // >100KB: minimal chunks for reliability
-    } else if document_size_bytes > 50_000 {
-        800 // 50-100KB: reduced chunks
-    } else {
-        1200 // <50KB: standard LightRAG default
-    }
+    edgequake_pipeline::calculate_adaptive_chunk_size(document_size_bytes)
 }
 
 impl EdgeQuake {
@@ -183,35 +164,7 @@ impl EdgeQuake {
 
         let start = std::time::Instant::now();
 
-        // Calculate adaptive chunk size based on document length
-        // WHY: Large documents need smaller chunks to avoid LLM timeouts
-        // Based on LightRAG research: 1200 tokens optimal for <50KB, scale down for larger docs
         let doc_size_bytes = content.len();
-        let adaptive_chunk_size = calculate_adaptive_chunk_size(doc_size_bytes);
-        let adaptive_overlap = (adaptive_chunk_size as f32 * 0.083) as usize; // ~8% overlap (LightRAG best practice)
-        let doc_size_kb = doc_size_bytes / 1024;
-
-        tracing::info!(
-            doc_id = %doc_id,
-            doc_size_bytes = doc_size_bytes,
-            doc_size_kb = doc_size_kb,
-            adaptive_chunk_size = adaptive_chunk_size,
-            adaptive_overlap = adaptive_overlap,
-            default_chunk_size = self.config.chunk_token_size,
-            "Using adaptive chunking for document ingestion"
-        );
-
-        // Create pipeline with adaptive configuration
-        // WHY: Per-document pipeline allows dynamic chunk sizing
-        // WHY not reuse stored pipeline: Stored pipeline uses static config
-        let pipeline_config = PipelineConfig {
-            chunker: edgequake_pipeline::ChunkerConfig {
-                chunk_size: adaptive_chunk_size,
-                chunk_overlap: adaptive_overlap,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
 
         let llm = self
             .llm_provider
@@ -223,28 +176,14 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::config("Embedding provider not set"))?;
 
-        // Create base extractor
-        let base_extractor: Arc<dyn edgequake_pipeline::EntityExtractor> = Arc::new(
-            LLMExtractor::new(llm.clone()).with_entity_types(self.config.entity_types.clone()),
+        let entity_schema = EntityExtractionSchema::with_types(self.config.entity_types.clone());
+        let pipeline = build_ingestion_pipeline(
+            llm.clone(),
+            embedding.clone(),
+            entity_schema,
+            IngestionPipelineOptions::from_document_size(doc_size_bytes)
+                .with_gleaning(self.config.enable_gleaning, self.config.max_gleaning),
         );
-
-        // Wrap with GleaningExtractor if enabled
-        let extractor: Arc<dyn edgequake_pipeline::EntityExtractor> = if self.config.enable_gleaning
-            && self.config.max_gleaning > 0
-        {
-            Arc::new(
-                GleaningExtractor::new(llm.clone(), base_extractor).with_config(GleaningConfig {
-                    max_gleaning: self.config.max_gleaning,
-                    always_glean: false,
-                }),
-            )
-        } else {
-            base_extractor
-        };
-
-        let pipeline = Pipeline::new(pipeline_config)
-            .with_extractor(extractor)
-            .with_embedding_provider(embedding.clone());
 
         let graph_storage = self
             .graph_storage

@@ -176,6 +176,12 @@ impl QueryEngine {
         request: &QueryRequest,
         providers: &QueryProviders<'_>,
     ) -> Result<PreparedQuery> {
+        let keyword_query = crate::conversation_context::query_with_conversation_context(
+            &request.query,
+            &request.conversation_history,
+            crate::conversation_context::DEFAULT_CONVERSATION_TURN_LIMIT,
+        );
+
         let par_start = Instant::now();
         let keyword_llm = providers.keyword_llm.clone();
         let (raw_keywords_result, query_vec_result) = tokio::join!(
@@ -183,11 +189,11 @@ impl QueryEngine {
                 if self.config.use_keyword_extraction {
                     if let Some(llm) = keyword_llm {
                         self.keyword_extractor
-                            .extract_with_llm_override(&request.query, Some(llm))
+                            .extract_with_llm_override(&keyword_query, Some(llm))
                             .await
                     } else {
                         self.keyword_extractor
-                            .extract_extended(&request.query)
+                            .extract_extended(&keyword_query)
                             .await
                     }
                 } else {
@@ -202,7 +208,7 @@ impl QueryEngine {
                 // Skip embed_one when keywords are disabled — compute_with_query_vec
                 // batch-embeds three levels (MockProvider / LightRAG parity).
                 if self.config.use_keyword_extraction {
-                    providers.embedding.embed_one(&request.query).await
+                    providers.embedding.embed_one(&keyword_query).await
                 } else {
                     Ok(vec![])
                 }
@@ -427,6 +433,7 @@ impl QueryEngine {
                     &request.query,
                     &final_context,
                     request.system_prompt.as_deref(),
+                    &request.conversation_history,
                 ),
                 0,
             )
@@ -456,6 +463,7 @@ impl QueryEngine {
                     Some(llm),
                     request.system_prompt.as_deref(),
                     request.images.as_deref(),
+                    &request.conversation_history,
                 )
                 .await?
             } else {
@@ -463,6 +471,7 @@ impl QueryEngine {
                     &request.query,
                     &final_context,
                     request.system_prompt.as_deref(),
+                    &request.conversation_history,
                 )
                 .await?
             };

@@ -78,8 +78,27 @@ pub struct InjectionDetailResponse {
 pub struct ListInjectionsResponse {
     /// List of injection entries.
     pub items: Vec<InjectionSummary>,
-    /// Total count.
+    /// Total count in workspace.
     pub total: usize,
+    /// Page limit applied.
+    pub limit: usize,
+    /// Page offset applied.
+    pub offset: usize,
+    /// True when more items exist after this page.
+    pub has_more: bool,
+}
+
+/// Query parameters for paginated injection list (SPEC-025 6.5).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ListInjectionsQuery {
+    #[serde(default = "default_injection_list_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub offset: usize,
+}
+
+fn default_injection_list_limit() -> usize {
+    crate::services::DEFAULT_INJECTION_LIST_LIMIT
 }
 
 /// Summary of a single injection entry (for list view).

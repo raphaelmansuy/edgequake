@@ -23,6 +23,8 @@ const DB_POOL_CONNECTIONS: &str = "edgequake_db_pool_connections";
 const TASK_QUEUE_PENDING: &str = "edgequake_task_queue_pending";
 const TASK_QUEUE_PROCESSING: &str = "edgequake_task_queue_processing";
 const TASK_QUEUE_FAILED: &str = "edgequake_task_queue_failed";
+const INGESTION_CHUNK_STRATEGY: &str = "edgequake_ingestion_chunk_strategy_total";
+const INGESTION_SECTION_CONTEXT: &str = "edgequake_ingestion_section_context_total";
 
 /// Pre-register metric metadata so `/metrics` is never an empty body before first request.
 fn describe_http_metrics() {
@@ -73,7 +75,18 @@ fn describe_http_metrics() {
     );
     describe_gauge!(TASK_QUEUE_PENDING, "Pending tasks in the worker queue");
     describe_gauge!(TASK_QUEUE_PROCESSING, "Tasks currently being processed");
-    describe_gauge!(TASK_QUEUE_FAILED, "Failed tasks awaiting operator attention");
+    describe_gauge!(
+        TASK_QUEUE_FAILED,
+        "Failed tasks awaiting operator attention"
+    );
+    describe_counter!(
+        INGESTION_CHUNK_STRATEGY,
+        "Document ingest completions by chunk strategy (SPEC-026)"
+    );
+    describe_counter!(
+        INGESTION_SECTION_CONTEXT,
+        "Document ingest completions where section context was applied to chunks"
+    );
 }
 
 static PROMETHEUS: OnceLock<PrometheusHandle> = OnceLock::new();
@@ -141,6 +154,18 @@ pub fn init_metrics() {
         gauge!(TASK_QUEUE_PENDING).set(0.0);
         gauge!(TASK_QUEUE_PROCESSING).set(0.0);
         gauge!(TASK_QUEUE_FAILED).set(0.0);
+        counter!(
+            INGESTION_CHUNK_STRATEGY,
+            "chunk_strategy" => "bootstrap",
+            "outcome" => "success"
+        )
+        .increment(0);
+        counter!(
+            INGESTION_SECTION_CONTEXT,
+            "used" => "false",
+            "outcome" => "success"
+        )
+        .increment(0);
         handle
     });
 }
@@ -186,6 +211,18 @@ pub fn record_db_pool_stats(size: u32, idle: u32) {
 
 /// Record document/PDF pipeline processing (task processor layer).
 pub fn record_document_processing(task_type: &str, stage: &str, outcome: &str, duration_secs: f64) {
+    record_document_processing_with_labels(task_type, stage, outcome, duration_secs, None, false);
+}
+
+/// Record ingest pipeline outcome with SPEC-026 chunk strategy / section context labels.
+pub fn record_document_processing_with_labels(
+    task_type: &str,
+    stage: &str,
+    outcome: &str,
+    duration_secs: f64,
+    chunk_strategy: Option<&str>,
+    section_context_used: bool,
+) {
     init_metrics();
     counter!(
         DOCUMENT_PROCESSING,
@@ -200,6 +237,21 @@ pub fn record_document_processing(task_type: &str, stage: &str, outcome: &str, d
         "stage" => stage.to_string()
     )
     .record(duration_secs);
+
+    if let Some(strategy) = chunk_strategy {
+        counter!(
+            INGESTION_CHUNK_STRATEGY,
+            "chunk_strategy" => strategy.to_string(),
+            "outcome" => outcome.to_string()
+        )
+        .increment(1);
+        counter!(
+            INGESTION_SECTION_CONTEXT,
+            "used" => section_context_used.to_string(),
+            "outcome" => outcome.to_string()
+        )
+        .increment(1);
+    }
 }
 
 /// Record an LLM provider call.
@@ -326,6 +378,10 @@ mod tests {
         assert!(
             body.contains(TASK_QUEUE_PENDING),
             "metrics scrape should list task queue pending gauge: {body:?}"
+        );
+        assert!(
+            body.contains(INGESTION_CHUNK_STRATEGY),
+            "metrics scrape should list ingestion chunk strategy counter: {body:?}"
         );
     }
 }

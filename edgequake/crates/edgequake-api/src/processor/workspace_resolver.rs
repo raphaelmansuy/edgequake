@@ -62,6 +62,37 @@ impl DocumentTaskProcessor {
             .unwrap_or_else(|_| Arc::clone(&self.pipeline))
     }
 
+    /// Document-scoped pipeline with adaptive chunking and gleaning (SPEC-025 5.2/5.3).
+    pub(super) async fn get_workspace_pipeline_for_ingestion(
+        &self,
+        workspace_id: Option<&str>,
+        options: edgequake_pipeline::IngestionPipelineOptions,
+        policy: crate::workspace_pipeline_factory::PipelineFallbackPolicy,
+    ) -> Result<Arc<Pipeline>, String> {
+        let (workspace_service, _models_config): (&SharedWorkspaceService, &Arc<ModelsConfig>) =
+            match (&self.workspace_service, &self.models_config) {
+                (Some(ws), Some(mc)) => (ws, mc),
+                _ => {
+                    return Err("OODA-16: No workspace support configured on processor".to_string());
+                }
+            };
+
+        let Some(workspace_id) = workspace_id.map(str::trim).filter(|id| !id.is_empty()) else {
+            return Err(format!(
+                "OODA-16: Invalid workspace_id '{:?}' - must provide valid workspace ID in strict mode",
+                workspace_id
+            ));
+        };
+
+        let factory = crate::workspace_pipeline_factory::WorkspacePipelineFactory::new(
+            Arc::clone(workspace_service),
+            Arc::clone(&self.pipeline),
+        );
+        factory
+            .resolve_for_ingestion(workspace_id, policy, options)
+            .await
+    }
+
     /// OODA-16: Strict variant that returns error instead of falling back.
     pub(super) async fn get_workspace_pipeline_strict(
         &self,

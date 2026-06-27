@@ -43,7 +43,10 @@ async fn contract_rerank_time_ms_populated_when_reranker_applied() {
     request.context_only = true;
     request.enable_rerank = Some(true);
 
-    let response = engine.query(request).await.expect("naive query with rerank");
+    let response = engine
+        .query(request)
+        .await
+        .expect("naive query with rerank");
 
     assert!(
         response.stats.rerank_time_ms.is_some(),

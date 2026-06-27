@@ -6,10 +6,7 @@ use edgequake_storage::traits::KVStorage;
 use crate::context::RetrievedChunk;
 
 /// Fill empty chunk bodies from KV (no-op when content already present).
-pub async fn hydrate_retrieved_chunks(
-    kv: Option<&dyn KVStorage>,
-    chunks: &mut [RetrievedChunk],
-) {
+pub async fn hydrate_retrieved_chunks(kv: Option<&dyn KVStorage>, chunks: &mut [RetrievedChunk]) {
     let Some(kv) = kv else {
         return;
     };
@@ -53,8 +50,6 @@ pub async fn chunk_documents_for_rerank(
 
     vector_results
         .iter()
-        .map(|r| {
-            content_from_metadata_or_kv(&r.metadata, kv_map.get(&r.id).map(String::as_str))
-        })
+        .map(|r| content_from_metadata_or_kv(&r.metadata, kv_map.get(&r.id).map(String::as_str)))
         .collect()
 }

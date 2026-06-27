@@ -294,12 +294,13 @@ impl WorkspaceProviderResolver {
             }
         }
 
-        // Case 2: Use workspace's LLM config if available
+        // Case 2: Use workspace LLM config (SPEC-026 P-08: query role → workspace default)
         if let Some(ws) = workspace {
-            if !ws.llm_provider.is_empty() {
+            let role = edgequake_core::resolve_role_llm(ws, edgequake_core::LlmRole::Query);
+            if !role.provider.is_empty() {
                 if let Some(resolved) = self.try_create_llm_provider(
-                    &ws.llm_provider,
-                    &ws.llm_model,
+                    &role.provider,
+                    &role.model,
                     ProviderSource::Workspace,
                     None,
                 )? {

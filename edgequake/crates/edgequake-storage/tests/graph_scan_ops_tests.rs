@@ -36,6 +36,7 @@ async fn graph_scan_ops_list_nodes_pagination() {
         workspace_id: Some(WORKSPACE.to_string()),
         entity_type: Some("PERSON".to_string()),
         search: None,
+        community_ids: None,
     };
 
     let page = storage.list_nodes_filtered(&filter, 0, 20).await.unwrap();
@@ -75,6 +76,7 @@ async fn graph_scan_ops_find_by_source_prefix() {
         workspace_id: Some(WORKSPACE.to_string()),
         entity_type: None,
         search: None,
+        community_ids: None,
     };
 
     let found = storage

@@ -225,8 +225,7 @@ pub(super) async fn get_workspace_vector_storage_strict(
     workspace_id: &str,
 ) -> Result<Arc<dyn VectorStorage>, ApiError> {
     use edgequake_core::{
-        resolve_workspace_vector_storage, WorkspaceVectorResolveInput,
-        WorkspaceVectorResolvePolicy,
+        resolve_workspace_vector_storage, WorkspaceVectorResolveInput, WorkspaceVectorResolvePolicy,
     };
 
     // OODA-223: Allow fallback in memory mode (tests) but not in production (PostgreSQL)
@@ -459,12 +458,8 @@ pub(crate) async fn cleanup_document_graph_data(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum DuplicateReingestAction {
     NoDuplicate,
-    ClearedForReingestion {
-        old_document_id: String,
-    },
-    StillProcessing {
-        existing_document_id: String,
-    },
+    ClearedForReingestion { old_document_id: String },
+    StillProcessing { existing_document_id: String },
 }
 
 /// Resolve workspace duplicate content hash (SPEC-024 pass 12 — ingestion uniformity SSOT).

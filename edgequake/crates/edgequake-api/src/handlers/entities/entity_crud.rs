@@ -61,6 +61,7 @@ pub async fn list_entities(
         workspace_id: tenant_ctx.workspace_id.clone(),
         entity_type: query.entity_type.clone(),
         search: query.search.clone(),
+        community_ids: None,
     };
 
     let page_result = state

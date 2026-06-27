@@ -1,0 +1,602 @@
+[
+  {
+    "id": "q001",
+    "query": "What is known about ENTITY_01?",
+    "expected_answer_keywords": [
+      "entity_01",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_01"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q002",
+    "query": "What is known about ENTITY_02?",
+    "expected_answer_keywords": [
+      "entity_02",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_02"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q003",
+    "query": "What is known about ENTITY_03?",
+    "expected_answer_keywords": [
+      "entity_03",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_03"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q004",
+    "query": "What is known about ENTITY_04?",
+    "expected_answer_keywords": [
+      "entity_04",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_04"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q005",
+    "query": "What is known about ENTITY_05?",
+    "expected_answer_keywords": [
+      "entity_05",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_05"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q006",
+    "query": "What is known about ENTITY_06?",
+    "expected_answer_keywords": [
+      "entity_06",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_06"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q007",
+    "query": "What is known about ENTITY_07?",
+    "expected_answer_keywords": [
+      "entity_07",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_07"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q008",
+    "query": "What is known about ENTITY_08?",
+    "expected_answer_keywords": [
+      "entity_08",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_08"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q009",
+    "query": "What is known about ENTITY_09?",
+    "expected_answer_keywords": [
+      "entity_09",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_09"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q010",
+    "query": "What is known about ENTITY_10?",
+    "expected_answer_keywords": [
+      "entity_10",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_10"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q011",
+    "query": "What is known about ENTITY_11?",
+    "expected_answer_keywords": [
+      "entity_11",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_11"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q012",
+    "query": "What is known about ENTITY_12?",
+    "expected_answer_keywords": [
+      "entity_12",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_12"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q013",
+    "query": "What is known about ENTITY_13?",
+    "expected_answer_keywords": [
+      "entity_13",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_13"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q014",
+    "query": "What is known about ENTITY_14?",
+    "expected_answer_keywords": [
+      "entity_14",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_14"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q015",
+    "query": "What is known about ENTITY_15?",
+    "expected_answer_keywords": [
+      "entity_15",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_15"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q016",
+    "query": "What is known about ENTITY_16?",
+    "expected_answer_keywords": [
+      "entity_16",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_16"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q017",
+    "query": "What is known about ENTITY_17?",
+    "expected_answer_keywords": [
+      "entity_17",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_17"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q018",
+    "query": "What is known about ENTITY_18?",
+    "expected_answer_keywords": [
+      "entity_18",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_18"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q019",
+    "query": "What is known about ENTITY_19?",
+    "expected_answer_keywords": [
+      "entity_19",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_19"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q020",
+    "query": "What is known about ENTITY_20?",
+    "expected_answer_keywords": [
+      "entity_20",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_20"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q021",
+    "query": "What is known about ENTITY_21?",
+    "expected_answer_keywords": [
+      "entity_21",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_21"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q022",
+    "query": "What is known about ENTITY_22?",
+    "expected_answer_keywords": [
+      "entity_22",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_22"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q023",
+    "query": "What is known about ENTITY_23?",
+    "expected_answer_keywords": [
+      "entity_23",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_23"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q024",
+    "query": "What is known about ENTITY_24?",
+    "expected_answer_keywords": [
+      "entity_24",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_24"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q025",
+    "query": "What is known about ENTITY_25?",
+    "expected_answer_keywords": [
+      "entity_25",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_25"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q026",
+    "query": "What is known about ENTITY_26?",
+    "expected_answer_keywords": [
+      "entity_26",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_26"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q027",
+    "query": "What is known about ENTITY_27?",
+    "expected_answer_keywords": [
+      "entity_27",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_27"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q028",
+    "query": "What is known about ENTITY_28?",
+    "expected_answer_keywords": [
+      "entity_28",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_28"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q029",
+    "query": "What is known about ENTITY_29?",
+    "expected_answer_keywords": [
+      "entity_29",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_29"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q030",
+    "query": "What is known about ENTITY_30?",
+    "expected_answer_keywords": [
+      "entity_30",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_30"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q031",
+    "query": "What is known about ENTITY_31?",
+    "expected_answer_keywords": [
+      "entity_31",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_31"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q032",
+    "query": "What is known about ENTITY_32?",
+    "expected_answer_keywords": [
+      "entity_32",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_32"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q033",
+    "query": "What is known about ENTITY_33?",
+    "expected_answer_keywords": [
+      "entity_33",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_33"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q034",
+    "query": "What is known about ENTITY_34?",
+    "expected_answer_keywords": [
+      "entity_34",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_34"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q035",
+    "query": "What is known about ENTITY_35?",
+    "expected_answer_keywords": [
+      "entity_35",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_35"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q036",
+    "query": "What is known about ENTITY_36?",
+    "expected_answer_keywords": [
+      "entity_36",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_36"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q037",
+    "query": "What is known about ENTITY_37?",
+    "expected_answer_keywords": [
+      "entity_37",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_37"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q038",
+    "query": "What is known about ENTITY_38?",
+    "expected_answer_keywords": [
+      "entity_38",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_38"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q039",
+    "query": "What is known about ENTITY_39?",
+    "expected_answer_keywords": [
+      "entity_39",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_39"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q040",
+    "query": "What is known about ENTITY_40?",
+    "expected_answer_keywords": [
+      "entity_40",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_40"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q041",
+    "query": "What is known about ENTITY_41?",
+    "expected_answer_keywords": [
+      "entity_41",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_41"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q042",
+    "query": "What is known about ENTITY_42?",
+    "expected_answer_keywords": [
+      "entity_42",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_42"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q043",
+    "query": "What is known about ENTITY_43?",
+    "expected_answer_keywords": [
+      "entity_43",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_43"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q044",
+    "query": "What is known about ENTITY_44?",
+    "expected_answer_keywords": [
+      "entity_44",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_44"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q045",
+    "query": "What is known about ENTITY_45?",
+    "expected_answer_keywords": [
+      "entity_45",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_45"
+    ],
+    "mode": "local"
+  },
+  {
+    "id": "q046",
+    "query": "What is known about ENTITY_46?",
+    "expected_answer_keywords": [
+      "entity_46",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_46"
+    ],
+    "mode": "global"
+  },
+  {
+    "id": "q047",
+    "query": "What is known about ENTITY_47?",
+    "expected_answer_keywords": [
+      "entity_47",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_47"
+    ],
+    "mode": "naive"
+  },
+  {
+    "id": "q048",
+    "query": "What is known about ENTITY_48?",
+    "expected_answer_keywords": [
+      "entity_48",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_48"
+    ],
+    "mode": "mix"
+  },
+  {
+    "id": "q049",
+    "query": "What is known about ENTITY_49?",
+    "expected_answer_keywords": [
+      "entity_49",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_49"
+    ],
+    "mode": null
+  },
+  {
+    "id": "q050",
+    "query": "What is known about ENTITY_50?",
+    "expected_answer_keywords": [
+      "entity_50",
+      "entity"
+    ],
+    "expected_context_entities": [
+      "ENTITY_50"
+    ],
+    "mode": "local"
+  }
+]

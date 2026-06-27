@@ -1,0 +1,7 @@
+中文段落一包含足够的内容用于测试分割边界。
+
+English paragraph two continues with Latin script for mixed documents.
+
+第三段混合内容。Fullwidth punctuation should split here！Another clause？
+
+Final paragraph closes the fixture.

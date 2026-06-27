@@ -24,10 +24,13 @@ impl DocumentTaskProcessor {
             Some(data.workspace_id.as_str())
         };
 
-        let pipeline = self.get_workspace_pipeline_strict(workspace_id).await.map_err(|e| {
-            let msg = format!("Workspace pipeline error: {e}");
-            TaskError::Process(msg.clone())
-        })?;
+        let pipeline = self
+            .get_workspace_pipeline_strict(workspace_id)
+            .await
+            .map_err(|e| {
+                let msg = format!("Workspace pipeline error: {e}");
+                TaskError::Process(msg.clone())
+            })?;
 
         let vector_storage = self
             .get_workspace_vector_storage_strict(&data.workspace_id)

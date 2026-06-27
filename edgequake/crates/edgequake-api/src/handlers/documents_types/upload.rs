@@ -40,6 +40,14 @@ pub struct UploadDocumentRequest {
     /// Enable LLM-powered description summarization during merge.
     #[serde(default = "default_use_llm_summarization")]
     pub use_llm_summarization: bool,
+
+    /// Chunk strategy: `fixed`, `recursive`, or `markdown` (SPEC-026 Phase 2).
+    #[serde(default)]
+    pub chunk_strategy: Option<String>,
+
+    /// Optional chunk size/overlap/separator overrides.
+    #[serde(default)]
+    pub chunk_options: Option<serde_json::Value>,
 }
 
 /// Document upload response.

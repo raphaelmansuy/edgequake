@@ -4,10 +4,7 @@ use sqlx::PgPool;
 use tracing::info;
 
 use super::super::helpers::pgvector_supports_iterative_scan;
-use super::super::{
-
-    Migration042Report, MIGRATION_042_VERSION, SQL_042_APPLY,
-};
+use super::super::{Migration042Report, MIGRATION_042_VERSION, SQL_042_APPLY};
 
 pub async fn reconcile_migration_042(
     pool: &PgPool,
@@ -89,4 +86,3 @@ pub async fn reconcile_migration_042(
         vector_tables_checked: vector_tables_checked as usize,
     })
 }
-

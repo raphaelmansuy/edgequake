@@ -45,7 +45,10 @@ async fn seed_workspace(
         vision_llm_model: None,
         pdf_parser_backend: None,
     };
-    service.insert_workspace(ws).await.expect("insert workspace");
+    service
+        .insert_workspace(ws)
+        .await
+        .expect("insert workspace");
 }
 
 #[tokio::test]
@@ -149,6 +152,9 @@ async fn spec024_orchestrator_insert_uses_workspace_vector_registry() {
 
     if let Some(storage_b) = registry.get(&ws_b).await {
         let count_b = storage_b.count().await.unwrap_or(0);
-        assert_eq!(count_b, 0, "workspace B must not receive workspace A vectors");
+        assert_eq!(
+            count_b, 0,
+            "workspace B must not receive workspace A vectors"
+        );
     }
 }

@@ -37,7 +37,8 @@ pub use trace_context::{extract_from_headers, inject_current_context};
 
 #[cfg(feature = "metrics")]
 pub use metrics::{
-    init_metrics, record_db_pool_stats, record_document_processing, record_http_request,
-    record_llm_request, record_pipeline_error, record_query_completed, record_rate_limit_exceeded,
-    record_storage_error, record_task_queue_stats, render_prometheus_metrics,
+    init_metrics, record_db_pool_stats, record_document_processing,
+    record_document_processing_with_labels, record_http_request, record_llm_request,
+    record_pipeline_error, record_query_completed, record_rate_limit_exceeded, record_storage_error,
+    record_task_queue_stats, render_prometheus_metrics,
 };

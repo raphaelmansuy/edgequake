@@ -97,9 +97,7 @@ fn merge_hybrid_chunks(
                 max_chunks,
             )
         }
-        HybridFusionMode::RoundRobin => {
-            round_robin_merge_chunks(local, global, naive, max_chunks)
-        }
+        HybridFusionMode::RoundRobin => round_robin_merge_chunks(local, global, naive, max_chunks),
     }
 }
 
@@ -110,9 +108,7 @@ pub fn round_robin_merge_chunks(
     naive: &[RetrievedChunk],
     max_chunks: usize,
 ) -> Vec<RetrievedChunk> {
-    let mut out = Vec::with_capacity(max_chunks.min(
-        local.len() + global.len() + naive.len(),
-    ));
+    let mut out = Vec::with_capacity(max_chunks.min(local.len() + global.len() + naive.len()));
     let mut seen = HashSet::new();
     let max_len = local.len().max(global.len()).max(naive.len());
 
@@ -181,7 +177,10 @@ mod tests {
 
         let merged = round_robin_merge_chunks(&local, &global, &naive, 10);
         let ids: Vec<_> = merged.iter().map(|c| c.id.as_str()).collect();
-        assert_eq!(ids, vec!["shared", "naive_only", "local_only", "global_only"]);
+        assert_eq!(
+            ids,
+            vec!["shared", "naive_only", "local_only", "global_only"]
+        );
     }
 
     #[test]

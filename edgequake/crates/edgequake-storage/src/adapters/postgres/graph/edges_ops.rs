@@ -182,6 +182,46 @@ impl PostgresAGEGraphStorage {
         Ok(edges)
     }
 
+    pub(super) async fn pg_get_incident_edges_batch(
+        &self,
+        node_ids: &[String],
+    ) -> Result<Vec<GraphEdge>> {
+        if node_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut unique: Vec<String> = node_ids.to_vec();
+        unique.sort();
+        unique.dedup();
+
+        const CHUNK: usize = 100;
+        let mut all_edges = Vec::new();
+
+        for chunk in unique.chunks(CHUNK) {
+            let id_literals: Vec<String> = chunk
+                .iter()
+                .map(|id| format!("'{}'", Self::escape_cypher_string(id)))
+                .collect();
+            let cypher = format!(
+                "UNWIND [{}] AS nid MATCH (n:Node {{node_id: nid}})-[r:EDGE]-() RETURN r",
+                id_literals.join(", ")
+            );
+
+            let rows = self.cypher_query(&cypher, &["r"]).await?;
+            let edges: Vec<GraphEdge> = rows
+                .iter()
+                .filter_map(|row| {
+                    let json_value: serde_json::Value = row.get("r");
+                    let agtype_str = json_value.to_string();
+                    Self::parse_edge(&agtype_str)
+                })
+                .collect();
+            all_edges.extend(edges);
+        }
+
+        Ok(all_edges)
+    }
+
     pub(super) async fn pg_get_all_edges(&self) -> Result<Vec<GraphEdge>> {
         let cypher = "MATCH ()-[r:EDGE]->() RETURN r";
         let rows = self.cypher_query(cypher, &["r"]).await?;

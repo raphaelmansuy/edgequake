@@ -232,6 +232,26 @@ impl GraphStorageReadOps for MemoryGraphStorage {
             .collect())
     }
 
+    async fn get_incident_edges_batch(&self, node_ids: &[String]) -> Result<Vec<GraphEdge>> {
+        if node_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let node_set: std::collections::HashSet<&str> =
+            node_ids.iter().map(|s| s.as_str()).collect();
+        let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+
+        Ok(edges
+            .iter()
+            .filter(|((s, t), _)| node_set.contains(s.as_str()) || node_set.contains(t.as_str()))
+            .map(|((s, t), props)| GraphEdge {
+                source: s.clone(),
+                target: t.clone(),
+                properties: props.clone(),
+            })
+            .collect())
+    }
+
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>> {
         let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
 

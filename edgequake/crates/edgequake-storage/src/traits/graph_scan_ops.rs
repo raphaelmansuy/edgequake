@@ -65,6 +65,14 @@ pub fn node_matches_list_filter(node: &GraphNode, filter: &NodeListFilter) -> bo
             return false;
         }
     }
+    if let Some(ref community_ids) = filter.community_ids {
+        let Some(cid) = node.properties.get("community_id").and_then(|v| v.as_u64()) else {
+            return false;
+        };
+        if !community_ids.contains(&cid) {
+            return false;
+        }
+    }
     true
 }
 
@@ -149,6 +157,8 @@ pub struct NodeListFilter {
     pub workspace_id: Option<String>,
     pub entity_type: Option<String>,
     pub search: Option<String>,
+    /// Index-time Louvain community labels (SPEC-025 6.3 push-down filter).
+    pub community_ids: Option<Vec<u64>>,
 }
 
 /// Filter for paged edge listing.

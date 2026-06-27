@@ -38,6 +38,8 @@ impl ChunkingStrategy for TokenBasedChunking {
                         content: s.to_string(),
                         tokens: estimate_tokens(s),
                         chunk_order_index: idx,
+                        section: None,
+                        ..Default::default()
                     })
                     .collect());
             }
@@ -63,6 +65,8 @@ impl ChunkingStrategy for TokenBasedChunking {
                     content: text.clone(),
                     tokens: estimate_tokens(&text),
                     chunk_order_index: idx,
+                    section: None,
+                    ..Default::default()
                 },
             )
             .collect())
@@ -113,6 +117,8 @@ impl ChunkingStrategy for CharacterBasedChunking {
                 content: s.to_string(),
                 tokens: estimate_tokens(s),
                 chunk_order_index: idx,
+                section: None,
+                ..Default::default()
             })
             .collect())
     }
@@ -190,6 +196,8 @@ impl ChunkingStrategy for SentenceBoundaryChunking {
                     content: current_chunk.trim().to_string(),
                     tokens: current_tokens,
                     chunk_order_index: chunk_index,
+                    section: None,
+                    ..Default::default()
                 });
                 chunk_index += 1;
 
@@ -215,6 +223,8 @@ impl ChunkingStrategy for SentenceBoundaryChunking {
                 content: current_chunk.trim().to_string(),
                 tokens: current_tokens,
                 chunk_order_index: chunk_index,
+                section: None,
+                ..Default::default()
             });
         }
 
@@ -317,6 +327,8 @@ fn chunk_paragraphs(paragraphs: &[&str], config: &ChunkerConfig) -> Result<Vec<C
                     content: current_chunk.trim().to_string(),
                     tokens: current_tokens,
                     chunk_order_index: chunk_index,
+                    section: None,
+                    ..Default::default()
                 });
                 chunk_index += 1;
                 current_chunk = String::new();
@@ -328,6 +340,8 @@ fn chunk_paragraphs(paragraphs: &[&str], config: &ChunkerConfig) -> Result<Vec<C
                 content: para.to_string(),
                 tokens: para_tokens,
                 chunk_order_index: chunk_index,
+                section: None,
+                ..Default::default()
             });
             chunk_index += 1;
             continue;
@@ -339,6 +353,8 @@ fn chunk_paragraphs(paragraphs: &[&str], config: &ChunkerConfig) -> Result<Vec<C
                 content: current_chunk.trim().to_string(),
                 tokens: current_tokens,
                 chunk_order_index: chunk_index,
+                section: None,
+                ..Default::default()
             });
             chunk_index += 1;
             current_chunk = String::new();
@@ -359,6 +375,8 @@ fn chunk_paragraphs(paragraphs: &[&str], config: &ChunkerConfig) -> Result<Vec<C
             content: current_chunk.trim().to_string(),
             tokens: current_tokens,
             chunk_order_index: chunk_index,
+            section: None,
+            ..Default::default()
         });
     }
 

@@ -2,13 +2,17 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::chunker::ChunkerConfig;
+use crate::chunker::{ChunkerConfig, ChunkStrategy};
 
 /// Pipeline configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineConfig {
     /// Chunking configuration.
     pub chunker: ChunkerConfig,
+
+    /// Chunk strategy selector (SPEC-026 Phase 2).
+    #[serde(default)]
+    pub chunk_strategy: ChunkStrategy,
 
     /// Batch size for LLM extraction.
     pub extraction_batch_size: usize,
@@ -146,6 +150,7 @@ impl Default for PipelineConfig {
     fn default() -> Self {
         Self {
             chunker: ChunkerConfig::default(),
+            chunk_strategy: ChunkStrategy::default(),
             extraction_batch_size: 10,
             embedding_batch_size: 100,
             enable_entity_extraction: true,

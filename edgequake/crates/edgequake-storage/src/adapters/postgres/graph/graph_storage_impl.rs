@@ -78,6 +78,10 @@ impl GraphStorageReadOps for PostgresAGEGraphStorage {
         self.pg_get_node_edges(node_id).await
     }
 
+    async fn get_incident_edges_batch(&self, node_ids: &[String]) -> Result<Vec<GraphEdge>> {
+        self.pg_get_incident_edges_batch(node_ids).await
+    }
+
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>> {
         self.pg_get_all_edges().await
     }
