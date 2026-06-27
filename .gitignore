@@ -60,6 +60,8 @@ archive/
 !/specs/020-e2e-quality-control/**
 !/specs/021-storage-study/
 !/specs/021-storage-study/**
+!/specs/024-egdequake-audit/
+!/specs/024-egdequake-audit/**
 !/specs/edgequake-llm-update/
 !/specs/edgequake-llm-update/**
 logf/
