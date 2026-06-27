@@ -131,8 +131,28 @@ impl DocumentTaskProcessor {
         // SPEC-021 P-G2: single persist path — KV chunks + chunk vectors + KnowledgeGraphMerger
         let mut storage_errors: Vec<String> = Vec::new();
 
+        // Merger LLM summarization must use the same extraction provider as the pipeline
+        // (SPEC-032). Using the global default (often Ollama) caused 1000+ WARN spam when
+        // workspace extraction runs on Mistral/OpenAI while Ollama is unreachable.
+        let persist_llm = match crate::safety_limits::create_safe_llm_provider(
+            &provider_lineage.extraction_provider,
+            &provider_lineage.extraction_model,
+        ) {
+            Ok(provider) => provider,
+            Err(e) => {
+                warn!(
+                    document_id = %document_id,
+                    extraction_provider = %provider_lineage.extraction_provider,
+                    extraction_model = %provider_lineage.extraction_model,
+                    error = %e,
+                    "Workspace extraction LLM unavailable for merge summarizer — falling back to processor default"
+                );
+                self.llm_provider.clone()
+            }
+        };
+
         let chunk_embeddings_stored = match crate::services::persist_with_providers(
-            self.llm_provider.clone(),
+            persist_llm,
             self.query_cache_invalidator
                 .as_ref()
                 .map(|e| e.as_ref() as &dyn edgequake_query::QueryResultCacheInvalidator),

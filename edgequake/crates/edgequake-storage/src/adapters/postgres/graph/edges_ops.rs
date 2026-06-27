@@ -201,8 +201,8 @@ impl PostgresAGEGraphStorage {
                     ag_catalog.agtype_to_json(sv.properties)->>'node_id' AS source_id,
                     ag_catalog.agtype_to_json(tv.properties)->>'node_id' AS target_id
                  FROM {graph}.\"_ag_label_edge\" e
-                 JOIN {graph}.\"_ag_label_vertex\" sv ON e.start_id = sv.id
-                 JOIN {graph}.\"_ag_label_vertex\" tv ON e.end_id = tv.id
+                 JOIN {graph}.\"_ag_label_vertex\" sv ON e.start_id::text = sv.id::text
+                 JOIN {graph}.\"_ag_label_vertex\" tv ON e.end_id::text = tv.id::text
                  WHERE ag_catalog.agtype_to_json(sv.properties)->>'node_id' IN ({in_list})
                     OR ag_catalog.agtype_to_json(tv.properties)->>'node_id' IN ({in_list})",
                 graph = self.graph_name,

@@ -15,7 +15,8 @@ use edgequake_query::QueryMode;
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
-use edgequake_storage::{GraphStorageMutateOps, GraphStorageReadOps};
+use edgequake_storage::traits::{EdgeListFilter, GraphScanOps, NodeListFilter};
+use edgequake_storage::GraphStorageMutateOps;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -140,8 +141,14 @@ async fn main() -> anyhow::Result<()> {
 
     // 6. Display graph stats
     println!("\n6. Knowledge Graph Statistics:");
-    let nodes = graph_storage.get_all_nodes().await?;
-    let edges = graph_storage.get_all_edges().await?;
+    let nodes = graph_storage
+        .list_nodes_filtered(&NodeListFilter::default(), 0, 100_000)
+        .await?
+        .items;
+    let edges = graph_storage
+        .list_edges_filtered(&EdgeListFilter::default(), 0, 100_000)
+        .await?
+        .items;
     println!("   Total nodes: {}", nodes.len());
     println!("   Total edges: {}", edges.len());
 

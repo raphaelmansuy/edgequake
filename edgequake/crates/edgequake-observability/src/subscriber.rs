@@ -268,6 +268,29 @@ pub fn log_format_label(format: LogFormat) -> &'static str {
     }
 }
 
+fn warn_on_otel_misconfiguration(config: &ObservabilityConfig) {
+    let endpoint_set = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+
+    #[cfg(not(feature = "otel"))]
+    if endpoint_set || config.otel_enabled {
+        eprintln!(
+            "WARNING: OTLP export requested (OTEL_EXPORTER_OTLP_ENDPOINT or EDGEQUAKE_OTEL_ENABLED) \
+             but this binary was built without the `otel` feature — traces will not leave the process. \
+             Rebuild with: cargo build -p edgequake --features otel"
+        );
+    }
+
+    #[cfg(feature = "otel")]
+    if config.otel_enabled && !endpoint_set {
+        eprintln!(
+            "WARNING: EDGEQUAKE_OTEL_ENABLED is set but OTEL_EXPORTER_OTLP_ENDPOINT is empty — \
+             OTLP exporter will use library defaults (may fail to connect)"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,28 +324,5 @@ mod tests {
             assert_eq!(cfg.log_format, LogFormat::Plain);
             assert_eq!(log_format_label(cfg.log_format), "plain");
         });
-    }
-}
-
-fn warn_on_otel_misconfiguration(config: &ObservabilityConfig) {
-    let endpoint_set = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
-        .map(|v| !v.trim().is_empty())
-        .unwrap_or(false);
-
-    #[cfg(not(feature = "otel"))]
-    if endpoint_set || config.otel_enabled {
-        eprintln!(
-            "WARNING: OTLP export requested (OTEL_EXPORTER_OTLP_ENDPOINT or EDGEQUAKE_OTEL_ENABLED) \
-             but this binary was built without the `otel` feature — traces will not leave the process. \
-             Rebuild with: cargo build -p edgequake --features otel"
-        );
-    }
-
-    #[cfg(feature = "otel")]
-    if config.otel_enabled && !endpoint_set {
-        eprintln!(
-            "WARNING: EDGEQUAKE_OTEL_ENABLED is set but OTEL_EXPORTER_OTLP_ENDPOINT is empty — \
-             OTLP exporter will use library defaults (may fail to connect)"
-        );
     }
 }

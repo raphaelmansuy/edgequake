@@ -10,6 +10,7 @@ use crate::engine_impl::{QueryEngine, QueryEngineConfig};
 use crate::error::Result;
 use crate::helpers::build_chunk_from_result;
 
+#[allow(clippy::too_many_arguments)] // retrieval pipeline mirrors QueryEngine workspace arity
 pub(super) async fn append_score_ranked_chunks(
     engine: &QueryEngine,
     context: &QueryContext,

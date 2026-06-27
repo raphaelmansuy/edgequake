@@ -9,7 +9,7 @@ mod postgres_integration {
     use super::postgres_test_config;
     use std::collections::HashMap;
 
-    use edgequake_storage::traits::GraphStorage;
+    use edgequake_storage::traits::{GraphStorage, GraphStorageMutateOps, GraphStorageReadOps};
     use edgequake_storage::PostgresAGEGraphStorage;
 
     #[tokio::test]

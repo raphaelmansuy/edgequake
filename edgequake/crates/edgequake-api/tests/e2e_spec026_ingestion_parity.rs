@@ -27,7 +27,9 @@ async fn text_upload_recursive_strategy_default() {
     let response = post_document(app.clone(), &body).await;
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&common::spec026_multimodal::response_body_bytes(response).await)
+            .unwrap();
     let doc_id = parsed["document_id"].as_str().unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
@@ -73,7 +75,9 @@ async fn text_upload_recursive_strategy() {
     let response = post_document(app.clone(), &body).await;
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&common::spec026_multimodal::response_body_bytes(response).await)
+            .unwrap();
     let doc_id = parsed["document_id"].as_str().unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
@@ -184,7 +188,9 @@ async fn markdown_upload_auto_strategy() {
     let response = post_document(app.clone(), &body).await;
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&common::spec026_multimodal::response_body_bytes(response).await)
+            .unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
         common::wait_for_document_processed(app, track_id, Duration::from_secs(90)).await,
@@ -228,7 +234,9 @@ async fn file_upload_default_recursive_strategy() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&common::spec026_multimodal::response_body_bytes(response).await)
+            .unwrap();
     let doc_id = parsed["document_id"].as_str().unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
@@ -274,7 +282,9 @@ async fn file_upload_recursive_strategy() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&common::spec026_multimodal::response_body_bytes(response).await)
+            .unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
         common::wait_for_document_processed(app, track_id, Duration::from_secs(90)).await,
@@ -338,12 +348,6 @@ async fn post_document(app: axum::Router, body: &serde_json::Value) -> axum::res
     )
     .await
     .unwrap()
-}
-
-async fn body_bytes(response: axum::response::Response) -> axum::body::Bytes {
-    axum::body::to_bytes(response.into_body(), 1024 * 1024)
-        .await
-        .unwrap()
 }
 
 fn fixture_plain_en_multi_paragraph() -> String {

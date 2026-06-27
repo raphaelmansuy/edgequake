@@ -85,12 +85,11 @@ impl DocumentTaskProcessor {
                 .cloned()
                 .or_else(|| Some(json!(source_type)));
 
-            let metadata_key =
-                crate::services::text_insert_content::resolve_document_metadata_key(
-                    &document_id,
-                    &self.kv_storage,
-                )
-                .await;
+            let metadata_key = crate::services::text_insert_content::resolve_document_metadata_key(
+                &document_id,
+                &self.kv_storage,
+            )
+            .await;
             if let Ok(Some(existing)) = self.kv_storage.get_by_id(&metadata_key).await {
                 if let Some(obj) = existing.as_object() {
                     let mut updated = obj.clone();
@@ -355,7 +354,24 @@ impl DocumentTaskProcessor {
                     preprocess_result.duplicates_removed,
                 );
             }
-            preprocess_result.content
+            let metadata_key = crate::services::text_insert_content::resolve_document_metadata_key(
+                &document_id,
+                &self.kv_storage,
+            )
+            .await;
+            let doc_metadata = self
+                .kv_storage
+                .get_by_id(&metadata_key)
+                .await
+                .ok()
+                .flatten();
+            crate::services::enrich_processed_text_with_mm_chunks(
+                self.kv_storage.as_ref(),
+                &document_id,
+                doc_metadata.as_ref(),
+                preprocess_result.content,
+            )
+            .await
         };
 
         Ok(TextInsertPrepared {

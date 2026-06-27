@@ -25,11 +25,10 @@ function resolveClientApiUrl(
   if (browserConfig?.apiUrl !== undefined) {
     return browserConfig.apiUrl.replace(/\/$/, "");
   }
-  // Local dev: keep relative /api/v1 by default (Next.js rewrites), but honor
-  // explicit server-provided EDGEQUAKE_API_URL when set so API/WS can bypass
-  // dev proxy issues (e.g., stale rewrite target or WS upgrade failures).
+  // Local dev: same-origin Next.js rewrites (/api/v1, /live, /ws). EDGEQUAKE_API_URL
+  // is server-only (rewrite target + SSR); the browser must not call it directly.
   if (process.env.NODE_ENV === "development") {
-    return (process.env.EDGEQUAKE_API_URL ?? "").replace(/\/$/, "");
+    return "";
   }
   return (
     process.env.EDGEQUAKE_API_URL ??

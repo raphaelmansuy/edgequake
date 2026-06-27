@@ -15,6 +15,8 @@ use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
+use crate::services::resolve_process_options_from_metadata;
+
 use super::super::storage_helpers::{cleanup_document_graph_data, metadata_matches_tenant_context};
 
 /// Reprocess failed documents.
@@ -345,6 +347,10 @@ pub async fn reprocess_failed(
                         }
                     }
 
+                    let multimodal_process_options = metadata_opt
+                        .as_ref()
+                        .and_then(resolve_process_options_from_metadata);
+
                     let pdf_task = PdfProcessingData {
                         pdf_id: pdf_id_uuid,
                         tenant_id: uuid::Uuid::parse_str(&tenant_id).map_err(|_| {
@@ -361,6 +367,7 @@ pub async fn reprocess_failed(
                         pdf_parser_backend,
                         restart_from_scratch,
                         reprocess_mode: Some(reprocess_mode),
+                        multimodal_process_options,
                     };
 
                     let task = Task::new(
@@ -559,6 +566,22 @@ pub async fn reprocess_failed(
                     }
                 }
 
+                let multimodal_process_options = if let Some(document_uuid) = pdf.document_id {
+                    let metadata_key =
+                        edgequake_storage::kv_keys::doc_metadata(&document_uuid.to_string());
+                    state
+                        .storage
+                        .kv_storage
+                        .get_by_id(&metadata_key)
+                        .await
+                        .ok()
+                        .flatten()
+                        .as_ref()
+                        .and_then(resolve_process_options_from_metadata)
+                } else {
+                    None
+                };
+
                 let task_data = PdfProcessingData {
                     pdf_id: pdf.pdf_id,
                     tenant_id: tenant_uuid,
@@ -570,6 +593,7 @@ pub async fn reprocess_failed(
                     pdf_parser_backend,
                     restart_from_scratch,
                     reprocess_mode: Some(reprocess_mode),
+                    multimodal_process_options,
                 };
 
                 let track_id = format!("pdf-{}", Uuid::new_v4());

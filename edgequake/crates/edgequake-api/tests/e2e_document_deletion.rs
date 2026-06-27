@@ -706,7 +706,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
         .expect("Should be able to store chunk");
 
     // 3. Verify entities exist before deletion
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_before.iter().any(|n| n.id == "PARTIAL_ENTITY_A"),
         "PARTIAL_ENTITY_A should exist before deletion"
@@ -730,7 +730,7 @@ async fn test_delete_failed_document_cleans_partial_entities() {
     );
 
     // 5. Verify entities were cleaned up
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     assert!(
         !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_A"),
@@ -861,7 +861,7 @@ async fn test_delete_preserves_shared_entities() {
         .unwrap();
 
     // 5. Verify both entities exist
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(nodes_before.iter().any(|n| n.id == "SHARED_ENTITY"));
     assert!(nodes_before.iter().any(|n| n.id == "UNIQUE_TO_DOC_A"));
 
@@ -870,7 +870,7 @@ async fn test_delete_preserves_shared_entities() {
     assert_eq!(status, StatusCode::OK);
 
     // 7. Verify SHARED_ENTITY is preserved (still referenced by Doc B)
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     // SHARED_ENTITY should still exist (referenced by doc_b)
     let shared_entity = nodes_after.iter().find(|n| n.id == "SHARED_ENTITY");
@@ -909,7 +909,7 @@ async fn test_delete_preserves_shared_entities() {
     assert_eq!(status_b, StatusCode::OK);
 
     // After deleting both documents, SHARED_ENTITY should also be gone
-    let nodes_final = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_final = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         !nodes_final.iter().any(|n| n.id == "SHARED_ENTITY"),
         "SHARED_ENTITY should be deleted after all referencing documents are deleted"
@@ -1075,7 +1075,7 @@ async fn test_concurrent_deletion_of_shared_entity() {
         .unwrap();
 
     // 3. Verify entity exists before deletion
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_before
             .iter()
@@ -1113,7 +1113,7 @@ async fn test_concurrent_deletion_of_shared_entity() {
 
     // 6. Critical: After both deletions complete, entity should be GONE
     // If RACE-04 exists, the entity might still have one source_id due to lost update
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     let shared_entity = nodes_after
         .iter()
@@ -1238,7 +1238,7 @@ async fn test_multiple_concurrent_deletions() {
     }
 
     // Verify initial state
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert_eq!(
         nodes_before.len(),
         3,
@@ -1278,7 +1278,7 @@ async fn test_multiple_concurrent_deletions() {
     }
 
     // After all deletions, all entities should be gone
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     // Check each entity
     for entity_id in ["MULTI_ENTITY_A", "MULTI_ENTITY_B", "MULTI_ENTITY_C"] {
@@ -1350,7 +1350,7 @@ async fn test_source_ids_accumulates_across_documents() {
         .expect("Should create entity from doc A");
 
     // 2. Verify entity has doc A reference
-    let nodes_after_a = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_a = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     let entity_after_a = nodes_after_a
         .iter()
         .find(|n| n.id == "ACCUMULATE_TEST_ENTITY")
@@ -1411,7 +1411,7 @@ async fn test_source_ids_accumulates_across_documents() {
         .expect("Should upsert entity from doc B with merged source_ids");
 
     // 4. Check if source_ids accumulated (GAP-07 test)
-    let nodes_after_b = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_b = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     let entity_after_b = nodes_after_b
         .iter()
         .find(|n| n.id == "ACCUMULATE_TEST_ENTITY")
@@ -1543,7 +1543,7 @@ async fn test_delete_with_accumulated_source_ids() {
     assert_eq!(status_a, StatusCode::OK);
 
     // 4. Verify entity is PRESERVED (still referenced by doc B)
-    let nodes_after_a = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_a = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     let entity_after_a = nodes_after_a
         .iter()
         .find(|n| n.id == "ACCUMULATED_DELETE_ENTITY");
@@ -1582,7 +1582,7 @@ async fn test_delete_with_accumulated_source_ids() {
     assert_eq!(status_b, StatusCode::OK);
 
     // 7. Verify entity is now DELETED (no more references)
-    let nodes_after_b = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_b = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         !nodes_after_b
             .iter()
@@ -1653,7 +1653,7 @@ async fn test_reprocess_cleans_partial_graph_data() {
         .expect("Should create partial entity");
 
     // Verify entity exists before reprocess
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_before
             .iter()
@@ -1686,7 +1686,7 @@ async fn test_reprocess_cleans_partial_graph_data() {
 
     // 4. Verify partial entity was cleaned up
     // WHY: The cleanup happens BEFORE requeueing, so entity should be gone immediately
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     assert!(
         !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_FAILURE"),
@@ -1758,7 +1758,7 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
         .expect("Should create partial entity");
 
     // Verify entity exists before recovery
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_before
             .iter()
@@ -1795,7 +1795,7 @@ async fn test_recover_stuck_cleans_partial_graph_data() {
     );
 
     // 4. Verify partial entity was cleaned up
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     assert!(
         !nodes_after.iter().any(|n| n.id == "PARTIAL_ENTITY_FROM_STUCK"),
@@ -1987,7 +1987,7 @@ async fn test_reprocess_preserves_shared_entities() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // 5. Verify shared entity is PRESERVED (still referenced by doc A)
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     let shared_entity = nodes_after
         .iter()
         .find(|n| n.id == "SHARED_REPROCESS_ENTITY");
@@ -2252,7 +2252,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
     }
 
     // Verify initial state: 5 entities
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert_eq!(
         nodes_before.len(),
         5,
@@ -2310,7 +2310,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
     // - Entity 4 (docs 9-13): PRESERVED (docs 11-13 remain)
     // - Entity 5 (docs 11-15): PRESERVED (docs 11-15 remain)
 
-    let nodes_after_phase1 = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after_phase1 = common::list_all_graph_nodes(&state.storage.graph_storage).await;
 
     // Entity 1 and 2 should be deleted
     assert!(
@@ -2364,7 +2364,7 @@ async fn test_high_volume_concurrent_deletions_stress() {
     }
 
     // Verify final state: all entities should be deleted
-    let nodes_final = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_final = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_final.is_empty(),
         "All entities should be deleted, but {} remain: {:?}",
@@ -2414,8 +2414,8 @@ async fn test_deletion_with_bidirectional_relationships() {
         .expect("Should have document_id");
 
     // Check initial state - should have nodes and edges
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_before = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     println!(
         "Before deletion: {} nodes, {} edges",
@@ -2442,8 +2442,8 @@ async fn test_deletion_with_bidirectional_relationships() {
     );
 
     // Verify all nodes and edges are deleted
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     assert!(
         nodes_after.is_empty(),
@@ -2492,7 +2492,7 @@ async fn test_deletion_with_self_referential_entity() {
         .expect("Should have document_id");
 
     // Check initial state
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     println!("Before deletion: {} nodes", nodes_before.len());
 
     // Delete document
@@ -2508,8 +2508,8 @@ async fn test_deletion_with_self_referential_entity() {
     );
 
     // Verify cleanup
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     assert!(
         nodes_after.is_empty(),
@@ -2574,8 +2574,8 @@ async fn test_deletion_with_cycle_preserves_shared() {
         .expect("doc2_id");
 
     // Check initial state
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_before = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     println!(
         "Before deletion: {} nodes, {} edges",
@@ -2588,8 +2588,8 @@ async fn test_deletion_with_cycle_preserves_shared() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Verify state after Doc1 deletion
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     // ALPHA should be deleted (only in doc1)
     // BETA and GAMMA from doc2 should be preserved
@@ -2670,7 +2670,7 @@ async fn test_reprocess_excludes_processing_documents() {
         .expect("Should create entity");
 
     // Verify entity exists before reprocess call
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_before
             .iter()
@@ -2716,7 +2716,7 @@ async fn test_reprocess_excludes_processing_documents() {
     );
 
     // 5. Verify entity was NOT cleaned up (document still processing)
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     assert!(
         nodes_after
             .iter()
@@ -2806,8 +2806,8 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
         .expect("Should create relationship");
 
     // Verify state before reprocess
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_before = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     assert_eq!(
         nodes_before.len(),
@@ -2843,8 +2843,8 @@ async fn test_reprocess_cleans_all_entities_and_relationships() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // 5. Verify ALL entities and relationships were cleaned up
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     assert!(
         nodes_after.is_empty(),
@@ -3017,7 +3017,7 @@ async fn test_deletion_preserves_unrelated_data() {
     let doc2_id = body2["document_id"].as_str().unwrap().to_string();
 
     // Count entities before deletion
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     let doc2_entities_before: Vec<_> = nodes_before
         .iter()
         .filter(|n| {
@@ -3034,7 +3034,7 @@ async fn test_deletion_preserves_unrelated_data() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Doc2's entities should still exist
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
     let doc2_entities_after: Vec<_> = nodes_after
         .iter()
         .filter(|n| {
@@ -3347,8 +3347,8 @@ async fn test_bulk_deletion_cleanup() {
     }
 
     // Count entities before bulk delete
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_before = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     println!("📊 Before bulk delete:");
     println!("   Documents: {}", doc_count);
@@ -3368,8 +3368,8 @@ async fn test_bulk_deletion_cleanup() {
     assert_eq!(success_count, doc_count, "All documents should be deleted");
 
     // Count entities after bulk delete
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     println!("📊 After bulk delete:");
     println!("   Nodes remaining: {}", nodes_after.len());
@@ -3785,8 +3785,8 @@ async fn test_rapid_create_delete_cycles() {
     }
 
     // After all cycles, verify clean state
-    let nodes = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     // With mock LLM, we may have no entities, which is fine
     // Key assertion: no orphaned data from our documents
@@ -3927,6 +3927,7 @@ async fn test_delete_sql_injection_pattern() {
 // ============================================================================
 
 /// Helper to upload a document with workspace context
+#[allow(dead_code)]
 async fn upload_document_with_workspace(
     app: &axum::Router,
     title: &str,
@@ -4807,20 +4808,8 @@ async fn test_batch_cleanup_verification() {
     let app = create_test_server_with_state(state.clone());
 
     // Record initial state
-    let initial_nodes = state
-        .storage
-        .graph_storage
-        .get_all_nodes()
-        .await
-        .unwrap()
-        .len();
-    let initial_edges = state
-        .storage
-        .graph_storage
-        .get_all_edges()
-        .await
-        .unwrap()
-        .len();
+    let initial_nodes = state.storage.graph_storage.node_count().await.unwrap();
+    let initial_edges = state.storage.graph_storage.edge_count().await.unwrap();
 
     // Upload 5 documents
     let mut doc_ids = Vec::new();
@@ -4847,20 +4836,8 @@ async fn test_batch_cleanup_verification() {
     }
 
     // Verify state is back to initial (no orphans)
-    let final_nodes = state
-        .storage
-        .graph_storage
-        .get_all_nodes()
-        .await
-        .unwrap()
-        .len();
-    let final_edges = state
-        .storage
-        .graph_storage
-        .get_all_edges()
-        .await
-        .unwrap()
-        .len();
+    let final_nodes = state.storage.graph_storage.node_count().await.unwrap();
+    let final_edges = state.storage.graph_storage.edge_count().await.unwrap();
 
     assert_eq!(
         initial_nodes, final_nodes,
@@ -5443,13 +5420,7 @@ async fn test_complete_add_delete_cycle() {
     let app = create_test_server_with_state(state.clone());
 
     // Record initial state
-    let initial_nodes = state
-        .storage
-        .graph_storage
-        .get_all_nodes()
-        .await
-        .unwrap()
-        .len();
+    let initial_nodes = state.storage.graph_storage.node_count().await.unwrap();
 
     // Upload document with all options
     let request = json!({
@@ -5496,13 +5467,7 @@ async fn test_complete_add_delete_cycle() {
     );
 
     // Verify clean state
-    let final_nodes = state
-        .storage
-        .graph_storage
-        .get_all_nodes()
-        .await
-        .unwrap()
-        .len();
+    let final_nodes = state.storage.graph_storage.node_count().await.unwrap();
     assert_eq!(
         initial_nodes, final_nodes,
         "Should return to initial node count"

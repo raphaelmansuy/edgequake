@@ -10,7 +10,10 @@
 use std::sync::Arc;
 
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
-use edgequake_storage::{GraphStorageMutateOps, GraphStorageReadOps};
+use edgequake_storage::traits::{
+    EdgeListFilter, GraphScanOps, GraphStorageReadOps, NodeListFilter,
+};
+use edgequake_storage::GraphStorageMutateOps;
 use serde_json::json;
 
 #[tokio::main]
@@ -314,11 +317,16 @@ async fn main() -> anyhow::Result<()> {
     println!("\n4. Querying the knowledge graph...");
 
     // Get all nodes
-    let all_nodes = graph.get_all_nodes().await?;
+    let all_nodes = graph
+        .list_nodes_filtered(&NodeListFilter::default(), 0, 100_000)
+        .await?
+        .items;
     println!("\n   Total entities: {}", all_nodes.len());
 
-    // Get all edges
-    let all_edges = graph.get_all_edges().await?;
+    let all_edges = graph
+        .list_edges_filtered(&EdgeListFilter::default(), 0, 100_000)
+        .await?
+        .items;
     println!("   Total relationships: {}", all_edges.len());
 
     // Check specific nodes

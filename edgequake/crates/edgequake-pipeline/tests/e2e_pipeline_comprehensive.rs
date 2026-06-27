@@ -17,7 +17,7 @@ use edgequake_pipeline::{
     SummarizerConfig,
 };
 use edgequake_storage::{
-    GraphStorage, GraphStorageReadOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, MemoryGraphStorage, MemoryVectorStorage, VectorStorage,
 };
 
 // Sample document for testing
@@ -820,8 +820,7 @@ mod integration_tests {
         assert_eq!(stats.relationships_created, 1);
 
         // Step 3: Verify graph state
-        let nodes = graph.get_all_nodes().await.unwrap();
-        assert_eq!(nodes.len(), 3);
+        assert_eq!(graph.node_count().await.unwrap(), 3);
     }
 
     #[tokio::test]

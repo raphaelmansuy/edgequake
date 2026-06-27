@@ -11,13 +11,12 @@ use crate::middleware::TenantContext;
 use crate::services::{record_compliance_event, ContentHasher};
 use crate::state::AppState;
 
-use crate::file_validation::{image_mime_type, is_image_extension, validate_file};
-use crate::handlers::documents::upload::image_extract::extract_text_from_image;
 use crate::handlers::documents::upload::{
     admit_document_for_processing, DocumentAdmissionInput, DocumentAdmissionOutcome,
     GleaningAdmissionOptions, MultipartUploadFields, ADMISSION_ACCEPTED_STATUS,
 };
 use crate::handlers::documents_types::*;
+use crate::services::resolve_upload_content;
 use axum_extra::extract::Multipart;
 
 /// Upload a file via multipart form.
@@ -86,36 +85,11 @@ pub async fn upload_file(
         return Err(ApiError::BadRequest("No file provided".to_string()));
     }
 
-    let raw_ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-    let (text_content, mime_type) = if is_image_extension(&raw_ext) {
-        let mime = image_mime_type(&raw_ext).unwrap_or("image/png");
-        let extracted = match extract_text_from_image(
-            &content,
-            mime,
-            &filename,
-            state.query.llm_provider.as_ref(),
-        )
-        .await
-        {
-            Ok(text) => text,
-            Err(e) => {
-                tracing::warn!(
-                    filename = %filename,
-                    error = %e,
-                    "Vision extraction failed; storing image with placeholder text"
-                );
-                format!(
-                    "# Image Document: {filename}\n\n\
-                     *Automatic text extraction failed: {e}*\n\n\
-                     Configure a vision-capable LLM to enable OCR/text extraction from image uploads."
-                )
-            }
-        };
-        (extracted, mime.to_string())
-    } else {
-        let (_, text, mt) = validate_file(&filename, &content, state.config.max_document_size)?;
-        (text, mt.to_string())
-    };
+    let resolved =
+        resolve_upload_content(&state, tenant_ctx.workspace_id_uuid(), &filename, &content).await?;
+    let text_content = resolved.text_content;
+    let mime_type = resolved.mime_type;
+    let upload_meta = resolved.meta;
 
     let content_hash = ContentHasher::hash_bytes(&content);
     let (chunk_strategy, chunk_options, metadata) = multipart_fields.effective_chunk_fields();
@@ -126,7 +100,7 @@ pub async fn upload_file(
         DocumentAdmissionInput {
             text_content,
             title: filename.clone(),
-            source_type: "file",
+            source_type: upload_meta.source_type,
             mime_type: Some(mime_type),
             raw_byte_size: content.len(),
             content_hash: content_hash.clone(),
@@ -136,6 +110,9 @@ pub async fn upload_file(
             document_type: None,
             chunk_strategy,
             chunk_options,
+            multimodal: upload_meta.multimodal,
+            ingest_mode: upload_meta.ingest_mode,
+            multimodal_manifest: resolved.manifest,
         },
         "upload",
     )

@@ -21,12 +21,17 @@ use axum::{
 };
 use edgequake_api::{AppState, Server, ServerConfig};
 use edgequake_tasks::worker::{WorkerPool, WorkerPoolConfig};
+use edgequake_tasks::TaskDeliveryMode;
 use serde_json::{json, Value};
 use std::time::Duration;
+use tokio::task::JoinHandle;
 use tower::ServiceExt;
 
 #[cfg(feature = "postgres")]
 pub mod spec013_postgres;
+
+pub mod spec026_delivery;
+pub mod spec026_multimodal;
 
 // ============================================================================
 // Constants
@@ -137,13 +142,69 @@ static TEST_WORKER_GUARD: std::sync::LazyLock<tokio::sync::Mutex<()>> =
 static TEST_WORKER_POOL: std::sync::OnceLock<std::sync::Mutex<Option<WorkerPool>>> =
     std::sync::OnceLock::new();
 
+static TEST_HYDRATING_WORKERS: std::sync::OnceLock<std::sync::Mutex<Vec<JoinHandle<()>>>> =
+    std::sync::OnceLock::new();
+
 async fn shutdown_test_worker_pool() {
+    let hydr_slot = TEST_HYDRATING_WORKERS.get_or_init(|| std::sync::Mutex::new(Vec::new()));
+    for handle in hydr_slot.lock().expect("hydrating workers mutex").drain(..) {
+        handle.abort();
+    }
+
     let slot = TEST_WORKER_POOL.get_or_init(|| std::sync::Mutex::new(None));
     let pool = { slot.lock().expect("test worker pool mutex").take() };
     if let Some(pool) = pool {
         pool.shutdown().await;
         // Let in-flight tasks drain before the next test builds a fresh AppState.
         tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+}
+
+/// Start channel workers or hydrating workers depending on `EDGEQUAKE_TASK_DELIVERY`.
+async fn install_test_background_workers(
+    state: &mut AppState,
+    processor: std::sync::Arc<edgequake_api::DocumentTaskProcessor>,
+) {
+    let processor: edgequake_tasks::SharedTaskProcessor = processor;
+
+    let worker_config = WorkerPoolConfig {
+        num_workers: 2,
+        auto_retry: false,
+        initial_retry_delay_ms: 100,
+        max_retry_delay_ms: 1_000,
+        backoff_multiplier: 2.0,
+        max_tasks_per_tenant: 4,
+        processing_timeout_secs: 120,
+    };
+
+    let mut worker_pool = WorkerPool::new(
+        worker_config.clone(),
+        std::sync::Arc::clone(&state.tasks.queue) as std::sync::Arc<dyn edgequake_tasks::TaskQueue>,
+        std::sync::Arc::clone(&state.tasks.storage)
+            as std::sync::Arc<dyn edgequake_tasks::TaskStorage>,
+        std::sync::Arc::clone(&processor),
+    );
+    state.tasks.cancellation_registry = worker_pool.cancellation_registry();
+
+    if state.tasks.delivery_mode() == TaskDeliveryMode::NotifyOnly {
+        let notifier = state
+            .tasks
+            .channel_notifier()
+            .expect("notify_only requires channel notifier");
+        let handles = spec026_delivery::spawn_hydrating_workers(
+            std::sync::Arc::clone(&state.tasks.storage),
+            notifier,
+            processor,
+            worker_pool.cancellation_registry(),
+            worker_config.num_workers,
+        );
+        let slot = TEST_HYDRATING_WORKERS.get_or_init(|| std::sync::Mutex::new(Vec::new()));
+        *slot.lock().expect("hydrating workers mutex") = handles;
+        spec026_delivery::wait_for_hydrating_workers_ready().await;
+    } else {
+        worker_pool.start();
+        let slot = TEST_WORKER_POOL.get_or_init(|| std::sync::Mutex::new(None));
+        *slot.lock().expect("test worker pool mutex") = Some(worker_pool);
     }
 }
 
@@ -219,25 +280,68 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
     .with_query_engine(std::sync::Arc::clone(&state.query.engine_impl));
     let processor = std::sync::Arc::new(processor);
 
-    let worker_config = WorkerPoolConfig {
-        num_workers: 2,
-        auto_retry: false,
-        initial_retry_delay_ms: 100,
-        max_retry_delay_ms: 1_000,
-        backoff_multiplier: 2.0,
-        max_tasks_per_tenant: 4,
-        processing_timeout_secs: 120,
+    let config = ServerConfig {
+        host: "127.0.0.1".to_string(),
+        port: 0,
+        enable_cors: false,
+        enable_compression: false,
+        enable_swagger: true,
     };
+    let graph_storage = std::sync::Arc::clone(&state.storage.graph_storage);
+    let kv_storage = std::sync::Arc::clone(&state.storage.kv_storage);
+    let query_engine = std::sync::Arc::clone(&state.query.engine_impl);
 
-    let mut worker_pool = WorkerPool::new(
-        worker_config,
-        std::sync::Arc::clone(&state.tasks.queue) as std::sync::Arc<dyn edgequake_tasks::TaskQueue>,
-        std::sync::Arc::clone(&state.tasks.storage)
-            as std::sync::Arc<dyn edgequake_tasks::TaskStorage>,
-        processor,
+    install_test_background_workers(&mut state, std::sync::Arc::clone(&processor)).await;
+
+    let server = Server::new(config, state);
+    let router = server.build_router();
+
+    WorkerAppGuard {
+        _serialize: serialize,
+        router,
+        graph_storage,
+        kv_storage,
+        query_engine,
+    }
+}
+
+/// Worker-backed test app with custom LLM mock responses queued before extraction JSON.
+pub async fn create_test_app_with_llm_responses(extra_responses: &[&str]) -> WorkerAppGuard {
+    let serialize = TEST_WORKER_GUARD.lock().await;
+    shutdown_test_worker_pool().await;
+
+    use edgequake_llm::MockProvider;
+    std::env::set_var("EDGEQUAKE_ALLOW_TEST_PROVIDER_OVERRIDE", "1");
+    let mock_provider = Arc::new(MockProvider::new());
+    for response in extra_responses {
+        mock_provider.add_response(*response).await;
+    }
+    for _ in 0..32 {
+        mock_provider
+            .add_response(SPEC021_WORKER_EXTRACTION_JSON)
+            .await;
+    }
+    let mut state = AppState::build_test_state(mock_provider.clone());
+    edgequake_api::safety_limits::set_test_provider_override(
+        Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
     );
+    state.workspace_service.seed_default_workspace().await;
 
-    state.tasks.cancellation_registry = worker_pool.cancellation_registry();
+    let processor = edgequake_api::DocumentTaskProcessor::with_workspace_support_strict(
+        std::sync::Arc::clone(&state.query.pipeline),
+        std::sync::Arc::clone(&state.query.llm_provider),
+        std::sync::Arc::clone(&state.storage.kv_storage),
+        std::sync::Arc::clone(&state.storage.vector_storage),
+        std::sync::Arc::clone(&state.storage.vector_registry),
+        std::sync::Arc::clone(&state.storage.graph_storage),
+        state.tasks.pipeline_state.clone(),
+        std::sync::Arc::clone(&state.workspace_service),
+        std::sync::Arc::clone(&state.query.models_config),
+    )
+    .with_progress_broadcaster(state.tasks.progress_broadcaster.clone())
+    .with_query_engine(std::sync::Arc::clone(&state.query.engine_impl));
+    let processor = std::sync::Arc::new(processor);
 
     let config = ServerConfig {
         host: "127.0.0.1".to_string(),
@@ -250,12 +354,10 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
     let kv_storage = std::sync::Arc::clone(&state.storage.kv_storage);
     let query_engine = std::sync::Arc::clone(&state.query.engine_impl);
 
+    install_test_background_workers(&mut state, std::sync::Arc::clone(&processor)).await;
+
     let server = Server::new(config, state);
     let router = server.build_router();
-
-    worker_pool.start();
-    let slot = TEST_WORKER_POOL.get_or_init(|| std::sync::Mutex::new(None));
-    *slot.lock().expect("test worker pool mutex") = Some(worker_pool);
 
     WorkerAppGuard {
         _serialize: serialize,
@@ -577,4 +679,30 @@ pub async fn count_doc_chunks(
         .await
         .map(|keys| keys.len())
         .unwrap_or(0)
+}
+
+/// List all graph nodes for E2E assertions (SPEC-006 bounded scan; replaces deprecated `get_all_nodes`).
+pub async fn list_all_graph_nodes(
+    graph: &Arc<dyn edgequake_storage::traits::GraphStorage>,
+) -> Vec<edgequake_storage::traits::GraphNode> {
+    use edgequake_storage::traits::NodeListFilter;
+    graph
+        .as_ref()
+        .list_nodes_filtered(&NodeListFilter::default(), 0, 100_000)
+        .await
+        .expect("list_nodes_filtered")
+        .items
+}
+
+/// List all graph edges for E2E assertions (SPEC-006 bounded scan; replaces deprecated `get_all_edges`).
+pub async fn list_all_graph_edges(
+    graph: &Arc<dyn edgequake_storage::traits::GraphStorage>,
+) -> Vec<edgequake_storage::traits::GraphEdge> {
+    use edgequake_storage::traits::EdgeListFilter;
+    graph
+        .as_ref()
+        .list_edges_filtered(&EdgeListFilter::default(), 0, 100_000)
+        .await
+        .expect("list_edges_filtered")
+        .items
 }

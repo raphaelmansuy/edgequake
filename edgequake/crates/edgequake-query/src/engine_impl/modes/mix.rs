@@ -12,6 +12,7 @@ use edgequake_storage::traits::VectorStorage;
 use super::super::{QueryEmbeddings, QueryEngine};
 
 impl QueryEngine {
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::engine_impl) async fn query_mix_with_vector_storage(
         &self,
         query_text: &str,

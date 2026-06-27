@@ -91,8 +91,10 @@ async fn contract_hybrid_engine_deduplicates_shared_chunk() {
         .unwrap();
 
     let mock = Arc::new(MockProvider::default());
-    let mut config = QueryEngineConfig::default();
-    config.max_chunks = 10;
+    let config = QueryEngineConfig {
+        max_chunks: 10,
+        ..Default::default()
+    };
 
     let engine = QueryEngine::with_mock_keywords(
         config,

@@ -7,7 +7,6 @@ mod common;
 use std::sync::Arc;
 use std::time::Duration;
 
-use edgequake_storage::traits::GraphStorageReadOps;
 use edgequake_storage::EntityId;
 use serial_test::serial;
 

@@ -157,6 +157,7 @@ edgequake-storage = { path = "crates/edgequake-storage" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 edgequake-observability = { path = "crates/edgequake-observability" }
 edgeparse-core = "0.2.3"
+edgequake-pdf2md = { path = "../../edgequake-pdf2md", default-features = false, features = ["bundled"] }
 
 # CPU utilities
 num_cpus = "1.16"
@@ -181,3 +182,4 @@ opt-level = 3
 
 [patch.crates-io]
 edgequake-llm = { path = "../../edgequake-llm" }
+edgequake-pdf2md = { path = "../../edgequake-pdf2md" }

@@ -95,7 +95,7 @@ async fn casing_variants_collapse_to_one_node_and_one_vector() {
     // VectorSearchResult including metadata).
     let probe = vec![0.1_f32, 0.2, 0.3, 0.4];
     let hits = vector
-        .query(&probe, 10, Some(&[vector_id.clone()]))
+        .query(&probe, 10, Some(std::slice::from_ref(&vector_id)))
         .await
         .unwrap();
     let entity_hit = hits

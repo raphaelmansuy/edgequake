@@ -714,6 +714,10 @@ pub fn create_safe_vision_provider(
     provider_name: &str,
     model: &str,
 ) -> Result<Arc<dyn LLMProvider>> {
+    if let Some((llm, _)) = test_provider_override() {
+        return Ok(llm);
+    }
+
     check_api_key(provider_name)?;
 
     // WHY: Guard against stale task data where a model was stored at upload time

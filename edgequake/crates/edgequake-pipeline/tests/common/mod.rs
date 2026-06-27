@@ -7,6 +7,7 @@ use edgequake_pipeline::{
 
 pub const EMBED_DIM: usize = 4;
 
+#[allow(dead_code)] // shared fixtures for optional integration tests
 pub fn sample_processing_result() -> ProcessingResult {
     let embedding = vec![0.1, 0.2, 0.3, 0.4];
     let chunk = TextChunk {
@@ -41,6 +42,7 @@ pub fn sample_processing_result() -> ProcessingResult {
     }
 }
 
+#[allow(dead_code)] // shared fixtures for optional integration tests
 pub fn sample_persist_context() -> IngestionPersistContext {
     IngestionPersistContext::new("doc1", None, None)
 }

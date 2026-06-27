@@ -17,9 +17,9 @@ use std::sync::Arc;
 
 use edgequake_core::{EdgeQuake, EdgeQuakeConfig, StorageBackend, StorageConfig};
 use edgequake_llm::{EmbeddingProvider, LLMProvider, OpenAIProvider};
+use edgequake_storage::traits::{GraphScanOps, NodeListFilter};
 use edgequake_storage::{
-    GraphStorageAnalyticsOps, GraphStorageReadOps, MemoryGraphStorage, MemoryKVStorage,
-    MemoryVectorStorage,
+    GraphStorageAnalyticsOps, MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
 
 // ============================================================================
@@ -478,12 +478,12 @@ async fn test_openai_extraction_quality() {
             .expect("Failed to insert");
     }
 
-    // Get all nodes and check expected entities are present
-    let nodes = graph_storage
-        .get_all_nodes()
+    // List nodes and check expected entities are present
+    let page = graph_storage
+        .list_nodes_filtered(&NodeListFilter::default(), 0, 10_000)
         .await
-        .expect("Failed to get nodes");
-    let node_names: HashSet<String> = nodes.iter().map(|n| n.id.to_uppercase()).collect();
+        .expect("Failed to list nodes");
+    let node_names: HashSet<String> = page.items.iter().map(|n| n.id.to_uppercase()).collect();
 
     println!("📊 Extracted Entities:");
     for name in &node_names {
@@ -516,7 +516,7 @@ async fn test_openai_extraction_quality() {
     println!("\n📊 Quality Metrics:");
     println!("   Expected entities: {}", expected_entities.len());
     println!("   Found: {}/{}", found_count, expected_entities.len());
-    println!("   Total extracted: {}", nodes.len());
+    println!("   Total extracted: {}", page.items.len());
 
     // Should find at least some expected entities
     assert!(

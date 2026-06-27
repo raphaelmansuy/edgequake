@@ -14,6 +14,8 @@ pub enum LlmRole {
     Extract,
     Query,
     Summary,
+    /// Vision / multimodal analysis (LightRAG `vlm` role).
+    Vlm,
 }
 
 impl LlmRole {
@@ -22,6 +24,7 @@ impl LlmRole {
             Self::Extract => "extract",
             Self::Query => "query",
             Self::Summary => "summary",
+            Self::Vlm => "vlm",
         }
     }
 }
@@ -53,16 +56,38 @@ pub fn resolve_role_llm(ws: &Workspace, role: LlmRole) -> ResolvedRoleLlm {
         let provider = cfg
             .provider
             .filter(|p| !p.is_empty())
-            .unwrap_or_else(|| ws.llm_provider.clone());
+            .unwrap_or_else(|| default_provider_for_role(ws, role));
         let model = cfg
             .model
             .filter(|m| !m.is_empty())
-            .unwrap_or_else(|| ws.llm_model.clone());
+            .unwrap_or_else(|| default_model_for_role(ws, role));
         return ResolvedRoleLlm { provider, model };
     }
     ResolvedRoleLlm {
-        provider: ws.llm_provider.clone(),
-        model: ws.llm_model.clone(),
+        provider: default_provider_for_role(ws, role),
+        model: default_model_for_role(ws, role),
+    }
+}
+
+fn default_provider_for_role(ws: &Workspace, role: LlmRole) -> String {
+    match role {
+        LlmRole::Vlm => ws
+            .vision_llm_provider
+            .clone()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| ws.llm_provider.clone()),
+        _ => ws.llm_provider.clone(),
+    }
+}
+
+fn default_model_for_role(ws: &Workspace, role: LlmRole) -> String {
+    match role {
+        LlmRole::Vlm => ws
+            .vision_llm_model
+            .clone()
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| ws.llm_model.clone()),
+        _ => ws.llm_model.clone(),
     }
 }
 
@@ -134,5 +159,30 @@ mod tests {
         let resolved = resolve_role_llm(&ws, LlmRole::Query);
         assert_eq!(resolved.provider, "ollama");
         assert_eq!(resolved.model, "gemma3:latest");
+    }
+
+    #[test]
+    fn resolve_vlm_falls_back_to_vision_fields() {
+        let mut ws = sample_workspace(HashMap::new());
+        ws.vision_llm_provider = Some("openai".into());
+        ws.vision_llm_model = Some("gpt-4.1-mini".into());
+        let resolved = resolve_role_llm(&ws, LlmRole::Vlm);
+        assert_eq!(resolved.provider, "openai");
+        assert_eq!(resolved.model, "gpt-4.1-mini");
+    }
+
+    #[test]
+    fn resolve_vlm_role_prefers_llm_roles_vlm() {
+        let mut meta = HashMap::new();
+        meta.insert(
+            "llm_roles".into(),
+            serde_json::json!({
+                "vlm": { "provider": "mock", "model": "mock-vlm" }
+            }),
+        );
+        let ws = sample_workspace(meta);
+        let resolved = resolve_role_llm(&ws, LlmRole::Vlm);
+        assert_eq!(resolved.provider, "mock");
+        assert_eq!(resolved.model, "mock-vlm");
     }
 }

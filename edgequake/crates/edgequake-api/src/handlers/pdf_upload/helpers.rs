@@ -143,6 +143,7 @@ pub(super) async fn create_pdf_processing_task(
         pdf_parser_backend: options.resolved_backend(workspace),
         restart_from_scratch: intent.restart_from_scratch,
         reprocess_mode: intent.reprocess_mode,
+        multimodal_process_options: options.process_options.clone(),
     };
 
     let track_id = format!("pdf-{}", Uuid::new_v4());

@@ -158,10 +158,12 @@ async fn mix_with_skewed_weights_differs_from_hybrid() {
     let mock = Arc::new(MockProvider::default());
 
     // Mix skewed to naive only.
-    let mut mix_naive = QueryEngineConfig::default();
-    mix_naive.mix_local_weight = 0.0;
-    mix_naive.mix_global_weight = 0.0;
-    mix_naive.mix_naive_weight = 1.0;
+    let mix_naive = QueryEngineConfig {
+        mix_local_weight: 0.0,
+        mix_global_weight: 0.0,
+        mix_naive_weight: 1.0,
+        ..Default::default()
+    };
     let engine_naive = make_engine(
         Arc::clone(&vector),
         Arc::clone(&graph),
@@ -177,10 +179,12 @@ async fn mix_with_skewed_weights_differs_from_hybrid() {
         .expect("mix-naive must succeed");
 
     // Mix skewed to local only.
-    let mut mix_local = QueryEngineConfig::default();
-    mix_local.mix_local_weight = 1.0;
-    mix_local.mix_global_weight = 0.0;
-    mix_local.mix_naive_weight = 0.0;
+    let mix_local = QueryEngineConfig {
+        mix_local_weight: 1.0,
+        mix_global_weight: 0.0,
+        mix_naive_weight: 0.0,
+        ..Default::default()
+    };
     let engine_local = make_engine(vector, graph, mock, mix_local);
     let mut req_l = QueryRequest::new("kg entity");
     req_l.mode = Some(QueryMode::Mix);

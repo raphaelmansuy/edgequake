@@ -5,7 +5,6 @@ use axum::{
     http::{Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
-use edgequake_storage::traits::{KVStorage, VectorStorage};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 

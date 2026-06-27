@@ -39,8 +39,7 @@ export default function RootLayout({
 }>) {
   const runtimeConfig = {
     ...getRuntimeConfig(),
-    // P-G13: per-request backend discovery in dev — avoids stale :8081 proxy when
-    // backend was down at `next dev` start or when :8080 is another Docker stack.
+    // P-G13: dev uses same-origin rewrites; prod/docker inject absolute apiUrl.
     apiUrl: resolveRuntimeApiUrlForInjection() || getRuntimeConfig().apiUrl,
   };
 

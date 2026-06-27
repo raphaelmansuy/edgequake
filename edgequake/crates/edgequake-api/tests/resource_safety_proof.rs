@@ -459,7 +459,6 @@ fn resource_safety_orchestrator_token_cap_ssot() {
 #[tokio::test]
 async fn resource_safety_community_guard_rejects_large_graph() {
     use edgequake_core::{ResourceBudgetConfig, ResourceGuard};
-    use edgequake_storage::traits::GraphStorageMutateOps;
     use serde_json::json;
 
     let state = AppState::test_state();
@@ -542,7 +541,7 @@ async fn resource_safety_cascade_legacy_source_id_pipe_format() {
         .unwrap_or_default();
     assert_eq!(refs, vec!["other-doc-chunk-0"]);
     assert!(
-        node.properties.get("source_id").is_none(),
+        !node.properties.contains_key("source_id"),
         "legacy source_id must be cleared after partial cascade"
     );
 }

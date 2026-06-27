@@ -67,6 +67,7 @@ pub fn build_injection_metadata(
 }
 
 /// Write terminal injection status to KV (completed or failed).
+#[allow(clippy::too_many_arguments)]
 pub async fn write_injection_status(
     kv_storage: &Arc<dyn KVStorage>,
     meta_key: &str,
@@ -104,6 +105,7 @@ pub async fn write_injection_status(
 }
 
 /// Process injection content through the resilient pipeline + shared persister.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_injection_pipeline(
     llm_provider: Arc<dyn edgequake_llm::traits::LLMProvider>,
     cache_invalidator: Option<&dyn edgequake_query::QueryResultCacheInvalidator>,

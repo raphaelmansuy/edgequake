@@ -47,6 +47,5 @@ pub async fn assert_graph_batch_upsert<G: GraphStorage + ?Sized>(storage: &G) {
     }
 
     assert_eq!(storage.node_count().await.unwrap(), 5);
-    let all_edges = storage.get_all_edges().await.unwrap();
-    assert_eq!(all_edges.len(), 4);
+    assert_eq!(storage.edge_count().await.unwrap(), 4);
 }

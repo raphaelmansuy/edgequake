@@ -469,6 +469,14 @@ pub async fn get_document(
         raw_warning,
     );
 
+    let multimodal_summary = metadata
+        .as_ref()
+        .and_then(crate::services::summary_from_metadata);
+    let multimodal_items =
+        crate::services::load_manifest(state.storage.kv_storage.as_ref(), &document_id)
+            .await
+            .map(|manifest| crate::services::manifest_item_status_views(&manifest));
+
     Ok(Json(DocumentDetailResponse {
         id: document_id,
         title,
@@ -496,5 +504,7 @@ pub async fn get_document(
         metadata: custom_metadata,
         // OODA-50: Use pdf_id from metadata for PDF viewer
         pdf_id,
+        multimodal_summary,
+        multimodal_items,
     }))
 }

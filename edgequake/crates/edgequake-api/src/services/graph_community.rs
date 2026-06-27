@@ -37,7 +37,6 @@ mod tests {
     use super::*;
     use edgequake_core::ResourceBudgetConfig;
     use edgequake_storage::adapters::memory::MemoryGraphStorage;
-    use edgequake_storage::traits::GraphStorageMutateOps;
     use serde_json::json;
     use std::collections::HashMap;
 

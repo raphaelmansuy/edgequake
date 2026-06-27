@@ -198,3 +198,34 @@ pub struct ListFailedChunksResponse {
     /// Number of successful chunks.
     pub successful_chunks: usize,
 }
+
+// ============================================================================
+// Multimodal re-analyze DTOs (Phase 4h — LightRAG analyze-without-reparse)
+// ============================================================================
+
+fn default_reindex_true() -> bool {
+    true
+}
+
+/// Request to re-run multimodal analyze on stored markdown (no PDF re-convert).
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ReanalyzeMultimodalRequest {
+    /// Override stored `multimodal_process_options` (e.g. `"ite"`).
+    #[serde(default)]
+    pub process_options: Option<String>,
+
+    /// Re-run entity extraction after analyze. Default: true.
+    #[serde(default = "default_reindex_true")]
+    pub reindex: bool,
+}
+
+/// Response from multimodal re-analyze.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ReanalyzeMultimodalResponse {
+    pub document_id: String,
+    pub track_id: Option<String>,
+    pub requeued: bool,
+    pub success: u32,
+    pub skipped: u32,
+    pub failed: u32,
+}

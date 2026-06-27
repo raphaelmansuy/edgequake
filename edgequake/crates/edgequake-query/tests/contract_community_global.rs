@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use edgequake_query::community_global;
 use edgequake_query::QueryEngineConfig;
-use edgequake_storage::traits::{GraphStorage, GraphStorageMutateOps};
+use edgequake_storage::traits::GraphStorage;
 use edgequake_storage::{community_features_enabled, GraphReadView, MemoryGraphStorage};
 use serde_json::json;
 

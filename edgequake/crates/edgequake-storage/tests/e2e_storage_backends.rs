@@ -492,19 +492,9 @@ mod memory_graph_tests {
             .await
             .unwrap();
 
-        // Get all nodes
-        let nodes = storage
-            .get_all_nodes()
-            .await
-            .expect("Failed to get all nodes");
-        assert_eq!(nodes.len(), 5);
-
-        // Get all edges
-        let edges = storage
-            .get_all_edges()
-            .await
-            .expect("Failed to get all edges");
-        assert_eq!(edges.len(), 3);
+        // Count nodes and edges (bounded analytics — avoid deprecated full-graph scans).
+        assert_eq!(storage.node_count().await.expect("node count"), 5);
+        assert_eq!(storage.edge_count().await.expect("edge count"), 3);
     }
 
     #[tokio::test]
@@ -876,6 +866,7 @@ mod trait_compliance_tests {
     }
 
     #[tokio::test]
+    #[allow(deprecated)] // trait compliance exercises legacy GraphStorageReadOps surface
     async fn test_memory_graph_trait_compliance() {
         let storage = MemoryGraphStorage::new("trait_test");
         storage.initialize().await.unwrap();

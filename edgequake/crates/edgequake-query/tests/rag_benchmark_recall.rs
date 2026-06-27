@@ -63,10 +63,12 @@ async fn rag_benchmark_recall_at_5_naive_arm() {
     }
 
     let mock = Arc::new(MockProvider::default());
-    let mut config = QueryEngineConfig::default();
-    config.mix_local_weight = 0.0;
-    config.mix_global_weight = 0.0;
-    config.mix_naive_weight = 1.0;
+    let config = QueryEngineConfig {
+        mix_local_weight: 0.0,
+        mix_global_weight: 0.0,
+        mix_naive_weight: 1.0,
+        ..Default::default()
+    };
 
     let engine = make_engine(vector, graph, mock, config);
     let mut req = QueryRequest::new("Sarah Chen EdgeQuake Zurich");

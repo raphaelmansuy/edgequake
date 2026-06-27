@@ -79,6 +79,9 @@ pub async fn upload_document(
             document_type: Some("markdown"),
             chunk_strategy,
             chunk_options,
+            multimodal: false,
+            ingest_mode: None,
+            multimodal_manifest: None,
         },
         "upload",
     )

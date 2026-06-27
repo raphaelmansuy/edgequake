@@ -15,10 +15,11 @@ import type {
 import type { UploadingFile } from "@/components/documents/types";
 import {
   deleteDocument,
-  uploadDocument,
   uploadPdfDocument,
   type DocumentsListResult,
 } from "@/lib/api/edgequake";
+import { performFileUpload } from "@/lib/upload/perform-file-upload";
+import { isImageUploadFile, isPdfUploadFile } from "@/lib/upload/file-kind";
 import type { Document } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -177,153 +178,126 @@ export function useFileUpload(
             duplicate_of?: string;
             task_id?: string;
             track_id?: string;
+            isPdf?: boolean;
+            source_type?: "pdf" | "image" | "text";
           };
 
-          // Check if file is PDF - route to PDF upload endpoint
-          const isPdfFile = file.type === "application/pdf";
+          const uploadResult = await performFileUpload(file, {
+            trackId,
+            pdfParserBackend,
+          });
+          response = {
+            document_id: uploadResult.document_id,
+            pdf_id: uploadResult.pdf_id,
+            duplicate_of: uploadResult.duplicate_of,
+            task_id: uploadResult.task_id,
+            track_id: uploadResult.track_id,
+            isPdf: uploadResult.isPdf,
+            source_type: uploadResult.source_type,
+          };
 
-          if (isPdfFile) {
-            // Upload PDF file directly (multipart/form-data)
-            const pdfResponse = await uploadPdfDocument(file, {
+          const isPdfDuplicate =
+            !!uploadResult.duplicate_of ||
+            uploadResult.status === "duplicate" ||
+            uploadResult.status === "duplicate_processing";
+
+          if (uploadResult.isPdf && uploadResult.pdf_id && !isPdfDuplicate) {
+            const optimisticId =
+              uploadResult.document_id ?? uploadResult.pdf_id;
+            const optimisticDoc: Document = {
+              id: optimisticId,
               title: file.name,
-              enable_vision: true, // Enable vision extraction by default for PDFs
-              track_id: trackId,
-              pdf_parser_backend: pdfParserBackend,
-            });
-
-            response = {
-              document_id: pdfResponse.document_id,
-              pdf_id: pdfResponse.pdf_id,
-              // WHY: Backend returns duplicate_of when status is "duplicate".
-              // Fallback to pdf_id when status==="duplicate" but duplicate_of is
-              // missing (backward-compat with older backend versions).
-              duplicate_of:
-                pdfResponse.duplicate_of ??
-                (pdfResponse.status === "duplicate"
-                  ? pdfResponse.pdf_id
-                  : undefined),
-              task_id: pdfResponse.task_id,
-              track_id: pdfResponse.track_id,
+              file_name: file.name,
+              file_size: file.size,
+              source_type: "pdf",
+              status:
+                uploadResult.status === "queued" ? "pending" : "processing",
+              current_stage:
+                uploadResult.status === "queued" ? "queued" : "converting",
+              stage_message:
+                uploadResult.status === "queued"
+                  ? t(
+                      "pipeline.waitingForSlot",
+                      "Waiting for a processing slot",
+                    )
+                  : undefined,
+              mime_type: "application/pdf",
+              created_at: new Date().toISOString(),
+              pdf_id: uploadResult.pdf_id,
+              track_id: uploadResult.track_id,
+              tenant_id: tenantId ?? undefined,
+              workspace_id: workspaceId ?? undefined,
             };
 
-            // Optimistic update for PDF upload
-            // WHY: PDFs must appear immediately in documents panel
-            // FIX: Use predicate-based filter for reliable query matching
-            const isPdfDuplicate =
-              !!pdfResponse.duplicate_of || pdfResponse.status === "duplicate";
-            if (pdfResponse.pdf_id && !isPdfDuplicate) {
-              const optimisticId =
-                pdfResponse.document_id ?? pdfResponse.pdf_id;
-              const optimisticDoc: Document = {
-                id: optimisticId,
-                title: file.name,
-                file_name: file.name,
-                file_size: file.size,
-                source_type: "pdf",
-                status:
-                  pdfResponse.status === "queued" ? "queued" : "processing",
-                current_stage:
-                  pdfResponse.status === "queued" ? "queued" : "converting",
-                stage_message:
-                  pdfResponse.status === "queued"
-                    ? t(
-                        "pipeline.waitingForSlot",
-                        "Waiting for a processing slot",
-                      )
-                    : undefined,
-                mime_type: "application/pdf",
-                created_at: new Date().toISOString(),
-                pdf_id: pdfResponse.pdf_id,
-                track_id: pdfResponse.track_id,
-                tenant_id: tenantId ?? undefined,
-                workspace_id: workspaceId ?? undefined,
-              };
+            queryClient.setQueriesData<DocumentsListResult>(
+              { predicate: (query) => query.queryKey[0] === "documents" },
+              (old) => {
+                if (!old || !old.items || !Array.isArray(old.items))
+                  return old;
+                const exists = old.items.some(
+                  (d) =>
+                    d.pdf_id === uploadResult.pdf_id ||
+                    d.id === optimisticId ||
+                    (uploadResult.document_id != null &&
+                      d.id === uploadResult.document_id),
+                );
+                if (exists) return old;
+                return {
+                  ...old,
+                  items: [optimisticDoc, ...old.items],
+                  total: (old.total ?? 0) + 1,
+                };
+              },
+            );
+          } else if (
+            !uploadResult.isPdf &&
+            uploadResult.document_id &&
+            !uploadResult.duplicate_of
+          ) {
+            const optimisticDoc: Document = {
+              id: uploadResult.document_id,
+              title: file.name,
+              file_name: file.name,
+              file_size: file.size,
+              source_type: uploadResult.source_type ?? "text",
+              status: "processing",
+              mime_type: file.type || "text/plain",
+              created_at: new Date().toISOString(),
+              track_id: uploadResult.track_id,
+              tenant_id: tenantId ?? undefined,
+              workspace_id: workspaceId ?? undefined,
+            };
 
-              // Add to query cache for instant visibility
-              // Use predicate to match ANY documents query regardless of pagination params
-              queryClient.setQueriesData<DocumentsListResult>(
-                { predicate: (query) => query.queryKey[0] === "documents" },
-                (old) => {
-                  if (!old || !old.items || !Array.isArray(old.items))
-                    return old;
-                  const exists = old.items.some(
-                    (d) =>
-                      d.pdf_id === pdfResponse.pdf_id ||
-                      d.id === optimisticId ||
-                      (pdfResponse.document_id != null &&
-                        d.id === pdfResponse.document_id),
-                  );
-                  if (exists) return old;
-                  return {
-                    ...old,
-                    items: [optimisticDoc, ...old.items],
-                    total: (old.total ?? 0) + 1,
-                  };
-                },
-              );
-            }
+            queryClient.setQueriesData<DocumentsListResult>(
+              { predicate: (query) => query.queryKey[0] === "documents" },
+              (old) => {
+                if (!old || !old.items || !Array.isArray(old.items))
+                  return old;
+                const exists = old.items.some(
+                  (d) => d.id === uploadResult.document_id,
+                );
+                if (exists) return old;
+                return {
+                  ...old,
+                  items: [optimisticDoc, ...old.items],
+                  total: (old.total ?? 0) + 1,
+                };
+              },
+            );
+          }
 
-            // Store track_id and isPdf flag for progress tracking
+          if (uploadResult.isPdf) {
             setUploadingFiles((prev) =>
               prev.map((f, idx) =>
                 idx === i
                   ? {
                       ...f,
-                      trackId: pdfResponse.track_id,
+                      trackId: uploadResult.track_id,
                       isPdf: true,
                     }
                   : f,
               ),
             );
-          } else {
-            // Read text file content
-            const text = await file.text();
-
-            // Upload text document with async processing
-            const textResponse = await uploadDocument({
-              content: text,
-              source_type: "text",
-              title: file.name,
-              async_processing: true,
-              track_id: trackId,
-            });
-
-            response = textResponse;
-
-            // Optimistic update for text/markdown files
-            // FIX: Use predicate-based filter for reliable query matching
-            if (textResponse.document_id && !textResponse.duplicate_of) {
-              const optimisticDoc: Document = {
-                id: textResponse.document_id,
-                title: file.name,
-                file_name: file.name,
-                file_size: file.size,
-                source_type: "text",
-                status: "processing",
-                mime_type: file.type || "text/plain",
-                created_at: new Date().toISOString(),
-                track_id: textResponse.track_id,
-                tenant_id: tenantId ?? undefined,
-                workspace_id: workspaceId ?? undefined,
-              };
-
-              queryClient.setQueriesData<DocumentsListResult>(
-                { predicate: (query) => query.queryKey[0] === "documents" },
-                (old) => {
-                  if (!old || !old.items || !Array.isArray(old.items))
-                    return old;
-                  const exists = old.items.some(
-                    (d) => d.id === textResponse.document_id,
-                  );
-                  if (exists) return old;
-                  return {
-                    ...old,
-                    items: [optimisticDoc, ...old.items],
-                    total: (old.total ?? 0) + 1,
-                  };
-                },
-              );
-            }
           }
 
           // Check for duplicate — collect for dialog instead of showing a toast.
@@ -524,7 +498,8 @@ export function useFileUpload(
       // Close dialog immediately; async replace runs in the background.
       const doReplaceAll = async () => {
         for (const entry of replaceEntries) {
-          const isPdf = entry.file.type === "application/pdf";
+          const isPdf = isPdfUploadFile(entry.file);
+          const isImage = isImageUploadFile(entry.file);
 
           if (isPdf) {
             // PDF: re-upload with force_reindex=true so backend atomically
@@ -545,8 +520,19 @@ export function useFileUpload(
                 err,
               );
             }
+          } else if (isImage) {
+            try {
+              await performFileUpload(entry.file, {
+                trackId: `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+              });
+              queryClient.invalidateQueries({ queryKey: ["documents"] });
+            } catch (err) {
+              console.warn(
+                `[useFileUpload] image re-upload failed for ${entry.fileName}:`,
+                err,
+              );
+            }
           } else {
-            // Non-PDF: the backend auto-deletes duplicates on re-upload (FIX-4).
             // Attempt a manual delete first for completeness but ignore failures.
             try {
               await deleteDocument(entry.existingDocId);
