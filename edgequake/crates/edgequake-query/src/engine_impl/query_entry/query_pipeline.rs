@@ -33,6 +33,8 @@ pub(crate) struct PreparedQuery {
     pub embeddings: QueryEmbeddings,
     pub mode: QueryMode,
     pub embedding_time_ms: u64,
+    /// Effective chunk cap (`max_results` API override or config default).
+    pub max_chunks: usize,
 }
 
 impl QueryEngine {
@@ -236,6 +238,7 @@ impl QueryEngine {
             embeddings,
             mode,
             embedding_time_ms,
+            max_chunks: request.max_results.unwrap_or(self.config.max_chunks),
         })
     }
 
@@ -251,25 +254,31 @@ impl QueryEngine {
         let keywords = &prepared.keywords;
         let embeddings = &prepared.embeddings;
 
+        let max_chunks = prepared.max_chunks;
+
         match providers.vector_storage {
             Some(vector_storage) => match mode {
                 QueryMode::Local => {
                     self.query_local_with_vector_storage(
+                        &request.query,
                         keywords,
                         embeddings,
                         tenant,
                         workspace,
                         vector_storage,
+                        max_chunks,
                     )
                     .await
                 }
                 QueryMode::Global => {
                     self.query_global_with_vector_storage(
+                        &request.query,
                         keywords,
                         embeddings,
                         tenant,
                         workspace,
                         vector_storage,
+                        max_chunks,
                     )
                     .await
                 }
@@ -281,6 +290,7 @@ impl QueryEngine {
                         tenant,
                         workspace,
                         vector_storage,
+                        max_chunks,
                     )
                     .await
                 }
@@ -293,6 +303,7 @@ impl QueryEngine {
                         workspace,
                         vector_storage,
                         request.mix_weights.as_ref(),
+                        max_chunks,
                     )
                     .await
                 }
@@ -303,6 +314,7 @@ impl QueryEngine {
                         tenant,
                         workspace,
                         vector_storage,
+                        max_chunks,
                     )
                     .await
                 }
@@ -310,16 +322,37 @@ impl QueryEngine {
             },
             None => match mode {
                 QueryMode::Local => {
-                    self.query_local(keywords, embeddings, tenant, workspace)
-                        .await
+                    self.query_local(
+                        &request.query,
+                        keywords,
+                        embeddings,
+                        tenant,
+                        workspace,
+                        max_chunks,
+                    )
+                    .await
                 }
                 QueryMode::Global => {
-                    self.query_global(keywords, embeddings, tenant, workspace)
-                        .await
+                    self.query_global(
+                        &request.query,
+                        keywords,
+                        embeddings,
+                        tenant,
+                        workspace,
+                        max_chunks,
+                    )
+                    .await
                 }
                 QueryMode::Hybrid => {
-                    self.query_hybrid(&request.query, keywords, embeddings, tenant, workspace)
-                        .await
+                    self.query_hybrid(
+                        &request.query,
+                        keywords,
+                        embeddings,
+                        tenant,
+                        workspace,
+                        max_chunks,
+                    )
+                    .await
                 }
                 QueryMode::Mix => {
                     self.query_mix(
@@ -329,11 +362,12 @@ impl QueryEngine {
                         tenant,
                         workspace,
                         request.mix_weights.as_ref(),
+                        max_chunks,
                     )
                     .await
                 }
                 QueryMode::Naive => {
-                    self.query_naive(&request.query, embeddings, tenant, workspace)
+                    self.query_naive(&request.query, embeddings, tenant, workspace, max_chunks)
                         .await
                 }
                 QueryMode::Bypass => Ok(QueryContext::default()),
@@ -367,7 +401,7 @@ impl QueryEngine {
                 )
                 .await;
             context.chunks = reranked_chunks;
-            stats.retrieval_time_ms += rerank_start.elapsed().as_millis() as u64;
+            stats.rerank_time_ms = Some(rerank_start.elapsed().as_millis() as u64);
         }
 
         self.sort_entities_by_degree(&mut context.entities);

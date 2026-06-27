@@ -2,20 +2,19 @@
 
 use axum::http::StatusCode;
 use axum::{extract::State, Json};
+use chrono::Utc;
 
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
-use crate::services::{
-    build_chunk_kv_records, persist_ingestion_result, resolve_relational_sink,
-    PersistIngestionParams,
-};
 use crate::state::AppState;
 
 use crate::file_validation::validate_file;
-use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_strict;
+use crate::handlers::documents::storage_helpers::{
+    resolve_workspace_duplicate_for_reingestion, DuplicateReingestAction,
+};
 use crate::handlers::documents_types::*;
 use axum_extra::extract::Multipart;
 
@@ -30,6 +29,7 @@ use axum_extra::extract::Multipart;
     ),
     request_body(content_type = "multipart/form-data", description = "Files to upload"),
     responses(
+        (status = 202, description = "Batch accepted for async processing", body = BatchUploadResponse),
         (status = 201, description = "Batch upload completed", body = BatchUploadResponse),
         (status = 400, description = "Invalid request")
     )
@@ -73,7 +73,7 @@ pub async fn upload_files_batch(
     let tenant_id = tenant_ctx.tenant_id.clone();
 
     for (filename, content) in files {
-        let result = process_single_file(
+        let result = enqueue_single_file(
             &state,
             &tenant_ctx,
             &filename,
@@ -98,7 +98,7 @@ pub async fn upload_files_batch(
                     results.push(BatchFileResult {
                         filename,
                         document_id: Some(doc_id),
-                        status: "processed".to_string(),
+                        status: "pending".to_string(),
                         error: None,
                     });
                 }
@@ -116,7 +116,7 @@ pub async fn upload_files_batch(
     }
 
     Ok((
-        StatusCode::CREATED,
+        StatusCode::ACCEPTED,
         Json(BatchUploadResponse {
             total_files: results.len(),
             processed,
@@ -127,27 +127,43 @@ pub async fn upload_files_batch(
     ))
 }
 
-/// Process a single file and return (document_id, is_duplicate).
-async fn process_single_file(
+/// Enqueue a single file for async worker processing (SPEC-024 Phase 1.1).
+async fn enqueue_single_file(
     state: &AppState,
-    _tenant_ctx: &TenantContext,
+    tenant_ctx: &TenantContext,
     filename: &str,
     content: &[u8],
     workspace_id: &str,
     tenant_id: Option<String>,
 ) -> Result<(String, bool), ApiError> {
-    let (_extension, text_content, _mime_type) =
+    let (_extension, text_content, mime_type) =
         validate_file(filename, content, state.config.max_document_size)?;
 
     let content_hash = ContentHasher::hash_bytes(content);
     let hash_key = ContentHasher::workspace_hash_key(workspace_id, &content_hash);
-    if let Some(existing) = state.storage.kv_storage.get_by_id(&hash_key).await? {
-        if let Some(doc_id) = existing.as_str() {
-            return Ok((doc_id.to_string(), true));
+    match resolve_workspace_duplicate_for_reingestion(state, &hash_key, workspace_id).await? {
+        DuplicateReingestAction::NoDuplicate => {}
+        DuplicateReingestAction::ClearedForReingestion { old_document_id } => {
+            tracing::info!(
+                old_doc_id = %old_document_id,
+                workspace_id = %workspace_id,
+                filename = %filename,
+                "Batch duplicate — cleared for re-ingestion (SPEC-024 pass 12)"
+            );
+        }
+        DuplicateReingestAction::StillProcessing {
+            existing_document_id,
+        } => {
+            return Ok((existing_document_id, true));
         }
     }
 
     let document_id = Uuid::new_v4().to_string();
+    let track_id = format!(
+        "batch_{}_{}",
+        Utc::now().format("%Y%m%d%H%M%S"),
+        &Uuid::new_v4().to_string()[..8]
+    );
 
     state
         .storage
@@ -155,42 +171,63 @@ async fn process_single_file(
         .upsert(&[(hash_key, serde_json::json!(document_id))])
         .await?;
 
-    let workspace_pipeline = state.create_workspace_pipeline(workspace_id).await;
-    let result = workspace_pipeline
-        .process_with_resilience(&document_id, &text_content, None)
+    let doc_metadata_key = format!("{}-metadata", document_id);
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(
+            doc_metadata_key,
+            serde_json::json!({
+                "id": document_id,
+                "title": filename,
+                "file_name": filename,
+                "source_type": "file",
+                "content_hash": content_hash,
+                "track_id": track_id,
+                "status": "pending",
+                "tenant_id": tenant_id,
+                "workspace_id": workspace_id,
+            }),
+        )])
         .await?;
 
-    if result.stats.failed_chunks > 0 {
-        tracing::warn!(
-            document_id = %document_id,
-            filename = %filename,
-            failed_chunks = result.stats.failed_chunks,
-            chunk_count = result.stats.chunk_count,
-            "Batch file pipeline completed with partial failures"
-        );
-    }
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(
+            format!("{}-content", document_id),
+            serde_json::json!({ "content": text_content }),
+        )])
+        .await?;
 
-    let chunks = build_chunk_kv_records(&document_id, filename, &result);
-    state.storage.kv_storage.upsert(&chunks).await?;
+    use edgequake_tasks::{Task, TaskType, TextInsertData};
 
-    let workspace_vector_storage = get_workspace_vector_storage_strict(state, workspace_id).await?;
-    let relational_sink = resolve_relational_sink(state).await;
+    let tenant = tenant_ctx.tenant_id_or_default();
+    let task_data = TextInsertData {
+        text: text_content,
+        file_source: filename.to_string(),
+        workspace_id: workspace_id.to_string(),
+        metadata: Some(serde_json::json!({
+            "document_id": document_id,
+            "title": filename,
+            "tenant_id": tenant,
+            "workspace_id": workspace_id,
+            "source_type": "file",
+            "mime_type": mime_type,
+            "content_hash": content_hash,
+        })),
+    };
 
-    persist_ingestion_result(
-        state,
-        state.storage.graph_storage.clone(),
-        workspace_vector_storage,
-        relational_sink,
-        PersistIngestionParams::for_document(
-            &document_id,
-            tenant_id,
-            workspace_id.to_string(),
-            &result,
-            edgequake_pipeline::ChunkVectorBuildOptions::STANDARD,
-        ),
-    )
-    .await
-    .map_err(|e| ApiError::Internal(format!("Batch upload persist failed: {}", e)))?;
+    let task = Task::new(
+        uuid::Uuid::parse_str(&tenant)
+            .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
+        uuid::Uuid::parse_str(workspace_id)
+            .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
+        TaskType::Insert,
+        serde_json::to_value(task_data).unwrap(),
+    );
+
+    state.enqueue_task(task).await?;
 
     Ok((document_id, false))
 }

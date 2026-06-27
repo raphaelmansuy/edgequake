@@ -18,18 +18,36 @@ impl MetadataFilter {
     ///
     /// Parameter `$1` is reserved for the query embedding vector.
     /// `start_param` is the first bind slot for filters (typically `2`).
+    /// Pass `table_alias` (e.g. `"v"`) when the query uses a table alias.
     pub fn build_sql(&self, has_id_filter: bool, start_param: u32) -> MetadataFilterSql {
+        self.build_sql_with_alias(has_id_filter, start_param, None)
+    }
+
+    /// Same as [`Self::build_sql`] with optional qualified column prefix.
+    pub fn build_sql_with_alias(
+        &self,
+        has_id_filter: bool,
+        start_param: u32,
+        table_alias: Option<&str>,
+    ) -> MetadataFilterSql {
+        let q = |col: &str| match table_alias {
+            Some(a) => format!("{a}.{col}"),
+            None => col.to_string(),
+        };
+
         let mut conditions = Vec::new();
         let mut param_offset = start_param;
 
         if has_id_filter {
-            conditions.push(format!("id = ANY(${param_offset}::text[])"));
+            conditions.push(format!("{} = ANY(${param_offset}::text[])", q("id")));
             param_offset += 1;
         }
 
         if self.document_ids.is_some() {
             conditions.push(format!(
-                "(document_id = ANY(${p}::text[]) OR metadata->>'document_id' = ANY(${p}::text[]) OR metadata->>'source_document_id' = ANY(${p}::text[]))",
+                "({doc_id} = ANY(${p}::text[]) OR {meta}->>'document_id' = ANY(${p}::text[]) OR {meta}->>'source_document_id' = ANY(${p}::text[]))",
+                doc_id = q("document_id"),
+                meta = q("metadata"),
                 p = param_offset
             ));
             param_offset += 1;
@@ -37,7 +55,9 @@ impl MetadataFilter {
 
         if self.tenant_id.is_some() {
             conditions.push(format!(
-                "(tenant_id = ${p} OR metadata->>'tenant_id' = ${p})",
+                "({tenant} = ${p} OR {meta}->>'tenant_id' = ${p})",
+                tenant = q("tenant_id"),
+                meta = q("metadata"),
                 p = param_offset
             ));
             param_offset += 1;
@@ -45,14 +65,19 @@ impl MetadataFilter {
 
         if self.workspace_id.is_some() {
             conditions.push(format!(
-                "(workspace_id = ${p} OR metadata->>'workspace_id' = ${p})",
+                "({workspace} = ${p} OR {meta}->>'workspace_id' = ${p})",
+                workspace = q("workspace_id"),
+                meta = q("metadata"),
                 p = param_offset
             ));
             param_offset += 1;
         }
 
         if self.vector_type.is_some() {
-            conditions.push(format!("metadata->>'type' = ${param_offset}"));
+            conditions.push(format!(
+                "{}->>'type' = ${param_offset}",
+                q("metadata")
+            ));
             param_offset += 1;
         }
 

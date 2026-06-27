@@ -97,16 +97,18 @@ use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_pipeline::{
     GleaningConfig, GleaningExtractor, LLMExtractor, Pipeline, PipelineConfig,
 };
-use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
+use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use serde::{Deserialize, Serialize};
 // Use query crate types
 // edgequake-query is intentionally not linked here to avoid workspace cycles.
 
 use crate::error::{Error, Result};
+use crate::workspace_service::WorkspaceService;
 
 mod deletion;
 mod ingestion;
 mod query_ops;
+mod workspace_vector;
 
 /// EdgeQuake instance configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -353,6 +355,15 @@ pub struct EdgeQuake {
     /// CQRS relational entity sink (SPEC-021 P3-01/P3-02).
     /// Defaults to NoopEntitySink — set via `with_relational_sink()` to enable dual-write.
     relational_sink: Arc<dyn edgequake_pipeline::RelationalEntitySink>,
+
+    /// Per-workspace vector registry (W7 / SPEC-024 pass 14).
+    vector_registry: Option<Arc<dyn WorkspaceVectorRegistry>>,
+
+    /// Workspace metadata lookup for embedding dimension (paired with registry).
+    workspace_service: Option<Arc<dyn WorkspaceService>>,
+
+    /// When true, ingestion refuses default-storage fallback (production).
+    strict_workspace_vectors: bool,
 }
 
 impl EdgeQuake {
@@ -369,6 +380,9 @@ impl EdgeQuake {
             pipeline: None,
             query_engine: None,
             relational_sink: Arc::new(edgequake_pipeline::NoopEntitySink),
+            vector_registry: None,
+            workspace_service: None,
+            strict_workspace_vectors: false,
         }
     }
 
@@ -520,6 +534,7 @@ impl EdgeQuake {
                 graph_storage.clone(),
                 embedding.clone(),
                 llm.clone(),
+                self.kv_storage.clone(),
             )
         };
 

@@ -11,7 +11,9 @@ use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
 
-use crate::handlers::documents::storage_helpers::delete_document_for_reingestion;
+use crate::handlers::documents::storage_helpers::{
+    resolve_workspace_duplicate_for_reingestion, DuplicateReingestAction,
+};
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
 use crate::handlers::documents_types::*;
@@ -97,52 +99,38 @@ pub async fn upload_document(
     // Same content in different workspace = allowed (multi-tenancy)
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
     debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
-    if let Some(existing_doc_id) = state.storage.kv_storage.get_by_id(&hash_key).await? {
-        debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
-        if let Some(doc_id_str) = existing_doc_id.as_str() {
-            // FIX-4: Try to delete old document data for re-ingestion
-            match delete_document_for_reingestion(doc_id_str, &state, &workspace_id_for_storage)
-                .await
-            {
-                Ok(true) => {
-                    // Successfully deleted - proceed with new upload
-                    tracing::info!(
-                        old_doc_id = %doc_id_str,
-                        workspace_id = %workspace_id_for_storage,
-                        "Duplicate document found - old data deleted, proceeding with re-ingestion"
-                    );
-                    // Hash key will be updated below with new document_id
-                }
-                Ok(false) => {
-                    // Document still processing - return duplicate response
-                    tracing::warn!(
-                        old_doc_id = %doc_id_str,
-                        "Duplicate document is still being processed - cannot re-ingest"
-                    );
-                    return Ok((
-                        StatusCode::OK,
-                        Json(UploadDocumentResponse {
-                            document_id: doc_id_str.to_string(),
-                            status: "duplicate_processing".to_string(),
-                            task_id: None,
-                            track_id: track_id.clone(),
-                            duplicate_of: Some(doc_id_str.to_string()),
-                            chunk_count: None,
-                            entity_count: None,
-                            relationship_count: None,
-                            cost: None,
-                        }),
-                    ));
-                }
-                Err(e) => {
-                    // Failed to delete - log error and proceed with re-ingestion anyway
-                    tracing::warn!(
-                        old_doc_id = %doc_id_str,
-                        error = %e,
-                        "Failed to delete old document data - proceeding with re-ingestion"
-                    );
-                }
-            }
+    match resolve_workspace_duplicate_for_reingestion(&state, &hash_key, &workspace_id_for_storage)
+        .await?
+    {
+        DuplicateReingestAction::NoDuplicate => {}
+        DuplicateReingestAction::ClearedForReingestion { old_document_id } => {
+            tracing::info!(
+                old_doc_id = %old_document_id,
+                workspace_id = %workspace_id_for_storage,
+                "Duplicate document found - old data deleted, proceeding with re-ingestion"
+            );
+        }
+        DuplicateReingestAction::StillProcessing {
+            existing_document_id,
+        } => {
+            tracing::warn!(
+                old_doc_id = %existing_document_id,
+                "Duplicate document is still being processed - cannot re-ingest"
+            );
+            return Ok((
+                StatusCode::OK,
+                Json(UploadDocumentResponse {
+                    document_id: existing_document_id.clone(),
+                    status: "duplicate_processing".to_string(),
+                    task_id: None,
+                    track_id: track_id.clone(),
+                    duplicate_of: Some(existing_document_id),
+                    chunk_count: None,
+                    entity_count: None,
+                    relationship_count: None,
+                    cost: None,
+                }),
+            ));
         }
     }
 

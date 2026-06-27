@@ -23,20 +23,19 @@ pub fn build_ingestion_pipeline(
     )
 }
 
-/// Build the production query engine with BM25 reranker.
-///
-/// Delegates to `edgequake_query::build_production_query_engine` (SPEC-022 P-H4 SSOT).
+/// Build the production query engine (reranker resolved inside query bootstrap).
 pub fn build_production_query_engine(
     vector_storage: Arc<dyn VectorStorage>,
     graph_storage: Arc<dyn GraphStorage>,
     embedding_provider: Arc<dyn EmbeddingProvider>,
     llm_provider: Arc<dyn LLMProvider>,
-    _reranker: Arc<dyn edgequake_llm::Reranker>,
+    kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
 ) -> Arc<QueryEngine> {
     edgequake_query::build_production_query_engine(
         vector_storage,
         graph_storage,
         embedding_provider,
         llm_provider,
+        Some(kv_storage),
     )
 }

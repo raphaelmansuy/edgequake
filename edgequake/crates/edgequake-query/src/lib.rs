@@ -53,6 +53,7 @@
 
 pub mod bootstrap;
 pub mod cache;
+pub mod chunk_hydration;
 pub mod community_global;
 pub mod context;
 pub mod context_filter;
@@ -60,7 +61,9 @@ pub mod engine;
 pub mod engine_impl;
 pub mod error;
 pub mod fusion;
+pub mod graph_hops;
 pub mod helpers;
+pub mod hybrid_merge;
 pub mod keywords;
 pub mod mix_weights;
 pub mod modes;
@@ -74,7 +77,10 @@ pub use context::{QueryContext, RetrievedContext};
 pub use engine::{ConversationMessage, QueryRequest, QueryResponse, QueryStats};
 pub use error::{QueryError, Result};
 // Re-export keywords module types
-pub use bootstrap::{build_production_query_engine, create_production_reranker};
+pub use bootstrap::{
+    build_production_query_engine, create_production_reranker,
+    create_production_reranker_with_embedding,
+};
 pub use cache::{QueryResultCache, QueryResultCacheInvalidator};
 pub use engine_impl::{QueryEmbeddings, QueryEngine, QueryEngineConfig};
 #[cfg(feature = "postgres")]

@@ -251,10 +251,7 @@ impl EdgeQuake {
             .as_ref()
             .ok_or_else(|| Error::not_initialized("Graph storage not initialized"))?;
 
-        let vector_storage = self
-            .vector_storage
-            .as_ref()
-            .ok_or_else(|| Error::not_initialized("Vector storage not initialized"))?;
+        let vector_storage = self.resolve_ingestion_vector_storage().await?;
 
         // Stage 1: Process document through pipeline (Chunking → Extraction → Embedding)
         // WHY: Transforms raw text into structured knowledge graph elements
@@ -308,12 +305,19 @@ impl EdgeQuake {
             self.config.workspace_id.clone(),
         );
 
+        let kv_storage = self
+            .kv_storage
+            .as_ref()
+            .ok_or_else(|| Error::not_initialized("KV storage not initialized"))?
+            .clone();
+
         let persister = DefaultIngestionPersister::from_settings(
             graph_storage.clone(),
-            vector_storage.clone(),
+            vector_storage,
             persist_config,
             self.relational_sink.clone(),
             Some(llm.clone()),
+            Some(kv_storage),
         );
 
         let persist_out = persister
@@ -327,7 +331,11 @@ impl EdgeQuake {
 
         if let Some(engine) = &self.query_engine {
             use edgequake_query::QueryResultCacheInvalidator;
-            engine.invalidate_query_result_cache();
+            if let Some(workspace_id) = &self.config.workspace_id {
+                engine.invalidate_query_result_cache_for_workspace(workspace_id);
+            } else {
+                engine.invalidate_query_result_cache();
+            }
         }
 
         let merge_stats = persist_out.merge_stats;

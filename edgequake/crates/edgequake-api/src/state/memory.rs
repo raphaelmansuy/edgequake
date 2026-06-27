@@ -26,7 +26,7 @@ use edgequake_storage::ConversationStorage;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
 use super::{
-    create_bm25_reranker, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
+    AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
 };
 use crate::cache_manager::CacheManager;
 
@@ -179,13 +179,12 @@ impl AppState {
         let task_storage = Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new());
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
 
-        let reranker = create_bm25_reranker();
         let engine_impl = super::query_bootstrap::build_production_query_engine(
             Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
             Arc::clone(&embedding_provider),
             Arc::clone(&llm_provider),
-            reranker,
+            Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
         );
 
         // Create workspace vector registry for per-workspace dimensions
@@ -278,6 +277,9 @@ impl AppState {
                 Arc::clone(&graph_storage) as Arc<dyn edgequake_storage::traits::GraphStorage>,
                 Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
                 Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+            )
+            .with_kv_storage(
+                Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             )
             .with_embedding_cache()
             .with_result_cache(),

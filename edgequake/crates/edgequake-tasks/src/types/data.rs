@@ -134,6 +134,22 @@ pub struct TextInsertData {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Knowledge injection task payload (SPEC-024 Phase 1.2).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeInjectionData {
+    pub doc_id: String,
+    pub content: String,
+    pub workspace_id: String,
+    pub meta_key: String,
+    pub injection_id: String,
+    pub name: String,
+    pub source_type: String,
+    pub source_filename: Option<String>,
+    pub version: u32,
+    pub created_at: String,
+    pub data_tenant_id: Option<String>,
+}
+
 /// Directory scan task payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryScanData {

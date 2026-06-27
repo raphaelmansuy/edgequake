@@ -5,7 +5,7 @@
 //! and re-ingestion support.
 
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::error::ApiError;
@@ -224,135 +224,39 @@ pub(super) async fn get_workspace_vector_storage_strict(
     state: &AppState,
     workspace_id: &str,
 ) -> Result<Arc<dyn VectorStorage>, ApiError> {
-    use edgequake_storage::traits::WorkspaceVectorConfig;
+    use edgequake_core::{
+        resolve_workspace_vector_storage, WorkspaceVectorResolveInput,
+        WorkspaceVectorResolvePolicy,
+    };
 
     // OODA-223: Allow fallback in memory mode (tests) but not in production (PostgreSQL)
-    // This prevents silent data loss in production while maintaining test compatibility
     let allow_fallback = state.storage.mode.is_memory();
-
-    // OODA-13: Handle "default" workspace by mapping to the well-known UUID
-    // WHY: Documents created via default workspace are stored with workspace_id="default"
-    // but deletion/operations need a valid UUID for vector storage lookup.
-    // Default workspace UUID: 00000000-0000-0000-0000-000000000003
-    let effective_workspace_id = if workspace_id == "default" || workspace_id.is_empty() {
-        "00000000-0000-0000-0000-000000000003"
+    let policy = if allow_fallback {
+        WorkspaceVectorResolvePolicy::AllowDefaultFallback
     } else {
-        workspace_id
+        WorkspaceVectorResolvePolicy::Strict
     };
 
-    // Parse workspace ID - FAIL in production, WARN in test mode
-    let workspace_uuid = match Uuid::parse_str(effective_workspace_id) {
-        Ok(uuid) => uuid,
-        Err(e) => {
-            if allow_fallback {
-                // WHY-OODA223: Test mode - log warning and use default storage
-                tracing::warn!(
-                    workspace_id = %workspace_id,
-                    error = %e,
-                    storage_mode = ?state.storage.mode,
-                    "Invalid workspace ID - using default storage (allowed in memory/test mode)"
-                );
-                return Ok(state.storage.vector_registry.default_storage());
-            }
-            tracing::error!(
-                workspace_id = %workspace_id,
-                error = %e,
-                "CRITICAL: Invalid workspace ID during ingestion - refusing to use default storage"
-            );
-            return Err(ApiError::BadRequest(format!(
-                "Invalid workspace ID '{}': {}. Document ingestion requires a valid workspace.",
-                workspace_id, e
-            )));
-        }
-    };
+    let default_storage = state.storage.vector_registry.default_storage();
+    let input = WorkspaceVectorResolveInput::new(Some(workspace_id), "default");
 
-    // Get workspace from service - FAIL in production, WARN in test mode
-    let workspace = match state.workspace_service.get_workspace(workspace_uuid).await {
-        Ok(Some(ws)) => ws,
-        Ok(None) => {
-            if allow_fallback {
-                // WHY-OODA223: Test mode - log warning and use default storage
-                tracing::warn!(
-                    workspace_id = %workspace_id,
-                    storage_mode = ?state.storage.mode,
-                    "Workspace not found - using default storage (allowed in memory/test mode)"
-                );
-                return Ok(state.storage.vector_registry.default_storage());
-            }
-            tracing::error!(
-                workspace_id = %workspace_id,
-                "CRITICAL: Workspace not found during ingestion - refusing to use default storage"
-            );
-            return Err(ApiError::NotFound(format!(
-                "Workspace '{}' not found. Cannot ingest documents without a valid workspace.",
-                workspace_id
-            )));
+    resolve_workspace_vector_storage(
+        state.storage.vector_registry.as_ref(),
+        default_storage,
+        Some(state.workspace_service.as_ref()),
+        state.query.embedding_provider.dimension(),
+        input,
+        policy,
+    )
+    .await
+    .map_err(|e| match e {
+        edgequake_core::Error::Validation(msg) => ApiError::BadRequest(msg),
+        edgequake_core::Error::NotFound(msg) => ApiError::NotFound(msg),
+        edgequake_core::Error::Config(msg) | edgequake_core::Error::Internal(msg) => {
+            ApiError::Internal(msg)
         }
-        Err(e) => {
-            if allow_fallback {
-                // WHY-OODA223: Test mode - log warning and use default storage
-                tracing::warn!(
-                    workspace_id = %workspace_id,
-                    error = %e,
-                    storage_mode = ?state.storage.mode,
-                    "Failed to lookup workspace - using default storage (allowed in memory/test mode)"
-                );
-                return Ok(state.storage.vector_registry.default_storage());
-            }
-            tracing::error!(
-                workspace_id = %workspace_id,
-                error = %e,
-                "CRITICAL: Failed to lookup workspace during ingestion"
-            );
-            return Err(ApiError::Internal(format!(
-                "Failed to lookup workspace '{}': {}",
-                workspace_id, e
-            )));
-        }
-    };
-
-    // Create workspace-specific vector storage config
-    let config = WorkspaceVectorConfig {
-        workspace_id: workspace_uuid,
-        dimension: workspace.embedding_dimension,
-        namespace: "default".to_string(),
-    };
-
-    debug!(
-        workspace_id = %workspace_id,
-        dimension = workspace.embedding_dimension,
-        embedding_model = %workspace.embedding_model,
-        "Using workspace-specific vector storage for document ingestion (STRICT mode)"
-    );
-
-    // Get or create workspace vector storage - FAIL if creation fails
-    match state.storage.vector_registry.get_or_create(config).await {
-        Ok(storage) => Ok(storage),
-        Err(e) => {
-            if allow_fallback {
-                // WHY-OODA223: Test mode - log warning and use default storage
-                tracing::warn!(
-                    workspace_id = %workspace_id,
-                    dimension = workspace.embedding_dimension,
-                    error = %e,
-                    storage_mode = ?state.storage.mode,
-                    "Failed to create workspace storage - using default (allowed in memory/test mode)"
-                );
-                return Ok(state.storage.vector_registry.default_storage());
-            }
-            tracing::error!(
-                workspace_id = %workspace_id,
-                dimension = workspace.embedding_dimension,
-                error = %e,
-                "CRITICAL: Failed to create workspace vector storage - refusing to use default"
-            );
-            Err(ApiError::Internal(format!(
-                "Failed to create vector storage for workspace '{}' (dimension {}): {}. \
-                 This is a critical error - please check database connectivity and configuration.",
-                workspace_id, workspace.embedding_dimension, e
-            )))
-        }
-    }
+        other => ApiError::Internal(other.to_string()),
+    })
 }
 
 /// Get workspace-specific vector storage with fallback (LEGACY - use strict version for ingestion).
@@ -549,6 +453,55 @@ pub(crate) async fn cleanup_document_graph_data(
         relationships_updated: cascade_stats.relationships_updated,
         embeddings_deleted: cascade_stats.embeddings_deleted,
     })
+}
+
+/// Outcome of workspace-scoped duplicate hash lookup before a new ingest enqueue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DuplicateReingestAction {
+    NoDuplicate,
+    ClearedForReingestion {
+        old_document_id: String,
+    },
+    StillProcessing {
+        existing_document_id: String,
+    },
+}
+
+/// Resolve workspace duplicate content hash (SPEC-024 pass 12 — ingestion uniformity SSOT).
+///
+/// All API upload paths (`text_upload`, `file_upload`, `batch_upload`) must use this helper
+/// so duplicate handling matches: re-ingest when safe, block when still processing.
+pub(super) async fn resolve_workspace_duplicate_for_reingestion(
+    state: &AppState,
+    hash_key: &str,
+    workspace_id: &str,
+) -> Result<DuplicateReingestAction, ApiError> {
+    let Some(existing_doc_id) = state.storage.kv_storage.get_by_id(hash_key).await? else {
+        return Ok(DuplicateReingestAction::NoDuplicate);
+    };
+    let Some(doc_id_str) = existing_doc_id.as_str() else {
+        return Ok(DuplicateReingestAction::NoDuplicate);
+    };
+
+    match delete_document_for_reingestion(doc_id_str, state, workspace_id).await {
+        Ok(true) => Ok(DuplicateReingestAction::ClearedForReingestion {
+            old_document_id: doc_id_str.to_string(),
+        }),
+        Ok(false) => Ok(DuplicateReingestAction::StillProcessing {
+            existing_document_id: doc_id_str.to_string(),
+        }),
+        Err(e) => {
+            tracing::warn!(
+                old_doc_id = %doc_id_str,
+                workspace_id = %workspace_id,
+                error = %e,
+                "Failed to delete old document data — proceeding with re-ingestion"
+            );
+            Ok(DuplicateReingestAction::ClearedForReingestion {
+                old_document_id: doc_id_str.to_string(),
+            })
+        }
+    }
 }
 
 /// Delete all document data for re-ingestion.

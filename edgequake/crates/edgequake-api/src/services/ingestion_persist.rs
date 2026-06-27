@@ -12,7 +12,7 @@ use edgequake_pipeline::{
     ProcessingResult, RelationalEntitySink,
 };
 use edgequake_query::QueryResultCacheInvalidator;
-use edgequake_storage::traits::{GraphStorage, VectorStorage};
+use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
 
 #[cfg(feature = "postgres")]
 use crate::postgres_entity_sink::PostgresEntitySink;
@@ -38,6 +38,7 @@ impl<'a> PersistIngestionParams<'a> {
         workspace_id: String,
         result: &'a ProcessingResult,
         chunk_options: ChunkVectorBuildOptions,
+        source_file: Option<&'a str>,
     ) -> Self {
         Self {
             document_id,
@@ -46,7 +47,7 @@ impl<'a> PersistIngestionParams<'a> {
             result,
             chunk_options,
             source_type: None,
-            source_file_path: None,
+            source_file_path: source_file,
         }
     }
 }
@@ -94,6 +95,7 @@ pub async fn persist_ingestion_result(
         Some(state.query.engine_impl.as_ref() as &dyn QueryResultCacheInvalidator),
         graph_storage,
         vector_storage,
+        Arc::clone(&state.storage.kv_storage),
         relational_sink,
         params,
     )
@@ -106,13 +108,15 @@ pub async fn persist_with_providers(
     cache_invalidator: Option<&dyn QueryResultCacheInvalidator>,
     graph_storage: Arc<dyn GraphStorage>,
     vector_storage: Arc<dyn VectorStorage>,
+    kv_storage: Arc<dyn KVStorage>,
     relational_sink: Arc<dyn RelationalEntitySink>,
     params: PersistIngestionParams<'_>,
 ) -> Result<IngestionPersistOutput, edgequake_pipeline::error::PipelineError> {
+    let workspace_id = params.workspace_id.clone();
     let ctx = IngestionPersistContext::new(
         params.document_id,
         params.tenant_id,
-        Some(params.workspace_id),
+        Some(workspace_id.clone()),
     )
     .with_source_metadata(
         params.source_type.map(str::to_string),
@@ -125,6 +129,7 @@ pub async fn persist_with_providers(
         IngestionPersistSettings::default(),
         relational_sink,
         Some(llm_provider),
+        Some(kv_storage),
     );
 
     let out = persister
@@ -132,7 +137,7 @@ pub async fn persist_with_providers(
         .await?;
 
     if let Some(invalidator) = cache_invalidator {
-        invalidator.invalidate_query_result_cache();
+        invalidator.invalidate_query_result_cache_for_workspace(&workspace_id);
     }
 
     Ok(out)
@@ -144,19 +149,5 @@ pub fn build_chunk_kv_records(
     filename: &str,
     result: &ProcessingResult,
 ) -> Vec<(String, serde_json::Value)> {
-    result
-        .chunks
-        .iter()
-        .map(|c| {
-            (
-                c.id.clone(),
-                serde_json::json!({
-                    "content": c.content,
-                    "document_id": document_id,
-                    "index": c.index,
-                    "source_file": filename,
-                }),
-            )
-        })
-        .collect()
+    edgequake_pipeline::build_chunk_kv_records(document_id, Some(filename), result)
 }

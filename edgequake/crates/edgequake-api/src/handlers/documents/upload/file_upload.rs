@@ -17,7 +17,7 @@ use crate::file_validation::{image_mime_type, is_image_extension, validate_file}
 #[allow(unused_imports)]
 use crate::handlers::documents::storage_helpers::get_workspace_vector_storage_with_fallback;
 use crate::handlers::documents::storage_helpers::{
-    delete_document_for_reingestion, get_workspace_vector_storage_strict,
+    resolve_workspace_duplicate_for_reingestion, DuplicateReingestAction,
 };
 use crate::handlers::documents::upload::image_extract::extract_text_from_image;
 use crate::handlers::documents_types::*;
@@ -36,7 +36,8 @@ use axum_extra::extract::Multipart;
     ),
     request_body(content_type = "multipart/form-data", description = "File to upload"),
     responses(
-        (status = 201, description = "File uploaded successfully", body = FileUploadResponse),
+        (status = 202, description = "File accepted for async processing", body = FileUploadResponse),
+        (status = 201, description = "File uploaded successfully (deprecated sync)", body = FileUploadResponse),
         (status = 400, description = "Invalid file or request"),
         (status = 409, description = "Duplicate file (already processed)"),
         (status = 413, description = "File too large")
@@ -153,61 +154,47 @@ pub async fn upload_file(
     // WHY-OODA81: Uniqueness must be scoped to workspace, not global
     // Same document in different workspaces is allowed (multi-tenancy)
     let workspace_id_for_storage = tenant_ctx.workspace_id_or_default();
-    let tenant_id_for_storage = tenant_ctx.tenant_id.clone();
 
     // WHY-OODA81+83: Use ContentHasher for workspace-scoped hash key
     // FIX-4: Duplicates now trigger re-ingestion instead of rejection
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, &content_hash);
     debug!(hash_key = %hash_key, workspace_id = %workspace_id_for_storage, "Checking for workspace-scoped duplicate hash");
-    if let Some(existing_doc_id) = state.storage.kv_storage.get_by_id(&hash_key).await? {
-        debug!(existing_doc_id = ?existing_doc_id, "Found existing document for hash in workspace");
-        if let Some(doc_id_str) = existing_doc_id.as_str() {
-            // FIX-4: Try to delete old document data for re-ingestion
-            match delete_document_for_reingestion(doc_id_str, &state, &workspace_id_for_storage)
-                .await
-            {
-                Ok(true) => {
-                    // Successfully deleted - proceed with new upload
-                    tracing::info!(
-                        old_doc_id = %doc_id_str,
-                        workspace_id = %workspace_id_for_storage,
-                        filename = %filename,
-                        "Duplicate file found - old data deleted, proceeding with re-ingestion"
-                    );
-                    // Hash key will be updated below with new document_id
-                }
-                Ok(false) => {
-                    // Document still processing - return duplicate response
-                    tracing::warn!(
-                        old_doc_id = %doc_id_str,
-                        filename = %filename,
-                        "Duplicate file is still being processed - cannot re-ingest"
-                    );
-                    return Ok((
-                        StatusCode::OK,
-                        Json(FileUploadResponse {
-                            document_id: doc_id_str.to_string(),
-                            filename,
-                            size: content.len(),
-                            content_hash,
-                            status: "duplicate_processing".to_string(),
-                            chunk_count: 0,
-                            entity_count: 0,
-                            relationship_count: 0,
-                            is_duplicate: true,
-                        }),
-                    ));
-                }
-                Err(e) => {
-                    // Failed to delete - log error and proceed with re-ingestion anyway
-                    tracing::warn!(
-                        old_doc_id = %doc_id_str,
-                        filename = %filename,
-                        error = %e,
-                        "Failed to delete old file data - proceeding with re-ingestion"
-                    );
-                }
-            }
+    match resolve_workspace_duplicate_for_reingestion(&state, &hash_key, &workspace_id_for_storage)
+        .await?
+    {
+        DuplicateReingestAction::NoDuplicate => {}
+        DuplicateReingestAction::ClearedForReingestion { old_document_id } => {
+            tracing::info!(
+                old_doc_id = %old_document_id,
+                workspace_id = %workspace_id_for_storage,
+                filename = %filename,
+                "Duplicate file found - old data deleted, proceeding with re-ingestion"
+            );
+        }
+        DuplicateReingestAction::StillProcessing {
+            existing_document_id,
+        } => {
+            tracing::warn!(
+                old_doc_id = %existing_document_id,
+                filename = %filename,
+                "Duplicate file is still being processed - cannot re-ingest"
+            );
+            return Ok((
+                StatusCode::OK,
+                Json(FileUploadResponse {
+                    document_id: existing_document_id,
+                    filename,
+                    size: content.len(),
+                    content_hash,
+                    status: "duplicate_processing".to_string(),
+                    task_id: None,
+                    track_id: None,
+                    chunk_count: 0,
+                    entity_count: 0,
+                    relationship_count: 0,
+                    is_duplicate: true,
+                }),
+            ));
         }
     }
 
@@ -233,6 +220,8 @@ pub async fn upload_file(
 
     // Store comprehensive document metadata
     let doc_metadata_key = format!("{}-metadata", document_id);
+    let workspace_id = tenant_ctx.workspace_id_or_default();
+    let tenant_id = tenant_ctx.tenant_id_or_default();
     let doc_metadata = serde_json::json!({
         "id": document_id,
         "title": filename,
@@ -245,9 +234,9 @@ pub async fn upload_file(
         "content_hash": content_hash,
         "track_id": track_id,
         "created_at": Utc::now().to_rfc3339(),
-        "status": "processing",
-        "tenant_id": tenant_id_for_storage,
-        "workspace_id": workspace_id_for_storage,
+        "status": "pending",
+        "tenant_id": tenant_id,
+        "workspace_id": workspace_id,
         "custom_metadata": metadata,
     });
     state
@@ -267,155 +256,35 @@ pub async fn upload_file(
         .upsert(&[(doc_content_key, doc_content)])
         .await?;
 
-    // Process through the workspace-aware pipeline so ingestion uses the same
-    // provider configuration as later queries and vector storage.
-    let workspace_pipeline = state
-        .create_workspace_pipeline(&workspace_id_for_storage)
-        .await;
-    let result = workspace_pipeline
-        .process_with_resilience(&document_id, &text_content, None)
-        .await?;
+    // SPEC-024 Phase 1.1: async worker path (same as text_upload / P-G2b).
+    use edgequake_tasks::{Task, TaskType, TextInsertData};
 
-    // Log partial failures but continue (resilient processing)
-    if result.stats.failed_chunks > 0 {
-        tracing::warn!(
-            document_id = %document_id,
-            failed_chunks = result.stats.failed_chunks,
-            chunk_count = result.stats.chunk_count,
-            "File upload pipeline completed with partial failures"
-        );
-    }
-
-    // Store chunks in KV storage (outside persister scope — same as text_insert)
-    let chunks = crate::services::build_chunk_kv_records(&document_id, &filename, &result);
-    state.storage.kv_storage.upsert(&chunks).await?;
-
-    let workspace_vector_storage =
-        get_workspace_vector_storage_strict(&state, &workspace_id_for_storage).await?;
-
-    let relational_sink = crate::services::resolve_relational_sink(&state).await;
-    let persist_result = crate::services::persist_ingestion_result(
-        &state,
-        state.storage.graph_storage.clone(),
-        workspace_vector_storage,
-        relational_sink,
-        crate::services::PersistIngestionParams::for_document(
-            &document_id,
-            tenant_id_for_storage.clone(),
-            workspace_id_for_storage.clone(),
-            &result,
-            edgequake_pipeline::ChunkVectorBuildOptions::STANDARD,
-        ),
-    )
-    .await;
-
-    let persist_failed = persist_result.is_err();
-    if let Err(ref e) = persist_result {
-        tracing::error!(
-            document_id = %document_id,
-            error = %e,
-            "File upload persist failed (P-H1 IngestionPersister)"
-        );
-    } else if let Ok(ref out) = persist_result {
-        tracing::info!(
-            document_id = %document_id,
-            chunk_vectors = out.chunk_vector_ids.len(),
-            entities = out.merge_stats.entities_created + out.merge_stats.entities_updated,
-            relationships = out.merge_stats.relationships_created
-                + out.merge_stats.relationships_updated,
-            "File upload persist completed via IngestionPersister"
-        );
-    }
-
-    let final_status = if persist_failed {
-        "failed"
-    } else if result.stats.failed_chunks > 0
-        || (result.stats.entity_count == 0 && result.stats.chunk_count > 0)
-    {
-        "partial_failure"
-    } else {
-        "completed"
+    let task_data = TextInsertData {
+        text: text_content.clone(),
+        file_source: filename.clone(),
+        workspace_id: workspace_id.clone(),
+        metadata: Some(serde_json::json!({
+            "document_id": document_id,
+            "title": filename,
+            "tenant_id": tenant_id,
+            "workspace_id": workspace_id,
+            "source_type": "file",
+            "mime_type": mime_type,
+            "content_hash": content_hash,
+        })),
     };
 
-    // Update document metadata with completion stats and lineage
-    let completed_metadata = serde_json::json!({
-        "id": document_id,
-        "title": filename,
-        "file_name": filename,
-        "file_size": content.len(),
-        "mime_type": mime_type,
-        "source_type": "file",
-        "content_summary": content_summary,
-        "content_length": text_content.len(),
-        "content_hash": content_hash,
-        "track_id": track_id,
-        "created_at": Utc::now().to_rfc3339(),
-        "processed_at": Utc::now().to_rfc3339(),
-        "status": final_status,
-        "chunk_count": result.stats.chunk_count,
-        "entity_count": result.stats.entity_count,
-        "relationship_count": result.stats.relationship_count,
-        "tenant_id": tenant_id_for_storage,
-        "workspace_id": workspace_id_for_storage,
-        "custom_metadata": metadata,
-        "llm_model": result.stats.llm_model,
-        "embedding_model": result.stats.embedding_model,
-        "embedding_dimensions": result.stats.embedding_dimensions,
-        "entity_types": result.stats.entity_types,
-        "relationship_types": result.stats.relationship_types,
-        "keywords": result.stats.keywords,
-        "chunking_strategy": result.stats.chunking_strategy,
-        "avg_chunk_size": result.stats.avg_chunk_size,
-        "processing_duration_ms": result.stats.processing_time_ms,
-    });
-    state
-        .storage
-        .kv_storage
-        .upsert(&[(doc_metadata_key, completed_metadata)])
-        .await?;
+    let task = Task::new(
+        uuid::Uuid::parse_str(&tenant_id)
+            .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?,
+        uuid::Uuid::parse_str(&workspace_id)
+            .map_err(|_| ApiError::ValidationError("Invalid workspace ID".to_string()))?,
+        TaskType::Insert,
+        serde_json::to_value(task_data).unwrap(),
+    );
+    let task_id = task.track_id.clone();
 
-    if persist_failed {
-        return Err(ApiError::Internal(format!(
-            "Knowledge graph persist failed: {}",
-            persist_result.unwrap_err()
-        )));
-    }
-
-    // FIX-ISSUE-81 Phase 2: Dual-write document record to PostgreSQL
-    // WHY: Without this, file uploads only write to KV storage. The PostgreSQL
-    // `documents` table stays incomplete, causing Dashboard KPI mismatch.
-    #[cfg(feature = "postgres")]
-    if let Some(ref pdf_storage) = state.storage.pdf_storage {
-        if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
-            if let Ok(workspace_uuid) = Uuid::parse_str(&workspace_id_for_storage) {
-                let tenant_uuid = tenant_id_for_storage
-                    .as_ref()
-                    .and_then(|t| Uuid::parse_str(t).ok());
-                if let Err(e) = pdf_storage
-                    .ensure_document_record(
-                        &doc_uuid,
-                        &workspace_uuid,
-                        tenant_uuid.as_ref(),
-                        &filename,
-                        &content_summary,
-                        "indexed",
-                    )
-                    .await
-                {
-                    tracing::warn!(
-                        document_id = %document_id,
-                        error = %e,
-                        "FIX-ISSUE-81: Failed to dual-write file document record to PostgreSQL (non-fatal)"
-                    );
-                } else {
-                    tracing::debug!(
-                        document_id = %document_id,
-                        "FIX-ISSUE-81: File document record dual-written to PostgreSQL"
-                    );
-                }
-            }
-        }
-    }
+    state.enqueue_task(task).await?;
 
     let tenant_for_audit = tenant_ctx
         .tenant_id
@@ -433,16 +302,18 @@ pub async fn upload_file(
     );
 
     Ok((
-        StatusCode::CREATED,
+        StatusCode::ACCEPTED,
         Json(FileUploadResponse {
             document_id,
             filename,
             size: content.len(),
             content_hash,
-            status: "processed".to_string(),
-            chunk_count: result.stats.chunk_count,
-            entity_count: result.stats.entity_count,
-            relationship_count: result.stats.relationship_count,
+            status: "pending".to_string(),
+            task_id: Some(task_id),
+            track_id: Some(track_id),
+            chunk_count: 0,
+            entity_count: 0,
+            relationship_count: 0,
             is_duplicate: false,
         }),
     ))

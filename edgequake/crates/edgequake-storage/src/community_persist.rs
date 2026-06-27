@@ -1,7 +1,8 @@
 //! Persist community detection labels on graph nodes (SPEC-023 I6).
 //!
 //! Index-time community refresh keeps query-time global search O(batch) instead of
-//! running Louvain on every request.
+//! running Louvain on every request. Refreshes are **debounced** per workspace
+//! via [`crate::community_index_service`] (SPEC-024 Phase 1.3 / 4.2).
 
 use std::sync::Arc;
 

@@ -149,9 +149,8 @@ edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
-# v0.6.20: CRITICAL FIX — Mistral actual API limit is 256 inputs/request (not 512).
-# Empirical test: n=256→OK, n=257→HTTP 400 code 3210.
-edgequake-llm = "0.6.20"
+# Patched to local edgequake-llm (PR #79) via [patch.crates-io] until 0.6.26 publishes.
+edgequake-llm = "0.6.23"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
@@ -179,3 +178,6 @@ debug = true
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3
+
+[patch.crates-io]
+edgequake-llm = { path = "../../edgequake-llm" }

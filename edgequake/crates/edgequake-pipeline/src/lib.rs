@@ -57,6 +57,7 @@
 //! - [`crate::chunker`] for document chunking
 
 pub mod cache;
+pub mod chunk_storage;
 pub mod chunker;
 pub mod error;
 pub mod extractor;
@@ -78,6 +79,7 @@ pub use cache::{
     generate_cache_key, generate_cache_key_multi, CacheEntry, CacheStats, CacheType,
     CachedExtractor, LLMCache, MemoryLLMCache,
 };
+pub use chunk_storage::build_chunk_kv_records;
 pub use chunker::{
     calculate_line_numbers, CharacterBasedChunking, ChunkResult, Chunker, ChunkerConfig,
     ChunkingStrategy, ParagraphBoundaryChunking, SentenceBoundaryChunking, TextChunk,

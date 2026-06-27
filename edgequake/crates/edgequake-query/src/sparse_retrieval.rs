@@ -2,17 +2,35 @@
 //!
 //! Production path: PostgreSQL native FTS (`ts_rank_cd` over GIN `content_tsv`).
 //! Fallback: in-memory BM25 reranker over vector ANN candidates (memory adapter / tests).
+//!
+//! Used by naive, local, and global chunk stages (SPEC-024 2.3).
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use edgequake_llm::Reranker;
-use edgequake_storage::traits::{MetadataFilter, VectorSearchResult, VectorStorage};
+use edgequake_storage::traits::{KVStorage, MetadataFilter, VectorSearchResult, VectorStorage};
 
+use crate::chunk_hydration::chunk_documents_for_rerank;
 use crate::context::RetrievedChunk;
 use crate::engine_impl::QueryEngineConfig;
 use crate::fusion::{self, MixFusionMode};
 use crate::helpers::build_chunk_from_result;
+
+/// Whether vector+sparse chunk fusion uses RRF (default: weighted sparse-first).
+///
+/// Mix mode has its own [`fusion::mix_fusion_mode_from_env`]; this controls only
+/// naive/local/global chunk-stage fusion (SPEC-024 2.3).
+pub fn sparse_fusion_mode_from_env() -> MixFusionMode {
+    match std::env::var("EDGEQUAKE_SPARSE_FUSION")
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "rrf" => MixFusionMode::Rrf,
+        _ => MixFusionMode::Weighted,
+    }
+}
 
 /// Whether BM25 retrieval fusion is active (default: true).
 ///
@@ -33,6 +51,7 @@ pub async fn fuse_vector_and_bm25_chunks(
     vector_storage: &Arc<dyn VectorStorage>,
     metadata_filter: Option<&MetadataFilter>,
     reranker: Option<&dyn Reranker>,
+    kv_storage: Option<&dyn KVStorage>,
     config: &QueryEngineConfig,
 ) -> Vec<RetrievedChunk> {
     let max_chunks = config.max_chunks;
@@ -71,11 +90,11 @@ pub async fn fuse_vector_and_bm25_chunks(
             Ok(_) => Vec::new(),
             Err(e) => {
                 tracing::warn!(error = %e, "Postgres FTS failed — falling back to in-memory BM25");
-                in_memory_bm25_ranked(query, vector_results, reranker).await
+                in_memory_bm25_ranked(query, vector_results, reranker, kv_storage).await
             }
         }
     } else {
-        in_memory_bm25_ranked(query, vector_results, reranker).await
+        in_memory_bm25_ranked(query, vector_results, reranker, kv_storage).await
     };
 
     if sparse_ranked.is_empty() {
@@ -87,10 +106,10 @@ pub async fn fuse_vector_and_bm25_chunks(
             .collect();
     }
 
-    if fusion::mix_fusion_mode_from_env() == MixFusionMode::Rrf {
+    if sparse_fusion_mode_from_env() == MixFusionMode::Rrf {
         let fused = fusion::reciprocal_rank_fusion(
             &[vector_ranked, sparse_ranked],
-            &[1.0, 1.0],
+            &[1.0, 1.25],
             fusion::RRF_K,
         );
         return fusion::chunks_from_rrf_ranking(&fused, &lookup, max_chunks);
@@ -115,21 +134,13 @@ async fn in_memory_bm25_ranked(
     query: &str,
     vector_results: &[VectorSearchResult],
     reranker: Option<&dyn Reranker>,
+    kv_storage: Option<&dyn KVStorage>,
 ) -> Vec<String> {
     let Some(reranker) = reranker else {
         return vector_results.iter().map(|r| r.id.clone()).collect();
     };
 
-    let documents: Vec<String> = vector_results
-        .iter()
-        .map(|r| {
-            r.metadata
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string()
-        })
-        .collect();
+    let documents = chunk_documents_for_rerank(kv_storage, vector_results).await;
 
     match reranker
         .rerank(query, &documents, Some(documents.len()))

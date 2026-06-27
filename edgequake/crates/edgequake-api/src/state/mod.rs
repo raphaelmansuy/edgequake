@@ -103,26 +103,6 @@ use edgequake_rate_limiter::RateLimiter;
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 
-// ── Shared Utility ────────────────────────────────────────────────────────
-
-/// Create the configured BM25 reranker.
-///
-/// Enhanced mode (default) adds:
-/// - Porter2 stemming: "running" matches "run", "runner"
-/// - NFKD Unicode normalization: "café" matches "cafe"
-/// - Stop word filtering: Removes noise words like "the", "and"
-///
-/// Set `BM25_ENHANCED=false` to disable enhanced features.
-fn create_bm25_reranker() -> Arc<dyn edgequake_llm::Reranker> {
-    if std::env::var("BM25_ENHANCED").unwrap_or_default() == "false" {
-        tracing::info!("Using minimal BM25 reranker (BM25_ENHANCED=false)");
-        Arc::new(edgequake_llm::reranker::BM25Reranker::new())
-    } else {
-        tracing::info!("Using enhanced BM25 reranker with stemming and Unicode normalization");
-        Arc::new(edgequake_llm::reranker::BM25Reranker::new_enhanced())
-    }
-}
-
 // ── AppState ──────────────────────────────────────────────────────────────
 
 /// Application state shared across handlers.

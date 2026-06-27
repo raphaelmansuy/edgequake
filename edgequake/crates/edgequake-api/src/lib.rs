@@ -116,6 +116,7 @@ pub mod services;
 pub mod state;
 pub mod storage_inspector;
 pub mod streaming;
+pub mod task_queue_pressure;
 pub mod validation;
 pub mod workspace_pipeline_factory;
 pub mod workspace_scope;

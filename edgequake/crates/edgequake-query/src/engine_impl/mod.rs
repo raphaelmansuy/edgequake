@@ -155,7 +155,7 @@ pub struct QueryEngineConfig {
 impl Default for QueryEngineConfig {
     fn default() -> Self {
         Self {
-            default_mode: QueryMode::Hybrid,
+            default_mode: QueryMode::Mix,
             // WHY 60: LightRAG uses top_k=60 entities. More entity candidates = more
             // chunk candidates from the KG path, directly improving recall.
             max_entities: 60,
@@ -354,8 +354,10 @@ pub struct QueryEngine {
     llm_provider: Arc<dyn LLMProvider>,
     keyword_extractor: Arc<dyn KeywordExtractor>,
     tokenizer: Arc<dyn Tokenizer>,
+    /// Optional KV store for chunk content hydration (SPEC-024 2.5).
+    pub(super) kv_storage: Option<Arc<dyn edgequake_storage::traits::KVStorage>>,
     /// Optional reranker for improved retrieval precision.
-    reranker: Option<Arc<dyn Reranker>>,
+    pub(super) reranker: Option<Arc<dyn Reranker>>,
     /// Cache for keyword validation (keyword -> exists_in_graph).
     /// WHY: Avoids repeated graph lookups for the same keywords.
     keyword_validation_cache: Arc<tokio::sync::RwLock<std::collections::HashMap<String, bool>>>,
@@ -364,6 +366,13 @@ pub struct QueryEngine {
 }
 
 impl QueryEngine {
+    /// Clone engine config with an effective chunk cap (API `max_results` override).
+    pub(super) fn config_with_max_chunks(&self, max_chunks: usize) -> QueryEngineConfig {
+        let mut cfg = self.config.clone();
+        cfg.max_chunks = max_chunks;
+        cfg
+    }
+
     /// Create a new query engine.
     pub fn new(
         config: QueryEngineConfig,
@@ -389,6 +398,7 @@ impl QueryEngine {
             llm_provider,
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
+            kv_storage: None,
             reranker: None, // No reranker by default
             keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(
                 std::collections::HashMap::new(),
@@ -400,6 +410,12 @@ impl QueryEngine {
     /// Create with a reranker for improved retrieval precision.
     pub fn with_reranker(mut self, reranker: Arc<dyn Reranker>) -> Self {
         self.reranker = Some(reranker);
+        self
+    }
+
+    /// Attach KV storage for chunk content hydration (SPEC-024 2.5).
+    pub fn with_kv_storage(mut self, kv: Arc<dyn edgequake_storage::traits::KVStorage>) -> Self {
+        self.kv_storage = Some(kv);
         self
     }
 
@@ -454,6 +470,12 @@ impl crate::cache::QueryResultCacheInvalidator for QueryEngine {
     fn invalidate_query_result_cache(&self) {
         self.invalidate_result_cache();
     }
+
+    fn invalidate_query_result_cache_for_workspace(&self, workspace_id: &str) {
+        if let Some(cache) = &self.result_cache {
+            cache.invalidate_workspace(workspace_id);
+        }
+    }
 }
 
 impl QueryEngine {
@@ -480,6 +502,7 @@ impl QueryEngine {
             llm_provider,
             keyword_extractor,
             tokenizer: Arc::new(SimpleTokenizer),
+            kv_storage: None,
             reranker: None,
             keyword_validation_cache: Arc::new(tokio::sync::RwLock::new(
                 std::collections::HashMap::new(),
@@ -541,10 +564,10 @@ impl QueryEngine {
 }
 
 mod prompt;
+mod modes;
 mod query_entry;
 mod query_modes;
 mod reranking;
-mod vector_queries;
 
 /// Shared token-stream type for streaming query answers (P-G11).
 pub type TokenStream = futures::stream::BoxStream<'static, std::result::Result<String, QueryError>>;
@@ -556,7 +579,7 @@ mod tests {
     #[test]
     fn test_query_engine_config_default() {
         let config = QueryEngineConfig::default();
-        assert_eq!(config.default_mode, QueryMode::Hybrid);
+        assert_eq!(config.default_mode, QueryMode::Mix);
         assert!(config.use_keyword_extraction);
         assert!(config.use_adaptive_mode);
     }

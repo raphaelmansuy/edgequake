@@ -76,6 +76,7 @@
 //! - [`BR0472`]: Documents processed with workspace-specific providers
 
 // Sub-modules organized by responsibility (SRP)
+mod injection_processing;
 mod pdf_processing;
 pub mod pipeline_checkpoint;
 mod status_updates;
@@ -96,8 +97,8 @@ use edgequake_pipeline::{
 };
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage, WorkspaceVectorRegistry};
 use edgequake_tasks::{
-    PipelinePhase, PipelineState, Task, TaskError, TaskProcessor, TaskResult, TaskType,
-    TextInsertData,
+    KnowledgeInjectionData, PipelinePhase, PipelineState, Task, TaskError, TaskProcessor,
+    TaskResult, TaskType, TextInsertData,
 };
 use serde_json::json;
 use tracing::{error, info, warn};

@@ -20,6 +20,9 @@ const DOCUMENT_DURATION: &str = "edgequake_document_processing_duration_seconds"
 const STORAGE_ERRORS: &str = "edgequake_storage_errors_total";
 const PIPELINE_ERRORS: &str = "edgequake_pipeline_errors_total";
 const DB_POOL_CONNECTIONS: &str = "edgequake_db_pool_connections";
+const TASK_QUEUE_PENDING: &str = "edgequake_task_queue_pending";
+const TASK_QUEUE_PROCESSING: &str = "edgequake_task_queue_processing";
+const TASK_QUEUE_FAILED: &str = "edgequake_task_queue_failed";
 
 /// Pre-register metric metadata so `/metrics` is never an empty body before first request.
 fn describe_http_metrics() {
@@ -68,6 +71,9 @@ fn describe_http_metrics() {
         DB_POOL_CONNECTIONS,
         "PostgreSQL pool connections (sampled on /metrics scrape)"
     );
+    describe_gauge!(TASK_QUEUE_PENDING, "Pending tasks in the worker queue");
+    describe_gauge!(TASK_QUEUE_PROCESSING, "Tasks currently being processed");
+    describe_gauge!(TASK_QUEUE_FAILED, "Failed tasks awaiting operator attention");
 }
 
 static PROMETHEUS: OnceLock<PrometheusHandle> = OnceLock::new();
@@ -132,6 +138,9 @@ pub fn init_metrics() {
         gauge!(DB_POOL_CONNECTIONS, "state" => "total").set(0.0);
         gauge!(DB_POOL_CONNECTIONS, "state" => "idle").set(0.0);
         gauge!(DB_POOL_CONNECTIONS, "state" => "active").set(0.0);
+        gauge!(TASK_QUEUE_PENDING).set(0.0);
+        gauge!(TASK_QUEUE_PROCESSING).set(0.0);
+        gauge!(TASK_QUEUE_FAILED).set(0.0);
         handle
     });
 }
@@ -156,6 +165,14 @@ pub fn record_pipeline_error(category: &str, error_code: &str) {
         "error_code" => error_code.to_string()
     )
     .increment(1);
+}
+
+/// Update task queue depth gauges (call from `/health` operational snapshot).
+pub fn record_task_queue_stats(pending: u64, processing: u64, failed: u64) {
+    init_metrics();
+    gauge!(TASK_QUEUE_PENDING).set(pending as f64);
+    gauge!(TASK_QUEUE_PROCESSING).set(processing as f64);
+    gauge!(TASK_QUEUE_FAILED).set(failed as f64);
 }
 
 /// Update DB pool gauges (call before Prometheus scrape when pool is available).
@@ -305,6 +322,10 @@ mod tests {
         assert!(
             body.contains(DB_POOL_CONNECTIONS),
             "metrics scrape should list db pool gauge: {body:?}"
+        );
+        assert!(
+            body.contains(TASK_QUEUE_PENDING),
+            "metrics scrape should list task queue pending gauge: {body:?}"
         );
     }
 }
