@@ -4,16 +4,14 @@ use axum::http::StatusCode;
 use axum::{extract::State, Json};
 
 use crate::error::{ApiError, ApiResult};
-use crate::middleware::TenantContext;
-use crate::services::ContentHasher;
-use crate::state::AppState;
-
-use crate::file_validation::validate_file;
 use crate::handlers::documents::upload::{
     admit_document_for_processing, DocumentAdmissionInput, DocumentAdmissionOutcome,
     GleaningAdmissionOptions, MultipartUploadFields,
 };
 use crate::handlers::documents_types::*;
+use crate::middleware::TenantContext;
+use crate::services::{resolve_upload_content, ContentHasher};
+use crate::state::AppState;
 use axum_extra::extract::Multipart;
 
 /// Upload multiple files via multipart form.
@@ -139,18 +137,18 @@ async fn enqueue_single_file(
     chunk_options: Option<edgequake_pipeline::ChunkOptions>,
     custom_metadata: Option<serde_json::Value>,
 ) -> Result<(String, bool), ApiError> {
-    let (_extension, text_content, mime_type) =
-        validate_file(filename, content, state.config.max_document_size)?;
+    let resolved =
+        resolve_upload_content(state, tenant_ctx.workspace_id_uuid(), filename, content).await?;
     let content_hash = ContentHasher::hash_bytes(content);
 
     let outcome = admit_document_for_processing(
         state,
         tenant_ctx,
         DocumentAdmissionInput {
-            text_content,
+            text_content: resolved.text_content,
             title: filename.to_string(),
-            source_type: "file",
-            mime_type: Some(mime_type.to_string()),
+            source_type: resolved.meta.source_type,
+            mime_type: Some(resolved.mime_type),
             raw_byte_size: content.len(),
             content_hash,
             custom_metadata,
@@ -159,6 +157,9 @@ async fn enqueue_single_file(
             document_type: None,
             chunk_strategy,
             chunk_options,
+            multimodal: resolved.meta.multimodal,
+            ingest_mode: resolved.meta.ingest_mode,
+            multimodal_manifest: resolved.manifest,
         },
         "batch",
     )

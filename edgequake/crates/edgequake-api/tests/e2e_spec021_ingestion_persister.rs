@@ -31,7 +31,6 @@ async fn spec021_worker_upload_produces_chunks_and_graph_on_success() {
         "seeded mock extraction must yield completed status, not partial_failure"
     );
 
-    use edgequake_storage::traits::GraphStorageReadOps;
     use edgequake_storage::EntityId;
     let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
     assert!(

@@ -19,6 +19,10 @@ use crate::handlers::documents::storage_helpers::{
 use crate::handlers::documents_types::{default_enable_gleaning, default_max_gleaning};
 use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
+use crate::services::{
+    apply_process_options_to_metadata, metadata_multimodal_patch, persist_manifest,
+    MultimodalSummary,
+};
 use crate::state::AppState;
 
 /// Gleaning options stored in task metadata for worker pipeline builder.
@@ -53,6 +57,12 @@ pub struct DocumentAdmissionInput {
     /// Explicit chunk strategy; auto-selects markdown for `.md` when None.
     pub chunk_strategy: Option<ChunkStrategy>,
     pub chunk_options: Option<ChunkOptions>,
+    /// True when content originated from VLM image analysis (SPEC-026 P-07).
+    pub multimodal: bool,
+    /// Ingest path label, e.g. `"vlm_describe"` for image uploads.
+    pub ingest_mode: Option<&'static str>,
+    /// Virtual sidecar manifest for multimodal uploads (Phase 4e).
+    pub multimodal_manifest: Option<crate::services::MultimodalManifest>,
 }
 
 /// Result of successful admission (202 path).
@@ -139,7 +149,7 @@ pub async fn admit_document_for_processing(
     }
 
     if let Some(ref opts) = input.chunk_options {
-        opts.validate().map_err(|e| ApiError::ValidationError(e))?;
+        opts.validate().map_err(ApiError::ValidationError)?;
     }
 
     let chunk_strategy = ChunkStrategy::resolve_for_upload(
@@ -192,6 +202,35 @@ pub async fn admit_document_for_processing(
     }
     if let Some(custom) = input.custom_metadata {
         doc_metadata["custom_metadata"] = custom;
+    }
+    if input.multimodal {
+        doc_metadata["multimodal"] = json!(true);
+    }
+    if let Some(mode) = input.ingest_mode {
+        doc_metadata["ingest_mode"] = json!(mode);
+    }
+
+    if let Some(ref manifest) = input.multimodal_manifest {
+        let _ = persist_manifest(&*state.storage.kv_storage, &document_id, manifest).await;
+        let summary = MultimodalSummary::from_records(
+            &manifest
+                .items
+                .iter()
+                .filter_map(|i| i.analyze_result.as_ref())
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
+        if let Some(patch) = metadata_multimodal_patch(&summary, None).as_object() {
+            if let Some(obj) = doc_metadata.as_object_mut() {
+                for (k, v) in patch {
+                    obj.insert(k.clone(), v.clone());
+                }
+                // Standalone image uploads imply `i` for mm-chunk indexing (Phase 4g).
+                if input.source_type == "image" {
+                    apply_process_options_to_metadata(obj, Some("i"));
+                }
+            }
+        }
     }
 
     state

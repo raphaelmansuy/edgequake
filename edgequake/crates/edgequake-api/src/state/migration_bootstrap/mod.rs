@@ -16,6 +16,10 @@ pub(super) const SQL_038_APPLY: &str =
 pub(super) const SQL_040_APPLY: &str =
     include_str!("../../../../../migrations/support/040/apply.sql");
 
+/// Document stats columns — SSOT: `migrations/041_document_stats_columns.sql`
+pub(super) const SQL_041_APPLY: &str =
+    include_str!("../../../../../migrations/041_document_stats_columns.sql");
+
 /// pgvector upgrade + ANN reindex — SSOT: `migrations/support/042/apply.sql`
 pub(super) const SQL_042_APPLY: &str =
     include_str!("../../../../../migrations/support/042/apply.sql");
@@ -236,6 +240,14 @@ pub async fn run_postgres_migrations(
         }
     }
 
+    if reconcile::reconcile_migration_041(pool).await? {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_041_ok",
+            "Migration 041 document stats columns reconciled"
+        );
+    }
+
     let migration_038 = reconcile::reconcile_migration_038(pool, &applied_this_run).await?;
     let migration_042 =
         reconcile::reconcile_migration_042(pool, &applied_after, &applied_this_run).await?;
@@ -420,6 +432,12 @@ mod tests {
             marker_present: true,
             apply_executed: false,
         }
+    }
+
+    #[test]
+    fn migration_041_apply_sql_embedded() {
+        assert!(SQL_041_APPLY.contains("cost_usd"));
+        assert!(SQL_041_APPLY.contains("relationship_count"));
     }
 
     #[test]

@@ -75,6 +75,7 @@ impl QueryEngine {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) async fn query_mix(
         &self,
         query_text: &str,

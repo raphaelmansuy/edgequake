@@ -243,7 +243,7 @@ impl DocumentTaskProcessor {
         // OODA-04: Include file_size_bytes and sha256_checksum in early metadata
         // WHY: Enables complete lineage from the moment the document appears in UI.
         // Without these, users see metadata gaps until processing completes.
-        let metadata_json = json!({
+        let mut metadata_json = json!({
             "id": early_doc_id,
             "title": filename.clone(),
             "file_name": filename.clone(),
@@ -273,6 +273,12 @@ impl DocumentTaskProcessor {
             "created_at": chrono::Utc::now().to_rfc3339(),
             "updated_at": chrono::Utc::now().to_rfc3339(),
         });
+        if let Some(obj) = metadata_json.as_object_mut() {
+            crate::services::apply_process_options_to_metadata(
+                obj,
+                data.multimodal_process_options.as_deref(),
+            );
+        }
 
         self.kv_storage
             .upsert(&[(metadata_key.clone(), metadata_json.clone())])
@@ -381,6 +387,21 @@ impl DocumentTaskProcessor {
 
                     let stored_extraction_method = pdf.extraction_method;
                     let stored_vision_model = pdf.vision_model.clone();
+
+                    // RESUME: apply multimodal analyze stage (LightRAG parity — was skipped before 4d).
+                    let stored_markdown = crate::services::run_multimodal_analyze_stage(
+                        stored_markdown,
+                        data.multimodal_process_options.as_deref(),
+                        &filename,
+                        self.workspace_service.as_ref(),
+                        data.workspace_id,
+                        Arc::clone(&self.llm_provider),
+                        None,
+                        Some(&early_doc_id),
+                        Some(Arc::clone(&self.kv_storage)),
+                    )
+                    .await;
+
                     // Clone for linking step after process_text_insert consumes the string.
                     let stored_markdown_for_link = stored_markdown.clone();
 
@@ -465,7 +486,7 @@ impl DocumentTaskProcessor {
         };
 
         let default_vision_model = || {
-            use crate::handlers::pdf_upload::types::default_vision_model_for_provider;
+            use crate::vision_env::default_vision_model_for_provider;
             data.vision_model
                 .clone()
                 .filter(|s| !s.is_empty())
@@ -761,6 +782,19 @@ impl DocumentTaskProcessor {
 
         let markdown = strip_nul_bytes(markdown);
         drop(pdf_data);
+
+        let markdown = crate::services::run_multimodal_analyze_stage(
+            markdown,
+            data.multimodal_process_options.as_deref(),
+            &filename,
+            self.workspace_service.as_ref(),
+            data.workspace_id,
+            Arc::clone(&self.llm_provider),
+            None,
+            Some(&early_doc_id),
+            Some(Arc::clone(&self.kv_storage)),
+        )
+        .await;
 
         let mut extraction_errors = if extraction_method == ExtractionMethod::EdgeParse {
             let avg_chars_per_page = markdown.len() / page_count.max(1);

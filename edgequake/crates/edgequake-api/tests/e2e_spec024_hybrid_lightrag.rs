@@ -7,7 +7,6 @@ use axum::{
     http::{Request, StatusCode},
 };
 use edgequake_api::{AppState, Server, ServerConfig};
-use edgequake_storage::traits::GraphStorageMutateOps;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 

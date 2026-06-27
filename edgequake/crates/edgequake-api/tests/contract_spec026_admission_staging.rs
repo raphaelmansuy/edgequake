@@ -41,6 +41,9 @@ fn sample_input(content: &str, hash: &str) -> DocumentAdmissionInput {
         document_type: None,
         chunk_strategy: None,
         chunk_options: None,
+        multimodal: false,
+        ingest_mode: None,
+        multimodal_manifest: None,
     }
 }
 

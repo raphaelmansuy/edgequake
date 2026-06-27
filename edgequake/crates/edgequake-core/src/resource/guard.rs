@@ -62,6 +62,12 @@ impl ResourceGuard {
     }
 }
 
+impl Default for ResourceGuard {
+    fn default() -> Self {
+        Self::new(ResourceBudgetConfig::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,11 +100,5 @@ mod tests {
         let guard = ResourceGuard::default();
         let decision = guard.admit_graph_operation(GraphOperation::ListEntities, 200_000);
         assert_eq!(decision, AdmissionDecision::Allow);
-    }
-}
-
-impl Default for ResourceGuard {
-    fn default() -> Self {
-        Self::new(ResourceBudgetConfig::default())
     }
 }

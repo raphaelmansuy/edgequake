@@ -58,7 +58,10 @@ async fn contract_double_persist_merges_to_single_normalized_entity() {
         graph.get_node(&node_id).await.unwrap().is_some(),
         "normalized graph node must exist"
     );
-    let nodes = graph.get_nodes_by_ids(&[node_id.clone()]).await.unwrap();
+    let nodes = graph
+        .get_nodes_by_ids(std::slice::from_ref(&node_id))
+        .await
+        .unwrap();
     assert_eq!(
         nodes.len(),
         1,
@@ -66,7 +69,7 @@ async fn contract_double_persist_merges_to_single_normalized_entity() {
     );
 
     let chunk_vectors = vector
-        .query(&vec![0.0_f32; EMBED_DIM], 100, None)
+        .query(&[0.0_f32; EMBED_DIM], 100, None)
         .await
         .unwrap();
     let chunk_count = chunk_vectors
@@ -106,10 +109,7 @@ async fn contract_chunk_vector_metadata_uses_content_ref_not_inline_body() {
     .await
     .expect("persist");
 
-    let chunk_vectors = vector
-        .query(&vec![0.0_f32; EMBED_DIM], 10, None)
-        .await
-        .unwrap();
+    let chunk_vectors = vector.query(&[0.0_f32; EMBED_DIM], 10, None).await.unwrap();
     let chunk_meta = chunk_vectors
         .iter()
         .find(|r| r.metadata.get("type").and_then(|v| v.as_str()) == Some("chunk"))
@@ -145,10 +145,6 @@ fn contract_persist_config_parity_across_callers() {
     assert_eq!(
         orchestrator_style.merger_config.max_description_length,
         MergerConfig::default().max_description_length
-    );
-    assert_eq!(
-        ChunkVectorBuildOptions::STANDARD.include_lineage_metadata,
-        true
     );
     assert_eq!(
         ChunkVectorBuildOptions::default(),

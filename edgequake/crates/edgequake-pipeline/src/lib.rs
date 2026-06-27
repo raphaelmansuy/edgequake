@@ -67,6 +67,7 @@ pub mod ingestion_types;
 pub mod lineage;
 pub mod markdown_ir;
 pub mod merger;
+pub mod multimodal;
 pub mod persistence;
 pub mod pipeline;
 pub mod progress;
@@ -117,6 +118,10 @@ pub use lineage::{
 pub use merger::{
     KnowledgeGraphMerger, MergeArtifacts, MergeStats, MergerConfig, NoopEntitySink,
     RelationalEntitySink,
+};
+pub use multimodal::{
+    inject_modality_relations, parse_mm_display_name, MmChunkSidecarMeta, MmHeadingBlock,
+    MmSidecarBlock, MmSidecarRef,
 };
 pub use persistence::{
     build_chunk_vector_batch, persist_processing_result, ChunkVectorBuildOptions,

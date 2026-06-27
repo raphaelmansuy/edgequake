@@ -7,9 +7,11 @@
 //! | `chunks`     | Retry/list failed chunks (FEAT0408, FEAT0409)      |
 
 mod chunks;
+mod reanalyze;
 mod reprocess;
 mod stuck;
 
 pub use chunks::*;
+pub use reanalyze::*;
 pub use reprocess::*;
 pub use stuck::*;

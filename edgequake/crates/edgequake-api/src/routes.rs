@@ -320,6 +320,11 @@ fn api_v1_routes() -> Router<AppState> {
             "/documents/{document_id}/failed-chunks",
             get(handlers::list_failed_chunks),
         )
+        // Phase 4h: multimodal re-analyze without re-parse (before /documents/{document_id})
+        .route(
+            "/documents/{document_id}/reanalyze",
+            post(handlers::reanalyze_multimodal),
+        )
         // OODA-07: Full lineage and metadata endpoints
         .route(
             "/documents/{document_id}/lineage",

@@ -228,7 +228,7 @@ async fn streaming_query_without_images_uses_text_stream_path() {
     req.mode = Some(QueryMode::Naive);
 
     let mut stream = engine.query_stream(req).await.unwrap();
-    while let Some(_) = stream.next().await {}
+    while stream.next().await.is_some() {}
 
     assert_eq!(
         recorder.stream_calls.load(Ordering::SeqCst),

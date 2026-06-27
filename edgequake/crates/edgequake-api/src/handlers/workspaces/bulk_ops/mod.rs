@@ -182,6 +182,7 @@ pub(super) fn build_pdf_task(
         // shortcut reuses cached markdown.
         restart_from_scratch: false,
         reprocess_mode: Some(edgequake_tasks::ReprocessMode::EntitiesOnly),
+        multimodal_process_options: None,
     }
 }
 

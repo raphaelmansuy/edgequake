@@ -33,7 +33,7 @@ async fn test_upload_document_success() {
     let app = &workers.router;
 
     let (document_id, track_id, final_status) = upload_and_wait(
-        &app,
+        app,
         "AI Overview",
         "This is a test document about artificial intelligence and machine learning. AI systems are becoming increasingly sophisticated.",
         Duration::from_secs(30),
@@ -194,7 +194,7 @@ async fn test_list_documents_after_upload() {
     let app = &workers.router;
 
     let _ = upload_and_wait(
-        &app,
+        app,
         "Listing doc",
         "Test document for listing. Contains information about software development.",
         Duration::from_secs(30),
@@ -204,7 +204,7 @@ async fn test_list_documents_after_upload() {
     // P-G2b: list endpoint filters by tenant/workspace context; provide the
     // default tenant/workspace headers so the uploaded document is visible.
     let (status, body) =
-        common::get_with_tenant(&app, "/api/v1/documents", "default", "default", "default").await;
+        common::get_with_tenant(app, "/api/v1/documents", "default", "default", "default").await;
     assert_eq!(status, StatusCode::OK);
 
     let docs = body.get("documents").and_then(|v| v.as_array());
@@ -225,14 +225,14 @@ async fn test_get_document_success() {
     let app = &workers.router;
 
     let (document_id, _track_id, _final_status) = upload_and_wait(
-        &app,
+        app,
         "Retrieval doc",
         "Test document for retrieval. This document discusses programming languages.",
         Duration::from_secs(30),
     )
     .await;
 
-    let (status, body) = get_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
+    let (status, body) = get_endpoint(app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         body.get("id").and_then(|v| v.as_str()),
@@ -259,7 +259,7 @@ async fn test_delete_document_success() {
     let app = &workers.router;
 
     let (document_id, _track_id, _final_status) = upload_and_wait(
-        &app,
+        app,
         "Deletion doc",
         "Document to be deleted. Contains some test content.",
         Duration::from_secs(30),
@@ -267,7 +267,7 @@ async fn test_delete_document_success() {
     .await;
 
     let (status, body) =
-        common::delete_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
+        common::delete_endpoint(app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         body.get("document_id").and_then(|v| v.as_str()),
@@ -277,7 +277,7 @@ async fn test_delete_document_success() {
 
     // Verify document is gone.
     let (get_status, _body) =
-        get_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
+        get_endpoint(app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(get_status, StatusCode::NOT_FOUND);
 }
 
@@ -301,7 +301,7 @@ async fn test_complete_document_lifecycle() {
 
     // 1. Upload + wait for processing.
     let (document_id, _track_id, _final_status) = upload_and_wait(
-        &app,
+        app,
         "AI Introduction",
         "This is a comprehensive test document about artificial intelligence. Machine learning is a subset of AI. Deep learning uses neural networks.",
         Duration::from_secs(30),
@@ -310,7 +310,7 @@ async fn test_complete_document_lifecycle() {
 
     // 2. List documents - should include new document.
     let (list_status, list_body) =
-        common::get_with_tenant(&app, "/api/v1/documents", "default", "default", "default").await;
+        common::get_with_tenant(app, "/api/v1/documents", "default", "default", "default").await;
     assert_eq!(list_status, StatusCode::OK);
     let listed = list_body
         .get("documents")
@@ -325,7 +325,7 @@ async fn test_complete_document_lifecycle() {
 
     // 3. Get document by ID.
     let (get_status, get_body) =
-        get_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
+        get_endpoint(app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(get_status, StatusCode::OK);
     assert_eq!(
         get_body.get("id").and_then(|v| v.as_str()),
@@ -334,12 +334,12 @@ async fn test_complete_document_lifecycle() {
 
     // 4. Delete document.
     let (delete_status, _delete_body) =
-        common::delete_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
+        common::delete_endpoint(app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(delete_status, StatusCode::OK);
 
     // 5. Verify document is gone.
     let (final_status, _final_body) =
-        get_endpoint(&app, &format!("/api/v1/documents/{}", document_id)).await;
+        get_endpoint(app, &format!("/api/v1/documents/{}", document_id)).await;
     assert_eq!(final_status, StatusCode::NOT_FOUND);
 }
 
@@ -352,7 +352,7 @@ async fn test_upload_returns_accepted_pending_with_task_id() {
     let app = &workers.router;
 
     let (status, body) = post_json(
-        &app,
+        app,
         "/api/v1/documents",
         &json!({
             "content": "Contract test document for the async upload response shape.",
@@ -376,7 +376,7 @@ async fn test_upload_returns_accepted_pending_with_task_id() {
         "task_id should be present for async upload"
     );
 
-    let final_status = wait_for_document_processed(&app, &track_id, Duration::from_secs(30)).await;
+    let final_status = wait_for_document_processed(app, &track_id, Duration::from_secs(30)).await;
     assert!(
         final_status == "completed"
             || final_status == "processed"

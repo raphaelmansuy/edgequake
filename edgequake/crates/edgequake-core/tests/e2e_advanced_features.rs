@@ -9,8 +9,6 @@ use edgequake_query::{
     balance_context, truncate_entities, KeywordExtractor, MockKeywordExtractor, SimpleTokenizer,
     Tokenizer, TruncationConfig,
 };
-use std::sync::Arc;
-
 /// Test keyword extraction integration.
 #[tokio::test]
 async fn test_keyword_extraction() {

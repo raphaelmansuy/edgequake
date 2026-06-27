@@ -80,7 +80,7 @@ pub async fn recycle_orphan_workspace_pdf(
 mod tests {
     use super::*;
     use crate::middleware::{default_workspace_uuid, TenantContext};
-    use edgequake_storage::{CreatePdfRequest, PdfDocumentStorage};
+    use edgequake_storage::CreatePdfRequest;
 
     fn test_tenant_ctx() -> TenantContext {
         TenantContext {

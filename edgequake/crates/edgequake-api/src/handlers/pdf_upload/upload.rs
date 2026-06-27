@@ -98,6 +98,7 @@ pub async fn upload_pdf_document(
         track_id: None,
         force_reindex: false,
         pdf_parser_backend: None,
+        process_options: None,
     };
 
     while let Some(field) = multipart
@@ -160,6 +161,14 @@ pub async fn upload_pdf_document(
                     options.pdf_parser_backend = PdfParserBackend::from_env_str(&text);
                 }
             }
+            Some("process_options") => {
+                if let Ok(text) = field.text().await {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        options.process_options = Some(trimmed.to_string());
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -200,6 +209,7 @@ pub async fn upload_pdf_batch_document(
         track_id: None,
         force_reindex: false,
         pdf_parser_backend: None,
+        process_options: None,
     };
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
 
@@ -258,6 +268,14 @@ pub async fn upload_pdf_batch_document(
             Some("pdf_parser_backend") => {
                 if let Ok(text) = field.text().await {
                     options.pdf_parser_backend = PdfParserBackend::from_env_str(&text);
+                }
+            }
+            Some("process_options") => {
+                if let Ok(text) = field.text().await {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        options.process_options = Some(trimmed.to_string());
+                    }
                 }
             }
             _ => {}

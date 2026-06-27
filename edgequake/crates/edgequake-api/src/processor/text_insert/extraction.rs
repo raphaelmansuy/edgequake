@@ -62,7 +62,7 @@ impl DocumentTaskProcessor {
         )
         .await;
 
-        let (result, resumed_from_checkpoint) = if let Some(checkpointed) = checkpoint_result {
+        let (mut result, resumed_from_checkpoint) = if let Some(checkpointed) = checkpoint_result {
             info!(
                 document_id = %document_id,
                 chunks = checkpointed.chunks.len(),
@@ -103,10 +103,7 @@ impl DocumentTaskProcessor {
                         let msg = if current == 0 {
                             format!("Embedding {}ies: starting ({} total)", label, total)
                         } else {
-                            format!(
-                                "Embedding {}ies: {}/{} ({}%)",
-                                label, current, total, pct
-                            )
+                            format!("Embedding {}ies: {}/{} ({}%)", label, current, total, pct)
                         };
                         let _ = crate::services::patch_document_metadata(
                             &kv_clone,
@@ -253,6 +250,25 @@ impl DocumentTaskProcessor {
 
             (fresh_result, false)
         };
+
+        // Phase 4k: inject mm entity + association edges when sidecar chunks persisted.
+        if let Some(mm_chunks) =
+            crate::services::load_mm_chunks(self.kv_storage.as_ref(), &document_id).await
+        {
+            let metas: Vec<edgequake_pipeline::MmChunkSidecarMeta> = mm_chunks
+                .iter()
+                .filter_map(|c| serde_json::from_value(serde_json::to_value(c).ok()?).ok())
+                .collect();
+            if !metas.is_empty() {
+                let file_path = data.file_source.as_str();
+                edgequake_pipeline::inject_modality_relations(
+                    &mut result.extractions,
+                    &result.chunks,
+                    &metas,
+                    file_path,
+                );
+            }
+        }
 
         // Log checkpoint usage metrics
         if resumed_from_checkpoint {

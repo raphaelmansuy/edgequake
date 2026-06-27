@@ -8,7 +8,6 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use edgequake_storage::traits::GraphStorageReadOps;
 use edgequake_storage::EntityId;
 use serde_json::json;
 use tower::ServiceExt;

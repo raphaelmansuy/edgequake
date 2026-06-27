@@ -9,8 +9,12 @@ use edgequake_storage::traits::{GraphReadView, GraphStorage, GraphStorageMutateO
 fn contract_incident_edges_batch_uses_sql_not_cypher() {
     let edges = include_str!("../src/adapters/postgres/graph/edges_ops.rs");
     assert!(
-        edges.contains("_ag_label_edge"),
-        "incident edges batch must join AGE catalog edge tables"
+        edges.contains("start_id::text = sv.id::text"),
+        "incident edges batch must cast graphid to text for AGE joins"
+    );
+    assert!(
+        !edges.contains("e.start_id = sv.id"),
+        "direct graphid = graphid joins fail on AGE 1.6.0"
     );
     assert!(
         !edges.contains("UNWIND [{}] AS nid MATCH"),

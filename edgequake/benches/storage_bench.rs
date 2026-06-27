@@ -8,9 +8,8 @@ use tokio::runtime::Runtime;
 use edgequake_storage::adapters::memory::{
     MemoryGraphStorage, MemoryKVStorage, MemoryVectorStorage,
 };
-use edgequake_storage::{
-    GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, KVStorage, VectorStorage,
-};
+use edgequake_storage::traits::{GraphScanOps, GraphStorageReadOps, NodeListFilter};
+use edgequake_storage::{GraphStorage, GraphStorageMutateOps, KVStorage, VectorStorage};
 use serde_json::json;
 
 fn create_runtime() -> Runtime {
@@ -218,8 +217,15 @@ fn bench_graph_traversal(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("get_all_nodes", |b| {
-        b.iter(|| rt.block_on(async { storage.get_all_nodes().await.unwrap() }))
+    group.bench_function("list_nodes_filtered", |b| {
+        b.iter(|| {
+            rt.block_on(async {
+                storage
+                    .list_nodes_filtered(&NodeListFilter::default(), 0, 10_000)
+                    .await
+                    .unwrap()
+            })
+        })
     });
 
     group.finish();

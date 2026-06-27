@@ -224,6 +224,8 @@ mod tests {
             lineage: None,
             metadata: None,
             pdf_id: None,
+            multimodal_summary: None,
+            multimodal_items: None,
         };
 
         let json = serde_json::to_string(&response).unwrap();

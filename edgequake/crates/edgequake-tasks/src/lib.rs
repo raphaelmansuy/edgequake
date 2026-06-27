@@ -72,6 +72,7 @@
 //! ```
 
 pub mod cancellation;
+pub mod delivery;
 pub mod error;
 pub mod memory;
 pub mod pipeline_state;
@@ -86,6 +87,11 @@ pub mod worker;
 
 // Re-export commonly used types
 pub use cancellation::CancellationRegistry;
+pub use delivery::{
+    delivery_mode_from_env, enqueue_with_delivery, parse_delivery_mode, BridgedTaskQueue,
+    ChannelTaskNotifier, NoopTaskNotifier, SharedTaskNotifier, StorageHydratingTaskQueue,
+    TaskDeliveryMode, TaskNotifier,
+};
 pub use error::{TaskError, TaskResult};
 pub use pipeline_state::{PipelineEvent, PipelineMessage, PipelineState, PipelineStatusSnapshot};
 pub use progress::{PdfUploadProgress, PhaseError, PhaseProgress, PhaseStatus, PipelinePhase};

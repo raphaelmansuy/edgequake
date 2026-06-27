@@ -12,11 +12,18 @@ pub mod ingest_admission;
 pub mod ingestion_persist;
 pub mod injection_list;
 pub mod injection_process;
+pub mod multimodal;
+pub mod multimodal_admission;
+pub mod multimodal_context;
+pub mod multimodal_markdown;
 pub mod pdf_admission_registry;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
 pub mod staging_admission;
 pub mod text_insert_content;
+pub mod vision_content;
+pub mod vlm_limits;
+pub mod vlm_provider_resolver;
 
 pub use audit::{record_audit, record_compliance_event, with_request_context};
 
@@ -52,6 +59,25 @@ pub use injection_process::{
     build_injection_metadata, injection_doc_id, injection_list_prefix, injection_meta_key,
     run_injection_pipeline, write_injection_status,
 };
+pub use multimodal::{
+    analysis_cache_enabled, analyze_multimodal_images, analyze_standalone_image,
+    append_mm_chunks_to_text, apply_process_options_to_metadata, build_mm_chunks_from_manifest,
+    build_surrounding, collect_mm_chunks_from_manifest, enrich_markdown_with_vlm,
+    enrich_processed_text_with_mm_chunks, extract_json_object, find_target_span,
+    load_chunk_separators, load_content_rows_by_blockid_jsonl, load_manifest, load_mm_chunks,
+    manifest_item_status_views, manifest_key, maybe_attach_cache_key, metadata_multimodal_patch,
+    mm_chunks_enabled, mm_chunks_key, parse_json_object, persist_manifest, persist_mm_chunks,
+    reanalyze_document_multimodal, render_mm_chunk, resolve_process_options_from_metadata,
+    run_multimodal_analyze_stage, run_multimodal_analyze_stage_outcome, scan_manifest_items,
+    should_run_image_analysis, summary_from_metadata, table_analysis_messages, vlm_process_enabled,
+    AnalyzeOutcome, ManifestItem, MmChunkBuildError, MultimodalChunk, MultimodalHeading,
+    MultimodalItemRecord, MultimodalItemStatusView, MultimodalManifest, MultimodalProviders,
+    MultimodalReanalyzeOutcome, MultimodalReanalyzeParams, MultimodalSummary, PromptContext,
+    SurroundingContext, SurroundingKind, SurroundingTokenCounter, METADATA_FIELD,
+};
+pub use multimodal_admission::{
+    resolve_upload_content, MultimodalAdmissionMeta, ResolvedUploadContent,
+};
 pub use pdf_admission_registry::PdfAdmissionRegistry;
 pub use pdf_workspace_dedup::{
     find_kv_document_id_for_pdf, recycle_orphan_workspace_pdf,
@@ -63,4 +89,14 @@ pub use query_execution::{
     resolve_workspace_query_resources, validate_llm_override_pair, WorkspaceQueryResources,
 };
 pub use staging_admission::{promote_staging_to_final, rollback_staging};
-pub use text_insert_content::{patch_document_metadata, resolve_document_metadata_key, resolve_text_insert_content};
+pub use text_insert_content::{
+    patch_document_metadata, resolve_document_metadata_key, resolve_text_insert_content,
+};
+pub use vision_content::{
+    describe_image, describe_image_as_markdown, image_analysis_to_markdown,
+    parse_image_analysis_json, ImageAnalysisResult, MultimodalProcessOptions, IMAGE_TYPE_FALLBACK,
+};
+pub use vlm_provider_resolver::{
+    resolve_extract_provider_for_workspace, resolve_vlm_provider,
+    resolve_vlm_provider_for_workspace, resolve_workspace_vlm_config,
+};

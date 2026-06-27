@@ -128,6 +128,11 @@ export async function uploadPdfDocument(
   if (options?.pdf_parser_backend) {
     formData.append("pdf_parser_backend", options.pdf_parser_backend);
   }
+  if (options?.process_options) {
+    formData.append("process_options", options.process_options);
+  } else if (options?.analyze_inline_images) {
+    formData.append("process_options", "i");
+  }
 
   return api.post<PdfUploadResponse>("/documents/pdf", formData, {
     headers: {

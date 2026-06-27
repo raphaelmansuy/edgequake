@@ -75,6 +75,7 @@ fn str_field_or(val: &serde_json::Value, key: &str, default: &str) -> String {
 
 /// Build the canonical JSON metadata record for an injection KV entry.
 #[inline]
+#[allow(clippy::too_many_arguments)]
 fn build_meta(
     injection_id: &str,
     name: &str,

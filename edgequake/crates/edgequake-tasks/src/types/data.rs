@@ -123,6 +123,12 @@ pub struct PdfProcessingData {
     /// retries and as a no-op for first-time uploads.
     #[serde(default)]
     pub reprocess_mode: Option<ReprocessMode>,
+
+    /// LightRAG-style multimodal flags: `"i"` images, `"t"` tables, `"e"` equations.
+    /// When set (e.g. `"i"` or `"ite"`), post-conversion markdown is scanned for
+    /// inline placeholders and enriched via VLM where enabled.
+    #[serde(default)]
+    pub multimodal_process_options: Option<String>,
 }
 
 /// Text insert task payload

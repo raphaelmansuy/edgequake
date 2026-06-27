@@ -11,7 +11,9 @@
 #[cfg(test)]
 mod tests {
     use edgequake_storage::adapters::memory::MemoryGraphStorage;
-    use edgequake_storage::{GraphStorage, GraphStorageMutateOps, GraphStorageReadOps};
+    use edgequake_storage::{
+        GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps,
+    };
     use std::collections::HashMap;
     use std::time::Instant;
 
@@ -363,8 +365,11 @@ mod tests {
         setup_test_graph(&storage).await;
 
         // Verify node count
-        let nodes = storage.get_all_nodes().await.unwrap();
-        assert_eq!(nodes.len(), 7, "Should have 7 nodes");
+        assert_eq!(
+            storage.node_count().await.unwrap(),
+            7,
+            "Should have 7 nodes"
+        );
 
         // Verify edges exist
         let has_edge = storage.has_edge("ACME_CORP", "ALICE_CHEN").await.unwrap();

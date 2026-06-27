@@ -42,7 +42,8 @@ pub fn should_prefer_incoming_document_metadata(
     incoming_stage: Option<&str>,
 ) -> bool {
     fn parse_ts(value: Option<&str>) -> Option<i64> {
-        value.and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        value
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.timestamp())
     }
 

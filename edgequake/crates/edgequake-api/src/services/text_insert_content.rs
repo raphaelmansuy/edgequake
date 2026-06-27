@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use edgequake_storage::kv_keys;
 use edgequake_storage::traits::KVStorage;
+use serde_json::json;
 
 /// Resolve document text for a TextInsert worker task.
 ///
@@ -34,6 +35,34 @@ pub async fn resolve_text_insert_content(
     }
 
     Err(format!("Missing KV content for document {document_id}"))
+}
+
+/// Persist markdown body to final (and staging, if present) content keys.
+pub async fn persist_document_content(
+    kv_storage: &Arc<dyn KVStorage>,
+    document_id: &str,
+    markdown: &str,
+) -> Result<(), String> {
+    let payload = json!({ "content": markdown });
+    let content_key = kv_keys::doc_content(document_id);
+    kv_storage
+        .upsert(&[(content_key.clone(), payload.clone())])
+        .await
+        .map_err(|e| format!("KV write failed for {content_key}: {e}"))?;
+
+    let staging_key = kv_keys::staging_doc_content(document_id);
+    if kv_storage
+        .get_by_id(&staging_key)
+        .await
+        .map_err(|e| format!("KV read failed for {staging_key}: {e}"))?
+        .is_some()
+    {
+        kv_storage
+            .upsert(&[(staging_key, payload)])
+            .await
+            .map_err(|e| format!("KV write failed for staging content: {e}"))?;
+    }
+    Ok(())
 }
 
 /// Resolve document metadata — staging-first for in-flight documents.

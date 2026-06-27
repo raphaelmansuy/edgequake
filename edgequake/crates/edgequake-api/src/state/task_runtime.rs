@@ -1,7 +1,9 @@
 //! Task queue and pipeline progress runtime (SPEC-017 P1-04).
 
 use edgequake_tasks::{
-    CancellationRegistry, PipelineState, SharedTaskQueue, SharedTaskStorage, Task,
+    delivery_mode_from_env, enqueue_with_delivery, BridgedTaskQueue, CancellationRegistry,
+    ChannelTaskNotifier, NoopTaskNotifier, PipelineState, SharedTaskNotifier, SharedTaskQueue,
+    SharedTaskStorage, Task, TaskDeliveryMode,
 };
 
 use std::sync::Arc;
@@ -20,11 +22,38 @@ pub struct TaskRuntime {
     pub cancellation_registry: CancellationRegistry,
     /// P-G15: closes TOCTOU between single-flight check and task row creation.
     pub pdf_admission: Arc<crate::services::PdfAdmissionRegistry>,
+    delivery_mode: TaskDeliveryMode,
+    notifier: SharedTaskNotifier,
+    /// Present when delivery uses [`ChannelTaskNotifier`] (bridged / notify_only).
+    channel_notifier: Option<Arc<ChannelTaskNotifier>>,
 }
 
 impl TaskRuntime {
     /// Build a runtime bundle with fresh pipeline progress and cancellation state.
     pub fn new(storage: SharedTaskStorage, queue: SharedTaskQueue) -> Self {
+        Self::with_delivery(storage, queue, delivery_mode_from_env())
+    }
+
+    /// Build runtime with explicit delivery mode (tests / bridged workers).
+    pub fn with_delivery(
+        storage: SharedTaskStorage,
+        queue: SharedTaskQueue,
+        delivery_mode: TaskDeliveryMode,
+    ) -> Self {
+        let (notifier, channel_notifier): (SharedTaskNotifier, Option<Arc<ChannelTaskNotifier>>) =
+            match delivery_mode {
+                TaskDeliveryMode::Local => (Arc::new(NoopTaskNotifier), None),
+                TaskDeliveryMode::Bridged | TaskDeliveryMode::NotifyOnly => {
+                    let channel = Arc::new(ChannelTaskNotifier::new(256));
+                    (Arc::clone(&channel) as SharedTaskNotifier, Some(channel))
+                }
+            };
+        let queue = match delivery_mode {
+            TaskDeliveryMode::Bridged => {
+                Arc::new(BridgedTaskQueue::new(queue, Arc::clone(&notifier))) as SharedTaskQueue
+            }
+            _ => queue,
+        };
         Self {
             storage,
             queue,
@@ -32,20 +61,36 @@ impl TaskRuntime {
             progress_broadcaster: ProgressBroadcaster::default(),
             cancellation_registry: CancellationRegistry::new(),
             pdf_admission: Arc::new(PdfAdmissionRegistry::default()),
+            delivery_mode,
+            notifier,
+            channel_notifier,
         }
+    }
+
+    pub fn delivery_mode(&self) -> TaskDeliveryMode {
+        self.delivery_mode
+    }
+
+    pub fn task_notifier(&self) -> SharedTaskNotifier {
+        Arc::clone(&self.notifier)
+    }
+
+    /// Channel notifier for hydrating external workers (bridged / notify_only).
+    pub fn channel_notifier(&self) -> Option<Arc<ChannelTaskNotifier>> {
+        self.channel_notifier.as_ref().map(Arc::clone)
     }
 
     /// Persist a task and enqueue it for background processing (SPEC-017 P2-01).
     pub async fn enqueue(&self, task: Task) -> ApiResult<()> {
-        self.storage
-            .create_task(&task)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Failed to create task: {}", e)))?;
-        self.queue
-            .send(task)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Failed to queue task: {}", e)))?;
-        Ok(())
+        enqueue_with_delivery(
+            &self.storage,
+            &self.queue,
+            self.notifier.as_ref(),
+            self.delivery_mode,
+            task,
+        )
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to enqueue task: {}", e)))
     }
 }
 
@@ -58,14 +103,10 @@ mod tests {
 
     #[tokio::test]
     async fn enqueue_persists_and_queues() {
-        let runtime = TaskRuntime {
-            storage: Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new()),
-            queue: Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(8)),
-            pipeline_state: PipelineState::new(),
-            progress_broadcaster: ProgressBroadcaster::default(),
-            cancellation_registry: CancellationRegistry::new(),
-            pdf_admission: Arc::new(PdfAdmissionRegistry::default()),
-        };
+        let runtime = TaskRuntime::new(
+            Arc::new(edgequake_tasks::memory::MemoryTaskStorage::new()),
+            Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(8)),
+        );
 
         let task = Task::new(
             Uuid::new_v4(),

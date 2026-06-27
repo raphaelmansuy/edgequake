@@ -103,6 +103,14 @@ pub struct DocumentDetailResponse {
     /// @implements SPEC-002
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf_id: Option<String>,
+
+    /// Multimodal analyze aggregate counts (LightRAG sidecar summary).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multimodal_summary: Option<crate::services::MultimodalSummary>,
+
+    /// Per-item multimodal analyze status (E52).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multimodal_items: Option<Vec<crate::services::MultimodalItemStatusView>>,
 }
 
 /// Get document by ID request.

@@ -16,6 +16,7 @@ use super::chunk_retrieval::append_score_ranked_chunks;
 
 impl QueryEngine {
     /// Global mode with workspace-specific vector storage.
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::engine_impl) async fn query_global_with_vector_storage(
         &self,
         query_text: &str,

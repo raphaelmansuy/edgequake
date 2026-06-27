@@ -536,7 +536,7 @@ mod tests {
 
         // Pre-populate metadata
         let doc_id = "test-doc-status";
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
@@ -575,7 +575,7 @@ mod tests {
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-error";
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
@@ -615,7 +615,7 @@ mod tests {
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-warning";
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({
@@ -660,7 +660,7 @@ mod tests {
         let pipeline_state = PipelineState::new();
 
         let doc_id = "test-doc-clear-stale";
-        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id);
+        let metadata_key = edgequake_storage::kv_keys::doc_metadata(doc_id);
         kv.upsert(&[(
             metadata_key.clone(),
             json!({

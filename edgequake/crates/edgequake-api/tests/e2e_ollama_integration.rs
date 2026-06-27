@@ -23,6 +23,8 @@
 //! - Document deletion cascade verification
 //! - Entity extraction quality verification
 
+mod common;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -105,11 +107,13 @@ fn create_test_config() -> ServerConfig {
 
 /// Create test app with mock provider (for basic structure tests).
 /// WHY: Ollama E2E tests use the API endpoints; provider is configured via env vars.
+#[allow(dead_code)]
 fn create_test_app() -> axum::Router {
     Server::new(create_test_config(), AppState::test_state()).build_router()
 }
 
 /// Create test app and state (for inspection tests).
+#[allow(dead_code)]
 fn create_test_app_with_state() -> (axum::Router, AppState) {
     let state = AppState::test_state();
     let app = Server::new(create_test_config(), state.clone()).build_router();
@@ -355,8 +359,8 @@ async fn test_mock_entity_extraction() {
     .await;
 
     // Check graph state
-    let nodes = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges = common::list_all_graph_edges(&state.storage.graph_storage).await;
     println!(
         "📊 Graph state: {} nodes, {} edges",
         nodes.len(),
@@ -368,8 +372,8 @@ async fn test_mock_entity_extraction() {
     assert_eq!(delete_status, StatusCode::OK);
 
     // Verify cleanup
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
     assert!(nodes_after.is_empty(), "All nodes should be deleted");
     assert!(edges_after.is_empty(), "All edges should be deleted");
 
@@ -430,8 +434,8 @@ async fn test_mock_deletion_cascade() {
     .await;
 
     // Check graph state before deletion
-    let nodes_before = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_before = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_before = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_before = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     println!(
         "Graph before deletion: {} nodes, {} edges",
@@ -451,8 +455,8 @@ async fn test_mock_deletion_cascade() {
     );
 
     // Verify all entities and relationships are cleaned up
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     println!(
         "Graph after deletion: {} nodes, {} edges",
@@ -537,8 +541,8 @@ async fn test_mock_multi_document_stress() {
     }
 
     // Check graph state
-    let nodes = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges = common::list_all_graph_edges(&state.storage.graph_storage).await;
     println!(
         "After uploading {} docs: {} nodes, {} edges",
         documents.len(),
@@ -564,8 +568,8 @@ async fn test_mock_multi_document_stress() {
     }
 
     // Verify cleanup
-    let nodes_after = state.storage.graph_storage.get_all_nodes().await.unwrap();
-    let edges_after = state.storage.graph_storage.get_all_edges().await.unwrap();
+    let nodes_after = common::list_all_graph_nodes(&state.storage.graph_storage).await;
+    let edges_after = common::list_all_graph_edges(&state.storage.graph_storage).await;
 
     assert!(
         nodes_after.is_empty(),
