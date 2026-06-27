@@ -5,6 +5,19 @@ use std::collections::HashMap;
 use edgequake_storage::adapters::memory::MemoryGraphStorage;
 use edgequake_storage::traits::{GraphReadView, GraphStorage, GraphStorageMutateOps};
 
+#[test]
+fn contract_incident_edges_batch_uses_sql_not_cypher() {
+    let edges = include_str!("../src/adapters/postgres/graph/edges_ops.rs");
+    assert!(
+        edges.contains("_ag_label_edge"),
+        "incident edges batch must join AGE catalog edge tables"
+    );
+    assert!(
+        !edges.contains("UNWIND [{}] AS nid MATCH"),
+        "pg_get_incident_edges_batch must not use Cypher UNWIND"
+    );
+}
+
 #[tokio::test]
 async fn contract_spec025_incident_edges_batch_matches_per_node_union() {
     let graph = MemoryGraphStorage::new("batch-contract");

@@ -298,12 +298,12 @@ impl DocumentTaskProcessor {
 
                     // Fire-and-forget metadata update to avoid blocking extraction
                     tokio::spawn(async move {
-                        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id_clone);
-                        if let Ok(Some(existing)) = kv_clone.get_by_id(&metadata_key).await {
-                            if let Some(obj) = existing.as_object() {
-                                let mut updated = obj.clone();
-                                let progress_pct =
-                                    ((chunk_idx as f64 / total as f64) * 100.0).round() as u32;
+                        let progress_pct =
+                            ((chunk_idx as f64 / total as f64) * 100.0).round() as u32;
+                        let _ = crate::services::patch_document_metadata(
+                            &kv_clone,
+                            &doc_id_clone,
+                            |updated| {
                                 updated.insert("current_stage".to_string(), json!("extracting"));
                                 updated.insert(
                                     "stage_message".to_string(),
@@ -322,10 +322,9 @@ impl DocumentTaskProcessor {
                                     "updated_at".to_string(),
                                     json!(chrono::Utc::now().to_rfc3339()),
                                 );
-
-                                let _ = kv_clone.upsert(&[(metadata_key, json!(updated))]).await;
-                            }
-                        }
+                            },
+                        )
+                        .await;
                     });
                 }
             });

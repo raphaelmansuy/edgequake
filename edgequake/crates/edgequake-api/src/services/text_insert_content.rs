@@ -46,6 +46,30 @@ pub async fn resolve_document_metadata_key(document_id: &str, kv: &Arc<dyn KVSto
     }
 }
 
+/// Patch document metadata at the staging-first key (no-op when absent).
+pub async fn patch_document_metadata(
+    kv: &Arc<dyn KVStorage>,
+    document_id: &str,
+    mutator: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>),
+) -> Result<(), String> {
+    let key = resolve_document_metadata_key(document_id, kv).await;
+    let Some(existing) = kv
+        .get_by_id(&key)
+        .await
+        .map_err(|e| format!("KV read failed for {key}: {e}"))?
+    else {
+        return Ok(());
+    };
+    let Some(mut obj) = existing.as_object().cloned() else {
+        return Ok(());
+    };
+    mutator(&mut obj);
+    let write_key = key.clone();
+    kv.upsert(&[(write_key, serde_json::Value::Object(obj))])
+        .await
+        .map_err(|e| format!("KV write failed for {key}: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -84,6 +108,37 @@ mod tests {
 
         let text = resolve_text_insert_content(&kv, doc_id, "").await.unwrap();
         assert_eq!(text, "staging body");
+    }
+
+    #[tokio::test]
+    async fn patch_updates_staging_metadata() {
+        let kv: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("test"));
+        let doc_id = "doc-staging-patch";
+        kv.upsert(&[(
+            kv_keys::staging_doc_metadata(doc_id),
+            json!({ "id": doc_id, "status": "pending", "current_stage": "uploading" }),
+        )])
+        .await
+        .unwrap();
+
+        patch_document_metadata(&kv, doc_id, |updated| {
+            updated.insert("status".to_string(), json!("chunking"));
+            updated.insert("current_stage".to_string(), json!("chunking"));
+        })
+        .await
+        .unwrap();
+
+        let staging = kv
+            .get_by_id(&kv_keys::staging_doc_metadata(doc_id))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(staging["status"], "chunking");
+        assert!(kv
+            .get_by_id(&kv_keys::doc_metadata(doc_id))
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

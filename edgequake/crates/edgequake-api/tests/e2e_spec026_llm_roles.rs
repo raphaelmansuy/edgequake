@@ -45,8 +45,9 @@ fn workspace_extract_role_used_in_ingest_pipeline() {
     assert_eq!(extract.provider, "mock");
     assert_eq!(extract.model, "mock-extract");
 
-    let llm = edgequake_llm::ProviderFactory::create_llm_provider(&extract.provider, &extract.model)
-        .expect("mock extract provider");
+    let llm =
+        edgequake_llm::ProviderFactory::create_llm_provider(&extract.provider, &extract.model)
+            .expect("mock extract provider");
     let embedding =
         edgequake_llm::ProviderFactory::create_embedding_provider("mock", "mock-embedding", 1536)
             .expect("mock embedding");

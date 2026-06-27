@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use sqlx::Row;
 
 use super::PostgresAGEGraphStorage;
-use crate::error::Result;
+use crate::error::{Result, StorageError};
 use crate::traits::GraphEdge;
 
 impl PostgresAGEGraphStorage {
@@ -160,28 +160,14 @@ impl PostgresAGEGraphStorage {
     }
 
     pub(super) async fn pg_get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
-        let escaped_id = Self::escape_cypher_string(node_id);
-
-        // Get both outgoing and incoming edges
-        let cypher = format!(
-            "MATCH (n:Node {{node_id: '{}'}})-[r:EDGE]-() RETURN r",
-            escaped_id
-        );
-
-        let rows = self.cypher_query(&cypher, &["r"]).await?;
-
-        let edges: Vec<GraphEdge> = rows
-            .iter()
-            .filter_map(|row| {
-                let json_value: serde_json::Value = row.get("r");
-                let agtype_str = json_value.to_string();
-                Self::parse_edge(&agtype_str)
-            })
-            .collect();
-
-        Ok(edges)
+        self.pg_get_incident_edges_batch(&[node_id.to_string()])
+            .await
     }
 
+    /// Batch incident-edge lookup via native SQL on AGE catalog tables (SPEC-025 6.2).
+    ///
+    /// Replaces Cypher `UNWIND … MATCH (n)-[r]-()` which times out on ~20k-node graphs
+    /// when hybrid local/global modes expand BFS frontiers in parallel.
     pub(super) async fn pg_get_incident_edges_batch(
         &self,
         node_ids: &[String],
@@ -189,6 +175,11 @@ impl PostgresAGEGraphStorage {
         if node_ids.is_empty() {
             return Ok(Vec::new());
         }
+
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
 
         let mut unique: Vec<String> = node_ids.to_vec();
         unique.sort();
@@ -198,28 +189,50 @@ impl PostgresAGEGraphStorage {
         let mut all_edges = Vec::new();
 
         for chunk in unique.chunks(CHUNK) {
-            let id_literals: Vec<String> = chunk
+            let in_list: String = chunk
                 .iter()
-                .map(|id| format!("'{}'", Self::escape_cypher_string(id)))
-                .collect();
-            let cypher = format!(
-                "UNWIND [{}] AS nid MATCH (n:Node {{node_id: nid}})-[r:EDGE]-() RETURN r",
-                id_literals.join(", ")
+                .map(|id| format!("'{}'", Self::escape_sql_string(id)))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            let sql = format!(
+                "SELECT
+                    ag_catalog.agtype_to_json(e.properties) AS props,
+                    ag_catalog.agtype_to_json(sv.properties)->>'node_id' AS source_id,
+                    ag_catalog.agtype_to_json(tv.properties)->>'node_id' AS target_id
+                 FROM {graph}.\"_ag_label_edge\" e
+                 JOIN {graph}.\"_ag_label_vertex\" sv ON e.start_id = sv.id
+                 JOIN {graph}.\"_ag_label_vertex\" tv ON e.end_id = tv.id
+                 WHERE ag_catalog.agtype_to_json(sv.properties)->>'node_id' IN ({in_list})
+                    OR ag_catalog.agtype_to_json(tv.properties)->>'node_id' IN ({in_list})",
+                graph = self.graph_name,
+                in_list = in_list
             );
 
-            let rows = self.cypher_query(&cypher, &["r"]).await?;
-            let edges: Vec<GraphEdge> = rows
-                .iter()
-                .filter_map(|row| {
-                    let json_value: serde_json::Value = row.get("r");
-                    let agtype_str = json_value.to_string();
-                    Self::parse_edge(&agtype_str)
-                })
-                .collect();
-            all_edges.extend(edges);
+            let rows = sqlx::query(&sql).fetch_all(&mut *conn).await.map_err(|e| {
+                StorageError::Database(format!("Batch incident edges query failed: {}", e))
+            })?;
+
+            all_edges.extend(Self::edges_from_sql_rows(&rows));
         }
 
         Ok(all_edges)
+    }
+
+    fn edges_from_sql_rows(rows: &[sqlx::postgres::PgRow]) -> Vec<GraphEdge> {
+        rows.iter()
+            .filter_map(|row| {
+                let props: serde_json::Value = row.get("props");
+                let source: String = row.get("source_id");
+                let target: String = row.get("target_id");
+                let properties = props.as_object()?.clone().into_iter().collect();
+                Some(GraphEdge {
+                    source,
+                    target,
+                    properties,
+                })
+            })
+            .collect()
     }
 
     pub(super) async fn pg_get_all_edges(&self) -> Result<Vec<GraphEdge>> {

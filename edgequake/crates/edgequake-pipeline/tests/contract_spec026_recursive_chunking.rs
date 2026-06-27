@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::{
-    calculate_adaptive_chunk_size, default_recursive_separators, resolve_chunker, Chunker,
-    ChunkerConfig, ChunkingStrategy, ChunkStrategy, RecursiveCharacterChunking,
+    calculate_adaptive_chunk_size, default_recursive_separators, resolve_chunker, ChunkStrategy,
+    Chunker, ChunkerConfig, ChunkingStrategy, RecursiveCharacterChunking,
 };
 
 fn fixture(name: &str) -> String {
@@ -36,12 +36,10 @@ fn boundary_overlap_pct(actual: &[usize], expected: &[usize], tolerance: usize) 
 fn recursive_default_separators_match_lightrag() {
     assert_eq!(
         default_recursive_separators(),
-        vec![
-            "\n\n", "\n", "。", "！", "？", "；", "，", " ", ""
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect::<Vec<_>>()
+        vec!["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>()
     );
 }
 
@@ -96,7 +94,11 @@ async fn recursive_aligns_chunks_to_paragraph_boundaries() {
         .chunk(text, &config)
         .await
         .unwrap();
-    assert_eq!(chunks.len(), 3, "each paragraph should become its own chunk");
+    assert_eq!(
+        chunks.len(),
+        3,
+        "each paragraph should become its own chunk"
+    );
     assert!(chunks[0].content.contains("Alpha"));
     assert!(chunks[1].content.contains("Beta"));
     assert!(chunks[2].content.contains("Gamma"));
@@ -104,8 +106,8 @@ async fn recursive_aligns_chunks_to_paragraph_boundaries() {
 
 #[tokio::test]
 async fn init_stats_reports_chunk_strategy_enum() {
-    use edgequake_pipeline::{build_ingestion_pipeline, IngestionPipelineOptions};
     use edgequake_llm::MockProvider;
+    use edgequake_pipeline::{build_ingestion_pipeline, IngestionPipelineOptions};
     let llm = Arc::new(MockProvider::new());
     let emb = Arc::new(MockProvider::new());
     let opts = IngestionPipelineOptions::from_document_size(1000)
@@ -116,10 +118,7 @@ async fn init_stats_reports_chunk_strategy_enum() {
         edgequake_pipeline::prompts::EntityExtractionSchema::server_default(),
         opts,
     );
-    assert_eq!(
-        pipeline.config().chunk_strategy,
-        ChunkStrategy::Recursive
-    );
+    assert_eq!(pipeline.config().chunk_strategy, ChunkStrategy::Recursive);
 }
 
 #[tokio::test]
@@ -185,10 +184,9 @@ fn registry_selects_strategy_by_enum() {
 #[tokio::test]
 async fn recursive_boundary_overlap_vs_lightrag_fixture() {
     let text = fixture("plain_en.txt");
-    let golden: LightragChunkFixture = serde_json::from_str(include_str!(
-        "fixtures/spec026/lightrag_r_chunks.json"
-    ))
-    .expect("lightrag_r_chunks.json");
+    let golden: LightragChunkFixture =
+        serde_json::from_str(include_str!("fixtures/spec026/lightrag_r_chunks.json"))
+            .expect("lightrag_r_chunks.json");
 
     let config = ChunkerConfig {
         chunk_size: 15,

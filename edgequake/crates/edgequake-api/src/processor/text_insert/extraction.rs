@@ -89,29 +89,29 @@ impl DocumentTaskProcessor {
 
                     // Fire-and-forget metadata update — same pattern as chunk callback
                     tokio::spawn(async move {
-                        let metadata_key = edgequake_storage::kv_keys::doc_metadata(&doc_id_clone);
-                        if let Ok(Some(existing)) = kv_clone.get_by_id(&metadata_key).await {
-                            if let Some(obj) = existing.as_object() {
-                                let mut updated = obj.clone();
-                                let pct = if total == 0 {
-                                    100u32
-                                } else {
-                                    ((current as f64 / total as f64) * 100.0).round() as u32
-                                };
-                                let label = match stage {
-                                    "chunks" => "chunk",
-                                    "entities" => "entit",
-                                    "relationships" => "relationship",
-                                    other => other,
-                                };
-                                let msg = if current == 0 {
-                                    format!("Embedding {}ies: starting ({} total)", label, total)
-                                } else {
-                                    format!(
-                                        "Embedding {}ies: {}/{} ({}%)",
-                                        label, current, total, pct
-                                    )
-                                };
+                        let pct = if total == 0 {
+                            100u32
+                        } else {
+                            ((current as f64 / total as f64) * 100.0).round() as u32
+                        };
+                        let label = match stage {
+                            "chunks" => "chunk",
+                            "entities" => "entit",
+                            "relationships" => "relationship",
+                            other => other,
+                        };
+                        let msg = if current == 0 {
+                            format!("Embedding {}ies: starting ({} total)", label, total)
+                        } else {
+                            format!(
+                                "Embedding {}ies: {}/{} ({}%)",
+                                label, current, total, pct
+                            )
+                        };
+                        let _ = crate::services::patch_document_metadata(
+                            &kv_clone,
+                            &doc_id_clone,
+                            |updated| {
                                 updated.insert("current_stage".to_string(), json!("embedding"));
                                 updated.insert("stage_message".to_string(), json!(msg));
                                 updated.insert(
@@ -122,9 +122,9 @@ impl DocumentTaskProcessor {
                                     "updated_at".to_string(),
                                     json!(chrono::Utc::now().to_rfc3339()),
                                 );
-                                let _ = kv_clone.upsert(&[(metadata_key, json!(updated))]).await;
-                            }
-                        }
+                            },
+                        )
+                        .await;
                     });
                 });
 

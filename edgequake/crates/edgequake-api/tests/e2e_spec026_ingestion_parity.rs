@@ -27,8 +27,7 @@ async fn text_upload_recursive_strategy_default() {
     let response = post_document(app.clone(), &body).await;
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
     let doc_id = parsed["document_id"].as_str().unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
@@ -46,7 +45,12 @@ async fn text_upload_recursive_strategy_default() {
     );
 
     let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
-    assert!(workers.graph_storage.get_node(&node_id).await.unwrap().is_some());
+    assert!(workers
+        .graph_storage
+        .get_node(&node_id)
+        .await
+        .unwrap()
+        .is_some());
 }
 
 #[tokio::test]
@@ -69,8 +73,7 @@ async fn text_upload_recursive_strategy() {
     let response = post_document(app.clone(), &body).await;
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
     let doc_id = parsed["document_id"].as_str().unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
@@ -181,8 +184,7 @@ async fn markdown_upload_auto_strategy() {
     let response = post_document(app.clone(), &body).await;
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
         common::wait_for_document_processed(app, track_id, Duration::from_secs(90)).await,
@@ -190,7 +192,12 @@ async fn markdown_upload_auto_strategy() {
     );
 
     let node_id = EntityId::new("Sarah Chen").as_graph_node_id().to_string();
-    assert!(workers.graph_storage.get_node(&node_id).await.unwrap().is_some());
+    assert!(workers
+        .graph_storage
+        .get_node(&node_id)
+        .await
+        .unwrap()
+        .is_some());
 }
 
 #[tokio::test]
@@ -221,8 +228,7 @@ async fn file_upload_default_recursive_strategy() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
     let doc_id = parsed["document_id"].as_str().unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
@@ -268,8 +274,7 @@ async fn file_upload_recursive_strategy() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&body_bytes(response).await).unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
     let track_id = parsed["track_id"].as_str().unwrap();
     assert_eq!(
         common::wait_for_document_processed(app, track_id, Duration::from_secs(90)).await,

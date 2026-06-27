@@ -100,8 +100,7 @@ pub async fn admit_document_for_processing(
     let tenant_id = tenant_ctx.tenant_id_or_default();
 
     let hash_key = ContentHasher::workspace_hash_key(&workspace_id, &input.content_hash);
-    let staging_hash_key =
-        kv_keys::staging_workspace_hash(&workspace_id, &input.content_hash);
+    let staging_hash_key = kv_keys::staging_workspace_hash(&workspace_id, &input.content_hash);
 
     match resolve_workspace_duplicate_for_reingestion(state, &hash_key, &workspace_id).await? {
         DuplicateReingestAction::NoDuplicate => {}
@@ -140,8 +139,7 @@ pub async fn admit_document_for_processing(
     }
 
     if let Some(ref opts) = input.chunk_options {
-        opts.validate()
-            .map_err(|e| ApiError::ValidationError(e))?;
+        opts.validate().map_err(|e| ApiError::ValidationError(e))?;
     }
 
     let chunk_strategy = ChunkStrategy::resolve_for_upload(
@@ -359,10 +357,8 @@ mod tests {
 
     #[test]
     fn parse_upload_chunk_fields_ssot() {
-        let (strategy, opts) = parse_upload_chunk_fields(
-            Some("recursive"),
-            Some(json!({ "chunk_token_size": 1200 })),
-        );
+        let (strategy, opts) =
+            parse_upload_chunk_fields(Some("recursive"), Some(json!({ "chunk_token_size": 1200 })));
         assert_eq!(strategy, Some(ChunkStrategy::Recursive));
         assert_eq!(opts.and_then(|o| o.chunk_token_size), Some(1200));
     }

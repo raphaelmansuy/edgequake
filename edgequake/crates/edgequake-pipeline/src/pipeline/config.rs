@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::chunker::{ChunkerConfig, ChunkStrategy};
+use crate::chunker::{ChunkStrategy, ChunkerConfig};
 
 /// Pipeline configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]

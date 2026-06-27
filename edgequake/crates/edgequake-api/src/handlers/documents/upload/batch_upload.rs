@@ -63,10 +63,9 @@ pub async fn upload_files_batch(
                 files.push((filename, content));
             }
             "metadata" | "chunk_strategy" | "chunk_options" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|e| ApiError::BadRequest(format!("Failed to read {field_name}: {e}")))?;
+                let text = field.text().await.map_err(|e| {
+                    ApiError::BadRequest(format!("Failed to read {field_name}: {e}"))
+                })?;
                 multipart_fields.ingest_text_field(&field_name, &text);
             }
             _ => {}
@@ -86,7 +85,8 @@ pub async fn upload_files_batch(
             batch_chunk_options.clone(),
             batch_metadata.clone(),
         )
-        .await {
+        .await
+        {
             Ok((doc_id, is_duplicate)) => {
                 if is_duplicate {
                     duplicates += 1;

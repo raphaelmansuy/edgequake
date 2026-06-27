@@ -20,6 +20,11 @@ pub mod text_insert_content;
 
 pub use audit::{record_audit, record_compliance_event, with_request_context};
 
+pub use crate::handlers::documents::upload::document_admission::{
+    admit_document_for_processing, chunk_fields_from_metadata, parse_upload_chunk_fields,
+    DocumentAdmissionAccepted, DocumentAdmissionDuplicateProcessing, DocumentAdmissionInput,
+    DocumentAdmissionOutcome, GleaningAdmissionOptions,
+};
 pub use content_hasher::ContentHasher;
 pub use document_graph_cascade::{
     analyze_deletion_impact_stats, cascade_remove_document_sources, find_document_edges,
@@ -58,9 +63,4 @@ pub use query_execution::{
     resolve_workspace_query_resources, validate_llm_override_pair, WorkspaceQueryResources,
 };
 pub use staging_admission::{promote_staging_to_final, rollback_staging};
-pub use crate::handlers::documents::upload::document_admission::{
-    admit_document_for_processing, chunk_fields_from_metadata, parse_upload_chunk_fields,
-    DocumentAdmissionAccepted, DocumentAdmissionDuplicateProcessing, DocumentAdmissionInput,
-    DocumentAdmissionOutcome, GleaningAdmissionOptions,
-};
-pub use text_insert_content::resolve_text_insert_content;
+pub use text_insert_content::{patch_document_metadata, resolve_document_metadata_key, resolve_text_insert_content};

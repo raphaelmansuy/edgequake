@@ -6,15 +6,17 @@ use std::sync::Arc;
 
 use edgequake_api::middleware::TenantContext;
 use edgequake_api::services::{
-    admit_document_for_processing, promote_staging_to_final, rollback_staging,
-    ContentHasher, DocumentAdmissionInput, DocumentAdmissionOutcome, GleaningAdmissionOptions,
+    admit_document_for_processing, promote_staging_to_final, rollback_staging, ContentHasher,
+    DocumentAdmissionInput, DocumentAdmissionOutcome, GleaningAdmissionOptions,
 };
 use edgequake_api::AppState;
 use edgequake_storage::kv_keys;
 use edgequake_storage::traits::KVStorage;
 
 fn memory_kv() -> Arc<dyn KVStorage> {
-    Arc::new(edgequake_storage::adapters::memory::MemoryKVStorage::new("test"))
+    Arc::new(edgequake_storage::adapters::memory::MemoryKVStorage::new(
+        "test",
+    ))
 }
 
 fn tenant_ctx() -> TenantContext {

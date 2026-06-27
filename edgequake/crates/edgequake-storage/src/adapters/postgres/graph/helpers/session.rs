@@ -11,7 +11,7 @@ impl PostgresAGEGraphStorage {
         let timeout_secs: u32 = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(30);
+            .unwrap_or(15);
         format!(
             "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public; \
              SET statement_timeout = '{}s';",
@@ -50,7 +50,7 @@ impl PostgresAGEGraphStorage {
         let timeout_secs: u32 = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(30);
+            .unwrap_or(15);
         sqlx::query(&format!("SET statement_timeout = '{}s'", timeout_secs))
             .execute(&mut *conn)
             .await

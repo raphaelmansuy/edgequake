@@ -18,11 +18,18 @@ pub fn format_breadcrumb(parents: &[String], heading: &str) -> String {
 }
 
 fn cap_heading(s: &str) -> String {
-    let cleaned = s.replace('→', " ").split_whitespace().collect::<Vec<_>>().join(" ");
+    let cleaned = s
+        .replace('→', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     if cleaned.chars().count() <= DEFAULT_HEADING_LEVEL_MAX_CHARS {
         cleaned
     } else {
-        let truncated: String = cleaned.chars().take(DEFAULT_HEADING_LEVEL_MAX_CHARS).collect();
+        let truncated: String = cleaned
+            .chars()
+            .take(DEFAULT_HEADING_LEVEL_MAX_CHARS)
+            .collect();
         format!("{truncated}…")
     }
 }

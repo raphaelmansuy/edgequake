@@ -24,7 +24,10 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
-use super::config::{PostgresConfig, VectorIndexType};
+use super::config::{
+    qualified_kv_table_name, qualified_vectors_stats_table_name, qualified_vectors_table_name,
+    PostgresConfig, VectorIndexType,
+};
 use super::connection::PostgresPool;
 
 mod ddl;
@@ -51,8 +54,12 @@ pub struct PgVectorStorage {
     pub(crate) hnsw_m: u32,
     pub(crate) hnsw_ef_construction: u32,
     pub(crate) prefix: String,
-    /// Companion KV table for chunk text SSOT (SPEC-024 2.5 FTS join).
-    pub(crate) kv_table_name: String,
+    /// KV table holding chunk text for FTS joins (SPEC-024 2.5 SSOT).
+    ///
+    /// Defaults to the namespace-local KV table; workspace-scoped vector storage
+    /// overrides this to the shared default KV store via [`Self::with_chunk_kv_table`].
+    pub(crate) chunk_kv_table_name: String,
+    pub(crate) chunk_kv_table_exists: Arc<OnceCell<bool>>,
     pub(crate) iterative_scan_supported: Arc<OnceCell<bool>>,
 }
 
@@ -60,9 +67,9 @@ impl PgVectorStorage {
     /// Single constructor path (STORE-P3-15): all public factories delegate here.
     fn from_parts(pool: PostgresPool, config: PostgresConfig, dimension: usize) -> Self {
         let prefix = config.table_prefix();
-        let table_name = format!("public.eq_{}_vectors", prefix);
-        let stats_table_name = format!("public.eq_{}_vectors_stats", prefix);
-        let kv_table_name = format!("public.eq_{}_kv", prefix);
+        let table_name = qualified_vectors_table_name(&prefix);
+        let stats_table_name = qualified_vectors_stats_table_name(&prefix);
+        let chunk_kv_table_name = qualified_kv_table_name(&prefix);
 
         Self {
             pool,
@@ -75,9 +82,20 @@ impl PgVectorStorage {
             hnsw_m: config.hnsw_m,
             hnsw_ef_construction: config.hnsw_ef_construction,
             prefix,
-            kv_table_name,
+            chunk_kv_table_name,
+            chunk_kv_table_exists: Arc::new(OnceCell::new()),
             iterative_scan_supported: Arc::new(OnceCell::new()),
         }
+    }
+
+    /// Override the KV table used for native FTS chunk-text joins.
+    ///
+    /// Workspace-scoped vector tables keep embeddings isolated but chunk bodies
+    /// remain in the shared default KV store.
+    pub fn with_chunk_kv_table(mut self, table_name: impl Into<String>) -> Self {
+        self.chunk_kv_table_name = table_name.into();
+        self.chunk_kv_table_exists = Arc::new(OnceCell::new());
+        self
     }
 
     /// Create a new pgvector storage (default 1536-dim embeddings).

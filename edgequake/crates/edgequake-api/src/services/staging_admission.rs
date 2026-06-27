@@ -88,15 +88,14 @@ mod tests {
                 kv_keys::staging_doc_content(doc_id),
                 json!({"content": "hello"}),
             ),
-            (
-                kv_keys::staging_workspace_hash(ws, hash),
-                json!(doc_id),
-            ),
+            (kv_keys::staging_workspace_hash(ws, hash), json!(doc_id)),
         ])
         .await
         .unwrap();
 
-        promote_staging_to_final(&kv, doc_id, ws, hash).await.unwrap();
+        promote_staging_to_final(&kv, doc_id, ws, hash)
+            .await
+            .unwrap();
 
         assert!(kv
             .get_by_id(&kv_keys::doc_metadata(doc_id))

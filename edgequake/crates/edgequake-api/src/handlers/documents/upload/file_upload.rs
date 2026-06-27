@@ -73,10 +73,9 @@ pub async fn upload_file(
                     .to_vec();
             }
             "metadata" | "chunk_strategy" | "chunk_options" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|e| ApiError::BadRequest(format!("Failed to read {field_name}: {e}")))?;
+                let text = field.text().await.map_err(|e| {
+                    ApiError::BadRequest(format!("Failed to read {field_name}: {e}"))
+                })?;
                 multipart_fields.ingest_text_field(&field_name, &text);
             }
             _ => {}
