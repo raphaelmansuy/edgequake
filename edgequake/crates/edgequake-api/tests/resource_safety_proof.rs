@@ -67,6 +67,7 @@ async fn resource_safety_list_entities_bounded_page() {
         workspace_id: Some(PROOF_WORKSPACE.to_string()),
         entity_type: None,
         search: None,
+        community_ids: None,
     };
 
     let page = state

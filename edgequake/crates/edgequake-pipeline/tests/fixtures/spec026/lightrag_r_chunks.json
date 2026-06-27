@@ -1,0 +1,9 @@
+{
+  "fixture": "plain_en.txt",
+  "chunk_size_tokens": 15,
+  "chunk_overlap_tokens": 0,
+  "strategy": "recursive",
+  "separators": ["\\n\\n", "\\n", "。", "！", "？", "；", "，", " ", ""],
+  "chunk_start_offsets": [0, 44, 101],
+  "note": "Golden offsets from LightRAG chunking_by_recursive_character (tiktoken gpt-4o-mini). Regenerate with scripts/spec026_export_lightrag_chunks.py."
+}

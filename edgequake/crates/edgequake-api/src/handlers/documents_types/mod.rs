@@ -34,6 +34,8 @@ mod tests {
             enable_gleaning: true,
             max_gleaning: 1,
             use_llm_summarization: true,
+            chunk_strategy: None,
+            chunk_options: None,
         };
 
         assert!(!request.content.is_empty());

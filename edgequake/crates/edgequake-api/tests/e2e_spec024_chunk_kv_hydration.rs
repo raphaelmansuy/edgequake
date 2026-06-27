@@ -100,9 +100,7 @@ async fn spec024_http_naive_query_hydrates_chunk_from_kv() {
         "naive query must return chunk sources"
     );
 
-    let snippet = chunk_sources[0]["snippet"]
-        .as_str()
-        .unwrap_or_default();
+    let snippet = chunk_sources[0]["snippet"].as_str().unwrap_or_default();
     assert!(
         snippet.contains("Authoritative body stored only in KV"),
         "HTTP snippet must be hydrated from KV when metadata omits inline content; got: {snippet}"

@@ -76,14 +76,14 @@ pub mod vector_id;
 pub use entity_id::{normalize_entity_name, EntityId};
 
 // Re-export community detection
-pub use chunk_content::{
-    batch_fetch_chunk_contents, content_from_kv_value, content_from_metadata_or_kv,
-};
-pub use community::{Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult};
 pub use crate::community_index_service::{
     community_refresh_debounce_secs, pending_community_refresh_workspaces,
     refresh_community_index_now, schedule_community_index_refresh,
 };
+pub use chunk_content::{
+    batch_fetch_chunk_contents, content_from_kv_value, content_from_metadata_or_kv,
+};
+pub use community::{Community, CommunityAlgorithm, CommunityConfig, CommunityDetectionResult};
 pub use community_persist::{
     backfill_communities_if_needed, community_features_enabled, detect_and_persist_communities,
     needs_community_backfill, persist_community_labels, refresh_community_index,

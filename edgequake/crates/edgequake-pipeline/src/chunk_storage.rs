@@ -34,6 +34,12 @@ fn chunk_kv_value(document_id: &str, source_file: Option<&str>, chunk: &TextChun
     if let Some(file) = source_file {
         value["source_file"] = json!(file);
     }
+    if let Some(section) = &chunk.section {
+        value["section"] = json!({
+            "heading_path": section.heading_path,
+            "heading_level": section.heading_level,
+        });
+    }
     value
 }
 
@@ -97,6 +103,7 @@ mod tests {
             end_line: 40,
             token_count: 500,
             embedding: Some(vec![0.0; 8]),
+            section: None,
         }
     }
 
@@ -104,11 +111,7 @@ mod tests {
     fn contract_vector_metadata_omits_inline_content() {
         let chunk = sample_chunk();
         let ctx = IngestionPersistContext::new("doc", None, Some("ws".into()));
-        let meta = build_chunk_vector_metadata(
-            &chunk,
-            &ctx,
-            ChunkVectorBuildOptions::STANDARD,
-        );
+        let meta = build_chunk_vector_metadata(&chunk, &ctx, ChunkVectorBuildOptions::STANDARD);
         assert!(meta.get("content").is_none());
         assert_eq!(
             meta.get("content_ref").and_then(|v| v.as_str()),

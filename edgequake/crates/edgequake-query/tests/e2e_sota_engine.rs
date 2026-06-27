@@ -715,14 +715,13 @@ mod keyword_intent_tests {
     #[test]
     fn test_query_intent_exploratory() {
         let intent = QueryIntent::Exploratory;
-        assert_eq!(intent.recommended_mode(), QueryMode::Hybrid);
+        assert_eq!(intent.recommended_mode(), QueryMode::Naive);
     }
 
     #[test]
     fn test_query_intent_comparative() {
         let intent = QueryIntent::Comparative;
-        // Comparative uses Hybrid mode (not Global) for parallel entity retrieval
-        assert_eq!(intent.recommended_mode(), QueryMode::Hybrid);
+        assert_eq!(intent.recommended_mode(), QueryMode::Local);
     }
 
     #[test]

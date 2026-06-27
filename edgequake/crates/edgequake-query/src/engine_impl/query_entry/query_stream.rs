@@ -127,7 +127,12 @@ impl QueryEngine {
             ));
         }
 
-        let prompt = self.build_prompt(&request.query, &context, request.system_prompt.as_deref());
+        let prompt = self.build_prompt(
+            &request.query,
+            &context,
+            request.system_prompt.as_deref(),
+            &request.conversation_history,
+        );
 
         let llm = llm_override.unwrap_or_else(|| self.llm_provider.clone());
 

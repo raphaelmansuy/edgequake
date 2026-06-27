@@ -5,7 +5,7 @@
 //! Injection entries are stored in KV as `injection::{workspace_id}::{injection_id}-metadata`
 //! and processed through the standard pipeline with `source_type = "injection"` tagging.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use axum_extra::extract::Multipart;
@@ -15,9 +15,7 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::services::{
-    build_injection_metadata, injection_doc_id, injection_list_prefix, injection_meta_key,
-};
+use crate::services::{build_injection_metadata, injection_doc_id, injection_meta_key};
 use crate::state::AppState;
 
 pub use super::injection_types::*;
@@ -137,11 +135,10 @@ async fn enqueue_injection_processing(
 ) -> ApiResult<()> {
     use edgequake_tasks::{KnowledgeInjectionData, Task, TaskType};
 
-    let tenant_id = uuid::Uuid::parse_str(&tenant_ctx.tenant_id_or_default()).map_err(|_| {
-        ApiError::ValidationError("Invalid tenant ID".to_string())
-    })?;
-    let workspace_uuid =
-        crate::middleware::resolve_workspace_uuid(Some(&params.workspace_id)).ok_or_else(|| {
+    let tenant_id = uuid::Uuid::parse_str(&tenant_ctx.tenant_id_or_default())
+        .map_err(|_| ApiError::ValidationError("Invalid tenant ID".to_string()))?;
+    let workspace_uuid = crate::middleware::resolve_workspace_uuid(Some(&params.workspace_id))
+        .ok_or_else(|| {
             ApiError::ValidationError(format!("Invalid workspace ID: {}", params.workspace_id))
         })?;
 
@@ -175,26 +172,6 @@ async fn enqueue_injection_processing(
 // ─────────────────────────────────────────────────────────────────────────────
 // DRY Primitives — validation, serialization
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Deserialize a JSON KV value into an `InjectionSummary`.
-fn summary_from_meta(val: &serde_json::Value) -> InjectionSummary {
-    InjectionSummary {
-        injection_id: str_field(val, "id"),
-        name: str_field(val, "name"),
-        status: str_field_or(val, "status", "unknown"),
-        entity_count: val
-            .get("entity_count")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32,
-        source_type: str_field_or(val, "source_type", "text"),
-        error: val
-            .get("error")
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
-        created_at: str_field(val, "created_at"),
-        updated_at: str_field(val, "updated_at"),
-    }
-}
 
 /// Deserialize a JSON KV value into an `InjectionDetailResponse`.
 fn detail_from_meta(val: &serde_json::Value) -> InjectionDetailResponse {
@@ -335,24 +312,26 @@ pub async fn put_injection(
 pub async fn list_injections(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    Query(query): Query<ListInjectionsQuery>,
 ) -> ApiResult<Json<ListInjectionsResponse>> {
     let workspace_id = workspace_id_from_tenant(&tenant_ctx);
-    let prefix = injection_list_prefix(&workspace_id);
-    let keys = state.storage.kv_storage.keys_with_prefix(&prefix).await?;
+    let page = crate::services::list_injections_paged(
+        &state.storage.kv_storage,
+        &workspace_id,
+        query.limit,
+        query.offset,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Injection list failed: {e}")))?;
 
-    let mut items: Vec<InjectionSummary> = Vec::new();
-    for key in keys
-        .iter()
-        .filter(|k| k.starts_with(&prefix) && k.ends_with("-metadata"))
-    {
-        if let Ok(Some(val)) = state.storage.kv_storage.get_by_id(key).await {
-            items.push(summary_from_meta(&val));
-        }
-    }
-
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    let total = items.len();
-    Ok(Json(ListInjectionsResponse { items, total }))
+    let has_more = page.has_more();
+    Ok(Json(ListInjectionsResponse {
+        items: page.items,
+        total: page.total,
+        limit: page.limit,
+        offset: page.offset,
+        has_more,
+    }))
 }
 
 // ============================================================================

@@ -82,8 +82,9 @@ where
     L: edgequake_llm::LLMProvider + ?Sized,
 {
     /// Build the extraction prompt.
-    fn build_prompt(&self, text: &str) -> String {
-        crate::prompts::json_extraction_prompt(text, &self.entity_schema)
+    fn build_prompt(&self, chunk: &TextChunk) -> String {
+        let text = crate::prompts::text_with_section_context(&chunk.content, chunk.section.as_ref());
+        crate::prompts::json_extraction_prompt(&text, &self.entity_schema)
     }
 
     /// Parse the LLM response via shared [`JsonExtractionParser`] (normalization + recovery).
@@ -106,7 +107,7 @@ where
     L: edgequake_llm::LLMProvider + Send + Sync + ?Sized,
 {
     async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult> {
-        let prompt = self.build_prompt(&chunk.content);
+        let prompt = self.build_prompt(chunk);
 
         // WHY reasoning_effort="none" + explicit max_tokens:
         // Reasoning models (gpt-5-nano, gpt-5-mini, o-series) exhaust all completion_tokens

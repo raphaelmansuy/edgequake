@@ -154,6 +154,7 @@ pub struct WorkerAppGuard {
     _serialize: tokio::sync::MutexGuard<'static, ()>,
     pub router: axum::Router,
     pub graph_storage: std::sync::Arc<dyn edgequake_storage::GraphStorage>,
+    pub kv_storage: std::sync::Arc<dyn edgequake_storage::traits::KVStorage>,
     /// Production query engine (mirrors worker processor wiring for P-G9 E2E).
     pub query_engine: std::sync::Arc<edgequake_query::QueryEngine>,
 }
@@ -246,6 +247,7 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
         enable_swagger: true,
     };
     let graph_storage = std::sync::Arc::clone(&state.storage.graph_storage);
+    let kv_storage = std::sync::Arc::clone(&state.storage.kv_storage);
     let query_engine = std::sync::Arc::clone(&state.query.engine_impl);
 
     let server = Server::new(config, state);
@@ -259,6 +261,7 @@ pub async fn create_test_app_with_workers() -> WorkerAppGuard {
         _serialize: serialize,
         router,
         graph_storage,
+        kv_storage,
         query_engine,
     }
 }
@@ -433,10 +436,27 @@ pub async fn upload_document(
     title: &str,
     content: &str,
 ) -> (StatusCode, Value) {
-    let payload = json!({
+    upload_document_with_options(app, title, content, None).await
+}
+
+/// Upload with optional extra JSON fields (e.g. `chunk_strategy`).
+pub async fn upload_document_with_options(
+    app: &axum::Router,
+    title: &str,
+    content: &str,
+    extra: Option<Value>,
+) -> (StatusCode, Value) {
+    let mut payload = json!({
         "content": content,
         "title": title
     });
+    if let Some(extra) = extra {
+        if let (Some(obj), Some(extra_obj)) = (payload.as_object_mut(), extra.as_object()) {
+            for (k, v) in extra_obj {
+                obj.insert(k.clone(), v.clone());
+            }
+        }
+    }
     post_json(app, "/api/v1/documents", &payload).await
 }
 
@@ -532,4 +552,29 @@ pub async fn upload_and_wait(
         final_status
     );
     (document_id, track_id, final_status)
+}
+
+/// Load final document metadata from KV after worker promote.
+pub async fn doc_metadata_from_kv(
+    kv: &std::sync::Arc<dyn edgequake_storage::traits::KVStorage>,
+    doc_id: &str,
+) -> Option<Value> {
+    use edgequake_storage::kv_keys;
+    kv.get_by_id(&kv_keys::doc_metadata(doc_id))
+        .await
+        .ok()
+        .flatten()
+}
+
+/// Count persisted chunk KV records for a document.
+pub async fn count_doc_chunks(
+    kv: &std::sync::Arc<dyn edgequake_storage::traits::KVStorage>,
+    doc_id: &str,
+) -> usize {
+    use edgequake_storage::kv_keys;
+    let prefix = kv_keys::doc_chunk_prefix(doc_id);
+    kv.keys_with_prefix(&prefix)
+        .await
+        .map(|keys| keys.len())
+        .unwrap_or(0)
 }

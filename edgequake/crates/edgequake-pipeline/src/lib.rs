@@ -56,13 +56,16 @@
 //! - [`crate::extractor`] for entity/relationship extraction
 //! - [`crate::chunker`] for document chunking
 
+pub mod adaptive_chunking;
 pub mod cache;
 pub mod chunk_storage;
 pub mod chunker;
 pub mod error;
 pub mod extractor;
+pub mod ingestion_pipeline;
 pub mod ingestion_types;
 pub mod lineage;
+pub mod markdown_ir;
 pub mod merger;
 pub mod persistence;
 pub mod pipeline;
@@ -75,15 +78,17 @@ pub mod table_preprocessor;
 pub mod test_fixtures;
 pub mod validation;
 
+pub use adaptive_chunking::{adaptive_chunk_overlap, calculate_adaptive_chunk_size};
 pub use cache::{
     generate_cache_key, generate_cache_key_multi, CacheEntry, CacheStats, CacheType,
     CachedExtractor, LLMCache, MemoryLLMCache,
 };
 pub use chunk_storage::build_chunk_kv_records;
 pub use chunker::{
-    calculate_line_numbers, CharacterBasedChunking, ChunkResult, Chunker, ChunkerConfig,
-    ChunkingStrategy, ParagraphBoundaryChunking, SentenceBoundaryChunking, TextChunk,
-    TokenBasedChunking,
+    calculate_line_numbers, CharacterBasedChunking, ChunkOptions, ChunkResult, ChunkStrategy,
+    Chunker, ChunkerConfig, ChunkingStrategy, MarkdownChunking, ParagraphBoundaryChunking,
+    RecursiveCharacterChunking, SectionMetadata, SentenceBoundaryChunking, TextChunk,
+    TokenBasedChunking, default_recursive_separators, resolve_chunker,
 };
 pub use error::{
     ChunkExtractionOutcome, ChunkFailure, PipelineError, ResilientExtractionResult, Result,
@@ -94,6 +99,11 @@ pub use extractor::{
     ExtractedRelationship, ExtractionResult, GleaningConfig, GleaningExtractor, LLMExtractor,
     SOTAExtractor, SimpleExtractor,
 };
+pub use ingestion_pipeline::{
+    build_chunker_config, build_ingestion_pipeline, build_ingestion_pipeline_simple,
+    IngestionPipelineOptions,
+};
+pub use markdown_ir::{extract_markdown_blocks, format_breadcrumb, PREFACE_HEADING};
 // Re-export unified ingestion types for frontend compatibility
 pub use ingestion_types::{
     error_codes, IngestionError as UnifiedIngestionError,
@@ -137,9 +147,10 @@ pub use progress::{
     ProgressTracker, StageProgress, StageStatus,
 };
 pub use prompts::{
-    default_entity_types, detect_format_markers, normalize_entity_name, EntityExtractionPrompts,
-    ExtractionResultParser, HybridExtractionParser, JsonExtractionParser, SummarizationPrompts,
-    TupleParser, DEFAULT_COMPLETION_DELIMITER, DEFAULT_TUPLE_DELIMITER, SUPPORTED_LANGUAGES,
+    default_entity_types, detect_format_markers, format_section_context, normalize_entity_name,
+    text_with_section_context, truncate_section_context, EntityExtractionPrompts, ExtractionResultParser,
+    HybridExtractionParser, JsonExtractionParser, SummarizationPrompts, TupleParser,
+    DEFAULT_COMPLETION_DELIMITER, DEFAULT_TUPLE_DELIMITER, SUPPORTED_LANGUAGES,
 };
 pub use sanitizer::{EmojiMode, SanitizeConfig, SanitizeReport, Sanitizer};
 pub use stage_bridge::{

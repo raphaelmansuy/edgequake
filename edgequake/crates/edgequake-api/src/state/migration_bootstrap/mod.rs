@@ -9,22 +9,28 @@ use sqlx::PgPool;
 use tracing::{info, warn};
 
 /// Size-aware index DDL — SSOT: `migrations/support/038/apply.sql`
-pub(super) const SQL_038_APPLY: &str = include_str!("../../../../../migrations/support/038/apply.sql");
+pub(super) const SQL_038_APPLY: &str =
+    include_str!("../../../../../migrations/support/038/apply.sql");
 
 /// Entity backfill — SSOT: `migrations/support/040/apply.sql`
-pub(super) const SQL_040_APPLY: &str = include_str!("../../../../../migrations/support/040/apply.sql");
+pub(super) const SQL_040_APPLY: &str =
+    include_str!("../../../../../migrations/support/040/apply.sql");
 
 /// pgvector upgrade + ANN reindex — SSOT: `migrations/support/042/apply.sql`
-pub(super) const SQL_042_APPLY: &str = include_str!("../../../../../migrations/support/042/apply.sql");
+pub(super) const SQL_042_APPLY: &str =
+    include_str!("../../../../../migrations/support/042/apply.sql");
 
 /// Apache AGE extension upgrade — SSOT: `migrations/support/043/apply.sql`
-pub(super) const SQL_043_APPLY: &str = include_str!("../../../../../migrations/support/043/apply.sql");
+pub(super) const SQL_043_APPLY: &str =
+    include_str!("../../../../../migrations/support/043/apply.sql");
 
 /// Community labels marker — SSOT: `migrations/support/044/apply.sql`
-pub(super) const SQL_044_APPLY: &str = include_str!("../../../../../migrations/support/044/apply.sql");
+pub(super) const SQL_044_APPLY: &str =
+    include_str!("../../../../../migrations/support/044/apply.sql");
 
 /// Vector content FTS — SSOT: `migrations/support/045/apply.sql`
-pub(super) const SQL_045_APPLY: &str = include_str!("../../../../../migrations/support/045/apply.sql");
+pub(super) const SQL_045_APPLY: &str =
+    include_str!("../../../../../migrations/support/045/apply.sql");
 
 /// sqlx migration version marker (no blocking DDL in sqlx file).
 pub const MIGRATION_038_VERSION: i64 = 38;
@@ -231,10 +237,14 @@ pub async fn run_postgres_migrations(
     }
 
     let migration_038 = reconcile::reconcile_migration_038(pool, &applied_this_run).await?;
-    let migration_042 = reconcile::reconcile_migration_042(pool, &applied_after, &applied_this_run).await?;
-    let migration_043 = reconcile::reconcile_migration_043(pool, &applied_after, &applied_this_run).await?;
-    let migration_044 = reconcile::reconcile_migration_044(pool, &applied_after, &applied_this_run).await?;
-    let migration_045 = reconcile::reconcile_migration_045(pool, &applied_after, &applied_this_run).await?;
+    let migration_042 =
+        reconcile::reconcile_migration_042(pool, &applied_after, &applied_this_run).await?;
+    let migration_043 =
+        reconcile::reconcile_migration_043(pool, &applied_after, &applied_this_run).await?;
+    let migration_044 =
+        reconcile::reconcile_migration_044(pool, &applied_after, &applied_this_run).await?;
+    let migration_045 =
+        reconcile::reconcile_migration_045(pool, &applied_after, &applied_this_run).await?;
 
     // SPEC-021 P2-02c: Kick off the CQRS entity backfill in the background
     // if migration 040 has been applied but the backfill hasn't completed yet.

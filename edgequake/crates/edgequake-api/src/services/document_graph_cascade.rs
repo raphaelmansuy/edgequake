@@ -67,6 +67,7 @@ pub fn node_list_filter(tenant_ctx: Option<&TenantContext>) -> NodeListFilter {
             workspace_id: ctx.workspace_id.clone(),
             entity_type: None,
             search: None,
+            community_ids: None,
         },
         None => NodeListFilter::default(),
     }

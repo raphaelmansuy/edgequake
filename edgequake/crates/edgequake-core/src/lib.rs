@@ -42,6 +42,7 @@ pub mod env;
 pub mod error;
 pub mod graph_mapping;
 pub mod keyword_extractor;
+pub mod llm_roles;
 #[cfg(feature = "pipeline")]
 pub mod orchestrator;
 pub mod resource;
@@ -77,6 +78,10 @@ pub type PostgresWorkspaceService = WorkspaceServiceImpl;
 
 // Re-export keyword extractor
 pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
+pub use llm_roles::{
+    parse_llm_roles_map, resolve_role_llm, role_config_from_workspace, LlmRole, ResolvedRoleLlm,
+    RoleLlmConfig,
+};
 
 // Re-export tenant manager
 #[cfg(feature = "pipeline")]

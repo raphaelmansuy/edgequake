@@ -73,11 +73,7 @@ pub(super) async fn append_score_ranked_chunks(
         "OODA-231: Chunk retrieval result (top-k by cosine similarity)"
     );
 
-    let mf_chunk = MetadataFilter::from_tenant_workspace_type(
-        tenant_id,
-        workspace_id,
-        "chunk",
-    );
+    let mf_chunk = MetadataFilter::from_tenant_workspace_type(tenant_id, workspace_id, "chunk");
 
     let mut chunks = if crate::sparse_retrieval::bm25_retrieval_enabled(retrieval_config) {
         crate::sparse_retrieval::fuse_vector_and_bm25_chunks(
@@ -99,11 +95,8 @@ pub(super) async fn append_score_ranked_chunks(
             .collect()
     };
 
-    crate::chunk_hydration::hydrate_retrieved_chunks(
-        engine.kv_storage.as_deref(),
-        &mut chunks,
-    )
-    .await;
+    crate::chunk_hydration::hydrate_retrieved_chunks(engine.kv_storage.as_deref(), &mut chunks)
+        .await;
 
     Ok(chunks)
 }

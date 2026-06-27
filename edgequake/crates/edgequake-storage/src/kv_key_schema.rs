@@ -81,6 +81,32 @@ pub mod kv_keys {
         format!("{doc_id}-content")
     }
 
+    // ── Staging keys (SPEC-026 Phase 2 P-11 admission saga) ──
+
+    /// Staging metadata written at HTTP admit; promoted on worker success.
+    #[inline]
+    pub fn staging_doc_metadata(doc_id: &str) -> String {
+        format!("staging:{doc_id}-metadata")
+    }
+
+    /// Staging content written at HTTP admit; promoted on worker success.
+    #[inline]
+    pub fn staging_doc_content(doc_id: &str) -> String {
+        format!("staging:{doc_id}-content")
+    }
+
+    /// Staging workspace hash → doc_id mapping until promote.
+    #[inline]
+    pub fn staging_workspace_hash(workspace_id: &str, content_hash: &str) -> String {
+        format!("staging:hash:{workspace_id}:{content_hash}")
+    }
+
+    /// Prefix for rollback of all staging keys for a document.
+    #[inline]
+    pub fn staging_doc_prefix(doc_id: &str) -> String {
+        format!("staging:{doc_id}-")
+    }
+
     /// Prefix for scanning ALL keys belonging to a document (chunks + metadata).
     ///
     /// Use with `KVStorage::keys_with_prefix()` for cascade delete.

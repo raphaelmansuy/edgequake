@@ -3,7 +3,7 @@
 #[test]
 fn spec021_processor_wires_query_cache_invalidator_trait() {
     let mod_src = include_str!("../src/processor/mod.rs");
-    let text_src = include_str!("../src/processor/text_insert.rs");
+    let persist_src = include_str!("../src/processor/text_insert/persist.rs");
 
     assert!(
         mod_src.contains("QueryResultCacheInvalidator"),
@@ -14,7 +14,7 @@ fn spec021_processor_wires_query_cache_invalidator_trait() {
         "processor must expose explicit invalidator wiring"
     );
     assert!(
-        text_src.contains("invalidate_query_result_cache"),
+        persist_src.contains("invalidate_query_result_cache"),
         "worker persist must invalidate via trait method"
     );
     assert!(

@@ -38,6 +38,9 @@
 //! - [`text_utils`]: String splitting, UTF-8 boundary, sentence detection utilities
 //! - `strategies`: Chunking strategy implementations (token, character, sentence, paragraph)
 
+mod markdown_chunking;
+mod recursive;
+pub mod registry;
 mod strategies;
 pub mod text_utils;
 mod types;
@@ -47,12 +50,15 @@ use std::sync::Arc;
 use crate::error::Result;
 
 // Re-export types
-pub use types::{ChunkResult, ChunkerConfig, ChunkingStrategy, TextChunk};
+pub use registry::{resolve_chunker, ChunkOptions, ChunkStrategy};
+pub use types::{ChunkResult, ChunkerConfig, ChunkingStrategy, SectionMetadata, TextChunk};
 
 // Re-export text utilities needed by external consumers
 pub use text_utils::calculate_line_numbers;
 
 // Re-export strategies
+pub use markdown_chunking::MarkdownChunking;
+pub use recursive::{default_recursive_separators, RecursiveCharacterChunking};
 pub use strategies::{
     CharacterBasedChunking, ParagraphBoundaryChunking, SentenceBoundaryChunking, TokenBasedChunking,
 };
@@ -114,10 +120,16 @@ impl Chunker {
             .into_iter()
             .map(|result| {
                 let id = edgequake_storage::kv_keys::doc_chunk(doc_id, result.chunk_order_index);
-                let start_offset = cumulative_offset;
-                let end_offset = cumulative_offset + result.content.len();
+                let (start_offset, end_offset) = match (result.start_offset, result.end_offset) {
+                    (Some(start), Some(end)) => (start, end),
+                    _ => {
+                        let start = cumulative_offset;
+                        let end = cumulative_offset + result.content.len();
+                        cumulative_offset = end;
+                        (start, end)
+                    }
+                };
                 let (start_line, end_line) = calculate_line_numbers(text, start_offset, end_offset);
-                cumulative_offset = end_offset;
 
                 TextChunk::with_line_numbers(
                     id,
@@ -128,6 +140,7 @@ impl Chunker {
                     start_line,
                     end_line,
                 )
+                .with_section(result.section)
             })
             .collect())
     }

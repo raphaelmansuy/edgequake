@@ -76,7 +76,10 @@ async fn spec024_health_exposes_operational_snapshot() {
         read_model["merge_strategy"].as_str(),
         Some("max(postgresql, kv)")
     );
-    assert_eq!(read_model["entity_count_graph_reconcile"].as_bool(), Some(true));
+    assert_eq!(
+        read_model["entity_count_graph_reconcile"].as_bool(),
+        Some(true)
+    );
 
     assert_eq!(
         operational["query_engine"]["default_mode"].as_str(),
@@ -84,8 +87,7 @@ async fn spec024_health_exposes_operational_snapshot() {
         "production default mode must be mix (Phase 2.1)"
     );
     assert_eq!(
-        operational["query_engine"]["community_refresh_debounce_secs"]
-            .as_u64(),
+        operational["query_engine"]["community_refresh_debounce_secs"].as_u64(),
         Some(300)
     );
     assert_eq!(
@@ -99,8 +101,7 @@ async fn spec024_health_exposes_operational_snapshot() {
         "health mix_fusion must match EDGEQUAKE_MIX_FUSION"
     );
     assert_eq!(
-        operational["query_engine"]["community_refresh_scheduled_workspaces"]
-            .as_u64(),
+        operational["query_engine"]["community_refresh_scheduled_workspaces"].as_u64(),
         Some(0),
         "fresh test state should have no pending community refresh timers"
     );
@@ -109,8 +110,14 @@ async fn spec024_health_exposes_operational_snapshot() {
         .get("ingestion")
         .expect("health must include ingestion snapshot (pass 12)");
     assert_eq!(ingestion["execution_model"].as_str(), Some("worker_queue"));
-    assert_eq!(ingestion["persist_ssot"].as_str(), Some("IngestionPersister"));
-    assert_eq!(ingestion["duplicate_reingest_enabled"].as_bool(), Some(true));
+    assert_eq!(
+        ingestion["persist_ssot"].as_str(),
+        Some("IngestionPersister")
+    );
+    assert_eq!(
+        ingestion["duplicate_reingest_enabled"].as_bool(),
+        Some(true)
+    );
 
     let storage = operational
         .get("storage")

@@ -121,7 +121,7 @@ pub(in crate::pipeline) fn aggregate_extraction_stats(
 impl Pipeline {
     /// Initialize processing stats from chunked document.
     ///
-    /// Sets chunk_count, chunking_strategy, and avg_chunk_size.
+    /// Sets chunk_count, chunking_strategy (SPEC-026 enum), and avg_chunk_size.
     pub(in crate::pipeline) fn init_chunk_stats(&self, chunks: &[TextChunk]) -> ProcessingStats {
         let avg_chunk_size = if chunks.is_empty() {
             None
@@ -132,7 +132,7 @@ impl Pipeline {
 
         ProcessingStats {
             chunk_count: chunks.len(),
-            chunking_strategy: Some(format!("sliding_window_{}", self.config.chunker.chunk_size)),
+            chunking_strategy: Some(self.config.chunk_strategy.as_str().to_string()),
             avg_chunk_size,
             ..ProcessingStats::default()
         }

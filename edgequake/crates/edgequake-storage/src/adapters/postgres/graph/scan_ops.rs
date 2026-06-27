@@ -34,6 +34,20 @@ impl PostgresAGEGraphStorage {
                  OR LOWER(COALESCE(ag_catalog.agtype_to_json(v.properties)->>'description', '')) LIKE '%{q}%')"
             ));
         }
+        if let Some(ref community_ids) = filter.community_ids {
+            if community_ids.is_empty() {
+                conditions.push("FALSE".to_string());
+            } else {
+                let id_list = community_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                conditions.push(format!(
+                    "(ag_catalog.agtype_to_json(v.properties)->>'community_id')::bigint IN ({id_list})"
+                ));
+            }
+        }
 
         if conditions.is_empty() {
             "TRUE".to_string()

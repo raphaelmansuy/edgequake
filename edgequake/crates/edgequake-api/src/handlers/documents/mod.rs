@@ -53,7 +53,7 @@ mod delete;
 mod query;
 mod recovery;
 pub(crate) mod storage_helpers;
-mod upload;
+pub(crate) mod upload;
 
 // Re-export all public items (includes utoipa __path_* structs for OpenAPI)
 pub use delete::*;
@@ -77,6 +77,8 @@ mod tests {
             enable_gleaning: true,
             max_gleaning: 1,
             use_llm_summarization: true,
+            chunk_strategy: None,
+            chunk_options: None,
         };
 
         assert!(!request.content.is_empty());

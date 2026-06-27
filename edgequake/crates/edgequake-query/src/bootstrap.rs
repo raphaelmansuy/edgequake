@@ -36,9 +36,7 @@ pub fn build_production_query_engine(
     llm_provider: Arc<dyn LLMProvider>,
     kv_storage: Option<Arc<dyn KVStorage>>,
 ) -> Arc<QueryEngine> {
-    let reranker = create_production_reranker_with_embedding(Some(Arc::clone(
-        &embedding_provider,
-    )));
+    let reranker = create_production_reranker_with_embedding(Some(Arc::clone(&embedding_provider)));
     let mut engine = QueryEngine::new(
         QueryEngineConfig::default(),
         vector_storage,

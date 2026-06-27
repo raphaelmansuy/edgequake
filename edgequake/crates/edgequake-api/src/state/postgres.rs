@@ -6,9 +6,7 @@
 use std::sync::Arc;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{
-    AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
-};
+use super::{AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
 use crate::cache_manager::CacheManager;
 use edgequake_audit::AuditLogger;
 use edgequake_core::env::apply_model_env_aliases;

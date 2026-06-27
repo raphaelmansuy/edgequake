@@ -7,8 +7,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 
+/// Section metadata for heading-aware chunks (SPEC-026 Phase 2).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SectionMetadata {
+    /// Full breadcrumb path, e.g. `["Install", "Prerequisites"]`.
+    pub heading_path: Vec<String>,
+    /// ATX heading level (1–6); 0 for preface/uncategorized.
+    pub heading_level: u8,
+}
+
+impl SectionMetadata {
+    pub fn from_block(parents: &[String], heading: &str, level: u8) -> Self {
+        let mut path = parents.to_vec();
+        if !heading.is_empty() && heading != crate::markdown_ir::PREFACE_HEADING {
+            path.push(heading.to_string());
+        }
+        Self {
+            heading_path: path,
+            heading_level: level,
+        }
+    }
+}
+
 /// Result of a custom chunking operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ChunkResult {
     /// The chunk text content.
     pub content: String,
@@ -16,6 +38,15 @@ pub struct ChunkResult {
     pub tokens: usize,
     /// Zero-based index indicating the chunk's order in the document.
     pub chunk_order_index: usize,
+    /// Optional heading breadcrumb metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<SectionMetadata>,
+    /// Source document start offset when the strategy preserves spans.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_offset: Option<usize>,
+    /// Source document end offset when the strategy preserves spans.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_offset: Option<usize>,
 }
 
 /// Trait for custom chunking strategies.
@@ -123,6 +154,10 @@ pub struct TextChunk {
 
     /// Chunk embedding.
     pub embedding: Option<Vec<f32>>,
+
+    /// Heading breadcrumb metadata when chunking strategy is markdown-aware.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<SectionMetadata>,
 }
 
 impl TextChunk {
@@ -146,6 +181,7 @@ impl TextChunk {
             end_line: 1,
             token_count,
             embedding: None,
+            section: None,
         }
     }
 
@@ -171,7 +207,14 @@ impl TextChunk {
             end_line,
             token_count,
             embedding: None,
+            section: None,
         }
+    }
+
+    /// Attach section metadata after creation.
+    pub fn with_section(mut self, section: Option<SectionMetadata>) -> Self {
+        self.section = section;
+        self
     }
 
     /// Set line numbers after creation.

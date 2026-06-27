@@ -25,9 +25,7 @@ use edgequake_storage::adapters::memory::{
 use edgequake_storage::ConversationStorage;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{
-    AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
-};
+use super::{AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
 use crate::cache_manager::CacheManager;
 
 #[cfg(feature = "postgres")]
@@ -279,7 +277,7 @@ impl AppState {
                 Arc::clone(&mock_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
             )
             .with_kv_storage(
-                Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+                Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>
             )
             .with_embedding_cache()
             .with_result_cache(),

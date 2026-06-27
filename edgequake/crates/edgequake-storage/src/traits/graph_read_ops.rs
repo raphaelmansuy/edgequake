@@ -67,6 +67,18 @@ pub trait GraphStorageReadOps: Send + Sync {
 
     async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
 
+    /// Incident edges for many nodes in one round-trip (SPEC-025 6.2).
+    ///
+    /// Returns edges where **either** endpoint is in `node_ids` (same semantics as
+    /// repeated `get_node_edges`, without N+1 per frontier node).
+    async fn get_incident_edges_batch(&self, node_ids: &[String]) -> Result<Vec<GraphEdge>> {
+        let mut collected = Vec::new();
+        for node_id in node_ids {
+            collected.extend(self.get_node_edges(node_id).await?);
+        }
+        Ok(collected)
+    }
+
     /// Legacy full-graph load — **not for API hot paths** (SPEC-006).
     #[deprecated(note = "SPEC-006: use bounded edge queries instead of full-graph load")]
     async fn get_all_edges(&self) -> Result<Vec<GraphEdge>>;

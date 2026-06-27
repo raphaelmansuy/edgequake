@@ -35,9 +35,7 @@ pub async fn schedule_community_index_refresh(
     if !community_features_enabled() {
         return;
     }
-    community_scheduler()
-        .schedule(workspace_id, graph)
-        .await;
+    community_scheduler().schedule(workspace_id, graph).await;
 }
 
 struct CommunityRefreshScheduler {

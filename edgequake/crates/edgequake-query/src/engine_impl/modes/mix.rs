@@ -82,11 +82,7 @@ impl QueryEngine {
                 &weights,
                 crate::fusion::RRF_K,
             );
-            for chunk in crate::fusion::chunks_from_rrf_ranking(
-                &fused,
-                &chunk_lookup,
-                max_chunks,
-            ) {
+            for chunk in crate::fusion::chunks_from_rrf_ranking(&fused, &chunk_lookup, max_chunks) {
                 merged.add_chunk(chunk);
             }
         } else {

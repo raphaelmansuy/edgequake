@@ -208,10 +208,7 @@ async fn spec024_http_hybrid_round_robin_kg_first_ordering() {
 
     // LightRAG round-robin at slot 0: local(shared) → global(skip dup) → naive(naive_only)
     // slot 1: local(local_only) → global(global_only)
-    assert!(
-        !ids.is_empty(),
-        "hybrid HTTP must return chunk sources"
-    );
+    assert!(!ids.is_empty(), "hybrid HTTP must return chunk sources");
     if ids.len() >= 4 {
         assert_eq!(
             ids,

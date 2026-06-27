@@ -74,10 +74,7 @@ impl MetadataFilter {
         }
 
         if self.vector_type.is_some() {
-            conditions.push(format!(
-                "{}->>'type' = ${param_offset}",
-                q("metadata")
-            ));
+            conditions.push(format!("{}->>'type' = ${param_offset}", q("metadata")));
             param_offset += 1;
         }
 

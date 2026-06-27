@@ -85,7 +85,12 @@ pub fn health_degraded_by_queue(pending: u64) -> bool {
 }
 
 /// Emit structured log when backlog warrants operator attention (idempotent per request).
-pub fn log_queue_pressure(snapshot: &QueuePressureSnapshot, pending: u64, processing: u64, failed: u64) {
+pub fn log_queue_pressure(
+    snapshot: &QueuePressureSnapshot,
+    pending: u64,
+    processing: u64,
+    failed: u64,
+) {
     match snapshot.level {
         QueuePressureLevel::Normal => {}
         QueuePressureLevel::Elevated => {
@@ -150,8 +155,14 @@ mod tests {
         with_env("EDGEQUAKE_QUEUE_PENDING_WARN", Some("10"), || {
             with_env("EDGEQUAKE_QUEUE_PENDING_CRITICAL", Some("20"), || {
                 assert_eq!(assess_queue_pressure(5).level, QueuePressureLevel::Normal);
-                assert_eq!(assess_queue_pressure(10).level, QueuePressureLevel::Elevated);
-                assert_eq!(assess_queue_pressure(20).level, QueuePressureLevel::Critical);
+                assert_eq!(
+                    assess_queue_pressure(10).level,
+                    QueuePressureLevel::Elevated
+                );
+                assert_eq!(
+                    assess_queue_pressure(20).level,
+                    QueuePressureLevel::Critical
+                );
                 assert!(health_degraded_by_queue(20));
                 assert!(!health_degraded_by_queue(10));
             });

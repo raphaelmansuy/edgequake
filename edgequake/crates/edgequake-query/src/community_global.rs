@@ -1,11 +1,12 @@
-//! Global query community expansion (SPEC-023 I6).
+//! Global query community expansion (SPEC-023 I6, SPEC-025 6.3).
 //!
 //! Uses index-time `community_id` labels — no Louvain at query time.
+//! Resolves co-community nodes via push-down `list_nodes_filtered`, not popular scan.
 
 use std::collections::HashSet;
 
 use edgequake_storage::community_persist::community_features_enabled;
-use edgequake_storage::traits::GraphReadView;
+use edgequake_storage::traits::{GraphReadView, NodeListFilter};
 
 use crate::context::QueryContext;
 use crate::engine_impl::QueryEngineConfig;
@@ -35,28 +36,30 @@ pub async fn expand_global_context_with_communities(
         return Ok(());
     }
 
-    let popular = graph
-        .get_popular_nodes_with_degree(
-            config.max_entities * 2,
-            None,
-            None,
-            tenant_id.as_deref(),
-            workspace_id.as_deref(),
-        )
-        .await?;
+    let filter = NodeListFilter {
+        tenant_id,
+        workspace_id,
+        community_ids: Some(seed_communities.into_iter().collect()),
+        ..Default::default()
+    };
+
+    let limit = config.max_entities.saturating_mul(2).max(1);
+    let page = graph.list_nodes_filtered(&filter, 0, limit).await?;
+
+    let page_ids: Vec<String> = page.items.iter().map(|n| n.id.clone()).collect();
+    let degrees: std::collections::HashMap<String, usize> = graph
+        .node_degrees_batch(&page_ids)
+        .await?
+        .into_iter()
+        .collect();
 
     let mut seen: HashSet<String> = context.entities.iter().map(|e| e.name.clone()).collect();
 
-    for (node, degree) in popular {
-        let Some(cid) = node.properties.get("community_id").and_then(|v| v.as_u64()) else {
-            continue;
-        };
-        if !seed_communities.contains(&cid) {
-            continue;
-        }
+    for node in page.items {
         if !seen.insert(node.id.clone()) {
             continue;
         }
+        let degree = degrees.get(&node.id).copied().unwrap_or(0);
         let entity = build_entity_from_node(&node.id, &node.properties, degree, 0.5);
         context.add_entity(entity);
         if !entity_ids.contains(&node.id) {

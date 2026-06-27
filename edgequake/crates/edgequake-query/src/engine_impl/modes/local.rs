@@ -11,8 +11,8 @@ use crate::vector_filter::{filter_by_type, VectorType};
 
 use edgequake_storage::traits::{MetadataFilter, VectorStorage};
 
-use super::chunk_retrieval::append_score_ranked_chunks;
 use super::super::{QueryEmbeddings, QueryEngine};
+use super::chunk_retrieval::append_score_ranked_chunks;
 
 impl QueryEngine {
     /// Local mode with workspace-specific vector storage.

@@ -31,6 +31,7 @@ mod json_extract;
 mod json_prompts;
 mod normalizer;
 mod parser;
+mod section_context;
 mod summarization;
 
 pub use entity_extraction::EntityExtractionPrompts;
@@ -44,6 +45,10 @@ pub use normalizer::normalize_entity_name;
 pub use parser::{
     detect_format_markers, ExtractionResultParser, HybridExtractionParser, JsonExtractionParser,
     JsonParseOptions, TupleParser,
+};
+pub use section_context::{
+    format_section_context, text_with_section_context, truncate_section_context,
+    DEFAULT_MAX_SECTION_CONTEXT_TOKENS,
 };
 pub use summarization::SummarizationPrompts;
 

@@ -20,13 +20,7 @@ pub fn extraction_completion_options(model: &str, max_tokens: usize) -> Completi
 
 /// Adaptive chunk size recommendation based on document size (bytes).
 pub fn recommended_chunk_size_for_bytes(chunk_size_bytes: usize) -> usize {
-    if chunk_size_bytes > 100_000 {
-        600
-    } else if chunk_size_bytes > 50_000 {
-        800
-    } else {
-        1200
-    }
+    crate::adaptive_chunking::calculate_adaptive_chunk_size(chunk_size_bytes)
 }
 
 /// Copy token usage from an LLM response into an extraction result.
