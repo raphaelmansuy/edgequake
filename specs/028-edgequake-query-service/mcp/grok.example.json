@@ -1,0 +1,38 @@
+{
+  "description": "xAI Grok Remote MCP — EdgeQuake configuration (API / SDK)",
+  "protocol": "MCP 2026-07-28 stateless Streamable HTTP",
+  "docs": "https://docs.x.ai/developers/tools/remote-mcp",
+  "remote_mcp_tool_config": {
+    "type": "mcp",
+    "server_url": "https://api.edgequake.example/mcp",
+    "server_label": "edgequake",
+    "server_description": "EdgeQuake knowledge graph retrieval — search then fetch ContextBundle",
+    "allowed_tools": [
+      "edgequake_search",
+      "edgequake_fetch"
+    ],
+    "authorization": "Bearer ${EDGEQUAKE_API_KEY}",
+    "extra_headers": {
+      "X-Workspace-Id": "default"
+    }
+  },
+  "curl_smoke_test": {
+    "note": "Direct JSON-RPC (xAI docs pattern)",
+    "headers": {
+      "Content-Type": "application/json",
+      "Accept": "application/json, text/event-stream",
+      "Authorization": "Bearer ${EDGEQUAKE_API_KEY}"
+    },
+    "body": {
+      "jsonrpc": "2.0",
+      "method": "tools/list",
+      "params": {},
+      "id": 1
+    }
+  },
+  "agent_workflow": [
+    "1. edgequake_search({ query, mode: 'mix', workspace_id })",
+    "2. edgequake_fetch({ retrieval_id, content_granularity: 'agent' })",
+    "3. Grok synthesizes answer from ContextBundle (host LLM — not MCP sampling)"
+  ]
+}

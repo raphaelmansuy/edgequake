@@ -1,0 +1,1 @@
+ghcr.io/raphaelmansuy/edgequake-frontend:0.12.7

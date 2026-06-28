@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EdgeQuake MCP Tool Schemas",
+  "description": "SPEC-028 MCP tool definitions. Protocol target: MCP 2026-07-28 (RC). Cross-ref: mcp/000-index.md",
+  "protocolVersion": "2026-07-28",
+  "sampling": "NOT_SUPPORTED — see mcp/003-sampling-deprecation-and-llm-policy.md",
+  "tools": [
+    {
+      "name": "edgequake_search",
+      "description": "Search the EdgeQuake knowledge graph and document corpus. Returns ranked summaries with retrieval_id for full fetch. Use for Agentic Search retrieval steps.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language search query"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["naive", "local", "global", "hybrid", "mix"],
+            "default": "mix",
+            "description": "Retrieval mode. mix=default dual-level LightRAG fusion."
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 5
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Target workspace ID (required in multi-tenant deployments)",
+            "x-mcp-header": "Workspace-Id"
+          },
+          "document_filter": {
+            "type": "object",
+            "properties": {
+              "date_from": { "type": "string", "format": "date-time" },
+              "date_to": { "type": "string", "format": "date-time" },
+              "document_pattern": { "type": "string" }
+            }
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["results"],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["retrieval_id", "title", "snippet", "url", "score"],
+              "properties": {
+                "retrieval_id": { "type": "string", "pattern": "^ret_" },
+                "title": { "type": "string" },
+                "snippet": { "type": "string" },
+                "url": { "type": "string", "format": "uri" },
+                "score": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "edgequake_fetch",
+      "description": "Fetch full structured context bundle for a retrieval_id from edgequake_search. Returns graph subgraph, full document chunks, lineage, and agent hints.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["retrieval_id"],
+        "properties": {
+          "retrieval_id": {
+            "type": "string",
+            "pattern": "^ret_",
+            "description": "Handle from edgequake_search results"
+          },
+          "content_granularity": {
+            "type": "string",
+            "enum": ["citation", "agent", "debug"],
+            "default": "agent"
+          }
+        }
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ContextRetrievalResponse"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "edgequake_retrieve",
+      "description": "One-shot full context retrieval without search/fetch split. Heavier than search+fetch; use when single call is preferred.",
+      "inputSchema": {
+        "$ref": "#/$defs/ContextRetrievalRequest"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ContextRetrievalResponse"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ],
+  "cachePolicy": {
+    "toolsListTtlMs": 3600000,
+    "toolsListCacheScope": "public"
+  },
+  "$defs": {
+    "ContextRetrievalRequest": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": { "type": "string" },
+        "mode": { "type": "string", "enum": ["naive", "local", "global", "hybrid", "mix"] },
+        "content_granularity": { "type": "string", "enum": ["citation", "agent", "debug"], "default": "agent" },
+        "max_results": { "type": "integer" },
+        "document_filter": { "type": "object" },
+        "enable_rerank": { "type": "boolean", "default": true }
+      }
+    },
+    "ContextRetrievalResponse": {
+      "type": "object",
+      "required": ["retrieval_id", "query", "mode", "bundle"],
+      "properties": {
+        "retrieval_id": { "type": "string" },
+        "query": { "type": "string" },
+        "mode": { "type": "string" },
+        "bundle": { "$ref": "#/$defs/ContextBundle" },
+        "retrieval_quality": {
+          "type": "object",
+          "properties": {
+            "coverage_score": { "type": "number" },
+            "empty_context": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "ContextBundle": {
+      "type": "object",
+      "properties": {
+        "subgraph": {
+          "type": "object",
+          "properties": {
+            "entities": { "type": "array" },
+            "relationships": { "type": "array" }
+          }
+        },
+        "chunks": { "type": "array" },
+        "documents": { "type": "array" }
+      }
+    }
+  }
+}

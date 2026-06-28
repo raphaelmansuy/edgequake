@@ -1,0 +1,78 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.raphaelmansuy/edgequake",
+  "title": "EdgeQuake",
+  "description": "Graph RAG MCP: search, fetch, and retrieve knowledge-graph context over Streamable HTTP.",
+  "version": "0.12.11",
+  "websiteUrl": "https://github.com/raphaelmansuy/edgequake/tree/main/specs/028-edgequake-query-service/mcp",
+  "repository": {
+    "url": "https://github.com/raphaelmansuy/edgequake",
+    "source": "github",
+    "subfolder": "edgequake/crates/edgequake-api/src/mcp"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{host}/mcp",
+      "variables": {
+        "host": {
+          "description": "EdgeQuake API host (HTTPS in production, include port if needed)",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "api.example.com"
+        },
+        "accessToken": {
+          "description": "OAuth 2.1 access token or EdgeQuake API key",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        },
+        "tenantId": {
+          "description": "Optional tenant scope (X-Tenant-ID)",
+          "isRequired": false,
+          "format": "string",
+          "placeholder": "default"
+        }
+      },
+      "headers": [
+        {
+          "name": "Accept",
+          "description": "Streamable HTTP — JSON and SSE",
+          "isRequired": true,
+          "format": "string",
+          "value": "application/json, text/event-stream"
+        },
+        {
+          "name": "Authorization",
+          "description": "OAuth 2.1 Bearer token or API key",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true,
+          "value": "Bearer {accessToken}"
+        },
+        {
+          "name": "X-Tenant-ID",
+          "description": "Tenant scope for multi-tenant deployments",
+          "isRequired": false,
+          "format": "string",
+          "value": "{tenantId}"
+        },
+        {
+          "name": "MCP-Protocol-Version",
+          "description": "MCP protocol version (modern clients)",
+          "isRequired": false,
+          "format": "string",
+          "value": "2026-07-28"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "tool": "edgequake-api",
+      "protocolVersions": ["2026-07-28", "2025-11-25"],
+      "oauthProtectedResource": "/.well-known/oauth-protected-resource",
+      "streamingRetrieve": "Mcp-Stream: true on edgequake_retrieve"
+    }
+  }
+}

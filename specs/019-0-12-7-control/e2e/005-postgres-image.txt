@@ -1,0 +1,1 @@
+ghcr.io/raphaelmansuy/edgequake-postgres:0.12.7
