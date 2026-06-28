@@ -64,7 +64,8 @@ export default function DashboardPage() {
   const { t } = useTranslation();
 
   // Get tenant context for query keys
-  const { selectedTenantId, selectedWorkspaceId, _hasHydrated } = useTenantStore();
+  const { selectedTenantId, selectedWorkspaceId, workspaces, _hasHydrated } = useTenantStore();
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
   
   // Get query client for cache management
   const queryClient = useQueryClient();
@@ -155,13 +156,21 @@ export default function DashboardPage() {
         <WorkspaceUrlUpdater />
       </Suspense>
       <div className="p-page space-y-6">
-        {/* Header Section - Compact */}
+        {/* Header Section — contextual, not generic marketing copy */}
         <header className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">
-            {t('dashboard.title', 'Dashboard')}
+            {selectedWorkspace?.name ?? t('dashboard.title', 'Dashboard')}
           </h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">
-            {t('dashboard.welcome', 'Welcome to EdgeQuake - Your Knowledge Graph RAG Platform')}
+          <p className="text-sm text-muted-foreground">
+            {isLoadingStats
+              ? t('common.loading', 'Loading...')
+              : documentValue > 0
+                ? t(
+                    'dashboard.contextSubtitle',
+                    '{{docs}} documents · {{entities}} entities · {{relationships}} relationships',
+                    { docs: documentValue, entities: entityValue, relationships: relationshipValue }
+                  )
+                : t('dashboard.emptySubtitle', 'Upload your first document to get started')}
           </p>
         </header>
 

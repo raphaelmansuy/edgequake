@@ -8,6 +8,15 @@ import {
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+    CommandSeparator,
+} from '@/components/ui/command';
+import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -15,23 +24,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuGroup,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import {
     EmbeddingModelSelector,
     type EmbeddingSelection,
@@ -90,6 +89,9 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
     isInitialized,
     setInitialized,
   } = useTenantStore();
+
+  // Selector popover state
+  const [selectorOpen, setSelectorOpen] = useState(false);
 
   // Dialog states
   const [showCreateTenant, setShowCreateTenant] = useState(false);
@@ -348,163 +350,140 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
   const isLoading = isLoadingTenants || isLoadingWorkspaces;
 
-  // WHY: Display full workspace name for better identification
-  // Previous: 16 chars was too aggressive, users couldn't identify workspaces
-  // Now: 30 chars with wider max-width (200px) for better visibility
-  // Tooltip still shows full name on hover for very long names
+  // WHY: CSS truncation handles overflow cleanly; JS slicing produced unpredictable
+  // ellipsis positions at different viewport sizes (audit F-WS-03).
   // @implements FEAT0861 - Display tenant+workspace context to prevent confusion
-  // @implements BR0506 - Workspace name must be identifiable
-  // WHY: Multiple tenants can have identically-named workspaces.
-  // Show "Tenant / Workspace" format to make context unambiguous.
-  const displayName = (() => {
-    if (selectedWorkspace && selectedTenant) {
-      const tenantPart = selectedTenant.name.length > 15 
-        ? selectedTenant.name.slice(0, 15) + '...' 
-        : selectedTenant.name;
-      const workspacePart = selectedWorkspace.name.length > 20 
-        ? selectedWorkspace.name.slice(0, 20) + '...' 
-        : selectedWorkspace.name;
-      return `${tenantPart} / ${workspacePart}`;
-    }
-    return selectedTenant?.name || t('tenant.selectContext', 'Select workspace');
-  })();
-  const truncatedName = displayName.length > 40 ? displayName.slice(0, 40) + '...' : displayName;
+  const displayName = selectedWorkspace && selectedTenant
+    ? `${selectedTenant.name} / ${selectedWorkspace.name}`
+    : selectedTenant?.name || t('tenant.selectContext', 'Select workspace');
 
   return (
     <>
-      <TooltipProvider delayDuration={300}>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  data-testid="workspace-selector"
-                  variant="ghost" 
-                  size="sm"
-                  className={cn(
-                    "h-8 gap-1.5 px-2.5 font-medium text-sm",
-                    "bg-muted/50 hover:bg-muted border border-border/50",
-                    "transition-all duration-150",
-                    className
-                  )}
+      <Popover open={selectorOpen} onOpenChange={setSelectorOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            data-testid="workspace-selector"
+            variant="ghost"
+            size="sm"
+            role="combobox"
+            aria-expanded={selectorOpen}
+            aria-label={`${t('workspace.select', 'Select workspace')}: ${displayName}`}
+            className={cn(
+              "h-8 gap-1.5 px-2.5 font-medium text-sm",
+              "bg-muted/50 hover:bg-muted border border-border/50",
+              "transition-all duration-150",
+              className
+            )}
+          >
+            {isLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            )}
+            <span className="max-w-50 truncate hidden sm:inline">
+              {displayName}
+            </span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+          </Button>
+        </PopoverTrigger>
+
+        <PopoverContent align="start" className="w-72 p-0" sideOffset={6}>
+          <Command>
+            <CommandInput
+              placeholder={t('workspace.searchPlaceholder', 'Search workspaces...')}
+              className="h-9"
+            />
+            <CommandList>
+              <CommandEmpty>
+                {t('workspace.noResults', 'No workspaces found.')}
+              </CommandEmpty>
+
+              {/* Organizations / Tenants */}
+              <CommandGroup heading={t('tenant.tenant', 'Organizations')}>
+                {tenants.map((tenant) => (
+                  <CommandItem
+                    key={tenant.id}
+                    value={`org:${tenant.name}`}
+                    onSelect={() => {
+                      handleTenantSelect(tenant.id);
+                      setSelectorOpen(false);
+                    }}
+                  >
+                    <Building2 className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="flex-1 truncate">{tenant.name}</span>
+                    {tenant.id === selectedTenantId && (
+                      <Check className="ml-2 h-4 w-4 text-primary" />
+                    )}
+                  </CommandItem>
+                ))}
+                <CommandItem
+                  value="create-organization"
+                  onSelect={() => {
+                    setSelectorOpen(false);
+                    setShowCreateTenant(true);
+                  }}
                 >
-                  {isLoading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                  <span className="max-w-50 truncate hidden sm:inline">
-                    {truncatedName}
-                  </span>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-72">
-                {/* Current Context */}
-                {selectedTenant && selectedWorkspace && (
-                  <>
-                    <DropdownMenuLabel className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <FolderKanban className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{selectedWorkspace.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{selectedTenant.name}</p>
-                        </div>
+                  <Plus className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  {t('tenant.createNew', 'New Organization')}
+                </CommandItem>
+              </CommandGroup>
+
+              {/* Workspaces scoped to selected tenant */}
+              {selectedTenantId && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup
+                    heading={
+                      selectedTenant
+                        ? `${t('workspace.workspace', 'Workspaces')} — ${selectedTenant.name}`
+                        : t('workspace.workspace', 'Workspaces')
+                    }
+                  >
+                    {workspaces.length === 0 && !isLoadingWorkspaces && (
+                      <div className="py-2 px-4 text-xs text-muted-foreground">
+                        {t('workspace.empty', 'No workspaces yet')}
                       </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                
-                {/* Tenant Selection */}
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">
-                    {t('tenant.tenant', 'Tenant')}
-                  </DropdownMenuLabel>
-                  {tenants.length === 0 ? (
-                    <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                      {isLoadingTenants ? 'Loading...' : 'No tenants found'}
-                    </DropdownMenuItem>
-                  ) : (
-                    tenants.map((tenant) => (
-                      <DropdownMenuItem
-                        key={tenant.id}
-                        onClick={() => handleTenantSelect(tenant.id)}
-                        className="py-2"
+                    )}
+                    {workspaces.map((workspace) => (
+                      <CommandItem
+                        key={workspace.id}
+                        value={`ws:${workspace.name} ${workspace.slug ?? ''}`}
+                        onSelect={() => {
+                          handleWorkspaceSelect(workspace.id);
+                          setSelectorOpen(false);
+                        }}
                       >
-                        <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span className="flex-1 truncate">{tenant.name}</span>
-                        {tenant.id === selectedTenantId && (
+                        <FolderKanban className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate text-sm">{workspace.name}</div>
+                          {workspace.document_count !== undefined && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {workspace.document_count} docs
+                            </div>
+                          )}
+                        </div>
+                        {workspace.id === selectedWorkspaceId && (
                           <Check className="ml-2 h-4 w-4 text-primary" />
                         )}
-                      </DropdownMenuItem>
-                    ))
-                  )}
-                  <DropdownMenuItem onClick={() => setShowCreateTenant(true)} className="py-2">
-                    <Plus className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <span>{t('tenant.createNew', 'Create New Tenant')}</span>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-
-                {/* Workspace Selection */}
-                {selectedTenantId && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">
-                        {t('workspace.workspace', 'Workspace')}
-                      </DropdownMenuLabel>
-                      {workspaces.length === 0 ? (
-                        <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                          {isLoadingWorkspaces ? 'Loading...' : 'No workspaces found'}
-                        </DropdownMenuItem>
-                      ) : (
-                        workspaces.map((workspace) => (
-                          <DropdownMenuItem
-                            key={workspace.id}
-                            onClick={() => handleWorkspaceSelect(workspace.id)}
-                            className="py-2"
-                          >
-                            <FolderKanban className="mr-2 h-4 w-4 text-muted-foreground" />
-                            <div className="flex-1 min-w-0">
-                              <div className="truncate font-medium">{workspace.name}</div>
-                              {selectedTenant && (
-                                <div className="text-[10px] text-muted-foreground truncate mt-0.5">
-                                  {selectedTenant.name}
-                                  {workspace.document_count !== undefined && ` • ${workspace.document_count} docs`}
-                                </div>
-                              )}
-                            </div>
-                            {workspace.id === selectedWorkspaceId && (
-                              <Check className="ml-2 h-4 w-4 text-primary" />
-                            )}
-                          </DropdownMenuItem>
-                        ))
-                      )}
-                      <DropdownMenuItem onClick={() => handleOpenCreateWorkspace()} className="py-2">
-                        <Plus className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span>{t('workspace.createNew', 'Create New Workspace')}</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" sideOffset={8}>
-            {selectedTenant && selectedWorkspace ? (
-              <div className="text-xs">
-                <p className="font-medium">{selectedWorkspace.name}</p>
-                <p className="text-muted-foreground">{selectedTenant.name}</p>
-              </div>
-            ) : (
-              <p>{t('tenant.selectContext', 'Select workspace')}</p>
-            )}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+                      </CommandItem>
+                    ))}
+                    <CommandItem
+                      value="create-workspace"
+                      onSelect={() => {
+                        setSelectorOpen(false);
+                        handleOpenCreateWorkspace();
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      {t('workspace.createNew', 'New Workspace')}
+                    </CommandItem>
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       {/* Create Tenant Dialog */}
       <Dialog open={showCreateTenant} onOpenChange={setShowCreateTenant}>

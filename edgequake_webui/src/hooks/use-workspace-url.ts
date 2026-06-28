@@ -21,7 +21,6 @@ import { useTenantStore } from "@/stores/use-tenant-store";
 import type { Workspace } from "@/types";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
-
 /**
  * Hook to synchronize workspace context with URL.
  *
@@ -44,7 +43,9 @@ export function useWorkspaceUrl() {
     selectedTenantId,
     selectedWorkspaceId,
     workspaces,
+    tenants,
     selectWorkspace,
+    selectTenant,
     setWorkspaces,
   } = useTenantStore();
 
@@ -53,10 +54,11 @@ export function useWorkspaceUrl() {
   // Track last known slug to avoid redundant updates
   const lastSlugRef = useRef<string | null>(null);
 
-  // Get current workspace object
+  // Get current workspace and tenant objects
   const selectedWorkspace = workspaces.find(
     (w) => w.id === selectedWorkspaceId
   );
+  const selectedTenant = tenants.find((t) => t.id === selectedTenantId);
 
   /**
    * Resolve workspace slug to workspace ID
@@ -82,7 +84,8 @@ export function useWorkspaceUrl() {
   );
 
   /**
-   * Update URL to reflect current workspace
+   * Update URL to reflect current workspace and tenant.
+   * Writes ?tenant=<slug>&workspace=<slug> for deeplink support (audit F-WS-02).
    */
   const updateUrlWithWorkspace = useCallback(
     (workspace: Workspace | null) => {
@@ -93,9 +96,21 @@ export function useWorkspaceUrl() {
 
       lastSlugRef.current = slug;
 
-      // Create new URL with workspace param
+      // Create new URL with workspace (and optionally tenant) params
       const params = new URLSearchParams(searchParams.toString());
       params.set("workspace", slug);
+
+      // Add tenant slug for full deeplink support
+      const tenantSlug = selectedTenant?.slug;
+      if (tenantSlug) {
+        params.set("tenant", tenantSlug);
+      } else if (selectedTenant?.name) {
+        // Derive a slug from name if no explicit slug exists
+        params.set(
+          "tenant",
+          selectedTenant.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+        );
+      }
 
       // Use replaceState to avoid adding history entries for every workspace switch
       const newUrl = `${pathname}?${params.toString()}`;
@@ -105,19 +120,32 @@ export function useWorkspaceUrl() {
   );
 
   /**
-   * Initialize from URL on first load
+   * Initialize from URL on first load.
+   * Reads ?tenant= and ?workspace= params to restore context from a shared deeplink.
    */
   useEffect(() => {
     if (hasInitializedRef.current) return;
     if (!selectedTenantId) return;
 
-    const workspaceSlug = searchParams.get("workspace");
-    if (!workspaceSlug) {
-      hasInitializedRef.current = true;
-      return;
+    hasInitializedRef.current = true;
+
+    // Resolve tenant from URL (F-WS-02: deeplink support)
+    const tenantSlugFromUrl = searchParams.get("tenant");
+    if (tenantSlugFromUrl && tenants.length > 0) {
+      const matchingTenant = tenants.find(
+        (t) =>
+          t.slug === tenantSlugFromUrl ||
+          t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === tenantSlugFromUrl
+      );
+      if (matchingTenant && matchingTenant.id !== selectedTenantId) {
+        selectTenant(matchingTenant.id);
+      }
     }
 
-    hasInitializedRef.current = true;
+    const workspaceSlug = searchParams.get("workspace");
+    if (!workspaceSlug) {
+      return;
+    }
 
     // Resolve slug to workspace and select it
     (async () => {
@@ -143,17 +171,19 @@ export function useWorkspaceUrl() {
     })();
   }, [
     selectedTenantId,
+    tenants,
     searchParams,
     pathname,
     router,
     resolveSlugToWorkspace,
     selectWorkspace,
+    selectTenant,
     workspaces,
     setWorkspaces,
   ]);
 
   /**
-   * Update URL when workspace changes (after initial load)
+   * Update URL when workspace or tenant changes (after initial load)
    */
   useEffect(() => {
     // Skip if we're still initializing from URL
@@ -161,7 +191,7 @@ export function useWorkspaceUrl() {
     if (!selectedWorkspace) return;
 
     updateUrlWithWorkspace(selectedWorkspace);
-  }, [selectedWorkspace, updateUrlWithWorkspace]);
+  }, [selectedWorkspace, selectedTenant, updateUrlWithWorkspace]);
 
   return {
     currentWorkspaceSlug: selectedWorkspace?.slug ?? null,
