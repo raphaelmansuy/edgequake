@@ -252,6 +252,8 @@ pub async fn stream_query(
     let state_clone = state.clone();
     let stream_mode = query_mode_label.clone();
     let stream_request_id = request_id.clone();
+    let stream_include_subgraph = request.include_subgraph;
+    let stream_use_v3 = use_v3;
 
     let spawn_provider = used_provider
         .clone()
@@ -307,19 +309,37 @@ pub async fn stream_query(
                         .await;
 
                     // SPEC-006 FR-001: Emit context event BEFORE tokens
-                    let bundle = if use_v3 {
+                    let mapping_opts = crate::services::context_bundle_mapper::MappingOptions {
+                        granularity: crate::handlers::context_types::ContentGranularity::Citation,
+                        include_lineage: true,
+                        include_documents: false,
+                        include_agent_hints: false,
+                        include_subgraph: stream_include_subgraph,
+                        rerank_top_k: None,
+                        reranked: false,
+                    };
+                    let bundle = if stream_use_v3 {
                         Some(crate::services::context_bundle_mapper::map_query_context_to_bundle(
                             &context,
-                            &crate::services::context_bundle_mapper::MappingOptions::default(),
+                            &mapping_opts,
                             &std::collections::HashMap::new(),
                         ))
                     } else {
                         None
                     };
+                    let subgraph = if stream_use_v3 || !stream_include_subgraph {
+                        None
+                    } else {
+                        Some(crate::services::context_bundle_mapper::map_query_context_to_subgraph(
+                            &context,
+                            &mapping_opts,
+                        ))
+                    };
                     let context_event = QueryStreamEvent::Context {
                         sources,
                         query_mode: used_mode.to_string(),
                         retrieval_time_ms,
+                        subgraph,
                         bundle,
                     };
                     if tx.send(context_event).await.is_err() {

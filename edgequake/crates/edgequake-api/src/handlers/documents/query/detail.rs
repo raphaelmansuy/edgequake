@@ -1,11 +1,13 @@
 //! Get single document detail handler.
 
 use axum::{extract::State, Json};
+use serde_json::Value;
 use tracing::debug;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::services::document_body_loader::load_document_body;
 use crate::services::tenant_isolation::PgIsolationScope;
 use crate::state::{ApiSecurityConfig, PostgresRuntime, StorageRuntime};
 
@@ -99,56 +101,11 @@ pub async fn get_document(
         }
     }
 
-    // Fetch document content (KV); PDF markdown may live only in pdf_documents.
-    let content_key = format!("{}-content", document_id);
-    let content_values = storage.kv_storage.get_by_ids(&[content_key]).await?;
-    let kv_content = content_values.into_iter().next().and_then(|v| {
-        v.get("content")
-            .and_then(|c| c.as_str())
-            .or_else(|| v.get("text").and_then(|c| c.as_str()))
-            .map(|s| s.to_string())
-            .filter(|s| !s.is_empty())
-    });
-
-    // Hydrate PDF markdown when KV content is missing (PDF pipeline stores markdown in pdf_documents).
-    let content = if kv_content.is_some() {
-        kv_content
-    } else if let Some(obj) = meta_obj {
-        let is_pdf = obj
-            .get("source_type")
-            .and_then(|v| v.as_str())
-            .is_some_and(|s| s == "pdf");
-        if !is_pdf {
-            None
-        } else {
-            #[cfg(feature = "postgres")]
-            {
-                if let Some(pdf_id_str) = obj.get("pdf_id").and_then(|v| v.as_str()) {
-                    if let Ok(pdf_uuid) = Uuid::parse_str(pdf_id_str) {
-                        if let Some(ref pdf_storage) = storage.pdf_storage {
-                            if let Ok(Some(pdf)) = pdf_storage.get_pdf(&pdf_uuid).await {
-                                pdf.markdown_content.filter(|s| !s.trim().is_empty())
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            #[cfg(not(feature = "postgres"))]
-            {
-                None
-            }
-        }
-    } else {
-        None
-    };
+    // Fetch document content via SSOT loader (KV first, then PDF pipeline markdown).
+    let metadata_value = metadata.clone().unwrap_or(Value::Object(Default::default()));
+    let content = load_document_body(&storage, &document_id, &metadata_value)
+        .await
+        .map(|b| b.markdown);
 
     // SPEC-040: Async fallback PDF vision model lookup for backward compatibility.
     // WHY: Documents processed before pdf_vision_model was written to KV metadata JSON

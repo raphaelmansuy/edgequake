@@ -61,7 +61,17 @@ fn edgequake_search_tool() -> Value {
                             "title": { "type": "string" },
                             "snippet": { "type": "string" },
                             "url": { "type": "string" },
-                            "score": { "type": "number" }
+                            "score": { "type": "number" },
+                            "metadata": {
+                                "type": "object",
+                                "description": "Graph preview: entity/relationship counts and top matches",
+                                "properties": {
+                                    "entity_count": { "type": "integer" },
+                                    "relationship_count": { "type": "integer" },
+                                    "top_entities": { "type": "array" },
+                                    "top_relationships": { "type": "array" }
+                                }
+                            }
                         }
                     }
                 }
@@ -79,7 +89,7 @@ fn edgequake_search_tool() -> Value {
 fn edgequake_fetch_tool() -> Value {
     json!({
         "name": "edgequake_fetch",
-        "description": "Fetch full ContextBundle for a retrieval_id from edgequake_search.",
+        "description": "Fetch full ContextBundle (chunks + subgraph entities/relationships + documents) for a retrieval_id from edgequake_search.",
         "inputSchema": {
             "type": "object",
             "required": ["retrieval_id"],
@@ -89,6 +99,32 @@ fn edgequake_fetch_tool() -> Value {
                     "type": "string",
                     "enum": ["citation", "agent", "debug"],
                     "default": "agent"
+                },
+                "include_subgraph": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include bundle.subgraph (entities + relationships). Set false for chunks-only payload."
+                }
+            }
+        },
+        "outputSchema": {
+            "type": "object",
+            "required": ["retrieval_id", "bundle"],
+            "properties": {
+                "retrieval_id": { "type": "string" },
+                "bundle": {
+                    "type": "object",
+                    "properties": {
+                        "subgraph": {
+                            "type": "object",
+                            "properties": {
+                                "entities": { "type": "array" },
+                                "relationships": { "type": "array" }
+                            }
+                        },
+                        "chunks": { "type": "array" },
+                        "documents": { "type": "array" }
+                    }
                 }
             }
         },
@@ -112,6 +148,7 @@ fn edgequake_retrieve_tool() -> Value {
                 "query": { "type": "string" },
                 "mode": { "type": "string", "enum": ["naive", "local", "global", "hybrid", "mix"] },
                 "content_granularity": { "type": "string", "enum": ["citation", "agent", "debug"], "default": "agent" },
+                "include_subgraph": { "type": "boolean", "default": true },
                 "max_results": { "type": "integer" },
                 "workspace_id": { "type": "string", "x-mcp-header": "Workspace-Id" },
                 "enable_rerank": { "type": "boolean", "default": true }

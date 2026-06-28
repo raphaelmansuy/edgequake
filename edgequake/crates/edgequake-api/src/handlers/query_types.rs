@@ -15,6 +15,10 @@ pub fn default_enable_rerank() -> bool {
     true
 }
 
+fn default_include_subgraph() -> bool {
+    true
+}
+
 // ============================================================================
 // Request DTOs
 // ============================================================================
@@ -101,6 +105,10 @@ pub struct QueryRequest {
     /// Include detailed reference metadata (document_id, file_path, reference_id) in sources.
     #[serde(default)]
     pub include_references: bool,
+
+    /// Include structured query-matched graph (entities + relationships) in the response.
+    #[serde(default = "default_include_subgraph")]
+    pub include_subgraph: bool,
 
     /// Maximum number of results.
     #[serde(default)]
@@ -213,6 +221,10 @@ pub struct StreamQueryRequest {
     /// LLM API on streaming queries. Same semantics as `QueryRequest.extra_headers`.
     #[serde(default)]
     pub extra_headers: Option<std::collections::HashMap<String, String>>,
+
+    /// Include structured query-matched graph in stream context events (v2+).
+    #[serde(default = "default_include_subgraph")]
+    pub include_subgraph: bool,
 }
 
 // ============================================================================
@@ -230,6 +242,9 @@ pub enum QueryStreamEvent {
         sources: Vec<SourceReference>,
         query_mode: String,
         retrieval_time_ms: u64,
+        /// SPEC-028 FP-028-09: structured graph on v2 stream (when bundle absent).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        subgraph: Option<crate::handlers::context_types::SubgraphBundle>,
         /// SPEC-028: Full structured bundle (stream_format=v3 only).
         #[serde(skip_serializing_if = "Option::is_none")]
         bundle: Option<crate::handlers::context_types::ContextBundle>,
@@ -300,6 +315,10 @@ pub struct QueryResponse {
 
     /// Retrieved context sources.
     pub sources: Vec<SourceReference>,
+
+    /// Query-matched knowledge graph (entities + relationships).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subgraph: Option<crate::handlers::context_types::SubgraphBundle>,
 
     /// Query statistics.
     pub stats: QueryStats,
@@ -561,6 +580,7 @@ mod tests {
             answer: "RAG is Retrieval Augmented Generation".to_string(),
             mode: "hybrid".to_string(),
             sources: vec![],
+            subgraph: None,
             stats: QueryStats {
                 embedding_time_ms: 10,
                 retrieval_time_ms: 20,

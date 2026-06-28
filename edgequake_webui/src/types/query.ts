@@ -1,4 +1,6 @@
-/** Query request/response and streaming types (backend QueryMode parity). */
+import type { SubgraphBundle } from "@/lib/utils/subgraph-types";
+
+export type { SubgraphBundle } from "@/lib/utils/subgraph-types";
 
 export type QueryMode =
   | "local"
@@ -107,10 +109,15 @@ export interface QueryContext {
 
 export interface QueryResponse {
   answer: string;
-  context: QueryContext;
   mode: QueryMode;
-  tokens_used: number;
-  duration_ms: number;
+  sources?: import("@/lib/api/chat").SourceReference[];
+  /** Structured query-matched graph (SPEC-028). */
+  subgraph?: SubgraphBundle;
+  /** @deprecated Legacy nested context — prefer sources + subgraph */
+  context?: QueryContext;
+  stats?: QueryStreamStats;
+  conversation_id?: string;
+  reranked?: boolean;
 }
 
 export interface QueryStreamChunk {
@@ -126,6 +133,8 @@ export interface QueryStreamChunk {
   llm_model?: string;
   /** SPEC-006: Structured sources in context event */
   sources?: import("@/lib/api/chat").SourceReference[];
+  /** SPEC-028: Structured subgraph (entities + relationships) */
+  subgraph?: SubgraphBundle;
   /** SPEC-006: Query mode from context event */
   query_mode?: string;
   /** SPEC-006: Retrieval time from context event */

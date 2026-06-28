@@ -14,16 +14,16 @@ use tracing::debug;
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::context_types::{
     ContentGranularity, ContextRetrievalRequest, ContextRetrievalResponse, ContextSearchRequest,
-    ContextSearchResponse, ContextSearchResult, ModeSelection,
+    ContextSearchResponse, ContextSearchResult, ModeSelection, SubgraphBundle,
 };
 use crate::handlers::query::resolve_query_workspace;
 use crate::handlers::query_types::{MixWeightRequest, QueryResponse as LegacyQueryResponse, QueryStats, SourceReference};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::context_bundle_mapper::{
-    build_agent_hints, build_retrieval_stats, build_truncation_info,
-    compute_retrieval_fingerprint, compute_retrieval_quality, map_engine_response_to_bundle,
-    DocumentMeta, MappingOptions,
+    build_agent_hints, build_retrieval_stats, build_search_graph_metadata,
+    build_truncation_info, compute_retrieval_fingerprint, compute_retrieval_quality,
+    map_engine_response_to_bundle, map_query_context_to_subgraph, DocumentMeta, MappingOptions,
 };
 use crate::services::query_execution::{
     execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
@@ -192,6 +192,7 @@ fn build_context_response(
         include_lineage: request.include_lineage,
         include_documents: request.include_documents,
         include_agent_hints: request.include_agent_hints,
+        include_subgraph: request.include_subgraph,
         rerank_top_k: request.rerank_top_k,
         reranked: run.reranked,
     };
@@ -293,6 +294,7 @@ pub async fn search_context(
         include_lineage: true,
         include_documents: true,
         include_agent_hints: false,
+        include_subgraph: true,
     };
 
     let response = retrieve_context(state, tenant_ctx, full_request, llm_override).await?;
@@ -330,18 +332,30 @@ pub async fn search_context(
                 workspace, response.retrieval_id
             ),
             score: response.retrieval_quality.coverage_score,
-            metadata: Some(serde_json::json!({
-                "mode": response.mode,
-                "entity_count": response.bundle.subgraph.entities.len(),
-                "chunk_count": response.bundle.chunks.len(),
-            })),
+            metadata: Some(build_search_graph_metadata(&response.bundle, &response.mode)),
         }],
     })
 }
 
+/// Options when fetching a cached retrieval (REST + MCP SSOT).
+#[derive(Debug, Clone, Copy)]
+pub struct FetchContextOptions {
+    pub granularity: ContentGranularity,
+    pub include_subgraph: bool,
+}
+
+impl Default for FetchContextOptions {
+    fn default() -> Self {
+        Self {
+            granularity: ContentGranularity::Agent,
+            include_subgraph: true,
+        }
+    }
+}
+
 pub fn fetch_context_by_id(
     retrieval_id: &str,
-    _granularity: ContentGranularity,
+    options: FetchContextOptions,
 ) -> ApiResult<ContextRetrievalResponse> {
     if !retrieval_id.starts_with("ret_") {
         return Err(ApiError::BadRequest("Invalid retrieval_id".into()));
@@ -357,6 +371,9 @@ pub fn fetch_context_by_id(
 
     debug!(retrieval_id, "fetch returning cached bundle");
     response.cached = true;
+    if !options.include_subgraph {
+        response.bundle.subgraph = SubgraphBundle::default();
+    }
     Ok(response)
 }
 
@@ -404,6 +421,29 @@ pub fn resolve_keyword_llm_override(
     }
 }
 
+pub fn build_query_response_subgraph(
+    result: &QueryResponse,
+    include_subgraph: bool,
+    rerank_top_k: Option<usize>,
+    reranked: bool,
+) -> Option<crate::handlers::context_types::SubgraphBundle> {
+    if !include_subgraph {
+        return None;
+    }
+    Some(map_query_context_to_subgraph(
+        &result.context,
+        &MappingOptions {
+            granularity: ContentGranularity::Citation,
+            include_lineage: true,
+            include_documents: false,
+            include_agent_hints: false,
+            include_subgraph: true,
+            rerank_top_k,
+            reranked,
+        },
+    ))
+}
+
 pub fn build_legacy_query_response(
     result: QueryResponse,
     sources: Vec<SourceReference>,
@@ -411,6 +451,8 @@ pub fn build_legacy_query_response(
     reranked: bool,
     llm_provider: Option<String>,
     llm_model: Option<String>,
+    include_subgraph: bool,
+    rerank_top_k: Option<usize>,
 ) -> LegacyQueryResponse {
     let tokens_used = if result.stats.generated_tokens > 0 {
         Some(result.stats.generated_tokens)
@@ -428,10 +470,13 @@ pub fn build_legacy_query_response(
             None
         };
 
+    let subgraph = build_query_response_subgraph(&result, include_subgraph, rerank_top_k, reranked);
+
     LegacyQueryResponse {
         answer: result.answer,
         mode: result.mode.to_string(),
         sources,
+        subgraph,
         stats: QueryStats {
             embedding_time_ms: result.stats.embedding_time_ms,
             retrieval_time_ms: result.stats.retrieval_time_ms,

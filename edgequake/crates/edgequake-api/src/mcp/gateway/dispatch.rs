@@ -15,6 +15,7 @@ use crate::handlers::context_types::{
 use crate::middleware::TenantContext;
 use crate::services::query_context::{
     fetch_context_by_id, resolve_keyword_llm_override, retrieve_context, search_context,
+    FetchContextOptions,
 };
 use crate::state::AppState;
 
@@ -192,7 +193,17 @@ async fn execute_tool(
                 .and_then(|v| v.as_str())
                 .map(parse_granularity)
                 .unwrap_or(ContentGranularity::Agent);
-            let resp = fetch_context_by_id(retrieval_id, granularity)?;
+            let include_subgraph = arguments
+                .get("include_subgraph")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            let resp = fetch_context_by_id(
+                retrieval_id,
+                FetchContextOptions {
+                    granularity,
+                    include_subgraph,
+                },
+            )?;
             Ok(serde_json::to_value(resp).unwrap())
         }
         "edgequake_retrieve" => {

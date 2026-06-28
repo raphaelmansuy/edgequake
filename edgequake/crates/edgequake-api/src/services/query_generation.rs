@@ -42,6 +42,7 @@ pub async fn execute_legacy_query_response(
     params: QueryExecutionParams,
     llm_override: Option<Arc<dyn LLMProvider>>,
     include_references: bool,
+    include_subgraph: bool,
     conversation_id: Option<String>,
     llm_provider: Option<String>,
     llm_model: Option<String>,
@@ -65,6 +66,8 @@ pub async fn execute_legacy_query_response(
         reranked,
         llm_provider,
         llm_model,
+        include_subgraph,
+        params.rerank_top_k,
     ))
 }
 

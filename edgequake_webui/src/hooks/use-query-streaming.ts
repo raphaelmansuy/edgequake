@@ -16,7 +16,7 @@ import {
   createStreamAccumulator,
 } from "@/lib/query/stream-accumulator";
 import { isLlmProviderAuthFailure } from "@/lib/query-model-selection";
-import { mapSourcesToContext } from "@/lib/utils/source-mapper";
+import { buildQueryContextFromRetrieval } from "@/lib/utils/source-mapper";
 import { generateUUID } from "@/lib/utils/uuid";
 import type { useQueryUIStore } from "@/stores/use-query-ui-store";
 import type { useSettingsStore } from "@/stores/use-settings-store";
@@ -119,10 +119,10 @@ export function useQueryStreaming({
               break;
 
             case "context":
-              if ("sources" in chunk && chunk.sources) {
+              if (chunk.sources?.length) {
                 accumulator = applyStreamContext(
                   accumulator,
-                  mapSourcesToContext(chunk.sources),
+                  buildQueryContextFromRetrieval(chunk.sources, chunk.subgraph),
                 );
               }
               break;

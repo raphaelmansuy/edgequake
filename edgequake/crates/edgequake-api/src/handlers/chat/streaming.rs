@@ -18,7 +18,9 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
+use crate::handlers::context_types::ContentGranularity;
 use crate::services::{
+    build_message_context_from_engine, context_bundle_mapper::{map_query_context_to_subgraph, MappingOptions},
     execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
 };
 use crate::state::AppState;
@@ -32,7 +34,7 @@ use edgequake_query::QueryRequest as EngineQueryRequest;
 
 use super::{
     build_sources, enrich_query_with_language, parse_mode, parse_query_mode,
-    sources_to_message_context, ChatCompletionRequest, ChatStreamEvent,
+    ChatCompletionRequest, ChatStreamEvent,
 };
 
 /// Execute a streaming chat completion.
@@ -419,15 +421,28 @@ pub async fn chat_completion_stream(
                     .await;
 
                 // Save message context for later persistence
-                saved_message_context = Some(sources_to_message_context(&sources));
+                saved_message_context = Some(build_message_context_from_engine(&context, &sources));
 
                 let retrieval_elapsed_ms = retrieval_start.elapsed().as_millis() as u64;
 
                 if !sources.is_empty() {
+                    let subgraph = Some(map_query_context_to_subgraph(
+                        &context,
+                        &MappingOptions {
+                            granularity: ContentGranularity::Citation,
+                            include_lineage: true,
+                            include_documents: false,
+                            include_agent_hints: false,
+                            include_subgraph: true,
+                            rerank_top_k: None,
+                            reranked: false,
+                        },
+                    ));
                     let context_event = ChatStreamEvent::Context {
                         sources: sources.clone(),
                         query_mode: Some(used_mode.to_string()),
                         retrieval_time_ms: Some(retrieval_elapsed_ms),
+                        subgraph,
                     };
                     if tx.send(context_event).await.is_err() {
                         ErrorEvent::log_stream_disconnect(

@@ -20,7 +20,9 @@
  */
 
 import { apiClient, streamClient } from "./client";
-import type { DocumentFilter, QueryMode } from "@/types";
+import { buildQueryContextFromRetrieval } from "@/lib/utils/source-mapper";
+import type { SubgraphBundle } from "@/lib/utils/subgraph-types";
+import type { DocumentFilter, QueryContext, QueryMode } from "@/types";
 
 // ============================================================================
 // Types
@@ -158,6 +160,8 @@ export type ChatStreamEvent =
   | {
       type: "context";
       sources: SourceReference[];
+      /** Structured query-matched graph (SPEC-028). */
+      subgraph?: SubgraphBundle;
       /** Query mode used for retrieval. @implements SPEC-006 */
       query_mode?: string;
       /** Retrieval time in milliseconds. @implements SPEC-006 */
@@ -268,6 +272,10 @@ export interface StreamingState {
   assistantMessageId?: string;
   /** Context sources (if received) */
   sources?: SourceReference[];
+  /** Structured subgraph from context event (SPEC-028). */
+  subgraph?: SubgraphBundle;
+  /** UI-ready context built from sources + subgraph. */
+  queryContext?: QueryContext;
   /** Query mode used for retrieval. @implements SPEC-006 */
   queryMode?: string;
   /** Retrieval time in ms. @implements SPEC-006 */
@@ -304,6 +312,11 @@ export function reduceStreamingEvent(
       return {
         ...currentState,
         sources: event.sources,
+        subgraph: event.subgraph,
+        queryContext: buildQueryContextFromRetrieval(
+          event.sources,
+          event.subgraph,
+        ),
         queryMode: event.query_mode,
         retrievalTimeMs: event.retrieval_time_ms,
       };

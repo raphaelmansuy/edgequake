@@ -174,6 +174,7 @@ pub enum ChatStreamEvent {
 
     /// Context/sources retrieved.
     /// @implements SPEC-006: Enriched context event with query mode and timing
+    /// @implements SPEC-028 FP-028-09: Structured subgraph for WebUI/agents
     Context {
         sources: Vec<SourceReference>,
         /// Query mode used for retrieval (e.g., "hybrid", "local", "global").
@@ -182,6 +183,9 @@ pub enum ChatStreamEvent {
         /// Time taken for retrieval in milliseconds.
         #[serde(skip_serializing_if = "Option::is_none")]
         retrieval_time_ms: Option<u64>,
+        /// Query-matched knowledge graph (entities + relationships).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        subgraph: Option<crate::handlers::context_types::SubgraphBundle>,
     },
 
     /// Token generated during streaming.

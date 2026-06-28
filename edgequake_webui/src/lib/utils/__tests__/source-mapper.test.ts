@@ -4,7 +4,15 @@
 
 import type { SourceReference } from "@/lib/api/chat";
 import { describe, expect, it } from "vitest";
-import { hasContextContent, mapSourcesToContext } from "../source-mapper";
+import {
+  buildQueryContextFromRetrieval,
+  buildQueryContextFromStreamChunk,
+  hasContextContent,
+  mapServerMessageContextToQueryContext,
+  mapSourcesToContext,
+  mapSubgraphToQueryContext,
+} from "../source-mapper";
+import type { SubgraphBundle } from "../subgraph-types";
 
 describe("mapSourcesToContext", () => {
   it("should return empty context for empty sources array", () => {
@@ -168,6 +176,138 @@ describe("mapSourcesToContext", () => {
 
     expect(result.entities[0].source_document_id).toBeUndefined();
     expect(result.entities[0].source_file_path).toBeUndefined();
+  });
+});
+
+describe("buildQueryContextFromRetrieval with subgraph", () => {
+  const subgraph: SubgraphBundle = {
+    entities: [
+      {
+        id: "ent:EDGEQUAKE",
+        name: "EDGEQUAKE",
+        entity_type: "TECHNOLOGY",
+        description: "RAG framework",
+        score: 0.91,
+        degree: 5,
+        lineage: {
+          source_document_id: "doc-1",
+          source_file_path: "spec.md",
+          source_chunk_ids: ["chk-1"],
+        },
+      },
+    ],
+    relationships: [
+      {
+        id: "rel:EDGEQUAKE:IMPLEMENTS:LIGHT_RAG",
+        source: "EDGEQUAKE",
+        target: "LIGHT_RAG",
+        relation_type: "IMPLEMENTS",
+        description: "implements LightRAG",
+        score: 0.87,
+        lineage: {
+          source_document_id: "doc-1",
+          source_file_path: "spec.md",
+        },
+      },
+    ],
+  };
+
+  it("prefers subgraph entities over flat source parsing", () => {
+    const sources: SourceReference[] = [
+      {
+        source_type: "chunk",
+        id: "doc-1-chunk-0",
+        score: 0.9,
+        snippet: "chunk text",
+        document_id: "doc-1",
+      },
+      {
+        source_type: "entity",
+        id: "WRONG_FLAT_NAME",
+        score: 0.1,
+      },
+    ];
+
+    const result = buildQueryContextFromRetrieval(sources, subgraph);
+
+    expect(result.entities).toHaveLength(1);
+    expect(result.entities[0].label).toBe("EDGEQUAKE");
+    expect(result.entities[0].entity_type).toBe("TECHNOLOGY");
+    expect(result.entities[0].degree).toBe(5);
+    expect(result.relationships[0].type).toBe("IMPLEMENTS");
+    expect(result.relationships[0].target).toBe("LIGHT_RAG");
+  });
+
+  it("mapSubgraphToQueryContext preserves relation_type without snippet parsing", () => {
+    const graph = mapSubgraphToQueryContext(subgraph);
+    expect(graph.relationships[0].type).toBe("IMPLEMENTS");
+  });
+});
+
+describe("mapServerMessageContextToQueryContext", () => {
+  it("maps persisted message context with entity types", () => {
+    const result = mapServerMessageContextToQueryContext({
+      sources: [
+        {
+          id: "doc-uuid-chunk-3",
+          content: "chunk text",
+          score: 0.9,
+          source_type: "chunk",
+          title: "report.pdf",
+        },
+      ],
+      entities: [{ name: "ENTITY_A", entity_type: "PERSON", score: 1 }],
+      relationships: [
+        {
+          source: "A",
+          target: "B",
+          relation_type: "WORKS_AT",
+          score: 0.8,
+        },
+      ],
+    });
+
+    expect(result.chunks[0].document_id).toBe("doc-uuid");
+    expect(result.entities[0].entity_type).toBe("PERSON");
+    expect(result.relationships[0].type).toBe("WORKS_AT");
+  });
+});
+
+describe("buildQueryContextFromStreamChunk", () => {
+  it("prefers sources + subgraph over legacy nested context", () => {
+    const subgraph: SubgraphBundle = {
+      entities: [
+        {
+          id: "e1",
+          name: "FROM_SUBGRAPH",
+          entity_type: "ORG",
+          description: "",
+          score: 1,
+          degree: 2,
+        },
+      ],
+      relationships: [],
+    };
+
+    const result = buildQueryContextFromStreamChunk({
+      sources: [
+        {
+          source_type: "chunk",
+          id: "d1-chunk-0",
+          score: 0.5,
+          snippet: "text",
+          document_id: "d1",
+        },
+      ],
+      subgraph,
+      context: {
+        chunks: [],
+        entities: [{ id: "legacy", label: "LEGACY", relevance: 1 }],
+        relationships: [],
+      },
+    });
+
+    expect(result?.entities[0].label).toBe("FROM_SUBGRAPH");
   });
 });
 

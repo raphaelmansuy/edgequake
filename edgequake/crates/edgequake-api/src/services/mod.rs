@@ -43,7 +43,10 @@ pub mod query_execution;
 pub mod query_context;
 pub mod query_generation;
 pub mod query_request_builder;
+pub mod artifact_retrieval;
 pub mod context_bundle_mapper;
+pub mod message_context_mapper;
+pub mod document_body_loader;
 pub mod retrieval_id_cache;
 pub mod source_reference_builder;
 pub mod route_registry;
@@ -136,12 +139,15 @@ pub use query_execution::{
 };
 pub use query_context::{
     build_legacy_query_response, build_legacy_query_sources, fetch_context_by_id,
-    retrieve_context, search_context,
+    retrieve_context, search_context, FetchContextOptions,
 };
 pub use retrieval_id_cache::{global_retrieval_cache, new_retrieval_id, RetrievalIdCache};
 pub use source_reference_builder::{build_sources_from_context, is_injection_source};
 pub use query_generation::{execute_full_query, execute_legacy_query_response};
 pub use query_request_builder::{build_engine_request, QueryExecutionParams};
+pub use message_context_mapper::{
+    build_message_context_from_engine, message_context_from_subgraph,
+};
 pub use staging_admission::{promote_staging_to_final, rollback_staging};
 pub use text_insert_content::{
     patch_document_metadata, resolve_document_metadata_key, resolve_text_insert_content,
