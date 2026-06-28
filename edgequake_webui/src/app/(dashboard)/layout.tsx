@@ -37,13 +37,10 @@ export default function DashboardLayout({
         </Suspense>
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
-          {/* Backend-not-ready banner: surfaces transport failures without
-              crashing the dashboard (SPEC-021 stabilization). */}
+          {/* Backend-not-ready banner: fixed overlay, no layout shift (ES-01) */}
           <BackendStatusBanner />
-          {/* Breadcrumb Navigation - compact */}
-          <div className="border-b px-4 py-2 bg-muted/20">
-            <DynamicBreadcrumb />
-          </div>
+          {/* Breadcrumb: renders its own container; null at depth ≤ 1 (no empty space) */}
+          <DynamicBreadcrumb />
           {/* Main content area - each page controls its own scrolling.
               Error boundary isolates render failures (e.g., undefined stats
               fields when the API is unreachable) to this subtree. */}

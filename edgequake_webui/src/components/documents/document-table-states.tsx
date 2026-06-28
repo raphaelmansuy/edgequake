@@ -34,14 +34,21 @@ export interface DocumentTableStatesProps {
 
 /**
  * Loading skeleton matching table structure
+ * LS-01: aria-busy + aria-label so screen readers announce loading state.
  */
 function LoadingSkeleton({ rowCount = 5 }: { rowCount?: number }) {
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading documents..."
+      className="border rounded-lg overflow-hidden"
+    >
       {[...Array(rowCount)].map((_, i) => (
         <div
           key={i}
           className="flex items-center gap-4 px-4 py-3 border-b last:border-b-0 animate-pulse"
+          aria-hidden="true"
         >
           <Skeleton className="h-4 w-4 shrink-0 rounded" />
           <Skeleton className="h-4 w-48 shrink-0" />

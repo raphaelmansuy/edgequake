@@ -47,39 +47,28 @@ export function BackendStatusBanner() {
   const isMisconfigured = state === 'misconfigured';
 
   return (
+    /* ES-01: rendered as fixed overlay so it NEVER causes a layout shift (CLS).
+     * WHY: Previously rendered inline between breadcrumb and main — every
+     * appearance/disappearance shifted the entire content area down/up.
+     * Fixed top anchors it to the visual top without affecting document flow. */
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 px-4 py-2 text-sm text-amber-800 dark:text-amber-200"
+      className="fixed top-12 left-0 right-0 z-50 flex items-center gap-2 border-b border-amber-200 bg-amber-50/95 dark:border-amber-900/50 dark:bg-amber-950/90 backdrop-blur-sm px-4 py-2 text-sm text-amber-800 dark:text-amber-200 shadow-sm"
     >
       <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+      {/* ES-02: user-friendly language; developer details in tooltip/title only */}
       <span className="flex-1">
         {isMisconfigured
-          ? t(
-              'common.backendWrongPort',
-              'Port 8080 is used by another service. Start EdgeQuake with make dev (backend runs on :8081 when :8080 is busy).',
-            )
+          ? t('common.backendWrongPort', 'EdgeQuake is starting up on a different port. Please refresh in a moment.')
           : isUnreachable
-          ? t(
-              'common.backendNotReady',
-              'EdgeQuake backend is not reachable. Start it with make backend-bg or make dev, then refresh.',
-            )
-          : t(
-              'common.backendBusy',
-              'EdgeQuake is busy processing documents. Counts may update slowly until ingestion catches up.',
-            )}
+          ? t('common.backendNotReady', 'EdgeQuake is not available right now. Please check that the server is running.')
+          : t('common.backendBusy', 'Processing documents — some counts may be temporarily out of date.')}
       </span>
-      <Loader2
-        className="h-3 w-3 animate-spin opacity-70"
-        aria-hidden="true"
-      />
+      <Loader2 className="h-3 w-3 animate-spin opacity-70" aria-hidden="true" />
       <button
         type="button"
-        onClick={() => {
-          if (typeof window !== 'undefined') {
-            window.location.reload();
-          }
-        }}
+        onClick={() => typeof window !== 'undefined' && window.location.reload()}
         className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
         aria-label={t('common.retry', 'Retry connection')}
       >

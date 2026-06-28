@@ -52,107 +52,77 @@ export function SystemStatus() {
 
   const isConnected = !isError && health;
 
+  // IH-03: Only show the full card when something is degraded or disconnected.
+  // WHY: When everything is healthy, the card occupies prime dashboard real estate
+  // without communicating anything actionable. The header already shows connection
+  // status via the health polling in header.tsx. Collapse to a compact badge when
+  // healthy; expand to a full card only when the user needs to act.
+  const allHealthy =
+    isConnected &&
+    (health?.components?.graph_storage === true || health?.components?.storage === 'up' || health?.components?.storage === true) &&
+    (health?.components?.llm_provider === true || health?.components?.llm_provider === 'up');
+
+  if (isLoading) {
+    // Minimal skeleton so it doesn't take up much space
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-muted/20 text-sm text-muted-foreground">
+        <Skeleton className="h-3.5 w-3.5 rounded-full" />
+        <Skeleton className="h-3.5 w-24" />
+      </div>
+    );
+  }
+
+  // Compact healthy indicator
+  if (allHealthy) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/20 text-xs text-muted-foreground">
+        <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" aria-hidden="true" />
+        <span>
+          {t('dashboard.system.healthy', 'All systems operational')}
+          {health?.llm_provider_name && (
+            <span className="ml-1 opacity-60">· {health.llm_provider_name}</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <Card>
+    <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Server className="h-5 w-5" />
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Server className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           {t('dashboard.system.title', 'System Status')}
         </CardTitle>
-        <CardDescription>
-          {t('dashboard.system.subtitle', 'API connection and health')}
-        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="pt-0">
+        <div className="space-y-2.5">
           {/* Connection Status */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {t('dashboard.system.apiStatus', 'API Status')}
-            </span>
-            <Badge 
-              variant={isConnected ? 'default' : 'destructive'}
-              className="gap-1"
-            >
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">{t('dashboard.system.apiStatus', 'API')}</span>
+            <Badge variant={isConnected ? 'default' : 'destructive'} className="gap-1 h-5 text-xs">
               {isConnected ? (
-                <>
-                  <CheckCircle className="h-3 w-3" />
-                  {t('dashboard.system.connected', 'Connected')}
-                </>
+                <><CheckCircle className="h-3 w-3" />{t('dashboard.system.connected', 'Connected')}</>
               ) : (
-                <>
-                  <XCircle className="h-3 w-3" />
-                  {t('dashboard.system.disconnected', 'Disconnected')}
-                </>
+                <><XCircle className="h-3 w-3" />{t('dashboard.system.disconnected', 'Disconnected')}</>
               )}
             </Badge>
           </div>
 
-          {/* API Version */}
-          {isConnected && health?.version && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                {t('dashboard.system.version', 'Version')}
-              </span>
-              <span className="text-sm font-mono" title={
-                health.build_info
-                  ? `Build: ${health.build_info.build_number}\nGit: ${health.build_info.git_hash} (${health.build_info.git_branch})\nBuilt: ${health.build_info.build_timestamp}`
-                  : undefined
-              }>
-                v{health.version}
-                {health.build_info?.git_hash && (
-                  <span className="text-xs text-muted-foreground ml-1">({health.build_info.git_hash})</span>
-                )}
-              </span>
-            </div>
-          )}
-
-          {/* Storage Status */}
-          {isConnected && (health?.components?.storage || health?.components?.graph_storage !== undefined) && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                {t('dashboard.system.storage', 'Storage')}
-              </span>
-              <Badge variant="outline" className="gap-1">
+          {/* LLM Status — only when degraded */}
+          {isConnected && health?.llm_provider_name && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t('dashboard.system.llmProvider', 'LLM')}</span>
+              <Badge variant="outline" className="gap-1 h-5 text-xs">
                 <Circle className={`h-2 w-2 ${
-                  health.components?.storage === 'up' || 
-                  health.components?.storage === true ||
-                  health.components?.graph_storage === true
-                    ? 'fill-green-500 text-green-500' 
-                    : 'fill-red-500 text-red-500'
+                  health.components?.llm_provider === true || health.components?.llm_provider === 'up'
+                    ? 'fill-green-500 text-green-500'
+                    : 'fill-amber-500 text-amber-500'
                 }`} />
-                {health.components?.storage === 'up' || 
-                 health.components?.storage === true || 
-                 health.components?.graph_storage === true 
-                  ? 'Connected' 
-                  : 'Disconnected'}
+                {health.llm_provider_name.charAt(0).toUpperCase() + health.llm_provider_name.slice(1)}
               </Badge>
             </div>
           )}
-
-          {/* LLM Status */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {t('dashboard.system.llmProvider', 'LLM Provider')}
-            </span>
-            {isConnected && (health?.llm_provider_name || health?.components?.llm_provider) ? (
-              <Badge variant="outline" className="gap-1">
-                <Circle className={`h-2 w-2 ${
-                  health.components?.llm_provider === 'up' || health.components?.llm_provider === true 
-                    ? 'fill-green-500 text-green-500' 
-                    : 'fill-red-500 text-red-500'
-                }`} />
-                {health.llm_provider_name 
-                  ? health.llm_provider_name.charAt(0).toUpperCase() + health.llm_provider_name.slice(1)
-                  : (health.components?.llm_provider === 'up' || health.components?.llm_provider === true ? 'Available' : 'Unavailable')}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="gap-1">
-                <Circle className="h-2 w-2 fill-red-500 text-red-500" />
-                Unavailable
-              </Badge>
-            )}
-          </div>
         </div>
       </CardContent>
     </Card>

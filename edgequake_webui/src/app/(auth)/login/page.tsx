@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { login } from '@/lib/api/edgequake';
 import { getRuntimeConfig } from '@/lib/runtime-config';
 import { useAuthStore } from '@/stores/use-auth-store';
-import { Loader2, Network } from 'lucide-react';
+import { AlertCircle, Loader2, Network } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -59,7 +59,11 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form 
+            onSubmit={handleSubmit} 
+            className="space-y-4"
+            aria-describedby={error ? 'login-error' : undefined}
+          >
             <div className="space-y-2">
               <label htmlFor="username" className="text-sm font-medium">
                 Username
@@ -72,6 +76,8 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
                 required
+                aria-required="true"
+                aria-invalid={error ? 'true' : undefined}
               />
             </div>
             <div className="space-y-2">
@@ -86,12 +92,20 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 required
+                aria-required="true"
+                aria-invalid={error ? 'true' : undefined}
               />
             </div>
 
             {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
+              <div 
+                id="login-error"
+                role="alert"
+                aria-live="assertive"
+                className="rounded-md bg-destructive/10 p-3 text-sm text-destructive flex items-start gap-2"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <span>{error}</span>
               </div>
             )}
 

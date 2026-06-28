@@ -33,54 +33,47 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { checkHealth } from '@/lib/api/edgequake';
+import { getAutomationAwareRefetchInterval } from '@/lib/runtime/browser-detection';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { Circle, LogOut, Monitor, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { HeaderTenantSelector } from './header-tenant-selector';
 import { MobileSidebar } from './sidebar';
-
-type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 
 export function Header() {
   const { setTheme } = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
   const { isAuthenticated, user, logout } = useAuthStore();
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('checking');
-  const [version, setVersion] = useState<string>('');
 
-  // Smooth theme transition handler
+  // PP-02: Use shared React Query cache (queryKey: ['health']) instead of a
+  // custom setInterval. BackendStatusBanner and SystemStatus card share the
+  // same cache entry so only ONE network request is issued every 30 seconds.
+  const { data: health, isError } = useQuery({
+    queryKey: ['health'],
+    queryFn: checkHealth,
+    refetchInterval: getAutomationAwareRefetchInterval(30_000),
+    staleTime: 15_000,
+    retry: 1,
+  });
+
+  const connectionStatus = isError ? 'disconnected' : health ? 'connected' : 'checking';
+  const version = health?.version ?? '';
+
+  // Smooth theme transition — briefly disables transitions to prevent color flash
   const handleThemeChange = useCallback((theme: string) => {
-    // Add class to disable transitions during theme switch
     document.documentElement.classList.add('theme-switching');
     setTheme(theme);
-    // Remove class after a brief delay to allow theme to apply
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         document.documentElement.classList.remove('theme-switching');
       });
     });
   }, [setTheme]);
-
-  // Check backend connection status
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const health = await checkHealth();
-        setConnectionStatus('connected');
-        setVersion(health.version || '');
-      } catch {
-        setConnectionStatus('disconnected');
-      }
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000); // Check every 30s
-    return () => clearInterval(interval);
-  }, []);
 
   const handleLogout = () => {
     logout();

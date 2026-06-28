@@ -20,8 +20,6 @@ import { useTranslation } from "react-i18next";
 import { ChatMessage } from "./chat-message";
 import { ConversationHistoryPanelV2 } from "./conversation-history-panel-v2";
 import { MobileHistoryPanel } from "./mobile-history-panel";
-import { ProviderModelSelector } from "./provider-model-selector";
-import { QueryDocumentFilter } from "./query-document-filter";
 import { QueryEmptyState } from "./query-empty-state";
 import { LoadingMessage, NonStreamingLoadingIndicator } from "./query-loading-indicators";
 import { QueryModeSelector } from "./query-mode-selector";
@@ -72,7 +70,7 @@ export function QueryInterface() {
               {t("query.subtitle", "Ask questions about your knowledge graph")}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -81,40 +79,17 @@ export function QueryInterface() {
               className="gap-1"
             >
               <Plus className="h-4 w-4" />
-              {t("query.newConversation", "New")}
+              <span className="hidden sm:inline">{t("query.newConversation", "New")}</span>
             </Button>
 
-            <ProviderModelSelector
-              value={
-                querySettings.provider && querySettings.model
-                  ? `${querySettings.provider}/${querySettings.model}`
-                  : ""
-              }
-              onChange={(fullModelId) => {
-                if (!fullModelId) {
-                  setQuerySettings({ provider: undefined, model: undefined });
-                } else {
-                  const parts = fullModelId.split("/");
-                  const provider = parts[0];
-                  const model = parts.slice(1).join("/");
-                  setQuerySettings({ provider, model });
-                }
-              }}
-              disabled={isLoading}
-            />
-
+            {/* Mode selector stays in header — most-changed query setting */}
             <QueryModeSelector
               value={querySettings.mode}
               onChange={(mode) => setQuerySettings({ mode })}
               disabled={isLoading}
             />
 
-            <QueryDocumentFilter
-              value={querySettings.documentFilter}
-              onChange={(documentFilter) => setQuerySettings({ documentFilter })}
-              disabled={isLoading}
-            />
-
+            {/* Provider, document filter, and advanced options moved into settings sheet */}
             <QuerySettingsSheet
               settings={{
                 stream: querySettings.stream,
@@ -125,6 +100,23 @@ export function QueryInterface() {
               }}
               onSettingsChange={(updates) => setQuerySettings(updates)}
               disabled={isLoading}
+              providerModel={
+                querySettings.provider && querySettings.model
+                  ? `${querySettings.provider}/${querySettings.model}`
+                  : ""
+              }
+              onProviderModelChange={(fullModelId) => {
+                if (!fullModelId) {
+                  setQuerySettings({ provider: undefined, model: undefined });
+                } else {
+                  const parts = fullModelId.split("/");
+                  const provider = parts[0];
+                  const model = parts.slice(1).join("/");
+                  setQuerySettings({ provider, model });
+                }
+              }}
+              documentFilter={querySettings.documentFilter}
+              onDocumentFilterChange={(documentFilter) => setQuerySettings({ documentFilter })}
             />
           </div>
         </header>

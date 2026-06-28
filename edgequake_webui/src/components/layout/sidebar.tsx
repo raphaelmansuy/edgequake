@@ -26,24 +26,53 @@ import {
 import { APP_VERSION, APP_VERSION_NUMBER } from '@/lib/app-version';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/use-settings-store';
-import { Activity, BookOpen, ChevronLeft, ChevronRight, DollarSign, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal } from 'lucide-react';
+import { Activity, BarChart2, BookOpen, ChevronLeft, ChevronRight, FileText, FolderKanban, Home, Menu, MessageSquare, Network, Settings, Terminal } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { HeaderTenantSelector } from './header-tenant-selector';
 
-const navItems = [
-  { href: '/', icon: Home, labelKey: 'nav.dashboard' },
-  { href: '/graph', icon: Network, labelKey: 'nav.graph' },
-  { href: '/documents', icon: FileText, labelKey: 'nav.documents' },
-  { href: '/pipeline', icon: Activity, labelKey: 'nav.pipeline' },
-  { href: '/query', icon: MessageSquare, labelKey: 'nav.query' },
-  { href: '/workspace', icon: FolderKanban, labelKey: 'nav.workspace' },
-  { href: '/costs', icon: DollarSign, labelKey: 'nav.costs' },
-  { href: '/knowledge', icon: BookOpen, labelKey: 'nav.knowledge' },
-  { href: '/api-explorer', icon: Terminal, labelKey: 'nav.apiExplorer' },
-  { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
+/**
+ * Grouped navigation structure.
+ * WHY: 10 flat items exceeds Miller's Law (7±2). Groups reduce cognitive load
+ * by chunking related items. Primary workflows are first, system/admin last.
+ */
+interface NavGroup {
+  labelKey: string | null;
+  label: string | null;
+  items: ReadonlyArray<{ href: string; icon: React.FC<{ className?: string; 'aria-hidden'?: 'true' }>; labelKey: string }>;
+}
+
+const navGroups: NavGroup[] = [
+  {
+    labelKey: null,
+    label: null,
+    items: [
+      { href: '/', icon: Home, labelKey: 'nav.dashboard' },
+      { href: '/documents', icon: FileText, labelKey: 'nav.documents' },
+      { href: '/query', icon: MessageSquare, labelKey: 'nav.query' },
+      { href: '/graph', icon: Network, labelKey: 'nav.graph' },
+    ],
+  },
+  {
+    labelKey: 'nav.groupKnowledge',
+    label: 'Knowledge',
+    items: [
+      { href: '/knowledge', icon: BookOpen, labelKey: 'nav.knowledge' },
+      { href: '/workspace', icon: FolderKanban, labelKey: 'nav.workspace' },
+    ],
+  },
+  {
+    labelKey: 'nav.groupSystem',
+    label: 'System',
+    items: [
+      { href: '/pipeline', icon: Activity, labelKey: 'nav.pipeline' },
+      { href: '/costs', icon: BarChart2, labelKey: 'nav.costs' },
+      { href: '/api-explorer', icon: Terminal, labelKey: 'nav.apiExplorer' },
+      { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
+    ],
+  },
 ];
 
 function SidebarContent({ 
@@ -79,50 +108,66 @@ function SidebarContent({
           </Link>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-0.5 px-2 py-3" aria-label={t('common.navigation', 'Main navigation')}>
-          {navItems.map(({ href, icon: Icon, labelKey }) => {
-            // Handle home page "/" specially to avoid matching all paths
-            const isActive = href === '/' 
-              ? pathname === '/' 
-              : pathname === href || pathname.startsWith(href + '/');
-            
-            const linkContent = (
-              <Link
-                key={href}
-                href={href}
-                onClick={onItemClick}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-                  'min-h-[40px]', // Slightly smaller touch target but still accessible
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                  collapsed ? 'justify-center' : 'gap-2.5',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                {!collapsed && <span>{t(labelKey)}</span>}
-              </Link>
-            );
+        {/* Navigation — grouped to reduce cognitive load */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label={t('common.navigation', 'Main navigation')}>
+          {navGroups.map((group, groupIndex) => (
+            <div
+              key={groupIndex}
+              className={cn("space-y-0.5", groupIndex > 0 && "mt-4")}
+            >
+              {/* Group label — only shown expanded and when label exists */}
+              {group.label && !collapsed && (
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 select-none">
+                  {group.labelKey ? t(group.labelKey, group.label) : group.label}
+                </p>
+              )}
+              {/* Divider in collapsed mode */}
+              {group.label && collapsed && groupIndex > 0 && (
+                <div className="my-2 mx-2 border-t" />
+              )}
+              {group.items.map(({ href, icon: Icon, labelKey }) => {
+                const isActive = href === '/'
+                  ? pathname === '/'
+                  : pathname === href || pathname.startsWith(href + '/');
 
-            if (collapsed) {
-              return (
-                <Tooltip key={href}>
-                  <TooltipTrigger asChild>
-                    {linkContent}
-                  </TooltipTrigger>
-                  <TooltipContent side="right" sideOffset={12}>
-                    {t(labelKey)}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
+                const linkContent = (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onItemClick}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                      'min-h-[44px]', // WCAG 2.5.5: minimum 44×44px touch target
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                      collapsed ? 'justify-center' : 'gap-2.5',
+                      isActive
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                    {!collapsed && <span>{t(labelKey)}</span>}
+                  </Link>
+                );
 
-            return linkContent;
-          })}
+                if (collapsed) {
+                  return (
+                    <Tooltip key={href}>
+                      <TooltipTrigger asChild>
+                        {linkContent}
+                      </TooltipTrigger>
+                      <TooltipContent side="right" sideOffset={12}>
+                        {t(labelKey)}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+
+                return linkContent;
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Footer */}

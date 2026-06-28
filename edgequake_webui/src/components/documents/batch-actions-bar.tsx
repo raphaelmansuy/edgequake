@@ -20,10 +20,9 @@ interface BatchActionsBarProps {
 
 /**
  * Displays a bar with bulk action buttons when documents are selected.
- * 
- * WHY: Extracted from DocumentManager for SRP compliance (OODA-07).
- * This component handles only the visual representation of batch actions.
- * 
+ * MI-04: Animated entry/exit — bar slides in from above and fades when selection
+ * is cleared, preventing abrupt layout shifts.
+ *
  * @implements FEAT0003 - Batch document processing
  */
 export function BatchActionsBar({
@@ -39,12 +38,17 @@ export function BatchActionsBar({
   }
 
   return (
-    <div className="shrink-0 px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
+    <div
+      className={[
+        'shrink-0 px-4 py-2 bg-primary/5 border-b border-primary/20 flex items-center justify-between',
+        // MI-04: slide-down entry animation, respects reduced motion
+        'motion-safe:animate-[slideDown_150ms_ease-out]',
+      ].join(' ')}
+    >
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium">
-          {t('documents.bulk.selected', { count: selectedCount }) || `${selectedCount} document(s) selected`}
+          {t('documents.bulk.selected', { count: selectedCount }) || `${selectedCount} selected`}
         </span>
-        {/* OODA-19: Keyboard hint */}
         <span className="text-xs text-muted-foreground hidden sm:inline">
           Press <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Esc</kbd> to clear
         </span>
