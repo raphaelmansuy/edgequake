@@ -646,6 +646,7 @@ fn spec027_scan_directory_partial_isp() {
     assert!(scan_fn.contains("State<StorageRuntime>"));
     assert!(scan_fn.contains("State<PathValidationConfig>"));
     assert!(scan_fn.contains("State<TaskRuntime>"));
+    assert!(scan_fn.contains("State<AppConfig>"));
     assert!(!scan_fn.contains("State<AppState>"));
 }
 
@@ -782,6 +783,19 @@ fn spec027_list_documents_uses_pagination_ssot() {
     assert!(!list.contains("let page = 1usize"));
     let pagination = read_crate_src("src/services/list_pagination.rs");
     assert!(pagination.contains("pub fn paginate_vec"));
+}
+
+#[test]
+fn spec027_list_documents_isp() {
+    let list = read_crate_src("src/handlers/documents/query/list.rs");
+    let list_fn = list
+        .split("pub async fn list_documents")
+        .nth(1)
+        .expect("list_documents");
+    assert!(list_fn.contains("State<StorageRuntime>"));
+    assert!(list_fn.contains("State<PostgresRuntime>"));
+    assert!(list_fn.contains("State<ResourceBudgetConfig>"));
+    assert!(!list_fn.contains("State<AppState>"));
 }
 
 #[test]
