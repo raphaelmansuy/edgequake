@@ -16,7 +16,7 @@
 import { QuickActions, RecentActivity, StatsCard, SystemStatus } from '@/components/dashboard';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
-import { getDocuments, getWorkspaceStats } from '@/lib/api/edgequake';
+import { getDocuments, getWorkspaceStats, getWorkspaces } from '@/lib/api/edgequake';
 import { validateAndClearCache } from '@/lib/cache-manager';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -64,7 +64,19 @@ export default function DashboardPage() {
   const { t } = useTranslation();
 
   // Get tenant context for query keys
-  const { selectedTenantId, selectedWorkspaceId, workspaces, _hasHydrated } = useTenantStore();
+  const { selectedTenantId, selectedWorkspaceId, workspaces: storeWorkspaces, _hasHydrated } = useTenantStore();
+
+  // WHY: workspaces aren't persisted in localStorage (only IDs are), so fetch
+  // them here with the same queryKey HeaderTenantSelector uses — React Query
+  // deduplicates the request, so this adds zero extra network calls.
+  const { data: fetchedWorkspaces } = useQuery({
+    queryKey: ['workspaces', selectedTenantId],
+    queryFn: () => selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([]),
+    enabled: _hasHydrated && !!selectedTenantId,
+    staleTime: 60_000,
+  });
+
+  const workspaces = fetchedWorkspaces ?? storeWorkspaces;
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
   
   // Get query client for cache management

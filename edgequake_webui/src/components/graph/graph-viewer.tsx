@@ -529,30 +529,37 @@ export function GraphViewer() {
                 <Filter className="h-3.5 w-3.5" />
               </Button>
             )}
+            {/* Search */}
             <div data-tour="graph-search"><GraphSearch /></div>
             {/* Truncation indicator (compact) */}
             {!isMobile && <TruncationIndicator />}
+            {/* ── View group ─────────────────── */}
+            {!isMobile && <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />}
             <div data-tour="layout-control"><LayoutControl /></div>
             <LayoutController />
+            {/* ── Data group ──────────────────── */}
+            {!isMobile && <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />}
             {!isMobile && <GraphExport />}
-            {/* Graph settings panel for virtual query */}
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefetch} title="Refresh graph data">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+            {/* ── Settings group ─────────────── */}
+            {!isMobile && <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />}
             {!isMobile && (
               <GraphSettingsPanel onSettingsChange={handleSettingsChange} />
             )}
             {!isMobile && <div data-tour="keyboard-help"><KeyboardShortcutsHelp /></div>}
-            {!isMobile && <div className="w-px h-5 bg-border mx-1" />}
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefetch} title="Refresh">
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
+            {/* ── Zoom group ─────────────────── */}
             {!isMobile && (
               <>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomIn} title="Zoom In">
+                <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomIn} title="Zoom in">
                   <ZoomIn className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomOut} title="Zoom Out">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomOut} title="Zoom out">
                   <ZoomOut className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleResetZoom} title="Reset View">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleResetZoom} title="Fit to screen">
                   <Maximize2 className="h-3.5 w-3.5" />
                 </Button>
               </>
@@ -754,7 +761,7 @@ export function GraphViewer() {
             <div className="flex flex-col h-full overflow-hidden" data-tour="details-panel">
               {/* Panel Header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b shrink-0 bg-muted/30">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Details & Filters</h3>
+                <h3 className="text-xs font-medium text-muted-foreground">Details</h3>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -788,12 +795,15 @@ export function GraphViewer() {
 
                   {/* Empty state when no node selected */}
                   {!selectedNode && (
-                    <div className="py-8 text-center">
-                      <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-muted/50 flex items-center justify-center">
-                        <Network className="h-5 w-5 text-muted-foreground/50" />
+                    <div className="py-8 text-center px-4">
+                      <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-muted/50 flex items-center justify-center">
+                        <Network className="h-5 w-5 text-muted-foreground/40" />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Click on a node to view details
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        Select a node
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+                        Click any node to explore its connections, relationships, and source documents
                       </p>
                     </div>
                   )}

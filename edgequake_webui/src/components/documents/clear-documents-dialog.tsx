@@ -124,8 +124,12 @@ export function ClearDocumentsDialog({
   }
 
   const triggerButton = (
-    <Button variant="destructive" size="sm">
-      <Trash2 className="h-4 w-4 mr-2" />
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
       {t('documents.clearAll.button', 'Clear All')}
     </Button>
   );

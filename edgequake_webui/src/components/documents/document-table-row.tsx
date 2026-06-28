@@ -194,7 +194,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
 
   return (
     <TableRow
-      className={rowClassName}
+      className={cn(rowClassName, 'group/row')}
       onClick={() => onClick(doc)}
       onDoubleClick={() => onDoubleClick(doc)}
     >
