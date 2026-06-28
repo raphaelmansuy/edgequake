@@ -221,6 +221,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
             currentPage={currentPage}
             totalPages={totalPages}
             pageSize={pageSize}
+            totalItems={totalCount}
             onPageChange={onPageChange}
             onPageSizeChange={(newSize) => {
               onPageSizeChange(newSize);

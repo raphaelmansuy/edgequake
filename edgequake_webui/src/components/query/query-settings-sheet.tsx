@@ -35,10 +35,12 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import type { DocumentFilter } from '@/types/query';
 import {
     BookOpen,
     Brain,
     FileText,
+    Filter,
     Gauge,
     Info,
     Settings2,
@@ -48,6 +50,8 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ProviderModelSelector } from './provider-model-selector';
+import { QueryDocumentFilter } from './query-document-filter';
 
 interface QuerySettings {
   stream: boolean;
@@ -66,6 +70,12 @@ interface QuerySettingsSheetProps {
   disabled?: boolean;
   /** Optional trigger button */
   trigger?: ReactNode;
+  /** Provider+model selector — moved from main toolbar for density reduction */
+  providerModel?: string;
+  onProviderModelChange?: (value: string) => void;
+  /** Document filter — moved from main toolbar for density reduction */
+  documentFilter?: DocumentFilter | undefined;
+  onDocumentFilterChange?: (value: DocumentFilter | undefined) => void;
 }
 
 export function QuerySettingsSheet({
@@ -73,6 +83,10 @@ export function QuerySettingsSheet({
   onSettingsChange,
   disabled = false,
   trigger,
+  providerModel,
+  onProviderModelChange,
+  documentFilter,
+  onDocumentFilterChange,
 }: QuerySettingsSheetProps) {
   const { t } = useTranslation();
 
@@ -98,7 +112,45 @@ export function QuerySettingsSheet({
         
         <ScrollArea className="flex-1">
           <div className="px-6 py-4 space-y-5">
-            {/* Response Mode Section */}
+
+            {/* Context Section — Provider & Document Filter (moved from main toolbar) */}
+            {(onProviderModelChange || onDocumentFilterChange) && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-3.5 w-3.5 text-blue-500" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('query.settings.context', 'Context')}
+                  </h3>
+                </div>
+                <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
+                  {onProviderModelChange && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">
+                        {t('query.settings.provider', 'AI Provider & Model')}
+                      </Label>
+                      <ProviderModelSelector
+                        value={providerModel ?? ''}
+                        onChange={onProviderModelChange}
+                        disabled={disabled}
+                      />
+                    </div>
+                  )}
+                  {onDocumentFilterChange && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">
+                        {t('query.settings.documentFilter', 'Document Filter')}
+                      </Label>
+                      <QueryDocumentFilter
+                        value={documentFilter}
+                        onChange={onDocumentFilterChange}
+                        disabled={disabled}
+                      />
+                    </div>
+                  )}
+                </div>
+                <Separator />
+              </div>
+            )}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Zap className="h-3.5 w-3.5 text-amber-500" />

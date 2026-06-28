@@ -140,24 +140,18 @@ const FolderItem = memo(function FolderItem({
   );
 
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        "group relative flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150",
+        "group relative flex w-full items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150",
         isDragOver
           ? "bg-primary/20 border-2 border-dashed border-primary ring-1 ring-primary/30"
           : isActive
             ? "bg-primary/10 text-primary"
             : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
       )}
       onClick={onSelect}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDropEvent}
@@ -220,7 +214,7 @@ const FolderItem = memo(function FolderItem({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-    </div>
+    </button>
   );
 });
 
@@ -353,25 +347,25 @@ export function FolderSidebar({ className }: FolderSidebarProps) {
   return (
     <div className={cn("space-y-1", className)}>
       {/* Unfiled - shows conversations without any folder, also a drop target */}
-      <div
+      <button
+        type="button"
         className={cn(
-          "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150",
+          "flex w-full items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150",
           isRootDragOver
             ? "bg-primary/20 border-2 border-dashed border-primary ring-1 ring-primary/30"
             : store.filters.unfiled && !store.filters.folderId
               ? "bg-primary/10 text-primary"
               : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
         )}
         onClick={() => store.setFilters({ folderId: null, unfiled: true })}
-        role="button"
-        tabIndex={0}
         onDragOver={handleRootDragOver}
         onDragLeave={handleRootDragLeave}
         onDrop={handleRootDrop}
       >
         <Inbox className="h-3.5 w-3.5 shrink-0" />
         <span className="text-xs font-medium">{t("query.folders.unfiled", "Unfiled")}</span>
-      </div>
+      </button>
 
       {/* Folders List */}
       {isLoading ? (

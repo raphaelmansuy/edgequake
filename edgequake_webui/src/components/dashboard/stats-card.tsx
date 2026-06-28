@@ -34,6 +34,8 @@ interface StatsCardProps {
   isStale?: boolean;
   className?: string;
   variant?: StatsCardVariant;
+  /** LS-03: Optional hint shown when value is 0 — guides new users. */
+  zeroHint?: string;
 }
 
 const variantStyles: Record<StatsCardVariant, string> = {
@@ -70,6 +72,7 @@ export function StatsCard({
   isStale,
   className,
   variant = 'default',
+  zeroHint,
 }: StatsCardProps) {
   if (isLoading) {
     return (
@@ -91,13 +94,17 @@ export function StatsCard({
   const TrendIcon = trend?.isPositive ? TrendingUp : trend?.value === 0 ? Minus : TrendingDown;
 
   return (
-    <Card 
+    <Card
       data-testid="stats-card"
       data-variant={variant}
       data-value={value}
       className={cn(
+        // MI-02: Use shadow escalation only for display cards (no translate).
+        // WHY: translate-y on 4 adjacent cards simultaneously looks mechanical;
+        // shadow depth change is subtler and communicates "interactive surface"
+        // without kinetic noise.
         'relative overflow-hidden transition-all duration-200 border-0 shadow-sm',
-        'hover:shadow-md hover:-translate-y-0.5',
+        'hover:shadow-md',
         'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
         variantStyles[variant],
         className
@@ -118,18 +125,18 @@ export function StatsCard({
               )}
             </p>
             <div className="flex items-baseline gap-2">
-              <p 
+              <p
                 className="text-2xl font-bold tracking-tight tabular-nums"
                 data-testid="stats-value"
               >
                 {typeof value === 'number' ? value.toLocaleString() : value}
               </p>
               {trend && trend.value !== 0 && (
-                <div 
+                <div
                   className={cn(
                     'flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-md',
-                    trend.isPositive 
-                      ? 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30' 
+                    trend.isPositive
+                      ? 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30'
                       : 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30'
                   )}
                 >
@@ -138,11 +145,12 @@ export function StatsCard({
                 </div>
               )}
             </div>
-            {description && (
-              <p className="text-[11px] text-muted-foreground truncate">
-                {description}
-              </p>
-            )}
+            {/* LS-03: Zero hint — shown only when value is 0 to guide new users */}
+            {value === 0 && zeroHint ? (
+              <p className="text-[11px] text-muted-foreground/70 italic truncate">{zeroHint}</p>
+            ) : description ? (
+              <p className="text-[11px] text-muted-foreground truncate">{description}</p>
+            ) : null}
           </div>
           <div 
             className={cn(

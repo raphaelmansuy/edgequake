@@ -61,14 +61,17 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* WHY: darkened from 0.556 → 0.48 for WCAG AA at all text sizes (≥4.5:1 on white) */
+  --muted-foreground: oklch(0.48 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* WHY: darkened from 0.922 → 0.78 to reach 3:1 WCAG 1.4.11 non-text contrast for input borders */
+  --border: oklch(0.86 0 0);
+  --input: oklch(0.78 0 0);
+  /* WHY: darkened from 0.708 → 0.4 so focus rings achieve >3:1 contrast (WCAG 2.4.7) */
+  --ring: oklch(0.4 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -80,8 +83,8 @@
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-border: oklch(0.86 0 0);
+  --sidebar-ring: oklch(0.4 0 0);
 }
 
 .dark {
@@ -126,6 +129,27 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ============================================
+ * GLOBAL MICRO-INTERACTIONS (MI-03, MI-07)
+ * ============================================ */
+
+/* Button active/press state — subtle scale-down gives tactile feedback.
+ * Only applies when motion is allowed (prefers-reduced-motion respected). */
+@media (prefers-reduced-motion: no-preference) {
+  button:active:not(:disabled),
+  [role="button"]:active:not([aria-disabled="true"]) {
+    transform: scale(0.97);
+    transition-duration: 60ms;
+  }
+}
+
+/* Focus ring fade-in — crisp but not abrupt (MI-07).
+ * The transition only activates on focus, not on hover or blur,
+ * so it doesn't cause layout shifts or flicker. */
+*:focus-visible {
+  transition: outline-color 80ms ease, box-shadow 80ms ease;
 }
 
 /* ---------------------------------------------------------------------------
@@ -196,6 +220,18 @@ html.theme-switching *::after {
   }
   100% {
     transform: translateX(400%);
+  }
+}
+
+/* MI-04: Batch actions bar entry */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

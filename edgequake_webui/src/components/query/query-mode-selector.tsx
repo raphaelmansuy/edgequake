@@ -42,32 +42,34 @@ const MODE_META: Record<
     description: string;
     icon: React.ComponentType<{ className?: string }>;
     color: string;
+    recommended?: boolean;
   }
 > = {
   local: {
-    name: 'Local',
+    name: 'Focused',
     description:
-      'Search within specific entity neighborhoods. Best for targeted questions about known topics.',
+      'Searches within specific entity neighborhoods. Best for targeted questions about known topics.',
     icon: Target,
     color: 'text-blue-500',
   },
   global: {
-    name: 'Global',
+    name: 'Broad',
     description:
-      'Search the entire knowledge graph. Best for broad questions requiring comprehensive context.',
+      'Searches the entire knowledge graph. Best for broad questions requiring comprehensive context.',
     icon: Globe,
     color: 'text-green-500',
   },
   hybrid: {
-    name: 'Hybrid',
+    name: 'Smart',
     description:
-      'Combines local and global search for balanced results. Recommended for most queries.',
+      'Combines focused and broad search for balanced results. Recommended for most queries.',
     icon: Layers,
     color: 'text-primary',
+    recommended: true, // WHY: Most users should use Smart mode; recommended badge reduces decision fatigue
   },
   naive: {
-    name: 'Simple',
-    description: 'Direct LLM query without graph context. Fastest but less accurate.',
+    name: 'Direct',
+    description: 'Direct AI query without graph context. Fastest but less context-aware.',
     icon: Zap,
     color: 'text-orange-500',
   },
@@ -94,21 +96,25 @@ export function QueryModeSelector({ value, onChange, disabled }: QueryModeSelect
                   onClick={() => onChange(mode.id)}
                   disabled={disabled}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                    'relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
                     isSelected
                       ? 'bg-background shadow-sm'
                       : 'hover:bg-background/50',
                     disabled && 'opacity-50 cursor-not-allowed'
                   )}
-                  aria-label={`Select ${mode.name} query mode`}
+                  aria-label={`Select ${mode.name} query mode${mode.recommended ? ' (Recommended)' : ''}`}
                   aria-pressed={isSelected}
                 >
                   <Icon className={cn('h-4 w-4', isSelected ? mode.color : 'text-muted-foreground')} />
                   <span className={isSelected ? '' : 'text-muted-foreground'}>{mode.name}</span>
+                  {/* Recommended dot — subtle indicator, never distracts */}
+                  {mode.recommended && !isSelected && (
+                    <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary/60" aria-hidden="true" />
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
-                <p className="font-medium">{mode.name} Mode</p>
+                <p className="font-medium">{mode.name} Mode{mode.recommended ? ' ✓ Recommended' : ''}</p>
                 <p className="text-xs text-muted-foreground mt-1">{mode.description}</p>
               </TooltipContent>
             </Tooltip>

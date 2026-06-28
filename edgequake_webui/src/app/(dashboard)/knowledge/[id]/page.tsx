@@ -45,6 +45,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const statusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
   completed: { icon: CheckCircle, color: 'text-green-500', label: 'Completed' },
@@ -164,7 +165,8 @@ export default function KnowledgeDetailPage() {
   const StatusIcon = statusCfg.icon;
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/knowledge">
@@ -341,5 +343,6 @@ export default function KnowledgeDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </ScrollArea>
   );
 }

@@ -172,6 +172,7 @@ export default function DashboardPage() {
             title={t('dashboard.stats.documents', 'Documents')}
             value={documentValue}
             description={t('dashboard.stats.documentsDesc', 'Uploaded documents')}
+            zeroHint={t('dashboard.stats.documentsZero', 'Upload documents to get started')}
             icon={FileText}
             variant="documents"
             isLoading={isLoadingStats || !selectedWorkspaceId}
@@ -181,6 +182,7 @@ export default function DashboardPage() {
             title={t('dashboard.stats.entities', 'Entities')}
             value={entityValue}
             description={t('dashboard.stats.entitiesDesc', 'Extracted entities')}
+            zeroHint={t('dashboard.stats.entitiesZero', 'Process documents to extract entities')}
             icon={Users}
             variant="entities"
             isLoading={isLoadingStats || !selectedWorkspaceId}
@@ -190,6 +192,7 @@ export default function DashboardPage() {
             title={t('dashboard.stats.relationships', 'Relationships')}
             value={relationshipValue}
             description={t('dashboard.stats.relationshipsDesc', 'Entity connections')}
+            zeroHint={t('dashboard.stats.relationshipsZero', 'Relationships appear after processing')}
             icon={GitBranch}
             variant="relationships"
             isLoading={isLoadingStats || !selectedWorkspaceId}
@@ -199,6 +202,7 @@ export default function DashboardPage() {
             title={t('dashboard.stats.chunks', 'Chunks')}
             value={chunkValue}
             description={t('dashboard.stats.chunksDesc', 'Text segments')}
+            zeroHint={t('dashboard.stats.chunksZero', 'Chunks are created during ingestion')}
             icon={Tags}
             variant="types"
             isLoading={isLoadingStats || !selectedWorkspaceId}

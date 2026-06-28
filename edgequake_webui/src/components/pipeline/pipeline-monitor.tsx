@@ -56,7 +56,12 @@ export function PipelineMonitor() {
 
   return (
     <PipelineWorkspaceContext.Provider value={workspaceContext}>
-      <div className="flex flex-col h-[calc(100vh-theme(spacing.20))]">
+      {/* WHY: h-full fits the actual available area from the dashboard layout
+          (main element is flex-1 min-h-0 overflow-hidden). Using a hardcoded
+          calc() here was brittle and broke whenever header/breadcrumb heights
+          changed. flex flex-col lets the sticky header pin at top-0 of this
+          container while overflow-y-auto scrolls the remaining content. */}
+      <div className="flex flex-col h-full">
         <div className="flex-shrink-0 sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
           <div className="container mx-auto px-6 py-4 max-w-7xl">
             <div className="flex items-center justify-between">

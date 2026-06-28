@@ -73,12 +73,16 @@ export function DynamicBreadcrumb({ customSegments }: DynamicBreadcrumbProps) {
     });
   }
   
-  // Don't show breadcrumbs on the root page
-  if (items.length <= 1) {
+  // Don't show breadcrumbs at depth ≤ 1 (root or single-level pages).
+  // WHY: sidebar active state already communicates location; breadcrumb only
+  // earns its place when the user is at depth ≥ 2 (e.g., /documents/[id]).
+  if (items.length <= 2) {
     return null;
   }
 
   return (
+    // Breadcrumb owns its container so the layout never reserves empty space
+    <div className="border-b px-4 py-2 bg-muted/20">
     <Breadcrumb>
       <BreadcrumbList>
         {items.map((item, index) => {
@@ -115,6 +119,7 @@ export function DynamicBreadcrumb({ customSegments }: DynamicBreadcrumbProps) {
         })}
       </BreadcrumbList>
     </Breadcrumb>
+    </div>
   );
 }
 

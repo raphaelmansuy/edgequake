@@ -40,50 +40,52 @@ import { memo, useMemo } from 'react';
 
 /**
  * Status configuration with icons, colors, and labels.
- * 
+ *
  * @implements SPEC-002: Unified Ingestion Pipeline
- * 
- * WHY: Each processing stage has distinct visual identity to reduce user anxiety.
- * All stages from UnifiedStage enum are represented here for consistent UX.
- * 
- * Unified Pipeline Stages (aligned with backend UnifiedStage):
- * uploading → converting? → preprocessing → chunking → extracting → gleaning
- *     → merging → summarizing → embedding → storing → completed/failed
+ *
+ * WHY: Consolidated from 12+ color variants to 4 semantic families to comply
+ * with WCAG 1.4.1 (color must not be the sole differentiator). Each state
+ * still has a unique icon so color is supplemental, not primary.
+ *
+ * Semantic families:
+ *   Amber  → pending/waiting states
+ *   Blue   → standard in-progress stages
+ *   Purple → AI-powered processing stages
+ *   Green  → success terminal states
+ *   Red    → failure terminal states
+ *   Orange → warning / partial outcomes
  */
 const statusConfig = {
-  // === UNIFIED STAGES (SPEC-002) ===
-  
-  // Upload stage
-  uploading: { icon: Upload, color: 'bg-blue-400', textColor: 'text-blue-500 dark:text-blue-300', label: 'Uploading', animate: true },
-
-  // Queued — waiting for tenant/worker slot (P-G14)
+  // === PENDING ===
   queued: { icon: Clock, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', label: 'Queued', animate: true },
-  
-  // Conversion stage (PDF only)
-  converting: { icon: FileText, color: 'bg-indigo-500', textColor: 'text-indigo-600 dark:text-indigo-400', label: 'Converting PDF', animate: true },
-  
-  // Processing stages
-  preprocessing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Preprocessing', animate: true },
-  chunking: { icon: Scissors, color: 'bg-blue-400', textColor: 'text-blue-500 dark:text-blue-300', label: 'Chunking', animate: true },
-  extracting: { icon: Brain, color: 'bg-purple-500', textColor: 'text-purple-600 dark:text-purple-400', label: 'Extracting', animate: true },
-  gleaning: { icon: Search, color: 'bg-purple-400', textColor: 'text-purple-500 dark:text-purple-300', label: 'Gleaning', animate: true },
-  merging: { icon: GitMerge, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', label: 'Merging', animate: true },
-  summarizing: { icon: FileText, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Summarizing', animate: true },
-  embedding: { icon: Cpu, color: 'bg-cyan-500', textColor: 'text-cyan-600 dark:text-cyan-400', label: 'Embedding', animate: true },
-  storing: { icon: Database, color: 'bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', label: 'Storing', animate: true },
-  
-  // Terminal states
-  completed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Completed', animate: false },
-  failed: { icon: XCircle, color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', label: 'Failed', animate: false },
-  partial_failure: { icon: XCircle, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Partial Failure', animate: false },
-  // OODA-03: Partial success - some chunks extracted but not all
-  partial_success: { icon: CheckCircle, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', label: 'Partial', animate: false },
-  
-  // === LEGACY STAGES (backward compatibility) ===
-  pending: { icon: Clock, color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', label: 'Pending', animate: false },
+  pending: { icon: Clock, color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400', label: 'Pending', animate: false },
+
+  // === IN PROGRESS (Blue family — standard pipeline stages) ===
+  uploading: { icon: Upload, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Uploading', animate: true },
+  converting: { icon: FileText, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Converting', animate: true },
+  preprocessing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Processing', animate: true },
+  chunking: { icon: Scissors, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Chunking', animate: true },
+  embedding: { icon: Cpu, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Embedding', animate: true },
+  storing: { icon: Database, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Storing', animate: true },
   processing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Processing', animate: true },
-  indexing: { icon: Database, color: 'bg-teal-500', textColor: 'text-teal-600 dark:text-teal-400', label: 'Indexing', animate: true },
+  indexing: { icon: Database, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Indexing', animate: true },
+
+  // === AI PROCESSING (Purple family — LLM-driven stages) ===
+  extracting: { icon: Brain, color: 'bg-purple-500', textColor: 'text-purple-600 dark:text-purple-400', label: 'Extracting', animate: true },
+  gleaning: { icon: Search, color: 'bg-purple-500', textColor: 'text-purple-600 dark:text-purple-400', label: 'Refining', animate: true },
+  merging: { icon: GitMerge, color: 'bg-purple-500', textColor: 'text-purple-600 dark:text-purple-400', label: 'Merging', animate: true },
+  summarizing: { icon: FileText, color: 'bg-purple-500', textColor: 'text-purple-600 dark:text-purple-400', label: 'Summarizing', animate: true },
+
+  // === SUCCESS (Green) ===
+  completed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Completed', animate: false },
   indexed: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Indexed', animate: false },
+  partial_success: { icon: CheckCircle, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', label: 'Partial', animate: false },
+
+  // === FAILURE (Red) ===
+  failed: { icon: XCircle, color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', label: 'Failed', animate: false },
+
+  // === WARNING / PARTIAL (Orange) ===
+  partial_failure: { icon: XCircle, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Partial Failure', animate: false },
   cancelled: { icon: StopCircle, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', label: 'Cancelled', animate: false },
 } as const;
 
@@ -215,19 +217,28 @@ export const StatusBadge = memo(function StatusBadge({
   const stageProgress = useMemo(() => getStageProgress(status), [status]);
 
   /**
-   * OODA-17: Enhanced processing animation
-   * WHY: Pulse animation on entire badge provides clearer visual feedback
-   * that processing is ongoing, reducing user uncertainty.
+   * MI-06: Differentiated animation strategy.
+   * WHY: Previously ALL in-progress states used both animate-pulse (badge) AND
+   * animate-spin (icon) simultaneously. With 10+ documents processing, users see
+   * a chaotic wall of spinning icons. New strategy:
+   *   - AI stages (extracting, gleaning, merging, summarizing) → spin icon only
+   *   - Standard pipeline stages → pulse badge, no spin (icon distinguishes)
+   *   - Queued/pending → slow pulse only (low urgency)
+   *   - Terminal states → no animation
    */
+  const AI_STAGES = new Set(['extracting', 'gleaning', 'merging', 'summarizing']);
+  const QUEUED_STAGES = new Set(['queued', 'pending']);
+  const spinIcon = AI_STAGES.has(status) && config.animate;
+  const pulseIcon = !AI_STAGES.has(status) && !QUEUED_STAGES.has(status) && config.animate;
+  const pulseBadge = QUEUED_STAGES.has(status);
+
   const badge = (
-    <Badge 
-      variant="outline" 
-      className={`gap-1 ${config.textColor} border-current cursor-default ${
-        config.animate ? 'animate-pulse' : ''
-      }`}
+    <Badge
+      variant="outline"
+      className={`gap-1 ${config.textColor} border-current cursor-default${pulseBadge ? ' animate-pulse' : ''}`}
       data-testid="status-badge"
     >
-      <Icon className={`h-3 w-3 ${config.animate ? 'animate-spin' : ''}`} />
+      <Icon className={`h-3 w-3${spinIcon ? ' animate-spin' : ''}${pulseIcon ? ' motion-safe:animate-pulse' : ''}`} />
       {!compact && config.label}
     </Badge>
   );
