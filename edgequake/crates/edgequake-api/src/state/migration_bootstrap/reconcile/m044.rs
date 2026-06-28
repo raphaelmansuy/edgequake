@@ -3,6 +3,8 @@
 use std::collections::HashSet;
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::{Migration044Report, MIGRATION_044_VERSION, SQL_044_APPLY};
@@ -23,7 +25,7 @@ pub async fn reconcile_migration_044(
             marker_applied,
             "Recording migration 044 community labels marker"
         );
-        sqlx::query(SQL_044_APPLY).execute(pool).await?;
+        execute_bootstrap_apply_sql(pool, SQL_044_APPLY).await?;
     }
 
     Ok(Migration044Report {

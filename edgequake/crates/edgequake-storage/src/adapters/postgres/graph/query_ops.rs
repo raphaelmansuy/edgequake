@@ -16,15 +16,9 @@ impl PostgresAGEGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
-        if tenant_id.is_some() && workspace_id.is_some() {
+        if let (Some(tenant), Some(workspace)) = (tenant_id, workspace_id) {
             return self
-                .pg_get_knowledge_graph_scoped(
-                    start_node,
-                    max_depth,
-                    max_nodes,
-                    tenant_id.unwrap(),
-                    workspace_id.unwrap(),
-                )
+                .pg_get_knowledge_graph_scoped(start_node, max_depth, max_nodes, tenant, workspace)
                 .await;
         }
 

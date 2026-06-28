@@ -22,9 +22,16 @@ pub fn validate_startup_security(
     let mut warnings = Vec::new();
     let production_db = database_url.map(is_non_local_database).unwrap_or(false);
 
-    if production_db && !auth.auth_enabled {
+    if production_db && !auth.auth_enabled && !auth.dev_mode {
         warnings.push(
-            "EDGEQUAKE_AUTH_ENABLED=false with non-local DATABASE_URL — API is world-readable"
+            "Authentication disabled with non-local DATABASE_URL — set EDGEQUAKE_DEV_MODE only on local dev"
+                .to_string(),
+        );
+    }
+
+    if auth.auth_enabled && auth.api_keys.is_empty() && auth.master_api_key.is_none() {
+        warnings.push(
+            "Authentication enabled but no EDGEQUAKE_API_KEYS or EDGEQUAKE_MASTER_API_KEY — configure credentials or use EDGEQUAKE_DEV_MODE for local dev"
                 .to_string(),
         );
     }
@@ -32,6 +39,13 @@ pub fn validate_startup_security(
     if auth.jwt_secret == edgequake_auth::DEFAULT_INSECURE_JWT_SECRET {
         warnings.push(
             "JWT_SECRET is the insecure default — set a strong secret in production".to_string(),
+        );
+    }
+
+    if security.kv_identity_mirror && security.pg_identity_ssot {
+        warnings.push(
+            "EDGEQUAKE_KV_IDENTITY_MIRROR is ignored when PostgreSQL pool is available (phase 47) — remove this env var"
+                .to_string(),
         );
     }
 
@@ -103,7 +117,9 @@ mod tests {
 
     #[test]
     fn remote_db_auth_off_strict_exits_message() {
-        let auth = AuthConfig::default();
+        let mut auth = AuthConfig::default();
+        auth.auth_enabled = false;
+        auth.dev_mode = true;
         let security = ApiSecurityConfig {
             strict_startup: true,
             ..Default::default()
@@ -114,5 +130,35 @@ mod tests {
             &security,
         );
         assert!(matches!(outcome, StartupSecurityOutcome::Fatal(_)));
+    }
+
+    #[test]
+    fn auth_enabled_no_keys_warns() {
+        let auth = AuthConfig::new("secure-test-secret-spec027");
+        let security = ApiSecurityConfig::default();
+        let outcome = validate_startup_security(
+            Some("postgres://edgequake:edgequake@localhost/edgequake"),
+            &auth,
+            &security,
+        );
+        assert!(matches!(outcome, StartupSecurityOutcome::Warn(_)));
+    }
+
+    #[test]
+    fn kv_identity_mirror_deprecated_warns() {
+        let auth = AuthConfig::new("secure-test-secret-spec027");
+        let security = ApiSecurityConfig {
+            kv_identity_mirror: true,
+            ..Default::default()
+        };
+        let outcome = validate_startup_security(
+            Some("postgres://edgequake:edgequake@localhost/edgequake"),
+            &auth,
+            &security,
+        );
+        assert!(matches!(outcome, StartupSecurityOutcome::Warn(_)));
+        if let StartupSecurityOutcome::Warn(w) = outcome {
+            assert!(w.iter().any(|m| m.contains("KV_IDENTITY_MIRROR")));
+        }
     }
 }

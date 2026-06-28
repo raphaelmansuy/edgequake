@@ -136,7 +136,9 @@ impl AuthConfig {
 
     /// Validate an API key.
     pub fn validate_api_key(&self, key: &str) -> bool {
-        self.api_keys.iter().any(|k| k == key)
+        self.api_keys
+            .iter()
+            .any(|k| crate::services::identity_storage::constant_time_str_eq(k, key))
     }
 }
 
@@ -247,6 +249,16 @@ pub async fn protected_api_auth(
                 {
                     return response;
                 }
+                #[cfg(feature = "postgres")]
+                {
+                    if state.security.strict_tenant_bind {
+                        if let Some(scope) = membership_bind_scope(&state, &request) {
+                            if let Some(response) = enforce_membership_bind(scope).await {
+                                return response;
+                            }
+                        }
+                    }
+                }
                 return next.run(request).await;
             }
             Ok(None) => {}
@@ -314,9 +326,84 @@ fn apply_authenticated_context(
         }
     }
 
+    crate::services::tenant_isolation::attach_pg_isolation_scope(
+        request,
+        &tenant_ctx,
+        Some(&authenticated.auth.user_id),
+    );
     request.extensions_mut().insert(authenticated.auth);
     request.extensions_mut().insert(tenant_ctx);
     None
+}
+
+/// Resolved tenant/workspace membership scope for strict bind (SPEC-027 phase 34).
+#[cfg(feature = "postgres")]
+struct MembershipBindScope {
+    pool: sqlx::PgPool,
+    security: crate::state::ApiSecurityConfig,
+    user_id: uuid::Uuid,
+    tenant_id: uuid::Uuid,
+    workspace_id: uuid::Uuid,
+}
+
+/// Extract membership scope synchronously — no request borrow across await.
+#[cfg(feature = "postgres")]
+fn membership_bind_scope(
+    state: &crate::state::AppState,
+    request: &Request,
+) -> Option<MembershipBindScope> {
+    let pool = state.pg_pool.clone()?;
+    let auth = request
+        .extensions()
+        .get::<crate::handlers::auth::RequestAuthContext>();
+    let tenant_ctx = request.extensions().get::<TenantContext>();
+
+    match (auth, tenant_ctx) {
+        (Some(auth), Some(ctx)) if auth.user_id != "master-api-key" => {
+            let tenant_id = resolve_tenant_uuid(ctx.tenant_id.as_deref());
+            let workspace_id = resolve_workspace_uuid(ctx.workspace_id.as_deref());
+            let user_id = uuid::Uuid::parse_str(&auth.user_id).ok();
+            match (tenant_id, workspace_id, user_id) {
+                (Some(tenant_id), Some(workspace_id), Some(user_id)) => Some(MembershipBindScope {
+                    pool,
+                    security: state.security.clone(),
+                    user_id,
+                    tenant_id,
+                    workspace_id,
+                }),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Verify membership asynchronously (owns scope — no request borrow).
+#[cfg(feature = "postgres")]
+async fn enforce_membership_bind(scope: MembershipBindScope) -> Option<Response> {
+    match crate::services::identity_storage::verify_membership_active(
+        &scope.pool,
+        &scope.security,
+        scope.user_id,
+        scope.tenant_id,
+        scope.workspace_id,
+    )
+    .await
+    {
+        Ok(true) => None,
+        Ok(false) => Some(
+            (
+                StatusCode::FORBIDDEN,
+                Json(AuthError {
+                    error: "forbidden".to_string(),
+                    message: "No active membership for tenant/workspace scope".to_string(),
+                    request_id: edgequake_observability::current_request_id(),
+                }),
+            )
+                .into_response(),
+        ),
+        Err(e) => Some(e.into_response()),
+    }
 }
 
 fn merge_claim_into_context(
@@ -406,6 +493,8 @@ fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str
             | "/api-docs"
             | "/auth/login"
             | "/auth/refresh"
+            | "/auth/oidc/login"
+            | "/auth/oidc/callback"
     ) || (*method == Method::POST
         && normalized_path == "/users"
         && state.auth.config.allow_registration)

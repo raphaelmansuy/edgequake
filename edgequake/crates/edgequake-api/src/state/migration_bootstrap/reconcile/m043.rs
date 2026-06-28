@@ -3,6 +3,8 @@
 use std::collections::HashSet;
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::{Migration043Report, MIGRATION_043_VERSION, SQL_043_APPLY};
@@ -43,7 +45,7 @@ pub async fn reconcile_migration_043(
             extversion = ?extversion_before,
             "Running Apache AGE extension upgrade (migration 043)"
         );
-        sqlx::query(SQL_043_APPLY).execute(pool).await?;
+        execute_bootstrap_apply_sql(pool, SQL_043_APPLY).await?;
     }
 
     let extversion_after: Option<String> =

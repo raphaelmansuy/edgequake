@@ -138,6 +138,10 @@ pub enum ApiError {
     #[error("Forbidden")]
     Forbidden(Option<String>),
 
+    /// Account locked after too many failed logins (HTTP 423).
+    #[error("Account locked")]
+    AccountLocked,
+
     /// Conflict.
     #[error("Conflict: {0}")]
     Conflict(String),
@@ -200,6 +204,7 @@ impl ApiError {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
+            Self::AccountLocked => StatusCode::LOCKED,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
@@ -231,7 +236,7 @@ impl ApiError {
             Self::Storage(_) => "storage",
             Self::Llm(_) => "llm",
             Self::Pipeline(_) => "pipeline",
-            Self::Unauthorized(Some(_)) | Self::Forbidden(Some(_)) => "auth",
+            Self::Unauthorized(Some(_)) | Self::Forbidden(Some(_)) | Self::AccountLocked => "auth",
             _ => "api",
         }
     }
@@ -260,6 +265,11 @@ impl ApiError {
         Self::Forbidden(Some(reason.into()))
     }
 
+    /// HTTP 423 — account locked after failed login attempts (SPEC-027 SEC-011).
+    pub fn account_locked() -> Self {
+        Self::AccountLocked
+    }
+
     /// Variant-specific diagnostics (explicit, not only Display).
     pub fn diagnostic_details(&self) -> Value {
         match self {
@@ -273,6 +283,7 @@ impl ApiError {
                 }
                 d
             }
+            Self::AccountLocked => json!({ "kind": "account_locked" }),
             Self::Conflict(msg) => json!({ "kind": "conflict", "message": msg }),
             Self::ValidationError(msg) => json!({ "kind": "validation", "message": msg }),
             Self::RateLimited => json!({ "kind": "rate_limited", "retryable": true }),
@@ -328,6 +339,7 @@ impl ApiError {
             Self::NotFound(_) => "NOT_FOUND",
             Self::Unauthorized(_) => "UNAUTHORIZED",
             Self::Forbidden(_) => "FORBIDDEN",
+            Self::AccountLocked => "ACCOUNT_LOCKED",
             Self::Conflict(_) => "CONFLICT",
             Self::ValidationError(_) => "VALIDATION_ERROR",
             Self::RateLimited => "RATE_LIMITED",

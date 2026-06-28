@@ -9,7 +9,8 @@ use axum::http::StatusCode;
 use edgequake_api::handlers::health::readiness_check;
 use edgequake_api::state::migration_bootstrap::{
     Migration038Report, Migration042Report, Migration043Report, Migration044Report,
-    Migration045Report, Migration046Report, Migration047Report, MigrationBootstrapReport,
+    Migration045Report, Migration046Report, Migration047Report, Migration048Report,
+    Migration049Report, Migration050Report, MigrationBootstrapReport,
 };
 use edgequake_api::AppState;
 
@@ -59,6 +60,18 @@ fn degraded_bootstrap_report() -> MigrationBootstrapReport {
             missing_indexes: vec![],
         },
         migration_047: Migration047Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_048: Migration048Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_049: Migration049Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_050: Migration050Report {
             marker_present: true,
             apply_executed: false,
         },

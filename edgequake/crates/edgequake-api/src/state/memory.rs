@@ -77,6 +77,7 @@ impl AppState {
                 vector_storage,
                 vector_registry,
                 graph_storage,
+                auth_memory: Arc::new(crate::services::auth_memory_store::AuthMemoryStore::new()),
                 #[cfg(feature = "postgres")]
                 pdf_storage: memory_pdf_storage(),
                 mode: StorageMode::Memory,
@@ -206,6 +207,7 @@ impl AppState {
                 vector_registry,
                 graph_storage: Arc::clone(&graph_storage)
                     as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                auth_memory: Arc::new(crate::services::auth_memory_store::AuthMemoryStore::new()),
                 #[cfg(feature = "postgres")]
                 pdf_storage: memory_pdf_storage(),
                 mode: StorageMode::Memory,
@@ -291,8 +293,12 @@ impl AppState {
                 Arc::clone(&vector_storage) as Arc<dyn edgequake_storage::traits::VectorStorage>,
             ));
 
-        // Create auth services with test configuration
-        let auth = AuthRuntime::new(AuthConfig::default());
+        // Test harness: simulate EDGEQUAKE_DEV_MODE (open API without auth middleware).
+        let auth = AuthRuntime::new(AuthConfig {
+            auth_enabled: false,
+            dev_mode: true,
+            ..AuthConfig::default()
+        });
         let (resource_guard, graph_materialize, pdf_vision) =
             super::resource_runtime::build_resource_runtime();
 
@@ -305,6 +311,7 @@ impl AppState {
                 vector_registry,
                 graph_storage: Arc::clone(&graph_storage)
                     as Arc<dyn edgequake_storage::traits::GraphStorage>,
+                auth_memory: Arc::new(crate::services::auth_memory_store::AuthMemoryStore::new()),
                 #[cfg(feature = "postgres")]
                 pdf_storage: memory_pdf_storage(),
                 mode: StorageMode::Memory,
@@ -341,5 +348,13 @@ impl AppState {
             migration_bootstrap: None,
             security: ApiSecurityConfig::default(),
         }
+    }
+
+    /// Test state with PostgreSQL pool — auth/session use PG SSOT (SPEC-027 phase 41).
+    #[cfg(feature = "postgres")]
+    pub fn test_state_with_pg_pool(pool: sqlx::PgPool) -> Self {
+        let mut state = Self::test_state();
+        state.pg_pool = Some(pool);
+        state
     }
 }

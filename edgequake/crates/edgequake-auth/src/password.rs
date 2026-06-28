@@ -41,14 +41,21 @@ impl PasswordService {
 
     /// Hash a password using Argon2id.
     pub fn hash_password(&self, password: &str) -> Result<String, AuthError> {
-        // Validate password
         self.validate_password_strength(password)?;
+        self.hash_secret_bytes(password.as_bytes())
+    }
 
+    /// Hash an opaque secret without strength validation (OIDC-only accounts).
+    pub fn hash_unvalidated_secret(&self, secret: &str) -> Result<String, AuthError> {
+        self.hash_secret_bytes(secret.as_bytes())
+    }
+
+    fn hash_secret_bytes(&self, secret: &[u8]) -> Result<String, AuthError> {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = self.argon2()?;
 
         let password_hash = argon2
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(secret, &salt)
             .map_err(|e| AuthError::PasswordHashingFailed {
                 reason: e.to_string(),
             })?;

@@ -25,7 +25,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::rls::set_tenant_context;
+use super::rls::{acquire_rls_connection, release_rls_connection};
 use crate::conversation_types::{ConversationRow, FolderRow, MessageRow};
 use crate::error::{Result, StorageError};
 
@@ -115,26 +115,6 @@ impl PostgresConversationStorage {
         &self.pool
     }
 
-    /// Set RLS context for the current session.
-    async fn set_context(&self, tenant_id: Uuid, user_id: Option<Uuid>) -> Result<()> {
-        // Set tenant context
-        set_tenant_context(&self.pool, tenant_id, None).await?;
-
-        // Set user context if provided
-        if let Some(uid) = user_id {
-            let uid_str = uid.to_string();
-            sqlx::query("SELECT set_config('app.current_user_id', $1, false)")
-                .bind(&uid_str)
-                .execute(&*self.pool)
-                .await
-                .map_err(|e| {
-                    StorageError::Database(format!("Failed to set user context: {}", e))
-                })?;
-        }
-
-        Ok(())
-    }
-
     /// Generate a share ID.
     fn generate_share_id() -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
@@ -159,7 +139,8 @@ impl PostgresConversationStorage {
         mode: String,
         folder_id: Option<Uuid>,
     ) -> Result<ConversationRow> {
-        self.set_context(tenant_id, Some(user_id)).await?;
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, workspace_id, Some(user_id))
+            .await?;
 
         let row = sqlx::query_as::<_, ConversationRow>(
             r#"
@@ -175,10 +156,11 @@ impl PostgresConversationStorage {
         .bind(&title)
         .bind(&mode)
         .bind(folder_id)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await
-        .map_err(|e| StorageError::Database(format!("Failed to create conversation: {}", e)))?;
+        .map_err(|e| StorageError::Database(format!("Failed to create conversation: {e}")))?;
 
+        release_rls_connection(&mut conn).await?;
         Ok(row)
     }
 
@@ -214,8 +196,6 @@ impl PostgresConversationStorage {
         is_archived: Option<bool>,
         folder_id: Option<Option<Uuid>>,
     ) -> Result<ConversationRow> {
-        self.set_context(tenant_id, Some(user_id)).await?;
-
         // Build dynamic update query
         let mut updates = Vec::new();
         let mut param_count = 1;
@@ -236,24 +216,30 @@ impl PostgresConversationStorage {
             param_count += 1;
             updates.push(format!("is_archived = ${}", param_count));
         }
-        // WHY: Double option pattern - Some(x) means "update folder_id",
-        // where x can be None (remove from folder) or Some(uuid) (move to folder)
         if folder_id.is_some() {
             param_count += 1;
             updates.push(format!("folder_id = ${}", param_count));
         }
 
         if updates.is_empty() {
-            // Nothing to update, just return current state
-            return self
-                .get_conversation(conversation_id)
-                .await?
-                .ok_or_else(|| {
-                    StorageError::NotFound(format!("Conversation {} not found", conversation_id))
-                });
+            let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id))
+                .await?;
+            let row = sqlx::query_as::<_, ConversationRow>(
+                "SELECT * FROM conversations WHERE conversation_id = $1",
+            )
+            .bind(conversation_id)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("Failed to get conversation: {e}")))
+            .and_then(|row| {
+                row.ok_or_else(|| {
+                    StorageError::NotFound(format!("Conversation {conversation_id} not found"))
+                })
+            })?;
+            release_rls_connection(&mut conn).await?;
+            return Ok(row);
         }
 
-        // Add tenant/user filtering for RLS enforcement
         let tenant_param = param_count + 1;
         let user_param = param_count + 2;
 
@@ -263,6 +249,9 @@ impl PostgresConversationStorage {
             tenant_param,
             user_param
         );
+
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
+            .await?;
 
         let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query).bind(conversation_id);
 
@@ -278,20 +267,18 @@ impl PostgresConversationStorage {
         if let Some(a) = is_archived {
             query_builder = query_builder.bind(a);
         }
-        // WHY: When folder_id is Some(inner), bind inner (which can be None or Some(uuid))
-        // This allows setting folder_id to NULL (removing from folder)
         if let Some(inner_folder) = &folder_id {
             query_builder = query_builder.bind(inner_folder);
         }
 
-        // Bind tenant/user for WHERE clause
         query_builder = query_builder.bind(tenant_id).bind(user_id);
 
         let row = query_builder
-            .fetch_one(&*self.pool)
+            .fetch_one(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to update conversation: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Failed to update conversation: {e}")))?;
 
+        release_rls_connection(&mut conn).await?;
         Ok(row)
     }
 
@@ -333,8 +320,6 @@ impl PostgresConversationStorage {
         limit: i64,
         offset: i64,
     ) -> Result<(Vec<ConversationRow>, i64)> {
-        self.set_context(tenant_id, Some(user_id)).await?;
-
         // Build query with filters
         let mut where_clauses = vec!["tenant_id = $1".to_string(), "user_id = $2".to_string()];
         let mut param_count = 2;
@@ -351,7 +336,6 @@ impl PostgresConversationStorage {
             param_count += 1;
             where_clauses.push(format!("folder_id = ${}", param_count));
         }
-        // WHY: unfiled filter returns only conversations without any folder assignment
         if unfiled == Some(true) {
             where_clauses.push("folder_id IS NULL".to_string());
         }
@@ -388,7 +372,11 @@ impl PostgresConversationStorage {
             where_clauses.join(" AND ")
         );
 
-        // Build query with bindings
+        let search_owned = search.map(|s| s.to_string());
+
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
+            .await?;
+
         let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query)
             .bind(tenant_id)
             .bind(user_id);
@@ -409,7 +397,7 @@ impl PostgresConversationStorage {
             query_builder = query_builder.bind(f);
             count_builder = count_builder.bind(f);
         }
-        if let Some(s) = search {
+        if let Some(s) = search_owned.as_deref() {
             query_builder = query_builder.bind(s);
             count_builder = count_builder.bind(s);
         }
@@ -417,15 +405,16 @@ impl PostgresConversationStorage {
         query_builder = query_builder.bind(limit).bind(offset);
 
         let rows = query_builder
-            .fetch_all(&*self.pool)
+            .fetch_all(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to list conversations: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Failed to list conversations: {e}")))?;
 
         let total = count_builder
-            .fetch_one(&*self.pool)
+            .fetch_one(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to count conversations: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Failed to count conversations: {e}")))?;
 
+        release_rls_connection(&mut conn).await?;
         Ok((rows, total))
     }
 
@@ -697,18 +686,19 @@ impl PostgresConversationStorage {
         name: &str,
         parent_id: Option<Uuid>,
     ) -> Result<FolderRow> {
-        self.set_context(tenant_id, Some(user_id)).await?;
+        let name = name.to_string();
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, workspace_id, Some(user_id))
+            .await?;
 
-        // Get max position
         let max_pos: Option<i32> = sqlx::query_scalar(
             "SELECT MAX(position) FROM folders WHERE tenant_id = $1 AND user_id = $2 AND parent_id IS NOT DISTINCT FROM $3",
         )
         .bind(tenant_id)
         .bind(user_id)
         .bind(parent_id)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await
-        .map_err(|e| StorageError::Database(format!("Failed to get max position: {}", e)))?;
+        .map_err(|e| StorageError::Database(format!("Failed to get max position: {e}")))?;
 
         let position = max_pos.unwrap_or(0) + 1;
 
@@ -722,19 +712,21 @@ impl PostgresConversationStorage {
         .bind(tenant_id)
         .bind(workspace_id)
         .bind(user_id)
-        .bind(name)
+        .bind(&name)
         .bind(parent_id)
         .bind(position)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await
-        .map_err(|e| StorageError::Database(format!("Failed to create folder: {}", e)))?;
+        .map_err(|e| StorageError::Database(format!("Failed to create folder: {e}")))?;
 
+        release_rls_connection(&mut conn).await?;
         Ok(row)
     }
 
     /// List folders for a user.
     pub async fn list_folders(&self, tenant_id: Uuid, user_id: Uuid) -> Result<Vec<FolderRow>> {
-        self.set_context(tenant_id, Some(user_id)).await?;
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
+            .await?;
 
         let rows = sqlx::query_as::<_, FolderRow>(
             r#"
@@ -745,10 +737,11 @@ impl PostgresConversationStorage {
         )
         .bind(tenant_id)
         .bind(user_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await
-        .map_err(|e| StorageError::Database(format!("Failed to list folders: {}", e)))?;
+        .map_err(|e| StorageError::Database(format!("Failed to list folders: {e}")))?;
 
+        release_rls_connection(&mut conn).await?;
         Ok(rows)
     }
 
@@ -763,8 +756,6 @@ impl PostgresConversationStorage {
         parent_id: Option<Uuid>,
         position: Option<i32>,
     ) -> Result<FolderRow> {
-        self.set_context(tenant_id, Some(user_id)).await?;
-
         let mut updates = Vec::new();
         let mut param_count = 1;
 
@@ -782,13 +773,22 @@ impl PostgresConversationStorage {
         }
 
         if updates.is_empty() {
-            return self
-                .get_folder(folder_id)
-                .await?
-                .ok_or_else(|| StorageError::NotFound(format!("Folder {} not found", folder_id)));
+            let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id))
+                .await?;
+            let row = sqlx::query_as::<_, FolderRow>("SELECT * FROM folders WHERE folder_id = $1")
+                .bind(folder_id)
+                .fetch_optional(&mut *conn)
+                .await
+                .map_err(|e| StorageError::Database(format!("Failed to get folder: {e}")))
+                .and_then(|row| {
+                    row.ok_or_else(|| {
+                        StorageError::NotFound(format!("Folder {folder_id} not found"))
+                    })
+                })?;
+            release_rls_connection(&mut conn).await?;
+            return Ok(row);
         }
 
-        // Add tenant/user filtering for RLS enforcement
         let tenant_param = param_count + 1;
         let user_param = param_count + 2;
 
@@ -799,9 +799,14 @@ impl PostgresConversationStorage {
             user_param
         );
 
+        let name_owned = name.map(|n| n.to_string());
+
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
+            .await?;
+
         let mut query_builder = sqlx::query_as::<_, FolderRow>(&query).bind(folder_id);
 
-        if let Some(n) = name {
+        if let Some(n) = name_owned.as_deref() {
             query_builder = query_builder.bind(n);
         }
         if let Some(p) = parent_id {
@@ -811,14 +816,14 @@ impl PostgresConversationStorage {
             query_builder = query_builder.bind(pos);
         }
 
-        // Bind tenant/user for WHERE clause
         query_builder = query_builder.bind(tenant_id).bind(user_id);
 
         let row = query_builder
-            .fetch_one(&*self.pool)
+            .fetch_one(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to update folder: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("Failed to update folder: {e}")))?;
 
+        release_rls_connection(&mut conn).await?;
         Ok(row)
     }
 
@@ -840,18 +845,18 @@ impl PostgresConversationStorage {
         user_id: Uuid,
         folder_id: Uuid,
     ) -> Result<()> {
-        self.set_context(tenant_id, Some(user_id)).await?;
+        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
+            .await?;
 
-        // Move conversations out of folder first (scoped to tenant/user)
-        sqlx::query("UPDATE conversations SET folder_id = NULL WHERE folder_id = $1 AND tenant_id = $2 AND user_id = $3")
-            .bind(folder_id)
-            .bind(tenant_id)
-            .bind(user_id)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to update conversations: {}", e))
-            })?;
+        sqlx::query(
+            "UPDATE conversations SET folder_id = NULL WHERE folder_id = $1 AND tenant_id = $2 AND user_id = $3",
+        )
+        .bind(folder_id)
+        .bind(tenant_id)
+        .bind(user_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to update conversations: {e}")))?;
 
         let result = sqlx::query(
             "DELETE FROM folders WHERE folder_id = $1 AND tenant_id = $2 AND user_id = $3",
@@ -859,17 +864,18 @@ impl PostgresConversationStorage {
         .bind(folder_id)
         .bind(tenant_id)
         .bind(user_id)
-        .execute(&*self.pool)
+        .execute(&mut *conn)
         .await
-        .map_err(|e| StorageError::Database(format!("Failed to delete folder: {}", e)))?;
+        .map_err(|e| StorageError::Database(format!("Failed to delete folder: {e}")))?;
 
         if result.rows_affected() == 0 {
+            release_rls_connection(&mut conn).await?;
             return Err(StorageError::NotFound(format!(
-                "Folder {} not found",
-                folder_id
+                "Folder {folder_id} not found"
             )));
         }
 
+        release_rls_connection(&mut conn).await?;
         Ok(())
     }
 

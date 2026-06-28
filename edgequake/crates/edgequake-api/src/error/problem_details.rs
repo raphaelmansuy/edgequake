@@ -29,6 +29,7 @@ pub fn problem_title_for_code(code: &str) -> &'static str {
         "NOT_FOUND" => "Not Found",
         "UNAUTHORIZED" => "Unauthorized",
         "FORBIDDEN" => "Forbidden",
+        "ACCOUNT_LOCKED" => "Account Locked",
         "CONFLICT" => "Conflict",
         "VALIDATION_ERROR" => "Validation Error",
         "RATE_LIMITED" => "Too Many Requests",

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use super::StorageMode;
+use crate::services::auth_memory_store::AuthMemoryStore;
 
 /// KV, vector, graph, and optional PDF storage adapters.
 #[derive(Clone)]
@@ -11,6 +12,8 @@ pub struct StorageRuntime {
     pub vector_storage: Arc<dyn edgequake_storage::traits::VectorStorage>,
     pub vector_registry: Arc<dyn edgequake_storage::traits::WorkspaceVectorRegistry>,
     pub graph_storage: Arc<dyn edgequake_storage::traits::GraphStorage>,
+    /// In-memory auth artifacts when PostgreSQL pool is unavailable (never KV).
+    pub auth_memory: Arc<AuthMemoryStore>,
     #[cfg(feature = "postgres")]
     pub pdf_storage: Option<Arc<dyn edgequake_storage::PdfDocumentStorage>>,
     pub mode: StorageMode,
@@ -65,6 +68,7 @@ mod tests {
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
             vector_registry: registry,
             graph_storage: Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            auth_memory: Arc::new(AuthMemoryStore::new()),
             #[cfg(feature = "postgres")]
             pdf_storage: None,
             mode: StorageMode::Memory,
@@ -91,6 +95,7 @@ mod tests {
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
             vector_registry: registry,
             graph_storage: Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            auth_memory: Arc::new(AuthMemoryStore::new()),
             pdf_storage: None,
             mode: StorageMode::PostgreSQL,
         };
@@ -115,6 +120,7 @@ mod tests {
                 as Arc<dyn edgequake_storage::traits::VectorStorage>,
             vector_registry: registry,
             graph_storage: Arc::clone(&graph) as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            auth_memory: Arc::new(AuthMemoryStore::new()),
             pdf_storage: Some(pdf),
             mode: StorageMode::Memory,
         };

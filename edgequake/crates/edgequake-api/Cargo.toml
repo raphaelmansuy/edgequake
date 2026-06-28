@@ -59,6 +59,7 @@ regex = "1"
 async-trait.workspace = true
 sqlx = { workspace = true, optional = true }
 reqwest = { version = "0.12", features = ["blocking", "json"] }
+openidconnect = { version = "4.0", default-features = false, features = ["reqwest"] }
 url = "2.5"
 lazy_static = "1.5"
 
@@ -88,3 +89,5 @@ sqlx = { workspace = true, features = [
 serial_test = "3.2"
 tempfile = "3"
 urlencoding = "2.1"
+wiremock = "0.6"
+jsonwebtoken = "9.3"

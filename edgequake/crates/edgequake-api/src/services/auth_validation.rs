@@ -3,7 +3,7 @@
 use chrono::Utc;
 use edgequake_auth::Role;
 
-use crate::handlers::auth::{ApiKeyRecord, RequestAuthContext, API_KEY_PREFIX};
+use crate::handlers::auth::{RequestAuthContext};
 use crate::state::AppState;
 
 /// Successful authentication with optional JWT tenant claims.
@@ -24,7 +24,7 @@ pub(crate) async fn validate_presented_token(
         .config
         .api_keys
         .iter()
-        .any(|configured| configured == token)
+        .any(|configured| crate::services::identity_storage::constant_time_str_eq(configured, token))
     {
         return Ok(Some(AuthenticatedRequest {
             auth: RequestAuthContext {
@@ -70,33 +70,25 @@ pub(crate) async fn validate_stored_api_key(
 
     let presented_prefix: String = presented_key.chars().take(11).collect();
 
-    let storage_keys = state
-        .storage
-        .kv_storage
-        .keys_with_prefix(API_KEY_PREFIX)
-        .await
-        .map_err(|e| crate::error::ApiError::Internal(format!("API key lookup failed: {e}")))?;
+    #[cfg(feature = "postgres")]
+    let pg_holder = state
+        .pg_pool
+        .clone()
+        .map(|pool| crate::state::PostgresRuntime { pool: Some(pool) });
+    #[cfg(feature = "postgres")]
+    let pg_runtime = pg_holder.as_ref();
+    #[cfg(not(feature = "postgres"))]
+    let pg_runtime: Option<&crate::state::PostgresRuntime> = None;
 
-    for storage_key in storage_keys {
-        let Some(value) = state
-            .storage
-            .kv_storage
-            .get_by_id(&storage_key)
-            .await
-            .map_err(|e| crate::error::ApiError::Internal(format!("API key read failed: {e}")))?
-        else {
-            continue;
-        };
+    let candidates = crate::services::session_storage::find_active_api_keys_by_prefix(
+        &state.storage,
+        pg_runtime,
+        &state.security,
+        &presented_prefix,
+    )
+    .await?;
 
-        let record: ApiKeyRecord = serde_json::from_value(value)
-            .map_err(|e| crate::error::ApiError::Internal(format!("API key parse failed: {e}")))?;
-
-        if !record.is_active {
-            continue;
-        }
-        if record.prefix != presented_prefix {
-            continue;
-        }
+    for record in candidates {
         if record
             .expires_at
             .is_some_and(|expires| expires < Utc::now())

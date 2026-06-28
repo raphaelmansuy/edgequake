@@ -5,6 +5,8 @@
 //! applies the embedded DDL when absent.
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::SQL_041_APPLY;
@@ -30,6 +32,6 @@ pub async fn reconcile_migration_041(pool: &PgPool) -> Result<bool, sqlx::Error>
         step = "migration_041_reconcile",
         "documents.cost_usd missing — applying migration 041 document stats columns"
     );
-    sqlx::query(SQL_041_APPLY).execute(pool).await?;
+    execute_bootstrap_apply_sql(pool, SQL_041_APPLY).await?;
     Ok(true)
 }

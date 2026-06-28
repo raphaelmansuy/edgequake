@@ -39,7 +39,13 @@ fn is_public_path(path: &str) -> bool {
     matches!(
         path,
         "/health" | "/ready" | "/live" | "/metrics" | "/version"
-    ) || matches!(path, "/api/v1/auth/login" | "/api/v1/auth/refresh")
+    ) || matches!(
+        path,
+        "/api/v1/auth/login"
+            | "/api/v1/auth/refresh"
+            | "/api/v1/auth/oidc/login"
+            | "/api/v1/auth/oidc/callback"
+    )
         || path.starts_with("/api/v1/shared/")
 }
 

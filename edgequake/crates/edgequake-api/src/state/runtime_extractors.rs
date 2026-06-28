@@ -9,8 +9,8 @@ use axum::extract::FromRef;
 use edgequake_core::ResourceBudgetConfig;
 
 use super::{
-    AppConfig, AppState, AuthRuntime, ComplianceRuntime, GraphQueryRuntime, PostgresRuntime,
-    QueryRuntime, StorageRuntime, TaskRuntime,
+    ApiSecurityConfig, AppConfig, AppState, AuthRuntime, ComplianceRuntime, GraphQueryRuntime,
+    PostgresRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
 };
 use edgequake_auth::extractors::AuthState;
 
@@ -98,6 +98,12 @@ impl FromRef<AppState> for PostgresRuntime {
 impl FromRef<AppState> for PostgresRuntime {
     fn from_ref(_state: &AppState) -> Self {
         PostgresRuntime
+    }
+}
+
+impl FromRef<AppState> for ApiSecurityConfig {
+    fn from_ref(state: &AppState) -> Self {
+        state.security.clone()
     }
 }
 

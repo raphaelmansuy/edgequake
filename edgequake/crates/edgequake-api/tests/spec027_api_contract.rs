@@ -799,6 +799,758 @@ fn spec027_list_documents_isp() {
 }
 
 #[test]
+fn spec027_get_document_isp() {
+    let detail = read_crate_src("src/handlers/documents/query/detail.rs");
+    let get_fn = detail
+        .split("pub async fn get_document")
+        .nth(1)
+        .expect("get_document");
+    assert!(get_fn.contains("State<StorageRuntime>"));
+    assert!(get_fn.contains("State<PostgresRuntime>"));
+    assert!(!get_fn.contains("State<AppState>"));
+}
+
+#[test]
+fn spec027_login_lockout_sec011() {
+    let session = read_crate_src("src/handlers/auth/session.rs");
+    assert!(
+        session.contains("login_lockout::ensure_login_allowed"),
+        "login must check lockout before password verify"
+    );
+    assert!(
+        session.contains("login_lockout::record_failed_login"),
+        "login must record failed attempts"
+    );
+    assert!(
+        session.contains("login_lockout::record_successful_login"),
+        "login must clear lockout on success"
+    );
+    let lockout = read_crate_src("src/services/login_lockout.rs");
+    assert!(lockout.contains("failed_login_attempts"));
+    assert!(lockout.contains("locked_until"));
+    assert!(lockout.contains("max_login_attempts"));
+    let user_record = read_crate_src("src/handlers/auth/mod.rs");
+    assert!(user_record.contains("failed_login_attempts"));
+    assert!(user_record.contains("locked_until"));
+    let error = read_crate_src("src/error.rs");
+    assert!(error.contains("AccountLocked"));
+    assert!(error.contains("account_locked"));
+}
+
+#[test]
+fn spec027_identity_storage_ssot_phase33() {
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("sync_auth_user_to_postgres"));
+    assert!(identity.contains("constant_time_str_eq"));
+    assert!(identity.contains("IdentityPolicy"));
+    assert!(identity.contains("load_user_record"));
+    assert!(identity.contains("persist_user_record"));
+    let auth_mod = read_crate_src("src/handlers/auth/mod.rs");
+    assert!(auth_mod.contains("persist_user_record"));
+    assert!(auth_mod.contains("get_record_by_id"));
+    let session = read_crate_src("src/handlers/auth/session.rs");
+    assert!(session.contains("access_token_claims"));
+    let middleware = read_crate_src("src/middleware.rs");
+    assert!(middleware.contains("membership_bind_scope"));
+    assert!(middleware.contains("enforce_membership_bind"));
+}
+
+#[test]
+fn spec027_conversation_rls_acquired_phase36() {
+    let conversation = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../edgequake-storage/src/adapters/postgres/conversation.rs"),
+    )
+    .expect("conversation.rs");
+    assert!(conversation.contains("acquire_rls_connection"));
+    assert!(
+        !conversation.contains("acquire_tenant_conn"),
+        "must use rls.rs SSOT acquire_rls_connection"
+    );
+    assert!(
+        !conversation.contains("set_context("),
+        "legacy pool-level set_context must be removed"
+    );
+    assert!(
+        !conversation.contains("set_tenant_context(&self.pool"),
+        "must not set RLS on pool directly"
+    );
+}
+
+#[test]
+fn spec027_rls_acquire_ssot_phase37() {
+    let rls = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../edgequake-storage/src/adapters/postgres/rls.rs"),
+    )
+    .expect("rls.rs");
+    assert!(rls.contains("pub async fn acquire_rls_connection"));
+    assert!(rls.contains("pub async fn release_rls_connection"));
+    assert!(
+        rls.contains("#[deprecated"),
+        "legacy pool-level RlsContext must be deprecated"
+    );
+    assert!(
+        rls.contains("acquire_rls_connection(pool, tenant_id, workspace_id, user_id)"),
+        "with_acquired_tenant_context must delegate to acquire_rls_connection"
+    );
+    let postgres_mod = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../edgequake-storage/src/adapters/postgres/mod.rs"),
+    )
+    .expect("postgres/mod.rs");
+    assert!(postgres_mod.contains("acquire_rls_connection"));
+    assert!(postgres_mod.contains("release_rls_connection"));
+}
+
+#[test]
+fn spec027_migration_050_pg_rls_ssot_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_050"));
+    assert!(bootstrap.contains("migration_050"));
+    assert!(bootstrap.contains("MIGRATION_050_VERSION"));
+    assert!(bootstrap.contains("SQL_050_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m050.rs").exists());
+    assert!(std::path::Path::new("../../migrations/050_pg_rls_context_ssot_marker.sql").exists());
+}
+
+#[test]
+fn spec027_tenant_isolation_ssot_phase35() {
+    let isolation = read_crate_src("src/services/tenant_isolation.rs");
+    assert!(isolation.contains("PgIsolationScope"));
+    assert!(isolation.contains("PostgreSQL is identity SSOT"));
+    assert!(isolation.contains("with_acquired_tenant_context"));
+    let rls = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../edgequake-storage/src/adapters/postgres/rls.rs"),
+    )
+    .expect("rls.rs");
+    assert!(rls.contains("with_acquired_tenant_context"));
+    assert!(rls.contains("set_tenant_context_on_conn"));
+    let security = read_crate_src("src/state/security_config.rs");
+    assert!(security.contains("pg_rls_enabled"));
+    assert!(security.contains("EDGEQUAKE_PG_RLS_ENABLED"));
+    assert!(security.contains("pg_identity_ssot"));
+    assert!(security.contains("EDGEQUAKE_PG_IDENTITY_SSOT"));
+    assert!(security.contains("pg_rls_enabled: true"));
+    let middleware = read_crate_src("src/middleware.rs");
+    assert!(middleware.contains("attach_pg_isolation_scope"));
+}
+
+#[test]
+fn spec027_pg_identity_ssot_phase38() {
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("IdentityPolicy"));
+    assert!(identity.contains("pg_primary"));
+    assert!(identity.contains("find_user_record_by_login_pg"));
+    assert!(identity.contains("list_user_records_pg"));
+    let security = read_crate_src("src/state/security_config.rs");
+    assert!(security.contains("pg_identity_ssot: true"));
+    assert!(security.contains("pg_rls_enabled: true"));
+    assert!(security.contains("EDGEQUAKE_KV_IDENTITY_MIRROR"));
+}
+
+#[test]
+fn spec027_migration_051_pg_identity_primary_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_051"));
+    assert!(bootstrap.contains("migration_051"));
+    assert!(bootstrap.contains("MIGRATION_051_VERSION"));
+    assert!(bootstrap.contains("SQL_051_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m051.rs").exists());
+    assert!(std::path::Path::new("../../migrations/051_pg_identity_ssot_primary_marker.sql").exists());
+}
+
+#[test]
+fn spec027_session_storage_pg_phase39() {
+    let session = read_crate_src("src/services/session_storage.rs");
+    assert!(session.contains("persist_refresh_token"));
+    assert!(session.contains("load_refresh_token"));
+    assert!(session.contains("persist_api_key"));
+    assert!(session.contains("find_active_api_keys_by_prefix"));
+    assert!(session.contains("refresh_token_lookup_hash"));
+    let session_handler = read_crate_src("src/handlers/auth/session.rs");
+    assert!(session_handler.contains("session_storage::persist_refresh_token"));
+    assert!(session_handler.contains("session_storage::load_refresh_token"));
+    let api_keys = read_crate_src("src/handlers/auth/api_keys.rs");
+    assert!(api_keys.contains("session_storage::persist_api_key"));
+    let validation = read_crate_src("src/services/auth_validation.rs");
+    assert!(validation.contains("session_storage::find_active_api_keys_by_prefix"));
+}
+
+#[test]
+fn spec027_migration_052_session_artifacts_ssot_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_052"));
+    assert!(bootstrap.contains("migration_052"));
+    assert!(bootstrap.contains("MIGRATION_052_VERSION"));
+    assert!(bootstrap.contains("SQL_052_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m052.rs").exists());
+    assert!(std::path::Path::new("../../migrations/052_pg_session_artifacts_ssot_marker.sql").exists());
+}
+
+#[test]
+fn spec027_pg_auth_no_kv_read_fallback_phase40() {
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("kv_auth_reads_enabled"));
+    assert!(identity.contains("kv_auth_writes_enabled"));
+    assert!(
+        identity.contains("if policy.pg_primary"),
+        "identity must branch on pg_primary — no silent KV fallback when pool exists"
+    );
+    let session = read_crate_src("src/services/session_storage.rs");
+    assert!(
+        session.contains("if policy.pg_primary"),
+        "session must branch on pg_primary"
+    );
+}
+
+#[test]
+fn spec027_pg_auth_test_harness_phase41() {
+    let memory = read_crate_src("src/state/memory.rs");
+    assert!(memory.contains("test_state_with_pg_pool"));
+    let isolation = read_crate_src("src/services/tenant_isolation.rs");
+    assert!(isolation.contains("with_optional_pg_rls"));
+    assert!(std::path::Path::new("tests/spec027_pg_auth_e2e.rs").exists());
+}
+
+#[test]
+fn spec027_handler_rls_wiring_phase42() {
+    let pdf_lineage = read_crate_src("src/services/pdf_lineage.rs");
+    assert!(pdf_lineage.contains("acquire_optional_pg_connection"));
+    assert!(pdf_lineage.contains("pdf_documents"));
+    let detail = read_crate_src("src/handlers/documents/query/detail.rs");
+    assert!(detail.contains("pdf_lineage::fetch_pdf_extraction_metadata"));
+    let isolation = read_crate_src("src/services/tenant_isolation.rs");
+    assert!(isolation.contains("acquire_optional_pg_connection"));
+    assert!(isolation.contains("default_identity"));
+}
+
+#[test]
+fn spec027_identity_pg_rls_envelope_phase43() {
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("acquire_optional_pg_connection"));
+    assert!(identity.contains("ensure_anonymous_user_in_postgres"));
+    let session = read_crate_src("src/services/session_storage.rs");
+    assert!(session.contains("acquire_optional_pg_connection"));
+    let bootstrap = read_crate_src("src/handlers/postgres_user_bootstrap.rs");
+    assert!(bootstrap.contains("ensure_anonymous_user_in_postgres"));
+}
+
+#[test]
+fn spec027_auth_secure_by_default_phase44() {
+    let auth_config = read_crate_src("../edgequake-auth/src/config.rs");
+    assert!(auth_config.contains("auth_enabled: true"));
+    assert!(auth_config.contains("EDGEQUAKE_DEV_MODE"));
+    assert!(auth_config.contains("resolve_auth_enabled_from_env"));
+    let memory = read_crate_src("src/state/memory.rs");
+    assert!(memory.contains("dev_mode: true"));
+    let makefile = std::fs::read_to_string("../../../Makefile").expect("Makefile");
+    assert!(makefile.contains("DEV_EDGEQUAKE_DEV_MODE"));
+}
+
+#[test]
+fn spec027_migration_055_auth_secure_default_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_055"));
+    assert!(bootstrap.contains("migration_055"));
+    assert!(bootstrap.contains("MIGRATION_055_VERSION"));
+    assert!(bootstrap.contains("SQL_055_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m055.rs").exists());
+    assert!(std::path::Path::new("../../migrations/055_auth_secure_by_default_marker.sql").exists());
+}
+
+#[test]
+fn spec027_auth_memory_store_phase55() {
+    assert!(std::path::Path::new("src/services/auth_memory_store.rs").exists());
+    assert!(!std::path::Path::new("src/services/auth_kv_store.rs").exists());
+    let memory = read_crate_src("src/services/auth_memory_store.rs");
+    assert!(memory.contains("AuthMemoryStore"));
+    assert!(!memory.contains("kv_storage"));
+    let storage_rt = read_crate_src("src/state/storage_runtime.rs");
+    assert!(storage_rt.contains("auth_memory"));
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("auth_memory_store::"));
+    assert!(identity.contains("\"in-memory\""));
+    assert!(!identity.contains("auth_kv_store"));
+    let session = read_crate_src("src/services/session_storage.rs");
+    assert!(session.contains("auth_memory_store::"));
+    assert!(!session.contains("auth_kv_store"));
+    let oidc_pending = read_crate_src("src/services/oidc_pending.rs");
+    assert!(oidc_pending.contains("auth_memory_store"));
+    assert!(!oidc_pending.contains("kv_storage"));
+    let services_mod = read_crate_src("src/services/mod.rs");
+    assert!(services_mod.contains("pub mod auth_memory_store"));
+    assert!(!services_mod.contains("auth_kv_store"));
+}
+
+#[test]
+fn spec027_auth_kv_store_consolidated_phase45() {
+    let memory = read_crate_src("src/services/auth_memory_store.rs");
+    assert!(memory.contains("persist_user_record"));
+    assert!(memory.contains("persist_refresh_token"));
+    assert!(memory.contains("persist_api_key"));
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("identity_backend_label"));
+    assert!(identity.contains("auth_memory_store::persist_user_record"));
+    let session = read_crate_src("src/services/session_storage.rs");
+    assert!(session.contains("auth_memory_store::persist_refresh_token"));
+    let health = read_crate_src("src/handlers/health_types.rs");
+    assert!(health.contains("auth_identity_ssot"));
+    let auth_mod = read_crate_src("src/handlers/auth/mod.rs");
+    assert!(
+        auth_mod.contains("identity_storage::find_user_record_by_login"),
+        "auth helpers must route through identity_storage"
+    );
+    assert!(
+        !auth_mod.contains("auth_kv_store"),
+        "handlers/auth must not reference auth_kv_store"
+    );
+}
+
+#[test]
+fn spec027_migration_056_auth_kv_store_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_056"));
+    assert!(bootstrap.contains("migration_056"));
+    assert!(bootstrap.contains("MIGRATION_056_VERSION"));
+    assert!(bootstrap.contains("SQL_056_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m056.rs").exists());
+    assert!(std::path::Path::new("../../migrations/056_auth_kv_store_consolidated_marker.sql").exists());
+}
+
+#[test]
+fn spec027_health_schema_ops_phase46() {
+    let health_schema = read_crate_src("src/services/health_schema.rs");
+    assert!(health_schema.contains("_sqlx_migrations"));
+    assert!(health_schema.contains("fetch_sqlx_migration_stats"));
+    let health = read_crate_src("src/handlers/health.rs");
+    assert!(health.contains("health_schema::fetch_sqlx_migration_stats"));
+    let startup = read_crate_src("src/startup_security.rs");
+    assert!(startup.contains("kv_identity_mirror"));
+    assert!(startup.contains("deprecated"));
+}
+
+#[test]
+fn spec027_migration_057_kv_mirror_deprecated_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_057"));
+    assert!(bootstrap.contains("migration_057"));
+    assert!(bootstrap.contains("MIGRATION_057_VERSION"));
+    assert!(bootstrap.contains("SQL_057_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m057.rs").exists());
+    assert!(std::path::Path::new("../../migrations/057_kv_identity_mirror_deprecated_marker.sql").exists());
+}
+
+#[test]
+fn spec027_identity_policy_ignores_kv_mirror_phase47() {
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("identity_policy_ignores_kv_mirror_when_pool_phase47"));
+    assert!(
+        identity.contains("kv_mirror: false"),
+        "PG-primary must hard-disable KV mirror when pool exists"
+    );
+}
+
+#[test]
+fn spec027_migration_058_kv_mirror_ignored_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_058"));
+    assert!(bootstrap.contains("migration_058"));
+    assert!(bootstrap.contains("MIGRATION_058_VERSION"));
+    assert!(bootstrap.contains("SQL_058_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m058.rs").exists());
+    assert!(std::path::Path::new("../../migrations/058_kv_mirror_ignored_with_pg_pool_marker.sql").exists());
+    let health = read_crate_src("src/handlers/health_types.rs");
+    assert!(health.contains("kv_identity_mirror_effective"));
+}
+
+#[test]
+fn spec027_pg_only_auth_branch_phase48() {
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(
+        identity.contains("if policy.pg_primary"),
+        "identity uses explicit pg_primary branch"
+    );
+    let session = read_crate_src("src/services/session_storage.rs");
+    assert!(
+        session.contains("if policy.pg_primary"),
+        "session uses explicit pg_primary branch"
+    );
+    assert!(
+        !session.contains("policy.kv_auth_reads_enabled()"),
+        "session should not branch on kv_auth_reads_enabled after phase 48"
+    );
+}
+
+#[test]
+fn spec027_migration_059_pg_only_auth_branch_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_059"));
+    assert!(bootstrap.contains("migration_059"));
+    assert!(bootstrap.contains("MIGRATION_059_VERSION"));
+    assert!(bootstrap.contains("SQL_059_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m059.rs").exists());
+    assert!(std::path::Path::new("../../migrations/059_pg_only_auth_branch_ssot_marker.sql").exists());
+}
+
+#[test]
+fn spec027_oauth2_oidc_not_builtin_phase49() {
+    let auth_config = read_crate_src("../edgequake-auth/src/config.rs");
+    assert!(auth_config.contains("OAUTH2_OIDC_BUILTIN"));
+    assert!(auth_config.contains("BUILTIN_AUTH_MECHANISMS"));
+    assert!(auth_config.contains("EXTERNAL_SSO_PATTERN"));
+    let health_types = read_crate_src("src/handlers/health_types.rs");
+    assert!(health_types.contains("oauth2_oidc_builtin"));
+    assert!(health_types.contains("auth_mechanisms"));
+    assert!(health_types.contains("auth_kv_harness_active"));
+    assert!(health_types.contains("external_sso_pattern"));
+    let health = read_crate_src("src/handlers/health.rs");
+    assert!(health.contains("resolved_auth_mechanisms"));
+    assert!(health.contains("is_runtime_builtin"));
+    let kv_store = read_crate_src("src/services/auth_memory_store.rs");
+    assert!(kv_store.contains("persist_user_record"));
+    assert!(
+        !kv_store.contains("mirror_user_record"),
+        "legacy mirror_user_record name removed"
+    );
+}
+
+#[test]
+fn spec027_migration_060_oauth_oidc_honesty_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_060"));
+    assert!(bootstrap.contains("migration_060"));
+    assert!(bootstrap.contains("MIGRATION_060_VERSION"));
+    assert!(bootstrap.contains("SQL_060_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m060.rs").exists());
+    assert!(std::path::Path::new("../../migrations/060_oauth_oidc_honesty_auth_kv_quarantine_marker.sql").exists());
+}
+
+#[test]
+fn spec027_user_management_isolated_from_auth_kv_phase50() {
+    let user_mgmt = read_crate_src("src/handlers/auth/user_management.rs");
+    assert!(
+        !user_mgmt.contains("auth_kv_store"),
+        "handlers must route identity through identity_storage"
+    );
+    assert!(user_mgmt.contains("identity_storage::list_user_records"));
+    assert!(user_mgmt.contains("identity_storage::delete_user_record"));
+    let services_mod = read_crate_src("src/services/mod.rs");
+    assert!(services_mod.contains("pub mod auth_memory_store"));
+    let identity = read_crate_src("src/services/identity_storage.rs");
+    assert!(identity.contains("pub(crate) async fn list_user_records"));
+    assert!(identity.contains("pub(crate) async fn delete_user_record"));
+}
+
+#[test]
+fn spec027_migration_061_auth_kv_handler_isolation_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_061"));
+    assert!(bootstrap.contains("migration_061"));
+    assert!(bootstrap.contains("MIGRATION_061_VERSION"));
+    assert!(bootstrap.contains("SQL_061_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m061.rs").exists());
+    assert!(std::path::Path::new("../../migrations/061_auth_kv_handler_isolation_marker.sql").exists());
+}
+
+#[test]
+fn spec027_auth_handlers_isolated_from_auth_kv_phase51() {
+    let auth_mod = read_crate_src("src/handlers/auth/mod.rs");
+    assert!(
+        !auth_mod.contains("auth_kv_store"),
+        "handlers/auth/mod.rs must not reference auth_kv_store"
+    );
+    assert!(auth_mod.contains("identity_storage::load_user_record"));
+    assert!(auth_mod.contains("identity_storage::persist_user_record"));
+    let user_mgmt = read_crate_src("src/handlers/auth/user_management.rs");
+    assert!(!user_mgmt.contains("auth_kv_store"));
+}
+
+#[test]
+fn spec027_migration_062_auth_mod_isolation_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_062"));
+    assert!(bootstrap.contains("migration_062"));
+    assert!(bootstrap.contains("MIGRATION_062_VERSION"));
+    assert!(bootstrap.contains("SQL_062_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m062.rs").exists());
+    assert!(std::path::Path::new("../../migrations/062_auth_mod_identity_ssot_marker.sql").exists());
+}
+
+#[test]
+fn spec027_auth_memory_store_callers_only_phase55() {
+    fn walk_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk_rs(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let src_root = manifest.join("src");
+    let mut rs_files = Vec::new();
+    walk_rs(&src_root, &mut rs_files);
+
+    let allowed_callers = [
+        "src/services/auth_memory_store.rs",
+        "src/services/identity_storage.rs",
+        "src/services/session_storage.rs",
+        "src/services/oidc_pending.rs",
+        "src/services/mod.rs",
+        "src/state/memory.rs",
+        "src/state/postgres.rs",
+        "src/state/storage_runtime.rs",
+    ];
+
+    let mut offenders = Vec::new();
+    for path in rs_files {
+        let rel = path
+            .strip_prefix(&manifest)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        let src = std::fs::read_to_string(&path).unwrap_or_default();
+        let references_memory = src.contains("auth_memory_store::")
+            || src.contains("mod auth_memory_store");
+        let references_kv_auth =
+            src.contains("auth_kv_store::") || src.contains("mod auth_kv_store");
+        if references_kv_auth {
+            offenders.push(format!("{rel} (legacy auth_kv_store code)"));
+        }
+        if references_memory && !allowed_callers.iter().any(|a| *a == rel) {
+            offenders.push(rel);
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "auth_memory_store must be referenced only from identity/session/oidc_pending (+ mod); found: {offenders:?}"
+    );
+}
+
+#[test]
+#[ignore = "superseded by spec027_auth_memory_store_callers_only_phase55"]
+fn spec027_auth_kv_store_two_callers_only_phase52() {
+    fn walk_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk_rs(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let src_root = manifest.join("src");
+    let mut rs_files = Vec::new();
+    walk_rs(&src_root, &mut rs_files);
+
+    let allowed_callers = [
+        "src/services/auth_kv_store.rs",
+        "src/services/identity_storage.rs",
+        "src/services/session_storage.rs",
+        "src/services/mod.rs",
+    ];
+
+    let mut offenders = Vec::new();
+    for path in rs_files {
+        let rel = path
+            .strip_prefix(&manifest)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        let src = std::fs::read_to_string(&path).unwrap_or_default();
+        let references_kv = src.contains("auth_kv_store::") || src.contains("mod auth_kv_store");
+        if references_kv && !allowed_callers.iter().any(|a| *a == rel) {
+            offenders.push(rel);
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "auth_kv_store must be referenced only from identity_storage + session_storage (+ mod); found: {offenders:?}"
+    );
+}
+
+#[test]
+fn spec027_oauth2_oidc_builtin_wiring_phase54() {
+    let routes = read_crate_src("src/routes.rs");
+    assert!(routes.contains("/auth/oidc/login"));
+    assert!(routes.contains("/auth/oidc/callback"));
+    assert!(routes.contains("handlers::oidc_login"));
+    assert!(routes.contains("handlers::oidc_callback"));
+    for line in routes.lines() {
+        if line.contains(".route(") {
+            let lower = line.to_lowercase();
+            if lower.contains("oauth") && !lower.contains("oidc") {
+                panic!("unexpected oauth route (non-oidc): {line}");
+            }
+        }
+    }
+    let cargo = read_crate_src("Cargo.toml");
+    assert!(cargo.contains("openidconnect"));
+    let oidc_flow = read_crate_src("src/services/oidc_flow.rs");
+    assert!(oidc_flow.contains("PkceCodeChallenge"));
+    let oidc_pending = read_crate_src("src/services/oidc_pending.rs");
+    assert!(oidc_pending.contains("store_oidc_pending"));
+    assert!(!oidc_pending.contains("kv_storage"));
+    let oidc_config = read_crate_src("../edgequake-auth/src/oidc_config.rs");
+    assert!(oidc_config.contains("EDGEQUAKE_OIDC_ENABLED"));
+    assert!(oidc_config.contains("MECHANISM_OIDC"));
+    let auth_config = read_crate_src("../edgequake-auth/src/config.rs");
+    assert!(auth_config.contains("OAUTH2_OIDC_BUILTIN: bool = false"));
+    let health = read_crate_src("src/handlers/health.rs");
+    assert!(health.contains("resolved_auth_mechanisms"));
+    assert!(health.contains("builtin-oidc"));
+    let middleware = read_crate_src("src/middleware.rs");
+    assert!(middleware.contains("/auth/oidc/login"));
+    assert!(middleware.contains("/auth/oidc/callback"));
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_064"));
+    assert!(bootstrap.contains("migration_064"));
+    assert!(bootstrap.contains("MIGRATION_064_VERSION"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m064.rs").exists());
+    assert!(std::path::Path::new("../../migrations/064_oauth_oidc_builtin_marker.sql").exists());
+    let openapi_examples = read_crate_src("src/openapi_examples.rs");
+    assert!(openapi_examples.contains("oauth2_oidc_builtin"));
+    assert!(openapi_examples.contains("external_sso_pattern"));
+    // v2 API uses same protected middleware as v1
+    assert!(routes.contains("protected_api_auth"));
+    assert!(routes.contains("/api/v2"));
+}
+
+#[test]
+#[ignore = "superseded by spec027_oauth2_oidc_builtin_wiring_phase54 — OIDC routes are intentional"]
+fn spec027_oauth2_oidc_no_protocol_routes_phase53() {
+    let routes = read_crate_src("src/routes.rs");
+    for line in routes.lines() {
+        if line.contains(".route(") {
+            let lower = line.to_lowercase();
+            assert!(
+                !lower.contains("oauth"),
+                "no OAuth routes in routes.rs: {line}"
+            );
+            assert!(
+                !lower.contains("oidc"),
+                "no OIDC routes in routes.rs: {line}"
+            );
+            assert!(
+                !lower.contains("openid"),
+                "no OpenID routes in routes.rs: {line}"
+            );
+        }
+    }
+    let auth_config = read_crate_src("../edgequake-auth/src/config.rs");
+    let mechanisms_line = auth_config
+        .lines()
+        .find(|l| l.contains("BUILTIN_AUTH_MECHANISMS") && l.contains("&["))
+        .expect("BUILTIN_AUTH_MECHANISMS slice definition");
+    assert!(mechanisms_line.contains("jwt_password"));
+    assert!(mechanisms_line.contains("api_key"));
+    let mech_lower = mechanisms_line.to_lowercase();
+    assert!(
+        !mech_lower.contains("oauth") && !mech_lower.contains("oidc"),
+        "mechanisms slice must not list oauth/oidc: {mechanisms_line}"
+    );
+    assert!(auth_config.contains("OAUTH2_OIDC_BUILTIN: bool = false"));
+    let health = read_crate_src("src/handlers/health.rs");
+    assert!(health.contains("BUILTIN_AUTH_MECHANISMS"));
+    assert!(health.contains("OAUTH2_OIDC_BUILTIN"));
+    assert!(health.contains("EXTERNAL_SSO_PATTERN"));
+    let openapi_examples = read_crate_src("src/openapi_examples.rs");
+    assert!(openapi_examples.contains("oauth2_oidc_builtin"));
+    assert!(openapi_examples.contains("external_sso_pattern"));
+}
+
+#[test]
+fn spec027_auth_session_api_keys_use_session_storage_phase52() {
+    let session = read_crate_src("src/handlers/auth/session.rs");
+    assert!(session.contains("session_storage::persist_refresh_token"));
+    assert!(session.contains("session_storage::load_refresh_token"));
+    assert!(session.contains("identity_storage::access_token_claims"));
+    assert!(!session.contains("auth_kv_store"));
+    let api_keys = read_crate_src("src/handlers/auth/api_keys.rs");
+    assert!(api_keys.contains("session_storage::persist_api_key"));
+    assert!(api_keys.contains("session_storage::list_api_keys_for_user"));
+    assert!(api_keys.contains("session_storage::revoke_api_key"));
+    assert!(!api_keys.contains("auth_kv_store"));
+}
+
+#[test]
+fn spec027_migration_063_auth_service_layer_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_063"));
+    assert!(bootstrap.contains("migration_063"));
+    assert!(bootstrap.contains("MIGRATION_063_VERSION"));
+    assert!(bootstrap.contains("SQL_063_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m063.rs").exists());
+    assert!(std::path::Path::new("../../migrations/063_auth_service_layer_ssot_marker.sql").exists());
+}
+
+#[test]
+fn spec027_migration_054_identity_pg_rls_envelope_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_054"));
+    assert!(bootstrap.contains("migration_054"));
+    assert!(bootstrap.contains("MIGRATION_054_VERSION"));
+    assert!(bootstrap.contains("SQL_054_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m054.rs").exists());
+    assert!(std::path::Path::new("../../migrations/054_identity_pg_rls_envelope_marker.sql").exists());
+}
+
+#[test]
+fn spec027_migration_053_pg_auth_kv_reads_removed_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_053"));
+    assert!(bootstrap.contains("migration_053"));
+    assert!(bootstrap.contains("MIGRATION_053_VERSION"));
+    assert!(bootstrap.contains("SQL_053_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m053.rs").exists());
+    assert!(std::path::Path::new("../../migrations/053_pg_auth_kv_reads_removed_marker.sql").exists());
+}
+
+#[test]
+fn spec027_migration_049_membership_ssot_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_049"));
+    assert!(bootstrap.contains("migration_049"));
+    assert!(bootstrap.contains("MIGRATION_049_VERSION"));
+    assert!(bootstrap.contains("SQL_049_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m049.rs").exists());
+    assert!(std::path::Path::new("../../migrations/049_membership_identity_ssot_marker.sql").exists());
+}
+
+#[test]
+fn spec027_sec010_constant_time_env_api_keys() {
+    let validation = read_crate_src("src/services/auth_validation.rs");
+    assert!(validation.contains("constant_time_str_eq"));
+    let middleware = read_crate_src("src/middleware.rs");
+    assert!(middleware.contains("constant_time_str_eq"));
+}
+
+#[test]
+fn spec027_migration_048_identity_ssot_wired() {
+    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    assert!(bootstrap.contains("reconcile_migration_048"));
+    assert!(bootstrap.contains("migration_048"));
+    assert!(bootstrap.contains("MIGRATION_048_VERSION"));
+    assert!(bootstrap.contains("SQL_048_APPLY"));
+    assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m048.rs").exists());
+    assert!(std::path::Path::new("../../migrations/048_auth_identity_ssot_marker.sql").exists());
+}
+
+#[test]
 fn spec027_openapi_includes_ollama_emulation_paths() {
     let doc = ApiDoc::openapi();
     let paths = doc.paths.paths;
@@ -1082,8 +1834,8 @@ fn spec027_document_metadata_key_uses_dry_helper() {
 fn spec027_user_management_no_full_kv_keys_scan() {
     let src = read_crate_src("src/handlers/auth/user_management.rs");
     assert!(
-        src.contains("list_user_record_keys"),
-        "user list/admin guard must use prefix scan SSOT"
+        src.contains("identity_storage::list_user_records"),
+        "user list/admin guard must use identity_storage SSOT"
     );
     assert!(
         !src.contains("kv_storage.keys().await"),

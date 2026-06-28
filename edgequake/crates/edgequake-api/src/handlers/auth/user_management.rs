@@ -15,52 +15,50 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::handlers::auth::{ApiOptionalAuth, ApiRequireAdmin};
-use crate::state::{AuthRuntime, StorageRuntime};
+use crate::state::{ApiSecurityConfig, AuthRuntime, PostgresRuntime, StorageRuntime};
 use edgequake_auth::{Role, User};
 
 use super::{
-    get_record_by_id, USER_BY_EMAIL_PREFIX, USER_BY_USERNAME_PREFIX, USER_KEY_PREFIX,
+    get_record_by_id, persist_user_record, UserRecord,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Map a storage/IO error to a consistent [`ApiError::Internal`].
-///
-/// WHY: Avoids repeating `|e| ApiError::Internal(format!("Storage error: {}", e))`
-/// across every KV call (DRY).
 #[inline]
-fn storage_err(e: impl std::fmt::Display) -> ApiError {
-    ApiError::Internal(format!("Storage error: {}", e))
-}
-
-/// List user record KV keys via prefix scan (O(users), not O(all KV keys)).
-async fn list_user_record_keys(storage: &StorageRuntime) -> Result<Vec<String>, ApiError> {
-    storage
-        .kv_storage
-        .keys_with_prefix(USER_KEY_PREFIX)
-        .await
-        .map_err(storage_err)
+fn pg_pool_available(pg_runtime: &PostgresRuntime) -> bool {
+    #[cfg(feature = "postgres")]
+    {
+        pg_runtime.pool.is_some()
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = pg_runtime;
+        false
+    }
 }
 
 /// Count admin users excluding `exclude_user_id` (last-admin demotion guard).
 async fn count_other_admin_users(
     storage: &StorageRuntime,
+    pg_runtime: Option<&PostgresRuntime>,
+    security: &ApiSecurityConfig,
     exclude_user_id: &str,
 ) -> Result<u32, ApiError> {
-    let user_keys = list_user_record_keys(storage).await?;
-    let mut admin_count = 0u32;
-    for key in user_keys {
-        let uid = key.trim_start_matches(USER_KEY_PREFIX);
-        if uid == exclude_user_id {
-            continue;
-        }
-        if let Some(record) = get_record_by_id(storage, uid).await? {
-            if Role::parse(&record.role) == Role::Admin {
-                admin_count += 1;
-            }
-        }
+    #[cfg(feature = "postgres")]
+    {
+        let users =
+            crate::services::identity_storage::list_user_records(storage, pg_runtime, security)
+                .await?;
+        Ok(users
+            .iter()
+            .filter(|u| u.user_id != exclude_user_id && Role::parse(&u.role) == Role::Admin)
+            .count() as u32)
     }
-    Ok(admin_count)
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (storage, pg_runtime, security, exclude_user_id);
+        Ok(0)
+    }
 }
 
 pub use crate::handlers::auth_types::{
@@ -87,6 +85,8 @@ pub use crate::handlers::auth_types::{
 pub async fn create_user(
     State(auth): State<AuthRuntime>,
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     ApiOptionalAuth(auth_context): ApiOptionalAuth,
     Json(request): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<CreateUserResponse>), ApiError> {
@@ -103,32 +103,30 @@ pub async fn create_user(
         return Err(ApiError::BadRequest("Password is required".to_string()));
     }
 
-    // Check username uniqueness
-    let username_key = format!(
-        "{}{}",
-        USER_BY_USERNAME_PREFIX,
-        request.username.to_lowercase()
-    );
-    if storage
-        .kv_storage
-        .get_by_id(&username_key)
-        .await
-        .map_err(storage_err)?
-        .is_some()
+    #[cfg(feature = "postgres")]
     {
-        return Err(ApiError::Conflict("Username already exists".to_string()));
-    }
-
-    // Check email uniqueness
-    let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, request.email.to_lowercase());
-    if storage
-        .kv_storage
-        .get_by_id(&email_key)
-        .await
-        .map_err(storage_err)?
+        if crate::services::identity_storage::find_user_record_by_login(
+            &storage,
+            Some(&pg_runtime),
+            &security,
+            &request.username,
+        )
+        .await?
         .is_some()
-    {
-        return Err(ApiError::Conflict("Email already exists".to_string()));
+        {
+            return Err(ApiError::Conflict("Username already exists".to_string()));
+        }
+        if crate::services::identity_storage::find_user_record_by_login(
+            &storage,
+            Some(&pg_runtime),
+            &security,
+            &request.email,
+        )
+        .await?
+        .is_some()
+        {
+            return Err(ApiError::Conflict("Email already exists".to_string()));
+        }
     }
 
     if auth_context.is_none() && !auth.config.allow_registration {
@@ -171,27 +169,8 @@ pub async fn create_user(
         role,
     );
 
-    // Store user as UserRecord (includes password_hash)
-    let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
-    let user_record = super::UserRecord::from(&user);
-    let user_value = serde_json::to_value(&user_record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
-
-    // Store username index
-    let username_value = serde_json::Value::String(user_id.clone());
-
-    // Store email index
-    let email_value = serde_json::Value::String(user_id.clone());
-
-    storage
-        .kv_storage
-        .upsert(&[
-            (user_key, user_value),
-            (username_key, username_value),
-            (email_key, email_value),
-        ])
-        .await
-        .map_err(storage_err)?;
+    let user_record = UserRecord::from(&user);
+    persist_user_record(&storage, Some(&pg_runtime), &security, &user_record).await?;
 
     info!("User created: {} ({})", user.username, user.user_id);
 
@@ -220,27 +199,27 @@ pub async fn create_user(
 )]
 pub async fn list_users(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     _admin: ApiRequireAdmin,
     Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<ListUsersResponse>, ApiError> {
-
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
 
-    let user_keys = list_user_record_keys(&storage).await?;
+    #[cfg(feature = "postgres")]
+    let mut users: Vec<UserInfo> =
+        crate::services::identity_storage::list_user_records(&storage, Some(&pg_runtime), &security)
+            .await?
+            .into_iter()
+            .map(|r| UserInfo::from(&r))
+            .collect();
 
-    let mut users: Vec<UserInfo> = Vec::with_capacity(user_keys.len());
-    for key in &user_keys {
-        let user_id = key.trim_start_matches(USER_KEY_PREFIX);
-        if let Some(record) = get_record_by_id(&storage, user_id).await? {
-            // Apply optional role filter.
-            if let Some(ref role_filter) = query.role {
-                if record.role.to_lowercase() != role_filter.to_lowercase() {
-                    continue;
-                }
-            }
-            users.push(UserInfo::from(&record));
-        }
+    #[cfg(not(feature = "postgres"))]
+    let mut users: Vec<UserInfo> = Vec::new();
+
+    if let Some(ref role_filter) = query.role {
+        users.retain(|u| u.role.to_lowercase() == role_filter.to_lowercase());
     }
 
     // Sort by username for deterministic ordering.
@@ -283,10 +262,12 @@ pub async fn list_users(
 )]
 pub async fn get_user(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserInfo>, ApiError> {
-    let record = get_record_by_id(&storage, &user_id)
+    let record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
 
@@ -312,27 +293,23 @@ pub async fn get_user(
 )]
 pub async fn delete_user(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let record = get_record_by_id(&storage, &user_id)
+    let record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
 
-    // Delete user record and indices
-    let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
-    let username_key = format!(
-        "{}{}",
-        USER_BY_USERNAME_PREFIX,
-        record.username.to_lowercase()
-    );
-    let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, record.email.to_lowercase());
-
-    storage
-        .kv_storage
-        .delete(&[user_key, username_key, email_key])
-        .await
-        .map_err(storage_err)?;
+    #[cfg(feature = "postgres")]
+    crate::services::identity_storage::delete_user_record(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        &record,
+    )
+    .await?;
 
     info!("User deleted: {} ({})", record.username, record.user_id);
 
@@ -364,15 +341,20 @@ pub async fn delete_user(
 )]
 pub async fn update_user(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
     Json(request): Json<UpdateUserRequest>,
 ) -> Result<Json<UpdateUserResponse>, ApiError> {
-
-    let mut record = get_record_by_id(&storage, &user_id)
+    let mut record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
     let now = Utc::now();
+    let policy = crate::services::identity_storage::IdentityPolicy::resolve(
+        &security,
+        pg_pool_available(&pg_runtime),
+    );
 
     // Apply role change if requested
     if let Some(ref new_role) = request.role {
@@ -382,7 +364,8 @@ pub async fn update_user(
         // WHY: Guard against demoting the last admin — system would be unmanageable.
         if current_role == Role::Admin
             && parsed != Role::Admin
-            && count_other_admin_users(&storage, &user_id).await? == 0
+            && count_other_admin_users(&storage, Some(&pg_runtime), &security, &user_id).await?
+                == 0
         {
             return Err(ApiError::Conflict(
                 "Cannot demote the last admin user".to_string(),
@@ -399,48 +382,37 @@ pub async fn update_user(
     if let Some(ref email) = request.email {
         let email_lower = email.to_lowercase();
 
-        // Check email uniqueness (skip current user's email)
-        let email_key = format!("{}{}", super::USER_BY_EMAIL_PREFIX, email_lower);
-        if let Ok(Some(existing_id_val)) = storage.kv_storage.get_by_id(&email_key).await {
-            if let Some(existing_id) = existing_id_val.as_str() {
-                if existing_id != user_id {
-                    return Err(ApiError::Conflict("Email already in use".to_string()));
-                }
+        #[cfg(feature = "postgres")]
+        {
+            if crate::services::identity_storage::find_user_record_by_login(
+                &storage,
+                Some(&pg_runtime),
+                &security,
+                &email_lower,
+            )
+            .await?
+            .is_some_and(|r| r.user_id != user_id)
+            {
+                return Err(ApiError::Conflict("Email already in use".to_string()));
             }
         }
 
-        // Update email index: remove old, add new
-        let old_email_key = format!(
-            "{}{}",
-            super::USER_BY_EMAIL_PREFIX,
-            record.email.to_lowercase()
-        );
-        storage
-            .kv_storage
-            .delete(&[old_email_key])
-            .await
-            .map_err(storage_err)?;
-        let new_email_value = serde_json::Value::String(user_id.clone());
-        storage
-            .kv_storage
-            .upsert(&[(email_key, new_email_value)])
-            .await
-            .map_err(storage_err)?;
+        if !policy.pg_primary {
+            crate::services::identity_storage::reindex_user_email_kv(
+                &storage,
+                &user_id,
+                &record.email,
+                email,
+            )
+            .await?;
+        }
 
         record.email = email.clone();
     }
 
     record.updated_at = now;
 
-    // Persist the updated record
-    let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
-    let user_value = serde_json::to_value(&record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
-    storage
-        .kv_storage
-        .upsert(&[(user_key, user_value)])
-        .await
-        .map_err(storage_err)?;
+    persist_user_record(&storage, Some(&pg_runtime), &security, &record).await?;
 
     info!("User updated: {} ({})", record.username, user_id);
 

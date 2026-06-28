@@ -3,6 +3,8 @@
 use std::collections::HashSet;
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::{info, warn};
 
 use super::super::{Migration046Report, MIGRATION_046_VERSION, SQL_046_APPLY};
@@ -47,7 +49,7 @@ pub async fn reconcile_migration_046(
         marker_present,
         "Ensuring graph tenant isolation perf indexes (migration 046)"
     );
-    sqlx::query(SQL_046_APPLY).execute(pool).await?;
+    execute_bootstrap_apply_sql(pool, SQL_046_APPLY).await?;
 
     let missing = audit_required_indexes(pool).await?;
     if !missing.is_empty() {
