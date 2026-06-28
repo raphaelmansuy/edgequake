@@ -3,7 +3,8 @@
 //! Finds documents that have been processing longer than a configurable
 //! threshold and requeues them, cleaning up partial graph data first.
 
-use axum::{extract::State, Json};
+use axum::{extract::State, response::IntoResponse, Json};
+use axum::response::Response;
 use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
@@ -35,7 +36,21 @@ pub async fn recover_stuck(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
     Json(request): Json<RecoverStuckRequest>,
-) -> ApiResult<Json<RecoverStuckResponse>> {
+) -> ApiResult<Response> {
+    let workspace_id = tenant_ctx.workspace_id.clone();
+    let response = run_recover_stuck(state, tenant_ctx, request).await?;
+    if let Some(ws) = workspace_id.as_deref() {
+        return crate::services::v1_rpc_migration::json_with_v1_rpc_migration(ws, response)
+            .map(|r| r.into_response());
+    }
+    Ok(Json(response).into_response())
+}
+
+pub(crate) async fn run_recover_stuck(
+    state: AppState,
+    tenant_ctx: TenantContext,
+    request: RecoverStuckRequest,
+) -> ApiResult<RecoverStuckResponse> {
     use chrono::Duration;
 
     debug!(
@@ -209,11 +224,15 @@ pub async fn recover_stuck(
         }
     }
 
-    Ok(Json(RecoverStuckResponse {
+    let response = RecoverStuckResponse {
         track_id: new_track_id,
+        v2_migration: tenant_ctx.workspace_id.as_ref().map(|ws| {
+            crate::services::job_registry::v2_migration_hint("recover_stuck", ws)
+        }),
         stuck_found: stuck_docs.len(),
         requeued: requeued_ids.len(),
         document_ids: requeued_ids,
         document_titles: requeued_titles,
-    }))
+    };
+    Ok(response)
 }

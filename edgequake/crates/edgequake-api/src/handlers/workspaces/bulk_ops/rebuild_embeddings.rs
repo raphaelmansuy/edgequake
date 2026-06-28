@@ -5,6 +5,7 @@
 
 use axum::{
     extract::{Path, State},
+    response::IntoResponse,
     Json,
 };
 use uuid::Uuid;
@@ -52,7 +53,21 @@ pub async fn rebuild_embeddings(
     Path(workspace_id): Path<Uuid>,
     tenant_ctx: TenantContext,
     Json(request): Json<RebuildEmbeddingsRequest>,
-) -> Result<Json<RebuildEmbeddingsResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
+    let response =
+        run_rebuild_embeddings(state, workspace_id, tenant_ctx, request).await?;
+    crate::services::v1_rpc_migration::json_with_v1_rpc_migration(
+        &workspace_id.to_string(),
+        response,
+    )
+}
+
+pub(crate) async fn run_rebuild_embeddings(
+    state: AppState,
+    workspace_id: Uuid,
+    tenant_ctx: TenantContext,
+    request: RebuildEmbeddingsRequest,
+) -> Result<RebuildEmbeddingsResponse, ApiError> {
     use tracing::info;
 
     // 1. Get the workspace
@@ -329,6 +344,10 @@ pub async fn rebuild_embeddings(
         model_context_length,
         estimated_time_seconds: estimated_time,
         job_id: track_id.clone(),
+        v2_migration: Some(crate::services::job_registry::v2_migration_hint(
+            "rebuild_embeddings",
+            &workspace_id.to_string(),
+        )),
         compatibility_warning,
     };
 
@@ -346,5 +365,5 @@ pub async fn rebuild_embeddings(
         "Embedding rebuild complete - documents queued for re-embedding"
     );
 
-    Ok(Json(response))
+    Ok(response)
 }

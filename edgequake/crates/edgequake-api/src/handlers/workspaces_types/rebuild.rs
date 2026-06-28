@@ -64,6 +64,9 @@ pub struct RebuildEmbeddingsResponse {
     pub estimated_time_seconds: Option<u64>,
     /// Background job ID for tracking (if async).
     pub job_id: Option<String>,
+    /// Level 4 v2 migration hint (additive — SPEC-027 phase 21).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_migration: Option<crate::services::job_registry::V2MigrationHint>,
     /// Warning message if chunk size exceeds model context length.
     /// REQ-25: Critical invariant - chunks must fit model's input limit.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -102,6 +105,9 @@ fn default_max_reprocess() -> usize {
 pub struct ReprocessAllResponse {
     /// Track ID for monitoring progress.
     pub track_id: String,
+    /// Level 4 v2 migration hint (additive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_migration: Option<crate::services::job_registry::V2MigrationHint>,
     /// Workspace ID.
     pub workspace_id: Uuid,
     /// Status of the operation.
@@ -188,4 +194,7 @@ pub struct RebuildKnowledgeGraphResponse {
     pub estimated_time_seconds: Option<u64>,
     /// Track ID for monitoring progress.
     pub track_id: Option<String>,
+    /// Level 4 v2 migration hint (additive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_migration: Option<crate::services::job_registry::V2MigrationHint>,
 }

@@ -159,7 +159,8 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
             swagger_ui_url: "/swagger-ui".to_string(),
             admin_api_prefix: "/api/v1/admin".to_string(),
             shared_conversations_prefix: "/api/v1/shared".to_string(),
-            jobs_v2_prefix: "/api/v2/jobs".to_string(),
+            jobs_v2_prefix: "/api/v2/workspaces/{workspace_id}/jobs".to_string(),
+            jobs_v2_catalog: "/api/v2/workspaces/{workspace_id}/jobs/catalog".to_string(),
         }),
     };
 

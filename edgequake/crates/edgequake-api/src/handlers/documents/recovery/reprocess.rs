@@ -4,7 +4,8 @@
 //! for processing. Supports both KV-based text documents and PostgreSQL
 //! PDF documents (via `postgres` feature).
 
-use axum::{extract::State, Json};
+use axum::{extract::State, response::IntoResponse, Json};
+use axum::response::Response;
 use chrono::Utc;
 use edgequake_pdf::PdfParserBackend;
 use tracing::debug;
@@ -38,8 +39,22 @@ pub async fn reprocess_failed(
     // "EOF while parsing a value" 400 error. Using Option<Json<>> with .unwrap_or_default()
     // makes this endpoint resilient to missing or empty request body.
     body: Option<Json<ReprocessFailedRequest>>,
-) -> ApiResult<Json<ReprocessFailedResponse>> {
+) -> ApiResult<Response> {
     let request = body.map(|b| b.0).unwrap_or_default();
+    let workspace_id = tenant_ctx.workspace_id.clone();
+    let response = run_reprocess_failed(state, tenant_ctx, request).await?;
+    if let Some(ws) = workspace_id.as_deref() {
+        return crate::services::v1_rpc_migration::json_with_v1_rpc_migration(ws, response)
+            .map(|r| r.into_response());
+    }
+    Ok(Json(response).into_response())
+}
+
+pub(crate) async fn run_reprocess_failed(
+    state: AppState,
+    tenant_ctx: TenantContext,
+    request: ReprocessFailedRequest,
+) -> ApiResult<ReprocessFailedResponse> {
     // Resolve reprocess intent (DRY single knob). Default is EntitiesOnly so
     // existing callers (failed-retry, bulk reprocess) keep current behavior.
     let reprocess_mode = request
@@ -620,10 +635,14 @@ pub async fn reprocess_failed(
         }
     }
 
-    Ok(Json(ReprocessFailedResponse {
+    let response = ReprocessFailedResponse {
         track_id: new_track_id,
+        v2_migration: tenant_ctx.workspace_id.as_ref().map(|ws| {
+            crate::services::job_registry::v2_migration_hint("reprocess_failed", ws)
+        }),
         failed_found: docs_to_reprocess.len(),
         requeued: requeued_ids.len(),
         document_ids: requeued_ids,
-    }))
+    };
+    Ok(response)
 }

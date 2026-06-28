@@ -5,6 +5,7 @@
 
 use axum::{
     extract::{Path, State},
+    response::IntoResponse,
     Json,
 };
 use uuid::Uuid;
@@ -49,7 +50,21 @@ pub async fn reprocess_all_documents(
     Path(workspace_id): Path<Uuid>,
     tenant_ctx: TenantContext,
     Json(request): Json<ReprocessAllRequest>,
-) -> Result<Json<ReprocessAllResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
+    let response =
+        run_reprocess_all_documents(state, workspace_id, tenant_ctx, request).await?;
+    crate::services::v1_rpc_migration::json_with_v1_rpc_migration(
+        &workspace_id.to_string(),
+        response,
+    )
+}
+
+pub(crate) async fn run_reprocess_all_documents(
+    state: AppState,
+    workspace_id: Uuid,
+    tenant_ctx: TenantContext,
+    request: ReprocessAllRequest,
+) -> Result<ReprocessAllResponse, ApiError> {
     use chrono::Utc;
     use tracing::info;
 
@@ -178,6 +193,10 @@ pub async fn reprocess_all_documents(
         documents_queued,
         documents_skipped,
         estimated_time_seconds: estimated_time,
+        v2_migration: Some(crate::services::job_registry::v2_migration_hint(
+            "reprocess_all",
+            &workspace_id.to_string(),
+        )),
     };
 
     info!(
@@ -188,5 +207,5 @@ pub async fn reprocess_all_documents(
         "Reprocess all documents complete"
     );
 
-    Ok(Json(response))
+    Ok(response)
 }

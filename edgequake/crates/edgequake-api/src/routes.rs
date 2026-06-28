@@ -140,12 +140,21 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// API v2 routes (ascending-compatible new surfaces).
+/// API v2 routes — Level 4 workspace-scoped job resources (unpublished; no v1 break).
 fn api_v2_routes() -> Router<AppState> {
     Router::new()
-        .route("/jobs", post(handlers::create_job).get(handlers::list_jobs))
-        .route("/jobs/{job_id}", get(handlers::get_job))
-        .route("/jobs/{job_id}/cancel", post(handlers::cancel_job))
+        .route(
+            "/workspaces/{workspace_id}/jobs",
+            post(handlers::create_workspace_job).get(handlers::list_workspace_jobs),
+        )
+        .route(
+            "/workspaces/{workspace_id}/jobs/catalog",
+            get(handlers::list_workspace_job_catalog),
+        )
+        .route(
+            "/workspaces/{workspace_id}/jobs/{job_id}",
+            get(handlers::get_workspace_job).delete(handlers::cancel_workspace_job),
+        )
 }
 
 /// Ollama-compatible API routes.

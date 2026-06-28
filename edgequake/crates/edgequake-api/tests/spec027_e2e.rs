@@ -241,6 +241,7 @@ async fn spec027_health_includes_api_capabilities() {
     assert_eq!(caps["openapi_url"], "/api-docs/openapi.json");
     assert_eq!(caps["asyncapi_url"], "/api-docs/asyncapi.json");
     assert_eq!(caps["admin_api_prefix"], "/api/v1/admin");
+    assert_eq!(caps["jobs_v2_catalog"], "/api/v2/workspaces/{workspace_id}/jobs/catalog");
 }
 
 #[tokio::test]
@@ -333,6 +334,18 @@ const SPEC027_TENANT: &str = "aaaaaaaa-0027-0027-0027-aaaaaaaaaaaa";
 const SPEC027_USER: &str = "bbbbbbbb-0027-0027-0027-bbbbbbbbbbbb";
 const SPEC027_WORKSPACE: &str = "cccccccc-0027-0027-0027-cccccccccccc";
 
+fn v2_jobs_collection(workspace_id: &str) -> String {
+    format!("/api/v2/workspaces/{workspace_id}/jobs")
+}
+
+fn v2_job_resource(workspace_id: &str, job_id: &str) -> String {
+    format!("/api/v2/workspaces/{workspace_id}/jobs/{job_id}")
+}
+
+fn v2_jobs_catalog(workspace_id: &str) -> String {
+    format!("/api/v2/workspaces/{workspace_id}/jobs/catalog")
+}
+
 #[tokio::test]
 async fn spec027_v2_job_create_and_get_roundtrip() {
     let state = AppState::test_state();
@@ -341,7 +354,7 @@ async fn spec027_v2_job_create_and_get_roundtrip() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v2/jobs")
+                .uri(v2_jobs_collection(SPEC027_WORKSPACE))
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
@@ -354,8 +367,31 @@ async fn spec027_v2_job_create_and_get_roundtrip() {
         .await
         .unwrap();
     assert_eq!(create.status(), StatusCode::ACCEPTED);
+    let location = create
+        .headers()
+        .get(header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .expect("Location header on 202 Accepted")
+        .to_string();
+    let link = create
+        .headers()
+        .get(header::LINK)
+        .and_then(|v| v.to_str().ok())
+        .expect("Link header on 202 Accepted")
+        .to_string();
     let created = parse_json(create).await;
     let job_id = created["job_id"].as_str().expect("job_id");
+    assert_eq!(location, v2_job_resource(SPEC027_WORKSPACE, job_id));
+    assert!(link.contains("rel=\"self\""));
+    assert!(link.contains(job_id));
+    assert_eq!(
+        created["links"]["cancel"],
+        v2_job_resource(SPEC027_WORKSPACE, job_id)
+    );
+    assert_eq!(
+        created["links"]["catalog"],
+        v2_jobs_catalog(SPEC027_WORKSPACE)
+    );
     assert_eq!(
         created["links"]["v1_task"],
         format!("/api/v1/tasks/{job_id}")
@@ -366,7 +402,7 @@ async fn spec027_v2_job_create_and_get_roundtrip() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/api/v2/jobs/{job_id}"))
+                .uri(v2_job_resource(SPEC027_WORKSPACE, job_id))
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
                 .body(Body::empty())
@@ -391,7 +427,7 @@ async fn spec027_v2_job_list_scopes_by_workspace() {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/v2/jobs")
+                    .uri(v2_jobs_collection(SPEC027_WORKSPACE))
                     .header(header::CONTENT_TYPE, "application/json")
                     .header("X-Tenant-ID", SPEC027_TENANT)
                     .header("X-Workspace-ID", SPEC027_WORKSPACE)
@@ -412,10 +448,10 @@ async fn spec027_v2_job_list_scopes_by_workspace() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v2/jobs")
+                .uri(v2_jobs_collection(&other_workspace))
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("X-Tenant-ID", SPEC027_TENANT)
-                .header("X-Workspace-ID", other_workspace)
+                .header("X-Workspace-ID", &other_workspace)
                 .header("X-User-ID", SPEC027_USER)
                 .body(Body::from(
                     json!({ "job_type": "insert", "payload": { "hidden": true } }).to_string(),
@@ -431,7 +467,7 @@ async fn spec027_v2_job_list_scopes_by_workspace() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/api/v2/jobs")
+                .uri(v2_jobs_collection(SPEC027_WORKSPACE))
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
                 .body(Body::empty())
@@ -455,7 +491,7 @@ async fn spec027_v2_job_cancel_roundtrip() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v2/jobs")
+                .uri(v2_jobs_collection(SPEC027_WORKSPACE))
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
@@ -475,8 +511,8 @@ async fn spec027_v2_job_cancel_roundtrip() {
     let cancel = app
         .oneshot(
             Request::builder()
-                .method("POST")
-                .uri(format!("/api/v2/jobs/{job_id}/cancel"))
+                .method("DELETE")
+                .uri(v2_job_resource(SPEC027_WORKSPACE, job_id))
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
                 .body(Body::empty())
@@ -488,6 +524,119 @@ async fn spec027_v2_job_cancel_roundtrip() {
     let body = parse_json(cancel).await;
     assert_eq!(body["job_id"], job_id);
     assert_eq!(body["status"], "cancelled");
+}
+
+#[tokio::test]
+async fn spec027_v2_jobs_catalog_lists_task_and_rpc_types() {
+    let app = build_app(AppState::test_state());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(v2_jobs_catalog(SPEC027_WORKSPACE))
+                .header("X-Tenant-ID", SPEC027_TENANT)
+                .header("X-Workspace-ID", SPEC027_WORKSPACE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_json(response).await;
+    assert_eq!(body["workspace_id"], SPEC027_WORKSPACE);
+    assert_eq!(
+        body["links"]["create"],
+        v2_jobs_collection(SPEC027_WORKSPACE)
+    );
+    let entries = body["entries"].as_array().expect("entries");
+    assert!(entries.len() >= 12);
+    let insert = entries
+        .iter()
+        .find(|e| e["job_type"] == "insert")
+        .expect("insert entry");
+    assert_eq!(insert["creatable_via_v2"], true);
+    let rebuild = entries
+        .iter()
+        .find(|e| e["job_type"] == "rebuild_embeddings")
+        .expect("rebuild_embeddings entry");
+    assert_eq!(rebuild["creatable_via_v2"], true);
+    assert!(
+        rebuild["endpoints"][0]
+            .as_str()
+            .unwrap()
+            .contains(SPEC027_WORKSPACE)
+    );
+}
+
+#[tokio::test]
+async fn spec027_v2_catalog_rejects_workspace_scope_mismatch() {
+    let app = build_app(AppState::test_state());
+    let wrong_workspace = "dddddddd-0027-0027-0027-dddddddddddd";
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(v2_jobs_catalog(SPEC027_WORKSPACE))
+                .header("X-Tenant-ID", SPEC027_TENANT)
+                .header("X-Workspace-ID", wrong_workspace)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn spec027_v1_rpc_includes_sunset_and_link_headers() {
+    let app = build_app(AppState::test_state());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/recover-stuck")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("X-Tenant-ID", SPEC027_TENANT)
+                .header("X-Workspace-ID", SPEC027_WORKSPACE)
+                .body(Body::from(json!({ "stuck_threshold_minutes": 60 }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().get("sunset").is_some(),
+        "v1 RPC must include Sunset header (REST-024)"
+    );
+    let link = response
+        .headers()
+        .get("link")
+        .and_then(|v| v.to_str().ok())
+        .expect("Link header");
+    assert!(link.contains("successor-version"));
+    assert!(link.contains(SPEC027_WORKSPACE));
+    assert!(link.contains("/jobs/catalog"));
+}
+
+#[tokio::test]
+async fn spec027_v2_job_rejects_unknown_job_type() {
+    let app = build_app(AppState::test_state());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(v2_jobs_collection(SPEC027_WORKSPACE))
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("X-Tenant-ID", SPEC027_TENANT)
+                .header("X-Workspace-ID", SPEC027_WORKSPACE)
+                .body(Body::from(
+                    json!({ "job_type": "not_a_real_job", "payload": {} }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
