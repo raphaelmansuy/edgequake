@@ -2,9 +2,13 @@
 //!
 //! @implements UC0201 (Execute Query)
 //! @implements FEAT0007 (Multi-Mode Query Execution)
-//! @implements FEAT0101-0106 (Query modes)
+//! @implements SPEC-028: Uses QueryContextService DRY helpers for source mapping
 
-use axum::{extract::State, Extension, Json};
+use axum::{
+    http::{HeaderMap, HeaderValue},
+    extract::State,
+    Extension, Json,
+};
 use edgequake_audit::{AuditEvent, AuditEventType, AuditResult};
 use edgequake_observability::{
     record_llm_request, scope_llm_provider, PropagationHeaders, QueryOutcomeGuard, RequestContext,
@@ -15,43 +19,17 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
+    build_engine_request, build_legacy_query_response, build_legacy_query_sources,
     execute_sota_query_with_auth_fallback, record_audit, resolve_workspace_query_resources,
-    validate_llm_override_pair, with_request_context,
+    validate_llm_override_pair, with_request_context, QueryExecutionParams,
 };
 use crate::state::AppState;
 use crate::validation::validate_query;
-use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
+use edgequake_query::QueryMode;
 
-use super::{
-    resolve_chunk_file_paths,
-    workspace_resolve::{get_workspace_llm_info, resolve_query_workspace},
-};
-pub use crate::handlers::query_types::{QueryRequest, QueryResponse, QueryStats, SourceReference};
+use super::workspace_resolve::{get_workspace_llm_info, resolve_query_workspace};
+pub use crate::handlers::query_types::{QueryRequest, QueryResponse};
 
-/// Execute a RAG query with multi-mode retrieval.
-///
-/// # Implements
-///
-/// - **UC0201**: Execute Query
-/// - **FEAT0007**: Multi-Mode Query Execution
-/// - **FEAT0101**: Naive mode (vector search only)
-/// - **FEAT0102**: Local mode (entity-centric)
-/// - **FEAT0103**: Global mode (community summaries)
-/// - **FEAT0104**: Hybrid mode (local + global)
-/// - **FEAT0105**: Mix mode (adaptive blend)
-/// - **FEAT0106**: Bypass mode (direct LLM, no RAG)
-///
-/// # Enforces
-///
-/// - **BR0101**: Token budget enforcement
-/// - **BR0103**: Mode validation
-/// - **BR0201**: Tenant/workspace scoping
-///
-/// # Returns
-///
-/// - `response`: LLM-generated answer
-/// - `sources`: Source references with document lineage
-/// - `stats`: Retrieval statistics (chunks, entities, latency)
 #[utoipa::path(
     post,
     path = "/api/v1/query",
@@ -77,8 +55,13 @@ pub async fn execute_query(
     Extension(req_ctx): Extension<RequestContext>,
     Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<QueryRequest>,
-) -> ApiResult<Json<QueryResponse>> {
-    let query_mode_label = request.mode.as_deref().unwrap_or("hybrid").to_string();
+) -> ApiResult<(HeaderMap, Json<QueryResponse>)> {
+    let mode = request
+        .mode
+        .as_ref()
+        .and_then(|m| QueryMode::parse(m))
+        .unwrap_or(QueryMode::Mix);
+    let query_mode_label = mode.to_string();
     tracing::Span::current().record("query.mode", query_mode_label.as_str());
     let query_obs =
         QueryOutcomeGuard::with_request_id(&query_mode_label, Some(req_ctx.request_id.clone()));
@@ -94,90 +77,14 @@ pub async fn execute_query(
 
     validate_query(&request.query, state.config.max_query_length)?;
 
-    // Parse query mode
-    let mode = request
-        .mode
-        .as_ref()
-        .and_then(|m| QueryMode::parse(m))
-        .unwrap_or(QueryMode::Mix);
-
-    // Build engine query request with conversation history and tenant context
-    let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
-
-    // SPEC-004: Thread system prompt extension if provided
-    if let Some(ref system_prompt) = request.system_prompt {
-        engine_request = engine_request.with_system_prompt(system_prompt);
-    }
-
-    // OODA-231.1: Fetch workspace to get correct tenant_id for data queries.
-    // WHY: The header tenant_id is an access-context hint, but stored graph and
-    // vector data are scoped by the workspace's persisted tenant_id. If an
-    // explicit workspace header is invalid, we must fail closed instead of
-    // silently falling back to the default workspace.
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
-    // Use the workspace tenant_id when a workspace is selected; otherwise fall
-    // back to the legacy header-only path for default-workspace requests.
     let data_tenant_id = workspace
         .as_ref()
         .map(|ws| ws.tenant_id.to_string())
         .or_else(|| tenant_ctx.tenant_id.clone());
 
-    if let Some(ref tenant_id) = data_tenant_id {
-        engine_request = engine_request.with_tenant_id(tenant_id.clone());
-    }
-    if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        engine_request = engine_request.with_workspace_id(workspace_id.clone());
-    }
-
-    if let Some(max) = request.max_results {
-        engine_request.max_results = Some(max);
-    }
-
-    if request.context_only {
-        engine_request = engine_request.context_only();
-    }
-
-    if let Some(ref mix_weights) = request.mix_weights {
-        if mix_weights.is_set() {
-            engine_request.mix_weights = Some(mix_weights.to_engine_override());
-        }
-    }
-
-    if request.prompt_only {
-        engine_request = engine_request.prompt_only();
-    }
-
-    // Add rerank settings to engine request
-    engine_request = engine_request.with_rerank(request.enable_rerank);
-    if let Some(top_k) = request.rerank_top_k {
-        engine_request = engine_request.with_rerank_top_k(top_k);
-    }
-
-    // SPEC-032: Add LLM provider/model overrides if provided in request
-    // This allows query-time override of the LLM provider and model
-    if let Some(ref provider) = request.llm_provider {
-        debug!(provider = %provider, "Using LLM provider override from request");
-        engine_request = engine_request.with_llm_provider(provider);
-    }
-    if let Some(ref model) = request.llm_model {
-        debug!(model = %model, "Using LLM model override from request");
-        engine_request = engine_request.with_llm_model(model);
-    }
-
-    // Add conversation history if provided
-    if let Some(history) = &request.conversation_history {
-        let engine_history: Vec<edgequake_query::ConversationMessage> = history
-            .iter()
-            .map(|m| edgequake_query::ConversationMessage {
-                role: m.role.clone(),
-                content: m.content.clone(),
-            })
-            .collect();
-        engine_request = engine_request.with_conversation_history(engine_history);
-    }
-
-    // SPEC-005: Resolve document filter → allowed_document_ids
+    let mut allowed_document_ids = None;
     if let Some(ref filter) = request.document_filter {
         if let Some(allowed_ids) = super::document_filter_resolver::resolve_document_filter(
             state.storage.kv_storage.as_ref(),
@@ -191,12 +98,9 @@ pub async fn execute_query(
                 matched_doc_count = allowed_ids.len(),
                 "Document filter resolved — restricting query scope"
             );
-            engine_request = engine_request.with_allowed_document_ids(allowed_ids);
+            allowed_document_ids = Some(allowed_ids);
         }
     }
-
-    // SPEC-032 & SPEC-033: Get workspace-specific embedding provider AND vector storage
-    // If workspace has custom embedding config, use workspace-specific resources
 
     validate_llm_override_pair(
         request.llm_provider.as_deref(),
@@ -217,6 +121,25 @@ pub async fn execute_query(
             Err(e) => return Err(ApiError::from(e)),
         };
 
+    let params = QueryExecutionParams {
+        query: request.query.clone(),
+        mode,
+        max_results: request.max_results,
+        context_only: request.context_only,
+        prompt_only: request.prompt_only,
+        enable_rerank: request.enable_rerank,
+        rerank_top_k: request.rerank_top_k,
+        mix_weights: request.mix_weights.clone(),
+        conversation_history: request.conversation_history.clone(),
+        system_prompt: request.system_prompt.clone(),
+        allowed_document_ids,
+        data_tenant_id,
+        workspace_id: tenant_ctx.workspace_id.clone(),
+        llm_provider: request.llm_provider.clone(),
+        llm_model: request.llm_model.clone(),
+    };
+
+    let engine_request = build_engine_request(&params);
     let resources =
         resolve_workspace_query_resources(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
@@ -233,185 +156,29 @@ pub async fn execute_query(
     )
     .await?;
 
-    // Convert sources from context
-    let mut sources = Vec::new();
-
-    // P-G6c (RC-11): the FAKE rerank that previously lived here is removed.
-    // The real rerank already ran inside the SOTA pipeline's `pipeline_finalize`
-    // (`query_pipeline.rs`): when `enable_rerank` is true AND a reranker is
-    // configured, `context.chunks` is reordered by the real `Reranker` trait.
-    // The API layer must NOT mutate scores or invent a `rerank_time_ms`. We only
-    // report truthfully whether reranking was applied, and preserve the chunk
-    // ordering the engine already produced.
     let reranker_configured = state.query.engine_impl.has_reranker();
-    let rerank_requested = request.enable_rerank;
-    let reranked = rerank_requested && reranker_configured;
-    let rerank_time_ms = result.stats.rerank_time_ms;
+    let reranked = request.enable_rerank && reranker_configured;
 
-    // When reranking was applied, honor the request's `rerank_top_k` by
-    // truncating the chunk sources to the engine-ordered top-K. The chunks
-    // arrive here already in final (rerank) order, so we truncate in place.
-    let rerank_top_k = request.rerank_top_k.unwrap_or(usize::MAX);
+    let sources = build_legacy_query_sources(
+        &state,
+        &result,
+        request.include_references,
+        request.enable_rerank,
+        request.rerank_top_k,
+    )
+    .await;
 
-    // Build chunk sources from the (already rerank-ordered) context chunks.
-    // Scores are passed through unchanged — no fake mutation.
-    let mut ref_counter = 1usize;
-    let mut chunk_sources: Vec<SourceReference> = result
-        .context
-        .chunks
-        .iter()
-        .map(|chunk| {
-            let ref_id = ref_counter;
-            ref_counter += 1;
-
-            SourceReference {
-                source_type: "chunk".to_string(),
-                id: chunk.id.clone(),
-                score: chunk.score,
-                // No fabricated rerank score. The chunk order already reflects
-                // any reranking done by the engine.
-                rerank_score: None,
-                snippet: Some(chunk.content.chars().take(200).collect()),
-                reference_id: Some(ref_id),
-                document_id: chunk.document_id.clone(),
-                file_path: None, // Resolved below via KV metadata lookup
-                start_line: chunk.start_line,
-                end_line: chunk.end_line,
-                chunk_index: chunk.chunk_index,
-                entity_type: None,
-                degree: None,
-                source_chunk_ids: None,
-            }
-        })
-        .collect();
-
-    // Resolve document_id → file_path (document title) for chunk sources
-    resolve_chunk_file_paths(state.storage.kv_storage.as_ref(), &mut chunk_sources).await;
-
-    // SPEC-0002: Exclude injection artifacts from cited sources.
-    // Injection chunks enrich LLM context but must NOT appear as source citations.
-    chunk_sources.retain(|s| {
-        !s.document_id
-            .as_deref()
-            .unwrap_or("")
-            .starts_with("injection::")
-    });
-
-    // Truncate to the rerank top-K when reranking was applied. The chunk order
-    // is already the rerank order produced by the engine.
-    if reranked {
-        chunk_sources.truncate(rerank_top_k);
-    }
-
-    sources.extend(chunk_sources);
-
-    for entity in &result.context.entities {
-        // SPEC-0002: Skip injection-only entities from citations.
-        // Injection source_document_id is "injection::{workspace_id}::{id}".
-        // These entities enrich graph context but must not be cited as sources.
-        if entity
-            .source_document_id
-            .as_deref()
-            .unwrap_or("")
-            .starts_with("injection::")
-        {
-            continue;
-        }
-
-        let ref_id = ref_counter;
-        ref_counter += 1;
-
-        sources.push(SourceReference {
-            source_type: "entity".to_string(),
-            id: entity.name.clone(),
-            score: entity.score,
-            rerank_score: None,
-            snippet: Some(entity.description.chars().take(200).collect()),
-            reference_id: Some(ref_id),
-            document_id: entity.source_document_id.clone(),
-            file_path: entity.source_file_path.clone(),
-            start_line: None,
-            end_line: None,
-            chunk_index: None,
-            // SPEC-006: Enrich entity metadata
-            entity_type: Some(entity.entity_type.clone()),
-            degree: if entity.degree > 0 {
-                Some(entity.degree)
-            } else {
-                None
-            },
-            source_chunk_ids: if entity.source_chunk_ids.is_empty() {
-                None
-            } else {
-                Some(entity.source_chunk_ids.clone())
-            },
-        });
-    }
-
-    for rel in &result.context.relationships {
-        // SPEC-0002: Skip injection-only relationships from citations.
-        if rel
-            .source_document_id
-            .as_deref()
-            .unwrap_or("")
-            .starts_with("injection::")
-        {
-            continue;
-        }
-
-        let ref_id = ref_counter;
-        ref_counter += 1;
-
-        sources.push(SourceReference {
-            source_type: "relationship".to_string(),
-            id: format!("{}->{}", rel.source, rel.target),
-            score: rel.score,
-            rerank_score: None,
-            snippet: Some(format!(
-                "{} {} {}",
-                rel.source, rel.relation_type, rel.target
-            )),
-            reference_id: Some(ref_id),
-            document_id: rel.source_document_id.clone(),
-            file_path: rel.source_file_path.clone(),
-            start_line: None,
-            end_line: None,
-            chunk_index: None,
-            entity_type: None,
-            degree: None,
-            source_chunk_ids: None,
-        });
-    }
-
-    // Generate conversation ID if conversation history was provided
     let conversation_id = if request.conversation_history.is_some() {
         Some(uuid::Uuid::new_v4().to_string())
     } else {
         None
     };
 
-    // SPEC-032 Item 18, 22: Get LLM provider/model info for lineage tracking
     let (llm_provider, llm_model) =
         get_workspace_llm_info(&state, tenant_ctx.workspace_id.as_deref()).await;
 
-    // SPEC-032 Item 18: Calculate tokens per second
-    let tokens_used = if result.stats.generated_tokens > 0 {
-        Some(result.stats.generated_tokens)
-    } else {
-        None
-    };
-
-    let tokens_per_second =
-        if result.stats.generation_time_ms > 0 && result.stats.generated_tokens > 0 {
-            Some(
-                (result.stats.generated_tokens as f32) / (result.stats.generation_time_ms as f32)
-                    * 1000.0,
-            )
-        } else {
-            None
-        };
-
-    let tenant_for_audit = data_tenant_id
+    let tenant_for_audit = params
+        .data_tenant_id
         .clone()
         .unwrap_or_else(|| "default".to_string());
     let mut audit_event = AuditEvent::new(
@@ -436,28 +203,22 @@ pub async fn execute_query(
         );
     }
 
-    let response = QueryResponse {
-        answer: result.answer,
-        mode: result.mode.to_string(),
+    let response = build_legacy_query_response(
+        result,
         sources,
-        stats: QueryStats {
-            embedding_time_ms: result.stats.embedding_time_ms,
-            retrieval_time_ms: result.stats.retrieval_time_ms,
-            generation_time_ms: result.stats.generation_time_ms,
-            total_time_ms: result.stats.total_time_ms,
-            sources_retrieved: result.context.chunks.len()
-                + result.context.entities.len()
-                + result.context.relationships.len(),
-            rerank_time_ms,
-            // SPEC-032 Item 18, 22: Token metrics and model lineage
-            tokens_used,
-            tokens_per_second,
-            llm_provider,
-            llm_model,
-        },
         conversation_id,
         reranked,
-    };
+        llm_provider,
+        llm_model,
+    );
 
-    Ok(Json(response))
+    let mut headers = HeaderMap::new();
+    if request.context_only {
+        if let Ok(link) = HeaderValue::from_str("</api/v1/query/context>; rel=\"successor-version\"") {
+            headers.insert("Deprecation", HeaderValue::from_static("true"));
+            headers.insert("Link", link);
+        }
+    }
+
+    Ok((headers, Json(response)))
 }

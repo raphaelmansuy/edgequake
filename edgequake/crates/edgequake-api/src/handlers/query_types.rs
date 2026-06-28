@@ -230,6 +230,9 @@ pub enum QueryStreamEvent {
         sources: Vec<SourceReference>,
         query_mode: String,
         retrieval_time_ms: u64,
+        /// SPEC-028: Full structured bundle (stream_format=v3 only).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        bundle: Option<crate::handlers::context_types::ContextBundle>,
     },
 
     /// Token generated during LLM streaming.

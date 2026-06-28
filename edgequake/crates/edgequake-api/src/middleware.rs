@@ -304,7 +304,7 @@ pub async fn tenant_rate_limit_from_state(
     tenant_rate_limit(axum::extract::State(rate_state), request, next).await
 }
 
-fn apply_authenticated_context(
+pub(crate) fn apply_authenticated_context(
     state: &crate::state::AppState,
     request: &mut Request,
     authenticated: crate::services::auth_validation::AuthenticatedRequest,
@@ -500,7 +500,7 @@ fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str
         && state.auth.config.allow_registration)
 }
 
-fn extract_api_key(request: &Request) -> Option<String> {
+pub(crate) fn extract_api_key(request: &Request) -> Option<String> {
     // Try Authorization header first (Bearer token)
     if let Some(auth_header) = request.headers().get("authorization") {
         if let Ok(auth_str) = auth_header.to_str() {

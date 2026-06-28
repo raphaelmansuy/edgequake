@@ -27,13 +27,13 @@ use crate::handlers::query::resolve_chunk_file_paths;
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
-    execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
-    validate_llm_override_pair,
+    build_engine_request, execute_sota_query_stream_with_auth_fallback,
+    resolve_workspace_query_resources, validate_llm_override_pair, QueryExecutionParams,
 };
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
 use crate::validation::validate_query;
-use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
+use edgequake_query::QueryMode;
 
 use super::workspace_resolve::resolve_query_workspace;
 pub use crate::handlers::query_types::{QueryStreamEvent, QueryStreamStats, StreamQueryRequest};
@@ -77,7 +77,12 @@ pub async fn stream_query(
     Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<StreamQueryRequest>,
 ) -> ApiResult<Sse<SseStream>> {
-    let query_mode_label = request.mode.as_deref().unwrap_or("hybrid").to_string();
+    let mode = request
+        .mode
+        .as_ref()
+        .and_then(|m| QueryMode::parse(m))
+        .unwrap_or(QueryMode::Mix);
+    let query_mode_label = mode.to_string();
     tracing::Span::current().record("query.mode", query_mode_label.as_str());
     let query_guard = QueryFailureGuard::new(&query_mode_label);
     let request_id = req_ctx.request_id.clone();
@@ -93,28 +98,14 @@ pub async fn stream_query(
 
     validate_query(&request.query, state.config.max_query_length)?;
 
-    // SPEC-006 FR-004: Check if client wants v1 (raw text) format
+    // SPEC-006 FR-004: Check stream format
     let use_v1 = request
         .stream_format
         .as_deref()
         .map(|f| f == "v1")
         .unwrap_or(false);
+    let use_v3 = request.stream_format.as_deref() == Some("v3");
     tracing::Span::current().record("stream.format", if use_v1 { "v1" } else { "v2" });
-
-    // Parse query mode
-    let mode = request
-        .mode
-        .as_ref()
-        .and_then(|m| QueryMode::parse(m))
-        .unwrap_or(QueryMode::Mix);
-
-    // Build engine query request with tenant context
-    let mut engine_request = EngineQueryRequest::new(&request.query).with_mode(mode);
-
-    // SPEC-004: Thread system prompt extension if provided
-    if let Some(ref system_prompt) = request.system_prompt {
-        engine_request = engine_request.with_system_prompt(system_prompt);
-    }
 
     // OODA-231.1: Resolve the workspace before the SSE stream starts.
     // WHY: If the client explicitly names a workspace and it is invalid or
@@ -128,13 +119,7 @@ pub async fn stream_query(
         .map(|ws| ws.tenant_id.to_string())
         .or_else(|| tenant_ctx.tenant_id.clone());
 
-    if let Some(ref tenant_id) = data_tenant_id {
-        engine_request = engine_request.with_tenant_id(tenant_id.clone());
-    }
-    if let Some(ref workspace_id) = tenant_ctx.workspace_id {
-        engine_request = engine_request.with_workspace_id(workspace_id.clone());
-    }
-
+    let mut allowed_document_ids = None;
     // SPEC-005 + SPEC-006: Resolve document filter
     if let Some(ref filter) = request.document_filter {
         let ws_id_str = tenant_ctx.workspace_id.clone();
@@ -148,7 +133,7 @@ pub async fn stream_query(
         .await
         {
             Ok(Some(allowed_ids)) => {
-                engine_request = engine_request.with_allowed_document_ids(allowed_ids);
+                allowed_document_ids = Some(allowed_ids);
             }
             Ok(None) => {}
             Err(e) => {
@@ -159,6 +144,25 @@ pub async fn stream_query(
             }
         }
     }
+
+    let params = QueryExecutionParams {
+        query: request.query.clone(),
+        mode,
+        max_results: None,
+        context_only: false,
+        prompt_only: false,
+        enable_rerank: true,
+        rerank_top_k: None,
+        mix_weights: None,
+        conversation_history: None,
+        system_prompt: request.system_prompt.clone(),
+        allowed_document_ids,
+        data_tenant_id: data_tenant_id.clone(),
+        workspace_id: tenant_ctx.workspace_id.clone(),
+        llm_provider: request.llm_provider.clone(),
+        llm_model: request.llm_model.clone(),
+    };
+    let engine_request = build_engine_request(&params);
 
     // SPEC-006 + SPEC-032: Resolve LLM provider override
     validate_llm_override_pair(
@@ -303,10 +307,20 @@ pub async fn stream_query(
                         .await;
 
                     // SPEC-006 FR-001: Emit context event BEFORE tokens
+                    let bundle = if use_v3 {
+                        Some(crate::services::context_bundle_mapper::map_query_context_to_bundle(
+                            &context,
+                            &crate::services::context_bundle_mapper::MappingOptions::default(),
+                            &std::collections::HashMap::new(),
+                        ))
+                    } else {
+                        None
+                    };
                     let context_event = QueryStreamEvent::Context {
                         sources,
                         query_mode: used_mode.to_string(),
                         retrieval_time_ms,
+                        bundle,
                     };
                     if tx.send(context_event).await.is_err() {
                         ErrorEvent::log_stream_disconnect(

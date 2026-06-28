@@ -52,12 +52,14 @@
 //! ```
 
 pub(crate) mod document_filter_resolver;
+pub mod context;
 mod query_execute;
 mod query_stream;
 pub(crate) mod workspace_resolve;
 
 pub use query_execute::*;
 pub use query_stream::*;
+pub use context::{fetch_query_context, retrieve_query_context, search_query_context};
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::query_types::{
