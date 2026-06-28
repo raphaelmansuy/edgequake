@@ -136,6 +136,17 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     #[cfg(not(feature = "postgres"))]
     let pdf_storage_enabled: Option<bool> = None;
 
+    #[cfg(feature = "postgres")]
+    let identity_policy = crate::services::identity_storage::IdentityPolicy::resolve(
+        &state.security,
+        state.pg_pool.is_some(),
+    );
+    #[cfg(not(feature = "postgres"))]
+    let identity_policy = crate::services::identity_storage::IdentityPolicy::resolve(
+        &state.security,
+        false,
+    );
+
     let response = HealthResponse {
         status: status.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -161,6 +172,19 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
             shared_conversations_prefix: "/api/v1/shared".to_string(),
             jobs_v2_prefix: "/api/v2/workspaces/{workspace_id}/jobs".to_string(),
             jobs_v2_catalog: "/api/v2/workspaces/{workspace_id}/jobs/catalog".to_string(),
+            auth_identity_ssot: Some(identity_policy.identity_backend_label().to_string()),
+            auth_enabled: Some(state.auth.config.auth_enabled),
+            dev_mode: Some(state.auth.config.dev_mode),
+            kv_identity_mirror_configured: Some(state.security.kv_identity_mirror),
+            kv_identity_mirror_effective: Some(identity_policy.kv_mirror),
+            auth_mechanisms: Some(state.auth.oidc_config.resolved_auth_mechanisms()),
+            oauth2_oidc_builtin: Some(state.auth.oidc_config.is_runtime_builtin()),
+            auth_kv_harness_active: Some(!identity_policy.pg_primary),
+            external_sso_pattern: if state.auth.oidc_config.is_runtime_builtin() {
+                Some("builtin-oidc".to_string())
+            } else {
+                Some(edgequake_auth::EXTERNAL_SSO_PATTERN.to_string())
+            },
         }),
     };
 
@@ -271,28 +295,9 @@ async fn get_schema_health(state: &AppState) -> Option<SchemaHealth> {
     {
         let pool = state.pg_pool.as_ref()?;
 
-        // WHY scalar subqueries: Single round-trip, handles empty table gracefully
-        #[derive(sqlx::FromRow)]
-        struct MigrationStats {
-            applied_count: i64,
-            latest_version: Option<i64>,
-            last_applied_at: Option<chrono::DateTime<chrono::Utc>>,
-        }
+        // WHY: Global ops table — see `services/health_schema.rs` (no tenant RLS).
+        let stats = crate::services::health_schema::fetch_sqlx_migration_stats(pool).await?;
 
-        let stats: Option<MigrationStats> = sqlx::query_as(
-            r#"
-            SELECT 
-                COUNT(*) FILTER (WHERE success = true) as applied_count,
-                MAX(version) FILTER (WHERE success = true) as latest_version,
-                MAX(installed_on) FILTER (WHERE success = true) as last_applied_at
-            FROM _sqlx_migrations
-            "#,
-        )
-        .fetch_optional(pool)
-        .await
-        .ok()?;
-
-        let stats = stats?;
         let source_ids_indexes = state.migration_bootstrap.as_ref().map(|report| {
             let m = &report.migration_038;
             crate::handlers::health_types::SourceIdsIndexHealth {

@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::helpers::pgvector_supports_iterative_scan;
@@ -56,7 +58,7 @@ pub async fn reconcile_migration_042(
             extversion = ?extversion_before,
             "Running pgvector upgrade + ANN index rebuild (migration 042)"
         );
-        sqlx::query(SQL_042_APPLY).execute(pool).await?;
+        execute_bootstrap_apply_sql(pool, SQL_042_APPLY).await?;
     }
 
     let extversion_after: Option<String> =

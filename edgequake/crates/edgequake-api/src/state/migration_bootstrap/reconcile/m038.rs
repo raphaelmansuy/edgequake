@@ -1,4 +1,6 @@
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::helpers::{large_graph_threshold, quote_schema, set_large_graph_threshold};
@@ -48,7 +50,7 @@ pub async fn reconcile_migration_038(
             "Running size-aware migration 038 apply"
         );
         set_large_graph_threshold(pool, threshold).await?;
-        sqlx::query(SQL_038_APPLY).execute(pool).await?;
+        execute_bootstrap_apply_sql(pool, SQL_038_APPLY).await?;
         graph_statuses = audit_graph_indexes(pool).await?;
     }
 

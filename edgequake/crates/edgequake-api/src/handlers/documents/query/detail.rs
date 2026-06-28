@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::services::tenant_isolation::PgIsolationScope;
+use crate::state::{ApiSecurityConfig, PostgresRuntime, StorageRuntime};
 
 use crate::handlers::documents_types::*;
 
@@ -25,7 +26,9 @@ use crate::handlers::documents_types::*;
     )
 )]
 pub async fn get_document(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     tenant_ctx: TenantContext,
     axum::extract::Path(document_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<DocumentDetailResponse>> {
@@ -40,8 +43,7 @@ pub async fn get_document(
     let metadata_key =
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
-    let metadata_values = state
-        .storage
+    let metadata_values = storage
         .kv_storage
         .get_by_ids(std::slice::from_ref(&metadata_key))
         .await?;
@@ -55,8 +57,7 @@ pub async fn get_document(
 
     // SPEC-011: prefix scan — no full keys() table scan
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_keys = state
-        .storage
+    let chunk_keys = storage
         .kv_storage
         .keys_with_prefix(&chunk_prefix)
         .await?;
@@ -100,7 +101,7 @@ pub async fn get_document(
 
     // Fetch document content (KV); PDF markdown may live only in pdf_documents.
     let content_key = format!("{}-content", document_id);
-    let content_values = state.storage.kv_storage.get_by_ids(&[content_key]).await?;
+    let content_values = storage.kv_storage.get_by_ids(&[content_key]).await?;
     let kv_content = content_values.into_iter().next().and_then(|v| {
         v.get("content")
             .and_then(|c| c.as_str())
@@ -124,7 +125,7 @@ pub async fn get_document(
             {
                 if let Some(pdf_id_str) = obj.get("pdf_id").and_then(|v| v.as_str()) {
                     if let Ok(pdf_uuid) = Uuid::parse_str(pdf_id_str) {
-                        if let Some(ref pdf_storage) = state.storage.pdf_storage {
+                        if let Some(ref pdf_storage) = storage.pdf_storage {
                             if let Ok(Some(pdf)) = pdf_storage.get_pdf(&pdf_uuid).await {
                                 pdf.markdown_content.filter(|s| !s.trim().is_empty())
                             } else {
@@ -153,6 +154,8 @@ pub async fn get_document(
     // WHY: Documents processed before pdf_vision_model was written to KV metadata JSON
     // don't have that field. We query the pdf_documents table as fallback using the
     // pdf_id that IS stored in all document metadata records.
+    // SPEC-027 phase 42: pdf_documents query runs under RLS via with_optional_pg_rls.
+    let pg_isolation_scope = PgIsolationScope::from_tenant_context(&tenant_ctx, None);
     let (
         fallback_pdf_vision_model,
         fallback_pdf_extraction_method,
@@ -172,42 +175,21 @@ pub async fn get_document(
         if let Some(pdf_uuid) = pdf_uuid_opt {
             #[cfg(feature = "postgres")]
             {
-                if let Some(ref pool) = state.pg_pool {
-                    match sqlx::query_as::<
-                        _,
-                        (
-                            Option<String>,
-                            Option<String>,
-                            Option<serde_json::Value>,
-                            String,
-                        ),
-                    >(
-                        "SELECT vision_model, extraction_method, extraction_errors, processing_status FROM pdf_documents WHERE pdf_id = $1",
+                if let Some(ref pool) = pg_runtime.pool {
+                    match crate::services::pdf_lineage::fetch_pdf_extraction_metadata(
+                        pool,
+                        &security,
+                        pg_isolation_scope,
+                        pdf_uuid,
                     )
-                    .bind(pdf_uuid)
-                    .fetch_optional(pool)
                     .await
                     {
-                        Ok(Some((
-                            vision_model,
-                            extraction_method,
-                            extraction_errors,
-                            processing_status,
-                        ))) => (
-                            vision_model.clone(),
-                            extraction_method.or_else(|| {
-                                if processing_status == "completed" && vision_model.is_some() {
-                                    Some("vision".to_string())
-                                } else {
-                                    None
-                                }
-                            }),
-                            extraction_errors
-                                .and_then(|value| value.get("low_content_warning").cloned())
-                                .and_then(|value| value.get("message").cloned())
-                                .and_then(|value| value.as_str().map(str::to_string)),
+                        Ok(Some(meta)) => (
+                            meta.vision_model,
+                            meta.extraction_method,
+                            meta.extraction_warning,
                         ),
-                        _ => (None, None, None),
+                        Ok(None) | Err(_) => (None, None, None),
                     }
                 } else {
                     (None, None, None)
@@ -474,7 +456,7 @@ pub async fn get_document(
         .as_ref()
         .and_then(crate::services::summary_from_metadata);
     let multimodal_items =
-        crate::services::load_manifest(state.storage.kv_storage.as_ref(), &document_id)
+        crate::services::load_manifest(storage.kv_storage.as_ref(), &document_id)
             .await
             .map(|manifest| crate::services::manifest_item_status_views(&manifest));
 

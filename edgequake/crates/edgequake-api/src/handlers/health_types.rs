@@ -86,6 +86,33 @@ pub struct ApiCapabilities {
     pub jobs_v2_prefix: String,
     /// v2 job catalog path template.
     pub jobs_v2_catalog: String,
+    /// Identity/auth SSOT backend label (`postgresql` or `in-memory`) — SPEC-027 phase 55.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_identity_ssot: Option<String>,
+    /// Whether JWT/API-key auth is enforced on protected routes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_enabled: Option<bool>,
+    /// Local dev opt-out (`EDGEQUAKE_DEV_MODE`) — auth disabled when true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dev_mode: Option<bool>,
+    /// Whether `EDGEQUAKE_KV_IDENTITY_MIRROR` was set in env (may be ignored when PG pool exists).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kv_identity_mirror_configured: Option<bool>,
+    /// Effective KV mirror after policy resolution (`false` when PostgreSQL pool is SSOT).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kv_identity_mirror_effective: Option<bool>,
+    /// Built-in auth mechanisms (`jwt_password`, `api_key`) — SPEC-027 phase 49.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_mechanisms: Option<Vec<String>>,
+    /// Whether OAuth2/OIDC login is implemented in-process (always `false` today).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth2_oidc_builtin: Option<bool>,
+    /// Whether in-memory auth harness is active (no PG pool — not KV).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_kv_harness_active: Option<bool>,
+    /// Documented external SSO integration pattern when `oauth2_oidc_builtin` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_sso_pattern: Option<String>,
 }
 
 /// Task queue + query engine operational snapshot (SPEC-024 Phase 4.3).

@@ -226,6 +226,8 @@ printf '%s\n' "export EDGEQUAKE_PDF_VISION_JOBS=\"$(EDGEQUAKE_PDF_VISION_JOBS)\"
 endef
 DEV_AUTH_ENABLED ?= false
 DEV_DISABLE_DEMO_LOGIN ?= false
+# SPEC-027 AC-4: frictionless local dev when DEV_AUTH_ENABLED=false (auth secure by default otherwise).
+DEV_EDGEQUAKE_DEV_MODE := $(if $(filter false,$(DEV_AUTH_ENABLED)),true,false)
 
 # OODA-09: Auto-configure providers based on OPENAI_API_KEY presence.
 # WHY: User sets OPENAI_API_KEY but system still uses Ollama defaults.
@@ -479,7 +481,9 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 			PORT="$(BACKEND_PORT)" \
 			DATABASE_URL="$$_EFF_DB_URL" \
 			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-			EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 			AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 			cargo run 2>&1 | sed 's/^/[backend] /') & \
 		BACKEND_PID=$$!; \
@@ -487,7 +491,9 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		(cd $(BACKEND_DIR) && \
 			PORT="$(BACKEND_PORT)" \
 			DATABASE_URL="$$_EFF_DB_URL" \
-			EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 			AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 			OLLAMA_HOST="http://localhost:11434" \
 			OLLAMA_MODEL="gemma4:latest" \
@@ -721,6 +727,7 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
@@ -745,6 +752,7 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
@@ -795,6 +803,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export MISTRAL_API_KEY=\"$$_MISTRAL_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$(OPENAI_API_KEY)" ] && printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
@@ -816,6 +825,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$MISTRAL_API_KEY" ] && printf '%s\n' "export MISTRAL_API_KEY=\"$$MISTRAL_API_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
@@ -829,6 +839,7 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		printf '%s\n' "export PORT=\"$(BACKEND_PORT)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		$(BACKEND_STABILITY_EXPORTS) \
+		printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \

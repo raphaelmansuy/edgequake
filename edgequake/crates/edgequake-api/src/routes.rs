@@ -178,6 +178,8 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/auth/refresh", post(handlers::refresh_token))
         .route("/auth/logout", post(handlers::logout))
         .route("/auth/me", get(handlers::get_me))
+        .route("/auth/oidc/login", get(handlers::oidc_login))
+        .route("/auth/oidc/callback", get(handlers::oidc_callback))
         // Users (Phase 3)
         .route("/users", post(handlers::create_user))
         .route("/users", get(handlers::list_users))

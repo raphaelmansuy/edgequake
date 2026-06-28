@@ -46,6 +46,7 @@ pub mod config;
 pub mod error;
 pub mod extractors;
 pub mod jwt;
+pub mod oidc_config;
 pub mod password;
 pub mod rbac;
 pub mod types;
@@ -54,7 +55,11 @@ pub mod types;
 pub mod tenant;
 
 // Re-export main types
-pub use config::{AuthConfig, DEFAULT_INSECURE_JWT_SECRET};
+pub use config::{
+    AuthConfig, BUILTIN_AUTH_MECHANISMS, DEFAULT_INSECURE_JWT_SECRET, EXTERNAL_SSO_PATTERN,
+    OAUTH2_OIDC_BUILTIN,
+};
+pub use oidc_config::{OidcConfig, MECHANISM_API_KEY, MECHANISM_JWT_PASSWORD, MECHANISM_OIDC};
 pub use error::{AuthError, AuthResult};
 pub use extractors::{ApiKeyAuth, AuthUser, OptionalAuth};
 pub use jwt::{Claims, JwtService};

@@ -181,6 +181,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
             vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            auth_memory: Arc::new(edgequake_api::services::auth_memory_store::AuthMemoryStore::new()),
             pdf_storage: None,
             mode: StorageMode::Memory,
         },

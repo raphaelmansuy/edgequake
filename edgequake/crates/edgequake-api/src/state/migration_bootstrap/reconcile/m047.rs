@@ -3,6 +3,8 @@
 use std::collections::HashSet;
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::{Migration047Report, MIGRATION_047_VERSION, SQL_047_APPLY};
@@ -24,7 +26,7 @@ pub async fn reconcile_migration_047(
         marker_present,
         "Ensuring workspace document KV index (migration 047)"
     );
-    sqlx::query(SQL_047_APPLY).execute(pool).await?;
+    execute_bootstrap_apply_sql(pool, SQL_047_APPLY).await?;
 
     Ok(Migration047Report {
         marker_present: marker_present || marker_applied,

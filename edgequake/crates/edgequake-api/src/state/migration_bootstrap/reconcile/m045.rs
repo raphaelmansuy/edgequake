@@ -3,6 +3,8 @@
 use std::collections::HashSet;
 
 use sqlx::PgPool;
+
+use super::execute_bootstrap_apply_sql;
 use tracing::info;
 
 use super::super::{Migration045Report, MIGRATION_045_VERSION, SQL_045_APPLY};
@@ -24,7 +26,7 @@ pub async fn reconcile_migration_045(
         marker_present,
         "Ensuring vector content_tsv GIN indexes (migration 045)"
     );
-    sqlx::query(SQL_045_APPLY).execute(pool).await?;
+    execute_bootstrap_apply_sql(pool, SQL_045_APPLY).await?;
 
     Ok(Migration045Report {
         marker_present: marker_present || marker_applied,

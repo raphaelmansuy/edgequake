@@ -343,6 +343,7 @@ impl AppState {
             vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            auth_memory: Arc::new(crate::services::auth_memory_store::AuthMemoryStore::new()),
             pdf_storage: Some(pdf_storage),
             mode: StorageMode::PostgreSQL,
         };

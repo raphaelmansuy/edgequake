@@ -32,8 +32,59 @@ async fn parse_json(response: axum::response::Response) -> Value {
 fn auth_enabled_state() -> AppState {
     let mut state = AppState::test_state();
     state.auth.config.auth_enabled = true;
+    state.auth.config.dev_mode = false;
     state.auth.config.api_keys = vec!["master-test-key".to_string()];
     state
+}
+
+#[tokio::test]
+async fn spec027_secure_default_rejects_unauthenticated_documents() {
+    let mut state = AppState::test_state();
+    state.auth.config.auth_enabled = true;
+    state.auth.config.dev_mode = false;
+    let app = build_app(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/documents")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "secure default must require credentials on business routes"
+    );
+}
+
+#[tokio::test]
+async fn spec027_dev_mode_allows_unauthenticated_documents() {
+    let state = AppState::test_state();
+    assert!(!state.auth.config.auth_enabled);
+    assert!(state.auth.config.dev_mode);
+    let app = build_app(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/documents")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "test harness dev_mode must allow open API access"
+    );
 }
 
 #[tokio::test]
@@ -242,6 +293,15 @@ async fn spec027_health_includes_api_capabilities() {
     assert_eq!(caps["asyncapi_url"], "/api-docs/asyncapi.json");
     assert_eq!(caps["admin_api_prefix"], "/api/v1/admin");
     assert_eq!(caps["jobs_v2_catalog"], "/api/v2/workspaces/{workspace_id}/jobs/catalog");
+    assert_eq!(caps["auth_identity_ssot"], "in-memory");
+    assert_eq!(caps["auth_enabled"], false);
+    assert_eq!(caps["dev_mode"], true);
+    assert_eq!(caps["oauth2_oidc_builtin"], false);
+    assert_eq!(caps["auth_kv_harness_active"], true);
+    assert_eq!(caps["external_sso_pattern"], "oauth2-proxy");
+    let mechanisms = caps["auth_mechanisms"].as_array().expect("auth_mechanisms");
+    assert!(mechanisms.iter().any(|m| m == "jwt_password"));
+    assert!(mechanisms.iter().any(|m| m == "api_key"));
 }
 
 #[tokio::test]
@@ -1408,5 +1468,105 @@ async fn spec027_websocket_auth_allows_missing_token_when_auth_disabled() {
     assert!(
         edgequake_api::middleware::ws_validate_token(&state, None).await,
         "websocket must be open when auth disabled — opt-in hardening required"
+    );
+}
+
+#[tokio::test]
+async fn spec027_login_lockout_returns_423_after_max_failed_attempts() {
+    let mut state = auth_enabled_state();
+    state.auth.config.max_login_attempts = 3;
+    state.auth.config.lockout_duration = std::time::Duration::from_secs(300);
+    let app = build_app(state.clone());
+
+    let username = format!("lockout_{}", uuid::Uuid::new_v4());
+    let password = "SecurePass123!";
+
+    let create = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/users")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("x-api-key", "master-test-key")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "email": format!("{username}@example.com"),
+                        "password": password,
+                        "role": "user"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create.status(), StatusCode::CREATED);
+
+    let app = build_app(state);
+    let login_body = json!({
+        "username": username,
+        "password": "wrong-password"
+    });
+
+    for attempt in 1..=2 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(login_body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::UNAUTHORIZED,
+            "attempt {attempt} should be 401"
+        );
+    }
+
+    let locked = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(login_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        locked.status(),
+        StatusCode::LOCKED,
+        "third failed attempt must lock account (SEC-011)"
+    );
+
+    let correct = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": password
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        correct.status(),
+        StatusCode::LOCKED,
+        "correct password must still be rejected while locked"
     );
 }

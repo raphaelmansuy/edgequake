@@ -134,7 +134,13 @@ fn domain_examples() -> HashMap<&'static str, Value> {
                 "admin_api_prefix": "/api/v1/admin",
                 "shared_conversations_prefix": "/api/v1/shared",
                 "jobs_v2_prefix": "/api/v2/workspaces/{workspace_id}/jobs",
-                "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+                "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+                "auth_identity_ssot": "postgresql",
+                "auth_enabled": true,
+                "oauth2_oidc_builtin": false,
+                "auth_kv_harness_active": false,
+                "external_sso_pattern": "oauth2-proxy",
+                "auth_mechanisms": ["jwt_password", "api_key"]
             }),
         ),
         (

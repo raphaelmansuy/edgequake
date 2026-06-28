@@ -48,6 +48,8 @@ use crate::handlers;
         handlers::refresh_token,
         handlers::logout,
         handlers::get_me,
+        handlers::oidc_login,
+        handlers::oidc_callback,
         handlers::create_user,
         handlers::list_users,
         handlers::get_user,

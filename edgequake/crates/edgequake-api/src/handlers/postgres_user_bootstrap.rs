@@ -20,20 +20,13 @@ pub async fn ensure_postgres_user_exists(
         let Some(pool) = state.pg_pool.as_ref() else {
             return Ok(());
         };
-        sqlx::query(
-            r#"
-            INSERT INTO users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, 'anonymous', 'user', TRUE, NOW(), NOW())
-            ON CONFLICT (user_id) DO NOTHING
-            "#,
+        crate::services::identity_storage::ensure_anonymous_user_in_postgres(
+            pool,
+            &state.security,
+            tenant_id,
+            user_id,
         )
-        .bind(user_id)
-        .bind(tenant_id)
-        .bind(format!("anon_{}", &user_id.to_string()[..8]))
-        .bind(format!("{}@anonymous.local", &user_id.to_string()[..8]))
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to ensure user exists: {}", e)))?;
+        .await?;
     }
 
     #[cfg(not(feature = "postgres"))]

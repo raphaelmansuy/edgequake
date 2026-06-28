@@ -49,6 +49,11 @@ pub use conversation::PostgresConversationStorage;
 pub use graph::PostgresAGEGraphStorage;
 pub use kv::PostgresKVStorage;
 pub use pdf_storage_impl::PostgresPdfStorage;
-pub use rls::{clear_tenant_context, set_tenant_context, RlsContext, RlsQueryBuilder};
+#[allow(deprecated)]
+pub use rls::{
+    acquire_rls_connection, clear_tenant_context, clear_tenant_context_on_conn,
+    release_rls_connection, set_tenant_context, set_tenant_context_on_conn,
+    with_acquired_tenant_context, RlsContext, RlsQueryBuilder,
+};
 pub use vector::PgVectorStorage;
 pub use workspace_vector::PgWorkspaceVectorRegistry;

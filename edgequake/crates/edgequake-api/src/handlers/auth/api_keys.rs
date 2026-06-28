@@ -16,9 +16,9 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::handlers::auth::ApiAuthenticated;
-use crate::state::{AuthRuntime, StorageRuntime};
+use crate::state::{ApiSecurityConfig, AuthRuntime, PostgresRuntime, StorageRuntime};
 
-use super::{ApiKeyRecord, RequestAuthContext, API_KEY_PREFIX};
+use super::{ApiKeyRecord, RequestAuthContext};
 pub use crate::handlers::auth_types::{
     ApiKeySummary, CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery,
     ListApiKeysResponse, RevokeApiKeyResponse,
@@ -42,6 +42,8 @@ pub use crate::handlers::auth_types::{
 pub async fn create_api_key(
     State(auth): State<AuthRuntime>,
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
@@ -80,16 +82,13 @@ pub async fn create_api_key(
         last_used_at: None,
     };
 
-    // Store the API key record
-    let key = format!("{}{}", API_KEY_PREFIX, key_id);
-    let value = serde_json::to_value(&record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
-
-    storage
-        .kv_storage
-        .upsert(&[(key, value)])
-        .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+    crate::services::session_storage::persist_api_key(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        &record,
+    )
+    .await?;
 
     info!("API key created: {} ({})", key_id, prefix);
 
@@ -134,39 +133,25 @@ pub(super) fn generate_api_key() -> String {
 )]
 pub async fn list_api_keys(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
 
-    let key_ids = storage
-        .kv_storage
-        .keys_with_prefix(API_KEY_PREFIX)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+    let records = crate::services::session_storage::list_api_keys_for_user(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        &user_id,
+    )
+    .await?;
 
-    let mut summaries: Vec<ApiKeySummary> = Vec::new();
-    for key in key_ids {
-        let value = storage
-            .kv_storage
-            .get_by_id(&key)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
-
-        let Some(value) = value else {
-            continue;
-        };
-
-        let record: ApiKeyRecord = serde_json::from_value(value)
-            .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
-
-        if record.user_id != user_id {
-            continue;
-        }
-
-        summaries.push(ApiKeySummary {
+    let summaries: Vec<ApiKeySummary> = records
+        .into_iter()
+        .map(|record| ApiKeySummary {
             key_id: record.key_id,
             prefix: record.prefix,
             name: record.name,
@@ -175,10 +160,8 @@ pub async fn list_api_keys(
             last_used_at: record.last_used_at.map(|t| t.to_rfc3339()),
             expires_at: record.expires_at.map(|t| t.to_rfc3339()),
             created_at: record.created_at.to_rfc3339(),
-        });
-    }
-
-    summaries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        })
+        .collect();
     let total = summaries.len();
     let total_pages = total.div_ceil(page_size as usize) as u32;
     let start = ((page - 1) * page_size) as usize;
@@ -216,33 +199,19 @@ pub async fn list_api_keys(
 )]
 pub async fn revoke_api_key(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
+    State(security): State<ApiSecurityConfig>,
     ApiAuthenticated(_auth): ApiAuthenticated,
     Path(key_id): Path<String>,
 ) -> Result<Json<RevokeApiKeyResponse>, ApiError> {
-    let key = format!("{}{}", API_KEY_PREFIX, key_id);
-
-    // Get the existing record
-    let value = storage
-        .kv_storage
-        .get_by_id(&key)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
-        .ok_or_else(|| ApiError::NotFound(format!("API key not found: {}", key_id)))?;
-
-    let mut record: ApiKeyRecord = serde_json::from_value(value)
-        .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
-
-    // Mark as inactive
-    record.is_active = false;
-
-    let new_value = serde_json::to_value(&record)
-        .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
-
-    storage
-        .kv_storage
-        .upsert(&[(key, new_value)])
-        .await
-        .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?;
+    crate::services::session_storage::revoke_api_key(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        &key_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound(format!("API key not found: {}", key_id)))?;
 
     info!("API key revoked: {}", key_id);
 
