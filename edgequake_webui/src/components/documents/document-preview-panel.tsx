@@ -222,56 +222,57 @@ export function DocumentPreviewPanel({
       className="space-y-4"
       aria-label={document.title || document.file_name || t('documents.preview.title', 'Document Preview')}
     >
-      {/* Document Header */}
-      <div className="space-y-2">
-        <div className="flex items-start gap-3">
-          <div className={`rounded-lg p-2.5 ${statusInfo.bg}`}>
-            <FileText className={`h-5 w-5 ${statusInfo.color}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-base leading-tight truncate">
-              {document.title || document.file_name || `Document ${document.id.slice(0, 8)}`}
-            </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge
-                variant="outline"
-                className={`gap-1 ${statusInfo.color}`}
-              >
-                <StatusIcon className={`h-3 w-3 ${isProcessing ? 'animate-spin' : ''}`} />
-                {statusInfo.label}
-              </Badge>
-            </div>
-          </div>
+      {/* RP-05: Document title shown once, wraps instead of truncating.
+         RP-02: Full title readable, entities + time on a compact meta line. */}
+      <div className="space-y-1.5">
+        <h3 className="font-semibold text-sm leading-snug break-words">
+          {document.title || document.file_name || `Document ${document.id.slice(0, 8)}`}
+        </h3>
+        <div className="flex items-center flex-wrap gap-2">
+          <Badge
+            variant="outline"
+            className={`gap-1 text-xs ${statusInfo.color}`}
+          >
+            <StatusIcon className={`h-3 w-3 ${isProcessing ? 'animate-spin' : ''}`} />
+            {statusInfo.label}
+          </Badge>
+          {document.entity_count !== undefined && document.entity_count > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {document.entity_count.toLocaleString()} entities
+            </span>
+          )}
+          {document.created_at && (
+            <span className="text-xs text-muted-foreground">
+              {formatDistanceToNow(new Date(document.created_at), { addSuffix: true })}
+            </span>
+          )}
         </div>
       </div>
 
-      <Separator />
-
-      {/* Metadata */}
-      <div className="space-y-3">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+      {/* Details section — RP-04: lowercase label */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {t('documents.preview.metadata', 'Details')}
-        </h4>
-        
+        </p>
         <div className="grid gap-2">
           {/* ID */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+              <FileText className="h-3 w-3" />
               ID
             </span>
-            <div className="flex items-center gap-1">
-              <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
+            <div className="flex items-center gap-1 min-w-0">
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" title={document.id}>
                 {document.id.slice(0, 12)}...
               </code>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopyId}>
+                    <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={handleCopyId}>
                       <Copy className="h-3 w-3" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{t('common.copy', 'Copy')}</TooltipContent>
+                  <TooltipContent>{t('common.copy', 'Copy ID')}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
@@ -279,26 +280,26 @@ export function DocumentPreviewPanel({
 
           {/* Size */}
           {(document.file_size || document.content_length) && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <HardDrive className="h-3.5 w-3.5" />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                <HardDrive className="h-3 w-3" />
                 {t('documents.preview.size', 'Size')}
               </span>
-              <span className="text-sm font-medium">{formatFileSize(document.file_size || document.content_length)}</span>
+              <span className="text-xs font-medium tabular-nums">{formatFileSize(document.file_size || document.content_length)}</span>
             </div>
           )}
 
           {/* Created */}
           {document.created_at && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                <Calendar className="h-3 w-3" />
                 {t('documents.preview.created', 'Created')}
               </span>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="text-sm font-medium cursor-help">
+                    <span className="text-xs font-medium cursor-help tabular-nums">
                       {formatDistanceToNow(new Date(document.created_at), { addSuffix: true })}
                     </span>
                   </TooltipTrigger>
@@ -312,15 +313,15 @@ export function DocumentPreviewPanel({
 
           {/* OODA-46: Updated timestamp */}
           {document.updated_at && document.updated_at !== document.created_at && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                <Clock className="h-3 w-3" />
                 {t('documents.preview.updated', 'Updated')}
               </span>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="text-sm font-medium cursor-help">
+                    <span className="text-xs font-medium cursor-help tabular-nums">
                       {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
                     </span>
                   </TooltipTrigger>
@@ -332,47 +333,18 @@ export function DocumentPreviewPanel({
             </div>
           )}
 
-          {/* Entities */}
-          {(document.entity_count || document.chunk_count) && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Network className="h-3.5 w-3.5" />
-                {t('documents.preview.entities', 'Entities')}
-              </span>
-              <span className="text-sm font-medium">
-                {document.entity_count ?? document.chunk_count ?? 0}
-              </span>
-            </div>
-          )}
+          {/* Entities — hidden from Details since it's shown in the meta line above */}
 
-          {/* OODA-33: File Size Display */}
-          {document.file_size !== undefined && document.file_size > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <HardDrive className="h-3.5 w-3.5" />
-                {t('documents.preview.fileSize', 'File Size')}
-              </span>
-              <span className="text-sm font-medium">
-                {document.file_size < 1024
-                  ? `${document.file_size} B`
-                  : document.file_size < 1024 * 1024
-                    ? `${(document.file_size / 1024).toFixed(1)} KB`
-                    : `${(document.file_size / (1024 * 1024)).toFixed(2)} MB`}
-              </span>
-            </div>
-          )}
+          {/* OODA-33: File Size Display — remove duplicate (already shown in Size row) */}
         </div>
       </div>
 
       {/* Cost Information */}
       {(document.cost_usd !== undefined || document.total_tokens !== undefined) && (
-        <>
-          <Separator />
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5" />
-              {t('documents.preview.processingCost', 'Processing Cost')}
-            </h4>
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            {t('documents.preview.processingCost', 'Cost')}
+          </p>
             
             <Card className="bg-muted/30 border-none">
               <CardContent className="p-3 space-y-2">
@@ -475,18 +447,17 @@ export function DocumentPreviewPanel({
                 )}
               </CardContent>
             </Card>
-          </div>
-        </>
+        </div>
       )}
 
       <Separator />
 
       {/* Content Preview */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            {t('documents.preview.content', 'Content Preview')}
-          </h4>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            {t('documents.preview.content', 'Content')}
+          </p>
           {(fullDocument?.content || document?.content_summary) && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCopyContent}>
               <Copy className="h-3 w-3 mr-1" />
@@ -648,7 +619,7 @@ export function DocumentPreviewPanel({
 
       {/* Actions */}
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {t('documents.preview.actions', 'Actions')}
         </h4>
         

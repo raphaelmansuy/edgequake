@@ -155,7 +155,35 @@
 
 ---
 
-## Remaining TODO (Prioritized)
+## New Work Items (2026-06-28 Sprint 2)
+
+### P0 — Right Panel Redesign (RP-01 to RP-09)
+
+| ID | Issue | Files | Effort |
+|----|-------|-------|--------|
+| RP-01 | Remove ID subtitle from panel header | right-panel.tsx, document-preview-right-panel.tsx | XS |
+| RP-02 | Fix value truncation — all fields clipped at panel edge | document-preview-panel.tsx | S |
+| RP-03 | Fix cost color bug — $0.158 shows as $0 in orange | document-preview-panel.tsx | XS |
+| RP-04 | Lowercase section labels (remove CAPS bureaucracy) | document-preview-panel.tsx | XS |
+| RP-05 | Remove duplicate title (header + content h3) | document-preview-panel.tsx | S |
+| RP-06 | Remove separator overuse | document-preview-panel.tsx | XS |
+| RP-07 | Actions pinned to bottom (always visible) | document-preview-panel.tsx | S |
+| RP-08 | Cost row: compact single-line summary | document-preview-panel.tsx | S |
+| RP-09 | Tooltip for full model name | document-preview-panel.tsx | XS |
+
+### P0 — Virtual Scrolling (VS-01 to VS-03)
+
+| ID | Issue | Files | Effort |
+|----|-------|-------|--------|
+| VS-01 | Replace pagination with virtual scroll | document-table-section.tsx, use-document-queries.ts | M |
+| VS-02 | Remove pagination controls bar | pagination-controls.tsx, document-table-section.tsx | XS |
+| VS-03 | Large-page-size fetch (500 docs at once) | use-document-queries.ts, document-manager.tsx | S |
+
+### P1 — System Status Widget (SS-01)
+
+| ID | Issue | Files | Effort |
+|----|-------|-------|--------|
+| SS-01 | Healthy badge with animated pulse indicator | system-status.tsx | XS |
 
 ### P1 — High Impact
 1. **ES-04**: Graph empty state when 0 nodes

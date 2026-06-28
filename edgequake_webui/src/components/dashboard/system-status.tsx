@@ -72,11 +72,19 @@ export function SystemStatus() {
     );
   }
 
-  // Compact healthy indicator
+  // Compact healthy indicator — SS-01: animated pulse gives the badge life
   if (allHealthy) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/20 text-xs text-muted-foreground">
-        <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" aria-hidden="true" />
+      <div
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/20 text-xs text-muted-foreground"
+        role="status"
+        aria-label={t('dashboard.system.healthy', 'All systems operational')}
+      >
+        {/* Pulse animation on the green dot communicates "live / monitored" */}
+        <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 motion-safe:animate-ping" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+        </span>
         <span>
           {t('dashboard.system.healthy', 'All systems operational')}
           {health?.llm_provider_name && (

@@ -82,12 +82,12 @@ export function DocumentManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [pdfParserBackend, setPdfParserBackend] = useState<'default' | 'vision' | 'edgeparse'>('default');
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  // VS-03: No pagination state — virtual scrolling handles windowing client-side.
+  // We fetch all documents at once (up to VIRTUAL_PAGE_SIZE) and let the
+  // virtualizer render only visible rows. This eliminates pagination UI entirely.
 
-  // OODA-17: Filter, sort, and pagination preferences with localStorage persistence
+  // OODA-17: Filter/sort preferences with localStorage persistence
   const {
-    pageSize, setPageSize,
     statusFilter, setStatusFilter,
     sortField, setSortField,
     sortDirection, setSortDirection,
@@ -124,11 +124,13 @@ export function DocumentManager() {
   });
 
   // OODA-29: Document queries extracted to useDocumentQueries hook
+  // VS-03: page=1 with large pageSize fetches everything at once for virtual scroll
+  const VIRTUAL_PAGE_SIZE = 500;
   const { data, isLoading, isError, error, refetch, pipelineStatus, queryClient } = useDocumentQueries({
     tenantId: selectedTenantId,
     workspaceId: selectedWorkspaceId,
-    currentPage,
-    pageSize,
+    currentPage: 1,
+    pageSize: VIRTUAL_PAGE_SIZE,
     statusFilter,
   });
 
@@ -149,14 +151,13 @@ export function DocumentManager() {
   });
 
   // OODA-19: Filter and sort documents using extracted hook
-  // OODA-20: Also compute status counts in hook
-  const { documents, totalCount, totalPages, statusCounts } = useDocumentFiltering({
+  const { documents, totalCount, statusCounts } = useDocumentFiltering({
     documents: data?.items || [],
     searchQuery,
     statusFilter,
     sortField,
     sortDirection,
-    pageSize,
+    pageSize: VIRTUAL_PAGE_SIZE,
     serverStatusCounts: data?.status_counts,
   });
 
@@ -307,11 +308,6 @@ export function DocumentManager() {
         isRetrying={reprocessMutation.isPending}
         isCancelling={cancelMutation.isPending}
         onUploadClick={openFileDialog}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={setPageSize}
         onClearFilter={() => {
           setStatusFilter('all');
           setSearchQuery('');
