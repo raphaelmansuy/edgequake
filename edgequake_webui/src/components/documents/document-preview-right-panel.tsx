@@ -77,21 +77,25 @@ export function DocumentPreviewRightPanel({
     ? `ID: ${selectedDocument.id.slice(0, 12)}...` 
     : undefined;
 
+  // RP-01: Remove the ID subtitle from the panel header.
+  // WHY: The ID is already accessible inside the Details section via copy button.
+  // Showing it in the header bar wastes a full line of prime real estate.
+  // The header should only contain the minimum navigation context.
   return (
     <>
       <RightPanel
         isOpen={isOpen}
         onToggle={onToggle}
         onClose={onClose}
-        title={title}
-        subtitle={subtitle}
+        title={t('documents.preview.title', 'Document')}
+        subtitle={undefined}
         width="wide"
         showCollapsedBar={true}
         collapsedLabel={t('documents.preview.panelLabel', 'Preview')}
         headerIcon={<FileText className="h-4 w-4" />}
         resizable={true}
-        defaultWidth={480}
-        minWidth={400}
+        defaultWidth={520}
+        minWidth={440}
         maxWidth={900}
         storageKey="document-preview-panel-width"
       >

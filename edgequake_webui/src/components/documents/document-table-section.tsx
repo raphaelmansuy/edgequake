@@ -1,17 +1,14 @@
 /**
  * @module DocumentTableSection
- * @description Document table with header, states, rows, and pagination.
+ * @description Document table with virtual scrolling, states, and rows.
  * Extracted from DocumentManager for SRP compliance (OODA-26).
- * 
- * WHY: Table JSX was inline in DocumentManager causing bloat.
- * This component shows:
- * - Table header with document count
- * - Loading skeleton and empty states
- * - Document rows with selection and actions
- * - Pagination controls
- * 
+ *
+ * VS-01: Uses @tanstack/react-virtual (spacer-row pattern) to render only
+ * visible rows — works with native <table> layout so column widths stay
+ * aligned with the sticky header.
+ *
  * @implements FEAT0001 - Document list display
- * @implements FEAT0401 - Document filtering and pagination
+ * @implements FEAT0401 - Document filtering
  */
 'use client';
 
@@ -23,19 +20,22 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Document } from '@/types';
 import { FileText } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentTableStates } from './document-table-states';
-import { PaginationControls } from './pagination-controls';
+
+/** Estimated row height used by the virtualizer (px). */
+const ESTIMATED_ROW_HEIGHT = 52;
 
 /**
  * Props for DocumentTableSection component.
  */
 export interface DocumentTableSectionProps {
-  /** Documents to display */
+  /** Documents to display (all, not paginated — virtualizer handles windowing) */
   documents: Document[];
   /** Total count for filtering info */
   totalCount: number;
@@ -51,52 +51,28 @@ export interface DocumentTableSectionProps {
   statusFilter: string;
   /** Whether all are selected */
   isAllSelected: boolean;
-  /** Handler for select all checkbox */
   onSelectAll: (checked: boolean) => void;
-  /** Handler for individual selection */
   onSelectOne: (id: string, checked: boolean) => void;
-  /** Handler for row click (preview) */
   onRowClick: (doc: Document) => void;
-  /** Handler for row double-click (navigate) */
   onRowDoubleClick: (doc: Document) => void;
-  /** Handler for view details action */
   onViewDetails: (doc: Document) => void;
-  /** Handler for view in graph action */
   onViewInGraph: (doc: Document) => void;
-  /** Handler for view PDF action */
   onViewPdf: (doc: Document) => void;
-  /** Handler for retry action */
   onRetry: (id: string) => void;
-  /** Handler for reprocess action (opens the choice dialog) */
   onReprocess: (id: string) => void;
-  /** Handler for cancel action */
   onCancel: (trackId: string) => void;
-  /** Handler for delete action */
   onDelete: (id: string) => void;
-  /** Whether retrying is in progress */
   isRetrying: boolean;
-  /** Whether cancelling is in progress */
   isCancelling: boolean;
-  /** Handler for upload button click */
   onUploadClick: () => void;
-  /** Current page */
-  currentPage: number;
-  /** Total pages */
-  totalPages: number;
-  /** Page size */
-  pageSize: number;
-  /** Handler for page change */
-  onPageChange: (page: number) => void;
-  /** Handler for page size change */
-  onPageSizeChange: (size: number) => void;
-  /** Optional callback to clear active filters/search (shows clear button in empty state) */
   onClearFilter?: () => void;
 }
 
 /**
- * Document table section with loading states and pagination.
- * WHY: Wrapped in memo to prevent re-renders when DocumentManager state
- * unrelated to the table (e.g., preview panel, dialog state) changes.
+ * Document table with virtual scrolling.
+ * VS-01: Spacer-row virtualizer pattern — header stays sticky, columns align.
+ * WHY: Wrapped in memo so re-renders from preview-panel/dialog state changes
+ * in DocumentManager don't cause the entire table to re-render.
  */
 export const DocumentTableSection = memo(function DocumentTableSection({
   documents,
@@ -121,65 +97,113 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   isRetrying,
   isCancelling,
   onUploadClick,
-  currentPage,
-  totalPages,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
   onClearFilter,
 }: DocumentTableSectionProps) {
   const { t } = useTranslation();
 
+  // Scroll container ref — virtualizer needs the actual scroll element
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: documents.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 8, // extra rows above/below viewport for smooth scrolling
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalVirtualHeight = virtualizer.getTotalSize();
+
+  // Padding rows keep total scroll height correct while only visible rows render
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? totalVirtualHeight - virtualItems[virtualItems.length - 1].end
+      : 0;
+
   return (
-    <>
-      {/* Scrollable Documents Table Zone */}
-      <div className="flex-1 min-h-0 overflow-auto">
-        <div className="px-4 py-3">
-          {/* Table Header */}
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">
-              {t('documents.documentCount', 'Documents ({{count}})', { count: documents.length })}
+    /*
+     * WHY: The outer div is a flex child (flex-1 min-h-0 overflow-hidden) that
+     * establishes a bounded containing block. The inner scroll div uses
+     * absolute inset-0 + overflow-auto which GUARANTEES a scroll container
+     * regardless of what `h-full` or percentage heights do in the flex chain.
+     * The sticky <thead> sticks to this absolute div's scroll context.
+     */
+    <div className="flex-1 min-h-0 overflow-hidden relative">
+      <div ref={scrollRef} className="absolute inset-0 overflow-auto">
+      <div className="px-4 pt-3 pb-2">
+        {/* Count header */}
+        {!isLoading && documents.length > 0 && (
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {searchQuery || statusFilter !== 'all'
+                ? t('documents.filter.showingFiltered', '{{count}} of {{total}}', {
+                    count: documents.length,
+                    total: totalCount,
+                  })
+                : t('documents.documentCount', '{{count}} documents', { count: totalCount })}
             </span>
           </div>
-          
-          {/* OODA-12: Loading skeleton and empty state */}
-          <DocumentTableStates
-            isLoading={isLoading}
-            isEmpty={documents.length === 0}
-            onUploadClick={onUploadClick}
-            statusFilter={statusFilter}
-            searchQuery={searchQuery}
-            onClearFilter={onClearFilter}
-          />
-          
-          {!isLoading && documents.length > 0 && (
-            <div className="border rounded-lg overflow-hidden shadow-sm">
-              <Table aria-label="Documents list">
-                <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead scope="col" className="w-10">
-                      <Checkbox
-                        checked={isAllSelected}
-                        onCheckedChange={(checked) => onSelectAll(!!checked)}
-                        aria-label={t('documents.bulk.selectAll', 'Select all')}
-                      />
-                    </TableHead>
-                    <TableHead scope="col">{t('documents.table.title', 'Title')}</TableHead>
-                    <TableHead scope="col">{t('documents.table.status', 'Status')}</TableHead>
-                    <TableHead scope="col" className="text-center">{t('documents.table.entities', 'Entities')}</TableHead>
-                    <TableHead scope="col" className="text-center">{t('documents.table.cost', 'Cost')}</TableHead>
-                    <TableHead scope="col">{t('documents.table.created', 'Created')}</TableHead>
-                    <TableHead scope="col">{t('documents.table.updated', 'Last Updated')}</TableHead>
-                    <TableHead scope="col" className="w-25"><span className="sr-only">{t('documents.table.actions', 'Actions')}</span></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((doc, index) => (
+        )}
+
+        {/* Loading / empty states */}
+        <DocumentTableStates
+          isLoading={isLoading}
+          isEmpty={documents.length === 0}
+          onUploadClick={onUploadClick}
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+          onClearFilter={onClearFilter}
+        />
+
+        {!isLoading && documents.length > 0 && (
+          /* WHY: [overflow:clip] rounds corners without creating a BFC.
+             overflow-hidden would trap the sticky <thead> inside the div's
+             scroll context, preventing it from sticking to the outer
+             scrollRef container. overflow:clip clips visually but does
+             NOT create a scroll container, so sticky top-0 on <thead>
+             correctly reaches scrollRef. */
+          <div className="border rounded-lg shadow-sm [overflow:clip]">
+            <Table aria-label={t('documents.table.ariaLabel', 'Documents list')}>
+              <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead scope="col" className="w-10">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={(checked) => onSelectAll(!!checked)}
+                      aria-label={t('documents.bulk.selectAll', 'Select all')}
+                    />
+                  </TableHead>
+                  <TableHead scope="col">{t('documents.table.title', 'Title')}</TableHead>
+                  <TableHead scope="col">{t('documents.table.status', 'Status')}</TableHead>
+                  <TableHead scope="col" className="text-center">{t('documents.table.entities', 'Entities')}</TableHead>
+                  <TableHead scope="col" className="text-center">{t('documents.table.cost', 'Cost')}</TableHead>
+                  <TableHead scope="col">{t('documents.table.created', 'Created')}</TableHead>
+                  <TableHead scope="col">{t('documents.table.updated', 'Last Updated')}</TableHead>
+                  <TableHead scope="col" className="w-25">
+                    <span className="sr-only">{t('documents.table.actions', 'Actions')}</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {/* Top spacer row — maintains total scroll height above visible items */}
+                {paddingTop > 0 && (
+                  <tr aria-hidden="true">
+                    <td style={{ height: paddingTop }} />
+                  </tr>
+                )}
+
+                {/* Visible rows only */}
+                {virtualItems.map((virtualRow) => {
+                  const doc = documents[virtualRow.index];
+                  if (!doc) return null;
+                  return (
                     <DocumentTableRow
                       key={doc.id}
                       doc={doc}
-                      index={index}
+                      index={virtualRow.index}
                       isSelected={selectedIds.has(doc.id)}
                       isActive={selectedDocument?.id === doc.id}
                       searchQuery={searchQuery}
@@ -196,41 +220,22 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                       isRetrying={isRetrying}
                       isCancelling={isCancelling}
                     />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
+                  );
+                })}
+
+                {/* Bottom spacer row — maintains scroll height below visible items */}
+                {paddingBottom > 0 && (
+                  <tr aria-hidden="true">
+                    <td style={{ height: paddingBottom }} />
+                  </tr>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
-          
-      {/* Fixed Pagination Footer */}
-      {documents.length > 0 && (
-        <div className="shrink-0 px-4 py-3 border-t bg-background">
-          {/* Show filtered vs total count when filtering */}
-          {(searchQuery || statusFilter !== 'all') && (
-            <p className="text-xs text-muted-foreground mb-2 text-center">
-              {t('documents.filter.showing', 'Showing {{count}} of {{total}} documents', {
-                count: documents.length,
-                total: totalCount,
-              })}
-              {searchQuery && ` ${t('documents.filter.matching', 'matching "{{query}}"', { query: searchQuery })}`}
-            </p>
-          )}
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            totalItems={totalCount}
-            onPageChange={onPageChange}
-            onPageSizeChange={(newSize) => {
-              onPageSizeChange(newSize);
-              onPageChange(1);
-            }}
-          />
-        </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 });
 
