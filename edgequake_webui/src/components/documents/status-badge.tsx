@@ -218,27 +218,27 @@ export const StatusBadge = memo(function StatusBadge({
 
   /**
    * MI-06: Differentiated animation strategy.
-   * WHY: Previously ALL in-progress states used both animate-pulse (badge) AND
-   * animate-spin (icon) simultaneously. With 10+ documents processing, users see
-   * a chaotic wall of spinning icons. New strategy:
-   *   - AI stages (extracting, gleaning, merging, summarizing) → spin icon only
-   *   - Standard pipeline stages → pulse badge, no spin (icon distinguishes)
-   *   - Queued/pending → slow pulse only (low urgency)
-   *   - Terminal states → no animation
+   * WHY: The whole badge pulses for ALL in-progress stages — this is the
+   * "micro pulsing" that communicates "this document is alive / working".
+   * On top of that, AI stages get a spinning icon (stronger signal for the
+   * compute-heavy LLM extraction steps). Terminal states have no animation.
+   *
+   *   animate:true  → badge pulses (subtle, whole pill)
+   *   AI stages     → icon also spins (stronger processing signal)
+   *   terminal      → no animation
    */
   const AI_STAGES = new Set(['extracting', 'gleaning', 'merging', 'summarizing']);
-  const QUEUED_STAGES = new Set(['queued', 'pending']);
   const spinIcon = AI_STAGES.has(status) && config.animate;
-  const pulseIcon = !AI_STAGES.has(status) && !QUEUED_STAGES.has(status) && config.animate;
-  const pulseBadge = QUEUED_STAGES.has(status);
+  // All in-progress stages pulse the badge; AI stages additionally spin their icon
+  const pulseBadge = config.animate;
 
   const badge = (
     <Badge
       variant="outline"
-      className={`gap-1 ${config.textColor} border-current cursor-default${pulseBadge ? ' animate-pulse' : ''}`}
+      className={`gap-1 ${config.textColor} border-current cursor-default${pulseBadge ? ' motion-safe:animate-pulse' : ''}`}
       data-testid="status-badge"
     >
-      <Icon className={`h-3 w-3${spinIcon ? ' animate-spin' : ''}${pulseIcon ? ' motion-safe:animate-pulse' : ''}`} />
+      <Icon className={`h-3 w-3${spinIcon ? ' animate-spin' : ''}`} />
       {!compact && config.label}
     </Badge>
   );
