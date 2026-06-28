@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { searchNodes } from "@/lib/api/edgequake";
 import { focusCameraOnNode } from "@/lib/graph/camera-utils";
-import { formatEntityLabel, formatEntityType } from "@/lib/graph/label-utils";
+import { formatEntityLabel, formatEntityType, getEntityTypeColor } from "@/lib/graph/label-utils";
 import { cn } from "@/lib/utils";
 import { useGraphStore } from "@/stores/use-graph-store";
 import { useUIPreferencesStore } from "@/stores/use-ui-preferences-store";
@@ -153,22 +153,6 @@ const EntityItem = memo(function EntityItem({
     </button>
   );
 });
-
-// Entity type color mapping
-function getEntityTypeColor(type: string): string {
-  const colorMap: Record<string, string> = {
-    PERSON: "#3b82f6",
-    ORGANIZATION: "#8b5cf6",
-    LOCATION: "#22c55e",
-    EVENT: "#f97316",
-    CONCEPT: "#ec4899",
-    DOCUMENT: "#6366f1",
-    TECHNOLOGY: "#14b8a6",
-    PRODUCT: "#f59e0b",
-    DEFAULT: "#94a3b8",
-  };
-  return colorMap[type.toUpperCase()] || colorMap.DEFAULT;
-}
 
 // ============================================================================
 // Virtualized Entity List Component (for performance with large datasets)

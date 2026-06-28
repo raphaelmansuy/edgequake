@@ -4,21 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ENTITY_TYPE_COLORS, formatEntityType } from '@/lib/graph/label-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { Eye, EyeOff, Palette } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-// Color palette for entity types - matches graph-renderer.tsx
-const TYPE_COLORS: Record<string, string> = {
-  PERSON: '#3b82f6',
-  ORGANIZATION: '#10b981',
-  LOCATION: '#f59e0b',
-  EVENT: '#ef4444',
-  CONCEPT: '#8b5cf6',
-  DOCUMENT: '#6366f1',
-  DEFAULT: '#64748b',
-};
+// Color palette sourced from shared label-utils — single source of truth (DRY)
 
 interface GraphLegendProps {
   className?: string;
@@ -45,7 +37,7 @@ export function GraphLegend({ className, collapsed = true }: GraphLegendProps) {
       .map(([type, count]) => ({
         type,
         count,
-        color: TYPE_COLORS[type] || TYPE_COLORS.DEFAULT,
+        color: ENTITY_TYPE_COLORS[type] ?? ENTITY_TYPE_COLORS.DEFAULT,
         label: t(`graph.nodeTypes.${type.toLowerCase()}`, type.charAt(0) + type.slice(1).toLowerCase()),
       }));
   }, [nodes, t]);

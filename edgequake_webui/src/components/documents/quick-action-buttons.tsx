@@ -103,31 +103,33 @@ export function QuickActionButtons({
 
   return (
     <div className="flex items-center gap-1 justify-end">
-      {/* View Details - navigates to document detail page */}
-      <ActionButton
-        icon={<ExternalLink className="h-4 w-4" />}
-        label="View Details"
-        onClick={() => onViewDetails(doc)}
-      />
-
-      {/* Preview - opens side panel */}
-      <ActionButton
-        icon={<Eye className="h-4 w-4" />}
-        label="Preview"
-        onClick={() => onPreview(doc)}
-      />
-
-      {/* View in Graph - only for completed documents */}
-      {canViewInGraph && (
+      {/* Action buttons — visible only on row hover for a cleaner table (F-DOC-06) */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150">
+        {/* View Details - navigates to document detail page */}
         <ActionButton
-          icon={<Sparkles className="h-4 w-4" />}
-          label="View in Graph"
-          onClick={() => onViewInGraph(doc)}
+          icon={<ExternalLink className="h-4 w-4" />}
+          label="View Details"
+          onClick={() => onViewDetails(doc)}
         />
-      )}
 
-      {/* Retry - only for failed documents */}
-      {canRetry && (
+        {/* Preview - opens side panel */}
+        <ActionButton
+          icon={<Eye className="h-4 w-4" />}
+          label="Preview"
+          onClick={() => onPreview(doc)}
+        />
+
+        {/* View in Graph - only for completed documents */}
+        {canViewInGraph && (
+          <ActionButton
+            icon={<Sparkles className="h-4 w-4" />}
+            label="View in Graph"
+            onClick={() => onViewInGraph(doc)}
+          />
+        )}
+
+        {/* Retry - only for failed documents */}
+        {canRetry && (
         <ActionButton
           icon={
             <RefreshCw
@@ -139,8 +141,9 @@ export function QuickActionButtons({
           className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
         />
       )}
+      </div>{/* end hover-reveal group */}
 
-      {/* Additional actions (e.g., dropdown menu) */}
+      {/* Additional actions (e.g., dropdown menu) — always visible */}
       {children}
     </div>
   );

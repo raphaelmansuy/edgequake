@@ -18,6 +18,7 @@
 
 import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
 import { getGraphEdgeKeyFromEdge } from '@/lib/graph/ids';
+import { formatEntityLabel, getEntityTypeColor } from '@/lib/graph/label-utils';
 import {
     applyLayoutToGraph,
     calculateLayoutPositions,
@@ -34,17 +35,6 @@ import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Sigma from 'sigma';
 import { animateNodes } from 'sigma/utils';
-
-// Color palette for entity types
-const TYPE_COLORS: Record<string, string> = {
-  PERSON: '#3b82f6',
-  ORGANIZATION: '#10b981',
-  LOCATION: '#f59e0b',
-  EVENT: '#ef4444',
-  CONCEPT: '#8b5cf6',
-  DOCUMENT: '#6366f1',
-  DEFAULT: '#64748b',
-};
 
 // Node size mapping
 const NODE_SIZES: Record<string, number> = {
@@ -71,8 +61,7 @@ const LABEL_COLORS = {
 };
 
 function getNodeColor(entityType: string | undefined): string {
-  if (!entityType) return TYPE_COLORS.DEFAULT;
-  return TYPE_COLORS[entityType.toUpperCase()] || TYPE_COLORS.DEFAULT;
+  return getEntityTypeColor(entityType);
 }
 
 interface GraphRendererProps {
@@ -183,7 +172,7 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       const dynamicSize = calculateNodeSize(nodeDegree, nodeSizeRef.current);
 
       graph.addNode(node.id, {
-        label: node.label,
+        label: formatEntityLabel(node.label),
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
         size: dynamicSize, // Use dynamic size based on connections
@@ -326,7 +315,7 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
 
       try {
         graph.addNode(node.id, {
-          label: node.label,
+          label: formatEntityLabel(node.label),
           x: Math.cos(angle) * radius,
           y: Math.sin(angle) * radius,
           size: dynamicSize, // Use dynamic size based on connections
