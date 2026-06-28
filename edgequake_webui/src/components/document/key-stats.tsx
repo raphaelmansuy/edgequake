@@ -23,7 +23,7 @@ interface KeyStatsProps {
 
 export function KeyStats({ document }: KeyStatsProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-2">
       <StatCard
         icon={<FileText className="h-4 w-4" />}
         label="Chunks"
@@ -70,10 +70,8 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
   return (
     <div 
       className={cn(
-        'flex flex-col gap-1.5 p-3 rounded-lg border bg-card',
-        'hover:scale-[1.02] hover:-translate-y-0.5',
+        'flex flex-col gap-1 p-2.5 rounded-lg border bg-card',
         'transition-all duration-200 ease-out cursor-default',
-        'shadow-sm hover:shadow-md'
       )}
     >
       <div className={cn('flex items-center gap-1.5 text-xs font-medium', colorClasses[color].split(' ').filter(c => c.includes('text')))}>
@@ -82,7 +80,7 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
         </div>
         <span>{label}</span>
       </div>
-      <div className="text-2xl font-bold tabular-nums">{value}</div>
+      <div className="text-xl font-bold tabular-nums">{value}</div>
     </div>
   );
 }

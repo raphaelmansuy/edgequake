@@ -14,6 +14,7 @@
 'use client';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
 import { Brain, Database, Download, FileText, GitBranch, Network, Settings } from 'lucide-react';
 import { CollapsibleSection } from './collapsible-section';
@@ -37,19 +38,21 @@ interface MetadataSidebarProps {
   onChunkResolved?: (chunkId: string, startLine?: number, endLine?: number) => void;
   /** ID of the currently selected chunk (controls visual highlight). */
   selectedChunkId?: string;
+  /** Additional class names to override the outer container (e.g. border-l-0). */
+  className?: string;
 }
 
-export function MetadataSidebar({ document, onChunkSelect, onChunkResolved, selectedChunkId }: MetadataSidebarProps) {
+export function MetadataSidebar({ document, onChunkSelect, onChunkResolved, selectedChunkId, className }: MetadataSidebarProps) {
   return (
-    <div className="h-full flex flex-col border-l bg-background overflow-hidden">
+    <div className={cn('h-full flex flex-col border-l bg-background overflow-hidden', className)}>
       {/* Fixed Stats Header - Always visible, never compressed */}
-      <div className="shrink-0 z-10 bg-background border-b p-4 shadow-sm">
+      <div className="shrink-0 z-10 bg-background border-b px-3 py-3">
         <KeyStats document={document} />
       </div>
 
       {/* Scrollable sections - min-h-0 allows flex item to shrink below content height */}
       <ScrollArea className="flex-1 min-h-0" showShadows>
-        <div className="p-4 space-y-4">
+        <div className="p-3 space-y-2">
           {/* Extraction Lineage */}
           {document.lineage && (
             <CollapsibleSection
