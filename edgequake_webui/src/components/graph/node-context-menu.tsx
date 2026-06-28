@@ -48,8 +48,11 @@ export function NodeContextMenu({
 }: NodeContextMenuProps) {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
+  // Two-step delete confirm — avoids accidental deletion without a full modal
+  const [pendingDelete, setPendingDelete] = useState(false);
 
   const handleClose = useCallback(() => {
+    setPendingDelete(false);
     onClose();
   }, [onClose]);
 
@@ -154,7 +157,36 @@ export function NodeContextMenu({
         {onDelete && (
           <>
             <div className="my-1 h-px bg-border" />
-            <Item icon={Trash2} label={t('graph.contextMenu.deleteEntity', 'Delete Entity')} danger onClick={() => onDelete!(node)} />
+            {pendingDelete ? (
+              // Step 2: inline confirm
+              <div className="px-2 py-1.5">
+                <p className="text-xs text-destructive font-medium mb-1.5">
+                  {t('graph.contextMenu.deleteConfirm', 'Delete this entity?')}
+                </p>
+                <div className="flex gap-1.5">
+                  <button
+                    className="flex-1 text-xs px-2 py-1 rounded-sm bg-muted hover:bg-muted/80 transition-colors"
+                    onClick={() => setPendingDelete(false)}
+                  >
+                    {t('common.cancel', 'Cancel')}
+                  </button>
+                  <button
+                    className="flex-1 text-xs px-2 py-1 rounded-sm bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                    onClick={() => { onDelete!(node); handleClose(); }}
+                  >
+                    {t('common.delete', 'Delete')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Step 1: show Delete item
+              <Item
+                icon={Trash2}
+                label={t('graph.contextMenu.deleteEntity', 'Delete Entity')}
+                danger
+                onClick={() => setPendingDelete(true)}
+              />
+            )}
           </>
         )}
       </div>

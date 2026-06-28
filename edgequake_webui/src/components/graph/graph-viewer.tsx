@@ -34,14 +34,15 @@ import { useGraphExpansion } from '@/hooks/use-graph-expansion';
 import { useGraphKeyboardNavigation } from '@/hooks/use-graph-keyboard-navigation';
 import { useGraphStream } from '@/hooks/use-graph-stream';
 import { useMediaQuery } from '@/hooks/use-media-query';
-import { getGraph } from '@/lib/api/edgequake';
+import { deleteEntity, getGraph } from '@/lib/api/edgequake';
+import { formatEntityLabel } from '@/lib/graph/label-utils';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Menu, Network, PanelRightClose, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { GraphEmptyIllustration } from '../illustrations/graph-empty-illustration';
@@ -95,10 +96,14 @@ export function GraphViewer() {
     visibleEntityTypes,
     visibleRelationshipTypes,
     searchQuery,
+    setSearchQuery,
   } = useGraphStore();
+
+  const queryClient = useQueryClient();
 
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Memoize filtered nodes to prevent re-render loops
@@ -412,9 +417,13 @@ export function GraphViewer() {
     }
   }, [allNodes, openContextMenu]);
 
+  // Context menu handlers
+  // 1. View Details — select node AND open the right details panel
   const handleViewDetails = useCallback((node: GraphNode) => {
     selectNode(node.id);
-  }, [selectNode]);
+    if (rightPanelCollapsed) toggleRightPanel();
+    if (!showNodeDetails) toggleNodeDetails();
+  }, [selectNode, rightPanelCollapsed, toggleRightPanel, showNodeDetails, toggleNodeDetails]);
 
   const handleExpandNeighborhood = useCallback((node: GraphNode) => {
     // Trigger node expansion via the store (handled by useGraphExpansion hook)
@@ -431,30 +440,60 @@ export function GraphViewer() {
     selectNode(node.id);
   }, [sigmaInstance, selectNode, triggerNodeExpand]);
 
+  // 3. Prune Node — remove this node and its exclusive edges from the view
   const handlePruneNode = useCallback((node: GraphNode) => {
     // Trigger node pruning via the store (handled by useGraphExpansion hook)
     triggerNodePrune(node.id);
   }, [triggerNodePrune]);
 
+  // 4. Find Related — use the graph's own search to highlight related nodes.
+  // WHY: Previously used window.location.href which lost all graph state AND
+  // the query page ignores the ?q= param. Staying on the graph page and setting
+  // the search query is better UX: user sees the related nodes immediately.
   const handleFindRelated = useCallback((node: GraphNode) => {
-    // Navigate to query page with pre-filled query
-    window.location.href = `/query?q=Find entities related to ${encodeURIComponent(node.label)}`;
-  }, []);
+    const label = formatEntityLabel(node.label ?? '');
+    setSearchQuery(label);
+    if (sigmaInstance) {
+      focusCameraOnNode(sigmaInstance, node.id, { ratio: 0.4, duration: 600, highlight: false });
+    }
+    toast.info(`Showing nodes related to "${label}"`, { duration: 2500 });
+  }, [setSearchQuery, sigmaInstance]);
 
-  const handleViewDocuments = useCallback((node: GraphNode) => {
-    // Navigate to documents page with entity filter
-    window.location.href = `/documents?entity=${encodeURIComponent(node.id)}`;
-  }, []);
+  // 5. View Documents — navigate to documents page (workspace-scoped).
+  // WHY: Previously used window.location.href (full page reload, loses state).
+  // Using router.push preserves the Next.js client state and is faster.
+  const handleViewDocuments = useCallback((_node: GraphNode) => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const ws = searchParams.get('workspace');
+    const destination = ws ? `/documents?workspace=${ws}` : '/documents';
+    router.push(destination);
+  }, [router]);
 
+  // 6. Copy Entity ID — copy raw ID for API use; toast shows human-readable name
   const handleCopyId = useCallback((node: GraphNode) => {
     navigator.clipboard.writeText(node.id);
-    toast.success(`Copied entity ID: ${node.id}`);
+    const label = formatEntityLabel(node.label ?? node.id);
+    toast.success(`Copied ID for "${label}"`);
   }, []);
 
-  // Handle settings change (triggers refetch)
+  // Handle settings change (triggers Sigma refresh for visual query settings)
   const handleSettingsChange = useCallback(() => {
-    // Refetch is automatic via queryKey change when settings update the store
+    // Sigma refreshes automatically via ref update inside GraphSettingsPanel
   }, []);
+
+  // 7. Delete Entity — call API, invalidate graph cache, show toast
+  const handleDeleteNode = useCallback(async (node: GraphNode) => {
+    try {
+      await deleteEntity(node.id);
+      queryClient.invalidateQueries({ queryKey: ['graph'] });
+      const label = formatEntityLabel(node.label ?? node.id);
+      toast.success(`"${label}" deleted from knowledge graph`);
+    } catch (err) {
+      toast.error(
+        `Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      );
+    }
+  }, [queryClient]);
 
   const selectedNode = allNodes.find((n) => n.id === selectedNodeId);
 
@@ -664,6 +703,7 @@ export function GraphViewer() {
             onFindRelated={handleFindRelated}
             onViewDocuments={handleViewDocuments}
             onCopyId={handleCopyId}
+            onDelete={handleDeleteNode}
             isExpanded={contextMenuNode ? expandedNodes.has(contextMenuNode.id) : false}
           />
 
