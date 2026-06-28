@@ -96,12 +96,25 @@ impl GraphStorageReadOps for PostgresAGEGraphStorage {
             .await
     }
 
-    async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>> {
-        self.pg_get_popular_labels(limit).await
+    async fn get_popular_labels(
+        &self,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
+        self.pg_get_popular_labels(limit, tenant_id, workspace_id)
+            .await
     }
 
-    async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>> {
-        self.pg_search_labels(query, limit).await
+    async fn search_labels(
+        &self,
+        query: &str,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
+        self.pg_search_labels(query, limit, tenant_id, workspace_id)
+            .await
     }
 
     async fn search_nodes(
@@ -116,8 +129,15 @@ impl GraphStorageReadOps for PostgresAGEGraphStorage {
             .await
     }
 
-    async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>> {
-        self.pg_get_neighbors(node_id, depth).await
+    async fn get_neighbors(
+        &self,
+        node_id: &str,
+        depth: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphNode>> {
+        self.pg_get_neighbors(node_id, depth, tenant_id, workspace_id)
+            .await
     }
 
     async fn get_popular_nodes_with_degree(
@@ -170,6 +190,16 @@ impl GraphStorageMutateOps for PostgresAGEGraphStorage {
         self.pg_delete_node(node_id).await
     }
 
+    async fn delete_node_scoped(
+        &self,
+        node_id: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool> {
+        self.pg_delete_node_scoped(node_id, tenant_id, workspace_id)
+            .await
+    }
+
     async fn upsert_edge(
         &self,
         source: &str,
@@ -188,6 +218,17 @@ impl GraphStorageMutateOps for PostgresAGEGraphStorage {
 
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {
         self.pg_delete_edge(source, target).await
+    }
+
+    async fn delete_edge_scoped(
+        &self,
+        source: &str,
+        target: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool> {
+        self.pg_delete_edge_scoped(source, target, tenant_id, workspace_id)
+            .await
     }
 
     async fn clear(&self) -> Result<()> {

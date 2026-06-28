@@ -20,6 +20,7 @@
 use std::collections::HashMap;
 
 use edgequake_storage::{GraphEdge, GraphNode};
+use edgequake_storage::traits::GraphStorageReadOps;
 use tracing::warn;
 
 use crate::error::{ApiError, ApiResult};
@@ -53,6 +54,48 @@ pub fn properties_match_tenant_context(
     let prop_wid = properties.get("workspace_id").and_then(|v| v.as_str());
 
     matches!((prop_tid, prop_wid), (Some(t), Some(w)) if t == ctx_tid && w == ctx_wid)
+}
+
+/// Stamp `tenant_id` and `workspace_id` onto a property map for graph writes.
+///
+/// Returns `BadRequest` when the request context is incomplete — graph mutations
+/// must never persist nodes/edges without tenant scope.
+pub fn stamp_tenant_context_properties(
+    properties: &mut HashMap<String, serde_json::Value>,
+    ctx: &TenantContext,
+) -> ApiResult<()> {
+    let (Some(tid), Some(wid)) = (ctx.tenant_id.as_deref(), ctx.workspace_id.as_deref()) else {
+        return Err(ApiError::BadRequest(
+            "Tenant and workspace context are required for graph mutations".to_string(),
+        ));
+    };
+    properties.insert("tenant_id".to_string(), tid.into());
+    properties.insert("workspace_id".to_string(), wid.into());
+    Ok(())
+}
+
+/// Load a graph node and verify it belongs to the current tenant context.
+///
+/// Cross-tenant IDOR attempts receive `NotFound` (not `Forbidden`) to avoid
+/// leaking entity existence across tenants.
+pub async fn load_node_for_tenant_context(
+    graph: &dyn GraphStorageReadOps,
+    node_id: &str,
+    ctx: &TenantContext,
+) -> ApiResult<GraphNode> {
+    let node = graph
+        .get_node(node_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", node_id)))?;
+
+    if !properties_match_tenant_context(&node.properties, ctx) {
+        return Err(ApiError::NotFound(format!(
+            "Entity '{}' not found",
+            node_id
+        )));
+    }
+
+    Ok(node)
 }
 
 // ============================================================================

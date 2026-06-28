@@ -183,7 +183,7 @@ async fn test_memory_e2e_document_to_knowledge_graph() {
 
     // 7. Test graph traversal
     let neighbors = graph_storage
-        .get_neighbors("SARAH_CHEN", 1)
+        .get_neighbors("SARAH_CHEN", 1, None, None)
         .await
         .expect("Failed to get neighbors");
     println!("✓ Sarah Chen has {} neighbors", neighbors.len());
@@ -276,7 +276,7 @@ async fn test_memory_e2e_with_simulated_extraction() {
 
     // 7. Test graph traversal
     let neighbors = graph_storage
-        .get_neighbors("SARAH_CHEN", 1)
+        .get_neighbors("SARAH_CHEN", 1, None, None)
         .await
         .expect("Failed to get neighbors");
     println!("Sarah Chen neighbors: {}", neighbors.len());
@@ -461,7 +461,7 @@ with graph capabilities, providing ACID guarantees and efficient graph traversal
 
     // 7. Check relationships between key entities
     let sarah_neighbors = graph_storage
-        .get_neighbors("SARAH_CHEN", 1)
+        .get_neighbors("SARAH_CHEN", 1, None, None)
         .await
         .expect("Failed to get neighbors");
     println!(

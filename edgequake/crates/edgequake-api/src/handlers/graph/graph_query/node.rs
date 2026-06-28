@@ -5,8 +5,10 @@ use axum::{
     Json,
 };
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::ApiResult;
 use crate::handlers::graph_types::GraphNodeResponse;
+use crate::handlers::isolation::load_node_for_tenant_context;
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 /// Get a specific node.
@@ -24,14 +26,15 @@ use crate::state::AppState;
 )]
 pub async fn get_node(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(node_id): Path<String>,
 ) -> ApiResult<Json<GraphNodeResponse>> {
-    let node = state
-        .storage
-        .graph_storage
-        .get_node(&node_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("Node '{}' not found", node_id)))?;
+    let node = load_node_for_tenant_context(
+        state.storage.graph_storage.as_ref(),
+        &node_id,
+        &tenant_ctx,
+    )
+    .await?;
 
     let degree = state.storage.graph_storage.node_degree(&node_id).await?;
 

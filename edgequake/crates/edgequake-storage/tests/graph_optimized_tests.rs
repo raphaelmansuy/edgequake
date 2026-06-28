@@ -391,7 +391,7 @@ async fn test_optimized_methods_return_correct_data() {
         .unwrap();
 
     // Get nodes via traditional method (N+1 pattern)
-    let labels = storage.get_popular_labels(10).await.unwrap();
+    let labels = storage.get_popular_labels(10, None, None).await.unwrap();
     let mut nodes_traditional = Vec::new();
     for label in labels {
         if let Some(node) = storage.get_node(&label).await.unwrap() {

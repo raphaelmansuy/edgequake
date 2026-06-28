@@ -10,6 +10,10 @@ use axum::{
 use chrono::Utc;
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::isolation::{
+    filter_edges_by_tenant_context, load_node_for_tenant_context, stamp_tenant_context_properties,
+};
+use crate::middleware::TenantContext;
 use crate::state::AppState;
 
 use super::{node_to_entity_response, normalize_entity_name_for_graph};
@@ -170,20 +174,22 @@ fn merge_edge_properties(
 async fn resolve_entity_node(
     state: &AppState,
     entity_name: &str,
+    ctx: &TenantContext,
 ) -> ApiResult<Option<edgequake_storage::GraphNode>> {
     let normalized_name = normalize_entity_name_for_graph(entity_name);
 
-    if let Some(node) = state
-        .storage
-        .graph_storage
-        .get_node(&normalized_name)
-        .await?
+    if let Ok(node) =
+        load_node_for_tenant_context(state.storage.graph_storage.as_ref(), &normalized_name, ctx)
+            .await
     {
         return Ok(Some(node));
     }
 
     if normalized_name != entity_name {
-        if let Some(node) = state.storage.graph_storage.get_node(entity_name).await? {
+        if let Ok(node) =
+            load_node_for_tenant_context(state.storage.graph_storage.as_ref(), entity_name, ctx)
+                .await
+        {
             return Ok(Some(node));
         }
     }
@@ -191,7 +197,13 @@ async fn resolve_entity_node(
     let search_results = state
         .storage
         .graph_storage
-        .search_nodes(entity_name, 10, None, None, None)
+        .search_nodes(
+            entity_name,
+            10,
+            None,
+            ctx.tenant_id.as_deref(),
+            ctx.workspace_id.as_deref(),
+        )
         .await
         .unwrap_or_default();
 
@@ -218,9 +230,10 @@ async fn resolve_entity_node(
 )]
 pub async fn entity_exists(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(params): Query<EntityExistsQuery>,
 ) -> ApiResult<Json<EntityExistsResponse>> {
-    if let Some(node) = resolve_entity_node(&state, &params.entity_name).await? {
+    if let Some(node) = resolve_entity_node(&state, &params.entity_name, &tenant_ctx).await? {
         let degree = state.storage.graph_storage.node_degree(&node.id).await?;
         let entity_type = node
             .properties
@@ -257,21 +270,33 @@ pub async fn entity_exists(
 )]
 pub async fn merge_entities(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Json(req): Json<MergeEntitiesRequest>,
 ) -> ApiResult<Json<MergeEntitiesResponse>> {
-    let source_node = resolve_entity_node(&state, &req.source_entity)
+    let source_node = resolve_entity_node(&state, &req.source_entity, &tenant_ctx)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!("Source entity '{}' not found", req.source_entity))
         })?;
     let source_entity = source_node.id.clone();
 
-    let mut target_node = resolve_entity_node(&state, &req.target_entity)
+    let mut target_node = resolve_entity_node(&state, &req.target_entity, &tenant_ctx)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!("Target entity '{}' not found", req.target_entity))
         })?;
     let target_entity = target_node.id.clone();
+
+    let (tenant_id, workspace_id) = (
+        tenant_ctx
+            .tenant_id
+            .as_deref()
+            .ok_or_else(|| ApiError::BadRequest("Tenant context required".to_string()))?,
+        tenant_ctx
+            .workspace_id
+            .as_deref()
+            .ok_or_else(|| ApiError::BadRequest("Workspace context required".to_string()))?,
+    );
 
     // Merge descriptions based on strategy
     let description_strategy = req.merge_strategy.clone();
@@ -327,11 +352,14 @@ pub async fn merge_entities(
 
     // Rewire source relationships to the target entity before deleting the source node.
     // WHY: A merge must preserve graph semantics, not just delete the duplicate label.
-    let source_edges = state
-        .storage
-        .graph_storage
-        .get_node_edges(&source_entity)
-        .await?;
+    let source_edges = filter_edges_by_tenant_context(
+        state
+            .storage
+            .graph_storage
+            .get_node_edges(&source_entity)
+            .await?,
+        &tenant_ctx,
+    );
 
     let mut relationships_merged = 0;
     let mut duplicate_relationships_removed = 0;
@@ -358,11 +386,12 @@ pub async fn merge_entities(
             duplicate_relationships_removed += 1;
         }
 
-        let merged_properties = merge_edge_properties(
+        let mut merged_properties = merge_edge_properties(
             existing_edge.as_ref().map(|edge| &edge.properties),
             &edge.properties,
             &source_entity,
         );
+        stamp_tenant_context_properties(&mut merged_properties, &tenant_ctx)?;
 
         state
             .storage
@@ -378,18 +407,25 @@ pub async fn merge_entities(
     target_node
         .properties
         .insert("updated_at".to_string(), now.into());
+    stamp_tenant_context_properties(&mut target_node.properties, &tenant_ctx)?;
     state
         .storage
         .graph_storage
         .upsert_node(&target_entity, target_node.properties.clone())
         .await?;
 
-    // Delete source node
-    state
+    let deleted = state
         .storage
         .graph_storage
-        .delete_node(&source_entity)
+        .delete_node_scoped(&source_entity, tenant_id, workspace_id)
         .await?;
+
+    if !deleted {
+        return Err(ApiError::NotFound(format!(
+            "Source entity '{}' not found",
+            source_entity
+        )));
+    }
 
     let degree = state
         .storage
@@ -431,10 +467,11 @@ pub async fn merge_entities(
 )]
 pub async fn get_entity_neighborhood(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Path(entity_name): Path<String>,
     Query(query): Query<EntityNeighborhoodQuery>,
 ) -> ApiResult<Json<EntityNeighborhoodResponse>> {
-    let resolved_entity = resolve_entity_node(&state, &entity_name)
+    let resolved_entity = resolve_entity_node(&state, &entity_name, &tenant_ctx)
         .await?
         .map(|node| node.id)
         .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_name)))?;
@@ -454,7 +491,10 @@ pub async fn get_entity_neighborhood(
         let mut next_frontier = Vec::new();
 
         for node_id in &frontier {
-            let edges = state.storage.graph_storage.get_node_edges(node_id).await?;
+            let edges = filter_edges_by_tenant_context(
+                state.storage.graph_storage.get_node_edges(node_id).await?,
+                &tenant_ctx,
+            );
 
             for edge in edges {
                 // Check both directions
@@ -487,7 +527,10 @@ pub async fn get_entity_neighborhood(
     // Build response nodes
     let mut nodes = Vec::with_capacity(visited_nodes.len());
     for node_id in &visited_nodes {
-        if let Some(node) = state.storage.graph_storage.get_node(node_id).await? {
+        if let Ok(node) =
+            load_node_for_tenant_context(state.storage.graph_storage.as_ref(), node_id, &tenant_ctx)
+                .await
+        {
             let degree = state
                 .storage
                 .graph_storage

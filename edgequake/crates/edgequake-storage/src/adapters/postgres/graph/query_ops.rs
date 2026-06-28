@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use sqlx::Row;
 
+use super::helpers::EdgeTenantFilterMode;
 use super::PostgresAGEGraphStorage;
 use crate::error::{Result, StorageError};
-use crate::traits::{GraphEdge, GraphNode, KnowledgeGraph};
+use crate::traits::{GraphEdge, GraphNode, KnowledgeGraph, EdgeListFilter, NodeListFilter};
 
 impl PostgresAGEGraphStorage {
     pub(super) async fn pg_get_knowledge_graph(
@@ -67,57 +68,54 @@ impl PostgresAGEGraphStorage {
         Ok(kg)
     }
 
-    pub(super) async fn pg_get_popular_labels(&self, limit: usize) -> Result<Vec<String>> {
-        // Get nodes with highest degree using AGE
-        // NOTE: AGE 1.6.0 has a bug with ORDER BY on aggregation aliases in Cypher,
-        // so we use SQL-level ordering instead
+    pub(super) async fn pg_get_popular_labels(
+        &self,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
         let pool = self.pool.get().await?;
-
-        // Acquire a dedicated connection so session state persists
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        // Set up AGE session on this connection
-        sqlx::query("LOAD 'age'")
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| StorageError::Database(format!("Failed to load AGE: {}", e)))?;
+        let filter = NodeListFilter {
+            tenant_id: tenant_id.map(str::to_string),
+            workspace_id: workspace_id.map(str::to_string),
+            ..Default::default()
+        };
+        let vertex_where = Self::vertex_where_clause("v", &filter);
 
-        sqlx::query("SET search_path = ag_catalog, \"$user\", public")
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
-
-        // Use SQL-level ordering since AGE has issues with ORDER BY on aggregation aliases
+        // Scoped SQL — same filter-first pattern as pg_get_popular_nodes_with_degree.
         let sql = format!(
-            "SELECT agtype_to_json(node_id) as node_id FROM ( \
-                SELECT * FROM cypher('{}', $$ \
-                    MATCH (n:Node)-[r]-() \
-                    RETURN n.node_id as node_id, count(r) as degree \
-                $$) AS (node_id agtype, degree agtype) \
-             ) subq \
-             ORDER BY degree DESC \
-             LIMIT {}",
-            self.graph_name, limit
+            "WITH filtered_nodes AS MATERIALIZED ( \
+                SELECT v.id::text AS id_text, v.properties \
+                FROM {}.\"_ag_label_vertex\" v \
+                {} \
+            ), \
+            edge_counts AS ( \
+                SELECT e.start_id::text AS start_id_text, COUNT(*) AS out_degree \
+                FROM {}.\"_ag_label_edge\" e \
+                INNER JOIN filtered_nodes fn ON e.start_id::text = fn.id_text \
+                GROUP BY e.start_id::text \
+            ) \
+            SELECT ag_catalog.agtype_to_json(fn.properties)->>'node_id' AS label \
+            FROM filtered_nodes fn \
+            LEFT JOIN edge_counts ec ON fn.id_text = ec.start_id_text \
+            ORDER BY COALESCE(ec.out_degree, 0) DESC \
+            LIMIT {}",
+            self.graph_name, vertex_where, self.graph_name, limit
         );
 
         let rows = sqlx::query(&sql)
             .fetch_all(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Cypher query failed: {}", e)))?;
+            .map_err(|e| StorageError::Database(format!("popular labels SQL failed: {}", e)))?;
 
-        let labels: Vec<String> = rows
+        Ok(rows
             .iter()
-            .map(|row| {
-                let json_value: serde_json::Value = row.get("node_id");
-                let node_id_str = json_value.to_string();
-                // Remove quotes from agtype string
-                node_id_str.trim_matches('"').to_string()
-            })
-            .collect();
-
-        Ok(labels)
+            .filter_map(|row| row.get::<Option<String>, _>("label"))
+            .collect())
     }
 
     /// FAST OPTIMIZED: Search node labels with full-text search and fuzzy matching.
@@ -126,11 +124,31 @@ impl PostgresAGEGraphStorage {
     /// Supports fuzzy matching, ranking by relevance, and handles typos.
     ///
     /// Performance: <100ms for fuzzy search across 10k+ nodes
-    pub(super) async fn pg_search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>> {
+    pub(super) async fn pg_search_labels(
+        &self,
+        query: &str,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
+
+        let tenant_predicate = Self::build_vertex_property_where(
+            "v",
+            &NodeListFilter {
+                tenant_id: tenant_id.map(str::to_string),
+                workspace_id: workspace_id.map(str::to_string),
+                ..Default::default()
+            },
+        );
+        let tenant_and = if tenant_predicate == "TRUE" {
+            String::new()
+        } else {
+            format!(" AND {tenant_predicate}")
+        };
 
         let escaped_query = Self::escape_sql_string(query);
         tracing::debug!(query = %query, escaped = %escaped_query, "search_labels starting");
@@ -138,17 +156,17 @@ impl PostgresAGEGraphStorage {
         // Try full-text search first (best for word matching)
         let fts_sql = format!(
             "SELECT \
-                ag_catalog.agtype_to_json(properties)->>'node_id' as label, \
+                ag_catalog.agtype_to_json(v.properties)->>'node_id' as label, \
                 ts_rank( \
-                    to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id'), \
-                    plainto_tsquery('english', '{}') \
+                    to_tsvector('english', ag_catalog.agtype_to_json(v.properties)->>'node_id'), \
+                    plainto_tsquery('english', '{0}') \
                 ) as rank \
-             FROM {}.\"_ag_label_vertex\" \
-             WHERE to_tsvector('english', ag_catalog.agtype_to_json(properties)->>'node_id') \
-                   @@ plainto_tsquery('english', '{}') \
+             FROM {1}.\"_ag_label_vertex\" v \
+             WHERE to_tsvector('english', ag_catalog.agtype_to_json(v.properties)->>'node_id') \
+                   @@ plainto_tsquery('english', '{0}'){2} \
              ORDER BY rank DESC \
-             LIMIT {}",
-            escaped_query, self.graph_name, escaped_query, limit
+             LIMIT {3}",
+            escaped_query, self.graph_name, tenant_and, limit
         );
 
         let fts_rows = sqlx::query(&fts_sql).fetch_all(&mut *conn).await;
@@ -172,16 +190,17 @@ impl PostgresAGEGraphStorage {
         //      and ag_catalog.similarity() explicitly to avoid "function not found" errors
         let trgm_sql = format!(
             "SELECT \
-                ag_catalog.agtype_to_json(properties)->>'node_id' as label, \
+                ag_catalog.agtype_to_json(v.properties)->>'node_id' as label, \
                 ag_catalog.similarity( \
-                    ag_catalog.agtype_to_json(properties)->>'node_id', \
-                    '{}' \
+                    ag_catalog.agtype_to_json(v.properties)->>'node_id', \
+                    '{0}' \
                 ) as sim \
-             FROM {}.\"_ag_label_vertex\" \
-             WHERE ag_catalog.agtype_to_json(properties)->>'node_id' OPERATOR(ag_catalog.%) '{}' \
+             FROM {1}.\"_ag_label_vertex\" v \
+             WHERE ag_catalog.agtype_to_json(v.properties)->>'node_id' OPERATOR(ag_catalog.%) '{0}' \
+             {2} \
              ORDER BY sim DESC \
-             LIMIT {}",
-            escaped_query, self.graph_name, escaped_query, limit
+             LIMIT {3}",
+            escaped_query, self.graph_name, tenant_and, limit
         );
 
         let trgm_rows = sqlx::query(&trgm_sql).fetch_all(&mut *conn).await;
@@ -204,12 +223,13 @@ impl PostgresAGEGraphStorage {
 
         // Final fallback to simple ILIKE prefix matching (always works)
         let prefix_sql = format!(
-            "SELECT ag_catalog.agtype_to_json(properties)->>'node_id' as label \
-             FROM {}.\"_ag_label_vertex\" \
-             WHERE LOWER(ag_catalog.agtype_to_json(properties)->>'node_id') LIKE LOWER('{}%') \
-             ORDER BY ag_catalog.agtype_to_json(properties)->>'node_id' \
-             LIMIT {}",
-            self.graph_name, escaped_query, limit
+            "SELECT ag_catalog.agtype_to_json(v.properties)->>'node_id' as label \
+             FROM {0}.\"_ag_label_vertex\" v \
+             WHERE LOWER(ag_catalog.agtype_to_json(v.properties)->>'node_id') LIKE LOWER('{1}%') \
+             {2} \
+             ORDER BY ag_catalog.agtype_to_json(v.properties)->>'node_id' \
+             LIMIT {3}",
+            self.graph_name, escaped_query, tenant_and, limit
         );
 
         let prefix_rows = sqlx::query(&prefix_sql)
@@ -242,75 +262,48 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        let query_lower = query.to_lowercase();
         tracing::debug!(query = %query, "search_nodes starting");
 
-        // Build WHERE conditions for tenant/workspace filtering
-        let mut where_conditions = vec![format!(
-            "(LOWER(ag_catalog.agtype_to_json(v.properties)->>'node_id') LIKE '%{}%' \
-             OR LOWER(COALESCE(ag_catalog.agtype_to_json(v.properties)->>'description', '')) LIKE '%{}%')",
-            query_lower, query_lower
-        )];
+        let filter = NodeListFilter {
+            tenant_id: tenant_id.map(str::to_string),
+            workspace_id: workspace_id.map(str::to_string),
+            entity_type: entity_type.map(str::to_string),
+            search: Some(query.to_string()),
+            ..Default::default()
+        };
+        let vertex_where = Self::vertex_where_clause("v", &filter);
 
-        if let Some(tid) = tenant_id {
-            let escaped_tid = Self::escape_sql_string(tid);
-            where_conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}'",
-                escaped_tid
-            ));
-        }
-
-        if let Some(wid) = workspace_id {
-            let escaped_wid = Self::escape_sql_string(wid);
-            where_conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}'",
-                escaped_wid
-            ));
-        }
-
-        if let Some(etype) = entity_type {
-            let escaped_etype = Self::escape_sql_string(etype);
-            where_conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'entity_type' = '{}'",
-                escaped_etype
-            ));
-        }
-
-        let where_clause = where_conditions.join(" AND ");
-
-        // CTE query to get nodes with degree count in one query
+        // WHY: Filter vertices first (MATERIALIZED), scope degree counts to that set,
+        // and join via graphid::text (AGE has no graphid = operator). Global edge
+        // GROUP BY + nested-loop join against tenant filters caused 22s+ timeouts.
         let sql = format!(
-            "WITH node_props AS (
-                SELECT 
-                    v.id as vertex_id,
-                    ag_catalog.agtype_to_json(v.properties) as props
-                FROM {graph}.\"_ag_label_vertex\" v
-                WHERE {where_clause}
-            ),
-            edge_counts AS (
-                SELECT 
-                    e.start_id as node_id,
-                    COUNT(*) as out_degree
-                FROM {graph}.\"_ag_label_edge\" e
-                GROUP BY e.start_id
-            ),
-            in_edge_counts AS (
-                SELECT 
-                    e.end_id as node_id,
-                    COUNT(*) as in_degree
-                FROM {graph}.\"_ag_label_edge\" e
-                GROUP BY e.end_id
-            )
-            SELECT 
-                np.props,
-                COALESCE(ec.out_degree, 0) + COALESCE(ic.in_degree, 0) as degree
-            FROM node_props np
-            LEFT JOIN edge_counts ec ON np.vertex_id = ec.node_id
-            LEFT JOIN in_edge_counts ic ON np.vertex_id = ic.node_id
-            ORDER BY degree DESC
+            "WITH filtered_nodes AS MATERIALIZED ( \
+                SELECT v.id::text AS id_text, ag_catalog.agtype_to_json(v.properties) AS props \
+                FROM {graph}.\"_ag_label_vertex\" v \
+                {vertex_where} \
+            ), \
+            out_degrees AS ( \
+                SELECT e.start_id::text AS id_text, COUNT(*) AS out_degree \
+                FROM {graph}.\"_ag_label_edge\" e \
+                INNER JOIN filtered_nodes fn ON e.start_id::text = fn.id_text \
+                GROUP BY e.start_id::text \
+            ), \
+            in_degrees AS ( \
+                SELECT e.end_id::text AS id_text, COUNT(*) AS in_degree \
+                FROM {graph}.\"_ag_label_edge\" e \
+                INNER JOIN filtered_nodes fn ON e.end_id::text = fn.id_text \
+                GROUP BY e.end_id::text \
+            ) \
+            SELECT \
+                fn.props, \
+                COALESCE(o.out_degree, 0) + COALESCE(i.in_degree, 0) AS degree \
+            FROM filtered_nodes fn \
+            LEFT JOIN out_degrees o ON fn.id_text = o.id_text \
+            LEFT JOIN in_degrees i ON fn.id_text = i.id_text \
+            ORDER BY degree DESC \
             LIMIT {limit}",
             graph = self.graph_name,
-            where_clause = where_clause,
+            vertex_where = vertex_where,
             limit = limit
         );
 
@@ -347,30 +340,33 @@ impl PostgresAGEGraphStorage {
         &self,
         node_id: &str,
         depth: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<Vec<GraphNode>> {
         let escaped_id = Self::escape_cypher_string(node_id);
 
-        // QW4: clamp traversal depth to a hard ceiling of 3 hops. Variable-length
-        // path expansion in AGE is combinatorial — each extra hop multiplies the
-        // intermediate row set by the average degree, so an unbounded `depth`
-        // (e.g. a caller passing usize::MAX) can OOM the backend or hang the
-        // connection. 3 hops is the practical limit for "related context" in
-        // graph-RAG retrieval; anything deeper is noise.
         let safe_depth = depth.clamp(1, 3);
-
-        // QW4: cap the neighbor result set. Hub nodes (high-degree entities like
-        // a country or a common topic) can expand to tens of thousands of
-        // neighbors; without a LIMIT we'd buffer all of them into memory and
-        // flood downstream ranking. 500 is generous for context assembly.
         const MAX_NEIGHBORS: usize = 500;
 
-        // Use variable-length path traversal to get neighbors at specified depth
+        let mut tenant_where = String::new();
+        if let Some(tid) = tenant_id {
+            tenant_where.push_str(&format!(
+                " AND neighbor.tenant_id = '{}'",
+                Self::escape_cypher_string(tid)
+            ));
+        }
+        if let Some(wid) = workspace_id {
+            tenant_where.push_str(&format!(
+                " AND neighbor.workspace_id = '{}'",
+                Self::escape_cypher_string(wid)
+            ));
+        }
+
         let cypher = format!(
-            "MATCH (start:Node {{node_id: '{}'}})-[*1..{}]-(neighbor:Node) \
-             WHERE neighbor.node_id <> '{}' \
+            "MATCH (start:Node {{node_id: '{escaped_id}'}})-[*1..{safe_depth}]-(neighbor:Node) \
+             WHERE neighbor.node_id <> '{escaped_id}'{tenant_where} \
              RETURN DISTINCT neighbor \
-             LIMIT {}",
-            escaped_id, safe_depth, escaped_id, MAX_NEIGHBORS
+             LIMIT {MAX_NEIGHBORS}"
         );
 
         let rows = self.cypher_query(&cypher, &["neighbor"]).await?;
@@ -400,81 +396,42 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        // Build WHERE conditions for property filtering (using our indexes!)
-        let mut where_conditions = Vec::new();
-
-        if let Some(et) = entity_type {
-            let escaped_et = Self::escape_sql_string(et);
-            where_conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'entity_type' = '{}'",
-                escaped_et
-            ));
-        }
-
-        // WHY: Strict multi-tenant filtering - only include nodes with MATCHING tenant_id
-        // Nodes without tenant_id are EXCLUDED to prevent cross-tenant data leakage
-        if let Some(tid) = tenant_id {
-            let escaped_tid = Self::escape_sql_string(tid);
-            where_conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}'",
-                escaped_tid
-            ));
-        }
-
-        // WHY: Strict workspace filtering - only include nodes with MATCHING workspace_id
-        // Nodes without workspace_id are EXCLUDED to prevent cross-workspace data leakage
-        if let Some(wid) = workspace_id {
-            let escaped_wid = Self::escape_sql_string(wid);
-            where_conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}'",
-                escaped_wid
-            ));
-        }
-
-        let where_clause = if where_conditions.is_empty() {
-            String::new()
-        } else {
-            format!("WHERE {}", where_conditions.join(" AND "))
+        let filter = NodeListFilter {
+            tenant_id: tenant_id.map(str::to_string),
+            workspace_id: workspace_id.map(str::to_string),
+            entity_type: entity_type.map(str::to_string),
+            ..Default::default()
         };
+        let vertex_where = Self::vertex_where_clause("v", &filter);
+        let min_degree_val = min_degree.unwrap_or(0);
 
-        // FAST SQL query using CTE for degree calculation
-        // This avoids expensive Cypher OPTIONAL MATCH and uses native SQL GROUP BY
-        // Note: Cast graphid to text for comparison - AGE's graphid type doesn't have direct = operator
-        let min_degree_filter = if let Some(min) = min_degree {
-            format!("AND degree >= {}", min)
-        } else {
-            String::new()
-        };
-
-        // WHY: graphid::text::bigint is unreliable across AGE versions — if the graphid
-        // output format is not a bare integer string, the ::bigint cast fails.
-        // The consistent pattern (same as node_degree / node_degrees_batch) is to cast
-        // graphid to text and join on text = text, which AGE always supports.
+        // WHY: Filter vertices first (MATERIALIZED), then hash-join edge counts scoped
+        // to those nodes. The previous plan computed global edge_counts first and
+        // nested-loop joined against tenant/workspace filters — PostgreSQL estimated
+        // rows=1 with filters present, producing a nested-loop cartesian (~31k × 15k
+        // comparisons, 22s+) that exceeded the 15s graph query budget (SPEC-006).
+        // graphid::text joins are the AGE-safe pattern (see node_degrees_batch).
         let sql = format!(
-            "WITH edge_counts AS ( \
-                SELECT \
-                    start_id::text AS start_id_text, \
-                    COUNT(*) as out_degree \
-                FROM {}.\"_ag_label_edge\" \
-                GROUP BY start_id::text \
-            ), \
-            node_degrees AS ( \
-                SELECT \
-                    v.id::text AS id_text, \
-                    v.properties, \
-                    COALESCE(ec.out_degree, 0) as degree \
+            "WITH filtered_nodes AS MATERIALIZED ( \
+                SELECT v.id::text AS id_text, v.properties \
                 FROM {}.\"_ag_label_vertex\" v \
-                LEFT JOIN edge_counts ec ON v.id::text = ec.start_id_text \
                 {} \
+            ), \
+            edge_counts AS ( \
+                SELECT e.start_id::text AS start_id_text, COUNT(*) AS out_degree \
+                FROM {}.\"_ag_label_edge\" e \
+                INNER JOIN filtered_nodes fn ON e.start_id::text = fn.id_text \
+                GROUP BY e.start_id::text \
             ) \
             SELECT \
-                ag_catalog.agtype_to_json(properties) as node_props, \
-                degree \
-            FROM node_degrees \
-            WHERE degree >= 0 {} \
+                ag_catalog.agtype_to_json(fn.properties) AS node_props, \
+                COALESCE(ec.out_degree, 0) AS degree \
+            FROM filtered_nodes fn \
+            LEFT JOIN edge_counts ec ON fn.id_text = ec.start_id_text \
+            WHERE COALESCE(ec.out_degree, 0) >= {} \
             ORDER BY degree DESC \
             LIMIT {}",
-            self.graph_name, self.graph_name, where_clause, min_degree_filter, limit
+            self.graph_name, vertex_where, self.graph_name, min_degree_val, limit
         );
 
         let rows = sqlx::query(&sql)
@@ -547,41 +504,26 @@ impl PostgresAGEGraphStorage {
             .collect();
         let ids_str = ids_list.join(", ");
 
-        // WHY: Tenant/workspace filters use IS NULL OR = pattern for backward compatibility
-        // with edges that were written before multi-tenancy was enforced. New edges always
-        // have these fields set, but old edges may have NULL values.
-        let mut extra_filters = Vec::new();
-        if let Some(tid) = tenant_id {
-            let escaped_tid = Self::escape_sql_string(tid);
-            extra_filters.push(format!(
-                "(ag_catalog.agtype_to_json(properties)->>'tenant_id' IS NULL \
-                 OR ag_catalog.agtype_to_json(properties)->>'tenant_id' = '{}')",
-                escaped_tid
-            ));
-        }
-        if let Some(wid) = workspace_id {
-            let escaped_wid = Self::escape_sql_string(wid);
-            extra_filters.push(format!(
-                "(ag_catalog.agtype_to_json(properties)->>'workspace_id' IS NULL \
-                 OR ag_catalog.agtype_to_json(properties)->>'workspace_id' = '{}')",
-                escaped_wid
-            ));
-        }
-
-        let extra_where = if extra_filters.is_empty() {
-            String::new()
-        } else {
-            format!(" AND {}", extra_filters.join(" AND "))
+        // WHY: Tenant/workspace filters — legacy NULL-as-wildcard for pre-multitenancy edges.
+        let edge_filter = EdgeListFilter {
+            tenant_id: tenant_id.map(str::to_string),
+            workspace_id: workspace_id.map(str::to_string),
+            relationship_type: None,
         };
+        let extra_where = Self::edge_and_clause(
+            "e",
+            &edge_filter,
+            EdgeTenantFilterMode::LegacyNullAsWildcard,
+        );
 
         // Native SQL: filter on edge properties directly.
         // `source_id` and `target_id` are stored in edge properties (not vertex joins needed).
         // Migration 036 adds expression indexes on these properties for fast lookups.
         let sql = format!(
-            r#"SELECT ag_catalog.agtype_to_json(properties) AS edge_props
-               FROM {}."_ag_label_edge"
-               WHERE ag_catalog.agtype_to_json(properties)->>'source_id' IN ({})
-                 AND ag_catalog.agtype_to_json(properties)->>'target_id' IN ({})
+            r#"SELECT ag_catalog.agtype_to_json(e.properties) AS edge_props
+               FROM {}."_ag_label_edge" e
+               WHERE ag_catalog.agtype_to_json(e.properties)->>'source_id' IN ({})
+                 AND ag_catalog.agtype_to_json(e.properties)->>'target_id' IN ({})
                  {}"#,
             self.graph_name, ids_str, ids_str, extra_where
         );

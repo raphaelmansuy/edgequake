@@ -36,11 +36,31 @@ pub async fn delete_relationship(
     let src_id = edge.source.clone();
     let tgt_id = edge.target.clone();
 
-    state
+    let (tenant_id, workspace_id) = (
+        tenant_ctx
+            .tenant_id
+            .as_deref()
+            .ok_or_else(|| crate::error::ApiError::BadRequest("Tenant context required".into()))?,
+        tenant_ctx
+            .workspace_id
+            .as_deref()
+            .ok_or_else(|| {
+                crate::error::ApiError::BadRequest("Workspace context required".into())
+            })?,
+    );
+
+    let deleted = state
         .storage
         .graph_storage
-        .delete_edge(&src_id, &tgt_id)
+        .delete_edge_scoped(&src_id, &tgt_id, tenant_id, workspace_id)
         .await?;
+
+    if !deleted {
+        return Err(crate::error::ApiError::NotFound(format!(
+            "Relationship '{}' not found",
+            relationship_id
+        )));
+    }
 
     Ok(Json(DeleteRelationshipResponse {
         status: "success".to_string(),

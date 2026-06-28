@@ -31,6 +31,17 @@ pub trait GraphStorageMutateOps: Send + Sync {
 
     async fn delete_node(&self, node_id: &str) -> Result<()>;
 
+    /// Delete a node only when its stored tenant/workspace match (defense in depth).
+    ///
+    /// Returns `Ok(true)` when a node was deleted, `Ok(false)` when no matching node
+    /// exists (including cross-tenant IDOR attempts — caller should map to 404).
+    async fn delete_node_scoped(
+        &self,
+        node_id: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool>;
+
     async fn upsert_edge(
         &self,
         source: &str,
@@ -45,6 +56,15 @@ pub trait GraphStorageMutateOps: Send + Sync {
     ) -> Result<()>;
 
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()>;
+
+    /// Delete an edge only when tenant/workspace properties match.
+    async fn delete_edge_scoped(
+        &self,
+        source: &str,
+        target: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool>;
 
     async fn clear(&self) -> Result<()>;
 

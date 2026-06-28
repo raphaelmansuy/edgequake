@@ -90,9 +90,20 @@ pub trait GraphStorageReadOps: Send + Sync {
         max_nodes: usize,
     ) -> Result<KnowledgeGraph>;
 
-    async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>>;
+    async fn get_popular_labels(
+        &self,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>>;
 
-    async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>>;
+    async fn search_labels(
+        &self,
+        query: &str,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>>;
 
     async fn search_nodes(
         &self,
@@ -103,7 +114,13 @@ pub trait GraphStorageReadOps: Send + Sync {
         workspace_id: Option<&str>,
     ) -> Result<Vec<(GraphNode, usize)>>;
 
-    async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>>;
+    async fn get_neighbors(
+        &self,
+        node_id: &str,
+        depth: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphNode>>;
 
     async fn get_popular_nodes_with_degree(
         &self,
@@ -113,7 +130,9 @@ pub trait GraphStorageReadOps: Send + Sync {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<(GraphNode, usize)>> {
-        let labels = self.get_popular_labels(limit * 2).await?;
+        let labels = self
+            .get_popular_labels(limit * 2, tenant_id, workspace_id)
+            .await?;
         let mut results = Vec::new();
 
         for label in labels {

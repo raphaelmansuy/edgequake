@@ -29,12 +29,18 @@ use crate::state::AppState;
 )]
 pub async fn search_labels(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(params): Query<SearchLabelsQuery>,
 ) -> ApiResult<Json<SearchLabelsResponse>> {
     let labels = state
         .storage
         .graph_storage
-        .search_labels(&params.q, params.limit)
+        .search_labels(
+            &params.q,
+            params.limit,
+            tenant_ctx.tenant_id.as_deref(),
+            tenant_ctx.workspace_id.as_deref(),
+        )
         .await?;
 
     Ok(Json(SearchLabelsResponse { labels }))
@@ -112,7 +118,12 @@ pub async fn search_nodes(
             if let Ok(neighbors) = state
                 .storage
                 .graph_storage
-                .get_neighbors(&node_id, params.neighbor_depth)
+                .get_neighbors(
+                    &node_id,
+                    params.neighbor_depth,
+                    tenant_id.as_deref(),
+                    workspace_id.as_deref(),
+                )
                 .await
             {
                 for neighbor in neighbors {
@@ -135,12 +146,20 @@ pub async fn search_nodes(
     // Get edges between all collected nodes
     let edges = if all_nodes.len() > 1 {
         let node_id_vec: Vec<String> = node_ids.into_iter().collect();
-        state
-            .storage
-            .graph_storage
-            .get_edges_for_node_set(&node_id_vec, tenant_id.as_deref(), workspace_id.as_deref())
-            .await
-            .unwrap_or_default()
+        let tenant_for_edges = tenant_id.clone();
+        let workspace_for_edges = workspace_id.clone();
+        let graph_storage_edges = state.storage.graph_storage.clone();
+        run_timed_graph_query(&state, "edges_for_node_set", async move {
+            graph_storage_edges
+                .get_edges_for_node_set(
+                    &node_id_vec,
+                    tenant_for_edges.as_deref(),
+                    workspace_for_edges.as_deref(),
+                )
+                .await
+        })
+        .await
+        .unwrap_or_default()
     } else {
         vec![]
     };

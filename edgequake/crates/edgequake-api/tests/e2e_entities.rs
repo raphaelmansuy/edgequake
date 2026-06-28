@@ -71,6 +71,8 @@ async fn test_create_entity_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -114,6 +116,8 @@ async fn test_create_entity_duplicate() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -130,6 +134,8 @@ async fn test_create_entity_duplicate() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -156,6 +162,8 @@ async fn test_create_entity_name_normalization() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -196,6 +204,8 @@ async fn test_get_entity_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -211,6 +221,8 @@ async fn test_get_entity_success() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/TESLA")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -240,6 +252,8 @@ async fn test_get_entity_not_found() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/NONEXISTENT_ENTITY")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -268,6 +282,8 @@ async fn test_get_entity_name_normalization() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -281,6 +297,8 @@ async fn test_get_entity_name_normalization() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/openai")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -313,6 +331,8 @@ async fn test_update_entity_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -332,6 +352,8 @@ async fn test_update_entity_success() {
                 .method("PUT")
                 .uri("/api/v1/graph/entities/GOOGLE")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&update_request).unwrap()))
                 .unwrap(),
         )
@@ -369,6 +391,8 @@ async fn test_update_entity_not_found() {
                 .method("PUT")
                 .uri("/api/v1/graph/entities/NONEXISTENT")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&update_request).unwrap()))
                 .unwrap(),
         )
@@ -397,6 +421,8 @@ async fn test_update_entity_metadata() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -418,6 +444,8 @@ async fn test_update_entity_metadata() {
                 .method("PUT")
                 .uri("/api/v1/graph/entities/AMAZON")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&update_request).unwrap()))
                 .unwrap(),
         )
@@ -450,6 +478,8 @@ async fn test_delete_entity_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -463,6 +493,8 @@ async fn test_delete_entity_success() {
             Request::builder()
                 .method("DELETE")
                 .uri("/api/v1/graph/entities/TEMPORARY_ENTITY?confirm=true")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -485,6 +517,8 @@ async fn test_delete_entity_success() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/TEMPORARY_ENTITY")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -513,6 +547,8 @@ async fn test_delete_entity_no_confirmation() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -526,6 +562,8 @@ async fn test_delete_entity_no_confirmation() {
             Request::builder()
                 .method("DELETE")
                 .uri("/api/v1/graph/entities/PROTECTED_ENTITY?confirm=false")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -544,6 +582,8 @@ async fn test_delete_entity_not_found() {
             Request::builder()
                 .method("DELETE")
                 .uri("/api/v1/graph/entities/NONEXISTENT?confirm=true")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -576,6 +616,8 @@ async fn test_entity_exists_true() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -589,6 +631,8 @@ async fn test_entity_exists_true() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/exists?entity_name=Existing%20Entity")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -614,6 +658,8 @@ async fn test_entity_exists_false() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/exists?entity_name=Nonexistent%20Entity")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -650,6 +696,8 @@ async fn test_merge_entities_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&source_request).unwrap()))
                 .unwrap(),
         )
@@ -671,6 +719,8 @@ async fn test_merge_entities_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&target_request).unwrap()))
                 .unwrap(),
         )
@@ -691,6 +741,8 @@ async fn test_merge_entities_success() {
                 .method("POST")
                 .uri("/api/v1/graph/entities/merge")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&merge_request).unwrap()))
                 .unwrap(),
         )
@@ -711,6 +763,8 @@ async fn test_merge_entities_success() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/SOURCE_ENTITY")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -726,6 +780,8 @@ async fn test_merge_entities_success() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/TARGET_ENTITY")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -754,6 +810,8 @@ async fn test_merge_entities_source_not_found() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&target_request).unwrap()))
                 .unwrap(),
         )
@@ -773,6 +831,8 @@ async fn test_merge_entities_source_not_found() {
                 .method("POST")
                 .uri("/api/v1/graph/entities/merge")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&merge_request).unwrap()))
                 .unwrap(),
         )
@@ -801,6 +861,8 @@ async fn test_merge_entities_with_strategy() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&source_request).unwrap()))
                 .unwrap(),
         )
@@ -822,6 +884,8 @@ async fn test_merge_entities_with_strategy() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&target_request).unwrap()))
                 .unwrap(),
         )
@@ -842,6 +906,8 @@ async fn test_merge_entities_with_strategy() {
                 .method("POST")
                 .uri("/api/v1/graph/entities/merge")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&merge_request).unwrap()))
                 .unwrap(),
         )
@@ -880,6 +946,8 @@ async fn test_merge_entities_resolves_human_readable_entity_names() {
                     .method("POST")
                     .uri("/api/v1/graph/entities")
                     .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                     .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                     .unwrap(),
             )
@@ -902,6 +970,8 @@ async fn test_merge_entities_resolves_human_readable_entity_names() {
                 .method("POST")
                 .uri("/api/v1/graph/entities/merge")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&merge_request).unwrap()))
                 .unwrap(),
         )
@@ -935,6 +1005,8 @@ async fn test_merge_entities_preserves_relationships_in_graph() {
                     .method("POST")
                     .uri("/api/v1/graph/entities")
                     .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                     .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                     .unwrap(),
             )
@@ -971,6 +1043,8 @@ async fn test_merge_entities_preserves_relationships_in_graph() {
                     .method("POST")
                     .uri("/api/v1/graph/relationships")
                     .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                     .body(Body::from(
                         serde_json::to_string(&relationship_request).unwrap(),
                     ))
@@ -995,6 +1069,8 @@ async fn test_merge_entities_preserves_relationships_in_graph() {
                 .method("POST")
                 .uri("/api/v1/graph/entities/merge")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&merge_request).unwrap()))
                 .unwrap(),
         )
@@ -1009,6 +1085,8 @@ async fn test_merge_entities_preserves_relationships_in_graph() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/TARGET_PERSON/neighborhood?depth=1")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1082,6 +1160,8 @@ async fn test_complete_entity_lifecycle() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                 .unwrap(),
         )
@@ -1097,6 +1177,8 @@ async fn test_complete_entity_lifecycle() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/exists?entity_name=Lifecycle%20Entity")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1116,6 +1198,8 @@ async fn test_complete_entity_lifecycle() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/LIFECYCLE_ENTITY")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1136,6 +1220,8 @@ async fn test_complete_entity_lifecycle() {
                 .method("PUT")
                 .uri("/api/v1/graph/entities/LIFECYCLE_ENTITY")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&update_request).unwrap()))
                 .unwrap(),
         )
@@ -1151,6 +1237,8 @@ async fn test_complete_entity_lifecycle() {
             Request::builder()
                 .method("DELETE")
                 .uri("/api/v1/graph/entities/LIFECYCLE_ENTITY?confirm=true")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1166,6 +1254,8 @@ async fn test_complete_entity_lifecycle() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/exists?entity_name=Lifecycle%20Entity")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1192,6 +1282,8 @@ async fn test_list_entities_empty() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1289,6 +1381,8 @@ async fn test_list_entities_with_type_filter() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -1303,6 +1397,8 @@ async fn test_list_entities_with_type_filter() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities?entity_type=PERSON")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1335,6 +1431,8 @@ async fn test_entity_neighborhood_not_found() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/NONEXISTENT_ENTITY/neighborhood")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1363,6 +1461,8 @@ async fn test_entity_neighborhood_basic() {
                 .method("POST")
                 .uri("/api/v1/graph/entities")
                 .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::from(serde_json::to_string(&request).unwrap()))
                 .unwrap(),
         )
@@ -1378,6 +1478,8 @@ async fn test_entity_neighborhood_basic() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/NEIGHBORHOOD_CENTER/neighborhood")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1408,6 +1510,8 @@ async fn test_entity_neighborhood_with_depth() {
             Request::builder()
                 .method("GET")
                 .uri("/api/v1/graph/entities/TEST/neighborhood?depth=2")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                 .body(Body::empty())
                 .unwrap(),
         )

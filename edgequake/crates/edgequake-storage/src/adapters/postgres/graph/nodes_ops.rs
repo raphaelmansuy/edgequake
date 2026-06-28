@@ -183,6 +183,26 @@ impl PostgresAGEGraphStorage {
         self.cypher_execute_bound(cypher, &params).await
     }
 
+    /// Tenant-scoped delete — atomic MATCH+WHERE+DELETE (no cross-tenant IDOR).
+    pub(super) async fn pg_delete_node_scoped(
+        &self,
+        node_id: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool> {
+        let escaped_id = Self::escape_cypher_string(node_id);
+        let escaped_tid = Self::escape_cypher_string(tenant_id);
+        let escaped_wid = Self::escape_cypher_string(workspace_id);
+        let cypher = format!(
+            "MATCH (n:Node {{node_id: '{escaped_id}'}}) \
+             WHERE n.tenant_id = '{escaped_tid}' AND n.workspace_id = '{escaped_wid}' \
+             DETACH DELETE n \
+             RETURN n"
+        );
+        let rows = self.cypher_query(&cypher, &["n"]).await?;
+        Ok(!rows.is_empty())
+    }
+
     /// FAST OPTIMIZED: Get node degree using native SQL.
     ///
     /// Uses direct SQL query instead of slow Cypher OPTIONAL MATCH pattern.

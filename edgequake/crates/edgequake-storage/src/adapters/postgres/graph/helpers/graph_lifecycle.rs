@@ -139,6 +139,86 @@ impl PostgresAGEGraphStorage {
                     self.graph_name
                 ),
             ),
+            (
+                "idx_ag_vertex_tenant_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_vertex_tenant_id 
+                       ON {}."_ag_label_vertex" (
+                         (ag_catalog.agtype_to_json(properties)->>'tenant_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_ag_vertex_workspace_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_vertex_workspace_id 
+                       ON {}."_ag_label_vertex" (
+                         (ag_catalog.agtype_to_json(properties)->>'workspace_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_ag_edge_source_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_source_id 
+                       ON {}."_ag_label_edge" (
+                         (ag_catalog.agtype_to_json(properties)->>'source_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_ag_edge_target_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_target_id 
+                       ON {}."_ag_label_edge" (
+                         (ag_catalog.agtype_to_json(properties)->>'target_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_node_tenant_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_node_tenant_id 
+                       ON {}."Node" (
+                         (ag_catalog.agtype_to_json(properties)->>'tenant_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_node_workspace_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_node_workspace_id 
+                       ON {}."Node" (
+                         (ag_catalog.agtype_to_json(properties)->>'workspace_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_edge_source_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_source_id 
+                       ON {}."EDGE" (
+                         (ag_catalog.agtype_to_json(properties)->>'source_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_edge_target_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_target_id 
+                       ON {}."EDGE" (
+                         (ag_catalog.agtype_to_json(properties)->>'target_id')
+                       )"#,
+                    self.graph_name
+                ),
+            ),
         ];
 
         let mut indexes_created = 0;

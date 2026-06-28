@@ -70,57 +70,79 @@ impl PostgresAGEGraphStorage {
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
-        let workspace_id_str = workspace_id.to_string();
-        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
-        let cypher = format!(
-            "MATCH (n:Node) WHERE n.workspace_id = '{}' RETURN count(n)",
-            escaped_wid
-        );
-        let count = self.cypher_query_count(&cypher).await?;
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        let filter = crate::traits::NodeListFilter {
+            tenant_id: None,
+            workspace_id: Some(workspace_id.to_string()),
+            ..Default::default()
+        };
+        let sql = Self::vertex_count_sql(&self.graph_name, "v", &filter);
+        let row = sqlx::query(&sql)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("node_count_by_workspace failed: {e}")))?;
+        let count: i64 = row.get(0);
         Ok(count as usize)
     }
+
     /// Get edge count for a specific workspace (OODA-03: Fix dashboard stats).
-    ///
-    /// WHY: Counts edges where either endpoint belongs to the workspace.
-    /// This matches the deletion logic in clear_workspace() for consistency.
     pub(super) async fn pg_edge_count_by_workspace(
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
-        let workspace_id_str = workspace_id.to_string();
-        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
-        let cypher = format!(
-            "MATCH (n:Node)-[r:EDGE]->(m:Node) WHERE n.workspace_id = '{}' OR m.workspace_id = '{}' RETURN count(r)",
-            escaped_wid, escaped_wid
-        );
-        let count = self.cypher_query_count(&cypher).await?;
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+
+        let filter = crate::traits::EdgeListFilter {
+            tenant_id: None,
+            workspace_id: Some(workspace_id.to_string()),
+            relationship_type: None,
+        };
+        let sql = Self::edge_count_sql(&self.graph_name, "e", &filter);
+        let row = sqlx::query(&sql)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("edge_count_by_workspace failed: {e}")))?;
+        let count: i64 = row.get(0);
         Ok(count as usize)
     }
 
-    /// Get distinct entity type count for a workspace using Cypher DISTINCT.
-    ///
-    /// WHY: Eliminates the O(N) fetch-all-nodes pattern that made the dashboard
-    /// EntityTypes KPI card extremely slow (8000+ nodes transferred over the
-    /// network just to count unique types). A single aggregate query brings
-    /// this down to milliseconds.
+    /// Distinct entity types in a workspace — native SQL (no full-graph Cypher scan).
     pub(super) async fn pg_distinct_node_type_count_by_workspace(
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
-        let workspace_id_str = workspace_id.to_string();
-        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
 
-        // Cypher: collect distinct entity_type values, then count them.
-        // We use collect + size because AGE's Cypher doesn't support
-        // COUNT(DISTINCT n.entity_type) directly in all versions.
-        let cypher = format!(
-            "MATCH (n:Node) WHERE n.workspace_id = '{}' AND n.entity_type IS NOT NULL \
-             WITH collect(DISTINCT n.entity_type) AS types \
-             RETURN size(types)",
-            escaped_wid
+        let filter = crate::traits::NodeListFilter {
+            tenant_id: None,
+            workspace_id: Some(workspace_id.to_string()),
+            ..Default::default()
+        };
+        let vertex_where = Self::vertex_where_clause("v", &filter);
+        let extra = if vertex_where.is_empty() {
+            "WHERE ag_catalog.agtype_to_json(v.properties)->>'entity_type' IS NOT NULL"
+        } else {
+            "AND ag_catalog.agtype_to_json(v.properties)->>'entity_type' IS NOT NULL"
+        };
+        let sql = format!(
+            "SELECT COUNT(DISTINCT ag_catalog.agtype_to_json(v.properties)->>'entity_type')::bigint \
+             FROM {}.\"_ag_label_vertex\" v {} {}",
+            self.graph_name, vertex_where, extra
         );
-
-        let count = self.cypher_query_count(&cypher).await.unwrap_or(0);
+        let count: i64 = sqlx::query_scalar(&sql)
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap_or(0);
         Ok(count as usize)
     }
 

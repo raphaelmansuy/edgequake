@@ -1,5 +1,6 @@
 //! Bounded graph scan — SPEC-006 postgres push-down.
 
+use super::helpers::EdgeTenantFilterMode;
 use super::PostgresAGEGraphStorage;
 use crate::error::{Result, StorageError};
 use crate::traits::{EdgeListFilter, GraphEdge, GraphNode, NodeListFilter, PagedGraphResult};
@@ -7,82 +8,11 @@ use sqlx::Row;
 
 impl PostgresAGEGraphStorage {
     fn build_node_where_clause(filter: &NodeListFilter) -> String {
-        let mut conditions = Vec::new();
-
-        if let Some(tid) = filter.tenant_id.as_deref() {
-            conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'tenant_id' = '{}'",
-                Self::escape_sql_string(tid)
-            ));
-        }
-        if let Some(wid) = filter.workspace_id.as_deref() {
-            conditions.push(format!(
-                "ag_catalog.agtype_to_json(v.properties)->>'workspace_id' = '{}'",
-                Self::escape_sql_string(wid)
-            ));
-        }
-        if let Some(etype) = filter.entity_type.as_deref() {
-            conditions.push(format!(
-                "UPPER(ag_catalog.agtype_to_json(v.properties)->>'entity_type') = UPPER('{}')",
-                Self::escape_sql_string(etype)
-            ));
-        }
-        if let Some(search) = filter.search.as_deref() {
-            let q = Self::escape_sql_string(&search.to_lowercase());
-            conditions.push(format!(
-                "(LOWER(ag_catalog.agtype_to_json(v.properties)->>'node_id') LIKE '%{q}%' \
-                 OR LOWER(COALESCE(ag_catalog.agtype_to_json(v.properties)->>'description', '')) LIKE '%{q}%')"
-            ));
-        }
-        if let Some(ref community_ids) = filter.community_ids {
-            if community_ids.is_empty() {
-                conditions.push("FALSE".to_string());
-            } else {
-                let id_list = community_ids
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                conditions.push(format!(
-                    "(ag_catalog.agtype_to_json(v.properties)->>'community_id')::bigint IN ({id_list})"
-                ));
-            }
-        }
-
-        if conditions.is_empty() {
-            "TRUE".to_string()
-        } else {
-            conditions.join(" AND ")
-        }
+        Self::build_vertex_property_where("v", filter)
     }
 
     fn build_edge_where_clause(filter: &EdgeListFilter) -> String {
-        let mut conditions = Vec::new();
-
-        if let Some(tid) = filter.tenant_id.as_deref() {
-            conditions.push(format!(
-                "ag_catalog.agtype_to_json(e.properties)->>'tenant_id' = '{}'",
-                Self::escape_sql_string(tid)
-            ));
-        }
-        if let Some(wid) = filter.workspace_id.as_deref() {
-            conditions.push(format!(
-                "ag_catalog.agtype_to_json(e.properties)->>'workspace_id' = '{}'",
-                Self::escape_sql_string(wid)
-            ));
-        }
-        if let Some(rel) = filter.relationship_type.as_deref() {
-            conditions.push(format!(
-                "UPPER(ag_catalog.agtype_to_json(e.properties)->>'relation_type') = UPPER('{}')",
-                Self::escape_sql_string(rel)
-            ));
-        }
-
-        if conditions.is_empty() {
-            "TRUE".to_string()
-        } else {
-            conditions.join(" AND ")
-        }
+        Self::build_edge_property_where("e", filter, EdgeTenantFilterMode::Strict)
     }
 
     pub(super) async fn pg_list_nodes_filtered(

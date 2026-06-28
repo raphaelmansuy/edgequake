@@ -211,7 +211,7 @@ async fn test_optimized_vs_n_plus_one_comparison() {
 
     // Method 2: Simulate N+1 pattern
     let start_n_plus_one = Instant::now();
-    let labels = storage.get_popular_labels(50).await.unwrap();
+    let labels = storage.get_popular_labels(50, None, None).await.unwrap();
     let mut nodes_n_plus_one = Vec::new();
     for label in &labels {
         if let Some(node) = storage.get_node(label).await.unwrap() {

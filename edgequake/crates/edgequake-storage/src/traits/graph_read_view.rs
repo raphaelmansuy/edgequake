@@ -99,12 +99,27 @@ impl<'a> GraphReadView<'a> {
             .await
     }
 
-    pub async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>> {
-        self.inner.get_popular_labels(limit).await
+    pub async fn get_popular_labels(
+        &self,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
+        self.inner
+            .get_popular_labels(limit, tenant_id, workspace_id)
+            .await
     }
 
-    pub async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>> {
-        self.inner.search_labels(query, limit).await
+    pub async fn search_labels(
+        &self,
+        query: &str,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
+        self.inner
+            .search_labels(query, limit, tenant_id, workspace_id)
+            .await
     }
 
     pub async fn search_nodes(
@@ -120,8 +135,16 @@ impl<'a> GraphReadView<'a> {
             .await
     }
 
-    pub async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>> {
-        self.inner.get_neighbors(node_id, depth).await
+    pub async fn get_neighbors(
+        &self,
+        node_id: &str,
+        depth: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphNode>> {
+        self.inner
+            .get_neighbors(node_id, depth, tenant_id, workspace_id)
+            .await
     }
 
     pub async fn get_popular_nodes_with_degree(

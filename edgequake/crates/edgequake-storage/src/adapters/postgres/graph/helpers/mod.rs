@@ -12,6 +12,9 @@ mod cypher_exec;
 mod cypher_format;
 mod graph_lifecycle;
 mod session;
+mod vertex_filter;
+
+pub(in crate::adapters::postgres::graph) use vertex_filter::EdgeTenantFilterMode;
 
 #[cfg(test)]
 mod helper_tests {

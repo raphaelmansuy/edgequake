@@ -159,6 +159,28 @@ impl PostgresAGEGraphStorage {
         self.cypher_execute_bound(cypher, &params).await
     }
 
+    /// Tenant-scoped edge delete — strict property match on the relationship.
+    pub(super) async fn pg_delete_edge_scoped(
+        &self,
+        source: &str,
+        target: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool> {
+        let src = Self::escape_cypher_string(source);
+        let tgt = Self::escape_cypher_string(target);
+        let tid = Self::escape_cypher_string(tenant_id);
+        let wid = Self::escape_cypher_string(workspace_id);
+        let cypher = format!(
+            "MATCH (a:Node {{node_id: '{src}'}})-[r:EDGE]->(b:Node {{node_id: '{tgt}'}}) \
+             WHERE r.tenant_id = '{tid}' AND r.workspace_id = '{wid}' \
+             DELETE r \
+             RETURN r"
+        );
+        let rows = self.cypher_query(&cypher, &["r"]).await?;
+        Ok(!rows.is_empty())
+    }
+
     pub(super) async fn pg_get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
         self.pg_get_incident_edges_batch(&[node_id.to_string()])
             .await

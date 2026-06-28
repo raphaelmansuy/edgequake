@@ -5,7 +5,8 @@ use axum::{
     Json,
 };
 
-use crate::error::{ApiError, ApiResult};
+use crate::error::ApiResult;
+use crate::handlers::isolation::load_node_for_tenant_context;
 use crate::handlers::relationships_types::{
     EntitySummary, GetRelationshipResponse, RelationshipEntities,
 };
@@ -37,19 +38,19 @@ pub async fn get_relationship(
 
     let relationship = edge_to_relationship_response(edge.clone(), &relationship_id);
 
-    let source_node = state
-        .storage
-        .graph_storage
-        .get_node(&edge.source)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("Source entity not found".to_string()))?;
+    let source_node = load_node_for_tenant_context(
+        state.storage.graph_storage.as_ref(),
+        &edge.source,
+        &tenant_ctx,
+    )
+    .await?;
 
-    let target_node = state
-        .storage
-        .graph_storage
-        .get_node(&edge.target)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("Target entity not found".to_string()))?;
+    let target_node = load_node_for_tenant_context(
+        state.storage.graph_storage.as_ref(),
+        &edge.target,
+        &tenant_ctx,
+    )
+    .await?;
 
     let entities = RelationshipEntities {
         source: EntitySummary {

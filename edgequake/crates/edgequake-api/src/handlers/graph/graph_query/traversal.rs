@@ -183,15 +183,19 @@ pub async fn get_graph(
 
         // OPTIMIZED: Use filtered edge query instead of get_all_edges
         let node_ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
-        let filtered_edges = state
-            .storage
-            .graph_storage
-            .get_edges_for_node_set(
-                &node_ids,
-                tenant_ctx.tenant_id.as_deref(),
-                tenant_ctx.workspace_id.as_deref(),
-            )
-            .await?;
+        let tenant_for_edges = tenant_ctx.tenant_id.clone();
+        let workspace_for_edges = tenant_ctx.workspace_id.clone();
+        let graph_storage_edges = state.storage.graph_storage.clone();
+        let filtered_edges = run_timed_graph_query(&state, "edges_for_node_set", async move {
+            graph_storage_edges
+                .get_edges_for_node_set(
+                    &node_ids,
+                    tenant_for_edges.as_deref(),
+                    workspace_for_edges.as_deref(),
+                )
+                .await
+        })
+        .await?;
 
         let edges: Vec<GraphEdgeResponse> = filtered_edges
             .into_iter()

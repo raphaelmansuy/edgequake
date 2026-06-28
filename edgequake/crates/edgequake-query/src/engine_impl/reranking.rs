@@ -166,7 +166,7 @@ impl QueryEngine {
                 async move {
                     let view = edgequake_storage::GraphReadView::from_arc(&graph);
                     let exists = view
-                        .search_labels(&kw, 1)
+                        .search_labels(&kw, 1, None, None)
                         .await
                         .map(|labels| !labels.is_empty())
                         .unwrap_or(false);
