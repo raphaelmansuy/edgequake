@@ -92,9 +92,29 @@ use crate::state::AppState;
 
 /// Create the API router.
 pub fn create_router(state: AppState) -> Router {
-    let api_v1 = api_v1_routes().route_layer(middleware::from_fn_with_state(
+    let api_v1 = api_v1_routes()
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::tenant_rate_limit_from_state,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::protected_api_auth,
+        ));
+
+    let api_v2 = api_v2_routes()
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::tenant_rate_limit_from_state,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::protected_api_auth,
+        ));
+
+    let ollama = ollama_api_routes().route_layer(middleware::from_fn_with_state(
         state.clone(),
-        crate::middleware::protected_api_auth,
+        crate::middleware::ollama_compat_gate,
     ));
 
     Router::new()
@@ -112,10 +132,20 @@ pub fn create_router(state: AppState) -> Router {
             get(handlers::ws_progress_by_track_id),
         )
         // Ollama Emulation API (GAP-038)
-        .nest("/api", ollama_api_routes())
+        .nest("/api", ollama)
         // API v1 endpoints
         .nest("/api/v1", api_v1)
+        // API v2 endpoints (SPEC-027 IMP-025)
+        .nest("/api/v2", api_v2)
         .with_state(state)
+}
+
+/// API v2 routes (ascending-compatible new surfaces).
+fn api_v2_routes() -> Router<AppState> {
+    Router::new()
+        .route("/jobs", post(handlers::create_job).get(handlers::list_jobs))
+        .route("/jobs/{job_id}", get(handlers::get_job))
+        .route("/jobs/{job_id}/cancel", post(handlers::cancel_job))
 }
 
 /// Ollama-compatible API routes.

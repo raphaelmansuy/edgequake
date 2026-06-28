@@ -115,6 +115,32 @@ pub mod kv_keys {
         format!("{doc_id}-")
     }
 
+    // ── Workspace document index (SPEC-027 phase 8) ──
+
+    /// Secondary index key: `wsdoc:{workspace_id}:{document_id}` → metadata pointer JSON.
+    ///
+    /// Enables O(workspace docs) prefix scans instead of global `-metadata` suffix scans.
+    #[inline]
+    pub fn workspace_doc_index(workspace_id: &str, document_id: &str) -> String {
+        format!("wsdoc:{workspace_id}:{document_id}")
+    }
+
+    /// Prefix for listing all document index entries in a workspace.
+    #[inline]
+    pub fn workspace_doc_index_prefix(workspace_id: &str) -> String {
+        format!("wsdoc:{workspace_id}:")
+    }
+
+    /// Parse `(workspace_id, document_id)` from a workspace doc index key.
+    pub fn parse_workspace_doc_index(key: &str) -> Option<(&str, &str)> {
+        let rest = key.strip_prefix("wsdoc:")?;
+        let (workspace_id, document_id) = rest.split_once(':')?;
+        if workspace_id.is_empty() || document_id.is_empty() {
+            return None;
+        }
+        Some((workspace_id, document_id))
+    }
+
     /// Key for an LLM extraction cache entry.
     ///
     /// `hash` is the SHA-256 hex of the prompt + model string.
@@ -215,6 +241,19 @@ mod tests {
         let chunk5 = kv_keys::doc_chunk(doc_id, 5);
         assert!(chunk0.starts_with(&prefix));
         assert!(chunk5.starts_with(&prefix));
+    }
+
+    #[test]
+    fn workspace_doc_index_roundtrip() {
+        let ws = "cccccccc-0027-0027-0027-cccccccccccc";
+        let doc = "doc-abc-123";
+        let key = kv_keys::workspace_doc_index(ws, doc);
+        assert_eq!(key, format!("wsdoc:{ws}:{doc}"));
+        assert_eq!(
+            kv_keys::parse_workspace_doc_index(&key),
+            Some((ws, doc))
+        );
+        assert!(kv_keys::workspace_doc_index_prefix(ws).starts_with("wsdoc:"));
     }
 
     #[test]

@@ -7,7 +7,7 @@ use super::cache::cached_kv_get;
 use edgequake_storage::traits::collect_source_references;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::isolation::{properties_match_tenant_context, verify_document_access};
+use crate::handlers::isolation::verify_document_access;
 use crate::handlers::lineage_types::*;
 use crate::middleware::TenantContext;
 use crate::services::{
@@ -21,7 +21,7 @@ use crate::state::AppState;
     path = "/api/v1/lineage/entities/{entity_name}",
     tag = "Lineage",
     params(
-        ("entity_name" = String, Path, description = "Entity name to query")
+        ("entity_name" = String, Path, description = "Entity name (normalized) or graph node id")
     ),
     responses(
         (status = 200, description = "Entity lineage", body = EntityLineageResponse),
@@ -33,30 +33,14 @@ pub async fn get_entity_lineage(
     tenant_ctx: TenantContext,
     Path(entity_name): Path<String>,
 ) -> ApiResult<Json<EntityLineageResponse>> {
-    // WHY: Same normalization rule as get_entity_provenance — see comment there.
-    let normalized_name = entity_name.to_uppercase().replace(' ', "_");
+    let node = crate::services::lookup_entity_node_for_context(
+        state.storage.graph_storage.as_ref(),
+        &entity_name,
+        &tenant_ctx,
+    )
+    .await?;
 
-    // Look up entity in graph storage
-    let node = state
-        .storage
-        .graph_storage
-        .get_node(&normalized_name)
-        .await?
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Entity '{}' not found (normalized: '{}'). \
-                 Entity names are stored as UPPERCASE_WITH_UNDERSCORES.",
-                entity_name, normalized_name
-            ))
-        })?;
-
-    // SECURITY: Verify the entity belongs to the requesting tenant/workspace.
-    if !properties_match_tenant_context(&node.properties, &tenant_ctx) {
-        return Err(ApiError::NotFound(format!(
-            "Entity '{}' not found",
-            entity_name
-        )));
-    }
+    let normalized_name = node.id.clone();
 
     // Parse source_id to extract document and chunk information
     let source_id = node
@@ -138,7 +122,8 @@ pub async fn get_document_lineage(
         .keys_with_prefix(&chunk_prefix)
         .await?;
 
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     if chunk_ids.is_empty()
         && state
             .storage
@@ -408,7 +393,8 @@ pub async fn get_document_full_lineage(
     // WHY: Combine lineage tree + document metadata in one response so the UI
     // can render both the hierarchy and document context without a second API call.
     // This satisfies F5: "Single API call retrieves complete document lineage tree."
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id, "status": "unknown"}));

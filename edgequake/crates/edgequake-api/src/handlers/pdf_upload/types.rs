@@ -3,6 +3,11 @@ use edgequake_pdf::PdfParserBackend;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Re-export progress DTOs from edgequake-tasks (SSOT for PDF pipeline progress).
+pub use edgequake_tasks::{
+    PdfUploadProgress, PhaseError, PhaseProgress, PhaseStatus, PipelinePhase,
+};
+
 /// PDF upload options.
 #[derive(Debug, Clone, Default)]
 pub struct PdfUploadOptions {

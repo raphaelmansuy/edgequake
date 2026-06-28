@@ -25,7 +25,7 @@ use edgequake_storage::adapters::memory::{
 use edgequake_storage::ConversationStorage;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
+use super::{ApiSecurityConfig, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
 use crate::cache_manager::CacheManager;
 
 #[cfg(feature = "postgres")]
@@ -106,6 +106,7 @@ impl AppState {
             pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
+            security: ApiSecurityConfig::from_env(),
         }
     }
 
@@ -237,6 +238,7 @@ impl AppState {
             pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
+            security: ApiSecurityConfig::from_env(),
         }
     }
 
@@ -337,6 +339,7 @@ impl AppState {
             pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
+            security: ApiSecurityConfig::from_env(),
         }
     }
 }

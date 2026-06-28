@@ -7,13 +7,16 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
 use crate::handlers::isolation::properties_match_tenant_context;
 use crate::middleware::TenantContext;
-use crate::services::{admit_graph_materialization, run_timed_graph_query};
+use crate::services::{
+    admit_graph_materialization, run_timed_graph_query,
+    tenant_guard::{empty_graph_response, has_full_tenant_context, warn_missing_tenant_context},
+};
 use crate::state::AppState;
 
 /// Get knowledge graph with traversal from optional starting node.
@@ -58,19 +61,9 @@ pub async fn get_graph(
 
     // SECURITY: Enforce strict tenant context requirement - NO EXCEPTIONS
     // This matches the strict filtering in entities.rs and relationships.rs (commit d11edba8)
-    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
-        warn!(
-            tenant_id = ?tenant_ctx.tenant_id,
-            workspace_id = ?tenant_ctx.workspace_id,
-            "Tenant context missing - returning empty graph for security"
-        );
-        return Ok(Json(KnowledgeGraphResponse {
-            nodes: vec![],
-            edges: vec![],
-            is_truncated: false,
-            total_nodes: 0,
-            total_edges: 0,
-        }));
+    if !has_full_tenant_context(&tenant_ctx) {
+        warn_missing_tenant_context(&tenant_ctx, "get_graph");
+        return Ok(Json(empty_graph_response()));
     }
 
     let _materialize_guard = admit_graph_materialization(&state)?;
@@ -79,10 +72,19 @@ pub async fn get_graph(
         let start = start.clone();
         let depth = params.depth;
         let max_nodes = params.max_nodes;
+        let scoped = tenant_ctx.tenant_id.is_some() && tenant_ctx.workspace_id.is_some();
+        let tenant_for_kg = tenant_ctx.tenant_id.clone();
+        let workspace_for_kg = tenant_ctx.workspace_id.clone();
         let graph_storage = state.storage.graph_storage.clone();
         let kg = run_timed_graph_query(&state, "knowledge_graph", async move {
             graph_storage
-                .get_knowledge_graph(&start, depth, max_nodes)
+                .get_knowledge_graph(
+                    &start,
+                    depth,
+                    max_nodes,
+                    tenant_for_kg.as_deref(),
+                    workspace_for_kg.as_deref(),
+                )
                 .await
         })
         .await?;
@@ -90,7 +92,7 @@ pub async fn get_graph(
         let nodes: Vec<GraphNodeResponse> = kg
             .nodes
             .into_iter()
-            .filter(|n| properties_match_tenant_context(&n.properties, &tenant_ctx))
+            .filter(|n| !scoped || properties_match_tenant_context(&n.properties, &tenant_ctx))
             .map(|n| GraphNodeResponse {
                 id: n.id.clone(),
                 label: n.id.clone(),
@@ -117,7 +119,7 @@ pub async fn get_graph(
             .edges
             .into_iter()
             .filter(|e| {
-                properties_match_tenant_context(&e.properties, &tenant_ctx)
+                (!scoped || properties_match_tenant_context(&e.properties, &tenant_ctx))
                     && node_ids.contains(&e.source)
                     && node_ids.contains(&e.target)
             })

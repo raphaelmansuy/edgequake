@@ -146,6 +146,8 @@ impl GraphStorageReadOps for FailingGraphStorage {
         _start_node: &str,
         _max_depth: usize,
         _max_nodes: usize,
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph, StorageError> {
         Ok(KnowledgeGraph::new())
     }

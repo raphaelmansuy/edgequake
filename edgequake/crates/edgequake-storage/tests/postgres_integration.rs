@@ -484,7 +484,7 @@ async fn test_postgres_age_graph_traversal() {
 
     // Get knowledge graph
     let kg = graph_storage
-        .get_knowledge_graph("edgequake", 2, 100)
+        .get_knowledge_graph("edgequake", 2, 100, None, None)
         .await
         .expect("Failed to get KG");
     assert!(!kg.nodes.is_empty());
@@ -629,7 +629,7 @@ async fn test_postgres_full_e2e_pipeline() {
 
     // Knowledge graph extraction
     let kg = graph_storage
-        .get_knowledge_graph("EDGEQUAKE", 2, 50)
+        .get_knowledge_graph("EDGEQUAKE", 2, 50, None, None)
         .await
         .expect("Failed to get KG");
     assert!(kg.node_count() >= 2);
@@ -779,7 +779,7 @@ async fn test_age_cypher_knowledge_graph_extraction() {
 
     // Extract knowledge graph from center
     let kg = graph_storage
-        .get_knowledge_graph(center, 1, 100)
+        .get_knowledge_graph(center, 1, 100, None, None)
         .await
         .expect("Failed to get KG");
 
@@ -791,7 +791,7 @@ async fn test_age_cypher_knowledge_graph_extraction() {
 
     // Extract KG with depth 2 to include satellite-to-satellite edges
     let kg_deep = graph_storage
-        .get_knowledge_graph(center, 2, 100)
+        .get_knowledge_graph(center, 2, 100, None, None)
         .await
         .expect("Failed to get deep KG");
 
@@ -800,7 +800,7 @@ async fn test_age_cypher_knowledge_graph_extraction() {
 
     // Test truncation
     let kg_limited = graph_storage
-        .get_knowledge_graph(center, 2, 3)
+        .get_knowledge_graph(center, 2, 3, None, None)
         .await
         .expect("Failed to get limited KG");
 

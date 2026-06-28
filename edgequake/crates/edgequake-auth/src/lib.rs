@@ -54,7 +54,7 @@ pub mod types;
 pub mod tenant;
 
 // Re-export main types
-pub use config::AuthConfig;
+pub use config::{AuthConfig, DEFAULT_INSECURE_JWT_SECRET};
 pub use error::{AuthError, AuthResult};
 pub use extractors::{ApiKeyAuth, AuthUser, OptionalAuth};
 pub use jwt::{Claims, JwtService};

@@ -88,6 +88,8 @@ pub trait GraphStorageReadOps: Send + Sync {
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph>;
 
     async fn get_popular_labels(

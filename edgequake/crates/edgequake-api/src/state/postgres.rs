@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
-use super::{AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
+use super::{ApiSecurityConfig, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
 use crate::cache_manager::CacheManager;
 use edgequake_audit::AuditLogger;
 use edgequake_core::env::apply_model_env_aliases;
@@ -378,6 +378,7 @@ impl AppState {
             graph_materialize,
             pdf_vision,
             migration_bootstrap: Some(migration_bootstrap),
+            security: ApiSecurityConfig::from_env(),
         };
 
         // SPEC-021 P4-02: Startup storage invariant check + auto-repair (SAFE tier)

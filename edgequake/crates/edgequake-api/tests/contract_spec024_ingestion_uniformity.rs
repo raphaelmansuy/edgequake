@@ -32,7 +32,7 @@ fn contract_upload_handlers_enqueue_insert_tasks() {
     let text = include_str!("../src/handlers/documents/upload/text_upload.rs");
     let file = include_str!("../src/handlers/documents/upload/file_upload.rs");
     let batch = include_str!("../src/handlers/documents/upload/batch_upload.rs");
-    let injection = include_str!("../src/handlers/injection.rs");
+    let injection = include_str!("../src/handlers/injection/crud.rs");
 
     assert!(text.contains("enqueue_task"));
     assert!(text.contains("TaskType::Insert"));

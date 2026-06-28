@@ -14,12 +14,13 @@ use crate::handlers::isolation::{
     filter_edges_by_tenant_context, load_node_for_tenant_context, stamp_tenant_context_properties,
 };
 use crate::middleware::TenantContext;
+use crate::services::entity_neighborhood::build_entity_neighborhood;
 use crate::state::AppState;
 
 use super::{node_to_entity_response, normalize_entity_name_for_graph};
 pub use crate::handlers::entities_types::{
     EntityExistsQuery, EntityExistsResponse, EntityNeighborhoodQuery, EntityNeighborhoodResponse,
-    MergeDetails, MergeEntitiesRequest, MergeEntitiesResponse, NeighborhoodEdge, NeighborhoodNode,
+    MergeDetails, MergeEntitiesRequest, MergeEntitiesResponse,
 };
 
 fn collect_string_values(value: Option<&serde_json::Value>) -> Vec<String> {
@@ -479,103 +480,13 @@ pub async fn get_entity_neighborhood(
     // Clamp depth to range [1, 3]
     let depth = query.depth.clamp(1, 3);
 
-    // Collect nodes and edges using BFS
-    let mut visited_nodes = std::collections::HashSet::new();
-    let mut frontier = vec![resolved_entity.clone()];
-    visited_nodes.insert(resolved_entity.clone());
-
-    let mut all_edges = Vec::new();
-
-    // BFS traversal up to the specified depth
-    for _ in 0..depth {
-        let mut next_frontier = Vec::new();
-
-        for node_id in &frontier {
-            let edges = filter_edges_by_tenant_context(
-                state.storage.graph_storage.get_node_edges(node_id).await?,
-                &tenant_ctx,
-            );
-
-            for edge in edges {
-                // Check both directions
-                let neighbor = if edge.source == *node_id {
-                    &edge.target
-                } else {
-                    &edge.source
-                };
-
-                // Add edge to collection (dedup by edge id)
-                let edge_id = format!("{}_{}", edge.source, edge.target);
-                if !all_edges.iter().any(|(id, _): &(String, _)| id == &edge_id) {
-                    all_edges.push((edge_id, edge.clone()));
-                }
-
-                // Add neighbor to next frontier if not visited
-                if !visited_nodes.contains(neighbor) {
-                    visited_nodes.insert(neighbor.clone());
-                    next_frontier.push(neighbor.clone());
-                }
-            }
-        }
-
-        frontier = next_frontier;
-        if frontier.is_empty() {
-            break;
-        }
-    }
-
-    // Build response nodes
-    let mut nodes = Vec::with_capacity(visited_nodes.len());
-    for node_id in &visited_nodes {
-        if let Ok(node) =
-            load_node_for_tenant_context(state.storage.graph_storage.as_ref(), node_id, &tenant_ctx)
-                .await
-        {
-            let degree = state
-                .storage
-                .graph_storage
-                .node_degree(node_id)
-                .await
-                .unwrap_or(0);
-            nodes.push(NeighborhoodNode {
-                id: node.id.clone(),
-                entity_type: node
-                    .properties
-                    .get("entity_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("UNKNOWN")
-                    .to_string(),
-                description: node
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                degree,
-            });
-        }
-    }
-
-    // Build response edges
-    let edges: Vec<NeighborhoodEdge> = all_edges
-        .into_iter()
-        .map(|(id, edge)| NeighborhoodEdge {
-            id,
-            source: edge.source,
-            target: edge.target,
-            relation_type: edge
-                .properties
-                .get("relation_type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("RELATED_TO")
-                .to_string(),
-            weight: edge
-                .properties
-                .get("weight")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(1.0),
-        })
-        .collect();
+    let (nodes, edges) = build_entity_neighborhood(
+        &state.storage.graph_storage,
+        &tenant_ctx,
+        &resolved_entity,
+        depth,
+    )
+    .await?;
 
     Ok(Json(EntityNeighborhoodResponse { nodes, edges }))
 }

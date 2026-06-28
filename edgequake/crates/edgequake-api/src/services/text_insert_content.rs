@@ -93,10 +93,12 @@ pub async fn patch_document_metadata(
         return Ok(());
     };
     mutator(&mut obj);
+    let updated = serde_json::Value::Object(obj);
     let write_key = key.clone();
-    kv.upsert(&[(write_key, serde_json::Value::Object(obj))])
+    crate::services::upsert_metadata_kv_with_index(kv.as_ref(), &write_key, updated)
         .await
-        .map_err(|e| format!("KV write failed for {key}: {e}"))
+        .map_err(|e| format!("KV write failed for {key}: {e}"))?;
+    Ok(())
 }
 
 #[cfg(test)]

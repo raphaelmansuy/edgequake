@@ -13,6 +13,7 @@ use super::helpers::{
 use crate::error::ApiError;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
+use crate::services::document_metadata_scan::load_workspace_metadata_values;
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
@@ -195,57 +196,36 @@ async fn try_kv_storage_stats(
     state: &AppState,
     workspace_id: Uuid,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
-    // SPEC-011 iter 02 Fix C: `keys_with_suffix("-metadata")` uses the reverse-key
-    // expression index (`eq_{prefix}_kv_reverse_key_idx`) for an O(log N + K)
-    // prefix scan — replaces the previous `keys_like("%-metadata")` full scan.
-    let metadata_keys = state
-        .storage
-        .kv_storage
-        .keys_with_suffix("-metadata")
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get KV metadata keys: {}", e)))?;
-    // `"%-chunk-%"` is an interior wildcard, not a suffix — still uses the slow
-    // path. Documented as a known gap in SPEC-011 ITERATION_02_AUDIT.md §8.
-    let chunk_keys = state
-        .storage
-        .kv_storage
-        .keys_like("%-chunk-%")
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get KV chunk keys: {}", e)))?;
-
-    // Get all metadata values
-    let metadata_values = state
-        .storage
-        .kv_storage
-        .get_by_ids(&metadata_keys)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
+    // SPEC-027 phase 10: wsdoc index prefix scan with suffix-scan fallback.
+    let metadata_values =
+        load_workspace_metadata_values(state.storage.kv_storage.as_ref(), &workspace_id.to_string())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
 
     // Aggregate stats from documents belonging to this workspace
     let mut document_count = 0;
     let mut storage_bytes: u64 = 0;
     let mut workspace_doc_ids = Vec::new();
+    let mut chunk_count_from_metadata = 0usize;
 
     for value in metadata_values {
         if let Some(obj) = value.as_object() {
-            // Check if document belongs to this workspace
-            let doc_workspace_id = obj
-                .get("workspace_id")
-                .and_then(|v| v.as_str())
-                .and_then(|s| Uuid::parse_str(s).ok());
+            document_count += 1;
 
-            if doc_workspace_id == Some(workspace_id) {
-                document_count += 1;
+            // Collect document ID for per-doc chunk prefix scan
+            if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
+                workspace_doc_ids.push(id.to_string());
+            }
 
-                // Collect document ID for chunk counting
-                if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
-                    workspace_doc_ids.push(id.to_string());
-                }
+            chunk_count_from_metadata += obj
+                .get("chunk_count")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize)
+                .unwrap_or(0);
 
-                // Sum storage bytes
-                if let Some(bytes) = obj.get("file_size_bytes").and_then(|v| v.as_u64()) {
-                    storage_bytes += bytes;
-                }
+            // Sum storage bytes
+            if let Some(bytes) = obj.get("file_size_bytes").and_then(|v| v.as_u64()) {
+                storage_bytes += bytes;
             }
         }
     }
@@ -268,21 +248,19 @@ async fn try_kv_storage_stats(
         .await
         .unwrap_or(0);
 
-    // Count chunks and embeddings for this workspace's documents
-    let mut chunk_count = 0;
+    // Embedding count requires chunk payloads; use per-doc prefix scan (no global keys_like).
+    let chunk_count = chunk_count_from_metadata;
     let mut embedding_count = 0;
 
     for doc_id in &workspace_doc_ids {
-        // Count chunk keys for this document (from pre-filtered chunk key list)
-        let doc_chunk_keys: Vec<String> = chunk_keys
-            .iter()
-            .filter(|k| k.starts_with(&format!("{}-chunk-", doc_id)))
-            .cloned()
-            .collect();
+        let prefix = format!("{doc_id}-chunk-");
+        let doc_chunk_keys = state
+            .storage
+            .kv_storage
+            .keys_with_prefix(&prefix)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to list chunk keys: {}", e)))?;
 
-        chunk_count += doc_chunk_keys.len();
-
-        // Get chunk data to check for embeddings
         if !doc_chunk_keys.is_empty() {
             let chunk_values = state
                 .storage
@@ -291,7 +269,6 @@ async fn try_kv_storage_stats(
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to get chunk data: {}", e)))?;
 
-            // Count chunks that have embeddings
             for chunk_value in chunk_values {
                 if let Some(obj) = chunk_value.as_object() {
                     if obj.get("embedding").is_some() {

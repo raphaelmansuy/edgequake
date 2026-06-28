@@ -197,7 +197,8 @@ impl PipelineProgressCallback {
             let handle = self.runtime_handle.clone();
 
             handle.spawn(async move {
-                let metadata_key = format!("{}-metadata", doc_id);
+                let metadata_key =
+                    crate::services::document_metadata_scan::metadata_key_for_document(&doc_id);
                 match kv.get_by_id(&metadata_key).await {
                     Ok(Some(existing)) => {
                         if let Some(mut obj) = existing.as_object().cloned() {
@@ -214,8 +215,13 @@ impl PipelineProgressCallback {
                                 serde_json::json!(chrono::Utc::now().to_rfc3339()),
                             );
 
-                            if let Err(e) =
-                                kv.upsert(&[(metadata_key, serde_json::json!(obj))]).await
+                            let payload = serde_json::json!(obj);
+                            if let Err(e) = crate::services::upsert_metadata_kv_with_index(
+                                kv.as_ref(),
+                                &metadata_key,
+                                payload,
+                            )
+                            .await
                             {
                                 tracing::warn!(
                                     doc_id = %doc_id,

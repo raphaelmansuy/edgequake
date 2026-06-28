@@ -133,6 +133,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 .PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory kill-app stop clean build test lint format \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
+        openapi-snapshot codegen-openapi codegen-openapi-refresh codegen-openapi-live \
         db-start db-stop db-wait db-logs db-shell postgres-image-build docker-network-diagnose stop-docker-services \
         docker-build docker-up docker-prebuilt docker-prebuilt-down docker-prebuilt-logs docker-ps-prebuilt docker-api-only docker-down docker-logs \
         stack stack-down stack-logs stack-status stack-restart stack-pull \
@@ -298,6 +299,8 @@ help: ## Show this help message
 	@echo "  $(GREEN)make frontend-dev$(RESET)  Start frontend dev server"
 	@echo "  $(GREEN)make frontend-build$(RESET) Build frontend for production"
 	@echo "  $(GREEN)make frontend-lint$(RESET) Lint frontend code"
+	@echo "  $(GREEN)make codegen-openapi-refresh$(RESET) Refresh OpenAPI snapshot + TypeScript types (offline)"
+	@echo "  $(GREEN)make codegen-openapi-live$(RESET) Fetch live OpenAPI from backend + regenerate types"
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🗄️  Database$(RESET)"
 	@echo "  $(GREEN)make db-start$(RESET)     Start PostgreSQL container"
@@ -919,6 +922,33 @@ frontend-lint: ## Lint frontend code
 frontend-test: ## Run frontend tests
 	@echo "$(BLUE)Running frontend tests...$(RESET)"
 	@cd $(FRONTEND_DIR) && (pnpm test 2>/dev/null || bun test) || echo "$(YELLOW)No tests configured$(RESET)"
+
+# ============================================================================
+# OpenAPI / TypeScript codegen (SPEC-027 OAS-009)
+# ============================================================================
+
+openapi-snapshot: ## Regenerate committed OpenAPI snapshot from ApiDoc (offline, no backend)
+	@echo "$(BLUE)Refreshing OpenAPI snapshot from edgequake-api ApiDoc...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test -p edgequake-api spec027_write_openapi_snapshot \
+		--test spec027_api_contract -- --ignored --nocapture
+	@echo "$(GREEN)✓ Snapshot: $(FRONTEND_DIR)/openapi/openapi.snapshot.json$(RESET)"
+
+codegen-openapi: ## Generate TypeScript types from committed OpenAPI snapshot (offline)
+	@echo "$(BLUE)Generating TypeScript types from OpenAPI snapshot...$(RESET)"
+	@cd $(FRONTEND_DIR) && ./scripts/codegen-openapi.sh --offline
+	@echo "$(GREEN)✓ Types: $(FRONTEND_DIR)/openapi/schema.d.ts$(RESET)"
+
+codegen-openapi-refresh: openapi-snapshot codegen-openapi ## Refresh snapshot + regenerate schema.d.ts (offline)
+	@echo "$(GREEN)✓ OpenAPI codegen refresh complete$(RESET)"
+
+codegen-openapi-live: ## Fetch live OpenAPI from running backend + regenerate schema.d.ts
+	@echo "$(BLUE)Fetching OpenAPI from $(BACKEND_URL)/api-docs/openapi.json ...$(RESET)"
+	@curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 || { \
+		echo "$(RED)❌ Backend not reachable at $(BACKEND_URL). Run make backend-bg or make dev-bg first.$(RESET)"; \
+		exit 1; \
+	}
+	@cd $(FRONTEND_DIR) && OPENAPI_URL="$(BACKEND_URL)/api-docs/openapi.json" ./scripts/codegen-openapi.sh
+	@echo "$(GREEN)✓ Live OpenAPI snapshot + schema.d.ts updated$(RESET)"
 
 # ============================================================================
 # Database

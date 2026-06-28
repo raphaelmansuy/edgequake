@@ -144,7 +144,8 @@ pub async fn scan_directory(
         let content_summary = crate::validation::generate_content_summary(&content);
 
         // Store document metadata
-        let doc_metadata_key = format!("{}-metadata", document_id);
+        let doc_metadata_key =
+            crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
         let doc_metadata = serde_json::json!({
             "id": document_id,
             "title": file_name,
@@ -154,12 +155,15 @@ pub async fn scan_directory(
             "track_id": track_id,
             "created_at": Utc::now().to_rfc3339(),
             "status": "pending",
+            "workspace_id": tenant_ctx.workspace_id.clone().unwrap_or_else(|| "default".to_string()),
+            "tenant_id": tenant_ctx.tenant_id.clone().unwrap_or_else(|| "default".to_string()),
         });
-        state
-            .storage
-            .kv_storage
-            .upsert(&[(doc_metadata_key, doc_metadata)])
-            .await?;
+        crate::services::upsert_metadata_kv_with_index(
+            state.storage.kv_storage.as_ref(),
+            &doc_metadata_key,
+            doc_metadata,
+        )
+        .await?;
 
         // Store document content
         let doc_content_key = format!("{}-content", document_id);

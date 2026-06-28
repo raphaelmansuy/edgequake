@@ -22,11 +22,14 @@
 use std::net::SocketAddr;
 
 use axum::extract::DefaultBodyLimit;
+use axum::http::HeaderValue;
 use axum::middleware;
+use axum::routing::get;
+use axum::Json;
 use serde::{Deserialize, Serialize};
 use tower_http::{
     compression::CompressionLayer,
-    cors::{Any, CorsLayer},
+    cors::{AllowOrigin, Any, CorsLayer},
 };
 use tracing::info;
 use utoipa::OpenApi;
@@ -91,12 +94,27 @@ impl Server {
             .layer(DefaultBodyLimit::max(max_upload))
             .layer(middleware::from_fn(observability_middleware));
 
-        // CORS
+        // CORS — SPEC-027 IMP-007: allowlist via EDGEQUAKE_CORS_ORIGINS (default Any)
         if self.config.enable_cors {
-            let cors = CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any);
+            let cors = if let Some(origins) = &self.state.security.cors_origins {
+                let allowed: Result<Vec<HeaderValue>, _> =
+                    origins.iter().map(|o| HeaderValue::from_str(o)).collect();
+                match allowed {
+                    Ok(list) if !list.is_empty() => CorsLayer::new()
+                        .allow_origin(AllowOrigin::list(list))
+                        .allow_methods(Any)
+                        .allow_headers(Any),
+                    _ => CorsLayer::new()
+                        .allow_origin(Any)
+                        .allow_methods(Any)
+                        .allow_headers(Any),
+                }
+            } else {
+                CorsLayer::new()
+                    .allow_origin(Any)
+                    .allow_methods(Any)
+                    .allow_headers(Any)
+            };
             app = app.layer(cors);
         }
 
@@ -105,11 +123,21 @@ impl Server {
             app = app.layer(CompressionLayer::new());
         }
 
-        // Swagger UI
+        // Swagger UI + API spec endpoints
         if self.config.enable_swagger {
-            app = app.merge(
-                SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()),
-            );
+            app = app
+                .merge(
+                    SwaggerUi::new("/swagger-ui")
+                        .url("/api-docs/openapi.json", ApiDoc::openapi())
+                        .config(
+                            utoipa_swagger_ui::Config::new(["/api-docs/openapi.json"])
+                                .persist_authorization(true),
+                        ),
+                )
+                .route(
+                    "/api-docs/asyncapi.json",
+                    get(|| async { Json(crate::openapi_asyncapi::asyncapi_document()) }),
+                );
         }
 
         app

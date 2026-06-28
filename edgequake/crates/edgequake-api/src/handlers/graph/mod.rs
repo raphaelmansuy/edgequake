@@ -21,8 +21,8 @@
 //! | Method | Path | Handler | Description |
 //! |--------|------|---------|-------------|
 //! | GET | `/api/v1/graph` | [`get_graph`] | Get full graph (paginated) |
-//! | GET | `/api/v1/graph/stats` | [`get_graph_stats`] | Node/edge counts |
-//! | GET | `/api/v1/graph/stream` | SSE streaming graph updates |
+//! | GET | `/api/v1/graph/stream` | [`stream_graph`] | SSE streaming graph updates |
+//! | GET | `/api/v1/workspaces/{workspace_id}/stats` | workspace stats handler | Aggregated workspace metrics |
 //!
 //! # WHY: Separate Graph Visualization Layer
 //!
@@ -104,12 +104,7 @@ mod tests {
             limit: 10,
         };
 
-        let result = search_labels(
-            State(state),
-            TenantContext::default(),
-            Query(params),
-        )
-        .await;
+        let result = search_labels(State(state), TenantContext::default(), Query(params)).await;
         assert!(result.is_ok());
 
         let response = result.unwrap().0;
@@ -125,12 +120,8 @@ mod tests {
             entity_type: None,
         };
 
-        let result = get_popular_labels(
-            State(state),
-            TenantContext::default(),
-            Query(params),
-        )
-        .await;
+        let result =
+            get_popular_labels(State(state), TenantContext::default(), Query(params)).await;
         assert!(result.is_ok());
     }
 }

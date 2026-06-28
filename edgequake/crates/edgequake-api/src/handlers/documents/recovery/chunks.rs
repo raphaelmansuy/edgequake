@@ -53,7 +53,8 @@ pub async fn retry_failed_chunks(
     );
 
     // Verify document exists
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     let doc_exists = state
         .storage
         .kv_storage
@@ -123,7 +124,8 @@ pub async fn list_failed_chunks(
     debug!("list_failed_chunks called for document: {}", document_id);
 
     // Verify document exists
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     let metadata = state.storage.kv_storage.get_by_id(&metadata_key).await?;
 
     if metadata.is_none() {

@@ -17,6 +17,7 @@
 
 use axum::{
     extract::{Path, State},
+    http::HeaderMap,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::ApiError;
+use crate::handlers::auth::require_admin_request;
 use crate::state::AppState;
 
 // ── Request / Response types ──────────────────────────────────────────────────
@@ -100,9 +102,11 @@ pub struct ServerDefaultsResponse {
 )]
 pub async fn update_tenant_quota(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(tenant_id): Path<Uuid>,
     Json(request): Json<UpdateTenantQuotaRequest>,
 ) -> Result<Json<UpdateTenantQuotaResponse>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     let result = state
         .workspace_service
         .update_tenant_quota(tenant_id, request.max_workspaces)
@@ -147,7 +151,9 @@ pub async fn update_tenant_quota(
 )]
 pub async fn get_server_defaults(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ServerDefaultsResponse>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     let default_max = state
         .workspace_service
         .get_server_default_max_workspaces()
@@ -177,8 +183,10 @@ pub async fn get_server_defaults(
 )]
 pub async fn update_server_defaults(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<UpdateServerDefaultsRequest>,
 ) -> Result<Json<ServerDefaultsResponse>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     let new_default = state
         .workspace_service
         .set_server_default_max_workspaces(request.default_max_workspaces)
@@ -214,7 +222,9 @@ pub async fn update_server_defaults(
 )]
 pub async fn storage_inspect(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<crate::storage_inspector::InspectorReport>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     #[cfg(feature = "postgres")]
     {
         use crate::storage_inspector::{InspectorConfig, StorageInspector};
@@ -283,8 +293,10 @@ pub struct StorageRepairResponse {
 )]
 pub async fn storage_repair(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<StorageRepairRequest>,
 ) -> Result<Json<StorageRepairResponse>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     #[cfg(feature = "postgres")]
     use crate::storage_inspector::RepairTier;
 
@@ -377,7 +389,9 @@ pub struct ReconcilePlanResponse {
 )]
 pub async fn entity_reconcile_plan(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ReconcilePlanResponse>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     let graph = state.storage.graph_storage.as_ref();
     let vectors = state.storage.vector_storage.as_ref();
     let plan = edgequake_storage::entity_reconcile::plan(graph, vectors)
@@ -422,8 +436,10 @@ pub struct ReconcileExecuteResponse {
 )]
 pub async fn entity_reconcile_execute(
     State(state): State<AppState>,
+    headers: HeaderMap,
     body: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<ReconcileExecuteResponse>, ApiError> {
+    require_admin_request(&headers, &state).await?;
     let request: ReconcileExecuteRequest = serde_json::from_value(body.0)
         .map_err(|e| ApiError::BadRequest(format!("invalid reconcile request body: {e}")))?;
     let graph = state.storage.graph_storage.as_ref();

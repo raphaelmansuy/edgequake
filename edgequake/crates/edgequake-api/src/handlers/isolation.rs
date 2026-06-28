@@ -19,8 +19,8 @@
 
 use std::collections::HashMap;
 
-use edgequake_storage::{GraphEdge, GraphNode};
 use edgequake_storage::traits::GraphStorageReadOps;
+use edgequake_storage::{GraphEdge, GraphNode};
 use tracing::warn;
 
 use crate::error::{ApiError, ApiResult};
@@ -192,7 +192,8 @@ pub async fn verify_document_access(
     document_id: &str,
     ctx: &TenantContext,
 ) -> ApiResult<serde_json::Value> {
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(document_id);
     let metadata = kv_storage
         .get_by_id(&metadata_key)
         .await?

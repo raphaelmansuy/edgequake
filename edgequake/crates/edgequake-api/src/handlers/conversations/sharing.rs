@@ -14,6 +14,8 @@ use crate::handlers::conversations_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
+use super::share_api_path;
+
 /// Share a conversation.
 #[utoipa::path(
     post,
@@ -33,12 +35,9 @@ pub async fn share_conversation(
 ) -> ApiResult<Json<ShareResponse>> {
     let share_id = state.conversation_service.share_conversation(id).await?;
 
-    // Build share URL
-    let share_url = format!("/shared/{}", share_id);
-
     Ok(Json(ShareResponse {
-        share_id,
-        share_url,
+        share_id: share_id.clone(),
+        share_url: share_api_path(&share_id),
     }))
 }
 

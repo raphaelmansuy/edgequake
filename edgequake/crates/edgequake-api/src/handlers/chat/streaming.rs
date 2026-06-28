@@ -45,7 +45,11 @@ use super::{
     tag = "Chat",
     request_body = ChatCompletionRequest,
     responses(
-        (status = 200, description = "Streaming chat completion started"),
+        (status = 200, description = "Streaming chat SSE (ChatStreamEvent payloads)",
+            content(
+                (ChatStreamEvent = "text/event-stream")
+            )
+        ),
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 500, description = "Internal server error")

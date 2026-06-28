@@ -58,7 +58,7 @@ fn contract_migration_bootstrap_split_by_concern() {
         std::path::Path::new("src/state/migration_bootstrap/helpers.rs").exists(),
         "shared migration helpers must be isolated"
     );
-    for migration in ["m038", "m040", "m042", "m043", "m044", "m045"] {
+    for migration in ["m038", "m040", "m042", "m043", "m044", "m045", "m046", "m047"] {
         let path = format!("src/state/migration_bootstrap/reconcile/{migration}.rs");
         assert!(
             std::path::Path::new(&path).exists(),

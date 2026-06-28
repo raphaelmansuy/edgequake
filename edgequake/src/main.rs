@@ -7,6 +7,7 @@ use chrono::{Duration, Utc};
 #[cfg(feature = "postgres")]
 use edgequake_api::PostgresEntitySink;
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
+use edgequake_api::startup_security::{enforce_startup_security, validate_startup_security};
 use edgequake_observability::{
     init_observability, record_db_pool_stats, ErrorEvent, ObservabilityConfig,
 };
@@ -771,6 +772,13 @@ async fn main() -> Result<()> {
         &config.host,
         config.port,
     );
+
+    // SPEC-027 IMP-001: warn or exit on insecure production configuration
+    enforce_startup_security(validate_startup_security(
+        std::env::var("DATABASE_URL").ok().as_deref(),
+        &state.auth.config,
+        &state.security,
+    ));
 
     // Run server (this blocks until shutdown)
     let server = Server::new(config, state);

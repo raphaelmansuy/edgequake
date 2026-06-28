@@ -41,12 +41,9 @@ pub async fn delete_relationship(
             .tenant_id
             .as_deref()
             .ok_or_else(|| crate::error::ApiError::BadRequest("Tenant context required".into()))?,
-        tenant_ctx
-            .workspace_id
-            .as_deref()
-            .ok_or_else(|| {
-                crate::error::ApiError::BadRequest("Workspace context required".into())
-            })?,
+        tenant_ctx.workspace_id.as_deref().ok_or_else(|| {
+            crate::error::ApiError::BadRequest("Workspace context required".into())
+        })?,
     );
 
     let deleted = state

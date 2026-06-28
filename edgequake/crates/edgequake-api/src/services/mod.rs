@@ -4,14 +4,25 @@
 //! Consolidates repeated logic into single, testable modules.
 
 pub mod audit;
+pub mod auth_validation;
 pub mod content_hasher;
+pub mod cost_aggregation;
 pub mod document_graph_cascade;
+pub mod document_metadata_scan;
+pub mod document_reingest;
+pub mod document_task_cleanup;
+pub mod document_vector_storage;
+pub mod entity_graph_lookup;
+pub mod entity_name_normalize;
+pub mod entity_neighborhood;
 pub mod graph_community;
 pub mod graph_materialization;
 pub mod ingest_admission;
 pub mod ingestion_persist;
 pub mod injection_list;
 pub mod injection_process;
+pub mod isolation_context;
+pub mod list_pagination;
 pub mod multimodal;
 pub mod multimodal_admission;
 pub mod multimodal_context;
@@ -19,11 +30,15 @@ pub mod multimodal_markdown;
 pub mod pdf_admission_registry;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
+pub mod route_registry;
 pub mod staging_admission;
+pub mod task_scope;
+pub mod tenant_guard;
 pub mod text_insert_content;
 pub mod vision_content;
 pub mod vlm_limits;
 pub mod vlm_provider_resolver;
+pub mod workspace_document_index;
 
 pub use audit::{record_audit, record_compliance_event, with_request_context};
 
@@ -34,9 +49,19 @@ pub use crate::handlers::documents::upload::document_admission::{
 };
 pub use content_hasher::ContentHasher;
 pub use document_graph_cascade::{
-    analyze_deletion_impact_stats, cascade_remove_document_sources, find_document_edges,
-    find_document_nodes, sources_for_document, CascadeStats, DocumentSourceScope,
+    analyze_deletion_impact_stats, cascade_remove_document_sources, cleanup_document_graph_data,
+    find_document_edges, find_document_nodes, sources_for_document, CascadeStats, CleanupStats,
+    DocumentSourceScope,
 };
+pub use document_reingest::{
+    delete_document_for_reingestion, resolve_workspace_duplicate_for_reingestion,
+    DuplicateReingestAction,
+};
+pub use document_vector_storage::{
+    get_workspace_vector_storage_for_delete, get_workspace_vector_storage_strict,
+    get_workspace_vector_storage_with_fallback,
+};
+pub use entity_graph_lookup::{entity_lookup_candidates, lookup_entity_node_for_context};
 pub use graph_community::detect_communities_guarded;
 pub use graph_materialization::{
     admit_graph_materialization, graph_query_timeout, run_timed_graph_query,
@@ -99,4 +124,9 @@ pub use vision_content::{
 pub use vlm_provider_resolver::{
     resolve_extract_provider_for_workspace, resolve_vlm_provider,
     resolve_vlm_provider_for_workspace, resolve_workspace_vlm_config,
+};
+pub use workspace_document_index::{
+    list_workspace_document_ids, list_workspace_metadata_keys, remove_workspace_document_index,
+    sync_after_metadata_upsert, sync_workspace_document_index, upsert_final_document_metadata,
+    upsert_metadata_kv_with_index,
 };

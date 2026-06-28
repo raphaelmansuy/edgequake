@@ -29,12 +29,14 @@ mod bulk;
 mod crud;
 mod folders;
 mod messages;
+mod share_paths;
 mod sharing;
 
 pub use bulk::*;
 pub use crud::*;
 pub use folders::*;
 pub use messages::*;
+pub use share_paths::share_api_path;
 pub use sharing::*;
 
 // Re-export DTOs from conversations_types module

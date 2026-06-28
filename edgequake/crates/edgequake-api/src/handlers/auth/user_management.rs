@@ -33,6 +33,37 @@ fn storage_err(e: impl std::fmt::Display) -> ApiError {
     ApiError::Internal(format!("Storage error: {}", e))
 }
 
+/// List user record KV keys via prefix scan (O(users), not O(all KV keys)).
+async fn list_user_record_keys(state: &AppState) -> Result<Vec<String>, ApiError> {
+    state
+        .storage
+        .kv_storage
+        .keys_with_prefix(USER_KEY_PREFIX)
+        .await
+        .map_err(storage_err)
+}
+
+/// Count admin users excluding `exclude_user_id` (last-admin demotion guard).
+async fn count_other_admin_users(
+    state: &AppState,
+    exclude_user_id: &str,
+) -> Result<u32, ApiError> {
+    let user_keys = list_user_record_keys(state).await?;
+    let mut admin_count = 0u32;
+    for key in user_keys {
+        let uid = key.trim_start_matches(USER_KEY_PREFIX);
+        if uid == exclude_user_id {
+            continue;
+        }
+        if let Some(record) = get_record_by_id(state, uid).await? {
+            if Role::parse(&record.role) == Role::Admin {
+                admin_count += 1;
+            }
+        }
+    }
+    Ok(admin_count)
+}
+
 pub use crate::handlers::auth_types::{
     CreateUserRequest, CreateUserResponse, ListUsersQuery, ListUsersResponse, UpdateUserRequest,
     UpdateUserResponse, UserInfo,
@@ -198,7 +229,7 @@ pub async fn list_users(
     headers: HeaderMap,
     Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<ListUsersResponse>, ApiError> {
-    require_admin_request(&headers, &state)?;
+    require_admin_request(&headers, &state).await?;
 
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
@@ -206,12 +237,7 @@ pub async fn list_users(
     // SPEC-012 Fix C+: USER_KEY_PREFIX is a prefix — use the index-friendly
     // `keys_with_prefix` instead of `keys() + filter starts_with(...)` which
     // scans the entire kv table on every admin user-list call.
-    let user_keys: Vec<String> = state
-        .storage
-        .kv_storage
-        .keys_with_prefix(USER_KEY_PREFIX)
-        .await
-        .map_err(storage_err)?;
+    let user_keys = list_user_record_keys(&state).await?;
 
     // Load each user record in batch-style (sequential for now).
     let mut users: Vec<UserInfo> = Vec::with_capacity(user_keys.len());
@@ -271,7 +297,7 @@ pub async fn get_user(
     headers: HeaderMap,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserInfo>, ApiError> {
-    require_admin_request(&headers, &state)?;
+    require_admin_request(&headers, &state).await?;
     let record = get_record_by_id(&state, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
@@ -301,7 +327,7 @@ pub async fn delete_user(
     headers: HeaderMap,
     Path(user_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    require_admin_request(&headers, &state)?;
+    require_admin_request(&headers, &state).await?;
     // Get record first to retrieve username/email for index cleanup.
     let record = get_record_by_id(&state, &user_id)
         .await?
@@ -357,7 +383,7 @@ pub async fn update_user(
     Path(user_id): Path<String>,
     Json(request): Json<UpdateUserRequest>,
 ) -> Result<Json<UpdateUserResponse>, ApiError> {
-    require_admin_request(&headers, &state)?;
+    require_admin_request(&headers, &state).await?;
 
     // Load existing record directly — avoids to_user() round-trip (DRY).
     let mut record = get_record_by_id(&state, &user_id)
@@ -371,26 +397,13 @@ pub async fn update_user(
         let current_role = Role::parse(&record.role);
 
         // WHY: Guard against demoting the last admin — system would be unmanageable.
-        if current_role == Role::Admin && parsed != Role::Admin {
-            // Count remaining admins (excluding this user)
-            let all_keys = state.storage.kv_storage.keys().await.map_err(storage_err)?;
-            let mut admin_count = 0u32;
-            for key in all_keys.iter().filter(|k| k.starts_with(USER_KEY_PREFIX)) {
-                let uid = key.trim_start_matches(USER_KEY_PREFIX);
-                if uid == user_id {
-                    continue; // skip this user
-                }
-                if let Some(r) = get_record_by_id(&state, uid).await? {
-                    if Role::parse(&r.role) == Role::Admin {
-                        admin_count += 1;
-                    }
-                }
-            }
-            if admin_count == 0 {
-                return Err(ApiError::Conflict(
-                    "Cannot demote the last admin user".to_string(),
-                ));
-            }
+        if current_role == Role::Admin
+            && parsed != Role::Admin
+            && count_other_admin_users(&state, &user_id).await? == 0
+        {
+            return Err(ApiError::Conflict(
+                "Cannot demote the last admin user".to_string(),
+            ));
         }
 
         record.role = parsed.to_string();

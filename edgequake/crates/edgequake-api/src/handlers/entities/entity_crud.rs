@@ -16,8 +16,8 @@ use std::collections::HashMap;
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::isolation::{
-    filter_edges_by_tenant_context, load_node_for_tenant_context,
-    properties_match_tenant_context, stamp_tenant_context_properties,
+    filter_edges_by_tenant_context, load_node_for_tenant_context, properties_match_tenant_context,
+    stamp_tenant_context_properties,
 };
 use crate::middleware::TenantContext;
 use crate::state::AppState;
@@ -78,15 +78,24 @@ pub async fn list_entities(
     let total_pages = ((total as f64) / (page_size as f64)).ceil() as u32;
     let page_nodes = page_result.items;
 
-    // Convert to response format
-    let mut items = Vec::with_capacity(page_nodes.len());
-    for node in page_nodes {
-        let degree = state
+    // Convert to response format (SPEC-027 IMP-015: batch degree lookup)
+    let node_ids: Vec<String> = page_nodes.iter().map(|node| node.id.clone()).collect();
+    let degree_map: std::collections::HashMap<String, usize> = if node_ids.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        state
             .storage
             .graph_storage
-            .node_degree(&node.id)
+            .node_degrees_batch(&node_ids)
             .await
-            .unwrap_or(0);
+            .unwrap_or_default()
+            .into_iter()
+            .collect()
+    };
+
+    let mut items = Vec::with_capacity(page_nodes.len());
+    for node in page_nodes {
+        let degree = degree_map.get(&node.id).copied().unwrap_or(0);
         items.push(node_to_entity_response(node, degree));
     }
 
@@ -122,12 +131,7 @@ pub async fn create_entity(
     let entity_name = normalize_entity_name_for_graph(&req.entity_name);
 
     // Check if entity already exists in this tenant/workspace
-    if let Some(existing) = state
-        .storage
-        .graph_storage
-        .get_node(&entity_name)
-        .await?
-    {
+    if let Some(existing) = state.storage.graph_storage.get_node(&entity_name).await? {
         if properties_match_tenant_context(&existing.properties, &tenant_ctx) {
             return Err(ApiError::Conflict(format!(
                 "Entity '{}' already exists",

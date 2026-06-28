@@ -37,9 +37,11 @@ mod cache;
 mod chunk_detail;
 mod entity_provenance;
 pub mod export;
+mod normalize;
 pub mod queries;
 
 pub use cache::invalidate_lineage_cache;
+pub use normalize::normalize_lineage_entity_name;
 // WHY: Glob re-exports include utoipa-generated __path_* structs for OpenAPI
 pub use chunk_detail::*;
 pub use entity_provenance::*;

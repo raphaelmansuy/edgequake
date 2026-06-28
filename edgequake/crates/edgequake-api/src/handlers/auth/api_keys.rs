@@ -43,7 +43,7 @@ pub async fn create_api_key(
     headers: HeaderMap,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
-    let auth = require_authenticated_request(&headers, &state)?;
+    let auth = require_authenticated_request(&headers, &state).await?;
     let user_id = auth.user_id;
 
     // Generate API key
@@ -139,7 +139,7 @@ pub async fn list_api_keys(
     headers: HeaderMap,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-    let auth = require_authenticated_request(&headers, &state)?;
+    let auth = require_authenticated_request(&headers, &state).await?;
     let user_id = auth.user_id;
 
     let page = query.page.max(1);
@@ -225,7 +225,7 @@ pub async fn revoke_api_key(
     headers: HeaderMap,
     Path(key_id): Path<String>,
 ) -> Result<Json<RevokeApiKeyResponse>, ApiError> {
-    require_authenticated_request(&headers, &state)?;
+    require_authenticated_request(&headers, &state).await?;
     let key = format!("{}{}", API_KEY_PREFIX, key_id);
 
     // Get the existing record

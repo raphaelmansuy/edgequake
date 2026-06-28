@@ -38,7 +38,8 @@ pub async fn analyze_deletion_impact(
         .keys_with_prefix(&chunk_prefix)
         .await?;
 
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     let content_key = format!("{}-content", document_id);
     let has_metadata = state
         .storage

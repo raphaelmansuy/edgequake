@@ -9,6 +9,7 @@ use tracing::warn;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
+use crate::services::document_metadata_scan::load_scoped_document_metadata;
 use crate::state::AppState;
 use crate::workspace_scope::metadata_matches_tenant_context;
 use edgequake_storage::traits::KVStorage;
@@ -20,14 +21,13 @@ pub async fn find_kv_document_id_for_pdf(
     pdf_id: &str,
     tenant_ctx: &TenantContext,
 ) -> Option<String> {
-    let metadata_keys = kv_storage.keys_with_suffix("-metadata").await.ok()?;
+    let scoped = load_scoped_document_metadata(kv_storage, tenant_ctx)
+        .await
+        .ok()?;
 
-    for metadata_key in metadata_keys {
-        let Ok(Some(meta)) = kv_storage.get_by_id(&metadata_key).await else {
-            continue;
-        };
+    for meta in scoped {
         let linked_pdf = meta.get("pdf_id").and_then(|v| v.as_str());
-        if linked_pdf == Some(pdf_id) && metadata_matches_tenant_context(&meta, tenant_ctx) {
+        if linked_pdf == Some(pdf_id) {
             return meta.get("id").and_then(|v| v.as_str()).map(str::to_string);
         }
     }

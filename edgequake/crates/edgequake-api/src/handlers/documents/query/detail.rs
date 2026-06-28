@@ -37,7 +37,8 @@ pub async fn get_document(
     );
 
     // Fetch document metadata
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
     let metadata_values = state
         .storage

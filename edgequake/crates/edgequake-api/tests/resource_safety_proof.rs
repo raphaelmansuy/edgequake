@@ -251,8 +251,8 @@ async fn resource_safety_get_graph_503_when_materialize_full() {
 #[tokio::test]
 async fn resource_safety_popular_labels_503_when_materialize_full() {
     use axum::extract::{Query, State};
-    use edgequake_api::middleware::TenantContext;
     use edgequake_api::handlers::{get_popular_labels, graph_types::PopularLabelsQuery};
+    use edgequake_api::middleware::TenantContext;
     use edgequake_core::GraphMaterializationSemaphore;
     use std::sync::Arc;
 

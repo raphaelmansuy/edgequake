@@ -19,127 +19,40 @@ mod rebuild_embeddings;
 mod rebuild_knowledge_graph;
 mod reprocess_documents;
 
-pub use rebuild_embeddings::rebuild_embeddings;
-pub use rebuild_knowledge_graph::rebuild_knowledge_graph;
-pub use reprocess_documents::reprocess_all_documents;
+pub use rebuild_embeddings::*;
+pub use rebuild_knowledge_graph::*;
+pub use reprocess_documents::*;
 
 use uuid::Uuid;
 
 use crate::error::ApiError;
-use crate::handlers::isolation::doc_belongs_to_workspace;
+use crate::services::document_metadata_scan::{load_workspace_documents, WorkspaceDocumentRecord};
 use crate::state::AppState;
 
 // ============================================================================
 // Shared Types
 // ============================================================================
 
-/// Parsed document metadata from KV storage.
-///
-/// Extracted during workspace document discovery to avoid re-parsing JSON
-/// in each handler.
-pub(super) struct DocumentInfo {
-    pub doc_id: String,
-    pub title: String,
-    pub chunk_count: usize,
-    pub source_type: Option<String>,
-    pub pdf_id_str: Option<String>,
-    pub status: Option<String>,
-}
+/// Parsed document metadata from KV storage (SSOT re-export).
+pub(super) type DocumentInfo = WorkspaceDocumentRecord;
 
 // ============================================================================
 // Shared Helpers (DRY extraction from rebuild/reprocess handlers)
 // ============================================================================
 
-/// Collect all documents belonging to a workspace from KV storage.
-///
-/// Iterates all `-metadata` keys, checks workspace ownership via
-/// [`doc_belongs_to_workspace`], and parses relevant document fields.
-///
-/// WHY: All three bulk operations (rebuild embeddings, rebuild knowledge graph,
-/// reprocess documents) need the same document discovery logic. Extracting it
-/// here eliminates ~40 lines of duplicated code per handler.
+/// Collect all documents belonging to a workspace from KV storage (SSOT delegate).
 pub(super) async fn collect_workspace_documents(
     state: &AppState,
     workspace_id: &Uuid,
     workspace_slug: &str,
 ) -> Result<Vec<DocumentInfo>, ApiError> {
-    let all_keys: Vec<String> = state
-        .storage
-        .kv_storage
-        .keys()
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to list document keys: {}", e)))?;
-
-    let mut docs = Vec::new();
-
-    for key in all_keys.iter().filter(|k| k.ends_with("-metadata")) {
-        let value = match state.storage.kv_storage.get_by_id(key).await {
-            Ok(Some(v)) => v,
-            Ok(None) => continue,
-            Err(e) => {
-                tracing::warn!(key = %key, error = %e, "Failed to read document metadata, skipping");
-                continue;
-            }
-        };
-
-        let obj = match value.as_object() {
-            Some(o) => o,
-            None => continue,
-        };
-
-        // WHY: Rebuild must be strictly workspace-scoped so that triggering
-        // a rebuild on workspace X never touches workspace Y's documents.
-        // Legacy documents may store workspace_id = "default" (string literal)
-        // instead of a real UUID; treat those as belonging to the workspace
-        // whose slug is also "default".
-        let doc_workspace = obj
-            .get("workspace_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("default");
-
-        if !doc_belongs_to_workspace(doc_workspace, &workspace_id.to_string(), workspace_slug) {
-            continue;
-        }
-
-        let doc_id = match obj.get("id").and_then(|v| v.as_str()) {
-            Some(id) => id.to_string(),
-            None => continue,
-        };
-
-        let chunk_count = obj.get("chunk_count").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
-
-        let title = obj
-            .get("title")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&doc_id)
-            .to_string();
-
-        let source_type = obj
-            .get("source_type")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        let pdf_id_str = obj
-            .get("pdf_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        let status = obj
-            .get("status")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        docs.push(DocumentInfo {
-            doc_id,
-            title,
-            chunk_count,
-            source_type,
-            pdf_id_str,
-            status,
-        });
-    }
-
-    Ok(docs)
+    load_workspace_documents(
+        state.storage.kv_storage.as_ref(),
+        workspace_id,
+        workspace_slug,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to read document metadata: {e}")))
 }
 
 /// Build a [`PdfProcessingData`] task for re-extracting a document from its
@@ -210,7 +123,8 @@ pub(super) async fn read_stored_content(state: &AppState, doc_id: &str) -> Optio
 pub(super) async fn mark_document_pending(state: &AppState, doc_id: &str, track_id: &str) {
     use chrono::Utc;
 
-    let metadata_key = format!("{}-metadata", doc_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(doc_id);
     if let Some(mut metadata) = state
         .storage
         .kv_storage
@@ -226,11 +140,12 @@ pub(super) async fn mark_document_pending(state: &AppState, doc_id: &str, track_
                 "reprocess_at".to_string(),
                 serde_json::json!(Utc::now().to_rfc3339()),
             );
-            let _ = state
-                .storage
-                .kv_storage
-                .upsert(&[(metadata_key, metadata)])
-                .await;
+            let _ = crate::services::upsert_metadata_kv_with_index(
+                state.storage.kv_storage.as_ref(),
+                &metadata_key,
+                metadata,
+            )
+            .await;
         }
     }
 }

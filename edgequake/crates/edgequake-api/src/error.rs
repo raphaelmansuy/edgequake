@@ -46,15 +46,17 @@
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 use edgequake_observability::ErrorEvent;
 use serde_json::{json, Value};
 
 use crate::providers::ProviderResolutionError;
+
+mod problem_details;
 
 /// Result type for API operations.
 pub type ApiResult<T> = std::result::Result<T, ApiError>;
@@ -71,7 +73,7 @@ pub struct AuthFailureContext {
 }
 
 /// API error response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ErrorResponse {
     /// Error code.
     pub code: String,
@@ -82,13 +84,29 @@ pub struct ErrorResponse {
     /// Additional details.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
+
+    /// RFC 7807 problem type URI (additive, SPEC-027 IMP-028).
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub problem_type: Option<String>,
+
+    /// RFC 7807 short title (additive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    /// RFC 7807 HTTP status echo (additive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
 }
 
 impl ErrorResponse {
     /// Create a new error response.
     pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        let code = code.into();
         Self {
-            code: code.into(),
+            problem_type: Some(problem_details::problem_type_for_code(&code)),
+            title: Some(problem_details::problem_title_for_code(&code).to_string()),
+            status: None,
+            code,
             message: message.into(),
             details: None,
         }
@@ -377,24 +395,24 @@ impl IntoResponse for ApiError {
         }
 
         let mut error = ErrorResponse::new(self.code(), self.to_string());
+        error.status = Some(status.as_u16());
         error.details = Some(event.into_api_details());
 
         if let Self::ServiceUnavailable {
             retry_after_secs, ..
         } = &self
         {
-            return (
+            return problem_details::into_problem_json_response(
                 status,
-                [(
-                    axum::http::header::RETRY_AFTER,
+                error,
+                &[(
+                    axum::http::header::RETRY_AFTER.as_str(),
                     retry_after_secs.to_string(),
                 )],
-                Json(error),
-            )
-                .into_response();
+            );
         }
 
-        (status, Json(error)).into_response()
+        problem_details::into_problem_json_response(status, error, &[])
     }
 }
 

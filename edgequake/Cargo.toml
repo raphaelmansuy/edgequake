@@ -116,7 +116,7 @@ tower-http = { version = "0.6", features = [
 ] }
 
 # OpenAPI
-utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
+utoipa = { version = "=5.4.0", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "8.0", features = ["axum"] }
 
 # Database

@@ -117,10 +117,13 @@ impl DocumentTaskProcessor {
                             "updated_at".to_string(),
                             json!(chrono::Utc::now().to_rfc3339()),
                         );
-                        let _ = self
-                            .kv_storage
-                            .upsert(&[(metadata_key, json!(updated))])
-                            .await;
+                        let payload = json!(updated);
+                        let _ = crate::services::upsert_metadata_kv_with_index(
+                            self.kv_storage.as_ref(),
+                            &metadata_key,
+                            payload,
+                        )
+                        .await;
                     }
                 }
             }
