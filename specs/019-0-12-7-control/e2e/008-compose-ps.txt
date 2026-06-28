@@ -1,0 +1,4 @@
+NAME                 IMAGE                                             COMMAND                  SERVICE    CREATED          STATUS                            PORTS
+edgequake-api        ghcr.io/raphaelmansuy/edgequake:0.12.7            "edgequake"              api        13 seconds ago   Up 8 seconds (healthy)            0.0.0.0:18080->8080/tcp, [::]:18080->8080/tcp
+edgequake-frontend   ghcr.io/raphaelmansuy/edgequake-frontend:0.12.7   "docker-entrypoint.s…"   frontend   13 seconds ago   Up 2 seconds (health: starting)   0.0.0.0:13000->3000/tcp, [::]:13000->3000/tcp
+edgequake-postgres   ghcr.io/raphaelmansuy/edgequake-postgres:0.12.7   "docker-entrypoint.s…"   postgres   17 seconds ago   Up 13 seconds (healthy)           5432/tcp

@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "edgequake": {
+      "comment": "Option A: remote Streamable HTTP (preferred when OAuth/API gateway ready)",
+      "url": "https://api.edgequake.example/mcp",
+      "headers": {
+        "Authorization": "Bearer ${EDGEQUAKE_API_KEY}",
+        "X-Workspace-Id": "default"
+      }
+    },
+    "edgequake-local-bridge": {
+      "comment": "Option B: stdio bridge to local dev server (Phase 5a REST adapter)",
+      "command": "npx",
+      "args": ["-y", "@edgequake/mcp-rest-bridge"],
+      "env": {
+        "EDGEQUAKE_API_URL": "http://127.0.0.1:8080",
+        "EDGEQUAKE_API_KEY": "${EDGEQUAKE_API_KEY}",
+        "EDGEQUAKE_WORKSPACE_ID": "default",
+        "MCP_PROTOCOL_VERSION": "2026-07-28"
+      }
+    },
+    "edgequake-local-direct": {
+      "comment": "Option C: direct to minimal handler (dev only — missing transport headers)",
+      "url": "http://127.0.0.1:8080/api/v1/mcp",
+      "headers": {
+        "X-Workspace-Id": "default"
+      }
+    }
+  }
+}

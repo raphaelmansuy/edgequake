@@ -1,0 +1,26 @@
+# OpenAI Codex CLI — EdgeQuake MCP configuration example
+# Cross-ref: specs/028-edgequake-query-service/mcp/005-client-compatibility-matrix.md
+
+# Global OAuth callback (devbox / remote CI)
+# mcp_oauth_callback_port = 5555
+# mcp_oauth_callback_url = "https://your-devbox.example/callback"
+
+[mcp_servers.edgequake]
+url = "https://api.edgequake.example/mcp"
+enabled = true
+# Option A: OAuth (interactive)
+# Run: codex mcp login edgequake
+
+# Option B: Bearer token (CI / headless)
+bearer_token_env_var = "EDGEQUAKE_API_KEY"
+
+# Optional static headers for workspace routing
+# [mcp_servers.edgequake.http_headers]
+# X-Workspace-Id = "default"
+
+# Optional env-mapped headers
+# [mcp_servers.edgequake.env_http_headers]
+# X-Workspace-Id = "EDGEQUAKE_WORKSPACE_ID"
+
+# Tool timeout for large corpora (seconds)
+# tool_timeout_sec = 120
