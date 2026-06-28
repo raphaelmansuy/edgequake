@@ -132,7 +132,7 @@ fn bench_search_labels(c: &mut Criterion) {
 
     c.bench_function("search_labels", |b| {
         b.to_async(&rt).iter(|| async {
-            let labels = storage.search_labels(black_box("NODE"), 10).await.unwrap();
+            let labels = storage.search_labels(black_box("NODE"), 10, None, None).await.unwrap();
             black_box(labels);
         });
     });

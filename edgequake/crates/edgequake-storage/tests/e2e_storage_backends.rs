@@ -585,7 +585,7 @@ mod memory_graph_tests {
         }
 
         let popular = storage
-            .get_popular_labels(5)
+            .get_popular_labels(5, None, None)
             .await
             .expect("Failed to get popular");
         assert!(!popular.is_empty());
@@ -610,7 +610,7 @@ mod memory_graph_tests {
             .unwrap();
 
         let results = storage
-            .search_labels("ALPHA", 10)
+            .search_labels("ALPHA", 10, None, None)
             .await
             .expect("Failed to search");
         assert_eq!(results.len(), 2);
@@ -632,7 +632,7 @@ mod memory_graph_tests {
 
         // Depth 1 from A should include B
         let neighbors = storage
-            .get_neighbors("A", 1)
+            .get_neighbors("A", 1, None, None)
             .await
             .expect("Failed to get neighbors");
         assert!(!neighbors.is_empty());
@@ -890,9 +890,9 @@ mod trait_compliance_tests {
 
         // Graph queries
         storage.get_knowledge_graph("N", 1, 10).await.unwrap();
-        storage.get_popular_labels(5).await.unwrap();
-        storage.search_labels("N", 5).await.unwrap();
-        storage.get_neighbors("N", 1).await.unwrap();
+        storage.get_popular_labels(5, None, None).await.unwrap();
+        storage.search_labels("N", 5, None, None).await.unwrap();
+        storage.get_neighbors("N", 1, None, None).await.unwrap();
 
         // Utility
         storage.node_count().await.unwrap();

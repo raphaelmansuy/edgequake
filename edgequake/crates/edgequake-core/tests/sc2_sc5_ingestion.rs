@@ -150,7 +150,12 @@ impl GraphStorageReadOps for FailingGraphStorage {
         Ok(KnowledgeGraph::new())
     }
 
-    async fn get_popular_labels(&self, _limit: usize) -> Result<Vec<String>, StorageError> {
+    async fn get_popular_labels(
+        &self,
+        _limit: usize,
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
+    ) -> Result<Vec<String>, StorageError> {
         Ok(vec![])
     }
 
@@ -158,6 +163,8 @@ impl GraphStorageReadOps for FailingGraphStorage {
         &self,
         _query: &str,
         _limit: usize,
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
     ) -> Result<Vec<String>, StorageError> {
         Ok(vec![])
     }
@@ -177,6 +184,8 @@ impl GraphStorageReadOps for FailingGraphStorage {
         &self,
         _node_id: &str,
         _depth: usize,
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
     ) -> Result<Vec<GraphNode>, StorageError> {
         Ok(vec![])
     }
@@ -217,6 +226,15 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         Ok(())
     }
 
+    async fn delete_node_scoped(
+        &self,
+        _node_id: &str,
+        _tenant_id: &str,
+        _workspace_id: &str,
+    ) -> Result<bool, StorageError> {
+        Ok(false)
+    }
+
     async fn upsert_edge(
         &self,
         _source: &str,
@@ -237,6 +255,16 @@ impl GraphStorageMutateOps for FailingGraphStorage {
 
     async fn delete_edge(&self, _source: &str, _target: &str) -> Result<(), StorageError> {
         Ok(())
+    }
+
+    async fn delete_edge_scoped(
+        &self,
+        _source: &str,
+        _target: &str,
+        _tenant_id: &str,
+        _workspace_id: &str,
+    ) -> Result<bool, StorageError> {
+        Ok(false)
     }
 
     async fn clear(&self) -> Result<(), StorageError> {

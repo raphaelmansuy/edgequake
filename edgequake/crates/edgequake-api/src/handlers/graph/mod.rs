@@ -86,7 +86,12 @@ mod tests {
     async fn test_get_node_not_found() {
         let state = AppState::test_state();
 
-        let result = get_node(State(state), Path("nonexistent_node".to_string())).await;
+        let result = get_node(
+            State(state),
+            TenantContext::default(),
+            Path("nonexistent_node".to_string()),
+        )
+        .await;
         // Should return not found or empty
         assert!(result.is_ok() || result.is_err());
     }
@@ -99,7 +104,12 @@ mod tests {
             limit: 10,
         };
 
-        let result = search_labels(State(state), Query(params)).await;
+        let result = search_labels(
+            State(state),
+            TenantContext::default(),
+            Query(params),
+        )
+        .await;
         assert!(result.is_ok());
 
         let response = result.unwrap().0;
@@ -115,7 +125,12 @@ mod tests {
             entity_type: None,
         };
 
-        let result = get_popular_labels(State(state), Query(params)).await;
+        let result = get_popular_labels(
+            State(state),
+            TenantContext::default(),
+            Query(params),
+        )
+        .await;
         assert!(result.is_ok());
     }
 }

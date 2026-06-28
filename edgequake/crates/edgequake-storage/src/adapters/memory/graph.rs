@@ -373,11 +373,40 @@ impl GraphStorageReadOps for MemoryGraphStorage {
         })
     }
 
-    async fn get_popular_labels(&self, limit: usize) -> Result<Vec<String>> {
+    async fn get_popular_labels(
+        &self,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
+        let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
         let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
 
         let mut node_degrees: Vec<(String, usize)> = adjacency
             .iter()
+            .filter(|(id, _)| {
+                nodes.get(*id).is_some_and(|props| {
+                    if let Some(tid) = tenant_id {
+                        let node_tid = props
+                            .get("tenant_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if node_tid != tid {
+                            return false;
+                        }
+                    }
+                    if let Some(wid) = workspace_id {
+                        let node_wid = props
+                            .get("workspace_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if node_wid != wid {
+                            return false;
+                        }
+                    }
+                    true
+                })
+            })
             .map(|(id, neighbors)| (id.clone(), neighbors.len()))
             .collect();
 
@@ -390,16 +419,42 @@ impl GraphStorageReadOps for MemoryGraphStorage {
             .collect())
     }
 
-    async fn search_labels(&self, query: &str, limit: usize) -> Result<Vec<String>> {
+    async fn search_labels(
+        &self,
+        query: &str,
+        limit: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<String>> {
         let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
 
         let query_lower = query.to_lowercase();
 
         Ok(nodes
-            .keys()
-            .filter(|id| id.to_lowercase().contains(&query_lower))
+            .iter()
+            .filter(|(id, properties)| {
+                if let Some(tid) = tenant_id {
+                    let node_tid = properties
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_tid != tid {
+                        return false;
+                    }
+                }
+                if let Some(wid) = workspace_id {
+                    let node_wid = properties
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_wid != wid {
+                        return false;
+                    }
+                }
+                id.to_lowercase().contains(&query_lower)
+            })
             .take(limit)
-            .cloned()
+            .map(|(id, _)| id.clone())
             .collect())
     }
 
@@ -485,9 +540,44 @@ impl GraphStorageReadOps for MemoryGraphStorage {
         Ok(results)
     }
 
-    async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>> {
+    async fn get_neighbors(
+        &self,
+        node_id: &str,
+        depth: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphNode>> {
         let kg = self.get_knowledge_graph(node_id, depth, 1000).await?;
-        Ok(kg.nodes.into_iter().filter(|n| n.id != node_id).collect())
+        Ok(kg
+            .nodes
+            .into_iter()
+            .filter(|n| {
+                if n.id == node_id {
+                    return false;
+                }
+                if let Some(tid) = tenant_id {
+                    let node_tid = n
+                        .properties
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_tid != tid {
+                        return false;
+                    }
+                }
+                if let Some(wid) = workspace_id {
+                    let node_wid = n
+                        .properties
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if node_wid != wid {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect())
     }
 }
 
@@ -547,6 +637,32 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
         }
 
         Ok(())
+    }
+
+    async fn delete_node_scoped(
+        &self,
+        node_id: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool> {
+        let matches = {
+            let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+            nodes.get(node_id).is_some_and(|props| {
+                props
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|t| t == tenant_id)
+                    && props
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|w| w == workspace_id)
+            })
+        };
+        if !matches {
+            return Ok(false);
+        }
+        self.delete_node(node_id).await?;
+        Ok(true)
     }
 
     async fn upsert_edge(
@@ -612,6 +728,34 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
         }
 
         Ok(())
+    }
+
+    async fn delete_edge_scoped(
+        &self,
+        source: &str,
+        target: &str,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool> {
+        let key = Self::edge_key(source, target);
+        let matches = {
+            let edges = self.edges.read().map_err(super::lock::map_lock_err)?;
+            edges.get(&key).is_some_and(|props| {
+                props
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|t| t == tenant_id)
+                    && props
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|w| w == workspace_id)
+            })
+        };
+        if !matches {
+            return Ok(false);
+        }
+        self.delete_edge(source, target).await?;
+        Ok(true)
     }
 
     async fn clear(&self) -> Result<()> {

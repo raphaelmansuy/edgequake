@@ -180,7 +180,7 @@ integration. The project is open source and welcomes contributions from the comm
                 println!("✓ Entity found: {}", entity);
 
                 // Get neighbors
-                if let Ok(neighbors) = graph_storage.get_neighbors(entity, 1).await {
+                if let Ok(neighbors) = graph_storage.get_neighbors(entity, 1, None, None).await {
                     println!("  Connected to {} other entities", neighbors.len());
                 }
             }

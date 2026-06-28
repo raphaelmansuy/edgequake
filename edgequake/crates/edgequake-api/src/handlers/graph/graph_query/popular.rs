@@ -10,6 +10,7 @@ use axum::{
 
 use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
+use crate::middleware::TenantContext;
 use crate::services::{admit_graph_materialization, run_timed_graph_query};
 use crate::state::AppState;
 
@@ -29,6 +30,7 @@ use crate::state::AppState;
 )]
 pub async fn get_popular_labels(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     Query(params): Query<PopularLabelsQuery>,
 ) -> ApiResult<Json<PopularLabelsResponse>> {
     let _materialize_guard = admit_graph_materialization(&state)?;
@@ -40,10 +42,18 @@ pub async fn get_popular_labels(
     let limit = params.limit;
     let min_degree = params.min_degree;
     let entity_type = params.entity_type.clone();
+    let tenant_id = tenant_ctx.tenant_id.clone();
+    let workspace_id = tenant_ctx.workspace_id.clone();
     let graph_storage = state.storage.graph_storage.clone();
     let popular_nodes = run_timed_graph_query(&state, "popular_labels", async move {
         graph_storage
-            .get_popular_nodes_with_degree(limit, min_degree, entity_type.as_deref(), None, None)
+            .get_popular_nodes_with_degree(
+                limit,
+                min_degree,
+                entity_type.as_deref(),
+                tenant_id.as_deref(),
+                workspace_id.as_deref(),
+            )
             .await
     })
     .await?;

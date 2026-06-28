@@ -210,7 +210,7 @@ fn bench_graph_traversal(c: &mut Criterion) {
         b.iter(|| {
             rt.block_on(async {
                 storage
-                    .get_neighbors(black_box("entity-50"), 1)
+                    .get_neighbors(black_box("entity-50"), 1, None, None)
                     .await
                     .unwrap()
             })
