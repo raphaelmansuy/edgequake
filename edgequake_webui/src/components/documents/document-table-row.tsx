@@ -258,9 +258,9 @@ export const DocumentTableRow = memo(function DocumentTableRow({
       </TableCell>
 
       {/* Created Date */}
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground max-w-0 overflow-hidden">
         {doc.created_at ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 whitespace-nowrap truncate">
             {isNew && (
               <span className="text-xs font-medium text-green-600 dark:text-green-400 animate-pulse">
                 NEW
@@ -276,9 +276,9 @@ export const DocumentTableRow = memo(function DocumentTableRow({
       </TableCell>
 
       {/* Last Updated Date — shows when doc was last reprocessed/rebuilt */}
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground max-w-0 overflow-hidden">
         {(doc.updated_at || doc.processed_at) ? (
-          <span title={new Date(doc.updated_at ?? doc.processed_at!).toLocaleString()}>
+          <span className="whitespace-nowrap truncate block" title={new Date(doc.updated_at ?? doc.processed_at!).toLocaleString()}>
             {formatDistanceToNow(new Date(doc.updated_at ?? doc.processed_at!), { addSuffix: true })}
           </span>
         ) : (

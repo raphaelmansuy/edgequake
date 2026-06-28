@@ -1,11 +1,22 @@
 /**
  * @module DocumentTableSection
- * @description Document table with virtual scrolling, states, and rows.
- * Extracted from DocumentManager for SRP compliance (OODA-26).
+ * @description Document table with virtual scrolling and a truly fixed header.
  *
- * VS-01: Uses @tanstack/react-virtual (spacer-row pattern) to render only
- * visible rows — works with native <table> layout so column widths stay
- * aligned with the sticky header.
+ * Architecture:
+ *   ┌─────────────────────────────────────────┐
+ *   │  shrink-0  │ Header row (NEVER scrolls) │
+ *   ├────────────┤─────────────────────────────┤
+ *   │ flex-1     │ Body (overflow-y-auto)       │
+ *   │ overflow   │ Virtual rows scroll here     │
+ *   └────────────┴─────────────────────────────┘
+ *
+ * WHY: Any approach that puts the header INSIDE the scroll container
+ * (sticky, absolute positioning, overflow:clip tricks) fails because the
+ * scroll container IS the parent — it scrolls the header away.
+ * The only reliable solution is to place the header in a shrink-0 sibling
+ * of the scroll container, outside the scrollable region entirely.
+ * Column width parity is maintained via a shared <colgroup> on both tables
+ * using table-fixed layout.
  *
  * @implements FEAT0001 - Document list display
  * @implements FEAT0401 - Document filtering
@@ -14,7 +25,6 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-    Table,
     TableBody,
     TableHead,
     TableHeader,
@@ -28,8 +38,21 @@ import { useTranslation } from 'react-i18next';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentTableStates } from './document-table-states';
 
-/** Estimated row height used by the virtualizer (px). */
+/** Estimated row height for the virtualizer (px). */
 const ESTIMATED_ROW_HEIGHT = 52;
+
+/**
+ * Shared colgroup — defines column widths for BOTH the header table and
+ * the body table so they stay in perfect alignment (DRY / single source of truth).
+ * table-fixed on both tables means colgroup widths are authoritative.
+ */
+function TableColGroup() {
+  return (
+    <colgroup>
+      <col style={{ width: '2.5rem' }} /><col /><col style={{ width: '8.5rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '5.5rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '10.5rem' }} />
+    </colgroup>
+  );
+}
 
 /**
  * Props for DocumentTableSection component.
@@ -100,41 +123,32 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   onClearFilter,
 }: DocumentTableSectionProps) {
   const { t } = useTranslation();
-
-  // Scroll container ref — virtualizer needs the actual scroll element
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
     count: documents.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
-    overscan: 8, // extra rows above/below viewport for smooth scrolling
+    overscan: 8,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
   const totalVirtualHeight = virtualizer.getTotalSize();
-
-  // Padding rows keep total scroll height correct while only visible rows render
   const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
   const paddingBottom =
     virtualItems.length > 0
       ? totalVirtualHeight - virtualItems[virtualItems.length - 1].end
       : 0;
 
+  const showTable = !isLoading && documents.length > 0;
+
   return (
-    /*
-     * WHY: The outer div is a flex child (flex-1 min-h-0 overflow-hidden) that
-     * establishes a bounded containing block. The inner scroll div uses
-     * absolute inset-0 + overflow-auto which GUARANTEES a scroll container
-     * regardless of what `h-full` or percentage heights do in the flex chain.
-     * The sticky <thead> sticks to this absolute div's scroll context.
-     */
-    <div className="flex-1 min-h-0 overflow-hidden relative">
-      <div ref={scrollRef} className="absolute inset-0 overflow-auto">
-      <div className="px-4 pt-3 pb-2">
-        {/* Count header */}
-        {!isLoading && documents.length > 0 && (
-          <div className="flex items-center gap-2 mb-2">
+    <>
+      {/* ── ZONE 1: shrink-0 header (never inside the scroll container) ── */}
+      <div className="shrink-0 px-4 pt-3 bg-background">
+        {/* Count / filter info */}
+        {showTable && (
+          <div className="flex items-center gap-2 mb-1.5">
             <FileText className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             <span className="text-xs text-muted-foreground tabular-nums">
               {searchQuery || statusFilter !== 'all'
@@ -147,28 +161,14 @@ export const DocumentTableSection = memo(function DocumentTableSection({
           </div>
         )}
 
-        {/* Loading / empty states */}
-        <DocumentTableStates
-          isLoading={isLoading}
-          isEmpty={documents.length === 0}
-          onUploadClick={onUploadClick}
-          statusFilter={statusFilter}
-          searchQuery={searchQuery}
-          onClearFilter={onClearFilter}
-        />
-
-        {!isLoading && documents.length > 0 && (
-          /* WHY: [overflow:clip] rounds corners without creating a BFC.
-             overflow-hidden would trap the sticky <thead> inside the div's
-             scroll context, preventing it from sticking to the outer
-             scrollRef container. overflow:clip clips visually but does
-             NOT create a scroll container, so sticky top-0 on <thead>
-             correctly reaches scrollRef. */
-          <div className="border rounded-lg shadow-sm [overflow:clip]">
-            <Table aria-label={t('documents.table.ariaLabel', 'Documents list')}>
-              <TableHeader className="bg-muted/50 sticky top-0 z-10">
+        {/* Column header row — physically outside the scroll container */}
+        {showTable && (
+          <div className="border-t border-x rounded-t-lg bg-muted/50 overflow-hidden shadow-sm">
+            <table className="w-full table-fixed caption-bottom text-sm" role="presentation">
+              <TableColGroup />
+              <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead scope="col" className="w-10">
+                  <TableHead scope="col" className="rounded-tl-lg">
                     <Checkbox
                       checked={isAllSelected}
                       onCheckedChange={(checked) => onSelectAll(!!checked)}
@@ -181,21 +181,39 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                   <TableHead scope="col" className="text-center">{t('documents.table.cost', 'Cost')}</TableHead>
                   <TableHead scope="col">{t('documents.table.created', 'Created')}</TableHead>
                   <TableHead scope="col">{t('documents.table.updated', 'Last Updated')}</TableHead>
-                  <TableHead scope="col" className="w-25">
+                  <TableHead scope="col" className="rounded-tr-lg">
                     <span className="sr-only">{t('documents.table.actions', 'Actions')}</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
+            </table>
+          </div>
+        )}
+      </div>
 
+      {/* ── ZONE 2: flex-1 scroll container (body only) ── */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pb-3">
+        {/* Loading / empty states — shown when no table */}
+        <DocumentTableStates
+          isLoading={isLoading}
+          isEmpty={documents.length === 0}
+          onUploadClick={onUploadClick}
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+          onClearFilter={onClearFilter}
+        />
+
+        {showTable && (
+          <div
+            className="border-b border-x rounded-b-lg overflow-hidden shadow-sm"
+            aria-label={t('documents.table.ariaLabel', 'Documents list')}
+          >
+            <table className="w-full table-fixed caption-bottom text-sm">
+              <TableColGroup />
               <TableBody>
-                {/* Top spacer row — maintains total scroll height above visible items */}
                 {paddingTop > 0 && (
-                  <tr aria-hidden="true">
-                    <td style={{ height: paddingTop }} />
-                  </tr>
+                  <tr aria-hidden="true"><td style={{ height: paddingTop }} /></tr>
                 )}
-
-                {/* Visible rows only */}
                 {virtualItems.map((virtualRow) => {
                   const doc = documents[virtualRow.index];
                   if (!doc) return null;
@@ -222,20 +240,15 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                     />
                   );
                 })}
-
-                {/* Bottom spacer row — maintains scroll height below visible items */}
                 {paddingBottom > 0 && (
-                  <tr aria-hidden="true">
-                    <td style={{ height: paddingBottom }} />
-                  </tr>
+                  <tr aria-hidden="true"><td style={{ height: paddingBottom }} /></tr>
                 )}
               </TableBody>
-            </Table>
+            </table>
           </div>
         )}
       </div>
-      </div>
-    </div>
+    </>
   );
 });
 
