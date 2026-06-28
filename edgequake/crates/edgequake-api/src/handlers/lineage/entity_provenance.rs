@@ -13,7 +13,7 @@ use crate::handlers::lineage_types::{
     ChunkSourceInfo, EntityProvenanceResponse, EntitySourceInfo, RelatedEntityInfo,
 };
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 use super::cache::cached_kv_get;
 
@@ -31,12 +31,12 @@ use super::cache::cached_kv_get;
     )
 )]
 pub async fn get_entity_provenance(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(entity_id): Path<String>,
 ) -> ApiResult<Json<EntityProvenanceResponse>> {
     let node = crate::services::lookup_entity_node_for_context(
-        state.storage.graph_storage.as_ref(),
+        storage.graph_storage.as_ref(),
         &entity_id,
         &tenant_ctx,
     )
@@ -95,7 +95,7 @@ pub async fn get_entity_provenance(
         let metadata_key =
             crate::services::document_metadata_scan::metadata_key_for_document(&doc_id);
         let doc_name = if let Ok(Some(meta)) =
-            cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key).await
+            cached_kv_get(storage.kv_storage.as_ref(), &metadata_key).await
         {
             meta.get("title")
                 .or_else(|| meta.get("file_name"))
@@ -108,7 +108,7 @@ pub async fn get_entity_provenance(
         // Resolve chunk line positions from KV storage
         for chunk in &mut chunks {
             if let Ok(Some(chunk_data)) =
-                cached_kv_get(state.storage.kv_storage.as_ref(), &chunk.chunk_id).await
+                cached_kv_get(storage.kv_storage.as_ref(), &chunk.chunk_id).await
             {
                 chunk.start_line = chunk_data
                     .get("start_line")
@@ -130,8 +130,7 @@ pub async fn get_entity_provenance(
     }
 
     // SPEC-006 P1: O(degree) lookup via get_node_edges (no full graph scan)
-    let node_edges = state
-        .storage
+    let node_edges = storage
         .graph_storage
         .get_node_edges(&normalized_id)
         .await?;

@@ -18,6 +18,9 @@ pub struct ApiSecurityConfig {
     pub cors_origins: Option<Vec<String>>,
     /// Require `X-EdgeQuake-Confirm: delete-all-documents` for bulk DELETE.
     pub require_delete_all_confirm: bool,
+    /// Return HTTP 202 Accepted (with Location) on v1 async RPC when a job/track id is present.
+    /// Default **true** (REST-025) — set `EDGEQUAKE_V1_RPC_RETURN_202=0` for legacy 200.
+    pub v1_rpc_return_202: bool,
 }
 
 impl Default for ApiSecurityConfig {
@@ -29,6 +32,7 @@ impl Default for ApiSecurityConfig {
             strict_tenant_bind: false,
             cors_origins: None,
             require_delete_all_confirm: false,
+            v1_rpc_return_202: true,
         }
     }
 }
@@ -53,6 +57,7 @@ impl ApiSecurityConfig {
                 "EDGEQUAKE_REQUIRE_DELETE_ALL_CONFIRM",
                 false,
             ),
+            v1_rpc_return_202: parse_bool_env("EDGEQUAKE_V1_RPC_RETURN_202", true),
         }
     }
 }
@@ -60,11 +65,31 @@ impl ApiSecurityConfig {
 fn parse_bool_env(var_name: &str, default: bool) -> bool {
     std::env::var(var_name)
         .ok()
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
+        .as_deref()
+        .map(parse_bool_value)
         .unwrap_or(default)
+}
+
+fn parse_bool_value(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v1_rpc_202_defaults_true() {
+        let cfg = ApiSecurityConfig::default();
+        assert!(cfg.v1_rpc_return_202);
+    }
+
+    #[test]
+    fn parse_bool_env_respects_explicit_false() {
+        assert!(!parse_bool_value("0"));
+        assert!(!parse_bool_value("false"));
+    }
 }

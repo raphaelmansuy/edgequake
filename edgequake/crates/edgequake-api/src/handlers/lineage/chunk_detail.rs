@@ -16,7 +16,7 @@ use crate::handlers::lineage_types::{
 };
 use crate::middleware::TenantContext;
 use crate::services::{find_document_edges, find_document_nodes, DocumentSourceScope};
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 /// Get chunk detail.
 #[utoipa::path(
@@ -32,13 +32,12 @@ use crate::state::AppState;
     )
 )]
 pub async fn get_chunk_detail(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(chunk_id): Path<String>,
 ) -> ApiResult<Json<ChunkDetailResponse>> {
     // Look up chunk in KV storage
-    let chunk_data = state
-        .storage
+    let chunk_data = storage
         .kv_storage
         .get_by_id(&chunk_id)
         .await?
@@ -100,7 +99,7 @@ pub async fn get_chunk_detail(
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     // Returns 404 (not 403) to avoid leaking cross-tenant document IDs.
     let doc_metadata =
-        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
             .await?;
 
     // Get document name from already-fetched metadata
@@ -112,7 +111,7 @@ pub async fn get_chunk_detail(
     // SPEC-006 P1: chunk-scoped prefix query (bounded)
     let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
     let chunk_nodes = find_document_nodes(
-        &state.storage.graph_storage,
+        &storage.graph_storage,
         Some(&tenant_ctx),
         &chunk_scope,
     )
@@ -139,7 +138,7 @@ pub async fn get_chunk_detail(
     }
 
     let chunk_edges = find_document_edges(
-        &state.storage.graph_storage,
+        &storage.graph_storage,
         Some(&tenant_ctx),
         &chunk_scope,
     )

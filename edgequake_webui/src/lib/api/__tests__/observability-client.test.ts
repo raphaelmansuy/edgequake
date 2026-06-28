@@ -50,6 +50,7 @@ describe("SPEC-018 observability client", () => {
       ok: false,
       status: 404,
       statusText: "Not Found",
+      url: "http://backend.test:8080/api/v1/documents/missing",
       headers: new Headers({ "x-request-id": "resp-req-42" }),
       json: async () => ({
         code: "NOT_FOUND",
@@ -76,6 +77,7 @@ describe("SPEC-018 observability client", () => {
     expect(warnSpy).toHaveBeenCalled();
     const payload = warnSpy.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.request_id).toBe("resp-req-42");
+    expect(payload.url).toBe("http://backend.test:8080/api/v1/documents/missing");
     expect(payload.diagnostics).toEqual({
       kind: "not_found",
       resource: "doc-1",
@@ -86,6 +88,31 @@ describe("SPEC-018 observability client", () => {
     expect(logPayload.source).toBe("api");
     expect(logPayload).toHaveProperty("traceparent");
     expect(logPayload).toHaveProperty("trace_id");
+  });
+
+  it("logs 5xx API errors with warn (not error) for Next.js dev overlay safety", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      url: "http://backend.test:8080/api/v1/conversations",
+      headers: new Headers(),
+      json: async () => ({}),
+    } as Response);
+
+    process.env.EDGEQUAKE_API_URL = "http://backend.test:8080/api/v1";
+    const { api } = await import("../client");
+
+    await expect(api.get("/conversations")).rejects.toMatchObject({ status: 500 });
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+    const payload = warnSpy.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.status).toBe(500);
+    expect(payload.message).toBe("(no message)");
+    expect(payload.url).toContain("/conversations");
   });
 
   it("logs network errors with trace context (warn, not error)", async () => {

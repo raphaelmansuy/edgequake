@@ -209,7 +209,8 @@ export async function fetchModel(
  * @returns All providers with their health status
  */
 export async function fetchProvidersHealth(): Promise<ProviderResponse[]> {
-  return apiClient<ProviderResponse[]>("/models/health");
+  // Background poll (60s) — silent so transient 5xx does not trigger Next.js overlay.
+  return apiClient<ProviderResponse[]>("/models/health", { silent: true });
 }
 
 // ============================================================================

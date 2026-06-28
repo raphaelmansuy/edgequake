@@ -3,6 +3,7 @@
 //! This module contains all Data Transfer Objects (DTOs) for graph operations,
 //! extracted from the main graph.rs handler for better modularity.
 
+use edgequake_storage::GraphEdge;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -52,6 +53,29 @@ pub struct GraphEdgeResponse {
 
     /// Additional properties.
     pub properties: serde_json::Value,
+}
+
+impl GraphEdgeResponse {
+    /// SSOT mapping from storage [`GraphEdge`] to API DTO (ARCH-006 / SPEC-027).
+    pub fn from_storage_edge(edge: GraphEdge) -> Self {
+        Self {
+            source: edge.source,
+            target: edge.target,
+            relationship_type: edge
+                .properties
+                .get("relationship_type")
+                .or_else(|| edge.properties.get("relation_type"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("RELATED_TO")
+                .to_string(),
+            weight: edge
+                .properties
+                .get("weight")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0) as f32,
+            properties: serde_json::to_value(&edge.properties).unwrap_or_default(),
+        }
+    }
 }
 
 /// Knowledge graph response.

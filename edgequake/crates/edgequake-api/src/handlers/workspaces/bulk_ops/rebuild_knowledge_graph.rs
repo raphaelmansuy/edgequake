@@ -42,7 +42,8 @@ use super::{build_reprocess_task, collect_workspace_documents, mark_document_pen
         ("workspace_id" = Uuid, Path, description = "Workspace ID")
     ),
     responses(
-        (status = 200, description = "Knowledge graph rebuild started", body = RebuildKnowledgeGraphResponse),
+        (status = 200, description = "Knowledge graph rebuild started (legacy default)", body = RebuildKnowledgeGraphResponse),
+        (status = 202, description = "Rebuild accepted when REST-025 opt-in or strict startup", body = RebuildKnowledgeGraphResponse),
         (status = 404, description = "Workspace not found"),
         (status = 400, description = "Invalid request"),
     ),
@@ -54,10 +55,15 @@ pub async fn rebuild_knowledge_graph(
     tenant_ctx: TenantContext,
     Json(request): Json<RebuildKnowledgeGraphRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let return_202 = state.security.v1_rpc_return_202;
+    let ws = workspace_id.to_string();
     let response =
         run_rebuild_knowledge_graph(state, workspace_id, tenant_ctx, request).await?;
-    crate::services::v1_rpc_migration::json_with_v1_rpc_migration(
-        &workspace_id.to_string(),
+    let track_id = response.track_id.clone();
+    crate::services::v1_rpc_migration::respond_v1_async_rpc(
+        &ws,
+        track_id.as_deref(),
+        return_202,
         response,
     )
 }

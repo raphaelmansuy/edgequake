@@ -162,6 +162,29 @@ fn spec017_no_duplicate_pipeline_builder_bodies() {
 }
 
 #[test]
+fn spec017_runtime_from_ref_extractors_wired() {
+    let extractors = read_crate_src("src/state/runtime_extractors.rs");
+    for bundle in [
+        "StorageRuntime",
+        "QueryRuntime",
+        "AuthRuntime",
+        "TaskRuntime",
+        "ResourceBudgetConfig",
+        "AuthState",
+        "GraphQueryRuntime",
+        "ComplianceRuntime",
+        "PostgresRuntime",
+        "PathValidationConfig",
+        "AppConfig",
+    ] {
+        assert!(
+            extractors.contains(&format!("impl FromRef<AppState> for {bundle}")),
+            "FromRef<AppState> for {bundle} required (API-SOLID-I-001)"
+        );
+    }
+}
+
+#[test]
 fn spec017_shared_query_bootstrap() {
     let bootstrap = read_crate_src("src/state/query_bootstrap.rs");
     assert!(

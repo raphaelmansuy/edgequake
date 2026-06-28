@@ -8,7 +8,7 @@ use axum::{
 use crate::error::ApiResult;
 use crate::handlers::relationships_types::DeleteRelationshipResponse;
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 use super::helpers::find_relationship_edge;
 
@@ -26,12 +26,12 @@ use super::helpers::find_relationship_edge;
     )
 )]
 pub async fn delete_relationship(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(relationship_id): Path<String>,
 ) -> ApiResult<Json<DeleteRelationshipResponse>> {
     let edge =
-        find_relationship_edge(&state.storage.graph_storage, &tenant_ctx, &relationship_id).await?;
+        find_relationship_edge(&storage.graph_storage, &tenant_ctx, &relationship_id).await?;
 
     let src_id = edge.source.clone();
     let tgt_id = edge.target.clone();
@@ -46,8 +46,7 @@ pub async fn delete_relationship(
         })?,
     );
 
-    let deleted = state
-        .storage
+    let deleted = storage
         .graph_storage
         .delete_edge_scoped(&src_id, &tgt_id, tenant_id, workspace_id)
         .await?;

@@ -115,33 +115,44 @@ export interface ApiClientOptions extends RequestInit {
 }
 
 /** Structured payload for client-side error logging (explicit context). */
-export function apiErrorLogPayload(err: ApiRequestError): Record<string, unknown> {
+export function apiErrorLogPayload(
+  err: ApiRequestError,
+  context: { url?: string } = {},
+): Record<string, unknown> {
   const trace = getClientTraceContext();
-  return {
+  const payload: Record<string, unknown> = {
     status: err.status,
-    code: err.code,
-    message: err.message,
-    retryable: err.details?.retryable,
-    source: err.details?.source,
-    diagnostics: err.details?.diagnostics,
-    request_id: err.details?.request_id,
-    traceparent: trace.traceparent,
-    trace_id: trace.trace_id,
+    code: err.code ?? null,
+    message: err.message || "(no message)",
+    retryable: err.details?.retryable ?? null,
+    source: err.details?.source ?? null,
+    diagnostics: err.details?.diagnostics ?? null,
+    request_id: err.details?.request_id ?? null,
+    traceparent: trace.traceparent ?? null,
+    trace_id: trace.trace_id ?? null,
   };
+  if (context.url) {
+    payload.url = context.url;
+  }
+  return payload;
 }
 
 /** Log API errors at the correct level with full backend context. */
 export function logClientApiError(
   err: ApiRequestError,
-  options: ClientErrorLogOptions = {},
+  options: ClientErrorLogOptions & { url?: string } = {},
 ): void {
-  const payload = apiErrorLogPayload(err);
+  const payload = apiErrorLogPayload(err, { url: options.url });
   if (options.silent) {
     console.debug("[edgequake] API probe failed", payload);
     return;
   }
+  // WHY console.warn (not console.error): Next.js dev promotes console.error
+  // to a full-screen overlay. React Query and hooks handle failures via
+  // isError/toast — logging must stay visible in devtools without hijacking
+  // the page (same policy as network errors and 4xx responses).
   if (err.status >= 500) {
-    console.error("[edgequake] API server error", payload);
+    console.warn("[edgequake] API server error", payload);
   } else if (err.status >= 400) {
     console.warn("[edgequake] API client error", payload);
   }
@@ -248,7 +259,7 @@ export async function handleErrorResponse(
           ? errorData.details.request_id
           : undefined),
     };
-    logClientApiError(err, options);
+    logClientApiError(err, { ...options, url: response.url });
     return err;
   } catch {
     const err = new ApiRequestError(
@@ -256,7 +267,7 @@ export async function handleErrorResponse(
       response.status,
     );
     if (requestId) err.details = { request_id: requestId };
-    logClientApiError(err, options);
+    logClientApiError(err, { ...options, url: response.url });
     return err;
   }
 }

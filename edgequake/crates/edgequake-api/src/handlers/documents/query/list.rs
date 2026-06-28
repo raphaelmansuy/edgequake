@@ -13,7 +13,8 @@ use crate::services::list_pagination::paginate_vec;
 use crate::services::tenant_guard::{
     empty_documents_list, has_full_tenant_context, warn_missing_tenant_context,
 };
-use crate::state::AppState;
+use crate::state::{PostgresRuntime, StorageRuntime};
+use edgequake_core::ResourceBudgetConfig;
 
 use crate::handlers::documents_types::*;
 
@@ -28,7 +29,9 @@ use crate::handlers::documents_types::*;
 )]
 #[allow(clippy::field_reassign_with_default)]
 pub async fn list_documents(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(_pg_runtime): State<PostgresRuntime>,
+    State(budget): State<ResourceBudgetConfig>,
     tenant_ctx: TenantContext,
     Query(params): Query<ListDocumentsRequest>,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
@@ -47,7 +50,7 @@ pub async fn list_documents(
 
     // SPEC-027: scoped metadata scan SSOT (suffix index + tenant filter).
     let metadata_values =
-        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
+        load_scoped_document_metadata(storage.kv_storage.as_ref(), &tenant_ctx).await?;
     debug!(
         metadata_values_count = metadata_values.len(),
         "Scoped metadata values retrieved"
@@ -322,9 +325,12 @@ pub async fn list_documents(
     // while the graph (populated from a separate write path) shows entities —
     // so we log at ERROR and track a warning string to surface, not just warn.
     #[cfg(feature = "postgres")]
-    if state.pg_pool.is_some() {
-        match crate::document_read_model::list_relational_document_summaries(&state, &tenant_ctx)
-            .await
+    if _pg_runtime.pool.is_some() {
+        match crate::document_read_model::list_relational_document_summaries(
+            _pg_runtime.pool.as_ref(),
+            &tenant_ctx,
+        )
+        .await
         {
             Ok(relational) if !relational.is_empty() => {
                 documents =
@@ -342,11 +348,7 @@ pub async fn list_documents(
         }
     }
 
-    // SPEC-021 P-A3: reconcile per-doc entity_count with the authoritative
-    // AGE graph for any row reporting 0 entities despite having chunks. This
-    // is the read-side safety net that fixes the "Completed / 0 entities"
-    // screenshot even before the P-A1 write-path refresh converges.
-    crate::document_read_model::reconcile_entity_counts_with_graph(&state, &mut documents).await;
+    crate::document_read_model::reconcile_entity_counts_with_graph(&storage, &mut documents).await;
 
     // SPEC-005: Apply optional date range and title pattern filters
     if params.date_from.is_some() || params.date_to.is_some() || params.document_pattern.is_some() {
@@ -464,8 +466,7 @@ pub async fn list_documents(
     };
 
     // SPEC-027 IMP-020: honor query pagination (status_counts remain over full filtered set).
-    let page_size = state
-        .resource_budget()
+    let page_size = budget
         .clamp_page_size(params.page_size.min(u32::MAX as usize) as u32)
         as usize;
     let page = params.page.max(1);

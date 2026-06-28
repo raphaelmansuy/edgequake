@@ -21,10 +21,12 @@
 //! - **BR0573**: Username and email must be unique
 
 mod api_keys;
+mod extractors;
 mod session;
 mod user_management;
 
 pub use api_keys::*;
+pub use extractors::*;
 pub use session::*;
 pub use user_management::*;
 
@@ -36,7 +38,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ApiError;
-use crate::state::AppState;
+use crate::state::{AppState, StorageRuntime};
 use edgequake_auth::{Role, User};
 
 // ============================================================================
@@ -137,34 +139,32 @@ pub(crate) struct ApiKeyRecord {
 
 /// Find user by username or email.
 pub(super) async fn find_user_by_login(
-    state: &AppState,
+    storage: &StorageRuntime,
     login: &str,
 ) -> Result<Option<User>, ApiError> {
     // Try username first
     let username_key = format!("{}{}", USER_BY_USERNAME_PREFIX, login.to_lowercase());
-    if let Some(user_id_value) = state
-        .storage
+    if let Some(user_id_value) = storage
         .kv_storage
         .get_by_id(&username_key)
         .await
         .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
     {
         if let Some(user_id) = user_id_value.as_str() {
-            return get_user_by_id(state, user_id).await;
+            return get_user_by_id(storage, user_id).await;
         }
     }
 
     // Try email
     let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, login.to_lowercase());
-    if let Some(user_id_value) = state
-        .storage
+    if let Some(user_id_value) = storage
         .kv_storage
         .get_by_id(&email_key)
         .await
         .map_err(|e| ApiError::Internal(format!("Storage error: {}", e)))?
     {
         if let Some(user_id) = user_id_value.as_str() {
-            return get_user_by_id(state, user_id).await;
+            return get_user_by_id(storage, user_id).await;
         }
     }
 
@@ -173,10 +173,10 @@ pub(super) async fn find_user_by_login(
 
 /// Get user by ID from KV storage.
 pub(super) async fn get_user_by_id(
-    state: &AppState,
+    storage: &StorageRuntime,
     user_id: &str,
 ) -> Result<Option<User>, ApiError> {
-    Ok(get_record_by_id(state, user_id).await?.map(|r| r.to_user()))
+    Ok(get_record_by_id(storage, user_id).await?.map(|r| r.to_user()))
 }
 
 /// Get the raw [`UserRecord`] by user ID (preserves all stored fields).
@@ -185,11 +185,11 @@ pub(super) async fn get_user_by_id(
 /// (e.g., to build a [`crate::handlers::auth_types::UserInfo`] with
 /// `is_active`, `created_at`, `updated_at`, `last_login_at`).
 pub(super) async fn get_record_by_id(
-    state: &AppState,
+    storage: &StorageRuntime,
     user_id: &str,
 ) -> Result<Option<UserRecord>, ApiError> {
     let key = format!("{}{}", USER_KEY_PREFIX, user_id);
-    match state.storage.kv_storage.get_by_id(&key).await {
+    match storage.kv_storage.get_by_id(&key).await {
         Ok(Some(value)) => {
             let record: UserRecord = serde_json::from_value(value)
                 .map_err(|e| ApiError::Internal(format!("Deserialization error: {}", e)))?;
@@ -216,50 +216,13 @@ impl From<&UserRecord> for crate::handlers::auth_types::UserInfo {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct RequestAuthContext {
+pub struct RequestAuthContext {
     pub user_id: String,
     pub role: Role,
 }
 
-pub(super) fn authenticate_request(
-    headers: &HeaderMap,
-    state: &AppState,
-) -> Result<Option<RequestAuthContext>, ApiError> {
-    let token = extract_api_key(headers).or_else(|| extract_bearer_token(headers));
-
-    let Some(token) = token else {
-        return Ok(None);
-    };
-
-    // Sync path for handler-level auth (stored keys resolved async in middleware).
-    if state
-        .auth
-        .config
-        .api_keys
-        .iter()
-        .any(|configured| configured == &token)
-    {
-        return Ok(Some(RequestAuthContext {
-            user_id: "master-api-key".to_string(),
-            role: Role::Admin,
-        }));
-    }
-
-    if let Ok(claims) = state.auth.jwt.verify_token(&token) {
-        return Ok(Some(RequestAuthContext {
-            user_id: claims
-                .user_id()
-                .map_err(|_| ApiError::unauthorized())?
-                .to_string(),
-            role: claims.role(),
-        }));
-    }
-
-    Ok(None)
-}
-
 /// Async authentication including KV-stored API keys (SPEC-027 IMP-002).
-pub(super) async fn authenticate_request_async(
+pub(crate) async fn authenticate_request_async(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<Option<RequestAuthContext>, ApiError> {

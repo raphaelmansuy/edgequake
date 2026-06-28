@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::{AppConfig, StorageRuntime, TaskRuntime};
+use crate::path_validation::PathValidationConfig;
 
 use crate::handlers::documents_types::*;
 
@@ -32,7 +33,10 @@ use crate::handlers::documents_types::*;
     )
 )]
 pub async fn scan_directory(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(tasks): State<TaskRuntime>,
+    State(path_config): State<PathValidationConfig>,
+    State(config): State<AppConfig>,
     tenant_ctx: TenantContext,
     Json(request): Json<ScanDirectoryRequest>,
 ) -> ApiResult<Json<ScanDirectoryResponse>> {
@@ -44,7 +48,7 @@ pub async fn scan_directory(
     // SECURITY (OODA-248): Validate path against allowed directories.
     // WHY: Prevents directory traversal attacks (e.g., ../../../etc/passwd).
     let validated_path =
-        crate::path_validation::validate_path(&request.path, &state.path_validation_config)?;
+        crate::path_validation::validate_path(&request.path, &path_config)?;
 
     let base_path = &validated_path.canonical;
 
@@ -125,13 +129,13 @@ pub async fn scan_directory(
         }
 
         // Check size limit
-        if content.len() > state.config.max_document_size {
+        if content.len() > config.max_document_size {
             skipped_files.push(SkippedFile {
                 path: file_path.display().to_string(),
                 reason: format!(
                     "Exceeds max size ({} > {})",
                     content.len(),
-                    state.config.max_document_size
+                    config.max_document_size
                 ),
             });
             continue;
@@ -159,7 +163,7 @@ pub async fn scan_directory(
             "tenant_id": tenant_ctx.tenant_id.clone().unwrap_or_else(|| "default".to_string()),
         });
         crate::services::upsert_metadata_kv_with_index(
-            state.storage.kv_storage.as_ref(),
+            storage.kv_storage.as_ref(),
             &doc_metadata_key,
             doc_metadata,
         )
@@ -170,8 +174,7 @@ pub async fn scan_directory(
         let doc_content = serde_json::json!({
             "content": content,
         });
-        state
-            .storage
+        storage
             .kv_storage
             .upsert(&[(doc_content_key, doc_content)])
             .await?;
@@ -212,7 +215,7 @@ pub async fn scan_directory(
                 serde_json::to_value(task_data).unwrap(),
             );
 
-            state.enqueue_task(task).await?;
+            tasks.enqueue(task).await?;
         }
 
         queued_files.push(file_path.display().to_string());

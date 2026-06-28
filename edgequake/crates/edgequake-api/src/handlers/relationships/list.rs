@@ -10,7 +10,8 @@ use edgequake_storage::traits::EdgeListFilter;
 use crate::error::ApiResult;
 use crate::handlers::relationships_types::{ListRelationshipsQuery, ListRelationshipsResponse};
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::StorageRuntime;
+use edgequake_core::ResourceBudgetConfig;
 
 use super::helpers::edge_to_relationship_response;
 
@@ -29,12 +30,13 @@ use super::helpers::edge_to_relationship_response;
     )
 )]
 pub async fn list_relationships(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(budget): State<ResourceBudgetConfig>,
     tenant_ctx: TenantContext,
     Query(query): Query<ListRelationshipsQuery>,
 ) -> ApiResult<Json<ListRelationshipsResponse>> {
     // SPEC-006: BR-006-010 — AppState resource SSOT
-    let page_size = state.resource_budget().clamp_page_size(query.page_size);
+    let page_size = budget.clamp_page_size(query.page_size);
     let page = query.page.max(1);
     let offset = ((page - 1) * page_size) as usize;
 
@@ -45,8 +47,7 @@ pub async fn list_relationships(
         relationship_type: query.relationship_type.clone(),
     };
 
-    let page_result = state
-        .storage
+    let page_result = storage
         .graph_storage
         .list_edges_filtered(&filter, offset, page_size as usize)
         .await?;
