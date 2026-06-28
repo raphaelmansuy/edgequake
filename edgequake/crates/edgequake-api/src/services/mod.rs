@@ -13,6 +13,7 @@ pub mod document_reingest;
 pub mod document_task_cleanup;
 pub mod document_vector_storage;
 pub mod entity_graph_lookup;
+pub mod entity_merge;
 pub mod entity_name_normalize;
 pub mod entity_neighborhood;
 pub mod graph_community;

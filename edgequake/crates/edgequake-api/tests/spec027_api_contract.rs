@@ -67,6 +67,87 @@ fn spec027_entity_list_uses_batch_degrees() {
 }
 
 #[test]
+fn spec027_search_nodes_uses_batch_degrees() {
+    let search = read_crate_src("src/handlers/graph/graph_query/search.rs");
+    assert!(
+        search.contains("node_degrees_batch"),
+        "neighbor expansion must batch degree lookups"
+    );
+    assert!(
+        !search.contains(".node_degree(&neighbor.id)"),
+        "search_nodes must not N+1 node_degree per neighbor"
+    );
+}
+
+#[test]
+fn spec027_merge_entities_uses_batch_edge_upsert() {
+    let merge = read_crate_src("src/services/entity_merge.rs");
+    assert!(
+        merge.contains("upsert_edges_batch"),
+        "merge must batch edge writes"
+    );
+    assert!(
+        merge.contains("get_edges_for_node_set"),
+        "merge must batch edge reads"
+    );
+    assert!(
+        !merge.contains(".get_edge("),
+        "merge must not N+1 get_edge per edge"
+    );
+    let ops = read_crate_src("src/handlers/entities/entity_ops.rs");
+    assert!(ops.contains("rewire_merged_entity_edges"));
+}
+
+#[test]
+fn spec027_pipeline_checkpoint_cleanup_uses_suffix_scan() {
+    let cp = read_crate_src("src/processor/pipeline_checkpoint.rs");
+    assert!(
+        cp.contains("keys_with_suffix(CHECKPOINT_KEY_SUFFIX)"),
+        "checkpoint cleanup must use suffix scan SSOT"
+    );
+    assert!(
+        !cp.contains("keys_like(\"%-pipeline-checkpoint\")"),
+        "checkpoint cleanup must not use leading-wildcard keys_like"
+    );
+    assert!(
+        cp.contains("get_by_ids(&checkpoint_keys)"),
+        "checkpoint cleanup must batch-read values"
+    );
+}
+
+#[test]
+fn spec027_document_filter_resolver_uses_scoped_metadata_ssot() {
+    let resolver = read_crate_src("src/handlers/query/document_filter_resolver.rs");
+    assert!(
+        resolver.contains("load_scoped_document_metadata_entries"),
+        "query filter must use scoped metadata SSOT"
+    );
+    assert!(
+        !resolver.contains("load_all_document_metadata"),
+        "query filter must not bypass scoped SSOT"
+    );
+}
+
+#[test]
+fn spec027_entity_merge_service_extracted() {
+    let merge = read_crate_src("src/services/entity_merge.rs");
+    assert!(merge.contains("rewire_merged_entity_edges"));
+    let mod_rs = read_crate_src("src/services/mod.rs");
+    assert!(mod_rs.contains("pub mod entity_merge"));
+}
+
+#[test]
+fn spec027_reliability_graph_query_timeout_ssot() {
+    let mat = read_crate_src("src/services/graph_materialization.rs");
+    assert!(mat.contains("run_timed_graph_query"));
+    assert!(mat.contains("graph_query_timeout"));
+    assert!(mat.contains("admit_graph_materialization"));
+    let health = read_crate_src("src/handlers/health_probes.rs");
+    assert!(health.contains("COMPONENT_PING_TIMEOUT"));
+    assert!(health.contains("probe_with_timeout"));
+}
+
+#[test]
 fn spec027_rate_limit_middleware_wired_in_routes() {
     let routes = read_crate_src("src/routes.rs");
     assert!(routes.contains("tenant_rate_limit_from_state"));

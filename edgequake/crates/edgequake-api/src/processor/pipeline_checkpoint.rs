@@ -51,8 +51,8 @@ use edgequake_storage::traits::KVStorage;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-/// Checkpoint key prefix for pipeline processing results.
-const CHECKPOINT_PREFIX: &str = "pipeline-checkpoint";
+/// Suffix for checkpoint KV keys (`{document_id}-pipeline-checkpoint`).
+pub const CHECKPOINT_KEY_SUFFIX: &str = "-pipeline-checkpoint";
 
 /// Maximum age of a checkpoint in seconds before it's considered stale.
 /// Default: 24 hours. Checkpoints older than this are cleaned up on startup.
@@ -101,7 +101,7 @@ impl PipelineCheckpoint {
 
 /// Build the KV storage key for a document's pipeline checkpoint.
 fn checkpoint_key(document_id: &str) -> String {
-    format!("{}-{}", document_id, CHECKPOINT_PREFIX)
+    format!("{document_id}{CHECKPOINT_KEY_SUFFIX}")
 }
 
 /// Save a pipeline checkpoint to KV storage after extraction completes.
@@ -293,7 +293,7 @@ pub async fn clear_pipeline_checkpoint(kv: &Arc<dyn KVStorage>, document_id: &st
 /// and removes them. This prevents unbounded storage growth from crashed
 /// processing runs that never completed.
 pub async fn cleanup_stale_checkpoints(kv: &Arc<dyn KVStorage>) {
-    let checkpoint_keys = match kv.keys_like("%-pipeline-checkpoint").await {
+    let checkpoint_keys = match kv.keys_with_suffix(CHECKPOINT_KEY_SUFFIX).await {
         Ok(keys) => keys,
         Err(e) => {
             warn!(error = %e, "Failed to list checkpoint keys for cleanup");
@@ -310,20 +310,26 @@ pub async fn cleanup_stale_checkpoints(kv: &Arc<dyn KVStorage>) {
         .unwrap_or_default()
         .as_secs();
 
+    let values = match kv.get_by_ids(&checkpoint_keys).await {
+        Ok(values) => values,
+        Err(e) => {
+            warn!(error = %e, "Failed to batch-read checkpoint keys for cleanup");
+            return;
+        }
+    };
+
     let mut cleaned = 0u32;
-    for key in &checkpoint_keys {
-        if let Ok(Some(value)) = kv.get_by_id(key).await {
-            if let Ok(cp) = serde_json::from_value::<PipelineCheckpoint>(value) {
-                let age = now.saturating_sub(cp.created_at_epoch);
-                if age > CHECKPOINT_MAX_AGE_SECS {
-                    let _ = kv.delete(std::slice::from_ref(key)).await;
-                    cleaned += 1;
-                }
-            } else {
-                // Corrupt checkpoint — remove it
+    for (key, value) in checkpoint_keys.iter().zip(values.iter()) {
+        if let Ok(cp) = serde_json::from_value::<PipelineCheckpoint>(value.clone()) {
+            let age = now.saturating_sub(cp.created_at_epoch);
+            if age > CHECKPOINT_MAX_AGE_SECS {
                 let _ = kv.delete(std::slice::from_ref(key)).await;
                 cleaned += 1;
             }
+        } else {
+            // Corrupt checkpoint — remove it
+            let _ = kv.delete(std::slice::from_ref(key)).await;
+            cleaned += 1;
         }
     }
 

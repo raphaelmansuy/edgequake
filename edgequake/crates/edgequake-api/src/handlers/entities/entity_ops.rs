@@ -14,6 +14,7 @@ use crate::handlers::isolation::{
     filter_edges_by_tenant_context, load_node_for_tenant_context, stamp_tenant_context_properties,
 };
 use crate::middleware::TenantContext;
+use crate::services::entity_merge::rewire_merged_entity_edges;
 use crate::services::entity_neighborhood::build_entity_neighborhood;
 use crate::state::AppState;
 
@@ -22,155 +23,6 @@ pub use crate::handlers::entities_types::{
     EntityExistsQuery, EntityExistsResponse, EntityNeighborhoodQuery, EntityNeighborhoodResponse,
     MergeDetails, MergeEntitiesRequest, MergeEntitiesResponse,
 };
-
-fn collect_string_values(value: Option<&serde_json::Value>) -> Vec<String> {
-    match value {
-        Some(serde_json::Value::String(s)) => vec![s.clone()],
-        Some(serde_json::Value::Array(values)) => values
-            .iter()
-            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn dedupe_strings(values: Vec<String>) -> Vec<String> {
-    let mut seen = std::collections::BTreeSet::new();
-
-    values
-        .into_iter()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .filter(|value| seen.insert(value.clone()))
-        .collect()
-}
-
-fn collect_relation_terms(value: Option<&serde_json::Value>) -> Vec<String> {
-    match value {
-        Some(serde_json::Value::String(s)) => s
-            .split([',', ';'])
-            .map(|item| item.trim().to_string())
-            .filter(|item| !item.is_empty())
-            .collect(),
-        Some(serde_json::Value::Array(values)) => values
-            .iter()
-            .filter_map(|item| item.as_str().map(|s| s.to_string()))
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn relation_specificity_score(value: &str) -> usize {
-    value.matches('_').count() * 10 + value.len()
-}
-
-fn select_primary_relation_type(values: &[String]) -> Option<String> {
-    values
-        .iter()
-        .max_by_key(|value| relation_specificity_score(value))
-        .cloned()
-}
-
-fn merge_edge_properties(
-    existing: Option<&std::collections::HashMap<String, serde_json::Value>>,
-    incoming: &std::collections::HashMap<String, serde_json::Value>,
-    merged_from: &str,
-) -> std::collections::HashMap<String, serde_json::Value> {
-    let mut properties = existing.cloned().unwrap_or_default();
-
-    for (key, value) in incoming {
-        properties
-            .entry(key.clone())
-            .or_insert_with(|| value.clone());
-    }
-
-    let weight = existing
-        .and_then(|props| props.get("weight"))
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0)
-        .max(
-            incoming
-                .get("weight")
-                .and_then(|value| value.as_f64())
-                .unwrap_or(0.0),
-        );
-
-    if weight > 0.0 {
-        properties.insert("weight".to_string(), serde_json::json!(weight));
-    }
-
-    let merged_from_values = dedupe_strings(
-        collect_string_values(existing.and_then(|props| props.get("merged_from")))
-            .into_iter()
-            .chain(collect_string_values(incoming.get("merged_from")))
-            .chain(std::iter::once(merged_from.to_string()))
-            .collect(),
-    );
-
-    if !merged_from_values.is_empty() {
-        properties.insert(
-            "merged_from".to_string(),
-            serde_json::json!(merged_from_values),
-        );
-    }
-
-    let merged_relation_types = dedupe_strings(
-        collect_relation_terms(existing.and_then(|props| props.get("merged_relation_types")))
-            .into_iter()
-            .chain(collect_relation_terms(
-                existing.and_then(|props| props.get("relation_type")),
-            ))
-            .chain(collect_relation_terms(
-                incoming.get("merged_relation_types"),
-            ))
-            .chain(collect_relation_terms(incoming.get("relation_type")))
-            .collect(),
-    );
-
-    if let Some(primary_relation_type) = select_primary_relation_type(&merged_relation_types) {
-        properties.insert(
-            "relation_type".to_string(),
-            serde_json::Value::String(primary_relation_type),
-        );
-    }
-
-    if merged_relation_types.len() > 1 {
-        properties.insert(
-            "merged_relation_types".to_string(),
-            serde_json::json!(merged_relation_types),
-        );
-    }
-
-    let merged_keywords = dedupe_strings(
-        collect_relation_terms(existing.and_then(|props| props.get("keywords")))
-            .into_iter()
-            .chain(collect_relation_terms(incoming.get("keywords")))
-            .collect(),
-    );
-
-    if !merged_keywords.is_empty() {
-        properties.insert(
-            "keywords".to_string(),
-            serde_json::Value::String(merged_keywords.join(", ")),
-        );
-    }
-
-    let merged_descriptions = dedupe_strings(
-        collect_string_values(existing.and_then(|props| props.get("description")))
-            .into_iter()
-            .chain(collect_string_values(incoming.get("description")))
-            .collect(),
-    );
-
-    if !merged_descriptions.is_empty() {
-        properties.insert(
-            "description".to_string(),
-            serde_json::Value::String(merged_descriptions.join(" / ")),
-        );
-    }
-
-    properties
-}
 
 async fn resolve_entity_node(
     state: &AppState,
@@ -362,46 +214,14 @@ pub async fn merge_entities(
         &tenant_ctx,
     );
 
-    let mut relationships_merged = 0;
-    let mut duplicate_relationships_removed = 0;
-
-    for edge in &source_edges {
-        let (new_source, new_target) = if edge.source == source_entity {
-            (target_entity.clone(), edge.target.clone())
-        } else {
-            (edge.source.clone(), target_entity.clone())
-        };
-
-        // Skip collapsed self-loops created when source and target were already connected.
-        if new_source == new_target {
-            duplicate_relationships_removed += 1;
-            continue;
-        }
-
-        let existing_edge = state
-            .storage
-            .graph_storage
-            .get_edge(&new_source, &new_target)
-            .await?;
-        if existing_edge.is_some() {
-            duplicate_relationships_removed += 1;
-        }
-
-        let mut merged_properties = merge_edge_properties(
-            existing_edge.as_ref().map(|edge| &edge.properties),
-            &edge.properties,
-            &source_entity,
-        );
-        stamp_tenant_context_properties(&mut merged_properties, &tenant_ctx)?;
-
-        state
-            .storage
-            .graph_storage
-            .upsert_edge(&new_source, &new_target, merged_properties)
-            .await?;
-
-        relationships_merged += 1;
-    }
+    let rewire_stats = rewire_merged_entity_edges(
+        state.storage.graph_storage.as_ref(),
+        &source_edges,
+        &source_entity,
+        &target_entity,
+        &tenant_ctx,
+    )
+    .await?;
 
     // Update target node
     let now = Utc::now().to_rfc3339();
@@ -438,8 +258,8 @@ pub async fn merge_entities(
     let merge_details = MergeDetails {
         source_entity_id: source_entity,
         target_entity_id: target_entity,
-        relationships_merged,
-        duplicate_relationships_removed,
+        relationships_merged: rewire_stats.relationships_merged,
+        duplicate_relationships_removed: rewire_stats.duplicate_relationships_removed,
         description_strategy,
         metadata_strategy: "merge".to_string(),
     };

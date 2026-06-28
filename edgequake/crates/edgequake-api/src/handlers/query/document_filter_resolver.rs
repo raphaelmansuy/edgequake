@@ -11,9 +11,7 @@ use tracing::{debug, warn};
 
 use crate::handlers::query_types::DocumentFilter;
 use crate::middleware::TenantContext;
-use crate::services::document_metadata_scan::{
-    load_all_document_metadata, load_scoped_document_metadata_entries,
-};
+use crate::services::document_metadata_scan::load_scoped_document_metadata_entries;
 
 /// Resolve a `DocumentFilter` into a list of matching document IDs.
 ///
@@ -40,22 +38,20 @@ pub async fn resolve_document_filter(
         return Ok(None);
     }
 
-    // SPEC-027 phase 10: wsdoc index when workspace context present; else suffix scan.
-    let scope_applied = workspace_id.is_some();
-    let metadata_values: Vec<serde_json::Value> = if scope_applied {
-        let tenant_ctx = TenantContext {
-            tenant_id: tenant_id.clone(),
-            workspace_id: workspace_id.clone(),
-            user_id: None,
-        };
-        load_scoped_document_metadata_entries(kv_storage, &tenant_ctx)
-            .await?
-            .into_iter()
-            .map(|(_, v)| v)
-            .collect()
-    } else {
-        load_all_document_metadata(kv_storage).await?
+    // SPEC-027: always use scoped metadata SSOT (wsdoc when workspace set; suffix + tenant filter otherwise).
+    let tenant_ctx = TenantContext {
+        tenant_id: tenant_id.clone(),
+        workspace_id: workspace_id.clone(),
+        user_id: None,
     };
+    let metadata_values: Vec<serde_json::Value> = load_scoped_document_metadata_entries(
+        kv_storage,
+        &tenant_ctx,
+    )
+    .await?
+    .into_iter()
+    .map(|(_, v)| v)
+    .collect();
 
     if metadata_values.is_empty() {
         debug!("No metadata keys found — filter returns empty set");
@@ -86,31 +82,6 @@ pub async fn resolve_document_filter(
             Some(id) => id,
             None => continue,
         };
-
-        // Tenant/workspace scoping — skip workspace when scoped load applied; tenant always manual unless scoped.
-        if !scope_applied {
-            if let Some(ref tid) = tenant_id {
-                if let Some(doc_tid) = obj.get("tenant_id").and_then(|v| v.as_str()) {
-                    if doc_tid != tid {
-                        continue;
-                    }
-                }
-            }
-            if let Some(ref wid) = workspace_id {
-                if let Some(doc_wid) = obj.get("workspace_id").and_then(|v| v.as_str()) {
-                    if doc_wid != wid {
-                        continue;
-                    }
-                }
-            }
-        } else if let Some(ref tid) = tenant_id {
-            // Workspace-scoped load does not compare arbitrary tenant string ids — filter here.
-            if let Some(doc_tid) = obj.get("tenant_id").and_then(|v| v.as_str()) {
-                if doc_tid != tid {
-                    continue;
-                }
-            }
-        }
 
         // Date range filter (ISO 8601 string comparison)
         let created_at = obj.get("created_at").and_then(|v| v.as_str());
