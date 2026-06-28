@@ -23,6 +23,8 @@ pub mod ingestion_persist;
 pub mod injection_list;
 pub mod injection_process;
 pub mod isolation_context;
+pub mod job_registry;
+pub mod v1_rpc_migration;
 pub mod list_pagination;
 pub mod multimodal;
 pub mod multimodal_admission;

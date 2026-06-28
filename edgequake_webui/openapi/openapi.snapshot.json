@@ -2621,7 +2621,9 @@
             "tenant_id": [],
             "workspace_id": []
           }
-        ]
+        ],
+        "x-edgequake-v2-job-type": "recover_stuck",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -2667,7 +2669,9 @@
             "tenant_id": [],
             "workspace_id": []
           }
-        ]
+        ],
+        "x-edgequake-v2-job-type": "reprocess_failed",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/scan": {
@@ -3293,7 +3297,9 @@
             "tenant_id": [],
             "workspace_id": []
           }
-        ]
+        ],
+        "x-edgequake-v2-job-type": "reanalyze_multimodal",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -7098,7 +7104,9 @@
             "tenant_id": [],
             "workspace_id": []
           }
-        ]
+        ],
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -7160,7 +7168,9 @@
             "tenant_id": [],
             "workspace_id": []
           }
-        ]
+        ],
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -7222,7 +7232,9 @@
             "tenant_id": [],
             "workspace_id": []
           }
-        ]
+        ],
+        "x-edgequake-v2-job-type": "reprocess_all",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/stats": {
@@ -7274,14 +7286,24 @@
         ]
       }
     },
-    "/api/v2/jobs": {
+    "/api/v2/workspaces/{workspace_id}/jobs": {
       "get": {
         "tags": [
           "Jobs"
         ],
-        "summary": "List jobs for the requester's tenant/workspace (v2 wrapper over task list).",
-        "operationId": "list_jobs",
+        "summary": "List jobs for a workspace (paginated).",
+        "operationId": "list_workspace_jobs",
         "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           {
             "name": "status",
             "in": "query",
@@ -7343,8 +7365,20 @@
         "tags": [
           "Jobs"
         ],
-        "summary": "Submit a new async job (202 Accepted + Location header).",
-        "operationId": "create_job",
+        "summary": "Submit a new async job under a workspace (202 Accepted + Location).",
+        "operationId": "create_workspace_job",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7367,7 +7401,7 @@
             }
           },
           "400": {
-            "description": "Invalid job type or missing tenant context"
+            "description": "Invalid job type, payload, or workspace scope"
           }
         },
         "security": [
@@ -7384,18 +7418,73 @@
         ]
       }
     },
-    "/api/v2/jobs/{job_id}": {
+    "/api/v2/workspaces/{workspace_id}/jobs/catalog": {
       "get": {
         "tags": [
           "Jobs"
         ],
-        "summary": "Get job status by ID.",
-        "operationId": "get_job",
+        "summary": "List supported job types for this workspace (Level 4 discovery).",
+        "operationId": "list_workspace_job_catalog",
         "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job type catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCatalogResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v2/workspaces/{workspace_id}/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Get job status by ID within a workspace.",
+        "operationId": "get_workspace_job",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           {
             "name": "job_id",
             "in": "path",
-            "description": "Job ID (same as v1 track_id)",
+            "description": "Job ID (track_id)",
             "required": true,
             "schema": {
               "type": "string"
@@ -7429,16 +7518,24 @@
             "workspace_id": []
           }
         ]
-      }
-    },
-    "/api/v2/jobs/{job_id}/cancel": {
-      "post": {
+      },
+      "delete": {
         "tags": [
           "Jobs"
         ],
-        "summary": "Cancel a pending job (delegates to v1 task cancel semantics).",
-        "operationId": "cancel_job",
+        "summary": "Cancel a pending job (Level 4 — DELETE on job resource).",
+        "operationId": "cancel_workspace_job",
         "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           {
             "name": "job_id",
             "in": "path",
@@ -7628,8 +7725,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     }
   },
@@ -7644,7 +7741,8 @@
           "swagger_ui_url",
           "admin_api_prefix",
           "shared_conversations_prefix",
-          "jobs_v2_prefix"
+          "jobs_v2_prefix",
+          "jobs_v2_catalog"
         ],
         "properties": {
           "admin_api_prefix": {
@@ -7655,9 +7753,13 @@
             "type": "string",
             "description": "Standalone AsyncAPI document URL (WebSocket channels)."
           },
+          "jobs_v2_catalog": {
+            "type": "string",
+            "description": "v2 job catalog path template."
+          },
           "jobs_v2_prefix": {
             "type": "string",
-            "description": "v2 async jobs API prefix (SPEC-027 IMP-025)."
+            "description": "v2 async jobs API path template (Level 4 — substitute `{workspace_id}`)."
           },
           "openapi_url": {
             "type": "string",
@@ -7678,7 +7780,8 @@
           "swagger_ui_url": "/swagger-ui",
           "admin_api_prefix": "/api/v1/admin",
           "shared_conversations_prefix": "/api/v1/shared",
-          "jobs_v2_prefix": "/api/v2/jobs"
+          "jobs_v2_prefix": "/api/v2/workspaces/{workspace_id}/jobs",
+          "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
         }
       },
       "ApiKeySummary": {
@@ -9513,23 +9616,24 @@
       },
       "CreateJobRequest": {
         "type": "object",
-        "description": "Create an async job (maps to background task queue).",
+        "description": "Create an async job under a workspace.",
         "required": [
           "job_type"
         ],
         "properties": {
           "job_type": {
             "type": "string",
-            "description": "Job type (`insert`, `scan`, `reindex`, `upload`, `pdf_processing`, `knowledge_injection`)."
+            "description": "Job type — see `GET .../jobs/catalog` for supported values."
           },
           "payload": {
-            "description": "Opaque payload stored on the underlying task."
+            "description": "Type-specific payload (document_id for reanalyze, force for rebuild, etc.)."
           }
         },
         "example": {
-          "type": "document_reprocess",
-          "document_id": "f6fa9cad-bbff-4892-a855-3bd7d70da044",
-          "workspace_id": "00000000-0000-0000-0000-000000000002"
+          "job_type": "insert",
+          "payload": {
+            "source": "spec027-example"
+          }
         }
       },
       "CreateMessageApiRequest": {
@@ -13044,21 +13148,160 @@
           "severity": {}
         }
       },
-      "JobLinks": {
+      "JobCatalogEntry": {
         "type": "object",
+        "description": "One entry in the v2 job catalog.",
         "required": [
-          "self_link",
-          "v1_task"
+          "job_type",
+          "description",
+          "creatable_via_v2",
+          "endpoints"
         ],
         "properties": {
-          "self_link": {
+          "creatable_via_v2": {
+            "type": "boolean"
+          },
+          "description": {
             "type": "string"
           },
-          "v1_task": {
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "job_type": {
+            "type": "string"
+          },
+          "v1_equivalent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "creatable_via_v2": {},
+          "description": {},
+          "endpoints": [],
+          "job_type": {},
+          "v1_equivalent": {}
+        }
+      },
+      "JobCatalogLinks": {
+        "type": "object",
+        "required": [
+          "create",
+          "list",
+          "catalog"
+        ],
+        "properties": {
+          "catalog": {
+            "type": "string"
+          },
+          "create": {
+            "type": "string"
+          },
+          "list": {
             "type": "string"
           }
         },
         "example": {
+          "catalog": {},
+          "create": {},
+          "list": {}
+        }
+      },
+      "JobCatalogResponse": {
+        "type": "object",
+        "description": "Full catalog for `GET /api/v2/workspaces/{workspace_id}/jobs/catalog`.",
+        "required": [
+          "workspace_id",
+          "entries",
+          "links"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobCatalogEntry"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/JobCatalogLinks"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "workspace_id": "00000000-0000-0000-0000-000000000002",
+          "links": {
+            "create": "/api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs",
+            "list": "/api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs",
+            "catalog": "/api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs/catalog"
+          },
+          "entries": [
+            {
+              "job_type": "rebuild_embeddings",
+              "description": "Rebuild all workspace vector embeddings with the current model.",
+              "creatable_via_v2": true,
+              "v1_equivalent": "POST /api/v1/workspaces/{workspace_id}/rebuild-embeddings",
+              "endpoints": [
+                "POST /api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs { \"job_type\": \"rebuild_embeddings\" }",
+                "GET /api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs/{job_id}",
+                "DELETE /api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs/{job_id}"
+              ]
+            }
+          ]
+        }
+      },
+      "JobCollectionLinks": {
+        "type": "object",
+        "required": [
+          "self_link",
+          "catalog"
+        ],
+        "properties": {
+          "catalog": {
+            "type": "string"
+          },
+          "self_link": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "catalog": {},
+          "self_link": {}
+        }
+      },
+      "JobLinks": {
+        "type": "object",
+        "required": [
+          "self_link",
+          "cancel",
+          "catalog",
+          "v1_task"
+        ],
+        "properties": {
+          "cancel": {
+            "type": "string",
+            "description": "DELETE target to cancel a pending job."
+          },
+          "catalog": {
+            "type": "string"
+          },
+          "self_link": {
+            "type": "string"
+          },
+          "v1_task": {
+            "type": "string",
+            "description": "Legacy v1 task monitor (migration hint)."
+          }
+        },
+        "example": {
+          "cancel": {},
+          "catalog": {},
           "self_link": {},
           "v1_task": {}
         }
@@ -13066,8 +13309,10 @@
       "JobListResponse": {
         "type": "object",
         "required": [
+          "workspace_id",
           "jobs",
-          "pagination"
+          "pagination",
+          "links"
         ],
         "properties": {
           "jobs": {
@@ -13076,18 +13321,26 @@
               "$ref": "#/components/schemas/JobResponse"
             }
           },
+          "links": {
+            "$ref": "#/components/schemas/JobCollectionLinks"
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationInfo"
+          },
+          "workspace_id": {
+            "type": "string"
           }
         },
         "example": {
           "jobs": [],
-          "pagination": {}
+          "links": {},
+          "pagination": {},
+          "workspace_id": {}
         }
       },
       "JobResponse": {
         "type": "object",
-        "description": "Job resource (v2 REST wrapper over v1 task).",
+        "description": "Job resource (Level 4 — workspace-scoped async operation).",
         "required": [
           "job_id",
           "job_type",
@@ -13125,11 +13378,18 @@
           }
         },
         "example": {
-          "id": "job-0027-example",
-          "status": "queued",
-          "type": "document_reprocess",
+          "job_id": "job-0027-example",
+          "job_type": "insert",
+          "status": "pending",
+          "tenant_id": "aaaaaaaa-0027-0027-0027-aaaaaaaaaaaa",
+          "workspace_id": "cccccccc-0027-0027-0027-cccccccccccc",
+          "created_at": "2026-06-28T12:00:00Z",
+          "updated_at": "2026-06-28T12:00:00Z",
           "links": {
-            "self": "/api/v2/jobs/job-0027-example"
+            "self_link": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/job-0027-example",
+            "cancel": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/job-0027-example",
+            "catalog": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/catalog",
+            "v1_task": "/api/v1/tasks/job-0027-example"
           }
         }
       },
@@ -17690,6 +17950,17 @@
             "type": "string",
             "description": "Status of the operation (\"started\", \"in_progress\", \"completed\", \"failed\")."
           },
+          "v2_migration": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/V2MigrationHint",
+                "description": "Level 4 v2 migration hint (additive — SPEC-027 phase 21)."
+              }
+            ]
+          },
           "vectors_cleared": {
             "type": "integer",
             "description": "Number of vectors cleared.",
@@ -17712,6 +17983,7 @@
           "job_id": {},
           "model_context_length": {},
           "status": {},
+          "v2_migration": {},
           "vectors_cleared": {},
           "workspace_id": {}
         }
@@ -17819,6 +18091,17 @@
             ],
             "description": "Track ID for monitoring progress."
           },
+          "v2_migration": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/V2MigrationHint",
+                "description": "Level 4 v2 migration hint (additive)."
+              }
+            ]
+          },
           "vectors_cleared": {
             "type": "integer",
             "description": "Number of vectors cleared (if rebuild_embeddings was true).",
@@ -17840,6 +18123,7 @@
           "nodes_cleared": {},
           "status": {},
           "track_id": {},
+          "v2_migration": {},
           "vectors_cleared": {},
           "workspace_id": {}
         }
@@ -17914,6 +18198,17 @@
           "track_id": {
             "type": "string",
             "description": "Track ID for the recovery batch."
+          },
+          "v2_migration": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/V2MigrationHint",
+                "description": "Level 4 v2 migration hint (additive)."
+              }
+            ]
           }
         },
         "example": {
@@ -17921,7 +18216,8 @@
           "document_titles": [],
           "requeued": {},
           "stuck_found": {},
-          "track_id": {}
+          "track_id": {},
+          "v2_migration": {}
         }
       },
       "RefreshTokenRequest": {
@@ -18439,6 +18735,17 @@
             "type": "string",
             "description": "Track ID for monitoring progress."
           },
+          "v2_migration": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/V2MigrationHint",
+                "description": "Level 4 v2 migration hint (additive)."
+              }
+            ]
+          },
           "workspace_id": {
             "type": "string",
             "format": "uuid",
@@ -18452,6 +18759,7 @@
           "estimated_time_seconds": {},
           "status": {},
           "track_id": {},
+          "v2_migration": {},
           "workspace_id": {}
         }
       },
@@ -18528,13 +18836,25 @@
           "track_id": {
             "type": "string",
             "description": "Track ID for the reprocess batch."
+          },
+          "v2_migration": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/V2MigrationHint",
+                "description": "Level 4 v2 migration hint (additive)."
+              }
+            ]
           }
         },
         "example": {
           "document_ids": [],
           "failed_found": {},
           "requeued": {},
-          "track_id": {}
+          "track_id": {},
+          "v2_migration": {}
         }
       },
       "RetryChunksRequest": {
@@ -20811,6 +21131,36 @@
           "username": "admin",
           "email": "admin@example.com",
           "role": "admin"
+        }
+      },
+      "V2MigrationHint": {
+        "type": "object",
+        "description": "Additive hint on v1 RPC responses pointing integrators to Level 4 v2 jobs (ascending-compat).",
+        "required": [
+          "job_type",
+          "catalog",
+          "create",
+          "note"
+        ],
+        "properties": {
+          "catalog": {
+            "type": "string"
+          },
+          "create": {
+            "type": "string"
+          },
+          "job_type": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "catalog": {},
+          "create": {},
+          "job_type": {},
+          "note": {}
         }
       },
       "WorkspaceCostSummaryResponse": {

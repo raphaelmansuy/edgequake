@@ -133,7 +133,8 @@ fn domain_examples() -> HashMap<&'static str, Value> {
                 "swagger_ui_url": "/swagger-ui",
                 "admin_api_prefix": "/api/v1/admin",
                 "shared_conversations_prefix": "/api/v1/shared",
-                "jobs_v2_prefix": "/api/v2/jobs"
+                "jobs_v2_prefix": "/api/v2/workspaces/{workspace_id}/jobs",
+                "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
             }),
         ),
         (
@@ -265,18 +266,48 @@ fn domain_examples() -> HashMap<&'static str, Value> {
         (
             "CreateJobRequest",
             json!({
-                "type": "document_reprocess",
-                "document_id": doc_id,
-                "workspace_id": workspace
+                "job_type": "insert",
+                "payload": { "source": "spec027-example" }
             }),
         ),
         (
             "JobResponse",
             json!({
-                "id": "job-0027-example",
-                "status": "queued",
-                "type": "document_reprocess",
-                "links": { "self": "/api/v2/jobs/job-0027-example" }
+                "job_id": "job-0027-example",
+                "job_type": "insert",
+                "status": "pending",
+                "tenant_id": "aaaaaaaa-0027-0027-0027-aaaaaaaaaaaa",
+                "workspace_id": "cccccccc-0027-0027-0027-cccccccccccc",
+                "created_at": "2026-06-28T12:00:00Z",
+                "updated_at": "2026-06-28T12:00:00Z",
+                "links": {
+                    "self_link": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/job-0027-example",
+                    "cancel": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/job-0027-example",
+                    "catalog": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/catalog",
+                    "v1_task": "/api/v1/tasks/job-0027-example"
+                }
+            }),
+        ),
+        (
+            "JobCatalogResponse",
+            json!({
+                "workspace_id": workspace,
+                "links": {
+                    "create": format!("/api/v2/workspaces/{workspace}/jobs"),
+                    "list": format!("/api/v2/workspaces/{workspace}/jobs"),
+                    "catalog": format!("/api/v2/workspaces/{workspace}/jobs/catalog")
+                },
+                "entries": [{
+                    "job_type": "rebuild_embeddings",
+                    "description": "Rebuild all workspace vector embeddings with the current model.",
+                    "creatable_via_v2": true,
+                    "v1_equivalent": "POST /api/v1/workspaces/{workspace_id}/rebuild-embeddings",
+                    "endpoints": [
+                        format!("POST /api/v2/workspaces/{workspace}/jobs {{ \"job_type\": \"rebuild_embeddings\" }}"),
+                        format!("GET /api/v2/workspaces/{workspace}/jobs/{{job_id}}"),
+                        format!("DELETE /api/v2/workspaces/{workspace}/jobs/{{job_id}}")
+                    ]
+                }]
             }),
         ),
         (

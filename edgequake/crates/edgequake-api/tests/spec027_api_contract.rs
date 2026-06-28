@@ -411,27 +411,121 @@ fn spec027_lineage_uses_normalize_ssot() {
 #[test]
 fn spec027_v2_jobs_openapi_wired() {
     let doc = ApiDoc::openapi();
-    assert!(doc.paths.paths.contains_key("/api/v2/jobs"));
-    assert!(doc.paths.paths.contains_key("/api/v2/jobs/{job_id}"));
-    let jobs_get = doc.paths.paths.get("/api/v2/jobs").expect("/api/v2/jobs");
+    let collection = "/api/v2/workspaces/{workspace_id}/jobs";
+    let resource = "/api/v2/workspaces/{workspace_id}/jobs/{job_id}";
+    let catalog = "/api/v2/workspaces/{workspace_id}/jobs/catalog";
+    assert!(doc.paths.paths.contains_key(collection));
+    assert!(doc.paths.paths.contains_key(resource));
+    assert!(doc.paths.paths.contains_key(catalog));
+    let jobs_get = doc.paths.paths.get(collection).expect(collection);
+    assert!(jobs_get.get.is_some(), "GET workspace jobs must be registered");
+    assert!(jobs_get.post.is_some(), "POST workspace jobs must be registered");
+    let job_item = doc.paths.paths.get(resource).expect(resource);
+    assert!(job_item.get.is_some(), "GET job by id must be registered");
     assert!(
-        jobs_get.get.is_some(),
-        "GET /api/v2/jobs must be registered"
-    );
-    assert!(
-        jobs_get.post.is_some(),
-        "POST /api/v2/jobs must be registered"
+        job_item.delete.is_some(),
+        "DELETE job (cancel) must be registered on resource path"
     );
     let components = doc.components.expect("components");
     assert!(components.schemas.contains_key("JobResponse"));
     assert!(components.schemas.contains_key("JobListResponse"));
+    assert!(components.schemas.contains_key("JobCatalogResponse"));
+    assert!(components.schemas.contains_key("JobCatalogLinks"));
     let routes = read_crate_src("src/routes.rs");
     assert!(routes.contains("api_v2_routes"));
-    assert!(routes.contains("list_jobs"));
-    assert!(
-        doc.paths.paths.contains_key("/api/v2/jobs/{job_id}/cancel"),
-        "POST cancel route must be registered on /api/v2/jobs/{{job_id}}/cancel"
+    assert!(routes.contains("create_workspace_job"));
+    assert!(routes.contains("cancel_workspace_job"));
+}
+
+#[test]
+fn spec027_job_registry_ssot() {
+    let registry = read_crate_src("src/services/job_registry.rs");
+    assert!(registry.contains("pub fn job_catalog("));
+    assert!(registry.contains("is_creatable_v2_job_type"));
+    assert!(registry.contains("CREATABLE_V2_JOB_TYPES"));
+    assert!(registry.contains("rebuild_embeddings"));
+    assert!(registry.contains("creatable_via_v2: true"));
+    let submission = read_crate_src("src/handlers/v2/jobs/submission.rs");
+    assert!(submission.contains("submit_workspace_job"));
+    assert!(submission.contains("run_rebuild_embeddings"));
+    assert!(submission.contains("run_reanalyze_multimodal"));
+    assert!(submission.contains("is_creatable_v2_job_type"));
+    let handlers = read_crate_src("src/handlers/v2/jobs/handlers.rs");
+    assert!(handlers.contains("list_workspace_job_catalog"));
+    let routes = read_crate_src("src/routes.rs");
+    assert!(routes.contains("/workspaces/{workspace_id}/jobs/catalog"));
+}
+
+#[test]
+fn spec027_v1_rpc_openapi_v2_migration_extensions() {
+    use edgequake_api::openapi_enrichment::apply_openapi_enrichment;
+    use edgequake_api::openapi_security::apply_path_security;
+
+    let mut doc = ApiDoc::openapi();
+    apply_openapi_enrichment(&mut doc);
+    apply_path_security(&mut doc);
+
+    let path = "/api/v1/workspaces/{workspace_id}/rebuild-embeddings";
+    let item = doc.paths.paths.get(path).expect(path);
+    let op = item.post.as_ref().expect("POST");
+    let ext = op.extensions.as_ref().expect("extensions");
+    assert_eq!(
+        ext.get("x-edgequake-v2-job-type").and_then(|v| v.as_str()),
+        Some("rebuild_embeddings")
     );
+}
+
+#[test]
+fn spec027_v1_rpc_responses_include_v2_migration_field() {
+    let rebuild = read_crate_src("src/handlers/workspaces_types/rebuild.rs");
+    assert!(rebuild.contains("v2_migration: Option"));
+    let recovery = read_crate_src("src/handlers/documents_types/recovery.rs");
+    assert!(recovery.contains("v2_migration: Option"));
+    let hint = read_crate_src("src/services/job_registry.rs");
+    assert!(hint.contains("pub fn v2_migration_hint"));
+}
+
+#[test]
+fn spec027_v2_level4_workspace_scoped_routes_only() {
+    let routes = read_crate_src("src/routes.rs");
+    assert!(routes.contains("/workspaces/{workspace_id}/jobs"));
+    assert!(
+        !routes.contains(".route(\"/jobs\""),
+        "flat /api/v2/jobs removed — Level 4 workspace nesting only"
+    );
+}
+
+#[test]
+fn spec027_v1_rpc_migration_headers_ssot() {
+    let migration = read_crate_src("src/services/v1_rpc_migration.rs");
+    assert!(migration.contains("V1_RPC_SUNSET_RFC7231"));
+    assert!(migration.contains("json_with_v1_rpc_migration"));
+    assert!(migration.contains("successor-version"));
+    let rebuild = read_crate_src("src/handlers/workspaces/bulk_ops/rebuild_embeddings.rs");
+    assert!(rebuild.contains("json_with_v1_rpc_migration"));
+}
+
+#[test]
+fn spec027_v2_catalog_validates_workspace_scope() {
+    let handlers = read_crate_src("src/handlers/v2/jobs/handlers.rs");
+    assert!(handlers.contains("list_workspace_job_catalog"));
+    let catalog_fn = handlers
+        .split("pub async fn list_workspace_job_catalog")
+        .nth(1)
+        .expect("catalog handler");
+    assert!(catalog_fn.contains("ensure_workspace_scope"));
+}
+
+#[test]
+fn spec027_run_reanalyze_multimodal_extracted() {
+    let reanalyze = read_crate_src("src/handlers/documents/recovery/reanalyze.rs");
+    assert!(reanalyze.contains("pub(crate) async fn run_reanalyze_multimodal"));
+    assert!(reanalyze.contains("v2_migration"));
+    let recovery = read_crate_src("src/handlers/documents_types/recovery.rs");
+    assert!(recovery.contains("ReanalyzeMultimodalResponse"));
+    let idx = recovery.find("struct ReanalyzeMultimodalResponse").expect("struct");
+    let slice = &recovery[idx..recovery.len().min(idx + 400)];
+    assert!(slice.contains("v2_migration"));
 }
 
 #[test]

@@ -64,6 +64,10 @@ pub struct ReprocessFailedResponse {
     /// Track ID for the reprocess batch.
     pub track_id: String,
 
+    /// Level 4 v2 migration hint (additive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_migration: Option<crate::services::job_registry::V2MigrationHint>,
+
     /// Number of failed documents found.
     pub failed_found: usize,
 
@@ -100,6 +104,10 @@ pub struct RecoverStuckRequest {
 pub struct RecoverStuckResponse {
     /// Track ID for the recovery batch.
     pub track_id: String,
+
+    /// Level 4 v2 migration hint (additive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_migration: Option<crate::services::job_registry::V2MigrationHint>,
 
     /// Number of stuck documents found.
     pub stuck_found: usize,
@@ -228,4 +236,6 @@ pub struct ReanalyzeMultimodalResponse {
     pub success: u32,
     pub skipped: u32,
     pub failed: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v2_migration: Option<crate::services::job_registry::V2MigrationHint>,
 }

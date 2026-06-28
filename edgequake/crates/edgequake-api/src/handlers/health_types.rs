@@ -82,8 +82,10 @@ pub struct ApiCapabilities {
     pub admin_api_prefix: String,
     /// Public shared-conversation path prefix.
     pub shared_conversations_prefix: String,
-    /// v2 async jobs API prefix (SPEC-027 IMP-025).
+    /// v2 async jobs API path template (Level 4 — substitute `{workspace_id}`).
     pub jobs_v2_prefix: String,
+    /// v2 job catalog path template.
+    pub jobs_v2_catalog: String,
 }
 
 /// Task queue + query engine operational snapshot (SPEC-024 Phase 4.3).

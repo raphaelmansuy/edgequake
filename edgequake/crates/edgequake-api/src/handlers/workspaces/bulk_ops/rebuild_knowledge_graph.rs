@@ -5,6 +5,7 @@
 
 use axum::{
     extract::{Path, State},
+    response::IntoResponse,
     Json,
 };
 use uuid::Uuid;
@@ -52,7 +53,21 @@ pub async fn rebuild_knowledge_graph(
     Path(workspace_id): Path<Uuid>,
     tenant_ctx: TenantContext,
     Json(request): Json<RebuildKnowledgeGraphRequest>,
-) -> Result<Json<RebuildKnowledgeGraphResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
+    let response =
+        run_rebuild_knowledge_graph(state, workspace_id, tenant_ctx, request).await?;
+    crate::services::v1_rpc_migration::json_with_v1_rpc_migration(
+        &workspace_id.to_string(),
+        response,
+    )
+}
+
+pub(crate) async fn run_rebuild_knowledge_graph(
+    state: AppState,
+    workspace_id: Uuid,
+    tenant_ctx: TenantContext,
+    request: RebuildKnowledgeGraphRequest,
+) -> Result<RebuildKnowledgeGraphResponse, ApiError> {
     use chrono::Utc;
     use tracing::info;
 
@@ -270,6 +285,10 @@ pub async fn rebuild_knowledge_graph(
         llm_provider: new_llm_provider.clone(),
         estimated_time_seconds: estimated_time,
         track_id: Some(track_id.clone()),
+        v2_migration: Some(crate::services::job_registry::v2_migration_hint(
+            "rebuild_knowledge_graph",
+            &workspace_id.to_string(),
+        )),
     };
 
     info!(
@@ -286,5 +305,5 @@ pub async fn rebuild_knowledge_graph(
         "Knowledge graph rebuild complete - documents queued for reprocessing"
     );
 
-    Ok(Json(response))
+    Ok(response)
 }

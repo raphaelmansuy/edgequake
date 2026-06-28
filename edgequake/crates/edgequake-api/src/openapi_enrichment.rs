@@ -9,6 +9,7 @@ pub fn apply_openapi_enrichment(openapi: &mut utoipa::openapi::OpenApi) {
     sync_crate_version(openapi);
     apply_servers(openapi);
     annotate_websocket_paths(openapi);
+    annotate_v1_rpc_v2_migration_paths(openapi);
     apply_asyncapi_sidecar(openapi);
     crate::openapi_examples::apply_schema_examples(openapi);
 }
@@ -74,6 +75,30 @@ fn websocket_extensions() -> utoipa::openapi::extensions::Extensions {
         serde_json::json!("RFC6455"),
     );
     ext
+}
+
+/// Tag v1 RPC operations with v2 Level 4 job equivalents (ascending-compat discovery).
+fn annotate_v1_rpc_v2_migration_paths(openapi: &mut utoipa::openapi::OpenApi) {
+    use crate::services::job_registry::V1_RPC_V2_JOB_TYPES;
+
+    for (path, job_type) in V1_RPC_V2_JOB_TYPES {
+        let Some(item) = openapi.paths.paths.get_mut(*path) else {
+            continue;
+        };
+        let Some(op) = item.post.as_mut() else {
+            continue;
+        };
+        let mut ext = op.extensions.take().unwrap_or_default();
+        ext.insert(
+            "x-edgequake-v2-job-type".to_string(),
+            serde_json::json!(job_type),
+        );
+        ext.insert(
+            "x-edgequake-v2-catalog".to_string(),
+            serde_json::json!("/api/v2/workspaces/{workspace_id}/jobs/catalog"),
+        );
+        op.extensions = Some(ext);
+    }
 }
 
 #[cfg(test)]
