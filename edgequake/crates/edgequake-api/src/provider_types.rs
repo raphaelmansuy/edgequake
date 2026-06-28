@@ -4,9 +4,10 @@
 //! @iteration OODA Loop #5 - Phase 5E.1 + OODA 12
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Complete provider status response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderStatusResponse {
     pub provider: LLMProviderStatus,
     pub embedding: EmbeddingProviderStatus,
@@ -15,7 +16,7 @@ pub struct ProviderStatusResponse {
 }
 
 /// LLM provider status information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LLMProviderStatus {
     /// Provider name: "ollama", "openai", "lmstudio", "mock"
     pub name: String,
@@ -39,7 +40,7 @@ pub struct LLMProviderStatus {
 }
 
 /// Embedding provider status information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EmbeddingProviderStatus {
     /// Provider name
     pub name: String,
@@ -59,7 +60,7 @@ pub struct EmbeddingProviderStatus {
 }
 
 /// Vector storage status information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct StorageStatus {
     /// Storage type: "memory" or "postgres"
     #[serde(rename = "type")]
@@ -76,7 +77,7 @@ pub struct StorageStatus {
 }
 
 /// Provider connection status
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ConnectionStatus {
     /// Provider is responsive
@@ -93,7 +94,7 @@ pub enum ConnectionStatus {
 }
 
 /// Status check metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct StatusMetadata {
     /// ISO 8601 timestamp of status check
     pub checked_at: String,
@@ -103,7 +104,7 @@ pub struct StatusMetadata {
 }
 
 /// Response for listing available providers
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AvailableProvidersResponse {
     /// List of available LLM providers
     pub llm_providers: Vec<ProviderInfo>,
@@ -116,7 +117,7 @@ pub struct AvailableProvidersResponse {
 }
 
 /// Information about a single provider
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderInfo {
     /// Unique provider ID (e.g., "openai", "ollama", "lmstudio", "mock")
     pub id: String,
@@ -133,7 +134,7 @@ pub struct ProviderInfo {
 }
 
 /// Configuration requirement for a provider
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigRequirement {
     /// Environment variable name
     pub env_var: String,
@@ -146,7 +147,7 @@ pub struct ConfigRequirement {
 }
 
 /// Default models for a provider
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DefaultModels {
     /// Default chat/LLM model
     pub chat_model: String,

@@ -95,7 +95,9 @@ async fn spec023_injection_persists_graph_via_shared_persister() {
 
 #[test]
 fn spec023_injection_has_no_inline_merger() {
-    let handler_src = include_str!("../src/handlers/injection.rs");
+    let crud_src = include_str!("../src/handlers/injection/crud.rs");
+    let file_src = include_str!("../src/handlers/injection/injection_file.rs");
+    let handler_src = format!("{crud_src}\n{file_src}");
     assert!(
         !handler_src.contains("KnowledgeGraphMerger::new"),
         "injection handler must not inline merger"

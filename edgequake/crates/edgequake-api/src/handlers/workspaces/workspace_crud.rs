@@ -12,6 +12,7 @@ use crate::error::ApiError;
 use crate::handlers::documents::storage_helpers::purge_workspace_tasks;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
+use crate::services::document_metadata_scan::plan_workspace_document_kv_deletion;
 use crate::services::record_compliance_event;
 use crate::state::AppState;
 use edgequake_pdf::PdfParserBackend;
@@ -404,71 +405,42 @@ pub async fn delete_workspace(
     };
 
     // 3. Delete all documents belonging to this workspace from KV storage
-    // WHY: Remove document metadata, content, and chunk data
-    let mut documents_deleted = 0;
-    let mut chunks_deleted = 0;
-
-    // NOTE (SPEC-012): keep the `kv.keys()` scan here \u2014 deletion needs the full key
-    // universe to find chunk keys per document. This is *not* a polled hotspot
-    // (delete workspace is a rare admin op), so a full scan is acceptable.
-    if let Ok(all_keys) = state.storage.kv_storage.keys().await {
-        // Find metadata keys and check workspace membership
-        let metadata_keys: Vec<String> = all_keys
-            .iter()
-            .filter(|k| k.ends_with("-metadata"))
-            .cloned()
-            .collect();
-
-        let mut keys_to_delete: Vec<String> = Vec::new();
-
-        for key in metadata_keys {
-            if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(&key).await {
-                // Check if document belongs to this workspace
-                let doc_workspace = metadata
-                    .get("workspace_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("default");
-
-                if doc_workspace == workspace_id_str {
-                    let doc_id = key.trim_end_matches("-metadata");
-
-                    // Queue metadata key for deletion
-                    keys_to_delete.push(key.clone());
-
-                    // Queue content key for deletion
-                    keys_to_delete.push(format!("{}-content", doc_id));
-
-                    // Find and queue all chunk keys for this document
-                    let chunk_prefix = format!("{}-chunk-", doc_id);
-                    for chunk_key in all_keys.iter().filter(|k| k.starts_with(&chunk_prefix)) {
-                        keys_to_delete.push(chunk_key.clone());
-                        chunks_deleted += 1;
-                    }
-
-                    documents_deleted += 1;
+    // WHY: Remove document metadata, content, and chunk data via metadata SSOT
+    // (suffix scan + per-doc chunk prefix — avoids full `keys()` universe scan).
+    let (documents_deleted, chunks_deleted) = match plan_workspace_document_kv_deletion(
+        state.storage.kv_storage.as_ref(),
+        &workspace_id_str,
+    )
+    .await
+    {
+        Ok(plan) => {
+            if !plan.keys.is_empty() {
+                if let Err(e) = state.storage.kv_storage.delete(&plan.keys).await {
+                    tracing::warn!(
+                        workspace_id = %workspace_id,
+                        error = %e,
+                        keys_count = plan.keys.len(),
+                        "Failed to delete some KV storage keys"
+                    );
                 }
             }
+            tracing::info!(
+                workspace_id = %workspace_id,
+                documents_deleted = plan.documents,
+                chunks_deleted = plan.chunks,
+                "Cleared KV storage"
+            );
+            (plan.documents, plan.chunks)
         }
-
-        // Delete all queued keys
-        if !keys_to_delete.is_empty() {
-            if let Err(e) = state.storage.kv_storage.delete(&keys_to_delete).await {
-                tracing::warn!(
-                    workspace_id = %workspace_id,
-                    error = %e,
-                    keys_count = keys_to_delete.len(),
-                    "Failed to delete some KV storage keys"
-                );
-            }
+        Err(e) => {
+            tracing::warn!(
+                workspace_id = %workspace_id,
+                error = %e,
+                "Failed to plan workspace document KV deletion"
+            );
+            (0, 0)
         }
-
-        tracing::info!(
-            workspace_id = %workspace_id,
-            documents_deleted = documents_deleted,
-            chunks_deleted = chunks_deleted,
-            "Cleared KV storage"
-        );
-    }
+    };
 
     // 3b. Delete workspace-scoped PDF rows so duplicate detection and document
     // listings cannot surface stale uploads after the workspace is gone.

@@ -216,7 +216,12 @@ pub async fn provision_queued_pdf_document_shell(
         "updated_at": Utc::now().to_rfc3339(),
     });
 
-    kv_storage.upsert(&[(metadata_key, metadata)]).await
+    crate::services::upsert_metadata_kv_with_index(
+        kv_storage.as_ref(),
+        &metadata_key,
+        metadata,
+    )
+    .await
 }
 
 #[cfg(test)]

@@ -100,12 +100,14 @@ pub async fn run_multimodal_analyze_stage_outcome(
                                 merged.insert(k.clone(), v.clone());
                             }
                         }
-                        let _ = kv
-                            .upsert(&[(
-                                edgequake_storage::kv_keys::doc_metadata(doc_id),
-                                serde_json::Value::Object(merged),
-                            )])
-                            .await;
+                        let meta_key = edgequake_storage::kv_keys::doc_metadata(doc_id);
+                        let payload = serde_json::Value::Object(merged);
+                        let _ = crate::services::upsert_metadata_kv_with_index(
+                            kv.as_ref(),
+                            &meta_key,
+                            payload,
+                        )
+                        .await;
                     }
                 }
             }

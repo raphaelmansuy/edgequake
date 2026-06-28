@@ -32,6 +32,32 @@ impl Default for MemoryTaskStorage {
     }
 }
 
+/// Shared filter predicate for list_tasks and get_statistics (tenant/workspace isolation).
+fn task_matches_filter(task: &Task, filter: &TaskFilter) -> bool {
+    if filter
+        .tenant_id
+        .is_some_and(|tenant_id| task.tenant_id != tenant_id)
+    {
+        return false;
+    }
+    if filter
+        .workspace_id
+        .is_some_and(|workspace_id| task.workspace_id != workspace_id)
+    {
+        return false;
+    }
+    if filter.status.is_some_and(|status| task.status != status) {
+        return false;
+    }
+    if filter
+        .task_type
+        .is_some_and(|task_type| task.task_type != task_type)
+    {
+        return false;
+    }
+    true
+}
+
 #[async_trait]
 impl TaskStorage for MemoryTaskStorage {
     async fn create_task(&self, task: &Task) -> TaskResult<()> {
@@ -102,16 +128,10 @@ impl TaskStorage for MemoryTaskStorage {
     async fn list_tasks(&self, filter: TaskFilter, pagination: Pagination) -> TaskResult<TaskList> {
         let tasks = self.tasks.read().unwrap();
 
-        // Filter tasks
+        // Filter tasks (tenant/workspace isolation matches postgres storage)
         let mut filtered: Vec<Task> = tasks
             .values()
-            .filter(|task| {
-                let status_match = filter.status.is_none_or(|status| task.status == status);
-                let type_match = filter
-                    .task_type
-                    .is_none_or(|task_type| task.task_type == task_type);
-                status_match && type_match
-            })
+            .filter(|task| task_matches_filter(task, &filter))
             .cloned()
             .collect();
 
@@ -160,29 +180,8 @@ impl TaskStorage for MemoryTaskStorage {
 
         // WHY: Apply same filtering logic as list_tasks to maintain tenant isolation
         for task in tasks.values() {
-            // Skip tasks that don't match filters
-            if let Some(tenant_id) = filter.tenant_id {
-                if task.tenant_id != tenant_id {
-                    continue;
-                }
-            }
-
-            if let Some(workspace_id) = filter.workspace_id {
-                if task.workspace_id != workspace_id {
-                    continue;
-                }
-            }
-
-            if let Some(status) = &filter.status {
-                if &task.status != status {
-                    continue;
-                }
-            }
-
-            if let Some(task_type) = &filter.task_type {
-                if &task.task_type != task_type {
-                    continue;
-                }
+            if !task_matches_filter(task, &filter) {
+                continue;
             }
 
             // Count this task
@@ -409,6 +408,40 @@ mod tests {
 
         assert_eq!(result.tasks.len(), 2);
         assert_eq!(result.total, 2);
+    }
+
+    #[tokio::test]
+    async fn test_list_tasks_scopes_by_workspace() {
+        let storage = MemoryTaskStorage::new();
+        let tenant_id = test_tenant_id();
+        let workspace_a = test_workspace_id();
+        let workspace_b = uuid::Uuid::new_v4();
+
+        for workspace_id in [workspace_a, workspace_b] {
+            let task = Task::new(
+                tenant_id,
+                workspace_id,
+                TaskType::Insert,
+                serde_json::json!({"workspace": workspace_id.to_string()}),
+            );
+            storage.create_task(&task).await.unwrap();
+        }
+
+        let filter = TaskFilter {
+            tenant_id: Some(tenant_id),
+            workspace_id: Some(workspace_a),
+            status: None,
+            task_type: None,
+        };
+
+        let result = storage
+            .list_tasks(filter, Pagination::default())
+            .await
+            .unwrap();
+
+        assert_eq!(result.tasks.len(), 1);
+        assert_eq!(result.total, 1);
+        assert_eq!(result.tasks[0].workspace_id, workspace_a);
     }
 
     #[tokio::test]

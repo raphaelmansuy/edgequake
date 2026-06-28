@@ -64,7 +64,8 @@ pub async fn export_document_lineage(
         })?;
 
     // Read metadata for context (cached)
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id}));

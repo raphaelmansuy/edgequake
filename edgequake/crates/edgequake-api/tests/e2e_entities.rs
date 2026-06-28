@@ -946,8 +946,8 @@ async fn test_merge_entities_resolves_human_readable_entity_names() {
                     .method("POST")
                     .uri("/api/v1/graph/entities")
                     .header("Content-Type", "application/json")
-                .header("X-Tenant-ID", TEST_TENANT_ID)
-                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
+                    .header("X-Tenant-ID", TEST_TENANT_ID)
+                    .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                     .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                     .unwrap(),
             )
@@ -1005,8 +1005,8 @@ async fn test_merge_entities_preserves_relationships_in_graph() {
                     .method("POST")
                     .uri("/api/v1/graph/entities")
                     .header("Content-Type", "application/json")
-                .header("X-Tenant-ID", TEST_TENANT_ID)
-                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
+                    .header("X-Tenant-ID", TEST_TENANT_ID)
+                    .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                     .body(Body::from(serde_json::to_string(&create_request).unwrap()))
                     .unwrap(),
             )
@@ -1043,8 +1043,8 @@ async fn test_merge_entities_preserves_relationships_in_graph() {
                     .method("POST")
                     .uri("/api/v1/graph/relationships")
                     .header("Content-Type", "application/json")
-                .header("X-Tenant-ID", TEST_TENANT_ID)
-                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
+                    .header("X-Tenant-ID", TEST_TENANT_ID)
+                    .header("X-Workspace-ID", TEST_WORKSPACE_ID)
                     .body(Body::from(
                         serde_json::to_string(&relationship_request).unwrap(),
                     ))

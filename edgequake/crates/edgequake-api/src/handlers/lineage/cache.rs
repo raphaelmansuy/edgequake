@@ -88,7 +88,8 @@ pub(super) async fn cached_kv_get(
 pub async fn invalidate_lineage_cache(document_id: &str) {
     let mut cache = LINEAGE_KV_CACHE.write().await;
     let lineage_key = format!("{}-lineage", document_id);
-    let metadata_key = format!("{}-metadata", document_id);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(document_id);
     cache.remove(&lineage_key);
     cache.remove(&metadata_key);
     tracing::debug!(

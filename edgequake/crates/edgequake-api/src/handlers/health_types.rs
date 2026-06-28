@@ -63,6 +63,27 @@ pub struct HealthResponse {
     /// Operational signals for dashboards (SPEC-024 Phase 4.3).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operational: Option<OperationalHealth>,
+
+    /// Discoverable API surface links (SPEC-027 REST-008).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ApiCapabilities>,
+}
+
+/// Operator-facing API discovery hints (additive JSON on `/health`).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ApiCapabilities {
+    /// OpenAPI document URL.
+    pub openapi_url: String,
+    /// Standalone AsyncAPI document URL (WebSocket channels).
+    pub asyncapi_url: String,
+    /// Swagger UI entry point.
+    pub swagger_ui_url: String,
+    /// Admin API path prefix.
+    pub admin_api_prefix: String,
+    /// Public shared-conversation path prefix.
+    pub shared_conversations_prefix: String,
+    /// v2 async jobs API prefix (SPEC-027 IMP-025).
+    pub jobs_v2_prefix: String,
 }
 
 /// Task queue + query engine operational snapshot (SPEC-024 Phase 4.3).
@@ -300,6 +321,7 @@ mod tests {
             providers: None,
             pdf_storage_enabled: None,
             operational: None,
+            capabilities: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"status\":\"healthy\""));
@@ -337,6 +359,7 @@ mod tests {
             providers: None,
             pdf_storage_enabled: None,
             operational: None,
+            capabilities: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"schema\""));
@@ -393,6 +416,7 @@ mod tests {
             providers: None,
             pdf_storage_enabled: None,
             operational: None,
+            capabilities: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         // llm_provider_name should be skipped when None
@@ -464,6 +488,7 @@ mod tests {
             }),
             pdf_storage_enabled: Some(true),
             operational: None,
+            capabilities: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"providers\""));

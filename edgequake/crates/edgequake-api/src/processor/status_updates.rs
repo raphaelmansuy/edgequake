@@ -35,6 +35,16 @@ fn apply_status_notice_fields(
     }
 }
 
+async fn upsert_metadata_with_wsdoc_index(
+    kv: &std::sync::Arc<dyn edgequake_storage::traits::KVStorage>,
+    metadata_key: &str,
+    value: serde_json::Value,
+) -> Result<(), edgequake_tasks::TaskError> {
+    crate::services::upsert_metadata_kv_with_index(kv.as_ref(), metadata_key, value)
+        .await
+        .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))
+}
+
 impl DocumentTaskProcessor {
     /// Update document metadata status.
     ///
@@ -128,10 +138,7 @@ impl DocumentTaskProcessor {
             json!(new_metadata)
         };
 
-        self.kv_storage
-            .upsert(&[(metadata_key, updated_json)])
-            .await
-            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+        upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, updated_json).await?;
 
         Ok(())
     }
@@ -279,10 +286,7 @@ impl DocumentTaskProcessor {
         };
 
         if let Some(json) = updated_json {
-            self.kv_storage
-                .upsert(&[(metadata_key, json)])
-                .await
-                .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+            upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, json).await?;
         }
 
         Ok(())
@@ -401,10 +405,12 @@ impl DocumentTaskProcessor {
                     updated.remove("warning_message");
                 }
 
-                self.kv_storage
-                    .upsert(&[(metadata_key, json!(updated))])
-                    .await
-                    .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+                upsert_metadata_with_wsdoc_index(
+                    &self.kv_storage,
+                    &metadata_key,
+                    json!(updated),
+                )
+                .await?;
 
                 // SPEC-021 P-A1: mirror the stats into the relational
                 // `documents` table so the P5-01 relational read-model

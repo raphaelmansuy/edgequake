@@ -18,6 +18,11 @@ use crate::services::{
 use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
+use crate::services::document_metadata_scan::{
+    document_id_from_metadata_key, load_all_document_metadata_entries,
+    metadata_key_for_document,
+};
+
 use super::super::storage_helpers::{
     get_workspace_vector_storage_for_delete, metadata_matches_tenant_context,
     purge_persisted_tasks_for_document,
@@ -39,7 +44,7 @@ use super::super::storage_helpers::{
 /// expected `{document_id}-metadata` key.
 async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, String, bool) {
     // Fast path: direct key lookup — key prefix == document_id
-    let direct_metadata_key = format!("{}-metadata", document_id);
+    let direct_metadata_key = metadata_key_for_document(document_id);
     if state
         .storage
         .kv_storage
@@ -52,22 +57,14 @@ async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, 
         return (document_id.to_string(), direct_metadata_key, true);
     }
 
-    // Slow path: scan metadata keys only (index-friendly suffix scan) and check
-    // if any has a JSON `id` field that matches `document_id`. This handles
-    // key/id mismatch cases without an O(W) full-table key scan.
-    let metadata_keys = state
-        .storage
-        .kv_storage
-        .keys_with_suffix("-metadata")
-        .await
-        .unwrap_or_default();
-    for key in metadata_keys.iter() {
-        if let Ok(Some(val)) = state.storage.kv_storage.get_by_id(key).await {
+    // Slow path: batch metadata entries (index-friendly suffix scan).
+    if let Ok(entries) = load_all_document_metadata_entries(state.storage.kv_storage.as_ref()).await
+    {
+        for (key, val) in entries {
             if let Some(json_id) = val.get("id").and_then(|v| v.as_str()) {
                 if json_id == document_id {
-                    // Found it! Extract the real key prefix.
-                    let prefix = key.strip_suffix("-metadata").unwrap_or(key).to_string();
-                    return (prefix, key.clone(), true);
+                    let prefix = document_id_from_metadata_key(&key).unwrap_or_else(|| key.clone());
+                    return (prefix, key, true);
                 }
             }
         }
@@ -314,6 +311,10 @@ pub async fn delete_document(
     let mut keys_to_delete = keys_to_delete_for_vectors;
     if has_metadata {
         keys_to_delete.push(metadata_key);
+        keys_to_delete.push(edgequake_storage::kv_keys::workspace_doc_index(
+            &workspace_id_for_storage,
+            &actual_key_prefix,
+        ));
     }
     if has_content {
         keys_to_delete.push(content_key);
@@ -504,7 +505,7 @@ mod tests {
     async fn test_resolve_key_prefix_fast_path() {
         let state = AppState::test_state();
         let doc_id = "aaaa-bbbb-cccc-dddd";
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key = metadata_key_for_document(doc_id);
 
         // Store metadata with matching key and id
         state
@@ -530,7 +531,7 @@ mod tests {
         let state = AppState::test_state();
         let kv_prefix = "real-key-prefix-1111";
         let json_id = "mismatched-json-id-2222";
-        let metadata_key = format!("{}-metadata", kv_prefix);
+        let metadata_key = metadata_key_for_document(kv_prefix);
 
         // Store metadata with MISMATCHED key/id
         state
@@ -560,7 +561,7 @@ mod tests {
         let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &state).await;
 
         assert_eq!(prefix, doc_id);
-        assert_eq!(key, format!("{}-metadata", doc_id));
+        assert_eq!(key, metadata_key_for_document(doc_id));
         assert!(!has_metadata);
     }
 
@@ -576,7 +577,7 @@ mod tests {
 
         // Set up the mismatch scenario: metadata key uses kv_prefix,
         // but the JSON id field is json_id.
-        let metadata_key = format!("{}-metadata", kv_prefix);
+        let metadata_key = metadata_key_for_document(kv_prefix);
         let content_key = format!("{}-content", kv_prefix);
         let chunk_0_key = format!("{}-chunk-0", kv_prefix);
         let chunk_1_key = format!("{}-chunk-1", kv_prefix);
@@ -668,7 +669,7 @@ mod tests {
         let kv_prefix = "aaaa-0000-0000-0000-000000000001";
         let json_id = "bbbb-0000-0000-0000-000000000002";
 
-        let metadata_key = format!("{}-metadata", kv_prefix);
+        let metadata_key = metadata_key_for_document(kv_prefix);
         let lineage_key = format!("{}-lineage", kv_prefix);
         // A key under the JSON id prefix (e.g., lineage stored there)
         let alt_lineage_key = format!("{}-lineage", json_id);

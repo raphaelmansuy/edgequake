@@ -24,7 +24,7 @@ edgequake-storage = { path = "../edgequake-storage" }
 edgequake-llm = { workspace = true }
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
-edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
+edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres", "openapi"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }

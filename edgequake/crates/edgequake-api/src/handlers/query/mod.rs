@@ -99,7 +99,8 @@ async fn resolve_document_names(
     let mut doc_names = HashMap::new();
 
     for doc_id in &unique_ids {
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key =
+            crate::services::document_metadata_scan::metadata_key_for_document(doc_id);
         match kv_storage.get_by_id(&metadata_key).await {
             Ok(Some(metadata)) => {
                 if let Some(title) = metadata

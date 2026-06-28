@@ -4,10 +4,15 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::error::ApiResult;
 use crate::middleware::TenantContext;
+use crate::services::document_metadata_scan::load_scoped_document_metadata;
+use crate::services::list_pagination::paginate_vec;
+use crate::services::tenant_guard::{
+    empty_documents_list, has_full_tenant_context, warn_missing_tenant_context,
+};
 use crate::state::AppState;
 
 use crate::handlers::documents_types::*;
@@ -35,72 +40,17 @@ pub async fn list_documents(
 
     // SECURITY: Enforce strict tenant context requirement - NO EXCEPTIONS
     // This matches the strict filtering in entities.rs and relationships.rs (commit d11edba8)
-    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
-        warn!(
-            tenant_id = ?tenant_ctx.tenant_id,
-            workspace_id = ?tenant_ctx.workspace_id,
-            "Tenant context missing - returning empty document list for security"
-        );
-        return Ok(Json(ListDocumentsResponse {
-            documents: vec![],
-            total: 0,
-            page: 1,
-            page_size: 100,
-            total_pages: 0,
-            has_more: false,
-            status_counts: StatusCounts {
-                pending: 0,
-                processing: 0,
-                completed: 0,
-                partial_failure: 0,
-                failed: 0,
-                cancelled: 0,
-                unknown: 0,
-            },
-        }));
+    if !has_full_tenant_context(&tenant_ctx) {
+        warn_missing_tenant_context(&tenant_ctx, "list_documents");
+        return Ok(Json(empty_documents_list()));
     }
 
-    // SPEC-011: SQL LIKE filters avoid O(N) full key scan + in-memory filter.
-    let metadata_keys = state.storage.kv_storage.keys_like("%-metadata").await?;
-    let chunk_keys = state.storage.kv_storage.keys_like("%-chunk-%").await?;
-    debug!(
-        metadata_key_count = metadata_keys.len(),
-        chunk_key_count = chunk_keys.len(),
-        "KV keys loaded via LIKE filters"
-    );
-
-    // Group by document and collect metadata keys
-    let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-
-    for key in &chunk_keys {
-        // Skip injection entries — they are managed by the /knowledge route (SPEC-0002)
-        if key.starts_with("injection::") {
-            continue;
-        }
-        if let Some(doc_id) = key.split("-chunk-").next() {
-            // Filter out non-document keys (like -metadata, -content suffixes)
-            if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
-                *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
-            }
-        }
-    }
-
-    for key in &metadata_keys {
-        if key.starts_with("injection::") {
-            continue;
-        }
-        debug!(metadata_key = %key, "Found metadata key");
-    }
-
-    // Fetch all metadata and store complete document info
-    debug!(
-        metadata_keys_count = metadata_keys.len(),
-        "Fetching metadata for keys"
-    );
-    let metadata_values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
+    // SPEC-027: scoped metadata scan SSOT (suffix index + tenant filter).
+    let metadata_values =
+        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
     debug!(
         metadata_values_count = metadata_values.len(),
-        "Metadata values retrieved"
+        "Scoped metadata values retrieved"
     );
 
     // Store complete document metadata, keyed by document ID
@@ -131,6 +81,7 @@ pub async fn list_documents(
         stage_progress: Option<f32>,
         stage_message: Option<String>,
         pdf_id: Option<String>,
+        chunk_count: Option<usize>,
     }
 
     impl DocMetadata {
@@ -298,6 +249,11 @@ pub async fn list_documents(
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
+                meta.chunk_count = obj
+                    .get("chunk_count")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+
                 if let Some(existing) = doc_metadata.get(id) {
                     if crate::document_metadata::should_prefer_incoming_document_metadata(
                         existing.updated_at.as_deref(),
@@ -316,34 +272,18 @@ pub async fn list_documents(
         }
     }
 
-    // Filter documents by tenant/workspace scope (UUID-normalized; shared with dedup/delete).
-    let matches_tenant_context = |meta: &DocMetadata| -> bool {
-        let value = serde_json::json!({
-            "workspace_id": meta.workspace_id,
-            "tenant_id": meta.tenant_id,
-        });
-        crate::workspace_scope::metadata_matches_tenant_context(&value, &tenant_ctx)
-    };
-
-    // Build document list from BOTH:
-    // 1. Documents with chunks (processed)
-    // 2. Documents with metadata but no chunks yet (pending/processing)
-    let mut documents: Vec<DocumentSummary> = doc_chunks
+    // Build document list from scoped metadata (chunk_count from metadata — SPEC-027 IMP-019).
+    let mut documents: Vec<DocumentSummary> = doc_metadata
         .into_iter()
-        .filter_map(|(id, chunk_count)| {
-            let meta = doc_metadata.remove(&id).unwrap_or_default();
-            // Filter by tenant context
-            if !matches_tenant_context(&meta) {
-                return None;
-            }
+        .map(|(id, meta)| {
             let (error_message, warning_message) = meta.normalized_notices();
-            Some(DocumentSummary {
+            DocumentSummary {
                 id,
                 title: meta.title,
                 file_name: meta.file_name,
                 content_summary: meta.content_summary,
                 content_length: meta.content_length,
-                chunk_count,
+                chunk_count: meta.chunk_count.unwrap_or(0),
                 entity_count: meta.entity_count,
                 status: meta.status,
                 error_message,
@@ -357,51 +297,14 @@ pub async fn list_documents(
                 total_tokens: meta.total_tokens,
                 llm_model: meta.llm_model,
                 embedding_model: meta.embedding_model,
-                // SPEC-002: Unified Ingestion Pipeline fields
                 source_type: meta.source_type,
                 current_stage: meta.current_stage,
                 stage_progress: meta.stage_progress,
                 stage_message: meta.stage_message,
                 pdf_id: meta.pdf_id,
-            })
+            }
         })
         .collect();
-
-    // Add documents that have metadata but no chunks yet (pending/processing)
-    for (id, meta) in doc_metadata {
-        // Filter by tenant context
-        if !matches_tenant_context(&meta) {
-            continue;
-        }
-        let (error_message, warning_message) = meta.normalized_notices();
-        documents.push(DocumentSummary {
-            id,
-            title: meta.title,
-            file_name: meta.file_name,
-            content_summary: meta.content_summary,
-            content_length: meta.content_length,
-            chunk_count: 0,
-            entity_count: meta.entity_count,
-            status: meta.status,
-            error_message,
-            warning_message,
-            track_id: meta.track_id,
-            created_at: meta.created_at,
-            updated_at: meta.updated_at,
-            cost_usd: meta.cost_usd,
-            input_tokens: meta.input_tokens,
-            output_tokens: meta.output_tokens,
-            total_tokens: meta.total_tokens,
-            llm_model: meta.llm_model,
-            embedding_model: meta.embedding_model,
-            // SPEC-002: Unified Ingestion Pipeline fields
-            source_type: meta.source_type,
-            current_stage: meta.current_stage,
-            stage_progress: meta.stage_progress,
-            stage_message: meta.stage_message,
-            pdf_id: meta.pdf_id,
-        });
-    }
 
     // Sort by created_at descending (newest first)
     documents.sort_by(|a, b| {
@@ -560,19 +463,21 @@ pub async fn list_documents(
             .count(),
     };
 
-    let total = documents.len();
-    let page_size = 20usize;
-    let total_pages = (total + page_size - 1) / page_size.max(1);
-    let page = 1usize;
-    let has_more = page < total_pages;
+    // SPEC-027 IMP-020: honor query pagination (status_counts remain over full filtered set).
+    let page_size = state
+        .resource_budget()
+        .clamp_page_size(params.page_size.min(u32::MAX as usize) as u32)
+        as usize;
+    let page = params.page.max(1);
+    let (documents, pagination) = paginate_vec(documents, page, page_size);
 
     Ok(Json(ListDocumentsResponse {
-        total,
+        total: pagination.total,
         documents,
-        page,
-        page_size,
-        total_pages,
-        has_more,
+        page: pagination.page,
+        page_size: pagination.page_size,
+        total_pages: pagination.total_pages,
+        has_more: pagination.has_more,
         status_counts,
     }))
 }

@@ -45,22 +45,16 @@ pub use entity_ops::*;
 // Re-export DTOs from entities_types module
 pub use crate::handlers::entities_types::*;
 
-use edgequake_storage::{normalize_entity_name, GraphNode};
+use crate::services::entity_name_normalize;
+use edgequake_storage::GraphNode;
 
 // ============================================================================
 // Shared Helper Functions
 // ============================================================================
 
-/// Normalize entity name using the single canonical normalizer (RC-6 / P-G1).
-///
-/// Entity identity must be constructed in exactly one way across all writers
-/// (ingestion paths and manual CRUD). Delegating to
-/// `edgequake_storage::normalize_entity_name` guarantees manual entity/edge
-/// creation produces ids identical to the ingestion paths, so a manually
-/// created "John Doe" merges with an ingested "JOHN_DOE" instead of
-/// fragmenting the graph.
+/// Normalize entity name using the API SSOT (delegates to storage canonical form).
 pub(super) fn normalize_entity_name_for_graph(name: &str) -> String {
-    normalize_entity_name(name)
+    entity_name_normalize::normalize_entity_name(name)
 }
 
 /// Convert GraphNode to EntityResponse.

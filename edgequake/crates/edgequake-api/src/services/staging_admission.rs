@@ -24,7 +24,7 @@ pub async fn promote_staging_to_final(
     let mut batch: Vec<(String, Value)> = Vec::new();
 
     if let Some(v) = kv.get_by_id(&staging_meta).await.map_err(kv_err)? {
-        batch.push((final_meta, v));
+        batch.push((final_meta.clone(), v));
     }
     if let Some(v) = kv.get_by_id(&staging_content).await.map_err(kv_err)? {
         batch.push((final_content, v));
@@ -35,6 +35,18 @@ pub async fn promote_staging_to_final(
 
     if !batch.is_empty() {
         kv.upsert(&batch).await.map_err(kv_err)?;
+        if let Some(meta) = kv
+            .get_by_id(&final_meta)
+            .await
+            .map_err(kv_err)?
+        {
+            let _ = crate::services::sync_after_metadata_upsert(
+                kv.as_ref(),
+                &final_meta,
+                &meta,
+            )
+            .await;
+        }
     }
 
     rollback_staging(kv, document_id, workspace_id, content_hash).await

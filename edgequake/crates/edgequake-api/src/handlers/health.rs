@@ -34,10 +34,11 @@ use crate::state::AppState;
 
 // Re-export DTOs from health_types for backwards compatibility
 pub use crate::handlers::health_types::{
-    BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse, IngestionHealthSnapshot,
-    LlmProviderHealth, MigrationHealthSnapshot, ObservabilityHealthSnapshot, OperationalHealth,
-    ProvidersHealth, QueryEngineHealthSnapshot, ReadModelHealthSnapshot, SchemaHealth,
-    SourceIdsIndexHealth, StorageHealthSnapshot, TaskQueueHealthSnapshot,
+    ApiCapabilities, BuildInfo, ComponentHealth, EmbeddingProviderHealth, HealthResponse,
+    IngestionHealthSnapshot, LlmProviderHealth, MigrationHealthSnapshot,
+    ObservabilityHealthSnapshot, OperationalHealth, ProvidersHealth, QueryEngineHealthSnapshot,
+    ReadModelHealthSnapshot, SchemaHealth, SourceIdsIndexHealth, StorageHealthSnapshot,
+    TaskQueueHealthSnapshot,
 };
 
 /// Deep health check with component status.
@@ -152,6 +153,14 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         providers,
         pdf_storage_enabled,
         operational,
+        capabilities: Some(ApiCapabilities {
+            openapi_url: "/api-docs/openapi.json".to_string(),
+            asyncapi_url: "/api-docs/asyncapi.json".to_string(),
+            swagger_ui_url: "/swagger-ui".to_string(),
+            admin_api_prefix: "/api/v1/admin".to_string(),
+            shared_conversations_prefix: "/api/v1/shared".to_string(),
+            jobs_v2_prefix: "/api/v2/jobs".to_string(),
+        }),
     };
 
     Ok(Json(response))

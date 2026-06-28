@@ -61,6 +61,7 @@ use std::fmt;
 ///
 /// @implements SPEC-001-upload-pdf: 6-phase tracking
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PipelinePhase {
     /// File upload & validation.
@@ -168,6 +169,7 @@ impl fmt::Display for PipelinePhase {
 
 /// Status of a single pipeline phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum PhaseStatus {
@@ -186,6 +188,7 @@ pub enum PhaseStatus {
 
 /// Error information for a failed phase.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PhaseError {
     /// Error message.
     pub message: String,
@@ -258,6 +261,7 @@ impl PhaseError {
 ///
 /// @implements SPEC-001-upload-pdf: Phase-level progress tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PhaseProgress {
     /// Which phase this tracks.
     pub phase: PipelinePhase,
@@ -299,6 +303,7 @@ pub struct PhaseProgress {
 
     /// Average time per item in milliseconds.
     /// Used for ETA calculation.
+    #[serde(skip)]
     avg_item_time_ms: f64,
 }
 
@@ -417,6 +422,7 @@ impl PhaseProgress {
 ///
 /// @implements SPEC-001-upload-pdf: Overall progress tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PdfUploadProgress {
     /// Unique tracking ID for this upload.
     pub track_id: String,

@@ -8,14 +8,15 @@ use crate::error::ApiResult;
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
-use axum::{extract::State, Json};
+use axum::{extract::State, http::HeaderMap, Json};
 use chrono::Utc;
 
+use crate::services::document_metadata_scan::{
+    document_id_from_metadata_key, load_scoped_document_metadata_entries,
+};
 use crate::services::{cascade_remove_document_sources, DocumentSourceScope};
 
-use super::super::storage_helpers::{
-    metadata_matches_tenant_context, purge_persisted_tasks_for_document,
-};
+use super::super::storage_helpers::purge_persisted_tasks_for_document;
 
 /// Delete all documents in the system (bulk deletion).
 ///
@@ -36,15 +37,35 @@ use super::super::storage_helpers::{
 )]
 pub async fn delete_all_documents(
     State(state): State<AppState>,
+    headers: HeaderMap,
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<DeleteAllDocumentsResponse>> {
+    if state.security.require_delete_all_confirm {
+        let confirmed = headers
+            .get("x-edgequake-confirm")
+            .and_then(|value| value.to_str().ok())
+            == Some("delete-all-documents");
+        if !confirmed {
+            tracing::warn!(
+                workspace_id = ?tenant_ctx.workspace_id,
+                "Bulk delete rejected — missing X-EdgeQuake-Confirm header (SPEC-027 IMP-018)"
+            );
+            return Err(crate::error::ApiError::BadRequest(
+                "Bulk delete requires header X-EdgeQuake-Confirm: delete-all-documents".into(),
+            ));
+        }
+    } else if headers.get("x-edgequake-confirm").is_none() {
+        tracing::warn!(
+            workspace_id = ?tenant_ctx.workspace_id,
+            "Bulk delete without confirm header — set EDGEQUAKE_REQUIRE_DELETE_ALL_CONFIRM=true to enforce"
+        );
+    }
+
     tracing::info!(workspace_id = ?tenant_ctx.workspace_id, "Bulk delete documents requested");
 
-    let metadata_keys = state
-        .storage
-        .kv_storage
-        .keys_with_suffix("-metadata")
-        .await?;
+    let scoped_entries =
+        load_scoped_document_metadata_entries(state.storage.kv_storage.as_ref(), &tenant_ctx)
+            .await?;
 
     let mut deleted_count = 0usize;
     let mut total_chunks_deleted = 0usize;
@@ -58,45 +79,42 @@ pub async fn delete_all_documents(
     // Define stuck threshold: documents processing for > 1 hour are considered stuck
     let stuck_threshold_secs = 3600; // 1 hour
 
-    for metadata_key in &metadata_keys {
-        // Extract document_id from metadata key (format: {document_id}-metadata)
-        let document_id = metadata_key.trim_end_matches("-metadata").to_string();
+    for (metadata_key, metadata) in scoped_entries {
+        let document_id = document_id_from_metadata_key(&metadata_key).unwrap_or_else(|| {
+            metadata
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&metadata_key)
+                .to_string()
+        });
 
-        // Get document status and metadata to check if safe to delete
         #[cfg(feature = "postgres")]
         let mut pdf_id_for_delete: Option<String> = None;
 
         let (status, updated_at_opt, stage_progress_opt, track_id_opt, workspace_id_opt) =
-            if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(metadata_key).await {
-                // WHY: "Clear all" in the UI is scoped to the current workspace.
-                // Never trust raw metadata scans without re-checking the request context.
-                if !metadata_matches_tenant_context(&metadata, &tenant_ctx) {
-                    tracing::debug!(document_id = %document_id, "Skipping out-of-scope document during bulk delete");
-                    continue;
-                }
-
-                let status = metadata
+            if let Some(obj) = metadata.as_object() {
+                let status = obj
                     .get("status")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "unknown".to_string());
-                let updated_at = metadata
+                let updated_at = obj
                     .get("updated_at")
                     .and_then(|v| v.as_str())
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                     .map(|dt| dt.with_timezone(&chrono::Utc));
-                let stage_progress = metadata.get("stage_progress").and_then(|v| v.as_f64());
-                let track_id = metadata
+                let stage_progress = obj.get("stage_progress").and_then(|v| v.as_f64());
+                let track_id = obj
                     .get("track_id")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                let workspace_id = metadata
+                let workspace_id = obj
                     .get("workspace_id")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
                 #[cfg(feature = "postgres")]
                 {
-                    pdf_id_for_delete = metadata
+                    pdf_id_for_delete = obj
                         .get("pdf_id")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
@@ -173,7 +191,7 @@ pub async fn delete_all_documents(
         if let Err(e) = state
             .storage
             .kv_storage
-            .delete(std::slice::from_ref(metadata_key))
+            .delete(std::slice::from_ref(&metadata_key))
             .await
         {
             tracing::warn!(key = %metadata_key, error = %e, "Failed to delete metadata");

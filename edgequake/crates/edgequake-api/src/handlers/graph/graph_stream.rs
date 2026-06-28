@@ -38,7 +38,11 @@ use crate::state::AppState;
         ("batch_size" = usize, Query, description = "Nodes per batch (default 50)")
     ),
     responses(
-        (status = 200, description = "SSE stream of graph data")
+        (status = 200, description = "SSE stream of GraphStreamEvent payloads",
+            content(
+                (GraphStreamEvent = "text/event-stream")
+            )
+        )
     )
 )]
 pub async fn stream_graph(

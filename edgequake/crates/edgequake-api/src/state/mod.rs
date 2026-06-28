@@ -81,12 +81,14 @@ mod provider_setup;
 mod query_bootstrap;
 mod query_runtime;
 mod resource_runtime;
+pub mod security_config;
 mod storage_runtime;
 mod task_runtime;
 
 pub use auth_runtime::AuthRuntime;
 pub use config::*;
 pub use query_runtime::QueryRuntime;
+pub use security_config::ApiSecurityConfig;
 pub use storage_runtime::StorageRuntime;
 pub use task_runtime::TaskRuntime;
 
@@ -160,6 +162,9 @@ pub struct AppState {
     /// Bootstrap migration report (PostgreSQL only).
     #[cfg(feature = "postgres")]
     pub migration_bootstrap: Option<crate::state::migration_bootstrap::MigrationBootstrapReport>,
+
+    /// SPEC-027: runtime security flags (auth hardening, CORS, rate limits).
+    pub security: ApiSecurityConfig,
 }
 
 // ── Operational Methods ───────────────────────────────────────────────────

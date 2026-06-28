@@ -93,9 +93,11 @@ impl<'a> GraphReadView<'a> {
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
         self.inner
-            .get_knowledge_graph(start_node, max_depth, max_nodes)
+            .get_knowledge_graph(start_node, max_depth, max_nodes, tenant_id, workspace_id)
             .await
     }
 

@@ -15,9 +15,10 @@ use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 
+use crate::services::document_metadata_scan::load_scoped_document_metadata;
 use crate::services::resolve_process_options_from_metadata;
 
-use super::super::storage_helpers::{cleanup_document_graph_data, metadata_matches_tenant_context};
+use super::super::storage_helpers::cleanup_document_graph_data;
 
 /// Reprocess failed documents.
 #[utoipa::path(
@@ -62,68 +63,50 @@ pub async fn reprocess_failed(
         &Uuid::new_v4().to_string()[..8]
     );
 
-    // Get all metadata keys
-    // P-G7 (RC-12): use the index-friendly `keys_with_suffix` instead of
-    // scanning every key in the workspace and filtering in-memory. The Postgres
-    // adapter overrides this with a `reverse(key)` expression-index scan
-    // (O(log N + K)); other adapters filter in-process. Either way the caller
-    // no longer pays an O(W) full-table scan on every reprocess.
-    let all_keys: Vec<String> = state
-        .storage
-        .kv_storage
-        .keys_with_suffix("-metadata")
-        .await?;
+    // P-G7 + SPEC-027: batch scoped metadata (suffix index + tenant filter).
+    let scoped_metadata =
+        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
 
     let mut docs_to_reprocess = Vec::new();
     let mut requeued_ids = Vec::new();
 
-    // Find documents to reprocess. `all_keys` already contains only
-    // `*-metadata` keys (P-G7), so no suffix filter is needed here.
-    for key in all_keys.iter() {
+    for value in scoped_metadata {
         if docs_to_reprocess.len() >= request.max_documents {
             break;
         }
 
-        if let Some(value) = state.storage.kv_storage.get_by_id(key).await? {
-            if !metadata_matches_tenant_context(&value, &tenant_ctx) {
-                continue;
+        if let Some(obj) = value.as_object() {
+            let status = obj.get("status").and_then(|v| v.as_str());
+            let doc_track_id = obj.get("track_id").and_then(|v| v.as_str());
+            let doc_id = obj.get("id").and_then(|v| v.as_str());
+
+            // If document_id filter is specified, only match that exact document
+            if let Some(ref filter_doc_id) = request.document_id {
+                if doc_id != Some(filter_doc_id.as_str()) {
+                    continue;
+                }
+                // When document_id is specified with force=true, allow any status
+                // Otherwise, only reprocess if failed
+                if !request.force && status != Some("failed") {
+                    continue;
+                }
+                if let Some(id) = doc_id {
+                    docs_to_reprocess.push((id.to_string(), id.to_string()));
+                }
+                break; // Found the specific document
             }
 
-            if let Some(obj) = value.as_object() {
-                let status = obj.get("status").and_then(|v| v.as_str());
-                let doc_track_id = obj.get("track_id").and_then(|v| v.as_str());
-                let doc_id = obj.get("id").and_then(|v| v.as_str());
-
-                // If document_id filter is specified, only match that exact document
-                if let Some(ref filter_doc_id) = request.document_id {
-                    if doc_id != Some(filter_doc_id.as_str()) {
-                        continue;
-                    }
-                    // When document_id is specified with force=true, allow any status
-                    // Otherwise, only reprocess if failed
-                    if !request.force && status != Some("failed") {
-                        continue;
-                    }
-                    if let Some(id) = doc_id {
-                        docs_to_reprocess.push((id.to_string(), key.replace("-metadata", "")));
-                    }
-                    break; // Found the specific document
+            // If track_id filter is specified, match by track_id
+            if let Some(ref filter_track) = request.track_id {
+                if doc_track_id != Some(filter_track.as_str()) {
+                    continue;
                 }
+            }
 
-                // If track_id filter is specified, match by track_id
-                if let Some(ref filter_track) = request.track_id {
-                    if doc_track_id != Some(filter_track.as_str()) {
-                        continue;
-                    }
-                }
-
-                // Default behavior: reprocess failed and cancelled documents
-                // WHY: Cancelled documents should be retryable just like failed ones.
-                // Users may cancel a document during processing and want to retry later.
-                if status == Some("failed") || status == Some("cancelled") {
-                    if let Some(id) = doc_id {
-                        docs_to_reprocess.push((id.to_string(), key.replace("-metadata", "")));
-                    }
+            // Default behavior: reprocess failed and cancelled documents
+            if status == Some("failed") || status == Some("cancelled") {
+                if let Some(id) = doc_id {
+                    docs_to_reprocess.push((id.to_string(), id.to_string()));
                 }
             }
         }
@@ -200,7 +183,8 @@ pub async fn reprocess_failed(
         // embedding → entity extraction). Using TaskType::Insert for PDFs would
         // only re-ingest the previously extracted markdown, missing re-extraction
         // with any new vision LLM model.
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key =
+            crate::services::document_metadata_scan::metadata_key_for_document(doc_id);
         let metadata_opt = state.storage.kv_storage.get_by_id(&metadata_key).await?;
 
         let source_type = metadata_opt
@@ -288,11 +272,12 @@ pub async fn reprocess_failed(
                                 "retry_at".to_string(),
                                 serde_json::json!(Utc::now().to_rfc3339()),
                             );
-                            state
-                                .storage
-                                .kv_storage
-                                .upsert(&[(metadata_key.clone(), metadata)])
-                                .await?;
+                            crate::services::upsert_metadata_kv_with_index(
+                                state.storage.kv_storage.as_ref(),
+                                &metadata_key,
+                                metadata,
+                            )
+                            .await?;
                         }
                     }
 
@@ -415,11 +400,12 @@ pub async fn reprocess_failed(
                                 serde_json::json!(Utc::now().to_rfc3339()),
                             );
 
-                            state
-                                .storage
-                                .kv_storage
-                                .upsert(&[(metadata_key, metadata)])
-                                .await?;
+                            crate::services::upsert_metadata_kv_with_index(
+                                state.storage.kv_storage.as_ref(),
+                                &metadata_key,
+                                metadata,
+                            )
+                            .await?;
                         }
                     }
 

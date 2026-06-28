@@ -8,8 +8,7 @@ use axum::{
     Json,
 };
 
-use crate::error::{ApiError, ApiResult};
-use crate::handlers::isolation::properties_match_tenant_context;
+use crate::error::ApiResult;
 use crate::handlers::lineage_types::{
     ChunkSourceInfo, EntityProvenanceResponse, EntitySourceInfo, RelatedEntityInfo,
 };
@@ -24,7 +23,7 @@ use super::cache::cached_kv_get;
     path = "/api/v1/entities/{entity_id}/provenance",
     tag = "Lineage",
     params(
-        ("entity_id" = String, Path, description = "Entity ID to query")
+        ("entity_id" = String, Path, description = "Entity name (normalized) or graph node id")
     ),
     responses(
         (status = 200, description = "Entity provenance", body = EntityProvenanceResponse),
@@ -36,33 +35,14 @@ pub async fn get_entity_provenance(
     tenant_ctx: TenantContext,
     Path(entity_id): Path<String>,
 ) -> ApiResult<Json<EntityProvenanceResponse>> {
-    // WHY: Entity names are normalized to UPPERCASE_WITH_UNDERSCORES during
-    // extraction (see entity_extraction.rs). We must apply the same normalization
-    // here so lookups match stored graph nodes regardless of user input casing.
-    let normalized_id = entity_id.to_uppercase().replace(' ', "_");
+    let node = crate::services::lookup_entity_node_for_context(
+        state.storage.graph_storage.as_ref(),
+        &entity_id,
+        &tenant_ctx,
+    )
+    .await?;
 
-    // Look up entity
-    let node = state
-        .storage
-        .graph_storage
-        .get_node(&normalized_id)
-        .await?
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Entity '{}' not found (normalized: '{}'). \
-                 Entity names are stored as UPPERCASE_WITH_UNDERSCORES.",
-                entity_id, normalized_id
-            ))
-        })?;
-
-    // SECURITY: Verify the entity belongs to the requesting tenant/workspace.
-    // Returns 404 (not 403) to avoid leaking cross-tenant entity names.
-    if !properties_match_tenant_context(&node.properties, &tenant_ctx) {
-        return Err(ApiError::NotFound(format!(
-            "Entity '{}' not found",
-            entity_id
-        )));
-    }
+    let normalized_id = node.id.clone();
 
     let entity_type = node
         .properties
@@ -112,7 +92,8 @@ pub async fn get_entity_provenance(
     let mut entity_sources: Vec<EntitySourceInfo> = Vec::with_capacity(doc_map.len());
     for (doc_id, mut chunks) in doc_map {
         // Resolve document name from metadata
-        let metadata_key = format!("{}-metadata", doc_id);
+        let metadata_key =
+            crate::services::document_metadata_scan::metadata_key_for_document(&doc_id);
         let doc_name = if let Ok(Some(meta)) =
             cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key).await
         {

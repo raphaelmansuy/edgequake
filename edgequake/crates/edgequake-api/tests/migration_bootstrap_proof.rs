@@ -10,7 +10,7 @@
 mod common;
 
 use edgequake_api::state::migration_bootstrap::{
-    is_ready_for_traffic, run_postgres_migrations, MIGRATION_038_VERSION,
+    is_ready_for_traffic, run_postgres_migrations, MIGRATION_038_VERSION, MIGRATION_046_VERSION,
 };
 use sqlx::postgres::PgPoolOptions;
 
@@ -107,5 +107,21 @@ async fn migration_bootstrap_proof_idempotent_second_run() {
     assert_eq!(
         first.migration_038.indexes_ready, second.migration_038.indexes_ready,
         "index readiness must be stable across restarts"
+    );
+    assert!(
+        second.migration_046.marker_present || second.migration_046.apply_executed,
+        second.migration_047.marker_present || second.migration_047.apply_executed,
+        "migration 046 graph isolation indexes must be reconciled at startup"
+    );
+    let version_046: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM _sqlx_migrations WHERE version = $1 AND success = true)",
+    )
+    .bind(MIGRATION_046_VERSION)
+    .fetch_one(&pool)
+    .await
+    .expect("check 046 marker");
+    assert!(
+        version_046 || second.latest_version.unwrap_or(0) >= MIGRATION_046_VERSION,
+        "migration 046 marker should be recorded after bootstrap"
     );
 }

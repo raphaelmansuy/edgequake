@@ -14,11 +14,8 @@ const REQUIRED_VERTEX_SUFFIXES: &[&str] = &[
     "_node_id",
 ];
 
-const REQUIRED_EDGE_SUFFIXES: &[&str] = &[
-    "_edge_source_id",
-    "_edge_target_id",
-    "_ag_edge_start_id",
-];
+const REQUIRED_EDGE_SUFFIXES: &[&str] =
+    &["_edge_source_id", "_edge_target_id", "_ag_edge_start_id"];
 
 pub async fn reconcile_migration_046(
     pool: &PgPool,
@@ -123,11 +120,7 @@ async fn audit_required_indexes(pool: &PgPool) -> Result<Vec<String>, sqlx::Erro
     Ok(missing)
 }
 
-async fn index_exists(
-    pool: &PgPool,
-    schema: &str,
-    index_name: &str,
-) -> Result<bool, sqlx::Error> {
+async fn index_exists(pool: &PgPool, schema: &str, index_name: &str) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar(
         "SELECT EXISTS(
             SELECT 1 FROM pg_indexes WHERE schemaname = $1 AND indexname = $2

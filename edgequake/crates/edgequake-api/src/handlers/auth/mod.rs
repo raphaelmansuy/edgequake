@@ -47,7 +47,7 @@ pub(super) const USER_KEY_PREFIX: &str = "auth:user:";
 pub(super) const USER_BY_USERNAME_PREFIX: &str = "auth:user_by_username:";
 pub(super) const USER_BY_EMAIL_PREFIX: &str = "auth:user_by_email:";
 pub(super) const REFRESH_TOKEN_PREFIX: &str = "auth:refresh_token:";
-pub(super) const API_KEY_PREFIX: &str = "auth:api_key:";
+pub(crate) const API_KEY_PREFIX: &str = "auth:api_key:";
 
 // ============================================================================
 // Internal Storage Record Types (shared across sub-modules)
@@ -117,7 +117,7 @@ pub(super) struct RefreshTokenRecord {
 
 /// Stored API key record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct ApiKeyRecord {
+pub(crate) struct ApiKeyRecord {
     pub key_id: String,
     pub user_id: String,
     pub key_hash: String,
@@ -216,7 +216,7 @@ impl From<&UserRecord> for crate::handlers::auth_types::UserInfo {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct RequestAuthContext {
+pub(crate) struct RequestAuthContext {
     pub user_id: String,
     pub role: Role,
 }
@@ -225,25 +225,13 @@ pub(super) fn authenticate_request(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<Option<RequestAuthContext>, ApiError> {
-    if let Some(api_key) = extract_api_key(headers) {
-        if state
-            .auth
-            .config
-            .api_keys
-            .iter()
-            .any(|configured| configured == &api_key)
-        {
-            return Ok(Some(RequestAuthContext {
-                user_id: "master-api-key".to_string(),
-                role: Role::Admin,
-            }));
-        }
-    }
+    let token = extract_api_key(headers).or_else(|| extract_bearer_token(headers));
 
-    let Some(token) = extract_bearer_token(headers) else {
+    let Some(token) = token else {
         return Ok(None);
     };
 
+    // Sync path for handler-level auth (stored keys resolved async in middleware).
     if state
         .auth
         .config
@@ -257,22 +245,36 @@ pub(super) fn authenticate_request(
         }));
     }
 
-    let claims = state
-        .auth
-        .jwt
-        .verify_token(&token)
-        .map_err(|_| ApiError::unauthorized())?;
+    if let Ok(claims) = state.auth.jwt.verify_token(&token) {
+        return Ok(Some(RequestAuthContext {
+            user_id: claims
+                .user_id()
+                .map_err(|_| ApiError::unauthorized())?
+                .to_string(),
+            role: claims.role(),
+        }));
+    }
 
-    Ok(Some(RequestAuthContext {
-        user_id: claims
-            .user_id()
-            .map_err(|_| ApiError::unauthorized())?
-            .to_string(),
-        role: claims.role(),
-    }))
+    Ok(None)
 }
 
-pub(super) fn require_authenticated_request(
+/// Async authentication including KV-stored API keys (SPEC-027 IMP-002).
+pub(super) async fn authenticate_request_async(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<Option<RequestAuthContext>, ApiError> {
+    let token = extract_api_key(headers).or_else(|| extract_bearer_token(headers));
+
+    let Some(token) = token else {
+        return Ok(None);
+    };
+
+    crate::services::auth_validation::validate_presented_token(state, &token)
+        .await
+        .map(|result| result.map(|authenticated| authenticated.auth))
+}
+
+pub(super) async fn require_authenticated_request(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<RequestAuthContext, ApiError> {
@@ -283,10 +285,12 @@ pub(super) fn require_authenticated_request(
         });
     }
 
-    authenticate_request(headers, state)?.ok_or(ApiError::unauthorized())
+    authenticate_request_async(headers, state)
+        .await?
+        .ok_or(ApiError::unauthorized())
 }
 
-pub(super) fn require_admin_request(
+pub(crate) async fn require_admin_request(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<RequestAuthContext, ApiError> {
@@ -297,7 +301,7 @@ pub(super) fn require_admin_request(
         });
     }
 
-    let auth = require_authenticated_request(headers, state)?;
+    let auth = require_authenticated_request(headers, state).await?;
     if auth.role != Role::Admin {
         return Err(ApiError::forbidden());
     }

@@ -151,7 +151,7 @@ fn provider_to_response(provider: &edgequake_llm::ProviderConfig) -> ProviderRes
 /// - Enables smart dropdown population with grouping
 #[utoipa::path(
     get,
-    path = "/api/models",
+    path = "/api/v1/models",
     tag = "Models",
     responses(
         (status = 200, description = "List of all providers and models", body = ModelsListResponse)
@@ -195,7 +195,7 @@ pub async fn list_models(State(state): State<AppState>) -> ApiResult<Json<Models
 /// All LLM and multimodal models across all enabled providers.
 #[utoipa::path(
     get,
-    path = "/api/models/llm",
+    path = "/api/v1/models/llm",
     tag = "Models",
     responses(
         (status = 200, description = "List of LLM models", body = LlmModelsResponse)
@@ -246,7 +246,7 @@ pub async fn list_llm_models(State(state): State<AppState>) -> ApiResult<Json<Ll
 /// All embedding and multimodal models across all enabled providers.
 #[utoipa::path(
     get,
-    path = "/api/models/embedding",
+    path = "/api/v1/models/embedding",
     tag = "Models",
     responses(
         (status = 200, description = "List of embedding models", body = EmbeddingModelsResponse)
@@ -297,7 +297,7 @@ pub async fn list_embedding_models(
 /// Provider details with all its models, or 404 if not found.
 #[utoipa::path(
     get,
-    path = "/api/models/{provider}",
+    path = "/api/v1/models/{provider}",
     tag = "Models",
     params(
         ("provider" = String, Path, description = "Provider name")
@@ -336,7 +336,7 @@ pub async fn get_provider(
 /// Model card with capabilities and cost, or 404 if not found.
 #[utoipa::path(
     get,
-    path = "/api/models/{provider}/{model}",
+    path = "/api/v1/models/{provider}/{model}",
     tag = "Models",
     params(
         ("provider" = String, Path, description = "Provider name"),
@@ -382,7 +382,7 @@ pub async fn get_model(
 /// This helps users understand why a model might not work.
 #[utoipa::path(
     get,
-    path = "/api/models/health",
+    path = "/api/v1/models/health",
     tag = "Models",
     responses(
         (status = 200, description = "Provider health status", body = Vec<ProviderResponse>)

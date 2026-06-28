@@ -280,10 +280,13 @@ impl DocumentTaskProcessor {
             );
         }
 
-        self.kv_storage
-            .upsert(&[(metadata_key.clone(), metadata_json.clone())])
-            .await
-            .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
+        crate::services::upsert_metadata_kv_with_index(
+            self.kv_storage.as_ref(),
+            &metadata_key,
+            metadata_json,
+        )
+        .await
+        .map_err(|e| edgequake_tasks::TaskError::Storage(e.to_string()))?;
 
         // FIX-REBUILD: When reprocessing, clean up old content and chunk KV entries
         // WHY: Old chunks with stale content must be removed before the pipeline

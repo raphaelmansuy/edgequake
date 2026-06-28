@@ -225,7 +225,7 @@ pub async fn api_key_auth(
 /// Extract API key from request headers.
 pub async fn protected_api_auth(
     axum::extract::State(state): axum::extract::State<crate::state::AppState>,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Response {
     if !state.auth.config.auth_enabled {
@@ -240,18 +240,124 @@ pub async fn protected_api_auth(
     }
 
     if let Some(token) = extract_api_key(&request) {
-        if state
-            .auth
-            .config
-            .api_keys
-            .iter()
-            .any(|configured| configured == &token)
-            || state.auth.jwt.verify_token(&token).is_ok()
-        {
-            return next.run(request).await;
+        match crate::services::auth_validation::validate_presented_token(&state, &token).await {
+            Ok(Some(authenticated)) => {
+                if let Some(response) =
+                    apply_authenticated_context(&state, &mut request, authenticated)
+                {
+                    return response;
+                }
+                return next.run(request).await;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                return e.into_response();
+            }
         }
     }
 
+    unauthorized_response(&method, path)
+}
+
+/// Gate Ollama-compatible routes when disabled — SPEC-027 IMP-005.
+pub async fn ollama_compat_gate(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if state.security.enable_ollama_compat {
+        return next.run(request).await;
+    }
+
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(serde_json::json!({
+            "code": "SERVICE_UNAVAILABLE",
+            "message": "Ollama compatibility API is disabled (set EDGEQUAKE_OLLAMA_COMPAT_ENABLED=true)"
+        })),
+    )
+        .into_response()
+}
+
+/// Rate limiting wrapper reading AppState security flag — SPEC-027 IMP-008.
+pub async fn tenant_rate_limit_from_state(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    let rate_state = RateLimitState::new(
+        state.rate_limiter.clone(),
+        state.security.rate_limit_enabled,
+    );
+    tenant_rate_limit(axum::extract::State(rate_state), request, next).await
+}
+
+fn apply_authenticated_context(
+    state: &crate::state::AppState,
+    request: &mut Request,
+    authenticated: crate::services::auth_validation::AuthenticatedRequest,
+) -> Option<Response> {
+    let mut tenant_ctx = TenantContext::from_headers(request.headers());
+
+    if let Some(jwt_tid) = &authenticated.jwt_tenant_id {
+        if let Some(response) =
+            merge_claim_into_context(state, &mut tenant_ctx.tenant_id, jwt_tid, "tenant_id")
+        {
+            return Some(response);
+        }
+    }
+    if let Some(jwt_wid) = &authenticated.jwt_workspace_id {
+        if let Some(response) =
+            merge_claim_into_context(state, &mut tenant_ctx.workspace_id, jwt_wid, "workspace_id")
+        {
+            return Some(response);
+        }
+    }
+
+    request.extensions_mut().insert(authenticated.auth);
+    request.extensions_mut().insert(tenant_ctx);
+    None
+}
+
+fn merge_claim_into_context(
+    state: &crate::state::AppState,
+    header_value: &mut Option<String>,
+    claim_value: &str,
+    field: &str,
+) -> Option<Response> {
+    match header_value.as_deref() {
+        None | Some("") => {
+            *header_value = Some(claim_value.to_string());
+        }
+        Some(existing) if existing == claim_value => {}
+        Some(existing) => {
+            tracing::warn!(
+                field = field,
+                header = existing,
+                claim = claim_value,
+                "JWT tenant claim differs from request header (SPEC-027 IMP-004)"
+            );
+            if state.security.strict_tenant_bind {
+                return Some(
+                    (
+                        StatusCode::FORBIDDEN,
+                        Json(AuthError {
+                            error: "forbidden".to_string(),
+                            message: format!(
+                                "Header {field} does not match authenticated token claims"
+                            ),
+                            request_id: edgequake_observability::current_request_id(),
+                        }),
+                    )
+                        .into_response(),
+                );
+            }
+        }
+    }
+    None
+}
+
+fn unauthorized_response(method: &Method, path: &str) -> Response {
     let request_id =
         edgequake_observability::current_request_id().unwrap_or_else(|| "unknown".to_string());
     tracing::warn!(
@@ -273,6 +379,19 @@ pub async fn protected_api_auth(
         }),
     )
         .into_response()
+}
+
+pub async fn ws_validate_token(state: &crate::state::AppState, token: Option<&str>) -> bool {
+    if !state.auth.config.auth_enabled {
+        return true;
+    }
+    let Some(token) = token.filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    matches!(
+        crate::services::auth_validation::validate_presented_token(state, token).await,
+        Ok(Some(_))
+    )
 }
 
 fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str) -> bool {
@@ -595,6 +714,9 @@ where
         parts: &mut axum::http::request::Parts,
         _state: &S,
     ) -> Result<Self, Self::Rejection> {
+        if let Some(ctx) = parts.extensions.get::<TenantContext>() {
+            return Ok(ctx.clone());
+        }
         Ok(TenantContext::from_headers(&parts.headers))
     }
 }

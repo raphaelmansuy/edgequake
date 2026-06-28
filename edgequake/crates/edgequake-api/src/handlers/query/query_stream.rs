@@ -52,7 +52,11 @@ type SseStream = KeepAliveStream<BoxedSseStream>;
     tag = "Query",
     request_body = StreamQueryRequest,
     responses(
-        (status = 200, description = "Streaming query started"),
+        (status = 200, description = "Streaming query SSE (QueryStreamEvent payloads)",
+            content(
+                (QueryStreamEvent = "text/event-stream")
+            )
+        ),
         (status = 400, description = "Invalid query")
     )
 )]

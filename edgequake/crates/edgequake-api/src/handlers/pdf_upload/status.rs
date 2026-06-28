@@ -14,6 +14,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
 use crate::state::AppState;
 use edgequake_storage::ListPdfFilter;
+use edgequake_tasks::PdfUploadProgress;
 
 /// Get PDF processing status.
 ///
@@ -251,7 +252,7 @@ pub async fn delete_pdf(
         ("track_id" = String, Path, description = "Upload tracking ID from upload response")
     ),
     responses(
-        (status = 200, description = "Progress data (PdfUploadProgress)"),
+        (status = 200, description = "Progress data", body = PdfUploadProgress),
         (status = 404, description = "Progress not found (completed or not started)"),
         (status = 401, description = "Unauthorized"),
     ),
@@ -260,7 +261,7 @@ pub async fn delete_pdf(
 pub async fn get_pdf_progress(
     State(state): State<AppState>,
     Path(track_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
+) -> ApiResult<Json<PdfUploadProgress>> {
     let progress = state
         .tasks
         .pipeline_state
@@ -272,11 +273,7 @@ pub async fn get_pdf_progress(
             )
         })?;
 
-    // Serialize to JSON value to avoid utoipa schema requirements
-    let json_value = serde_json::to_value(&progress)
-        .map_err(|e| ApiError::Internal(format!("Failed to serialize progress: {}", e)))?;
-
-    Ok(Json(json_value))
+    Ok(Json(progress))
 }
 
 /// SSE (Server-Sent Events) endpoint for real-time PDF progress streaming.
@@ -319,7 +316,11 @@ pub async fn get_pdf_progress(
         ("track_id" = String, Path, description = "Upload tracking ID from upload response")
     ),
     responses(
-        (status = 200, description = "SSE stream of progress events"),
+        (status = 200, description = "SSE stream of PdfUploadProgress events",
+            content(
+                (PdfUploadProgress = "text/event-stream")
+            )
+        ),
         (status = 404, description = "Progress not found"),
     ),
     tag = "Documents"

@@ -13,7 +13,21 @@ impl PostgresAGEGraphStorage {
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
+        if tenant_id.is_some() && workspace_id.is_some() {
+            return self
+                .pg_get_knowledge_graph_scoped(
+                    start_node,
+                    max_depth,
+                    max_nodes,
+                    tenant_id.unwrap(),
+                    workspace_id.unwrap(),
+                )
+                .await;
+        }
+
         let escaped_id = Self::escape_cypher_string(start_node);
 
         // Use AGE's variable-length path traversal
@@ -65,6 +79,95 @@ impl PostgresAGEGraphStorage {
 
         kg.is_truncated = kg.node_count() >= max_nodes;
 
+        Ok(kg)
+    }
+
+    /// Tenant-scoped BFS using native SQL edge batch lookups (SPEC-027 IMP-022).
+    ///
+    /// Requires migration 046 expression indexes for production-scale graphs.
+    async fn pg_get_knowledge_graph_scoped(
+        &self,
+        start_node: &str,
+        max_depth: usize,
+        max_nodes: usize,
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<KnowledgeGraph> {
+        use std::collections::{HashSet, VecDeque};
+
+        use crate::traits::{edge_matches_list_filter, node_matches_list_filter};
+
+        let node_filter = NodeListFilter {
+            tenant_id: Some(tenant_id.to_string()),
+            workspace_id: Some(workspace_id.to_string()),
+            ..Default::default()
+        };
+        let edge_filter = EdgeListFilter {
+            tenant_id: Some(tenant_id.to_string()),
+            workspace_id: Some(workspace_id.to_string()),
+            relationship_type: None,
+        };
+
+        let Some(start) = self.pg_get_node(start_node).await? else {
+            return Ok(KnowledgeGraph::new());
+        };
+        if !node_matches_list_filter(&start, &node_filter) {
+            return Ok(KnowledgeGraph::new());
+        }
+
+        let mut kg = KnowledgeGraph::new();
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut frontier: VecDeque<String> = VecDeque::new();
+        visited.insert(start.id.clone());
+        frontier.push_back(start.id.clone());
+        kg.add_node(start);
+
+        for _ in 0..max_depth {
+            if frontier.is_empty() || kg.node_count() >= max_nodes {
+                break;
+            }
+
+            let current_frontier: Vec<String> = frontier.drain(..).collect();
+            let frontier_set: HashSet<&str> = current_frontier.iter().map(String::as_str).collect();
+            let edges = self
+                .pg_get_incident_edges_batch(&current_frontier)
+                .await?;
+
+            for edge in edges {
+                if !edge_matches_list_filter(&edge, &edge_filter) {
+                    continue;
+                }
+
+                for (endpoint, other) in [(&edge.source, &edge.target), (&edge.target, &edge.source)]
+                {
+                    if !frontier_set.contains(endpoint.as_str()) || visited.contains(other) {
+                        continue;
+                    }
+                    if let Some(node) = self.pg_get_node(other).await? {
+                        if node_matches_list_filter(&node, &node_filter)
+                            && visited.insert(other.clone())
+                        {
+                            kg.add_node(node);
+                            if kg.node_count() < max_nodes {
+                                frontier.push_back(other.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let node_ids: Vec<String> = kg.nodes.iter().map(|n| n.id.clone()).collect();
+        if !node_ids.is_empty() {
+            let edges = self
+                .pg_get_edges_for_node_set(&node_ids, Some(tenant_id), Some(workspace_id))
+                .await?;
+            for edge in edges {
+                kg.add_edge(edge);
+            }
+        }
+
+        kg.is_truncated = kg.node_count() >= max_nodes;
         Ok(kg)
     }
 

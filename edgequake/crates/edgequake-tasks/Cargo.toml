@@ -27,6 +27,9 @@ edgequake-pdf = { path = "../edgequake-pdf" }
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 
+# OpenAPI schema generation (optional — enabled by edgequake-api)
+utoipa = { workspace = true, optional = true }
+
 # Async traits
 async-trait = "0.1"
 
@@ -56,3 +59,4 @@ default = ["memory"]
 memory = []
 redis-queue = ["redis"]
 postgres = ["sqlx"]
+openapi = ["dep:utoipa"]

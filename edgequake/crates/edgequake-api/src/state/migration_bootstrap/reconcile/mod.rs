@@ -8,6 +8,7 @@ mod m043;
 mod m044;
 mod m045;
 mod m046;
+mod m047;
 
 pub(super) use m038::reconcile_migration_038;
 pub(super) use m040::reconcile_migration_040_background;
@@ -17,3 +18,4 @@ pub(super) use m043::reconcile_migration_043;
 pub(super) use m044::reconcile_migration_044;
 pub(super) use m045::reconcile_migration_045;
 pub(super) use m046::reconcile_migration_046;
+pub(super) use m047::reconcile_migration_047;

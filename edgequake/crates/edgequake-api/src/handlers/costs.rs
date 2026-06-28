@@ -28,6 +28,12 @@ use axum::{
 };
 
 use crate::error::ApiResult;
+use crate::services::cost_aggregation::{
+    aggregate_cost_history, aggregate_cost_summary, load_scoped_document_cost_rows,
+};
+use crate::services::tenant_guard::{
+    empty_cost_summary, has_full_tenant_context, warn_missing_tenant_context,
+};
 use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
@@ -113,7 +119,7 @@ pub async fn get_cost_summary(
     State(state): State<AppState>,
     tenant_ctx: crate::middleware::TenantContext,
 ) -> ApiResult<Json<WorkspaceCostSummaryResponse>> {
-    use tracing::{debug, warn};
+    use tracing::debug;
 
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
@@ -121,92 +127,28 @@ pub async fn get_cost_summary(
         "Getting cost summary with tenant context"
     );
 
-    // SECURITY: Enforce strict tenant context requirement
-    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
-        warn!(
-            tenant_id = ?tenant_ctx.tenant_id,
-            workspace_id = ?tenant_ctx.workspace_id,
-            "Tenant context missing - returning empty cost summary for security"
-        );
-        return Ok(Json(WorkspaceCostSummaryResponse {
-            workspace_id: "unknown".to_string(),
-            total_cost: 0.0,
-            document_count: 0,
-            total_tokens: 0,
-            average_cost_per_document: 0.0,
-            period_start: None,
-            period_end: None,
-            by_operation: vec![],
-            budget: None,
-        }));
-    }
-    // Query all document metadata to aggregate costs
-    let metadata_keys = state.storage.kv_storage.keys_like("%-metadata").await?;
-
-    let mut total_cost = 0.0;
-    let mut total_input_tokens = 0usize;
-    let mut total_output_tokens = 0usize;
-    let mut document_count = 0usize;
-    let mut extraction_cost = 0.0;
-    let mut embedding_cost = 0.0;
-
-    if !metadata_keys.is_empty() {
-        let values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
-
-        for value in values {
-            if let Some(obj) = value.as_object() {
-                // SECURITY: Filter by tenant context
-                let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
-                let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
-
-                // Only process documents matching BOTH tenant_id AND workspace_id
-                if tenant_ctx.tenant_id.as_deref() != doc_tenant_id {
-                    continue; // Skip document from other tenant
-                }
-                if tenant_ctx.workspace_id.as_deref() != doc_workspace_id {
-                    continue; // Skip document from other workspace
-                }
-
-                // Only count completed documents
-                let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                if status == "completed" || status == "indexed" {
-                    document_count += 1;
-
-                    // Aggregate cost
-                    if let Some(cost) = obj.get("cost_usd").and_then(|v| v.as_f64()) {
-                        total_cost += cost;
-                        // For now, assume extraction is ~90% of cost
-                        extraction_cost += cost * 0.9;
-                        embedding_cost += cost * 0.1;
-                    }
-
-                    // Aggregate tokens
-                    if let Some(input) = obj.get("input_tokens").and_then(|v| v.as_u64()) {
-                        total_input_tokens += input as usize;
-                    }
-                    if let Some(output) = obj.get("output_tokens").and_then(|v| v.as_u64()) {
-                        total_output_tokens += output as usize;
-                    }
-                }
-            }
-        }
+    if !has_full_tenant_context(&tenant_ctx) {
+        warn_missing_tenant_context(&tenant_ctx, "get_cost_summary");
+        return Ok(Json(empty_cost_summary()));
     }
 
-    let total_tokens = total_input_tokens + total_output_tokens;
-    let average_cost = if document_count > 0 {
-        total_cost / document_count as f64
+    let rows = load_scoped_document_cost_rows(&state.storage.kv_storage, &tenant_ctx).await?;
+    let totals = aggregate_cost_summary(&rows);
+
+    let total_tokens = totals.total_input_tokens + totals.total_output_tokens;
+    let average_cost = if totals.document_count > 0 {
+        totals.total_cost / totals.document_count as f64
     } else {
         0.0
     };
 
-    // Calculate percentages
-    let extraction_percentage = if total_cost > 0.0 {
-        (extraction_cost / total_cost) * 100.0
+    let extraction_percentage = if totals.total_cost > 0.0 {
+        (totals.extraction_cost / totals.total_cost) * 100.0
     } else {
         0.0
     };
-    let embedding_percentage = if total_cost > 0.0 {
-        (embedding_cost / total_cost) * 100.0
+    let embedding_percentage = if totals.total_cost > 0.0 {
+        (totals.embedding_cost / totals.total_cost) * 100.0
     } else {
         0.0
     };
@@ -214,9 +156,10 @@ pub async fn get_cost_summary(
     Ok(Json(WorkspaceCostSummaryResponse {
         workspace_id: tenant_ctx
             .workspace_id
+            .clone()
             .unwrap_or_else(|| "default".to_string()),
-        total_cost,
-        document_count,
+        total_cost: totals.total_cost,
+        document_count: totals.document_count,
         total_tokens,
         average_cost_per_document: average_cost,
         period_start: None,
@@ -224,21 +167,21 @@ pub async fn get_cost_summary(
         by_operation: vec![
             OperationBreakdown {
                 operation: "extraction".to_string(),
-                cost: extraction_cost,
+                cost: totals.extraction_cost,
                 percentage: extraction_percentage,
-                input_tokens: total_input_tokens,
-                output_tokens: total_output_tokens,
-                total_tokens: total_input_tokens + total_output_tokens,
-                call_count: document_count,
+                input_tokens: totals.total_input_tokens,
+                output_tokens: totals.total_output_tokens,
+                total_tokens,
+                call_count: totals.document_count,
             },
             OperationBreakdown {
                 operation: "embedding".to_string(),
-                cost: embedding_cost,
+                cost: totals.embedding_cost,
                 percentage: embedding_percentage,
                 input_tokens: 0,
                 output_tokens: 0,
                 total_tokens: 0,
-                call_count: document_count,
+                call_count: totals.document_count,
             },
         ],
         budget: None,
@@ -258,7 +201,7 @@ pub async fn get_budget_status(
     State(_state): State<AppState>,
     tenant_ctx: crate::middleware::TenantContext,
 ) -> ApiResult<Json<BudgetInfo>> {
-    use tracing::{debug, warn};
+    use tracing::debug;
 
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
@@ -268,7 +211,7 @@ pub async fn get_budget_status(
 
     // SECURITY: Enforce strict tenant context requirement
     if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
-        warn!(
+        tracing::warn!(
             tenant_id = ?tenant_ctx.tenant_id,
             workspace_id = ?tenant_ctx.workspace_id,
             "Tenant context missing - returning default budget for security"
@@ -301,7 +244,7 @@ pub async fn update_budget(
     tenant_ctx: crate::middleware::TenantContext,
     Json(budget): Json<BudgetInfo>,
 ) -> ApiResult<Json<BudgetInfo>> {
-    use tracing::{debug, warn};
+    use tracing::debug;
 
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
@@ -309,9 +252,8 @@ pub async fn update_budget(
         "Updating budget with tenant context"
     );
 
-    // SECURITY: Enforce strict tenant context requirement
-    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
-        warn!(
+    if !has_full_tenant_context(&tenant_ctx) {
+        tracing::warn!(
             tenant_id = ?tenant_ctx.tenant_id,
             workspace_id = ?tenant_ctx.workspace_id,
             "Tenant context missing - rejecting budget update"
@@ -348,9 +290,7 @@ pub async fn get_cost_history(
     tenant_ctx: crate::middleware::TenantContext,
     Query(params): Query<CostHistoryQuery>,
 ) -> ApiResult<Json<Vec<CostHistoryPoint>>> {
-    use chrono::{DateTime, Datelike, Duration, Utc};
-    use std::collections::BTreeMap;
-    use tracing::{debug, warn};
+    use tracing::debug;
 
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
@@ -358,108 +298,14 @@ pub async fn get_cost_history(
         "Getting cost history with tenant context"
     );
 
-    // SECURITY: Enforce strict tenant context requirement
-    if tenant_ctx.tenant_id.is_none() || tenant_ctx.workspace_id.is_none() {
-        warn!(
-            tenant_id = ?tenant_ctx.tenant_id,
-            workspace_id = ?tenant_ctx.workspace_id,
-            "Tenant context missing - returning empty cost history for security"
-        );
+    if !has_full_tenant_context(&tenant_ctx) {
+        warn_missing_tenant_context(&tenant_ctx, "get_cost_history");
         return Ok(Json(vec![]));
     }
 
     let granularity = params.granularity.as_deref().unwrap_or("day");
-
-    // SPEC-012 Fix C+: indexed suffix scan (was `keys_like(\"%-metadata\")`).
-    let metadata_keys = state
-        .storage
-        .kv_storage
-        .keys_with_suffix("-metadata")
-        .await?;
-
-    // Group costs by time period
-    let mut period_data: BTreeMap<String, (f64, usize, usize)> = BTreeMap::new();
-
-    if !metadata_keys.is_empty() {
-        let values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
-
-        for value in values {
-            if let Some(obj) = value.as_object() {
-                // SECURITY: Filter by tenant context
-                let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
-                let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
-
-                // Only process documents matching BOTH tenant_id AND workspace_id
-                if tenant_ctx.tenant_id.as_deref() != doc_tenant_id {
-                    continue; // Skip document from other tenant
-                }
-                if tenant_ctx.workspace_id.as_deref() != doc_workspace_id {
-                    continue; // Skip document from other workspace
-                }
-
-                // Only count completed documents
-                let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                if status != "completed" && status != "indexed" {
-                    continue;
-                }
-
-                // Get processed_at or created_at timestamp
-                let timestamp_str = obj
-                    .get("processed_at")
-                    .or_else(|| obj.get("created_at"))
-                    .and_then(|v| v.as_str());
-
-                if let Some(ts) = timestamp_str {
-                    // Parse timestamp and truncate to period
-                    if let Ok(dt) = DateTime::parse_from_rfc3339(ts) {
-                        let dt_utc = dt.with_timezone(&Utc);
-                        let period_key = match granularity {
-                            "hour" => dt_utc.format("%Y-%m-%dT%H:00:00Z").to_string(),
-                            "week" => {
-                                let week_start = dt_utc
-                                    - Duration::days(dt_utc.weekday().num_days_from_monday() as i64);
-                                week_start.format("%Y-%m-%dT00:00:00Z").to_string()
-                            }
-                            "month" => dt_utc.format("%Y-%m-01T00:00:00Z").to_string(),
-                            _ => dt_utc.format("%Y-%m-%dT00:00:00Z").to_string(), // day
-                        };
-
-                        let entry = period_data.entry(period_key).or_insert((0.0, 0, 0));
-
-                        // Add cost
-                        if let Some(cost) = obj.get("cost_usd").and_then(|v| v.as_f64()) {
-                            entry.0 += cost;
-                        }
-
-                        // Add tokens
-                        let input = obj
-                            .get("input_tokens")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0);
-                        let output = obj
-                            .get("output_tokens")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0);
-                        entry.1 += (input + output) as usize;
-
-                        // Increment document count
-                        entry.2 += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    // Convert to response
-    let history: Vec<CostHistoryPoint> = period_data
-        .into_iter()
-        .map(|(timestamp, (cost, tokens, count))| CostHistoryPoint {
-            timestamp,
-            total_cost: cost,
-            total_tokens: tokens,
-            document_count: count,
-        })
-        .collect();
+    let rows = load_scoped_document_cost_rows(&state.storage.kv_storage, &tenant_ctx).await?;
+    let history = aggregate_cost_history(&rows, granularity);
 
     Ok(Json(history))
 }

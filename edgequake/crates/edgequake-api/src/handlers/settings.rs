@@ -1,17 +1,12 @@
 //! Settings-related API handlers.
-//!
-//! @implements SPEC-032: Ollama/LM Studio provider support - Status API
-//! @iteration OODA Loop #5 - Phase 5E.3 + OODA 12
+
+pub use crate::provider_types::{AvailableProvidersResponse, ProviderStatusResponse};
 
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-use crate::{
-    error::ApiError,
-    provider_types::{AvailableProvidersResponse, ProviderStatusResponse},
-    safety_limits::is_model_provider_mismatch,
-    state::AppState,
-};
+use crate::{error::ApiError, safety_limits::is_model_provider_mismatch, state::AppState};
 
 // ── Config Explainability Types ───────────────────────────────────────────
 
@@ -20,7 +15,7 @@ use crate::{
 /// Levels are returned in ascending priority order so that the UI can walk
 /// from the lowest-priority source ("compiled default") to the highest
 /// ("workspace DB") and clearly show the user *which* value wins and *why*.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigLevel {
     /// Machine-readable level name (e.g. "compiled_default", "env_var", "workspace_db").
     pub level: String,
@@ -39,7 +34,7 @@ pub struct ConfigLevel {
 }
 
 /// Config area response for one config domain (llm / embedding / vision).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigAreaResponse {
     /// Ordered resolution chain (lowest → highest priority).
     pub levels: Vec<ConfigLevel>,
@@ -57,7 +52,7 @@ pub struct ConfigAreaResponse {
 /// Full effective configuration response.
 ///
 /// `GET /api/v1/config/effective`
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EffectiveConfigResponse {
     /// LLM chat/extraction configuration chain.
     pub llm: ConfigAreaResponse,
@@ -372,6 +367,14 @@ fn build_config_area(
 ///
 /// Returns detailed information about the currently active LLM provider,
 /// embedding provider, and vector storage configuration.
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/provider/status",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Provider status", body = ProviderStatusResponse)
+    )
+)]
 pub async fn get_provider_status(
     State(app_state): State<AppState>,
 ) -> Result<Json<ProviderStatusResponse>, ApiError> {
@@ -393,32 +396,14 @@ pub async fn get_provider_status(
 ///
 /// Returns information about all supported LLM and embedding providers,
 /// including their availability status based on environment configuration.
-///
-/// # Response
-///
-/// Returns [`AvailableProvidersResponse`] with:
-/// - `llm_providers`: List of available LLM providers
-/// - `embedding_providers`: List of available embedding providers
-/// - `active_llm_provider`: Currently active LLM provider name
-/// - `active_embedding_provider`: Currently active embedding provider name
-///
-/// # Example
-///
-/// ```json
-/// {
-///   "llm_providers": [
-///     {
-///       "id": "openai",
-///       "name": "OpenAI",
-///       "available": true,
-///       "default_models": { "chat_model": "gpt-4o-mini", ... }
-///     },
-///     ...
-///   ],
-///   "active_llm_provider": "openai",
-///   "active_embedding_provider": "openai"
-/// }
-/// ```
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/providers",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Available providers", body = AvailableProvidersResponse)
+    )
+)]
 pub async fn list_available_providers(
     State(app_state): State<AppState>,
 ) -> Result<Json<AvailableProvidersResponse>, ApiError> {
@@ -452,6 +437,14 @@ pub async fn list_available_providers(
 ///
 /// This is the "source of truth" endpoint for diagnosing configuration issues.
 /// The frontend settings page uses this to render the Config Explainability panel.
+#[utoipa::path(
+    get,
+    path = "/api/v1/config/effective",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Effective configuration chain", body = EffectiveConfigResponse)
+    )
+)]
 pub async fn get_effective_config(
     State(_app_state): State<AppState>,
 ) -> Result<Json<EffectiveConfigResponse>, ApiError> {

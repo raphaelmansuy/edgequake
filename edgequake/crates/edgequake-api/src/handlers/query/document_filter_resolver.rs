@@ -10,6 +10,10 @@ use edgequake_storage::traits::KVStorage;
 use tracing::{debug, warn};
 
 use crate::handlers::query_types::DocumentFilter;
+use crate::middleware::TenantContext;
+use crate::services::document_metadata_scan::{
+    load_all_document_metadata, load_scoped_document_metadata_entries,
+};
 
 /// Resolve a `DocumentFilter` into a list of matching document IDs.
 ///
@@ -36,26 +40,27 @@ pub async fn resolve_document_filter(
         return Ok(None);
     }
 
-    // Fetch all KV keys and find metadata keys
-    let keys = kv_storage
-        .keys()
-        .await
-        .map_err(|e| crate::error::ApiError::Internal(format!("Failed to list KV keys: {}", e)))?;
+    // SPEC-027 phase 10: wsdoc index when workspace context present; else suffix scan.
+    let scope_applied = workspace_id.is_some();
+    let metadata_values: Vec<serde_json::Value> = if scope_applied {
+        let tenant_ctx = TenantContext {
+            tenant_id: tenant_id.clone(),
+            workspace_id: workspace_id.clone(),
+            user_id: None,
+        };
+        load_scoped_document_metadata_entries(kv_storage, &tenant_ctx)
+            .await?
+            .into_iter()
+            .map(|(_, v)| v)
+            .collect()
+    } else {
+        load_all_document_metadata(kv_storage).await?
+    };
 
-    let metadata_keys: Vec<String> = keys
-        .into_iter()
-        .filter(|k| k.ends_with("-metadata"))
-        .collect();
-
-    if metadata_keys.is_empty() {
+    if metadata_values.is_empty() {
         debug!("No metadata keys found — filter returns empty set");
         return Ok(Some(Vec::new()));
     }
-
-    // Batch-fetch all metadata values
-    let metadata_values = kv_storage.get_by_ids(&metadata_keys).await.map_err(|e| {
-        crate::error::ApiError::Internal(format!("Failed to fetch document metadata: {}", e))
-    })?;
 
     // Pre-parse the pattern into lowercase substrings for matching
     let patterns: Vec<String> = filter
@@ -82,17 +87,26 @@ pub async fn resolve_document_filter(
             None => continue,
         };
 
-        // Tenant/workspace scoping — skip docs that don't belong to the caller
-        if let Some(ref tid) = tenant_id {
-            if let Some(doc_tid) = obj.get("tenant_id").and_then(|v| v.as_str()) {
-                if doc_tid != tid {
-                    continue;
+        // Tenant/workspace scoping — skip workspace when scoped load applied; tenant always manual unless scoped.
+        if !scope_applied {
+            if let Some(ref tid) = tenant_id {
+                if let Some(doc_tid) = obj.get("tenant_id").and_then(|v| v.as_str()) {
+                    if doc_tid != tid {
+                        continue;
+                    }
                 }
             }
-        }
-        if let Some(ref wid) = workspace_id {
-            if let Some(doc_wid) = obj.get("workspace_id").and_then(|v| v.as_str()) {
-                if doc_wid != wid {
+            if let Some(ref wid) = workspace_id {
+                if let Some(doc_wid) = obj.get("workspace_id").and_then(|v| v.as_str()) {
+                    if doc_wid != wid {
+                        continue;
+                    }
+                }
+            }
+        } else if let Some(ref tid) = tenant_id {
+            // Workspace-scoped load does not compare arbitrary tenant string ids — filter here.
+            if let Some(doc_tid) = obj.get("tenant_id").and_then(|v| v.as_str()) {
+                if doc_tid != tid {
                     continue;
                 }
             }
@@ -155,12 +169,14 @@ mod tests {
     use edgequake_storage::adapters::memory::MemoryKVStorage;
     use serde_json::json;
 
+    use edgequake_storage::kv_keys;
+
     async fn setup_kv_with_docs(docs: Vec<serde_json::Value>) -> MemoryKVStorage {
         let kv = MemoryKVStorage::new("test");
         kv.initialize().await.unwrap();
         for doc in &docs {
             let id = doc.get("id").unwrap().as_str().unwrap();
-            let key = format!("{}-metadata", id);
+            let key = kv_keys::doc_metadata(id);
             kv.upsert(&[(key, doc.clone())]).await.unwrap();
         }
         kv
@@ -346,5 +362,42 @@ mod tests {
             .unwrap();
 
         assert!(result.is_empty(), "No documents should match future date");
+    }
+
+    #[tokio::test]
+    async fn test_workspace_scoped_filter_uses_indexed_metadata() {
+        use crate::services::sync_workspace_document_index;
+
+        let ws = uuid::Uuid::new_v4().to_string();
+        let kv = setup_kv_with_docs(vec![
+            json!({"id": "doc-in-ws", "title": "Report", "workspace_id": ws, "tenant_id": "t1"}),
+            json!({"id": "doc-other", "title": "Report", "workspace_id": "other", "tenant_id": "t1"}),
+        ])
+        .await;
+
+        sync_workspace_document_index(
+            &kv,
+            &kv_keys::doc_metadata("doc-in-ws"),
+            &json!({"id": "doc-in-ws", "workspace_id": ws, "tenant_id": "t1"}),
+        )
+        .await
+        .unwrap();
+
+        let filter = DocumentFilter {
+            date_from: None,
+            date_to: None,
+            document_pattern: Some("report".to_string()),
+        };
+        let result = resolve_document_filter(
+            &kv,
+            &filter,
+            &Some("t1".to_string()),
+            &Some(ws.clone()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(result, vec!["doc-in-ws".to_string()]);
     }
 }

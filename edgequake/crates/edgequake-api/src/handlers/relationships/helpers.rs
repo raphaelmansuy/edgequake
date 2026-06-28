@@ -12,10 +12,10 @@ use crate::middleware::TenantContext;
 
 /// Normalize entity name using the single canonical normalizer (RC-6 / P-G1).
 ///
-/// Delegates to `edgequake_storage::normalize_entity_name` so manually-created
+/// Delegates to [`crate::services::entity_name_normalize`] so manually-created
 /// relationship endpoints produce entity ids identical to ingestion paths.
 pub(super) fn normalize_entity_name(name: &str) -> String {
-    edgequake_storage::normalize_entity_name(name)
+    crate::services::entity_name_normalize::normalize_entity_name(name)
 }
 
 /// Extract relation type from keywords.

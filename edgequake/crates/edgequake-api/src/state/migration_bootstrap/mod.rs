@@ -40,6 +40,10 @@ pub(super) const SQL_045_APPLY: &str =
 pub(super) const SQL_046_APPLY: &str =
     include_str!("../../../../../migrations/support/046/apply.sql");
 
+/// Workspace document KV index backfill — SSOT: `migrations/support/047/apply.sql`
+pub(super) const SQL_047_APPLY: &str =
+    include_str!("../../../../../migrations/support/047/apply.sql");
+
 /// sqlx migration version marker (no blocking DDL in sqlx file).
 pub const MIGRATION_038_VERSION: i64 = 38;
 
@@ -61,6 +65,9 @@ pub const MIGRATION_045_VERSION: i64 = 45;
 /// sqlx migration version marker for graph tenant isolation perf indexes.
 pub const MIGRATION_046_VERSION: i64 = 46;
 
+/// sqlx migration version marker for workspace document KV index backfill.
+pub const MIGRATION_047_VERSION: i64 = 47;
+
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
 /// Outcome of bootstrap migration run (surfaced in `/health` and `/ready`).
@@ -75,6 +82,7 @@ pub struct MigrationBootstrapReport {
     pub migration_044: Migration044Report,
     pub migration_045: Migration045Report,
     pub migration_046: Migration046Report,
+    pub migration_047: Migration047Report,
 }
 
 /// Post-sqlx status for migration 038 indexes.
@@ -171,6 +179,20 @@ impl Migration046Report {
     }
 }
 
+/// Post-sqlx status for migration 047 workspace document KV index.
+#[derive(Debug, Clone)]
+pub struct Migration047Report {
+    pub marker_present: bool,
+    pub apply_executed: bool,
+}
+
+impl Migration047Report {
+    /// wsdoc backfill is best-effort — never blocks traffic.
+    pub fn is_degraded(&self) -> bool {
+        false
+    }
+}
+
 /// True when the process may receive traffic (readiness probe).
 pub fn is_ready_for_traffic(report: &Option<MigrationBootstrapReport>) -> bool {
     match report {
@@ -182,6 +204,7 @@ pub fn is_ready_for_traffic(report: &Option<MigrationBootstrapReport>) -> bool {
                 && !r.migration_044.is_degraded()
                 && !r.migration_045.is_degraded()
                 && !r.migration_046.is_degraded()
+                && !r.migration_047.is_degraded()
         }
     }
 }
@@ -284,6 +307,8 @@ pub async fn run_postgres_migrations(
         reconcile::reconcile_migration_045(pool, &applied_after, &applied_this_run).await?;
     let migration_046 =
         reconcile::reconcile_migration_046(pool, &applied_after, &applied_this_run).await?;
+    let migration_047 =
+        reconcile::reconcile_migration_047(pool, &applied_after, &applied_this_run).await?;
 
     // SPEC-021 P2-02c: Kick off the CQRS entity backfill in the background
     // if migration 040 has been applied but the backfill hasn't completed yet.
@@ -382,6 +407,15 @@ pub async fn run_postgres_migrations(
         );
     }
 
+    if migration_047.marker_present || migration_047.apply_executed {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_047_ok",
+            apply_executed = migration_047.apply_executed,
+            "Migration 047 workspace document KV index backfill complete"
+        );
+    }
+
     info!(
         target: "edgequake.migration",
         step = "bootstrap_complete",
@@ -391,7 +425,8 @@ pub async fn run_postgres_migrations(
             && !migration_043.is_degraded()
             && !migration_044.is_degraded()
             && !migration_045.is_degraded()
-            && !migration_046.is_degraded(),
+            && !migration_046.is_degraded()
+            && !migration_047.is_degraded(),
         "Database migration bootstrap complete"
     );
 
@@ -405,6 +440,7 @@ pub async fn run_postgres_migrations(
         migration_044,
         migration_045,
         migration_046,
+        migration_047,
     })
 }
 
@@ -483,6 +519,13 @@ mod tests {
         }
     }
 
+    fn noop_migration_047() -> Migration047Report {
+        Migration047Report {
+            marker_present: true,
+            apply_executed: false,
+        }
+    }
+
     #[test]
     fn migration_041_apply_sql_embedded() {
         assert!(SQL_041_APPLY.contains("cost_usd"));
@@ -522,6 +565,7 @@ mod tests {
             migration_044: noop_migration_044(),
             migration_045: noop_migration_045(),
             migration_046: noop_migration_046(),
+            migration_047: noop_migration_047(),
         })));
     }
 
@@ -530,6 +574,13 @@ mod tests {
         assert!(SQL_046_APPLY.contains("tenant_workspace"));
         assert!(SQL_046_APPLY.contains("_ag_edge_start_id"));
         assert!(SQL_046_APPLY.contains("CREATE INDEX IF NOT EXISTS"));
+    }
+
+    #[test]
+    fn migration_047_apply_sql_embedded() {
+        assert!(SQL_047_APPLY.contains("wsdoc:"));
+        assert!(SQL_047_APPLY.contains("-metadata"));
+        assert!(SQL_047_APPLY.contains("ON CONFLICT"));
     }
 
     #[test]
@@ -590,6 +641,7 @@ mod tests {
             migration_044: noop_migration_044(),
             migration_045: noop_migration_045(),
             migration_046: noop_migration_046(),
+            migration_047: noop_migration_047(),
         })));
     }
 
@@ -623,6 +675,7 @@ mod tests {
             migration_044: noop_migration_044(),
             migration_045: noop_migration_045(),
             migration_046: noop_migration_046(),
+            migration_047: noop_migration_047(),
         })));
     }
 
@@ -648,6 +701,7 @@ mod tests {
             migration_044: noop_migration_044(),
             migration_045: noop_migration_045(),
             migration_046: noop_migration_046(),
+            migration_047: noop_migration_047(),
         })));
     }
 }

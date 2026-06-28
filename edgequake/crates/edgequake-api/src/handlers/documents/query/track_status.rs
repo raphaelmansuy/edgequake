@@ -3,6 +3,11 @@
 use axum::{extract::State, Json};
 
 use crate::error::ApiResult;
+use crate::middleware::TenantContext;
+use crate::services::document_metadata_scan::load_scoped_document_metadata;
+use crate::services::tenant_guard::{
+    empty_track_status, has_full_tenant_context, warn_missing_tenant_context,
+};
 use crate::state::AppState;
 
 use crate::handlers::documents_types::*;
@@ -24,25 +29,18 @@ use crate::handlers::documents_types::*;
 )]
 pub async fn get_track_status(
     State(state): State<AppState>,
+    tenant_ctx: TenantContext,
     axum::extract::Path(track_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<TrackStatusResponse>> {
-    let metadata_keys = state.storage.kv_storage.keys_like("%-metadata").await?;
-    let chunk_keys = state.storage.kv_storage.keys_like("%-chunk-%").await?;
-
-    // Fetch all metadata
-    let metadata_values = state.storage.kv_storage.get_by_ids(&metadata_keys).await?;
-
-    // Group chunks by document
-    let mut doc_chunks: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for key in &chunk_keys {
-        if let Some(doc_id) = key.split("-chunk-").next() {
-            if !doc_id.ends_with("-metadata") && !doc_id.ends_with("-content") {
-                *doc_chunks.entry(doc_id.to_string()).or_default() += 1;
-            }
-        }
+    if !has_full_tenant_context(&tenant_ctx) {
+        warn_missing_tenant_context(&tenant_ctx, "get_track_status");
+        return Ok(Json(empty_track_status(track_id)));
     }
 
-    // Filter documents by track_id
+    // SPEC-027: scoped metadata scan SSOT (no global keys_like; chunk_count from metadata).
+    let metadata_values =
+        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
+
     let mut track_docs: Vec<DocumentSummary> = Vec::new();
     let mut created_times: Vec<String> = Vec::new();
 
@@ -57,7 +55,11 @@ pub async fn get_track_status(
                     .unwrap_or("")
                     .to_string();
 
-                let chunk_count = doc_chunks.get(&id).copied().unwrap_or(0);
+                let chunk_count = obj
+                    .get("chunk_count")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize)
+                    .unwrap_or(0);
 
                 if let Some(created_at) = obj.get("created_at").and_then(|v| v.as_str()) {
                     created_times.push(created_at.to_string());
@@ -119,7 +121,6 @@ pub async fn get_track_status(
                         .get("embedding_model")
                         .and_then(|v| v.as_str())
                         .map(String::from),
-                    // SPEC-002: Unified Ingestion Pipeline fields
                     source_type: obj
                         .get("source_type")
                         .and_then(|v| v.as_str())

@@ -457,7 +457,8 @@ async fn process_pdf_upload_parts(
 
                 // Reset the existing document's KV metadata so the UI shows it
                 // returning to processing on the SAME document id (no new UUID).
-                let metadata_key = format!("{}-metadata", document_id);
+                let metadata_key =
+                    crate::services::document_metadata_scan::metadata_key_for_document(document_id);
                 if let Ok(Some(mut metadata)) =
                     state.storage.kv_storage.get_by_id(&metadata_key).await
                 {
@@ -469,12 +470,13 @@ async fn process_pdf_upload_parts(
                         if let Some(track) = options.track_id.as_ref() {
                             obj.insert("track_id".to_string(), serde_json::json!(track));
                         }
-                        let _ = state
-                            .storage
-                            .kv_storage
-                            .upsert(&[(metadata_key.clone(), metadata)])
-                            .await;
                     }
+                    let _ = crate::services::upsert_metadata_kv_with_index(
+                        state.storage.kv_storage.as_ref(),
+                        &metadata_key,
+                        metadata,
+                    )
+                    .await;
                 }
 
                 // Cancel any in-flight task for this document before requeueing.

@@ -91,8 +91,10 @@ impl GraphStorageReadOps for PostgresAGEGraphStorage {
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
-        self.pg_get_knowledge_graph(start_node, max_depth, max_nodes)
+        self.pg_get_knowledge_graph(start_node, max_depth, max_nodes, tenant_id, workspace_id)
             .await
     }
 

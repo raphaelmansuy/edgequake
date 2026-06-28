@@ -30,8 +30,11 @@ use edgequake_tasks::{Pagination, SortField, SortOrder, TaskFilter, TaskStatus, 
 use serde_json::json;
 use tracing;
 
+use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::{error::ApiError, state::AppState};
+use crate::services::document_metadata_scan::load_scoped_document_metadata_entries;
+use crate::services::task_scope::get_task_for_context;
+use crate::state::AppState;
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::tasks_types::{
@@ -52,27 +55,9 @@ pub async fn get_task(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
     Path(track_id): Path<String>,
-) -> Result<impl IntoResponse, ApiError> {
-    let task = state
-        .tasks
-        .storage
-        .get_task(&track_id)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get task: {}", e)))?;
-
-    match task {
-        Some(task) => {
-            // SECURITY: Verify task belongs to the requester's workspace
-            // WHY: Without this check, knowing a track_id leaks task data across workspaces
-            if let Some(ctx_workspace_id) = tenant_ctx.workspace_id_uuid() {
-                if task.workspace_id != ctx_workspace_id {
-                    return Err(ApiError::NotFound(format!("Task not found: {}", track_id)));
-                }
-            }
-            Ok(Json(TaskResponse::from(task)))
-        }
-        None => Err(ApiError::NotFound(format!("Task not found: {}", track_id))),
-    }
+) -> ApiResult<Json<TaskResponse>> {
+    let task = get_task_for_context(&state, &track_id, &tenant_ctx).await?;
+    Ok(Json(TaskResponse::from(task)))
 }
 
 /// List tasks with filters and pagination
@@ -97,6 +82,17 @@ pub async fn list_tasks(
     tenant_ctx: TenantContext,
     Query(params): Query<ListTasksQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        list_tasks_response(&state, &tenant_ctx, params).await?,
+    ))
+}
+
+/// Shared task listing logic for v1 and v2 job APIs (DRY).
+pub(crate) async fn list_tasks_response(
+    state: &AppState,
+    tenant_ctx: &TenantContext,
+    params: ListTasksQuery,
+) -> ApiResult<TaskListResponse> {
     // SECURITY: Merge TenantContext headers with query params for workspace isolation
     // Priority: query params (explicit) > TenantContext headers (automatic) > None
     // WHY: The frontend API client always sends X-Tenant-ID/X-Workspace-ID headers.
@@ -123,7 +119,7 @@ pub async fn list_tasks(
             workspace_id = ?filter_workspace_id,
             "list_tasks: Missing tenant context — returning empty for security"
         );
-        return Ok(Json(TaskListResponse {
+        return Ok(TaskListResponse {
             tasks: vec![],
             pagination: PaginationInfo {
                 total: 0,
@@ -138,7 +134,7 @@ pub async fn list_tasks(
                 failed: 0,
                 cancelled: 0,
             },
-        }));
+        });
     }
 
     let filter = TaskFilter {
@@ -185,7 +181,7 @@ pub async fn list_tasks(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
 
-    Ok(Json(TaskListResponse {
+    Ok(TaskListResponse {
         tasks: task_list
             .tasks
             .into_iter()
@@ -204,7 +200,7 @@ pub async fn list_tasks(
             failed: stats.failed,
             cancelled: stats.cancelled,
         },
-    }))
+    })
 }
 
 /// Cancel a task
@@ -223,49 +219,40 @@ pub async fn cancel_task(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
     Path(track_id): Path<String>,
-) -> Result<impl IntoResponse, ApiError> {
-    // SPEC-002: First, always try to update document status for this track_id
-    // WHY: After backend restart, tasks are lost but documents persist in KV storage.
-    // Users need a way to cancel "stuck" documents even when the task no longer exists.
-    // SPEC-012 Fix C+: production logs show `SELECT key FROM kv` runs ~1166 times
-    // (9.3 s total). This was caused by `keys() + filter ends_with("-metadata")`.
-    // `keys_with_suffix` uses the reverse-key expression index for O(log N + K).
+) -> ApiResult<Json<TaskResponse>> {
+    // SPEC-002: Update document status for this track_id within tenant/workspace scope.
+    // SPEC-027 pass 11: scoped metadata scan — never cancel cross-tenant documents.
     let mut doc_updated = false;
-    if let Ok(metadata_keys) = state.storage.kv_storage.keys_with_suffix("-metadata").await {
-        if let Ok(metadata_values) = state.storage.kv_storage.get_by_ids(&metadata_keys).await {
-            for (key, value) in metadata_keys.iter().zip(metadata_values.iter()) {
-                if let Some(obj) = value.as_object() {
-                    if let Some(doc_track_id) = obj.get("track_id").and_then(|v| v.as_str()) {
-                        if doc_track_id == track_id {
-                            // Update this document's status to cancelled
-                            let mut updated = obj.clone();
-                            updated.insert("status".to_string(), json!("cancelled"));
-                            updated.insert("current_stage".to_string(), json!("cancelled"));
-                            updated.insert(
-                                "stage_message".to_string(),
-                                json!("Task cancelled by user"),
-                            );
-                            updated
-                                .insert("updated_at".to_string(), json!(Utc::now().to_rfc3339()));
+    if let Ok(scoped_entries) =
+        load_scoped_document_metadata_entries(state.storage.kv_storage.as_ref(), &tenant_ctx).await
+    {
+        for (key, value) in scoped_entries {
+            if let Some(obj) = value.as_object() {
+                if let Some(doc_track_id) = obj.get("track_id").and_then(|v| v.as_str()) {
+                    if doc_track_id == track_id {
+                        let mut updated = obj.clone();
+                        updated.insert("status".to_string(), json!("cancelled"));
+                        updated.insert("current_stage".to_string(), json!("cancelled"));
+                        updated
+                            .insert("stage_message".to_string(), json!("Task cancelled by user"));
+                        updated.insert("updated_at".to_string(), json!(Utc::now().to_rfc3339()));
 
-                            // Don't fail cancel if document update fails - log and continue
-                            match state
-                                .storage
-                                .kv_storage
-                                .upsert(&[(key.clone(), json!(updated))])
-                                .await
-                            {
-                                Ok(_) => {
-                                    doc_updated = true;
-                                    tracing::info!("Updated document status to cancelled: {}", key);
-                                }
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "Failed to update document status on cancel: {} - {}",
-                                        key,
-                                        e
-                                    );
-                                }
+                        match state
+                            .storage
+                            .kv_storage
+                            .upsert(&[(key.clone(), json!(updated))])
+                            .await
+                        {
+                            Ok(_) => {
+                                doc_updated = true;
+                                tracing::info!("Updated document status to cancelled: {}", key);
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to update document status on cancel: {} - {}",
+                                    key,
+                                    e
+                                );
                             }
                         }
                     }

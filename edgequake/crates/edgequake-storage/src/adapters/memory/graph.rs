@@ -320,7 +320,21 @@ impl GraphStorageReadOps for MemoryGraphStorage {
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
+        use crate::traits::node_matches_list_filter;
+        use crate::traits::NodeListFilter;
+
+        let node_filter = match (tenant_id, workspace_id) {
+            (Some(tid), Some(wid)) => Some(NodeListFilter {
+                tenant_id: Some(tid.to_string()),
+                workspace_id: Some(wid.to_string()),
+                ..Default::default()
+            }),
+            _ => None,
+        };
+
         let nodes_map = self.nodes.read().map_err(super::lock::map_lock_err)?;
         let edges_map = self.edges.read().map_err(super::lock::map_lock_err)?;
         let adjacency = self.adjacency.read().map_err(super::lock::map_lock_err)?;
@@ -329,6 +343,20 @@ impl GraphStorageReadOps for MemoryGraphStorage {
         let mut result_nodes: Vec<GraphNode> = Vec::new();
         let mut result_edges: Vec<GraphEdge> = Vec::new();
         let mut queue: VecDeque<(String, usize)> = VecDeque::new();
+
+        if node_filter.as_ref().is_some_and(|f| {
+            nodes_map.get(start_node).is_none_or(|props| {
+                !node_matches_list_filter(
+                    &GraphNode {
+                        id: start_node.to_string(),
+                        properties: props.clone(),
+                    },
+                    f,
+                )
+            })
+        }) {
+            return Ok(KnowledgeGraph::new());
+        }
 
         queue.push_back((start_node.to_string(), 0));
 
@@ -340,16 +368,35 @@ impl GraphStorageReadOps for MemoryGraphStorage {
             visited.insert(node_id.clone());
 
             if let Some(props) = nodes_map.get(&node_id) {
-                result_nodes.push(GraphNode {
+                let node = GraphNode {
                     id: node_id.clone(),
                     properties: props.clone(),
-                });
+                };
+                if node_filter
+                    .as_ref()
+                    .is_some_and(|f| !node_matches_list_filter(&node, f))
+                {
+                    continue;
+                }
+                result_nodes.push(node);
             }
 
             if let Some(neighbors) = adjacency.get(&node_id) {
                 for neighbor in neighbors {
                     if !visited.contains(neighbor) {
-                        queue.push_back((neighbor.clone(), depth + 1));
+                        if let Some(props) = nodes_map.get(neighbor) {
+                            if node_filter.as_ref().is_none_or(|f| {
+                                node_matches_list_filter(
+                                    &GraphNode {
+                                        id: neighbor.clone(),
+                                        properties: props.clone(),
+                                    },
+                                    f,
+                                )
+                            }) {
+                                queue.push_back((neighbor.clone(), depth + 1));
+                            }
+                        }
                     }
                 }
             }
@@ -547,7 +594,9 @@ impl GraphStorageReadOps for MemoryGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<GraphNode>> {
-        let kg = self.get_knowledge_graph(node_id, depth, 1000).await?;
+        let kg = self
+            .get_knowledge_graph(node_id, depth, 1000, None, None)
+            .await?;
         Ok(kg
             .nodes
             .into_iter()
@@ -1106,10 +1155,49 @@ mod tests {
         storage.upsert_edge("B", "C", HashMap::new()).await.unwrap();
 
         // Traverse from A
-        let kg = storage.get_knowledge_graph("A", 2, 10).await.unwrap();
+        let kg = storage
+            .get_knowledge_graph("A", 2, 10, None, None)
+            .await
+            .unwrap();
 
         assert_eq!(kg.node_count(), 3);
         assert_eq!(kg.edge_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_graph_traversal_scoped_by_tenant_workspace() {
+        let storage = MemoryGraphStorage::new("test");
+
+        let mut props_a = HashMap::new();
+        props_a.insert("tenant_id".to_string(), serde_json::json!("t1"));
+        props_a.insert("workspace_id".to_string(), serde_json::json!("w1"));
+        storage.upsert_node("A", props_a.clone()).await.unwrap();
+
+        let mut props_b = HashMap::new();
+        props_b.insert("tenant_id".to_string(), serde_json::json!("t1"));
+        props_b.insert("workspace_id".to_string(), serde_json::json!("w1"));
+        storage.upsert_node("B", props_b).await.unwrap();
+
+        let mut props_c = HashMap::new();
+        props_c.insert("tenant_id".to_string(), serde_json::json!("t2"));
+        props_c.insert("workspace_id".to_string(), serde_json::json!("w2"));
+        storage.upsert_node("C", props_c).await.unwrap();
+
+        storage.upsert_edge("A", "B", HashMap::new()).await.unwrap();
+        storage.upsert_edge("B", "C", HashMap::new()).await.unwrap();
+
+        let scoped = storage
+            .get_knowledge_graph("A", 2, 10, Some("t1"), Some("w1"))
+            .await
+            .unwrap();
+        assert_eq!(scoped.node_count(), 2);
+        assert!(scoped.nodes.iter().all(|n| n.id == "A" || n.id == "B"));
+
+        let cross_tenant = storage
+            .get_knowledge_graph("C", 2, 10, Some("t1"), Some("w1"))
+            .await
+            .unwrap();
+        assert_eq!(cross_tenant.node_count(), 0);
     }
 
     #[tokio::test]

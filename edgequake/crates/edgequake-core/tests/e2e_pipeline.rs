@@ -284,7 +284,7 @@ async fn test_memory_e2e_with_simulated_extraction() {
 
     // 8. Get knowledge subgraph
     let kg = graph_storage
-        .get_knowledge_graph("SARAH_CHEN", 2, 50)
+        .get_knowledge_graph("SARAH_CHEN", 2, 50, None, None)
         .await
         .expect("Failed to get knowledge graph");
 
@@ -475,7 +475,7 @@ with graph capabilities, providing ACID guarantees and efficient graph traversal
 
     // 8. Test knowledge graph traversal
     let kg = graph_storage
-        .get_knowledge_graph("EDGEQUAKE", 2, 50)
+        .get_knowledge_graph("EDGEQUAKE", 2, 50, None, None)
         .await
         .expect("Failed to get knowledge graph");
     println!(

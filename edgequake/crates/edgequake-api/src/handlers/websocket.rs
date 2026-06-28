@@ -26,18 +26,26 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
+        Path, Query, State,
     },
+    http::StatusCode,
     response::IntoResponse,
 };
 use edgequake_observability::ErrorEvent;
 use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{debug, info};
 
 use crate::state::AppState;
+
+/// Optional bearer token for WebSocket auth when `EDGEQUAKE_AUTH_ENABLED=true` (SPEC-027 IMP-006).
+#[derive(Debug, Default, Deserialize)]
+pub struct WsAuthQuery {
+    pub token: Option<String>,
+}
 
 // Re-export DTOs from websocket_types for backwards compatibility
 pub use crate::handlers::websocket_types::{ProgressBroadcaster, ProgressEvent};
@@ -89,7 +97,11 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 pub async fn ws_pipeline_progress(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    Query(query): Query<WsAuthQuery>,
 ) -> impl IntoResponse {
+    if !crate::middleware::ws_validate_token(&state, query.token.as_deref()).await {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
     info!("WebSocket connection requested for pipeline progress");
     ws.on_upgrade(move |socket| handle_pipeline_socket(socket, state))
 }
@@ -305,7 +317,11 @@ pub async fn ws_progress_by_track_id(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     Path(track_id): Path<String>,
+    Query(query): Query<WsAuthQuery>,
 ) -> impl IntoResponse {
+    if !crate::middleware::ws_validate_token(&state, query.token.as_deref()).await {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
     info!("WebSocket connection requested for track_id={}", track_id);
     ws.on_upgrade(move |socket| handle_filtered_progress_socket(socket, state, track_id))
 }

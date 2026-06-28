@@ -2,6 +2,9 @@
 
 use std::time::Duration;
 
+/// Default JWT secret when `JWT_SECRET` is unset — **must not** be used in production.
+pub const DEFAULT_INSECURE_JWT_SECRET: &str = "change-me-in-production-256-bit-secret-key";
+
 /// Authentication service configuration.
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
@@ -57,7 +60,7 @@ pub struct AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            jwt_secret: "change-me-in-production-256-bit-secret-key".to_string(),
+            jwt_secret: DEFAULT_INSECURE_JWT_SECRET.to_string(),
             jwt_expiry: Duration::from_secs(24 * 60 * 60), // 24 hours
             refresh_token_expiry: Duration::from_secs(30 * 24 * 60 * 60), // 30 days
             api_key_prefix: "sk_".to_string(),
@@ -138,7 +141,7 @@ impl AuthConfig {
     /// Create configuration from environment variables.
     pub fn from_env() -> Self {
         let jwt_secret = std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| "change-me-in-production-256-bit-secret-key".to_string());
+            .unwrap_or_else(|_| DEFAULT_INSECURE_JWT_SECRET.to_string());
 
         let jwt_expiry_hours: u64 = std::env::var("JWT_EXPIRY_HOURS")
             .ok()
