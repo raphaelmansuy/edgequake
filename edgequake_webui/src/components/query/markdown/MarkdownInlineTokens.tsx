@@ -11,6 +11,73 @@ import { memo } from 'react';
 import { MathTokenRenderer } from './MathTokenRenderer';
 import { sanitizeHtml } from './utils/sanitize-html';
 
+/**
+ * Merge split HTML tag tokens back into whole elements.
+ *
+ * WHY: marked.js tokenizes `<sup>1*</sup>` as THREE separate tokens:
+ *   [html("<sup>"), text("1*"), html("</sup>")]
+ * Rendering them individually means DOMPurify strips the empty `<sup>`, the
+ * text "1*" renders unstyled, and `</sup>` appears as literal text.
+ *
+ * This function reassembles matching open/close pairs (non-nested) into one
+ * html token so DOMPurify can sanitize and render the whole element.
+ *
+ * First Principles: scan → identify opening tag → find closing tag → merge raw.
+ */
+function mergeInlineHtmlTokens(tokens: Token[]): Token[] {
+  const merged: Token[] = [];
+  let i = 0;
+
+  while (i < tokens.length) {
+    const tok = tokens[i];
+
+    // Only attempt merge when we find an opening (non-self-closing, non-closing) HTML tag
+    const openTagMatch =
+      tok.type === 'html' &&
+      !tok.raw.startsWith('</') &&
+      !tok.raw.endsWith('/>') &&
+      /^<([a-z][a-z0-9]*)\b/i.exec(tok.raw);
+
+    if (openTagMatch) {
+      const tag = openTagMatch[1].toLowerCase();
+      const closingRE = new RegExp(`^</${tag}\\s*>$`, 'i');
+
+      // Scan ahead for the matching closing tag (simple linear scan, no nesting)
+      let found = false;
+      for (let j = i + 1; j < tokens.length; j++) {
+        if (tokens[j].type === 'html' && closingRE.test(tokens[j].raw.trim())) {
+          // Reconstruct the full element from raw text of intermediate tokens
+          const inner = tokens.slice(i + 1, j).map(t => t.raw).join('');
+          const fullHtml = tok.raw + inner + tokens[j].raw;
+          merged.push({
+            type: 'html' as const,
+            raw: fullHtml,
+            text: fullHtml,
+            inLink: false,
+            inRawBlock: false,
+            block: false,
+          } as Token);
+          i = j + 1;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        // No matching close tag — keep the opening tag as-is (will be stripped by DOMPurify)
+        merged.push(tok);
+        i++;
+      }
+      continue;
+    }
+
+    merged.push(tok);
+    i++;
+  }
+
+  return merged;
+}
+
 interface MarkdownInlineTokensProps {
   id: string;
   tokens: Token[];
@@ -24,10 +91,15 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
   done = true,
   onSourceClick,
 }: MarkdownInlineTokensProps) {
+  // Merge split HTML tag tokens (e.g. <sup>, <sub>) before rendering
+  const normalizedTokens = mergeInlineHtmlTokens(tokens);
+
   return (
     <>
-      {tokens.map((token, idx) => {
+      {normalizedTokens.map((token, idx) => {
         const tokenId = `${id}-${idx}`;
+
+        switch (token.type) {
 
         switch (token.type) {
           case 'text': {
@@ -180,21 +252,25 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
             return <span key={tokenId}>{escapeToken.text}</span>;
           }
 
-          // HTML tokens (sanitized via DOMPurify — allows <sup>, <sub>, <abbr>, etc.)
+          // HTML tokens — sanitized via DOMPurify.
+          // Merged html elements (e.g. <sup>1*</sup>) are sanitized and injected.
+          // Standalone orphan closing tags (e.g. </sup>) are suppressed — they
+          // can only appear here when mergeInlineHtmlTokens found no opening pair.
           case 'html': {
             const htmlToken = token as Tokens.HTML;
-            const sanitized = sanitizeHtml(htmlToken.raw);
-            if (sanitized) {
-              return (
-                <span
-                  key={tokenId}
-                  // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: sanitized }}
-                />
-              );
+            // Suppress orphan closing tags — they have no meaningful content
+            if (/^<\/[a-z][a-z0-9]*\s*>/i.test(htmlToken.raw)) {
+              return null;
             }
-            // Fallback if DOMPurify strips all content (e.g. script tags)
-            return <span key={tokenId}>{htmlToken.text}</span>;
+            const sanitized = sanitizeHtml(htmlToken.raw);
+            if (!sanitized) return null;
+            return (
+              <span
+                key={tokenId}
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: sanitized }}
+              />
+            );
           }
 
           default:
