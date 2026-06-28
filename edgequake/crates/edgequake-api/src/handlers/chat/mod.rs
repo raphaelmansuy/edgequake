@@ -80,10 +80,10 @@
 //! - Automatic conversation management
 
 use crate::handlers::query::SourceReference;
-use edgequake_core::types::{
-    ConversationMode, MessageContext, MessageContextEntity, MessageContextRelationship,
-    MessageSource,
-};
+use edgequake_core::types::ConversationMode;
+
+#[cfg(test)]
+use edgequake_core::types::MessageContext;
 use edgequake_query::QueryMode;
 
 // Re-export DTOs from chat_types module
@@ -174,74 +174,12 @@ pub(crate) fn build_sources(context: &edgequake_query::QueryContext) -> Vec<Sour
     crate::services::build_sources_from_context(context, true, None, false)
 }
 
+#[cfg(test)]
 fn sources_to_message_context(sources: &[SourceReference]) -> MessageContext {
-    MessageContext {
-        sources: sources
-            .iter()
-            .filter(|s| s.source_type == "chunk")
-            .map(|s| MessageSource {
-                id: s.id.clone(),
-                title: s.file_path.clone().or_else(|| s.document_id.clone()),
-                content: Some(s.snippet.clone().unwrap_or_default()),
-                score: s.score,
-                document_id: s.document_id.clone(),
-            })
-            .collect(),
-        entities: sources
-            .iter()
-            .filter(|s| s.source_type == "entity")
-            .map(|s| MessageContextEntity {
-                name: s.id.clone(),
-                // SPEC-006: Use enriched entity_type from SourceReference
-                entity_type: s
-                    .entity_type
-                    .clone()
-                    .unwrap_or_else(|| "UNKNOWN".to_string()),
-                description: s.snippet.clone(),
-                score: s.score,
-                source_document_id: s.document_id.clone(),
-                source_file_path: s.file_path.clone(),
-                // SPEC-006: Use enriched source_chunk_ids from SourceReference
-                source_chunk_ids: s.source_chunk_ids.clone().unwrap_or_default(),
-            })
-            .collect(),
-        relationships: sources
-            .iter()
-            .filter(|s| s.source_type == "relationship")
-            .map(|s| {
-                // Parse the relationship ID which is in "SOURCE->TARGET" format
-                let parts: Vec<&str> = s.id.split("->").collect();
-                let (source, target) = if parts.len() >= 2 {
-                    (parts[0].trim().to_string(), parts[1].trim().to_string())
-                } else {
-                    (s.id.clone(), "UNKNOWN".to_string())
-                };
-                // Try to extract relation type from snippet ("SOURCE RELATION_TYPE TARGET")
-                let relation_type = s
-                    .snippet
-                    .as_ref()
-                    .map(|snippet| {
-                        let words: Vec<&str> = snippet.split_whitespace().collect();
-                        if words.len() >= 3 {
-                            words[1..words.len() - 1].join("_").to_uppercase()
-                        } else {
-                            "RELATED_TO".to_string()
-                        }
-                    })
-                    .unwrap_or_else(|| "RELATED_TO".to_string());
-
-                MessageContextRelationship {
-                    source,
-                    target,
-                    relation_type,
-                    description: s.snippet.clone(),
-                    score: s.score,
-                    source_document_id: s.document_id.clone(),
-                    source_file_path: s.file_path.clone(),
-                }
-            })
-            .collect(),
-    }
+    crate::services::message_context_from_subgraph(
+        &crate::handlers::context_types::SubgraphBundle::default(),
+        sources,
+    )
 }
 
 #[cfg(test)]
@@ -339,6 +277,7 @@ mod tests {
             sources: vec![],
             query_mode: None,
             retrieval_time_ms: None,
+            subgraph: None,
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"context\""));

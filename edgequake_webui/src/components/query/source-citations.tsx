@@ -411,11 +411,19 @@ const KnowledgeTab = ({
                   </HoverCardTrigger>
                   <HoverCardContent className="w-72" align="start">
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <p className="font-medium">{entity.label}</p>
-                        <Badge variant="outline" className="text-[10px]">
-                          {Math.round(entity.relevance * 100)}% match
-                        </Badge>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {entity.entity_type &&
+                            entity.entity_type !== "UNKNOWN" && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {entity.entity_type.toLowerCase()}
+                              </Badge>
+                            )}
+                          <Badge variant="outline" className="text-[10px]">
+                            {Math.round(entity.relevance * 100)}% match
+                          </Badge>
+                        </div>
                       </div>
                       {(entity.source_file_path || entity.source_document_id) && (
                         <button

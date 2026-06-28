@@ -11,7 +11,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace, QueryStats};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
-use crate::services::{execute_sota_query_with_auth_fallback, resolve_workspace_query_resources};
+use crate::services::{build_message_context_from_engine, execute_sota_query_with_auth_fallback, resolve_workspace_query_resources};
 use crate::state::AppState;
 use edgequake_core::types::{
     CreateConversationRequest, CreateMessageRequest, MessageRole, UpdateMessageRequest,
@@ -20,7 +20,7 @@ use edgequake_query::QueryRequest as EngineQueryRequest;
 
 use super::{
     build_sources, enrich_query_with_language, parse_mode, parse_query_mode,
-    sources_to_message_context, ChatCompletionRequest, ChatCompletionResponse,
+    ChatCompletionRequest, ChatCompletionResponse,
 };
 
 /// Execute a non-streaming chat completion.
@@ -265,7 +265,7 @@ pub async fn chat_completion(
     // 4. Build sources and resolve document names for chunk sources
     let mut sources = build_sources(&result.context);
     resolve_chunk_file_paths(state.storage.kv_storage.as_ref(), &mut sources).await;
-    let context = sources_to_message_context(&sources);
+    let context = build_message_context_from_engine(&result.context, &sources);
 
     // 5. Save assistant message
     let assistant_message = state

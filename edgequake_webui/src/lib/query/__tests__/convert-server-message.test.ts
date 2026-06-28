@@ -63,6 +63,7 @@ describe("convertServerMessage (UI-P3-005)", () => {
     expect(result.context?.chunks[0].document_id).toBe("doc-uuid");
     expect(result.context?.chunks[0].file_path).toBe("report.pdf");
     expect(result.context?.entities[0].label).toBe("ENTITY_A");
+    expect(result.context?.entities[0].entity_type).toBe("person");
     expect(result.context?.relationships[0].type).toBe("related");
   });
 });

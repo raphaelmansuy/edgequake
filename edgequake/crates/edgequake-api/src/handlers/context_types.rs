@@ -63,6 +63,10 @@ pub struct ContextRetrievalRequest {
 
     #[serde(default = "default_true")]
     pub include_agent_hints: bool,
+
+    /// Include query-matched entities and relationships in `bundle.subgraph`.
+    #[serde(default = "default_true")]
+    pub include_subgraph: bool,
 }
 
 fn default_true() -> bool {
@@ -278,4 +282,110 @@ pub struct AgentHints {
     pub documents_touched: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_quality_warnings: Vec<String>,
+}
+
+// --- Agent artifact retrieval (SPEC-028 Phase 2) ---
+
+/// Agent-facing artifact fetch response (`GET /query/context/artifacts/{type}/{id}`).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ContextArtifactResponse {
+    /// `document` | `chunk` | `figure` | `markdown` | `pdf`
+    pub artifact_type: String,
+    pub artifact_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document: Option<ContextArtifactDocument>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk: Option<ContextArtifactChunk>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub figure: Option<ContextArtifactFigure>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<ContextArtifactMarkdown>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf: Option<ContextArtifactPdf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ContextArtifactDocument {
+    pub document_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    pub chunk_count: usize,
+    pub multimodal_item_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_summary: Option<String>,
+    /// Full markdown/text body when `include_content=true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Same as `content` when markdown is available (explicit agent field).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<String>,
+    /// `kv` or `pdf_storage` when body loaded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_download_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_content_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ContextArtifactChunk {
+    pub chunk_id: String,
+    pub document_id: String,
+    pub content: String,
+    pub chunk_index: usize,
+    pub token_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ContextArtifactFigure {
+    pub item_id: String,
+    pub document_id: String,
+    pub modality: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caption: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analyzed_text: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ContextArtifactMarkdown {
+    pub document_id: String,
+    pub markdown: String,
+    /// `kv` or `pdf_storage`
+    pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pdf_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ContextArtifactPdf {
+    pub pdf_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
+    pub filename: String,
+    pub file_size_bytes: i64,
+    pub content_type: String,
+    pub is_processed: bool,
+    /// REST path to download raw PDF bytes.
+    pub download_path: String,
+    /// REST path to PDF metadata + markdown JSON.
+    pub content_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown_content: Option<String>,
 }

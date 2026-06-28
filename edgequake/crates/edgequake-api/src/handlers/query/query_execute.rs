@@ -210,6 +210,8 @@ pub async fn execute_query(
         reranked,
         llm_provider,
         llm_model,
+        request.include_subgraph,
+        request.rerank_top_k,
     );
 
     let mut headers = HeaderMap::new();

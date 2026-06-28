@@ -23,6 +23,8 @@ pub struct MappingOptions {
     pub include_lineage: bool,
     pub include_documents: bool,
     pub include_agent_hints: bool,
+    /// When false, subgraph entities/relationships are omitted (chunks-only payload).
+    pub include_subgraph: bool,
     pub rerank_top_k: Option<usize>,
     pub reranked: bool,
 }
@@ -34,6 +36,7 @@ impl Default for MappingOptions {
             include_lineage: true,
             include_documents: true,
             include_agent_hints: true,
+            include_subgraph: true,
             rerank_top_k: None,
             reranked: false,
         }
@@ -109,6 +112,37 @@ pub fn map_query_context_to_bundle(
         }
     }
 
+    let subgraph = map_query_context_to_subgraph(context, options);
+
+    let documents = if options.include_documents {
+        build_document_summaries(&chunks, &subgraph.entities, document_titles)
+    } else {
+        Vec::new()
+    };
+
+    let context_string = if options.granularity == ContentGranularity::Debug {
+        Some(context.to_context_string())
+    } else {
+        None
+    };
+
+    ContextBundle {
+        subgraph,
+        chunks,
+        documents,
+        context_string,
+    }
+}
+
+/// Map engine context to structured query-matched subgraph (SPEC-028 / FP-028-09).
+pub fn map_query_context_to_subgraph(
+    context: &QueryContext,
+    options: &MappingOptions,
+) -> SubgraphBundle {
+    if !options.include_subgraph {
+        return SubgraphBundle::default();
+    }
+
     let entities: Vec<ContextEntity> = context
         .entities
         .iter()
@@ -182,27 +216,50 @@ pub fn map_query_context_to_bundle(
         })
         .collect();
 
-    let documents = if options.include_documents {
-        build_document_summaries(&chunks, &entities, document_titles)
-    } else {
-        Vec::new()
-    };
-
-    let context_string = if options.granularity == ContentGranularity::Debug {
-        Some(context.to_context_string())
-    } else {
-        None
-    };
-
-    ContextBundle {
-        subgraph: SubgraphBundle {
-            entities,
-            relationships,
-        },
-        chunks,
-        documents,
-        context_string,
+    SubgraphBundle {
+        entities,
+        relationships,
     }
+}
+
+/// Graph preview for MCP `edgequake_search` metadata (FP-028-09 / DRY SSOT).
+pub fn build_search_graph_metadata(bundle: &ContextBundle, mode: &str) -> serde_json::Value {
+    use serde_json::json;
+    json!({
+        "mode": mode,
+        "entity_count": bundle.subgraph.entities.len(),
+        "relationship_count": bundle.subgraph.relationships.len(),
+        "chunk_count": bundle.chunks.len(),
+        "document_count": bundle.documents.len(),
+        "top_entities": bundle
+            .subgraph
+            .entities
+            .iter()
+            .take(5)
+            .map(|e| {
+                json!({
+                    "name": e.name,
+                    "entity_type": e.entity_type,
+                    "score": e.score,
+                    "degree": e.degree,
+                })
+            })
+            .collect::<Vec<_>>(),
+        "top_relationships": bundle
+            .subgraph
+            .relationships
+            .iter()
+            .take(3)
+            .map(|r| {
+                json!({
+                    "source": r.source,
+                    "target": r.target,
+                    "relation_type": r.relation_type,
+                    "score": r.score,
+                })
+            })
+            .collect::<Vec<_>>(),
+    })
 }
 
 fn build_document_summaries(

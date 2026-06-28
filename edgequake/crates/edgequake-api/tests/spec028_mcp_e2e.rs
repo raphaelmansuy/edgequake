@@ -99,6 +99,59 @@ async fn ec_mcp_search_then_fetch_roundtrip() {
     assert!(fetch_body.get("error").is_none(), "{fetch_body:?}");
     assert_eq!(fetch_body["result"]["retrieval_id"], retrieval_id);
     assert!(fetch_body["result"]["bundle"].is_object());
+    assert!(
+        fetch_body["result"]["bundle"]["subgraph"].is_object(),
+        "MCP fetch must include bundle.subgraph"
+    );
+    assert!(fetch_body["result"]["bundle"]["subgraph"]["entities"].is_array());
+    assert!(fetch_body["result"]["bundle"]["subgraph"]["relationships"].is_array());
+}
+
+#[tokio::test]
+async fn ec_mcp_search_metadata_includes_graph_preview() {
+    let app = default_mcp_app();
+    let (_, search_body) = mcp_tools_call(
+        &app,
+        "/api/v1/mcp",
+        "edgequake_search",
+        json!({ "query": "entity extraction pipeline", "mode": "naive" }),
+    )
+    .await;
+    let metadata = &search_body["result"]["results"][0]["metadata"];
+    assert!(metadata.is_object(), "search must include graph metadata");
+    assert!(metadata.get("entity_count").is_some());
+    assert!(metadata.get("relationship_count").is_some());
+    assert!(metadata.get("top_entities").is_some());
+    assert!(metadata.get("top_relationships").is_some());
+}
+
+#[tokio::test]
+async fn ec_mcp_fetch_omits_subgraph_when_disabled() {
+    let app = default_mcp_app();
+    let (_, search_body) = mcp_tools_call(
+        &app,
+        "/api/v1/mcp",
+        "edgequake_search",
+        json!({ "query": "knowledge graph", "mode": "naive" }),
+    )
+    .await;
+    let retrieval_id = search_body["result"]["results"][0]["retrieval_id"]
+        .as_str()
+        .expect("retrieval_id");
+
+    let (_, fetch_body) = mcp_tools_call(
+        &app,
+        "/api/v1/mcp",
+        "edgequake_fetch",
+        json!({
+            "retrieval_id": retrieval_id,
+            "include_subgraph": false
+        }),
+    )
+    .await;
+    let subgraph = &fetch_body["result"]["bundle"]["subgraph"];
+    assert_eq!(subgraph["entities"].as_array().map(|a| a.len()), Some(0));
+    assert_eq!(subgraph["relationships"].as_array().map(|a| a.len()), Some(0));
 }
 
 #[tokio::test]

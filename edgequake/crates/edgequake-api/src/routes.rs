@@ -424,6 +424,10 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/query/context", post(handlers::retrieve_query_context))
         .route("/query/context/search", post(handlers::search_query_context))
         .route(
+            "/query/context/artifacts/{artifact_type}/{artifact_id}",
+            get(handlers::get_context_artifact),
+        )
+        .route(
             "/query/context/{retrieval_id}",
             get(handlers::fetch_query_context),
         )

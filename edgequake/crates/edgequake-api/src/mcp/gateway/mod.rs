@@ -165,6 +165,7 @@ mod tests {
         match out {
             McpHandleOutcome::Json { status, .. } => assert_eq!(status, StatusCode::OK),
             McpHandleOutcome::Accepted => panic!("unexpected notification"),
+            McpHandleOutcome::Sse { .. } => panic!("tools/list must not return SSE"),
         }
     }
 }

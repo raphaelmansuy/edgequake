@@ -59,7 +59,9 @@ pub(crate) mod workspace_resolve;
 
 pub use query_execute::*;
 pub use query_stream::*;
-pub use context::{fetch_query_context, retrieve_query_context, search_query_context};
+pub use context::{
+    fetch_query_context, get_context_artifact, retrieve_query_context, search_query_context,
+};
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::query_types::{

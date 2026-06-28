@@ -52,8 +52,10 @@ fn spec028_routes_registered() {
     let routes = read_crate_src("src/routes.rs");
     assert!(routes.contains("/query/context\", post"));
     assert!(routes.contains("/query/context/search\", post"));
+    assert!(routes.contains("/query/context/artifacts/{artifact_type}/{artifact_id}"));
     assert!(routes.contains("/query/context/{retrieval_id}"));
     assert!(routes.contains("/mcp\", post"));
+    assert!(routes.contains("get(handlers::get_context_artifact)"));
     assert!(routes.contains("get(handlers::fetch_query_context)"));
 }
 
@@ -64,6 +66,7 @@ fn spec028_openapi_includes_context_paths() {
     for path in [
         "/api/v1/query/context",
         "/api/v1/query/context/search",
+        "/api/v1/query/context/artifacts/{artifact_type}/{artifact_id}",
         "/api/v1/query/context/{retrieval_id}",
         "/api/v1/mcp",
         "/mcp",
@@ -119,6 +122,23 @@ fn spec028_stream_v3_bundle_field() {
 }
 
 #[test]
+fn spec028_phase4_coverage_heuristic_ssot() {
+    let mapper = read_crate_src("src/services/context_bundle_mapper.rs");
+    assert!(mapper.contains("pub fn compute_retrieval_quality"));
+    assert!(mapper.contains("COVERAGE_SUFFICIENT_THRESHOLD"));
+    assert!(mapper.contains("pub fn build_agent_hints"));
+    assert!(mapper.contains("suggested_followups"));
+    assert!(mapper.contains("pub fn compute_retrieval_fingerprint"));
+}
+
+#[test]
+fn spec028_phase4_stream_v3_emits_bundle() {
+    let stream = read_crate_src("src/handlers/query/query_stream.rs");
+    assert!(stream.contains(r#"stream_format.as_deref() == Some("v3")"#));
+    assert!(stream.contains("map_query_context_to_bundle"));
+}
+
+#[test]
 fn spec028_include_references_wired() {
     let execute = read_crate_src("src/handlers/query/query_execute.rs");
     assert!(execute.contains("request.include_references"));
@@ -128,9 +148,50 @@ fn spec028_include_references_wired() {
 fn spec028_services_mod_exports() {
     let mod_rs = read_crate_src("src/services/mod.rs");
     assert!(mod_rs.contains("pub mod query_context"));
+    assert!(mod_rs.contains("pub mod artifact_retrieval"));
     assert!(mod_rs.contains("pub mod query_generation"));
     assert!(mod_rs.contains("pub mod context_bundle_mapper"));
     assert!(mod_rs.contains("pub mod source_reference_builder"));
+}
+
+#[test]
+fn spec028_artifact_retrieval_service_ssot() {
+    let src = read_crate_src("src/services/artifact_retrieval.rs");
+    assert!(src.contains("pub async fn retrieve_artifact"));
+    assert!(src.contains("ArtifactKind::Document"));
+    assert!(src.contains("ArtifactKind::Chunk"));
+    assert!(src.contains("ArtifactKind::Figure"));
+    assert!(src.contains("ArtifactKind::Markdown"));
+    assert!(src.contains("ArtifactKind::Pdf"));
+    let loader = read_crate_src("src/services/document_body_loader.rs");
+    assert!(loader.contains("pub async fn load_document_body"));
+    assert!(loader.contains("PdfStorage"));
+}
+
+#[test]
+fn spec028_subgraph_mapper_ssot() {
+    let mapper = read_crate_src("src/services/context_bundle_mapper.rs");
+    assert!(mapper.contains("pub fn map_query_context_to_subgraph"));
+    assert!(mapper.contains("include_subgraph"));
+    let msg = read_crate_src("src/services/message_context_mapper.rs");
+    assert!(msg.contains("build_message_context_from_engine"));
+    let types = read_crate_src("src/handlers/query_types.rs");
+    assert!(types.contains("pub subgraph: Option"));
+    assert!(types.contains("include_subgraph"));
+    let mcp_tools = read_crate_src("src/mcp/gateway/tools.rs");
+    assert!(mcp_tools.contains("include_subgraph"));
+    assert!(mcp_tools.contains("top_entities"));
+    let mapper = read_crate_src("src/services/context_bundle_mapper.rs");
+    assert!(mapper.contains("build_search_graph_metadata"));
+    let chat_types = read_crate_src("src/handlers/chat_types.rs");
+    assert!(chat_types.contains("subgraph: Option"));
+}
+
+#[test]
+fn spec028_mcp_fetch_subgraph_dispatch() {
+    let dispatch = read_crate_src("src/mcp/gateway/dispatch.rs");
+    assert!(dispatch.contains("FetchContextOptions"));
+    assert!(dispatch.contains("include_subgraph"));
 }
 
 #[test]
