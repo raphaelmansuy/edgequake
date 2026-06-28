@@ -20,6 +20,11 @@ import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
 import { getGraphEdgeKeyFromEdge } from '@/lib/graph/ids';
 import { formatEntityLabel, getEntityTypeColor } from '@/lib/graph/label-utils';
 import {
+    drawEdgeLabelWithBackground,
+    drawNodeHoverWithCard,
+    drawNodeLabelWithBackground,
+} from '@/lib/graph/sigma-renderers';
+import {
     applyLayoutToGraph,
     calculateLayoutPositions,
     getGraphPerformanceProfile,
@@ -424,16 +429,33 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
 
     const performanceProfile = getGraphPerformanceProfile(graph.order, graph.size);
 
+    // Pre-compute degree threshold for hub nodes (force-label the top 15% by degree).
+    // Done ONCE at init — not per frame. Uses graphology's O(1) degree() lookups.
+    const allDegrees = graph.nodes().map((n) => graph.degree(n)).sort((a, b) => b - a);
+    const hubThreshold = allDegrees[Math.floor(allDegrees.length * 0.15)] ?? 0;
+
     const nodeReducer = (node: string, attrs: Record<string, unknown>) => {
       const hoverState = hoverStateRef.current;
       const isSelected = selectedNodeIdRef.current === node;
       const isHoveredNode = hoverState.nodeId === node;
+
+      // Compute forceLabel first — hub nodes always show their label
+      const degree = typeof attrs.degree === 'number' ? attrs.degree : 0;
+      const isHub = degree >= hubThreshold && hubThreshold > 0;
+
+      // Fast path: no hover state, no selection — only apply forceLabel if changed
+      if (hoverState.nodeId === null && !isSelected) {
+        if (!isHub) return attrs; // Nothing to change
+        return attrs.forceLabel === true ? attrs : { ...attrs, forceLabel: true };
+      }
+
       const isNeighbor = hoverState.neighborIds.has(node);
       const isEdgeEndpoint =
         hoverState.edgeId !== null &&
         graph.hasEdge(hoverState.edgeId) &&
         (graph.source(hoverState.edgeId) === node || graph.target(hoverState.edgeId) === node);
 
+      // Hide non-relevant nodes when highlight mode is active
       if (
         highlightNeighborsRef.current &&
         hoverState.nodeId !== null &&
@@ -441,17 +463,18 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         !isHoveredNode &&
         !isNeighbor
       ) {
-        return {
-          ...attrs,
-          hidden: true,
-        };
+        return attrs.hidden === true && attrs.forceLabel === false
+          ? attrs
+          : { ...attrs, hidden: true, forceLabel: false };
       }
 
       if (!isSelected && !isHoveredNode && !isNeighbor && !isEdgeEndpoint) {
-        return attrs;
+        const fl = isHub;
+        return attrs.forceLabel === fl ? attrs : { ...attrs, forceLabel: fl };
       }
 
-      const next = { ...attrs };
+      // Node is in focus — apply selection/hover styling
+      const next: Record<string, unknown> = { ...attrs, forceLabel: true };
 
       if (isSelected) {
         next.size = (typeof attrs.size === 'number' ? attrs.size : nodeSizeRef.current) * 1.8;
@@ -469,32 +492,49 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
 
     const edgeReducer = (edge: string, attrs: Record<string, unknown>) => {
       const hoverState = hoverStateRef.current;
+      const selectedNodeId = selectedNodeIdRef.current;
 
+      // Fast path: nothing focused → no edge label, return attrs unchanged
+      if (hoverState.nodeId === null && selectedNodeId === null && hoverState.edgeId === null) {
+        return attrs.forceLabel === false || attrs.forceLabel === undefined
+          ? attrs
+          : { ...attrs, forceLabel: false };
+      }
+
+      const source = graph.source(edge);
+      const target = graph.target(edge);
+
+      const isConnectedToFocus =
+        hoverState.nodeId === source ||
+        hoverState.nodeId === target ||
+        selectedNodeId === source ||
+        selectedNodeId === target;
+
+      // Hide unrelated edges in highlight mode
       if (
         highlightNeighborsRef.current &&
         hideUnselectedEdgesRef.current &&
         hoverState.nodeId !== null &&
         hoverState.edgeId !== edge
       ) {
-        const source = graph.source(edge);
-        const target = graph.target(edge);
-        if (source !== hoverState.nodeId && target !== hoverState.nodeId) {
-          return {
-            ...attrs,
-            hidden: true,
-          };
+        if (!isConnectedToFocus) {
+          return attrs.hidden === true ? attrs : { ...attrs, hidden: true, forceLabel: false };
         }
       }
 
-      if (hoverState.edgeId !== edge) {
-        return attrs;
+      // Highlight the directly hovered edge
+      if (hoverState.edgeId === edge) {
+        return {
+          ...attrs,
+          forceLabel: !!attrs.label,
+          color: isDark ? '#60a5fa' : '#3b82f6',
+          size: (typeof attrs.size === 'number' ? attrs.size : 2) * 2,
+        };
       }
 
-      return {
-        ...attrs,
-        color: isDark ? '#60a5fa' : '#3b82f6',
-        size: (typeof attrs.size === 'number' ? attrs.size : 2) * 2,
-      };
+      // Show edge label when connected to focused node
+      const forceLabel = isConnectedToFocus && !!attrs.label;
+      return attrs.forceLabel === forceLabel ? attrs : { ...attrs, forceLabel };
     };
     
     // Create Sigma instance with visual quality settings and LOD optimizations
@@ -502,14 +542,20 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
     try {
       sigma = new Sigma(graph, containerRef.current, {
         renderLabels: showLabelsRef.current,
-        renderEdgeLabels: showEdgeLabelsRef.current && !performanceProfile.isVeryLargeGraph,
-        labelSize: 13, // Slightly larger for better readability
-        labelWeight: '500', // Medium weight for better readability
+        // renderEdgeLabels: only process edge labels when a node is focused.
+        // Using the hover/selected state stored in refs to gate this setting
+        // avoids Sigma iterating 4000+ edges on every frame when nothing is focused.
+        renderEdgeLabels: showEdgeLabelsRef.current,
+        // Custom label renderer: background pill for readability over dense graphs
+        defaultDrawNodeLabel: drawNodeLabelWithBackground,
+        // Custom hover card: color-accented tooltip with entity type sub-label
+        defaultDrawNodeHover: drawNodeHoverWithCard,
+        // Custom edge label: formatted relationship type with background pill
+        defaultDrawEdgeLabel: drawEdgeLabelWithBackground,
+        labelSize: 11,
+        labelWeight: '500',
         labelColor: { color: isDark ? LABEL_COLORS.dark : LABEL_COLORS.light },
         labelFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
-        // WHY: Explicit edge-label styling so relation names are clearly legible in
-        // both light and dark themes.  Without these, sigma falls back to using the
-        // edge color as label color (low contrast) and Arial at 14px.
         edgeLabelSize: 10,
         edgeLabelFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
         edgeLabelWeight: '500',
@@ -517,7 +563,10 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         labelGridCellSize: performanceProfile.labelGridCellSize,
         labelRenderedSizeThreshold: performanceProfile.labelRenderedSizeThreshold,
         labelDensity: performanceProfile.labelDensity,
-        defaultNodeColor: '#64748b',
+        // Critical for panning performance: hide edges/labels while camera is moving
+        hideEdgesOnMove: performanceProfile.hideEdgesOnMove,
+        hideLabelsOnMove: performanceProfile.hideLabelsOnMove,
+        defaultNodeColor: '#94a3b8',
         defaultEdgeColor: defaultEdgeColor,
         defaultNodeType: 'border',
         defaultEdgeType: 'curvedArrow',
@@ -528,12 +577,12 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
           curvedArrow: EdgeCurvedArrowProgram,
           curved: createEdgeCurveProgram(),
         },
-        minCameraRatio: 0.1,
+        minCameraRatio: 0.05,
         maxCameraRatio: 10,
         enableEdgeEvents: !performanceProfile.disableEdgeEvents,
-        stagePadding: 50, // Add padding around graph for better visibility
-        // WHY: Always enable zIndex so selected nodes can render on top
+        stagePadding: 50,
         zIndex: true,
+        minEdgeThickness: 1.5,
         nodeReducer,
         edgeReducer,
       });
@@ -573,7 +622,34 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
       if (containerRef.current) {
         containerRef.current.addEventListener('contextmenu', (e) => e.preventDefault(), { once: true });
       }
-      onNodeRightClickRef.current?.(node, event.x, event.y);
+
+      // Anchor the menu to the node's screen-space position, NOT the raw mouse cursor.
+      // WHY: Using event.x/y places the menu ON TOP of the node, creating visual
+      // competition. By converting the node's graph position to viewport coordinates
+      // and adding a gap = node screen-size + padding, the menu appears cleanly to
+      // the right of the node regardless of where on it the user right-clicked.
+      const nodeDisplayData = sigma.getNodeDisplayData(node);
+      if (nodeDisplayData) {
+        const container = containerRef.current!.getBoundingClientRect();
+        const viewportPos = sigma.graphToViewport({
+          x: nodeDisplayData.x,
+          y: nodeDisplayData.y,
+        });
+        // In Sigma 3.x: screen radius ≈ node.size / camera.ratio
+        const cameraRatio = sigma.getCamera().ratio;
+        const nodeScreenRadius = Math.max(
+          8,
+          Math.min(60, (nodeDisplayData.size ?? 8) / cameraRatio),
+        );
+        const GAP = 12;
+        // Place menu to the right of the node; vertically centered on the node
+        const screenX = container.left + viewportPos.x + nodeScreenRadius + GAP;
+        const screenY = container.top  + viewportPos.y;
+        onNodeRightClickRef.current?.(node, screenX, screenY);
+      } else {
+        // Fallback: use raw event position if node data unavailable
+        onNodeRightClickRef.current?.(node, event.x, event.y);
+      }
     });
 
     sigma.on('downNode', (e) => {

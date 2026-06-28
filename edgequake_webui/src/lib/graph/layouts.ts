@@ -19,6 +19,10 @@ export interface GraphPerformanceProfile {
   labelDensity: number;
   labelRenderedSizeThreshold: number;
   disableEdgeEvents: boolean;
+  /** Hide edges while the camera is moving to maintain 60fps panning. */
+  hideEdgesOnMove: boolean;
+  /** Hide labels while the camera is moving (Canvas 2D labels block main thread). */
+  hideLabelsOnMove: boolean;
 }
 
 export type LayoutPositions = Record<string, Record<string, number>>;
@@ -35,10 +39,17 @@ export function getGraphPerformanceProfile(
     edgeCount,
     isLargeGraph,
     isVeryLargeGraph,
-    labelGridCellSize: isVeryLargeGraph ? 150 : isLargeGraph ? 100 : 80,
-    labelDensity: isVeryLargeGraph ? 0.6 : isLargeGraph ? 0.7 : 0.8,
-    labelRenderedSizeThreshold: isVeryLargeGraph ? 4 : isLargeGraph ? 3 : 2,
+    // Larger cell = fewer labels shown = less canvas draw work per frame
+    labelGridCellSize: isVeryLargeGraph ? 160 : isLargeGraph ? 120 : 80,
+    // Higher density = more labels per cell; balanced with grid culling
+    labelDensity: isVeryLargeGraph ? 0.5 : isLargeGraph ? 0.8 : 1.0,
+    // Minimum rendered-size threshold: skip labels for nodes too small to read
+    labelRenderedSizeThreshold: isVeryLargeGraph ? 5 : isLargeGraph ? 3 : 2,
     disableEdgeEvents: isVeryLargeGraph,
+    // Hide edges during panning: critical for graphs with thousands of edges
+    hideEdgesOnMove: isLargeGraph,
+    // Hide labels during pan: Canvas 2D label drawing blocks main thread
+    hideLabelsOnMove: isLargeGraph,
   };
 }
 

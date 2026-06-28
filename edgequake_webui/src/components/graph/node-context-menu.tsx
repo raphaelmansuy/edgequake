@@ -1,5 +1,6 @@
 'use client';
 
+import { getEntityTypeColor, formatEntityLabel, formatEntityType } from '@/lib/graph/label-utils';
 import type { GraphNode } from '@/types';
 import {
     Copy,
@@ -10,7 +11,7 @@ import {
     Search,
     Trash2
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface NodeContextMenuPosition {
@@ -46,112 +47,114 @@ export function NodeContextMenu({
   isExpanded = false,
 }: NodeContextMenuProps) {
   const { t } = useTranslation();
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleClose = useCallback(() => {
     onClose();
   }, [onClose]);
 
+  // Compute final position:
+  // - position.x/y is already the node's right edge (set by graph-renderer using
+  //   graphToViewport + nodeScreenRadius + gap).
+  // - Shift top up by MENU_H/2 so the menu is vertically centered on the node.
+  // - Clamp to viewport bounds so the menu never clips off screen.
+  const safePos = useCallback(() => {
+    if (!position) return { left: 0, top: 0 };
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const MENU_W = 224;
+    const MENU_H = 320; // approximate — 6 items × ~40px + header ~60px
+    const centeredTop = position.y - MENU_H / 2;
+    return {
+      left: Math.min(Math.max(position.x, 8), W - MENU_W - 8),
+      top:  Math.min(Math.max(centeredTop,  8), H - MENU_H - 8),
+    };
+  }, [position]);
+
   if (!node || !position) return null;
+
+  const displayLabel = formatEntityLabel(node.label ?? '', 40);
+  const displayType  = formatEntityType(node.node_type ?? '');
+  const typeColor    = getEntityTypeColor(node.node_type);
+  const pos = safePos();
+
+  // Reusable menu item builder — keeps JSX DRY
+  const Item = ({
+    icon: Icon,
+    label,
+    kbd,
+    danger = false,
+    check,
+    onClick,
+  }: {
+    icon: React.FC<{ className?: string }>;
+    label: string;
+    kbd?: string;
+    danger?: boolean;
+    check?: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      className={[
+        'flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm transition-colors',
+        danger
+          ? 'text-destructive hover:bg-destructive/10 hover:text-destructive'
+          : 'hover:bg-accent hover:text-accent-foreground',
+      ].join(' ')}
+      onClick={() => { onClick(); handleClose(); }}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1 text-left">{label}</span>
+      {check && <span className="text-xs text-muted-foreground">✓</span>}
+      {kbd && (
+        <kbd className="ml-auto text-[10px] font-mono bg-muted/70 text-muted-foreground px-1.5 py-0.5 rounded border border-border/50">
+          {kbd}
+        </kbd>
+      )}
+    </button>
+  );
 
   return (
     <div
+      ref={menuRef}
       className="fixed z-50"
-      style={{ left: position.x, top: position.y }}
+      style={{ left: pos.left, top: pos.top }}
     >
-      <div className="bg-popover border rounded-md shadow-md p-1 min-w-[200px]">
-        <div className="px-2 py-1.5 border-b mb-1">
-          <div className="font-medium truncate max-w-[180px]">{node.label}</div>
-          <div className="text-xs text-muted-foreground">{node.node_type}</div>
+      <div className="bg-popover border rounded-lg shadow-lg p-1 min-w-56">
+        {/* Header: formatted name + type with color dot */}
+        <div className="px-2.5 py-2 border-b mb-1">
+          <div
+            className="font-semibold text-sm truncate"
+            title={formatEntityLabel(node.label ?? '', 200)}
+          >
+            {displayLabel}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span
+              className="inline-block w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: typeColor }}
+              aria-hidden="true"
+            />
+            <span className="text-xs text-muted-foreground">{displayType}</span>
+          </div>
         </div>
 
-        <button
-          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-          onClick={() => {
-            onViewDetails(node);
-            handleClose();
-          }}
-        >
-          <Eye className="h-4 w-4" />
-          <span>{t('graph.contextMenu.viewDetails', 'View Details')}</span>
-          <span className="ml-auto text-xs text-muted-foreground">Enter</span>
-        </button>
-
-        <button
-          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-          onClick={() => {
-            onExpandNeighborhood(node);
-            handleClose();
-          }}
-        >
-          <Network className="h-4 w-4" />
-          <span>{t('graph.contextMenu.expandNeighborhood', 'Expand Neighborhood')}</span>
-          {isExpanded && (
-            <span className="ml-auto text-xs text-muted-foreground">✓</span>
-          )}
-        </button>
-
+        <Item icon={Eye}     label={t('graph.contextMenu.viewDetails', 'View Details')}          kbd="↵"  onClick={() => onViewDetails(node)} />
+        <Item icon={Network} label={t('graph.contextMenu.expandNeighborhood', 'Expand Neighborhood')} check={isExpanded} onClick={() => onExpandNeighborhood(node)} />
         {onPruneNode && (
-          <button
-            className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-            onClick={() => {
-              onPruneNode(node);
-              handleClose();
-            }}
-          >
-            <Minimize2 className="h-4 w-4" />
-            <span>{t('graph.contextMenu.pruneNode', 'Prune Node')}</span>
-          </button>
+          <Item icon={Minimize2} label={t('graph.contextMenu.pruneNode', 'Prune Node')} onClick={() => onPruneNode!(node)} />
         )}
-
-        <button
-          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-          onClick={() => {
-            onFindRelated(node);
-            handleClose();
-          }}
-        >
-          <Search className="h-4 w-4" />
-          <span>{t('graph.contextMenu.findRelated', 'Find Related Entities')}</span>
-        </button>
+        <Item icon={Search}  label={t('graph.contextMenu.findRelated', 'Find Related')}                       onClick={() => onFindRelated(node)} />
 
         <div className="my-1 h-px bg-border" />
 
-        <button
-          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-          onClick={() => {
-            onViewDocuments(node);
-            handleClose();
-          }}
-        >
-          <FileText className="h-4 w-4" />
-          <span>{t('graph.contextMenu.viewDocuments', 'View Source Documents')}</span>
-        </button>
-
-        <button
-          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-          onClick={() => {
-            onCopyId(node);
-            handleClose();
-          }}
-        >
-          <Copy className="h-4 w-4" />
-          <span>{t('graph.contextMenu.copyId', 'Copy Entity ID')}</span>
-          <span className="ml-auto text-xs text-muted-foreground">⌘C</span>
-        </button>
+        <Item icon={FileText} label={t('graph.contextMenu.viewDocuments', 'View Documents')}           onClick={() => onViewDocuments(node)} />
+        <Item icon={Copy}     label={t('graph.contextMenu.copyId', 'Copy Entity ID')}        kbd="⌘C" onClick={() => onCopyId(node)} />
 
         {onDelete && (
           <>
             <div className="my-1 h-px bg-border" />
-            <button
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-destructive hover:text-destructive-foreground transition-colors text-destructive"
-              onClick={() => {
-                onDelete(node);
-                handleClose();
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>{t('graph.contextMenu.deleteEntity', 'Delete Entity')}</span>
-            </button>
+            <Item icon={Trash2} label={t('graph.contextMenu.deleteEntity', 'Delete Entity')} danger onClick={() => onDelete!(node)} />
           </>
         )}
       </div>
