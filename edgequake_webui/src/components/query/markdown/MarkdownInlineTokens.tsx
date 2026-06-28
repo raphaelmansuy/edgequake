@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { Token, Tokens } from 'marked';
 import { memo } from 'react';
 import { MathTokenRenderer } from './MathTokenRenderer';
+import { sanitizeHtml } from './utils/sanitize-html';
 
 interface MarkdownInlineTokensProps {
   id: string;
@@ -179,14 +180,20 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
             return <span key={tokenId}>{escapeToken.text}</span>;
           }
 
-          // HTML tokens (sanitized)
+          // HTML tokens (sanitized via DOMPurify — allows <sup>, <sub>, <abbr>, etc.)
           case 'html': {
             const htmlToken = token as Tokens.HTML;
-            // Only render safe inline HTML like <br>, <wbr>
-            if (/^<(br|wbr)\s*\/?>/i.test(htmlToken.raw)) {
-              return <br key={tokenId} />;
+            const sanitized = sanitizeHtml(htmlToken.raw);
+            if (sanitized) {
+              return (
+                <span
+                  key={tokenId}
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: sanitized }}
+                />
+              );
             }
-            // Otherwise render as text
+            // Fallback if DOMPurify strips all content (e.g. script tags)
             return <span key={tokenId}>{htmlToken.text}</span>;
           }
 

@@ -15,6 +15,7 @@
  */
 'use client';
 
+import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -58,7 +59,7 @@ import {
     XCircle,
     Zap,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -146,6 +147,8 @@ export function DocumentPreviewPanel({
 }: DocumentPreviewPanelProps) {
   const { t } = useTranslation();
   const [showFullContent, setShowFullContent] = useState(false);
+  // Ref to scroll the content card back into view when collapsing (Show Less)
+  const contentCardRef = useRef<HTMLDivElement>(null);
 
   // Fetch full document for content preview
   const { data: fullDocument, isLoading: isLoadingContent } = useQuery({
@@ -466,7 +469,7 @@ export function DocumentPreviewPanel({
           )}
         </div>
 
-        <Card className="bg-muted/30">
+        <Card className="bg-muted/30" ref={contentCardRef}>
           <CardContent className="p-3">
             {isLoadingContent ? (
               <div className="space-y-2">
@@ -476,16 +479,40 @@ export function DocumentPreviewPanel({
               </div>
             ) : (fullDocument?.content || document?.content_summary) ? (
               <div className="space-y-2">
-                <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto">
-                  {displayContent}
-                  {!showFullContent && hasMoreContent && '...'}
-                </pre>
+                {/* WHY: StreamingMarkdownRenderer handles HTML (<sup>, <sub>),
+                    LaTeX ($...$, $$...$$), GFM tables, code blocks, and more.
+                    The collapsed view limits height with a fade-out overlay.
+                    No internal pre/scroll — the outer RightPanel ScrollArea handles overflow. */}
+                <div
+                  className="relative text-xs overflow-hidden"
+                  style={!showFullContent ? { maxHeight: '200px' } : undefined}
+                >
+                  <div className="[&_p]:text-xs [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs [&_li]:text-xs [&_td]:text-xs [&_th]:text-xs prose-spacing-tight">
+                    <StreamingMarkdownRenderer content={displayContent} />
+                  </div>
+                  {/* Fade overlay when collapsed */}
+                  {!showFullContent && hasMoreContent && (
+                    <div className="absolute bottom-0 left-0 right-0 h-10 bg-linear-to-t from-card/90 to-transparent pointer-events-none" />
+                  )}
+                </div>
                 {hasMoreContent && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="w-full h-7 text-xs"
-                    onClick={() => setShowFullContent(!showFullContent)}
+                    onClick={() => {
+                      const next = !showFullContent;
+                      setShowFullContent(next);
+                      // Scroll the card into view when collapsing so layout appears clean
+                      if (!next) {
+                        requestAnimationFrame(() => {
+                          contentCardRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest',
+                          });
+                        });
+                      }
+                    }}
                   >
                     {showFullContent ? (
                       <>
