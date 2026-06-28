@@ -25,8 +25,6 @@ const actions = [
     icon: FileText,
     labelKey: 'dashboard.quickActions.upload',
     descriptionKey: 'dashboard.quickActions.uploadDesc',
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10 hover:bg-blue-500/20',
   },
   {
     id: 'query',
@@ -34,8 +32,6 @@ const actions = [
     icon: MessageSquare,
     labelKey: 'dashboard.quickActions.query',
     descriptionKey: 'dashboard.quickActions.queryDesc',
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10 hover:bg-purple-500/20',
   },
   {
     id: 'graph',
@@ -43,8 +39,6 @@ const actions = [
     icon: Network,
     labelKey: 'dashboard.quickActions.graph',
     descriptionKey: 'dashboard.quickActions.graphDesc',
-    color: 'text-green-500',
-    bgColor: 'bg-green-500/10 hover:bg-green-500/20',
   },
 ];
 
@@ -68,13 +62,14 @@ export function QuickActions() {
                 key={action.id}
                 href={action.href}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-2 rounded-lg border p-4 transition-all duration-200',
-                  action.bgColor,
-                  'hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5'
+                  'flex flex-col items-center justify-center gap-2 rounded-lg border p-4',
+                  'bg-card hover:bg-muted/40 hover:border-border',
+                  'transition-all duration-150 hover:shadow-sm',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
                 )}
               >
-                <div className={cn('rounded-full p-2.5', action.bgColor)}>
-                  <Icon className={cn('h-5 w-5', action.color)} />
+                <div className="rounded-lg bg-muted p-2.5">
+                  <Icon className="h-5 w-5 text-foreground" />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-medium">{t(action.labelKey)}</p>

@@ -37,6 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { deleteEntity } from '@/lib/api/edgequake';
+import { formatEntityLabel, formatEntityType } from '@/lib/graph/label-utils';
 import { cn } from '@/lib/utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useSelectedWorkspace } from '@/stores/use-tenant-store';
@@ -216,7 +217,7 @@ export function NodeDetails({ node }: NodeDetailsProps) {
               style={{ backgroundColor: typeColor }}
             />
             <h4 className="text-sm font-semibold truncate">
-              {node.label}
+              {formatEntityLabel(node.label)}
             </h4>
             <TooltipProvider>
               <Tooltip>
@@ -240,7 +241,7 @@ export function NodeDetails({ node }: NodeDetailsProps) {
             className="text-[10px] font-medium px-2 py-0.5"
             style={{ borderColor: typeColor, color: typeColor, backgroundColor: `${typeColor}10` }}
           >
-            {node.node_type || 'ENTITY'}
+            {formatEntityType(node.node_type || 'ENTITY')}
           </Badge>
         </div>
       </div>
