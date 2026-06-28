@@ -16,6 +16,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
     AlertCircle,
     ArrowLeft,
+    ChevronLeft,
+    ChevronRight,
     Download,
     Loader2,
     Network,
@@ -122,6 +124,26 @@ export default function DocumentViewPage() {
   // WHY: Sidebar interaction should take precedence over deep-link defaults.
   const activeStartLine = chunkStartLine ?? startLine;
   const activeEndLine = chunkEndLine ?? endLine;
+
+  // RP-02: Collapsible metadata sidebar state with localStorage persistence.
+  // WHY: Matches the Document Preview panel collapse UX from the documents list page.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const stored = localStorage.getItem('document-detail-sidebar-open');
+      return stored === null ? true : stored !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('document-detail-sidebar-open', String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   // Fetch document details
   const { data: document, isLoading, isError, error, refetch } = useQuery({
@@ -352,26 +374,69 @@ export default function DocumentViewPage() {
             )}
           </div>
 
-          {/* Metadata Sidebar - Resizable (shown for all document types including PDF).
+          {/* Metadata Sidebar - Resizable + Collapsible (RP-02).
               WHY: The sidebar contains the LineageTree which shows the Vision LLM
               used for PDF → Markdown transcription. Hiding it for PDF documents
               would make lineage information inaccessible to the user.
               SPEC-040: Vision LLM lineage must be visible in document detail view. */}
-          <ResizablePanel
-            side="right"
-            defaultWidth={400}
-            minWidth={280}
-            maxWidth={700}
-            storageKey="document-detail-sidebar-width"
-            ariaLabel="Resize metadata sidebar"
-          >
-            <MetadataSidebar
-              document={document}
-              onChunkSelect={handleChunkSelect}
-              onChunkResolved={handleChunkResolved}
-              selectedChunkId={selectedChunkId}
-            />
-          </ResizablePanel>
+          {!isSidebarOpen ? (
+            /* Collapsed state: thin bar matching RightPanel collapse style */
+            <div
+              className="w-10 border-l bg-card/50 flex flex-col items-center py-4 cursor-pointer hover:bg-muted/70 transition-colors shrink-0"
+              onClick={toggleSidebar}
+              role="button"
+              tabIndex={0}
+              aria-label="Expand details panel"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSidebar(); }
+              }}
+            >
+              <ChevronLeft className="h-4 w-4 text-muted-foreground mb-2" />
+              <span
+                className="text-xs text-muted-foreground"
+                style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+              >
+                Details
+              </span>
+            </div>
+          ) : (
+            /* Expanded state: resizable panel with collapse toggle */
+            <ResizablePanel
+              side="right"
+              defaultWidth={400}
+              minWidth={280}
+              maxWidth={700}
+              storageKey="document-detail-sidebar-width"
+              ariaLabel="Resize metadata sidebar"
+            >
+              {/* border-l here so the full panel edge (incl. strip) has the separator */}
+              <div className="flex flex-col h-full overflow-hidden border-l bg-background">
+                {/* Collapse toggle strip */}
+                <div className="flex items-center justify-between px-3 py-1.5 shrink-0 border-b bg-muted/20">
+                  <span className="text-xs font-medium text-muted-foreground">Details</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={toggleSidebar}
+                    aria-label="Collapse details panel"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {/* border-l-0: outer wrapper already provides the left border */}
+                  <MetadataSidebar
+                    document={document}
+                    onChunkSelect={handleChunkSelect}
+                    onChunkResolved={handleChunkResolved}
+                    selectedChunkId={selectedChunkId}
+                    className="border-l-0"
+                  />
+                </div>
+              </div>
+            </ResizablePanel>
+          )}
         </div>
 
         {/* Mobile/Tablet: Tabbed layout */}
