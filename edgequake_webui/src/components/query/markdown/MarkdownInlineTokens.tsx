@@ -100,8 +100,6 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
         const tokenId = `${id}-${idx}`;
 
         switch (token.type) {
-
-        switch (token.type) {
           case 'text': {
             const textToken = token as Tokens.Text;
             // During streaming, add a subtle fade effect to the last text
