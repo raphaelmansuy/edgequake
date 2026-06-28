@@ -39,7 +39,8 @@ use super::{build_reprocess_task, collect_workspace_documents, mark_document_pen
         ("workspace_id" = Uuid, Path, description = "Workspace ID")
     ),
     responses(
-        (status = 200, description = "Documents queued for reprocessing", body = ReprocessAllResponse),
+        (status = 200, description = "Documents queued (legacy default)", body = ReprocessAllResponse),
+        (status = 202, description = "Reprocess accepted when REST-025 opt-in or strict startup", body = ReprocessAllResponse),
         (status = 404, description = "Workspace not found"),
         (status = 400, description = "Invalid request"),
     ),
@@ -51,10 +52,15 @@ pub async fn reprocess_all_documents(
     tenant_ctx: TenantContext,
     Json(request): Json<ReprocessAllRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let return_202 = state.security.v1_rpc_return_202;
+    let ws = workspace_id.to_string();
     let response =
         run_reprocess_all_documents(state, workspace_id, tenant_ctx, request).await?;
-    crate::services::v1_rpc_migration::json_with_v1_rpc_migration(
-        &workspace_id.to_string(),
+    let track_id = response.track_id.clone();
+    crate::services::v1_rpc_migration::respond_v1_async_rpc(
+        &ws,
+        Some(track_id.as_str()),
+        return_202,
         response,
     )
 }

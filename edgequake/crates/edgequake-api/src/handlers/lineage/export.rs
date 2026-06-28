@@ -8,7 +8,7 @@ use super::cache::cached_kv_get;
 use crate::error::ApiError;
 use crate::handlers::isolation::verify_document_access;
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 /// Query parameters for lineage export.
 #[derive(Debug, serde::Deserialize, serde::Serialize, utoipa::IntoParams, utoipa::ToSchema)]
@@ -43,17 +43,17 @@ fn default_format() -> String {
     )
 )]
 pub async fn export_document_lineage(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(document_id): Path<String>,
     Query(params): Query<ExportParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace.
-    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // OODA-23: Use cached KV lookup for export
     let lineage_key = format!("{}-lineage", document_id);
-    let lineage_data = cached_kv_get(state.storage.kv_storage.as_ref(), &lineage_key)
+    let lineage_data = cached_kv_get(storage.kv_storage.as_ref(), &lineage_key)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -66,7 +66,7 @@ pub async fn export_document_lineage(
     // Read metadata for context (cached)
     let metadata_key =
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
-    let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
+    let metadata = cached_kv_get(storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id}));
 

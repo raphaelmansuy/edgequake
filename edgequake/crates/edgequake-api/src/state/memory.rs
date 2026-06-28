@@ -238,7 +238,7 @@ impl AppState {
             pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
-            security: ApiSecurityConfig::from_env(),
+            security: ApiSecurityConfig::default(),
         }
     }
 
@@ -339,7 +339,7 @@ impl AppState {
             pdf_vision,
             #[cfg(feature = "postgres")]
             migration_bootstrap: None,
-            security: ApiSecurityConfig::from_env(),
+            security: ApiSecurityConfig::default(),
         }
     }
 }

@@ -95,16 +95,13 @@ fn normalize_relational_status(status: &str) -> String {
 /// a legacy workspace id.
 #[cfg(feature = "postgres")]
 pub async fn list_relational_document_summaries(
-    state: &AppState,
+    pool: Option<&sqlx::PgPool>,
     tenant_ctx: &TenantContext,
 ) -> Result<Vec<DocumentSummary>, crate::error::ApiError> {
     use crate::error::ApiError;
     use sqlx::Row;
 
-    let pool = state
-        .pg_pool
-        .as_ref()
-        .ok_or_else(|| ApiError::Internal("PostgreSQL pool not available".into()))?;
+    let pool = pool.ok_or_else(|| ApiError::Internal("PostgreSQL pool not available".into()))?;
 
     let workspace_id = tenant_ctx
         .workspace_id
@@ -204,7 +201,6 @@ pub async fn list_relational_document_summaries(
 
 #[cfg(not(feature = "postgres"))]
 pub async fn list_relational_document_summaries(
-    _state: &AppState,
     _tenant_ctx: &TenantContext,
 ) -> Result<Vec<DocumentSummary>, crate::error::ApiError> {
     Ok(vec![])
@@ -249,7 +245,7 @@ pub fn merge_document_summaries(
 /// request never fails due to a graph hiccup. Batches the per-doc Cypher calls
 /// to avoid N+1 where possible; falls back to per-doc calls otherwise.
 pub async fn reconcile_entity_counts_with_graph(
-    state: &AppState,
+    storage: &crate::state::StorageRuntime,
     documents: &mut [DocumentSummary],
 ) {
     use edgequake_storage::kv_keys;
@@ -269,8 +265,7 @@ pub async fn reconcile_entity_counts_with_graph(
 
     for (idx, doc_id) in candidates {
         let prefix = kv_keys::doc_chunk_prefix(&doc_id);
-        match state
-            .storage
+        match storage
             .graph_storage
             .node_count_by_source_prefix(&prefix)
             .await

@@ -22,8 +22,12 @@ fn spec027_auth_validation_service_exists() {
 fn spec027_admin_handlers_require_admin_guard() {
     let admin = read_crate_src("src/handlers/admin.rs");
     assert!(
-        admin.matches("require_admin_request").count() >= 7,
-        "all admin entrypoints must call require_admin_request"
+        admin.matches("ApiRequireAdmin").count() >= 8,
+        "all admin entrypoints must use ApiRequireAdmin extractor (ARCH-D-001)"
+    );
+    assert!(
+        !admin.contains("require_admin_request"),
+        "admin handlers must not call require_admin_request directly"
     );
 }
 
@@ -141,7 +145,12 @@ fn spec027_reliability_graph_query_timeout_ssot() {
     let mat = read_crate_src("src/services/graph_materialization.rs");
     assert!(mat.contains("run_timed_graph_query"));
     assert!(mat.contains("graph_query_timeout"));
-    assert!(mat.contains("admit_graph_materialization"));
+    assert!(mat.contains("GraphQueryRuntime"));
+    assert!(!mat.contains("admit_graph_materialization_from_state"));
+    let stream = read_crate_src("src/handlers/graph/graph_stream.rs");
+    assert!(stream.contains("State<GraphQueryRuntime>"));
+    assert!(stream.contains("State<StorageRuntime>"));
+    assert!(!stream.contains("State<AppState>"));
     let health = read_crate_src("src/handlers/health_probes.rs");
     assert!(health.contains("COMPONENT_PING_TIMEOUT"));
     assert!(health.contains("probe_with_timeout"));
@@ -499,10 +508,145 @@ fn spec027_v2_level4_workspace_scoped_routes_only() {
 fn spec027_v1_rpc_migration_headers_ssot() {
     let migration = read_crate_src("src/services/v1_rpc_migration.rs");
     assert!(migration.contains("V1_RPC_SUNSET_RFC7231"));
-    assert!(migration.contains("json_with_v1_rpc_migration"));
+    assert!(migration.contains("respond_v1_async_rpc"));
     assert!(migration.contains("successor-version"));
-    let rebuild = read_crate_src("src/handlers/workspaces/bulk_ops/rebuild_embeddings.rs");
-    assert!(rebuild.contains("json_with_v1_rpc_migration"));
+    let security = read_crate_src("src/state/security_config.rs");
+    assert!(security.contains("v1_rpc_return_202"));
+    assert!(security.contains("EDGEQUAKE_V1_RPC_RETURN_202"));
+    assert!(
+        security.contains("v1_rpc_return_202: true"),
+        "Default ApiSecurityConfig must enable REST-025 202"
+    );
+    for path in [
+        "src/handlers/workspaces/bulk_ops/rebuild_embeddings.rs",
+        "src/handlers/documents/recovery/stuck.rs",
+    ] {
+        let src = read_crate_src(path);
+        assert!(
+            src.contains("respond_v1_async_rpc"),
+            "{path} must use respond_v1_async_rpc SSOT"
+        );
+    }
+}
+
+#[test]
+fn spec027_auth_extractors_arch_d001() {
+    let extractors = read_crate_src("src/handlers/auth/extractors.rs");
+    assert!(extractors.contains("ApiAuthenticated"));
+    assert!(extractors.contains("ApiRequireAdmin"));
+    assert!(extractors.contains("ApiOptionalAuth"));
+    assert!(extractors.contains("FromRequestParts<AppState>"));
+    let runtime = read_crate_src("src/state/runtime_extractors.rs");
+    assert!(
+        runtime.contains("impl FromRef<AppState> for AuthState"),
+        "AuthState FromRef for JWT-only handlers"
+    );
+    let user_mgmt = read_crate_src("src/handlers/auth/user_management.rs");
+    assert!(
+        user_mgmt.matches("ApiRequireAdmin").count() >= 4,
+        "admin user CRUD must use ApiRequireAdmin"
+    );
+    assert!(
+        user_mgmt.contains("ApiOptionalAuth"),
+        "create_user must use ApiOptionalAuth"
+    );
+    assert!(
+        user_mgmt.contains("State<AuthRuntime>"),
+        "create_user must use AuthRuntime ISP"
+    );
+    assert!(
+        !user_mgmt.contains("require_admin_request"),
+        "user_management must not call require_admin_request directly"
+    );
+    assert!(
+        !user_mgmt.contains("authenticate_request"),
+        "user_management must not call authenticate_request directly"
+    );
+    let api_keys = read_crate_src("src/handlers/auth/api_keys.rs");
+    assert!(
+        api_keys.matches("ApiAuthenticated").count() >= 3,
+        "api_keys handlers must use ApiAuthenticated"
+    );
+    assert!(
+        !api_keys.contains("require_authenticated_request"),
+        "api_keys must not call require_authenticated_request directly"
+    );
+    let session = read_crate_src("src/handlers/auth/session.rs");
+    let login_fn = session
+        .split("pub async fn login")
+        .nth(1)
+        .expect("login handler");
+    assert!(login_fn.contains("State<AuthRuntime>"));
+    assert!(login_fn.contains("State<StorageRuntime>"));
+    assert!(login_fn.contains("State<ComplianceRuntime>"));
+    let refresh_fn = session
+        .split("pub async fn refresh_token")
+        .nth(1)
+        .expect("refresh handler");
+    assert!(refresh_fn.contains("State<AuthRuntime>"));
+    assert!(refresh_fn.contains("State<StorageRuntime>"));
+    let logout_fn = session
+        .split("pub async fn logout")
+        .nth(1)
+        .expect("logout handler");
+    assert!(logout_fn.contains("State<ComplianceRuntime>"));
+    let get_me_fn = session
+        .split("pub async fn get_me")
+        .nth(1)
+        .expect("get_me handler");
+    assert!(
+        get_me_fn.contains("ApiAuthenticated"),
+        "get_me must use ApiAuthenticated extractor"
+    );
+    assert!(
+        get_me_fn.contains("State<StorageRuntime>"),
+        "get_me must use StorageRuntime ISP"
+    );
+    assert!(
+        !get_me_fn.contains("verify_token"),
+        "get_me must not manually verify JWT"
+    );
+}
+
+#[test]
+fn spec027_rest025_default_202_with_legacy_opt_out() {
+    let security = read_crate_src("src/state/security_config.rs");
+    assert!(
+        security.contains("v1_rpc_return_202: true"),
+        "REST-025 default must be 202"
+    );
+    assert!(security.contains("EDGEQUAKE_V1_RPC_RETURN_202"));
+    for path in [
+        "src/handlers/workspaces/bulk_ops/rebuild_embeddings.rs",
+        "src/handlers/workspaces/bulk_ops/rebuild_knowledge_graph.rs",
+        "src/handlers/workspaces/bulk_ops/reprocess_documents.rs",
+        "src/handlers/documents/recovery/stuck.rs",
+        "src/handlers/documents/recovery/reprocess.rs",
+        "src/handlers/documents/recovery/reanalyze.rs",
+    ] {
+        let src = read_crate_src(path);
+        assert!(
+            src.contains("status = 202"),
+            "{path} OpenAPI must document REST-025 202 response"
+        );
+        assert!(
+            src.contains("respond_v1_async_rpc"),
+            "{path} must use respond_v1_async_rpc SSOT"
+        );
+    }
+}
+
+#[test]
+fn spec027_scan_directory_partial_isp() {
+    let scan = read_crate_src("src/handlers/documents/query/scan.rs");
+    let scan_fn = scan
+        .split("pub async fn scan_directory")
+        .nth(1)
+        .expect("scan_directory");
+    assert!(scan_fn.contains("State<StorageRuntime>"));
+    assert!(scan_fn.contains("State<PathValidationConfig>"));
+    assert!(scan_fn.contains("State<TaskRuntime>"));
+    assert!(!scan_fn.contains("State<AppState>"));
 }
 
 #[test]
@@ -526,6 +670,97 @@ fn spec027_run_reanalyze_multimodal_extracted() {
     let idx = recovery.find("struct ReanalyzeMultimodalResponse").expect("struct");
     let slice = &recovery[idx..recovery.len().min(idx + 400)];
     assert!(slice.contains("v2_migration"));
+}
+
+#[test]
+fn spec027_graph_edge_response_from_storage_edge_ssot() {
+    let graph_types = read_crate_src("src/handlers/graph_types.rs");
+    assert!(graph_types.contains("fn from_storage_edge"));
+    assert!(graph_types.contains("relationship_type"));
+    assert!(graph_types.contains("relation_type"));
+
+    for path in [
+        "src/handlers/graph/graph_query/search.rs",
+        "src/handlers/graph/graph_query/traversal.rs",
+        "src/handlers/graph/graph_stream.rs",
+    ] {
+        let src = read_crate_src(path);
+        assert!(
+            src.contains("GraphEdgeResponse::from_storage_edge"),
+            "{path} must use GraphEdgeResponse SSOT"
+        );
+        assert!(
+            !src.contains("GraphEdgeResponse {"),
+            "{path} must not inline GraphEdgeResponse construction"
+        );
+    }
+}
+
+#[test]
+fn spec027_relationship_handlers_use_storage_runtime_isp() {
+    for path in [
+        "src/handlers/relationships/get.rs",
+        "src/handlers/relationships/list.rs",
+        "src/handlers/relationships/create.rs",
+        "src/handlers/relationships/update.rs",
+        "src/handlers/relationships/delete.rs",
+        "src/handlers/lineage/entity_provenance.rs",
+        "src/handlers/lineage/chunk_detail.rs",
+        "src/handlers/lineage/queries.rs",
+        "src/handlers/lineage/export.rs",
+        "src/handlers/graph/graph_query/node.rs",
+        "src/handlers/documents/query/track_status.rs",
+        "src/handlers/documents/query/list.rs",
+    ] {
+        let src = read_crate_src(path);
+        assert!(
+            src.contains("State<StorageRuntime>"),
+            "{path} must use StorageRuntime ISP extractor (API-SOLID-I-001)"
+        );
+        assert!(
+            !src.contains("State<AppState>"),
+            "{path} must not take full AppState when storage-only"
+        );
+    }
+    for path in [
+        "src/handlers/graph/graph_query/search.rs",
+        "src/handlers/graph/graph_query/traversal.rs",
+        "src/handlers/graph/graph_stream.rs",
+    ] {
+        let src = read_crate_src(path);
+        assert!(
+            src.contains("State<GraphQueryRuntime>"),
+            "{path} must use GraphQueryRuntime for materialization guard"
+        );
+        assert!(
+            src.contains("State<StorageRuntime>"),
+            "{path} must use StorageRuntime ISP"
+        );
+    }
+    let popular = read_crate_src("src/handlers/graph/graph_query/popular.rs");
+    let popular_fn = popular
+        .split("pub async fn get_popular_labels")
+        .nth(1)
+        .expect("get_popular_labels");
+    assert!(popular_fn.contains("State<GraphQueryRuntime>"));
+    assert!(popular_fn.contains("State<StorageRuntime>"));
+    let batch_fn = popular
+        .split("pub async fn get_degrees_batch")
+        .nth(1)
+        .expect("get_degrees_batch");
+    assert!(
+        batch_fn.contains("State<StorageRuntime>"),
+        "get_degrees_batch must use StorageRuntime ISP"
+    );
+    assert!(
+        !batch_fn.contains("State<AppState>"),
+        "get_degrees_batch must not take full AppState"
+    );
+    let list = read_crate_src("src/handlers/relationships/list.rs");
+    assert!(
+        list.contains("State<ResourceBudgetConfig>"),
+        "list_relationships must extract budget without full AppState"
+    );
 }
 
 #[test]

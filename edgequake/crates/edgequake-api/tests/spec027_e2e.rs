@@ -603,7 +603,11 @@ async fn spec027_v1_rpc_includes_sunset_and_link_headers() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.status(),
+        StatusCode::ACCEPTED,
+        "v1 RPC must return 202 by default (REST-025)"
+    );
     assert!(
         response.headers().get("sunset").is_some(),
         "v1 RPC must include Sunset header (REST-024)"
@@ -616,6 +620,75 @@ async fn spec027_v1_rpc_includes_sunset_and_link_headers() {
     assert!(link.contains("successor-version"));
     assert!(link.contains(SPEC027_WORKSPACE));
     assert!(link.contains("/jobs/catalog"));
+}
+
+#[tokio::test]
+async fn spec027_v1_rpc_returns_202_by_default() {
+    let state = AppState::test_state();
+    assert!(
+        state.security.v1_rpc_return_202,
+        "REST-025 default must be 202"
+    );
+    let app = build_app(state);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/recover-stuck")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("X-Tenant-ID", SPEC027_TENANT)
+                .header("X-Workspace-ID", SPEC027_WORKSPACE)
+                .body(Body::from(json!({ "stuck_threshold_minutes": 60 }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::ACCEPTED,
+        "REST-025 default must return 202 when job id present"
+    );
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .expect("Location header on 202");
+    assert!(
+        location.starts_with("/api/v1/tasks/"),
+        "Location must point at v1 task track id"
+    );
+    let link = response
+        .headers()
+        .get(header::LINK)
+        .and_then(|v| v.to_str().ok())
+        .expect("Link rel=self on 202");
+    assert!(link.contains("rel=\"self\""));
+    assert!(response.headers().get("sunset").is_some());
+}
+
+#[tokio::test]
+async fn spec027_v1_rpc_returns_200_when_legacy_opt_out() {
+    let mut state = AppState::test_state();
+    state.security.v1_rpc_return_202 = false;
+    let app = build_app(state);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/recover-stuck")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("X-Tenant-ID", SPEC027_TENANT)
+                .header("X-Workspace-ID", SPEC027_WORKSPACE)
+                .body(Body::from(json!({ "stuck_threshold_minutes": 60 }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "EDGEQUAKE_V1_RPC_RETURN_202=0 must preserve legacy 200"
+    );
 }
 
 #[tokio::test]

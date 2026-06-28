@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     Json,
 };
 use chrono::Utc;
@@ -14,12 +14,12 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::error::ApiError;
-use crate::state::AppState;
+use crate::handlers::auth::{ApiOptionalAuth, ApiRequireAdmin};
+use crate::state::{AuthRuntime, StorageRuntime};
 use edgequake_auth::{Role, User};
 
 use super::{
-    authenticate_request, get_record_by_id, require_admin_request, USER_BY_EMAIL_PREFIX,
-    USER_BY_USERNAME_PREFIX, USER_KEY_PREFIX,
+    get_record_by_id, USER_BY_EMAIL_PREFIX, USER_BY_USERNAME_PREFIX, USER_KEY_PREFIX,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,9 +34,8 @@ fn storage_err(e: impl std::fmt::Display) -> ApiError {
 }
 
 /// List user record KV keys via prefix scan (O(users), not O(all KV keys)).
-async fn list_user_record_keys(state: &AppState) -> Result<Vec<String>, ApiError> {
-    state
-        .storage
+async fn list_user_record_keys(storage: &StorageRuntime) -> Result<Vec<String>, ApiError> {
+    storage
         .kv_storage
         .keys_with_prefix(USER_KEY_PREFIX)
         .await
@@ -45,17 +44,17 @@ async fn list_user_record_keys(state: &AppState) -> Result<Vec<String>, ApiError
 
 /// Count admin users excluding `exclude_user_id` (last-admin demotion guard).
 async fn count_other_admin_users(
-    state: &AppState,
+    storage: &StorageRuntime,
     exclude_user_id: &str,
 ) -> Result<u32, ApiError> {
-    let user_keys = list_user_record_keys(state).await?;
+    let user_keys = list_user_record_keys(storage).await?;
     let mut admin_count = 0u32;
     for key in user_keys {
         let uid = key.trim_start_matches(USER_KEY_PREFIX);
         if uid == exclude_user_id {
             continue;
         }
-        if let Some(record) = get_record_by_id(state, uid).await? {
+        if let Some(record) = get_record_by_id(storage, uid).await? {
             if Role::parse(&record.role) == Role::Admin {
                 admin_count += 1;
             }
@@ -86,8 +85,9 @@ pub use crate::handlers::auth_types::{
     )
 )]
 pub async fn create_user(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(auth): State<AuthRuntime>,
+    State(storage): State<StorageRuntime>,
+    ApiOptionalAuth(auth_context): ApiOptionalAuth,
     Json(request): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<CreateUserResponse>), ApiError> {
     // Validate inputs
@@ -109,8 +109,7 @@ pub async fn create_user(
         USER_BY_USERNAME_PREFIX,
         request.username.to_lowercase()
     );
-    if state
-        .storage
+    if storage
         .kv_storage
         .get_by_id(&username_key)
         .await
@@ -122,8 +121,7 @@ pub async fn create_user(
 
     // Check email uniqueness
     let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, request.email.to_lowercase());
-    if state
-        .storage
+    if storage
         .kv_storage
         .get_by_id(&email_key)
         .await
@@ -133,21 +131,18 @@ pub async fn create_user(
         return Err(ApiError::Conflict("Email already exists".to_string()));
     }
 
-    let auth_context = authenticate_request(&headers, &state)?;
-
-    if auth_context.is_none() && !state.auth.config.allow_registration {
+    if auth_context.is_none() && !auth.config.allow_registration {
         return Err(ApiError::forbidden());
     }
 
     // Hash password
-    let password_hash = state
-        .auth
+    let password_hash = auth
         .password
         .hash_password(&request.password)
         .map_err(|e| ApiError::BadRequest(format!("Password error: {}", e)))?;
 
     // Determine role
-    let default_role = Role::parse(&state.auth.config.default_role);
+    let default_role = Role::parse(&auth.config.default_role);
     let requested_role = request.role.as_ref().map(|r| Role::parse(r));
 
     let role = match auth_context {
@@ -188,8 +183,7 @@ pub async fn create_user(
     // Store email index
     let email_value = serde_json::Value::String(user_id.clone());
 
-    state
-        .storage
+    storage
         .kv_storage
         .upsert(&[
             (user_key, user_value),
@@ -225,25 +219,20 @@ pub async fn create_user(
     )
 )]
 pub async fn list_users(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(storage): State<StorageRuntime>,
+    _admin: ApiRequireAdmin,
     Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<ListUsersResponse>, ApiError> {
-    require_admin_request(&headers, &state).await?;
 
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
 
-    // SPEC-012 Fix C+: USER_KEY_PREFIX is a prefix — use the index-friendly
-    // `keys_with_prefix` instead of `keys() + filter starts_with(...)` which
-    // scans the entire kv table on every admin user-list call.
-    let user_keys = list_user_record_keys(&state).await?;
+    let user_keys = list_user_record_keys(&storage).await?;
 
-    // Load each user record in batch-style (sequential for now).
     let mut users: Vec<UserInfo> = Vec::with_capacity(user_keys.len());
     for key in &user_keys {
         let user_id = key.trim_start_matches(USER_KEY_PREFIX);
-        if let Some(record) = get_record_by_id(&state, user_id).await? {
+        if let Some(record) = get_record_by_id(&storage, user_id).await? {
             // Apply optional role filter.
             if let Some(ref role_filter) = query.role {
                 if record.role.to_lowercase() != role_filter.to_lowercase() {
@@ -293,12 +282,11 @@ pub async fn list_users(
     )
 )]
 pub async fn get_user(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(storage): State<StorageRuntime>,
+    _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserInfo>, ApiError> {
-    require_admin_request(&headers, &state).await?;
-    let record = get_record_by_id(&state, &user_id)
+    let record = get_record_by_id(&storage, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
 
@@ -323,13 +311,11 @@ pub async fn get_user(
     )
 )]
 pub async fn delete_user(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(storage): State<StorageRuntime>,
+    _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    require_admin_request(&headers, &state).await?;
-    // Get record first to retrieve username/email for index cleanup.
-    let record = get_record_by_id(&state, &user_id)
+    let record = get_record_by_id(&storage, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
 
@@ -342,8 +328,7 @@ pub async fn delete_user(
     );
     let email_key = format!("{}{}", USER_BY_EMAIL_PREFIX, record.email.to_lowercase());
 
-    state
-        .storage
+    storage
         .kv_storage
         .delete(&[user_key, username_key, email_key])
         .await
@@ -378,15 +363,13 @@ pub async fn delete_user(
     )
 )]
 pub async fn update_user(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(storage): State<StorageRuntime>,
+    _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
     Json(request): Json<UpdateUserRequest>,
 ) -> Result<Json<UpdateUserResponse>, ApiError> {
-    require_admin_request(&headers, &state).await?;
 
-    // Load existing record directly — avoids to_user() round-trip (DRY).
-    let mut record = get_record_by_id(&state, &user_id)
+    let mut record = get_record_by_id(&storage, &user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
     let now = Utc::now();
@@ -399,7 +382,7 @@ pub async fn update_user(
         // WHY: Guard against demoting the last admin — system would be unmanageable.
         if current_role == Role::Admin
             && parsed != Role::Admin
-            && count_other_admin_users(&state, &user_id).await? == 0
+            && count_other_admin_users(&storage, &user_id).await? == 0
         {
             return Err(ApiError::Conflict(
                 "Cannot demote the last admin user".to_string(),
@@ -418,7 +401,7 @@ pub async fn update_user(
 
         // Check email uniqueness (skip current user's email)
         let email_key = format!("{}{}", super::USER_BY_EMAIL_PREFIX, email_lower);
-        if let Ok(Some(existing_id_val)) = state.storage.kv_storage.get_by_id(&email_key).await {
+        if let Ok(Some(existing_id_val)) = storage.kv_storage.get_by_id(&email_key).await {
             if let Some(existing_id) = existing_id_val.as_str() {
                 if existing_id != user_id {
                     return Err(ApiError::Conflict("Email already in use".to_string()));
@@ -432,15 +415,13 @@ pub async fn update_user(
             super::USER_BY_EMAIL_PREFIX,
             record.email.to_lowercase()
         );
-        state
-            .storage
+        storage
             .kv_storage
             .delete(&[old_email_key])
             .await
             .map_err(storage_err)?;
         let new_email_value = serde_json::Value::String(user_id.clone());
-        state
-            .storage
+        storage
             .kv_storage
             .upsert(&[(email_key, new_email_value)])
             .await
@@ -455,8 +436,7 @@ pub async fn update_user(
     let user_key = format!("{}{}", USER_KEY_PREFIX, user_id);
     let user_value = serde_json::to_value(&record)
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
-    state
-        .storage
+    storage
         .kv_storage
         .upsert(&[(user_key, user_value)])
         .await

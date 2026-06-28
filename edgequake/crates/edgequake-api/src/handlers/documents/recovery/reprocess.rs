@@ -28,7 +28,8 @@ use super::super::storage_helpers::cleanup_document_graph_data;
     tag = "Documents",
     request_body = ReprocessFailedRequest,
     responses(
-        (status = 200, description = "Documents requeued for processing", body = ReprocessFailedResponse),
+        (status = 200, description = "Documents requeued (legacy default)", body = ReprocessFailedResponse),
+        (status = 202, description = "Reprocess accepted when REST-025 opt-in or strict startup", body = ReprocessFailedResponse),
         (status = 400, description = "Invalid request")
     )
 )]
@@ -42,10 +43,16 @@ pub async fn reprocess_failed(
 ) -> ApiResult<Response> {
     let request = body.map(|b| b.0).unwrap_or_default();
     let workspace_id = tenant_ctx.workspace_id.clone();
+    let return_202 = state.security.v1_rpc_return_202;
     let response = run_reprocess_failed(state, tenant_ctx, request).await?;
     if let Some(ws) = workspace_id.as_deref() {
-        return crate::services::v1_rpc_migration::json_with_v1_rpc_migration(ws, response)
-            .map(|r| r.into_response());
+        let track_id = response.track_id.clone();
+        return crate::services::v1_rpc_migration::respond_v1_async_rpc(
+            ws,
+            Some(track_id.as_str()),
+            return_202,
+            response,
+        );
     }
     Ok(Json(response).into_response())
 }

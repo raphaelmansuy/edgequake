@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     Json,
 };
 use chrono::{Duration, Utc};
@@ -15,9 +15,10 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::error::ApiError;
-use crate::state::AppState;
+use crate::handlers::auth::ApiAuthenticated;
+use crate::state::{AuthRuntime, StorageRuntime};
 
-use super::{require_authenticated_request, ApiKeyRecord, API_KEY_PREFIX};
+use super::{ApiKeyRecord, RequestAuthContext, API_KEY_PREFIX};
 pub use crate::handlers::auth_types::{
     ApiKeySummary, CreateApiKeyRequest, CreateApiKeyResponse, ListApiKeysQuery,
     ListApiKeysResponse, RevokeApiKeyResponse,
@@ -39,12 +40,11 @@ pub use crate::handlers::auth_types::{
     )
 )]
 pub async fn create_api_key(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(auth): State<AuthRuntime>,
+    State(storage): State<StorageRuntime>,
+    ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
-    let auth = require_authenticated_request(&headers, &state).await?;
-    let user_id = auth.user_id;
 
     // Generate API key
     let key_id = Uuid::new_v4().to_string();
@@ -53,8 +53,7 @@ pub async fn create_api_key(
     let full_key = format!("{}{}", prefix, &raw_key[8..]);
 
     // Hash the key for storage
-    let key_hash = state
-        .auth
+    let key_hash = auth
         .password
         .hash_password(&full_key)
         .map_err(|e| ApiError::Internal(format!("Key hashing error: {}", e)))?;
@@ -86,8 +85,7 @@ pub async fn create_api_key(
     let value = serde_json::to_value(&record)
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
-    state
-        .storage
+    storage
         .kv_storage
         .upsert(&[(key, value)])
         .await
@@ -135,18 +133,15 @@ pub(super) fn generate_api_key() -> String {
     )
 )]
 pub async fn list_api_keys(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(storage): State<StorageRuntime>,
+    ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
-    let auth = require_authenticated_request(&headers, &state).await?;
-    let user_id = auth.user_id;
 
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
 
-    let key_ids = state
-        .storage
+    let key_ids = storage
         .kv_storage
         .keys_with_prefix(API_KEY_PREFIX)
         .await
@@ -154,8 +149,7 @@ pub async fn list_api_keys(
 
     let mut summaries: Vec<ApiKeySummary> = Vec::new();
     for key in key_ids {
-        let value = state
-            .storage
+        let value = storage
             .kv_storage
             .get_by_id(&key)
             .await
@@ -221,16 +215,14 @@ pub async fn list_api_keys(
     )
 )]
 pub async fn revoke_api_key(
-    State(state): State<AppState>,
-    headers: HeaderMap,
+    State(storage): State<StorageRuntime>,
+    ApiAuthenticated(_auth): ApiAuthenticated,
     Path(key_id): Path<String>,
 ) -> Result<Json<RevokeApiKeyResponse>, ApiError> {
-    require_authenticated_request(&headers, &state).await?;
     let key = format!("{}{}", API_KEY_PREFIX, key_id);
 
     // Get the existing record
-    let value = state
-        .storage
+    let value = storage
         .kv_storage
         .get_by_id(&key)
         .await
@@ -246,8 +238,7 @@ pub async fn revoke_api_key(
     let new_value = serde_json::to_value(&record)
         .map_err(|e| ApiError::Internal(format!("Serialization error: {}", e)))?;
 
-    state
-        .storage
+    storage
         .kv_storage
         .upsert(&[(key, new_value)])
         .await

@@ -12,7 +12,7 @@ use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
 use crate::middleware::TenantContext;
 use crate::services::{admit_graph_materialization, run_timed_graph_query};
-use crate::state::AppState;
+use crate::state::{GraphQueryRuntime, StorageRuntime};
 
 /// Search for node labels.
 #[utoipa::path(
@@ -28,12 +28,11 @@ use crate::state::AppState;
     )
 )]
 pub async fn search_labels(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Query(params): Query<SearchLabelsQuery>,
 ) -> ApiResult<Json<SearchLabelsResponse>> {
-    let labels = state
-        .storage
+    let labels = storage
         .graph_storage
         .search_labels(
             &params.q,
@@ -66,13 +65,14 @@ pub async fn search_labels(
     )
 )]
 pub async fn search_nodes(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(graph): State<GraphQueryRuntime>,
     tenant_ctx: TenantContext,
     Query(params): Query<SearchNodesQuery>,
 ) -> ApiResult<Json<SearchNodesResponse>> {
     use std::collections::HashSet;
 
-    let _materialize_guard = admit_graph_materialization(&state)?;
+    let _materialize_guard = admit_graph_materialization(&graph)?;
 
     // Get tenant/workspace context from middleware
     let tenant_id = tenant_ctx.tenant_id.clone();
@@ -83,8 +83,8 @@ pub async fn search_nodes(
     let entity_type = params.entity_type.clone();
     let tenant_for_search = tenant_id.clone();
     let workspace_for_search = workspace_id.clone();
-    let graph_storage = state.storage.graph_storage.clone();
-    let matching_nodes = run_timed_graph_query(&state, "search_nodes", async move {
+    let graph_storage = storage.graph_storage.clone();
+    let matching_nodes = run_timed_graph_query(&graph.budget, "search_nodes", async move {
         graph_storage
             .search_nodes(
                 &q,
@@ -115,8 +115,7 @@ pub async fn search_nodes(
 
         let mut expanded_neighbors = Vec::new();
         for node_id in initial_node_ids {
-            if let Ok(neighbors) = state
-                .storage
+            if let Ok(neighbors) = storage
                 .graph_storage
                 .get_neighbors(
                     &node_id,
@@ -141,8 +140,7 @@ pub async fn search_nodes(
         let degree_map: std::collections::HashMap<String, usize> = if expanded_ids.is_empty() {
             std::collections::HashMap::new()
         } else {
-            state
-                .storage
+            storage
                 .graph_storage
                 .node_degrees_batch(&expanded_ids)
                 .await
@@ -162,8 +160,8 @@ pub async fn search_nodes(
         let node_id_vec: Vec<String> = node_ids.into_iter().collect();
         let tenant_for_edges = tenant_id.clone();
         let workspace_for_edges = workspace_id.clone();
-        let graph_storage_edges = state.storage.graph_storage.clone();
-        run_timed_graph_query(&state, "edges_for_node_set", async move {
+        let graph_storage_edges = storage.graph_storage.clone();
+        run_timed_graph_query(&graph.budget, "edges_for_node_set", async move {
             graph_storage_edges
                 .get_edges_for_node_set(
                     &node_id_vec,
@@ -209,23 +207,7 @@ pub async fn search_nodes(
 
     let edges_response: Vec<GraphEdgeResponse> = edges
         .into_iter()
-        .map(|edge| GraphEdgeResponse {
-            source: edge.source,
-            target: edge.target,
-            relationship_type: edge
-                .properties
-                .get("relationship_type")
-                .or_else(|| edge.properties.get("relation_type"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("RELATED_TO")
-                .to_string(),
-            weight: edge
-                .properties
-                .get("weight")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(1.0) as f32,
-            properties: serde_json::to_value(&edge.properties).unwrap_or_default(),
-        })
+        .map(GraphEdgeResponse::from_storage_edge)
         .collect();
 
     Ok(Json(SearchNodesResponse {

@@ -62,7 +62,8 @@ pub(crate) async fn run_reanalyze_multimodal(
     ),
     request_body = ReanalyzeMultimodalRequest,
     responses(
-        (status = 200, description = "Multimodal re-analyze completed or reindex queued", body = ReanalyzeMultimodalResponse),
+        (status = 200, description = "Multimodal re-analyze completed (legacy default)", body = ReanalyzeMultimodalResponse),
+        (status = 202, description = "Reanalyze accepted when REST-025 opt-in or strict startup", body = ReanalyzeMultimodalResponse),
         (status = 404, description = "Document not found"),
         (status = 422, description = "Analyze failed (strict mode)")
     )
@@ -78,10 +79,16 @@ pub async fn reanalyze_multimodal(
         reindex: true,
     });
     let workspace_id = tenant_ctx.workspace_id.clone();
+    let return_202 = state.security.v1_rpc_return_202;
     let response = run_reanalyze_multimodal(state, tenant_ctx, document_id, request).await?;
     if let Some(ws) = workspace_id.as_deref() {
-        return crate::services::v1_rpc_migration::json_with_v1_rpc_migration(ws, response)
-            .map(|r| r.into_response());
+        let track_id = response.track_id.clone();
+        return crate::services::v1_rpc_migration::respond_v1_async_rpc(
+            ws,
+            track_id.as_deref(),
+            return_202,
+            response,
+        );
     }
     Ok(Json(response).into_response())
 }

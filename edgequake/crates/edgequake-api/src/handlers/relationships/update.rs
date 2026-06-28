@@ -11,7 +11,7 @@ use crate::handlers::relationships_types::{
     RelationshipChangesSummary, UpdateRelationshipRequest, UpdateRelationshipResponse,
 };
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 use super::helpers::{edge_to_relationship_response, find_relationship_edge};
 
@@ -30,13 +30,13 @@ use super::helpers::{edge_to_relationship_response, find_relationship_edge};
     )
 )]
 pub async fn update_relationship(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(relationship_id): Path<String>,
     Json(req): Json<UpdateRelationshipRequest>,
 ) -> ApiResult<Json<UpdateRelationshipResponse>> {
     let mut edge =
-        find_relationship_edge(&state.storage.graph_storage, &tenant_ctx, &relationship_id).await?;
+        find_relationship_edge(&storage.graph_storage, &tenant_ctx, &relationship_id).await?;
 
     let previous_weight = edge.properties.get("weight").and_then(|v| v.as_f64());
     let mut fields_updated = Vec::new();
@@ -68,8 +68,7 @@ pub async fn update_relationship(
 
     let src = edge.source.clone();
     let tgt = edge.target.clone();
-    state
-        .storage
+    storage
         .graph_storage
         .upsert_edge(&src, &tgt, edge.properties.clone())
         .await?;

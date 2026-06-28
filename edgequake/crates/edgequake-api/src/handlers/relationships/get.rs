@@ -11,7 +11,7 @@ use crate::handlers::relationships_types::{
     EntitySummary, GetRelationshipResponse, RelationshipEntities,
 };
 use crate::middleware::TenantContext;
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 use super::helpers::{edge_to_relationship_response, find_relationship_edge};
 
@@ -29,24 +29,24 @@ use super::helpers::{edge_to_relationship_response, find_relationship_edge};
     )
 )]
 pub async fn get_relationship(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(relationship_id): Path<String>,
 ) -> ApiResult<Json<GetRelationshipResponse>> {
     let edge =
-        find_relationship_edge(&state.storage.graph_storage, &tenant_ctx, &relationship_id).await?;
+        find_relationship_edge(&storage.graph_storage, &tenant_ctx, &relationship_id).await?;
 
     let relationship = edge_to_relationship_response(edge.clone(), &relationship_id);
 
     let source_node = load_node_for_tenant_context(
-        state.storage.graph_storage.as_ref(),
+        storage.graph_storage.as_ref(),
         &edge.source,
         &tenant_ctx,
     )
     .await?;
 
     let target_node = load_node_for_tenant_context(
-        state.storage.graph_storage.as_ref(),
+        storage.graph_storage.as_ref(),
         &edge.target,
         &tenant_ctx,
     )

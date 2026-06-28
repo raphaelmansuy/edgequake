@@ -8,7 +8,7 @@ use crate::services::document_metadata_scan::load_scoped_document_metadata;
 use crate::services::tenant_guard::{
     empty_track_status, has_full_tenant_context, warn_missing_tenant_context,
 };
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 use crate::handlers::documents_types::*;
 
@@ -28,7 +28,7 @@ use crate::handlers::documents_types::*;
     )
 )]
 pub async fn get_track_status(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     axum::extract::Path(track_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<TrackStatusResponse>> {
@@ -39,7 +39,7 @@ pub async fn get_track_status(
 
     // SPEC-027: scoped metadata scan SSOT (no global keys_like; chunk_count from metadata).
     let metadata_values =
-        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
+        load_scoped_document_metadata(storage.kv_storage.as_ref(), &tenant_ctx).await?;
 
     let mut track_docs: Vec<DocumentSummary> = Vec::new();
     let mut created_times: Vec<String> = Vec::new();

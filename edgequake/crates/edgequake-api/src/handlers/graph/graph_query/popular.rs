@@ -12,7 +12,7 @@ use crate::error::ApiResult;
 use crate::handlers::graph_types::*;
 use crate::middleware::TenantContext;
 use crate::services::{admit_graph_materialization, run_timed_graph_query};
-use crate::state::AppState;
+use crate::state::{GraphQueryRuntime, StorageRuntime};
 
 /// Get popular entities/labels sorted by connection count.
 #[utoipa::path(
@@ -29,23 +29,24 @@ use crate::state::AppState;
     )
 )]
 pub async fn get_popular_labels(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(graph): State<GraphQueryRuntime>,
     tenant_ctx: TenantContext,
     Query(params): Query<PopularLabelsQuery>,
 ) -> ApiResult<Json<PopularLabelsResponse>> {
-    let _materialize_guard = admit_graph_materialization(&state)?;
+    let _materialize_guard = admit_graph_materialization(&graph)?;
 
     // SPEC-011 iter 02 Fix B: total_entities feeds a dashboard counter — the
     // planner estimate is O(1) and accurate within autovacuum's threshold.
-    let total_entities = state.storage.graph_storage.node_count_fast().await?;
+    let total_entities = storage.graph_storage.node_count_fast().await?;
 
     let limit = params.limit;
     let min_degree = params.min_degree;
     let entity_type = params.entity_type.clone();
     let tenant_id = tenant_ctx.tenant_id.clone();
     let workspace_id = tenant_ctx.workspace_id.clone();
-    let graph_storage = state.storage.graph_storage.clone();
-    let popular_nodes = run_timed_graph_query(&state, "popular_labels", async move {
+    let graph_storage = storage.graph_storage.clone();
+    let popular_nodes = run_timed_graph_query(&graph.budget, "popular_labels", async move {
         graph_storage
             .get_popular_nodes_with_degree(
                 limit,
@@ -106,7 +107,7 @@ pub async fn get_popular_labels(
     )
 )]
 pub async fn get_degrees_batch(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     Json(request): Json<BatchDegreeRequest>,
 ) -> ApiResult<Json<BatchDegreeResponse>> {
     if request.node_ids.is_empty() {
@@ -117,8 +118,7 @@ pub async fn get_degrees_batch(
     }
 
     // OPTIMIZED: Single query for all degrees (50x faster than N queries)
-    let degrees_result = state
-        .storage
+    let degrees_result = storage
         .graph_storage
         .node_degrees_batch(&request.node_ids)
         .await?;

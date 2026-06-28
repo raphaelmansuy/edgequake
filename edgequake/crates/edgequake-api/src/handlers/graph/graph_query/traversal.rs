@@ -17,7 +17,7 @@ use crate::services::{
     admit_graph_materialization, run_timed_graph_query,
     tenant_guard::{empty_graph_response, has_full_tenant_context, warn_missing_tenant_context},
 };
-use crate::state::AppState;
+use crate::state::{GraphQueryRuntime, StorageRuntime};
 
 /// Get knowledge graph with traversal from optional starting node.
 ///
@@ -44,7 +44,8 @@ use crate::state::AppState;
     )
 )]
 pub async fn get_graph(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(graph): State<GraphQueryRuntime>,
     tenant_ctx: TenantContext,
     Query(params): Query<GraphQueryParams>,
 ) -> ApiResult<Json<KnowledgeGraphResponse>> {
@@ -66,7 +67,7 @@ pub async fn get_graph(
         return Ok(Json(empty_graph_response()));
     }
 
-    let _materialize_guard = admit_graph_materialization(&state)?;
+    let _materialize_guard = admit_graph_materialization(&graph)?;
 
     let (nodes, edges, is_truncated) = if let Some(start) = &params.start_node {
         let start = start.clone();
@@ -75,8 +76,8 @@ pub async fn get_graph(
         let scoped = tenant_ctx.tenant_id.is_some() && tenant_ctx.workspace_id.is_some();
         let tenant_for_kg = tenant_ctx.tenant_id.clone();
         let workspace_for_kg = tenant_ctx.workspace_id.clone();
-        let graph_storage = state.storage.graph_storage.clone();
-        let kg = run_timed_graph_query(&state, "knowledge_graph", async move {
+        let graph_storage = storage.graph_storage.clone();
+        let kg = run_timed_graph_query(&graph.budget, "knowledge_graph", async move {
             graph_storage
                 .get_knowledge_graph(
                     &start,
@@ -123,22 +124,7 @@ pub async fn get_graph(
                     && node_ids.contains(&e.source)
                     && node_ids.contains(&e.target)
             })
-            .map(|e| GraphEdgeResponse {
-                source: e.source,
-                target: e.target,
-                relationship_type: e
-                    .properties
-                    .get("relation_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("RELATED_TO")
-                    .to_string(),
-                weight: e
-                    .properties
-                    .get("weight")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(1.0) as f32,
-                properties: serde_json::to_value(&e.properties).unwrap_or_default(),
-            })
+            .map(GraphEdgeResponse::from_storage_edge)
             .collect();
 
         (nodes, edges, kg.is_truncated)
@@ -146,8 +132,8 @@ pub async fn get_graph(
         let max_nodes = params.max_nodes;
         let tenant_id = tenant_ctx.tenant_id.clone();
         let workspace_id = tenant_ctx.workspace_id.clone();
-        let graph_storage = state.storage.graph_storage.clone();
-        let nodes_with_degrees = run_timed_graph_query(&state, "popular_nodes", async move {
+        let graph_storage = storage.graph_storage.clone();
+        let nodes_with_degrees = run_timed_graph_query(&graph.budget, "popular_nodes", async move {
             graph_storage
                 .get_popular_nodes_with_degree(
                     max_nodes,
@@ -187,8 +173,8 @@ pub async fn get_graph(
         let node_ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
         let tenant_for_edges = tenant_ctx.tenant_id.clone();
         let workspace_for_edges = tenant_ctx.workspace_id.clone();
-        let graph_storage_edges = state.storage.graph_storage.clone();
-        let filtered_edges = run_timed_graph_query(&state, "edges_for_node_set", async move {
+        let graph_storage_edges = storage.graph_storage.clone();
+        let filtered_edges = run_timed_graph_query(&graph.budget, "edges_for_node_set", async move {
             graph_storage_edges
                 .get_edges_for_node_set(
                     &node_ids,
@@ -201,22 +187,7 @@ pub async fn get_graph(
 
         let edges: Vec<GraphEdgeResponse> = filtered_edges
             .into_iter()
-            .map(|e| GraphEdgeResponse {
-                source: e.source,
-                target: e.target,
-                relationship_type: e
-                    .properties
-                    .get("relation_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("RELATED_TO")
-                    .to_string(),
-                weight: e
-                    .properties
-                    .get("weight")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(1.0) as f32,
-                properties: serde_json::to_value(&e.properties).unwrap_or_default(),
-            })
+            .map(GraphEdgeResponse::from_storage_edge)
             .collect();
 
         (nodes, edges, false) // is_truncated calculated after counts arrive
@@ -226,8 +197,8 @@ pub async fn get_graph(
     // `COUNT(*)` (O(N) — production logs showed 38 s / 5780 calls for the
     // vertex count alone). The graph traversal endpoint is polled by the UI.
     let (total_nodes_result, total_edges_result) = tokio::join!(
-        state.storage.graph_storage.node_count_fast(),
-        state.storage.graph_storage.edge_count_fast(),
+        storage.graph_storage.node_count_fast(),
+        storage.graph_storage.edge_count_fast(),
     );
     let total_nodes = total_nodes_result.unwrap_or(nodes.len());
     let total_edges = total_edges_result.unwrap_or(edges.len());

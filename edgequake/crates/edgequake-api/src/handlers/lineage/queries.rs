@@ -13,7 +13,7 @@ use crate::middleware::TenantContext;
 use crate::services::{
     find_document_edges, find_document_nodes, sources_for_document, DocumentSourceScope,
 };
-use crate::state::AppState;
+use crate::state::StorageRuntime;
 
 /// Get lineage for an entity (all source documents).
 #[utoipa::path(
@@ -29,12 +29,12 @@ use crate::state::AppState;
     )
 )]
 pub async fn get_entity_lineage(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(entity_name): Path<String>,
 ) -> ApiResult<Json<EntityLineageResponse>> {
     let node = crate::services::lookup_entity_node_for_context(
-        state.storage.graph_storage.as_ref(),
+        storage.graph_storage.as_ref(),
         &entity_name,
         &tenant_ctx,
     )
@@ -107,17 +107,16 @@ pub async fn get_entity_lineage(
     )
 )]
 pub async fn get_document_lineage(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<DocumentGraphLineageResponse>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace first.
-    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // SPEC-011: prefix scan for document chunks; point lookup for metadata
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids = state
-        .storage
+    let chunk_ids = storage
         .kv_storage
         .keys_with_prefix(&chunk_prefix)
         .await?;
@@ -125,8 +124,7 @@ pub async fn get_document_lineage(
     let metadata_key =
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     if chunk_ids.is_empty()
-        && state
-            .storage
+        && storage
             .kv_storage
             .get_by_id(&metadata_key)
             .await?
@@ -142,7 +140,7 @@ pub async fn get_document_lineage(
     let scope = DocumentSourceScope::from_document_id(document_id.clone());
     let mut entities: Vec<EntitySummaryResponse> = Vec::new();
 
-    for node in find_document_nodes(&state.storage.graph_storage, Some(&tenant_ctx), &scope).await?
+    for node in find_document_nodes(&storage.graph_storage, Some(&tenant_ctx), &scope).await?
     {
         let doc_sources = sources_for_document(&node.properties, &scope);
         if doc_sources.is_empty() {
@@ -164,7 +162,7 @@ pub async fn get_document_lineage(
     }
 
     let mut relationships: Vec<RelationshipSummaryResponse> = Vec::new();
-    for edge in find_document_edges(&state.storage.graph_storage, Some(&tenant_ctx), &scope).await?
+    for edge in find_document_edges(&storage.graph_storage, Some(&tenant_ctx), &scope).await?
     {
         let doc_sources = sources_for_document(&edge.properties, &scope);
         if doc_sources.is_empty() {
@@ -223,13 +221,12 @@ pub async fn get_document_lineage(
     )
 )]
 pub async fn get_chunk_lineage(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(chunk_id): Path<String>,
 ) -> ApiResult<Json<ChunkLineageResponse>> {
     // Look up chunk in KV storage
-    let chunk_data = state
-        .storage
+    let chunk_data = storage
         .kv_storage
         .get_by_id(&chunk_id)
         .await?
@@ -298,7 +295,7 @@ pub async fn get_chunk_lineage(
 
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     let doc_metadata =
-        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
             .await?;
 
     let document_name = doc_metadata
@@ -314,14 +311,14 @@ pub async fn get_chunk_lineage(
     // SPEC-006 P1: chunk-scoped prefix query (bounded)
     let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
     let chunk_nodes = find_document_nodes(
-        &state.storage.graph_storage,
+        &storage.graph_storage,
         Some(&tenant_ctx),
         &chunk_scope,
     )
     .await?;
     let entity_names: Vec<String> = chunk_nodes.iter().map(|n| n.id.clone()).collect();
     let chunk_edges = find_document_edges(
-        &state.storage.graph_storage,
+        &storage.graph_storage,
         Some(&tenant_ctx),
         &chunk_scope,
     )
@@ -372,16 +369,16 @@ pub async fn get_chunk_lineage(
     )
 )]
 pub async fn get_document_full_lineage(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace.
-    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // OADA-23: Use cached KV lookup for sub-millisecond cache hits
     let lineage_key = format!("{}-lineage", document_id);
-    let lineage_data = cached_kv_get(state.storage.kv_storage.as_ref(), &lineage_key)
+    let lineage_data = cached_kv_get(storage.kv_storage.as_ref(), &lineage_key)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -395,7 +392,7 @@ pub async fn get_document_full_lineage(
     // This satisfies F5: "Single API call retrieves complete document lineage tree."
     let metadata_key =
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
-    let metadata = cached_kv_get(state.storage.kv_storage.as_ref(), &metadata_key)
+    let metadata = cached_kv_get(storage.kv_storage.as_ref(), &metadata_key)
         .await?
         .unwrap_or(serde_json::json!({"id": document_id, "status": "unknown"}));
     Ok(Json(serde_json::json!({
@@ -423,14 +420,14 @@ pub async fn get_document_full_lineage(
     )
 )]
 pub async fn get_document_metadata(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // SECURITY: verify_document_access already fetches and checks metadata,
     // so we reuse its return value directly.
     let metadata =
-        verify_document_access(state.storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
             .await?;
 
     Ok(Json(metadata))

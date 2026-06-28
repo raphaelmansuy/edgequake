@@ -43,7 +43,10 @@ pub mod vlm_limits;
 pub mod vlm_provider_resolver;
 pub mod workspace_document_index;
 
-pub use audit::{record_audit, record_compliance_event, with_request_context};
+pub use audit::{
+    record_audit, record_compliance_event, record_compliance_event_runtime,
+    with_request_context,
+};
 
 pub use crate::handlers::documents::upload::document_admission::{
     admit_document_for_processing, chunk_fields_from_metadata, parse_upload_chunk_fields,

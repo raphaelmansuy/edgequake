@@ -16,7 +16,7 @@ use crate::error::{ApiError, TransientCongestion};
 use crate::handlers::graph_types::*;
 use crate::middleware::TenantContext;
 use crate::services::{admit_graph_materialization, run_timed_graph_query};
-use crate::state::AppState;
+use crate::state::{GraphQueryRuntime, StorageRuntime};
 
 /// Stream graph data progressively via SSE.
 ///
@@ -46,7 +46,8 @@ use crate::state::AppState;
     )
 )]
 pub async fn stream_graph(
-    State(state): State<AppState>,
+    State(storage): State<StorageRuntime>,
+    State(graph): State<GraphQueryRuntime>,
     tenant_ctx: TenantContext,
     Query(params): Query<GraphStreamQueryParams>,
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, ApiError> {
@@ -65,7 +66,8 @@ pub async fn stream_graph(
     let (tx, rx) = mpsc::channel::<GraphStreamEvent>(100);
 
     // Clone for async task
-    let state_clone = state.clone();
+    let graph_storage = storage.graph_storage.clone();
+    let graph_clone = graph.clone();
     let params_clone = params.clone();
     let tenant_ctx_clone = tenant_ctx.clone();
 
@@ -73,7 +75,7 @@ pub async fn stream_graph(
     tokio::spawn(async move {
         let start_time = std::time::Instant::now();
 
-        let _materialize_guard = match admit_graph_materialization(&state_clone) {
+        let _materialize_guard = match admit_graph_materialization(&graph_clone) {
             Ok(guard) => guard,
             Err(ApiError::ServiceUnavailable {
                 message,
@@ -114,29 +116,28 @@ pub async fn stream_graph(
         let max_nodes = params_clone.max_nodes;
         let tenant_id = tenant_ctx_clone.tenant_id.clone();
         let workspace_id = tenant_ctx_clone.workspace_id.clone();
-        let graph_storage = state_clone.storage.graph_storage.clone();
-        let state_for_query = state_clone.clone();
+        let graph_for_query = graph_clone.clone();
+        let graph_for_node_count = graph_storage.clone();
+        let graph_for_edge_count = graph_storage.clone();
+        let graph_for_popular = graph_storage.clone();
+        let graph_for_edges = graph_storage.clone();
 
         let (total_nodes, total_edges, nodes_result) = tokio::join!(
-            async {
-                state_clone
-                    .storage
-                    .graph_storage
+            async move {
+                graph_for_node_count
                     .node_count_fast()
                     .await
                     .unwrap_or(0)
             },
-            async {
-                state_clone
-                    .storage
-                    .graph_storage
+            async move {
+                graph_for_edge_count
                     .edge_count_fast()
                     .await
                     .unwrap_or(0)
             },
             async move {
-                run_timed_graph_query(&state_for_query, "graph_stream", async move {
-                    graph_storage
+                run_timed_graph_query(&graph_for_query.budget, "graph_stream", async move {
+                    graph_for_popular
                         .get_popular_nodes_with_degree(
                             max_nodes,
                             None,
@@ -234,9 +235,7 @@ pub async fn stream_graph(
         }
 
         // Fetch and stream edges (optimized batch query)
-        let edges = match state_clone
-            .storage
-            .graph_storage
+        let edges = match graph_for_edges
             .get_edges_for_node_set(
                 &all_node_ids,
                 tenant_ctx_clone.tenant_id.as_deref(),
@@ -259,22 +258,7 @@ pub async fn stream_graph(
 
         let edge_responses: Vec<GraphEdgeResponse> = edges
             .into_iter()
-            .map(|e| GraphEdgeResponse {
-                source: e.source,
-                target: e.target,
-                relationship_type: e
-                    .properties
-                    .get("relation_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("RELATED_TO")
-                    .to_string(),
-                weight: e
-                    .properties
-                    .get("weight")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(1.0) as f32,
-                properties: serde_json::to_value(&e.properties).unwrap_or_default(),
-            })
+            .map(GraphEdgeResponse::from_storage_edge)
             .collect();
 
         let edges_count = edge_responses.len();

@@ -8,8 +8,10 @@ use std::time::Duration;
 use tokio::sync::OwnedSemaphorePermit;
 use tracing::warn;
 
+use edgequake_core::ResourceBudgetConfig;
+
 use crate::error::{ApiError, ApiResult};
-use crate::state::AppState;
+use crate::state::GraphQueryRuntime;
 
 /// Holds a graph materialization slot until dropped.
 pub struct GraphMaterializationGuard {
@@ -17,17 +19,17 @@ pub struct GraphMaterializationGuard {
 }
 
 /// Acquire global materialization permit (503 immediately when at capacity — never queues).
-pub fn admit_graph_materialization(state: &AppState) -> ApiResult<GraphMaterializationGuard> {
-    let permit = state
-        .graph_materialize
+pub fn admit_graph_materialization(runtime: &GraphQueryRuntime) -> ApiResult<GraphMaterializationGuard> {
+    let permit = runtime
+        .materialize
         .try_acquire_owned()
         .ok_or_else(ApiError::graph_materialization_busy)?;
     Ok(GraphMaterializationGuard { _permit: permit })
 }
 
-/// Query timeout from AppState resource SSOT.
-pub fn graph_query_timeout(state: &AppState) -> Duration {
-    Duration::from_secs(state.resource_budget().graph_query_timeout_secs)
+/// Query timeout from resource budget SSOT.
+pub fn graph_query_timeout(budget: &ResourceBudgetConfig) -> Duration {
+    Duration::from_secs(budget.graph_query_timeout_secs)
 }
 
 fn is_db_statement_timeout(message: &str) -> bool {
@@ -36,14 +38,14 @@ fn is_db_statement_timeout(message: &str) -> bool {
 
 /// Run a graph storage query with timeout budget; never falls back to full-graph scan.
 pub async fn run_timed_graph_query<T, E>(
-    state: &AppState,
+    budget: &ResourceBudgetConfig,
     label: &'static str,
     fut: impl Future<Output = Result<T, E>>,
 ) -> ApiResult<T>
 where
     E: std::fmt::Display + Into<ApiError>,
 {
-    let timeout = graph_query_timeout(state);
+    let timeout = graph_query_timeout(budget);
     match tokio::time::timeout(timeout, fut).await {
         Ok(Ok(value)) => Ok(value),
         Ok(Err(e)) => {
