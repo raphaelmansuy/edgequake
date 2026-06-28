@@ -86,6 +86,7 @@ use axum::{
     routing::{delete, get, patch, post, put},
     Router,
 };
+use axum::extract::DefaultBodyLimit;
 
 use crate::handlers;
 use crate::state::AppState;
@@ -117,6 +118,8 @@ pub fn create_router(state: AppState) -> Router {
         crate::middleware::ollama_compat_gate,
     ));
 
+    let mcp = mcp_routes(state.clone());
+
     Router::new()
         // Health endpoints
         .route("/health", get(handlers::health_check))
@@ -137,7 +140,36 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1", api_v1)
         // API v2 endpoints (SPEC-027 IMP-025)
         .nest("/api/v2", api_v2)
+        .merge(mcp)
         .with_state(state)
+}
+
+/// MCP Streamable HTTP + OAuth discovery (root-level for client ergonomics).
+fn mcp_routes(state: AppState) -> Router<AppState> {
+    use crate::mcp::gateway::body::MCP_MAX_BODY_BYTES;
+
+    let mcp_post = Router::new()
+        .route("/mcp", post(handlers::mcp_handler))
+        .layer(DefaultBodyLimit::max(MCP_MAX_BODY_BYTES))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::tenant_rate_limit_from_state,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::mcp::auth::mcp_gateway_auth,
+        ));
+
+    Router::new()
+        .route(
+            "/.well-known/oauth-protected-resource",
+            get(handlers::mcp_oauth_protected_resource),
+        )
+        .route(
+            "/.well-known/mcp/server.json",
+            get(handlers::mcp_registry_server_json),
+        )
+        .merge(mcp_post)
 }
 
 /// API v2 routes — Level 4 workspace-scoped job resources (unpublished; no v1 break).
@@ -389,6 +421,13 @@ fn api_v1_routes() -> Router<AppState> {
         // Query
         .route("/query", post(handlers::execute_query))
         .route("/query/stream", post(handlers::stream_query))
+        .route("/query/context", post(handlers::retrieve_query_context))
+        .route("/query/context/search", post(handlers::search_query_context))
+        .route(
+            "/query/context/{retrieval_id}",
+            get(handlers::fetch_query_context),
+        )
+        .route("/mcp", post(handlers::mcp_handler_v1))
         // Chat (Unified chat completions API - preferred for client applications)
         .route("/chat/completions", post(handlers::chat_completion))
         .route(

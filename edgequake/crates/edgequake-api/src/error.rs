@@ -130,6 +130,10 @@ pub enum ApiError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    /// Resource existed but is no longer available (HTTP 410).
+    #[error("Gone: {0}")]
+    Gone(String),
+
     /// Unauthorized (optional auth context for explicit login/refresh diagnostics).
     #[error("Unauthorized")]
     Unauthorized(Option<AuthFailureContext>),
@@ -202,6 +206,7 @@ impl ApiError {
         match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
+            Self::Gone(_) => StatusCode::GONE,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::AccountLocked => StatusCode::LOCKED,
@@ -275,6 +280,7 @@ impl ApiError {
         match self {
             Self::BadRequest(msg) => json!({ "kind": "bad_request", "message": msg }),
             Self::NotFound(msg) => json!({ "kind": "not_found", "resource": msg }),
+            Self::Gone(msg) => json!({ "kind": "gone", "resource": msg }),
             Self::Unauthorized(ctx) => auth_failure_diagnostic("unauthorized", ctx.as_ref()),
             Self::Forbidden(reason) => {
                 let mut d = json!({ "kind": "forbidden" });
@@ -337,6 +343,7 @@ impl ApiError {
         match self {
             Self::BadRequest(_) => "BAD_REQUEST",
             Self::NotFound(_) => "NOT_FOUND",
+            Self::Gone(_) => "GONE",
             Self::Unauthorized(_) => "UNAUTHORIZED",
             Self::Forbidden(_) => "FORBIDDEN",
             Self::AccountLocked => "ACCOUNT_LOCKED",

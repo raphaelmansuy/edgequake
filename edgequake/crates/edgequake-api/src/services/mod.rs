@@ -40,6 +40,12 @@ pub mod pdf_admission_registry;
 pub mod pdf_lineage;
 pub mod pdf_workspace_dedup;
 pub mod query_execution;
+pub mod query_context;
+pub mod query_generation;
+pub mod query_request_builder;
+pub mod context_bundle_mapper;
+pub mod retrieval_id_cache;
+pub mod source_reference_builder;
 pub mod route_registry;
 pub mod session_storage;
 pub mod staging_admission;
@@ -128,6 +134,14 @@ pub use query_execution::{
     execute_sota_query_with_auth_fallback, is_llm_auth_failure, llm_override_from_request,
     resolve_workspace_query_resources, validate_llm_override_pair, WorkspaceQueryResources,
 };
+pub use query_context::{
+    build_legacy_query_response, build_legacy_query_sources, fetch_context_by_id,
+    retrieve_context, search_context,
+};
+pub use retrieval_id_cache::{global_retrieval_cache, new_retrieval_id, RetrievalIdCache};
+pub use source_reference_builder::{build_sources_from_context, is_injection_source};
+pub use query_generation::{execute_full_query, execute_legacy_query_response};
+pub use query_request_builder::{build_engine_request, QueryExecutionParams};
 pub use staging_admission::{promote_staging_to_final, rollback_staging};
 pub use text_insert_content::{
     patch_document_metadata, resolve_document_metadata_key, resolve_text_insert_content,

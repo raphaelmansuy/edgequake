@@ -2014,6 +2014,25 @@ observability-proof: ## Run SPEC-018 observability proof suite (Rust + WebUI)
 observability-jaeger: ## Docker stack with Jaeger OTLP + JSON logs (SPEC-018)
 	@cd $(DOCKER_DIR) && docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up --build
 
+.PHONY: spec028-mcp-test mcp-registry-validate mcp-registry-publish
+
+spec028-mcp-test: ## Run SPEC-028 MCP E2E + registry contract tests
+	@cd edgequake && cargo test -p edgequake-api --features postgres \
+		--test spec028_mcp_e2e --test spec028_mcp_transport --test spec028_mcp_oauth_e2e \
+		--test spec028_mcp_registry --test spec028_api_contract
+
+mcp-registry-validate: spec028-mcp-test ## Validate MCP Registry server.json SSOT (code is law)
+	@command -v mcp-publisher >/dev/null || { \
+		curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$$(uname -s | tr '[:upper:]' '[:lower:]')_$$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+			| tar xz mcp-publisher; \
+		mv mcp-publisher /tmp/mcp-publisher; \
+	}; \
+	cd specs/028-edgequake-query-service/mcp && /tmp/mcp-publisher validate || mcp-publisher validate
+
+mcp-registry-publish: mcp-registry-validate ## Publish EdgeQuake to official MCP Registry (requires: mcp-publisher login github)
+	@command -v mcp-publisher >/dev/null || { echo "$(RED)✗ Install mcp-publisher — see specs/028-edgequake-query-service/mcp/007-sota-implementation-roadmap.md$(RESET)"; exit 1; }
+	@cd specs/028-edgequake-query-service/mcp && mcp-publisher publish
+
 status: ## Show status of all services
 	@echo ""
 	@echo "$(BOLD)EdgeQuake Service Status$(RESET)"

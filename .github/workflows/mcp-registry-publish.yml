@@ -1,0 +1,59 @@
+# Publish EdgeQuake MCP server metadata to the official MCP Registry.
+# Prerequisites: mcp-publisher CLI + `mcp-publisher login github` (or GitHub Actions OIDC).
+# Docs: https://modelcontextprotocol.io/registry/quickstart
+
+name: MCP Registry Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      registry_url:
+        description: MCP Registry API base URL
+        required: false
+        default: https://registry.modelcontextprotocol.io
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
+          mcp-publisher --help
+
+      - name: Validate server.json (official schema)
+        working-directory: specs/028-edgequake-query-service/mcp
+        run: mcp-publisher validate
+
+      - name: Validate server.json contract tests
+        working-directory: edgequake
+        run: |
+          cargo test -p edgequake-api --features postgres --test spec028_mcp_registry
+
+      - name: Authenticate (GitHub OIDC)
+        if: github.event_name == 'release'
+        working-directory: specs/028-edgequake-query-service/mcp
+        run: mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        if: github.event_name == 'release'
+        working-directory: specs/028-edgequake-query-service/mcp
+        env:
+          MCP_REGISTRY_URL: ${{ inputs.registry_url || 'https://registry.modelcontextprotocol.io' }}
+        run: mcp-publisher publish
+
+      - name: Verify registry listing
+        if: github.event_name == 'release'
+        run: |
+          curl -fsSL "${{ inputs.registry_url || 'https://registry.modelcontextprotocol.io' }}/v0.1/servers?search=io.github.raphaelmansuy/edgequake" \
+            | grep -q "io.github.raphaelmansuy/edgequake"

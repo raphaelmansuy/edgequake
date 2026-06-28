@@ -245,13 +245,25 @@ pub(crate) async fn authenticate_request_async(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<Option<RequestAuthContext>, ApiError> {
-    let token = extract_api_key(headers).or_else(|| extract_bearer_token(headers));
+    let x_api_key = extract_api_key(headers);
+    let bearer = extract_bearer_token(headers);
+    let token = match (bearer.as_ref(), x_api_key.as_ref()) {
+        (Some(b), Some(_)) => {
+            tracing::warn!(
+                "Both Authorization Bearer and X-API-Key sent; preferring Bearer (EC-MCP-14)"
+            );
+            Some(b.as_str())
+        }
+        (Some(b), None) => Some(b.as_str()),
+        (None, Some(k)) => Some(k.as_str()),
+        (None, None) => None,
+    };
 
     let Some(token) = token else {
         return Ok(None);
     };
 
-    crate::services::auth_validation::validate_presented_token(state, &token)
+    crate::services::auth_validation::validate_presented_token(state, token)
         .await
         .map(|result| result.map(|authenticated| authenticated.auth))
 }

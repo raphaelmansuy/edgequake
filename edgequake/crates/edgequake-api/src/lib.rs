@@ -116,6 +116,7 @@ mod provider_catalog;
 pub mod provider_types;
 pub mod providers;
 pub mod routes;
+pub mod mcp;
 pub mod safety_limits;
 pub mod server;
 pub mod services;

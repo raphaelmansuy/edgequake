@@ -115,7 +115,7 @@ fn parse_mode(mode: &Option<String>) -> ConversationMode {
 fn parse_query_mode(mode: &Option<String>) -> QueryMode {
     mode.as_ref()
         .and_then(|m| QueryMode::parse(m))
-        .unwrap_or(QueryMode::Hybrid)
+        .unwrap_or(QueryMode::Mix)
 }
 
 /// Convert an ISO 639-1 language code to its full English name.
@@ -170,121 +170,8 @@ fn enrich_query_with_language(query: &str, language: &Option<String>) -> String 
     }
 }
 
-/// SPEC-0002: Check if a source originates from knowledge injection.
-/// Injection sources enrich the LLM context but are excluded from user-facing citations.
-fn is_injection_source(document_id: Option<&str>, file_path: Option<&str>) -> bool {
-    if let Some(doc_id) = document_id {
-        if doc_id.starts_with("injection::") {
-            return true;
-        }
-    }
-    if let Some(path) = file_path {
-        if path == "injection" {
-            return true;
-        }
-    }
-    false
-}
-
 pub(crate) fn build_sources(context: &edgequake_query::QueryContext) -> Vec<SourceReference> {
-    let mut sources = Vec::new();
-    let mut ref_counter = 1usize;
-
-    for chunk in &context.chunks {
-        // SPEC-0002: Exclude injection-sourced chunks from citations
-        if is_injection_source(chunk.document_id.as_deref(), None) {
-            continue;
-        }
-        sources.push(SourceReference {
-            source_type: "chunk".to_string(),
-            id: chunk.id.clone(),
-            score: chunk.score,
-            rerank_score: None,
-            snippet: Some(chunk.content.chars().take(200).collect()),
-            reference_id: Some(ref_counter),
-            document_id: chunk.document_id.clone(),
-            file_path: None,
-            start_line: chunk.start_line,
-            end_line: chunk.end_line,
-            chunk_index: chunk.chunk_index,
-            // SPEC-006: Entity-only fields
-            entity_type: None,
-            degree: None,
-            source_chunk_ids: None,
-        });
-        ref_counter += 1;
-    }
-
-    for entity in &context.entities {
-        // SPEC-0002: Exclude injection-sourced entities from citations
-        if is_injection_source(
-            entity.source_document_id.as_deref(),
-            entity.source_file_path.as_deref(),
-        ) {
-            continue;
-        }
-        sources.push(SourceReference {
-            source_type: "entity".to_string(),
-            id: entity.name.clone(),
-            score: entity.score,
-            rerank_score: None,
-            snippet: Some(entity.description.chars().take(200).collect()),
-            reference_id: Some(ref_counter),
-            // Source tracking for citations (LightRAG parity)
-            document_id: entity.source_document_id.clone(),
-            file_path: entity.source_file_path.clone(),
-            start_line: None,
-            end_line: None,
-            chunk_index: None,
-            // SPEC-006: Enrich with entity metadata (FR-002)
-            entity_type: Some(entity.entity_type.clone()),
-            degree: if entity.degree > 0 {
-                Some(entity.degree)
-            } else {
-                None
-            },
-            source_chunk_ids: if entity.source_chunk_ids.is_empty() {
-                None
-            } else {
-                Some(entity.source_chunk_ids.clone())
-            },
-        });
-        ref_counter += 1;
-    }
-
-    for rel in &context.relationships {
-        // SPEC-0002: Exclude injection-sourced relationships from citations
-        if is_injection_source(
-            rel.source_document_id.as_deref(),
-            rel.source_file_path.as_deref(),
-        ) {
-            continue;
-        }
-        sources.push(SourceReference {
-            source_type: "relationship".to_string(),
-            id: format!("{}->{}", rel.source, rel.target),
-            score: rel.score,
-            rerank_score: None,
-            snippet: Some(format!(
-                "{} {} {}",
-                rel.source, rel.relation_type, rel.target
-            )),
-            reference_id: Some(ref_counter),
-            // Source tracking for citations (LightRAG parity)
-            document_id: rel.source_document_id.clone(),
-            file_path: rel.source_file_path.clone(),
-            start_line: None,
-            end_line: None,
-            chunk_index: None,
-            // SPEC-006: Entity-only fields
-            entity_type: None,
-            degree: None,
-            source_chunk_ids: None,
-        });
-        ref_counter += 1;
-    }
-
-    sources
+    crate::services::build_sources_from_context(context, true, None, false)
 }
 
 fn sources_to_message_context(sources: &[SourceReference]) -> MessageContext {
