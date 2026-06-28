@@ -44,7 +44,6 @@ import {
     Copy,
     Cpu,
     Database,
-    DollarSign,
     ExternalLink,
     Eye,
     FileText,
@@ -57,7 +56,7 @@ import {
     Trash2,
     Wifi,
     XCircle,
-    Zap,
+    Zap
 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
