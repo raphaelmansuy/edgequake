@@ -244,6 +244,28 @@ async fn spec027_health_includes_api_capabilities() {
 }
 
 #[tokio::test]
+async fn spec027_health_reports_storage_component_probes() {
+    let app = build_app(AppState::test_state());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_json(response).await;
+    let components = body["components"].as_object().expect("components");
+    assert!(components.contains_key("kv_storage"));
+    assert!(components.contains_key("vector_storage"));
+    assert!(components.contains_key("graph_storage"));
+    assert!(components["kv_storage"].as_bool().unwrap_or(false));
+}
+
+#[tokio::test]
 async fn spec027_openapi_json_endpoint_serves_valid_document() {
     let app = build_app(AppState::test_state());
     let response = app

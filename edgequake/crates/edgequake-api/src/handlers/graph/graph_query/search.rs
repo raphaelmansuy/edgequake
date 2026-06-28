@@ -103,7 +103,7 @@ pub async fn search_nodes(
     // Collect node IDs for edge lookup
     let mut node_ids: HashSet<String> = matching_nodes.iter().map(|(n, _)| n.id.clone()).collect();
 
-    // Optionally include neighbors
+    // Optionally include neighbors (SPEC-027 IMP-015: batch degree lookup for expansions)
     let mut all_nodes = matching_nodes;
     if params.include_neighbors && !all_nodes.is_empty() {
         // Clone the node IDs to iterate on (avoid borrow conflict)
@@ -113,8 +113,8 @@ pub async fn search_nodes(
             .map(|(n, _)| n.id.clone())
             .collect();
 
+        let mut expanded_neighbors = Vec::new();
         for node_id in initial_node_ids {
-            // Limit neighbor lookups
             if let Ok(neighbors) = state
                 .storage
                 .graph_storage
@@ -127,19 +127,33 @@ pub async fn search_nodes(
                 .await
             {
                 for neighbor in neighbors {
-                    if !node_ids.contains(&neighbor.id) {
-                        node_ids.insert(neighbor.id.clone());
-                        // Get degree for neighbor
-                        let degree = state
-                            .storage
-                            .graph_storage
-                            .node_degree(&neighbor.id)
-                            .await
-                            .unwrap_or(0);
-                        all_nodes.push((neighbor, degree));
+                    if node_ids.insert(neighbor.id.clone()) {
+                        expanded_neighbors.push(neighbor);
                     }
                 }
             }
+        }
+
+        let expanded_ids: Vec<String> = expanded_neighbors
+            .iter()
+            .map(|neighbor| neighbor.id.clone())
+            .collect();
+        let degree_map: std::collections::HashMap<String, usize> = if expanded_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            state
+                .storage
+                .graph_storage
+                .node_degrees_batch(&expanded_ids)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .collect()
+        };
+
+        for neighbor in expanded_neighbors {
+            let degree = degree_map.get(&neighbor.id).copied().unwrap_or(0);
+            all_nodes.push((neighbor, degree));
         }
     }
 
