@@ -267,7 +267,7 @@ mod tests {
         // source_document_ids = ["doc-a"] but source_document_id = "doc-x"
         // Plural should win — doc-a is in allowed set
         let entity = RetrievedEntity::new("Conflict", "PERSON", "desc")
-            .with_source_document_id("doc-x")       // singular (wrong)
+            .with_source_document_id("doc-x") // singular (wrong)
             .with_source_document_ids(vec!["doc-a".to_string()]); // plural (correct)
 
         let mut ctx = QueryContext::new();
@@ -276,14 +276,18 @@ mod tests {
         let allowed = vec!["doc-a".to_string()];
         filter_context_by_document_ids(&mut ctx, Some(&allowed));
 
-        assert_eq!(ctx.entities.len(), 1, "plural source_document_ids takes priority");
+        assert_eq!(
+            ctx.entities.len(),
+            1,
+            "plural source_document_ids takes priority"
+        );
     }
 
     #[test]
     fn test_spec031_singular_fallback_when_plural_empty() {
         // source_document_ids = [] but source_document_id = "doc-a" — use singular
-        let entity = RetrievedEntity::new("Fallback", "PERSON", "desc")
-            .with_source_document_id("doc-a");  // singular used when plural absent
+        let entity =
+            RetrievedEntity::new("Fallback", "PERSON", "desc").with_source_document_id("doc-a"); // singular used when plural absent
 
         let mut ctx = QueryContext::new();
         ctx.entities = vec![entity];
@@ -344,4 +348,3 @@ mod tests {
         assert_eq!(ctx.relationships[0].source, "A");
     }
 }
-

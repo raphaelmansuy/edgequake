@@ -17,29 +17,29 @@
  */
 
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { useDocumentSearch } from '@/hooks/use-document-search';
 import { cn } from '@/lib/utils';
 import type { DocumentSearchItem } from '@/types';
 import {
-  Check,
-  FileText,
-  Loader2,
-  Plus,
-  Search,
-  X,
+    Check,
+    FileText,
+    Loader2,
+    Plus,
+    Search,
+    X,
 } from 'lucide-react';
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type KeyboardEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
