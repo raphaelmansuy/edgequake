@@ -36,9 +36,7 @@ impl PostgresLineageSink {
     ///
     /// WHY: Enables zero-downtime rollout — servers without migration 066
     /// continue working; lineage links are persisted only after the migration.
-    pub async fn create_if_migration_applied(
-        pool: Arc<PgPool>,
-    ) -> Arc<dyn LineageSink> {
+    pub async fn create_if_migration_applied(pool: Arc<PgPool>) -> Arc<dyn LineageSink> {
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                SELECT 1 FROM information_schema.tables

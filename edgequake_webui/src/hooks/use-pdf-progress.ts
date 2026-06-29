@@ -19,13 +19,13 @@
  */
 
 import {
-  cancelPdfProcessing,
-  createPdfProgressEventSource,
-  getPdfProgress,
-  type PdfOperationResponse,
-  type PdfProgressResponse,
-  type PhaseProgressData,
-  retryPdfProcessing,
+    cancelPdfProcessing,
+    createPdfProgressEventSource,
+    getPdfProgress,
+    type PdfOperationResponse,
+    type PdfProgressResponse,
+    type PhaseProgressData,
+    retryPdfProcessing,
 } from "@/lib/api/edgequake";
 import { getWebSocketClient } from "@/lib/websocket";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

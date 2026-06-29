@@ -13,8 +13,8 @@ use crate::extractor::{ExtractedEntity, ExtractionResult};
 
 use super::{merge_descriptions, metadata, MergeArtifacts, MergeStats};
 
-/// Jaccard word-overlap similarity between two strings (pub for tests).
-pub(crate) fn description_similarity(a: &str, b: &str) -> f32 {
+/// Jaccard word-overlap similarity between two strings (pub for tests and external use).
+pub fn description_similarity(a: &str, b: &str) -> f32 {
     if a == b {
         // Identical strings: if both empty → 0 (no overlap to measure); if same non-empty → 1.0
         return if a.is_empty() { 0.0 } else { 1.0 };

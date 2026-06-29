@@ -104,6 +104,14 @@ impl PostgresAGEGraphStorage {
     /// must be materialized as a Cypher literal. Every value flows through
     /// `value_to_cypher`, which single-quote-escapes strings, so injection via
     /// node ids/properties is neutralized exactly as in the single-node path.
+    ///
+    /// # SPEC-032 W-05: Adaptive UNWIND chunk size
+    ///
+    /// WHY: a fixed CHUNK=500 with entities that have long descriptions (e.g.,
+    /// 500 chars × 12 properties × 500 rows = ~3 MB Cypher literal) can exceed
+    /// PostgreSQL's statement size limit and the AGE planner's token budget.
+    /// We estimate the average row byte size from the first row and reduce the
+    /// chunk to keep the total body under 512 KB.
     pub(super) async fn pg_upsert_nodes_batch(
         &self,
         nodes: &[(String, HashMap<String, serde_json::Value>)],
@@ -112,11 +120,10 @@ impl PostgresAGEGraphStorage {
             return Ok(());
         }
 
-        // WHY chunk: bound the generated query string so a pathological batch
-        // cannot blow past PostgreSQL's statement size / planner limits.
-        const CHUNK: usize = 500;
+        // SPEC-032 W-05: Adaptive chunk size — keep UNWIND body ≤ 512 KB.
+        let chunk_size = Self::adaptive_unwind_chunk_size(nodes);
 
-        for chunk in nodes.chunks(CHUNK) {
+        for chunk in nodes.chunks(chunk_size) {
             let rows: Vec<String> = chunk
                 .iter()
                 .map(|(node_id, properties)| {
@@ -166,8 +173,8 @@ impl PostgresAGEGraphStorage {
             self.cypher_execute(&cypher).await?;
         }
 
-        // Lazily create indexes after the first successful batch (AGE builds the
-        // Node table lazily, mirroring the single-node path).
+        /// Lazily create indexes after the first successful batch (AGE builds the
+        /// Node table lazily, mirroring the single-node path).
         if !self.indexes_verified.load(Ordering::Relaxed) {
             self.ensure_indexes().await?;
             self.indexes_verified.store(true, Ordering::Relaxed);
@@ -175,6 +182,41 @@ impl PostgresAGEGraphStorage {
         }
 
         Ok(())
+    }
+
+    /// SPEC-032 W-05: Compute adaptive UNWIND chunk size for node batches.
+    ///
+    /// Samples the first row to estimate bytes-per-row; caps total body at
+    /// 512 KB to avoid PostgreSQL statement-size and AGE planner limits.
+    ///
+    /// Bounds: [50, 500] to guarantee at least some batching and stay within
+    /// safe limits even for entities with very long descriptions.
+    pub(super) fn adaptive_unwind_chunk_size(
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> usize {
+        const MAX_BODY_BYTES: usize = 512 * 1024; // 512 KB
+        const MIN_CHUNK: usize = 50;
+        const MAX_CHUNK: usize = 500;
+
+        if let Some((_, props)) = nodes.first() {
+            // Estimate row size: sum of serialised property values + key names + punctuation
+            let estimated_row: usize = props
+                .iter()
+                .map(|(k, v)| k.len() + v.to_string().len() + 8) // 8 bytes overhead per key:val
+                .sum::<usize>()
+                + 16; // node_id + struct punctuation
+
+            if estimated_row > 0 {
+                let cap = (MAX_BODY_BYTES / estimated_row).clamp(MIN_CHUNK, MAX_CHUNK);
+                tracing::trace!(
+                    estimated_row_bytes = estimated_row,
+                    adaptive_chunk = cap,
+                    "UNWIND node chunk size (SPEC-032 W-05)"
+                );
+                return cap;
+            }
+        }
+        MAX_CHUNK
     }
 
     pub(super) async fn pg_delete_node(&self, node_id: &str) -> Result<()> {

@@ -377,6 +377,7 @@ mod merger_tests {
             min_importance: 0.2,
             max_sources: 20,
             use_llm_summarization: true,
+            description_similarity_threshold: 0.85,
         };
 
         assert_eq!(config.max_description_length, 8192);
