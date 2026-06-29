@@ -2,20 +2,20 @@
  * Domain API module — split from edgequake.ts (SPEC-017 UI-DRY-001).
  */
 
+import { getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 import { api } from "../client";
 import { buildQueryString, withQuery } from "../query-params";
-import { getRuntimeServerBaseUrl } from "@/lib/runtime-config";
 
 import type {
-  Document,
-  DocumentStatusCounts,
-  ListDocumentsResponse,
-  PaginatedResponse,
-  PaginationParams,
-  PdfUploadOptions,
-  PdfUploadResponse,
-  UploadDocumentRequest,
-  UploadDocumentResponse,
+    Document,
+    DocumentStatusCounts,
+    ListDocumentsResponse,
+    PaginatedResponse,
+    PaginationParams,
+    PdfUploadOptions,
+    PdfUploadResponse,
+    UploadDocumentRequest,
+    UploadDocumentResponse,
 } from "@/types";
 
 /** Extended paginated response that includes status_counts from the server. */

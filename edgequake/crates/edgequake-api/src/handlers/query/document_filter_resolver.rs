@@ -135,7 +135,9 @@ pub async fn resolve_document_filter(
 /// Remove duplicate IDs while preserving order.
 fn deduplicate(ids: Vec<String>) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
-    ids.into_iter().filter(|id| seen.insert(id.clone())).collect()
+    ids.into_iter()
+        .filter(|id| seen.insert(id.clone()))
+        .collect()
 }
 
 /// Parse a comma-separated pattern string into lowercase substrings.
@@ -244,7 +246,10 @@ mod tests {
 
         assert!(result.contains(&"doc1".to_string()));
         assert!(result.contains(&"doc2".to_string()));
-        assert!(!result.contains(&"doc3".to_string()), "doc3 is before date_from");
+        assert!(
+            !result.contains(&"doc3".to_string()),
+            "doc3 is before date_from"
+        );
     }
 
     #[tokio::test]
@@ -446,10 +451,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_nonexistent_explicit_ids_silently_ignored() {
-        let kv = setup_kv_with_docs(vec![
-            json!({"id": "real-doc", "title": "Real"}),
-        ])
-        .await;
+        let kv = setup_kv_with_docs(vec![json!({"id": "real-doc", "title": "Real"})]).await;
 
         // "phantom-id" does not exist in KV — should be silently ignored
         let filter = DocumentFilter {
@@ -484,4 +486,3 @@ mod tests {
         assert_eq!(result, vec!["doc1".to_string()]);
     }
 }
-

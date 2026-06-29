@@ -148,14 +148,14 @@ Scope indicator always visible in query bar with pills
 
 ## 3. What Already Works Well (SPEC-005 Wins)
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Date range filtering | ✅ Implemented | `date_from` + `date_to` in `DocumentFilter` |
-| Name pattern filtering | ✅ Implemented | Comma-separated OR, case-insensitive |
-| Engine-level chunk filtering | ✅ Implemented | `context_filter::filter_context_by_document_ids` |
-| `allowed_document_ids` in engine | ✅ Implemented | Accepts `Vec<String>` — just needs direct population path |
-| Filter badge count in filter button | ✅ Implemented | Badge shows `activeFilterCount` |
-| Document list API with pattern filter | ✅ Implemented | `GET /documents?document_pattern=` |
+| Feature                               | Status        | Notes                                                     |
+| ------------------------------------- | ------------- | --------------------------------------------------------- |
+| Date range filtering                  | ✅ Implemented | `date_from` + `date_to` in `DocumentFilter`               |
+| Name pattern filtering                | ✅ Implemented | Comma-separated OR, case-insensitive                      |
+| Engine-level chunk filtering          | ✅ Implemented | `context_filter::filter_context_by_document_ids`          |
+| `allowed_document_ids` in engine      | ✅ Implemented | Accepts `Vec<String>` — just needs direct population path |
+| Filter badge count in filter button   | ✅ Implemented | Badge shows `activeFilterCount`                           |
+| Document list API with pattern filter | ✅ Implemented | `GET /documents?document_pattern=`                        |
 
 ---
 
@@ -193,11 +193,11 @@ useQuerySettings hook (frontend)
 
 To correctly spec the search endpoint, understanding scale:
 
-| Metric | Current observed | Planning ceiling |
-|--------|-----------------|-----------------|
-| Docs per workspace | 10–500 typical | 10,000 max |
-| KV scan for metadata | < 5ms at 100 docs | < 50ms at 1,000 docs |
-| p99 KV scan | ~10ms | ~80ms (needs optimization at 5,000+) |
+| Metric               | Current observed  | Planning ceiling                     |
+| -------------------- | ----------------- | ------------------------------------ |
+| Docs per workspace   | 10–500 typical    | 10,000 max                           |
+| KV scan for metadata | < 5ms at 100 docs | < 50ms at 1,000 docs                 |
+| p99 KV scan          | ~10ms             | ~80ms (needs optimization at 5,000+) |
 
 For a workspace with 10,000 documents, a full KV scan for type-ahead is acceptable only if:
 1. Results are returned as minimal projections (no chunk counts, no embeddings)
@@ -210,14 +210,14 @@ At 10,000 documents a full scan may approach 100ms; if this becomes a concern, a
 
 ## 6. Contract Summary for Adjacent Systems
 
-| System | Change Type | Impact |
-|--------|------------|--------|
-| `DocumentFilter` DTO | Additive new field `document_ids?` | Non-breaking (null default) |
-| `document_filter_resolver.rs` | Extended: IDs bypass KV scan | No breaking change |
-| Query stream + execute handlers | Minor: union IDs from resolver | No breaking change |
-| `GET /documents` route | No change | No impact |
-| New `GET /documents/search` route | New route | Additive |
-| `QueryDocumentFilter` component | Unchanged (kept in settings) | No impact |
-| New `QueryScopeBar` component | New component in query header | Additive |
-| `useQuerySettings` hook | Extended: `documentIds?: string[]` | Additive |
-| MCP `query` tool | Extended: `document_ids` param | Additive |
+| System                            | Change Type                        | Impact                      |
+| --------------------------------- | ---------------------------------- | --------------------------- |
+| `DocumentFilter` DTO              | Additive new field `document_ids?` | Non-breaking (null default) |
+| `document_filter_resolver.rs`     | Extended: IDs bypass KV scan       | No breaking change          |
+| Query stream + execute handlers   | Minor: union IDs from resolver     | No breaking change          |
+| `GET /documents` route            | No change                          | No impact                   |
+| New `GET /documents/search` route | New route                          | Additive                    |
+| `QueryDocumentFilter` component   | Unchanged (kept in settings)       | No impact                   |
+| New `QueryScopeBar` component     | New component in query header      | Additive                    |
+| `useQuerySettings` hook           | Extended: `documentIds?: string[]` | Additive                    |
+| MCP `query` tool                  | Extended: `document_ids` param     | Additive                    |

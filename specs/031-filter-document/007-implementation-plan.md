@@ -322,13 +322,13 @@ test('scope persists after page reload', async ({ page }) => {
 
 ## 3. Risk Register
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| KV scan too slow at 10,000 docs | Medium | High | Add page_size=20 cap; document future optimization path |
-| `document_ids` field breaks existing SPEC-005 clients | Low | Medium | `#[serde(default)]` ensures backward compat |
-| Route conflict `/documents/search` vs `/documents/{id}` | Low | High | Register search route BEFORE `/{id}` in routes.rs |
-| Pills clutter UI on mobile | Medium | Medium | Horizontal scroll + "+N" chip design |
-| React Query cache miss for titles | High | Low | Show truncated ID as fallback — acceptable |
+| Risk                                                    | Probability | Impact | Mitigation                                              |
+| ------------------------------------------------------- | ----------- | ------ | ------------------------------------------------------- |
+| KV scan too slow at 10,000 docs                         | Medium      | High   | Add page_size=20 cap; document future optimization path |
+| `document_ids` field breaks existing SPEC-005 clients   | Low         | Medium | `#[serde(default)]` ensures backward compat             |
+| Route conflict `/documents/search` vs `/documents/{id}` | Low         | High   | Register search route BEFORE `/{id}` in routes.rs       |
+| Pills clutter UI on mobile                              | Medium      | Medium | Horizontal scroll + "+N" chip design                    |
+| React Query cache miss for titles                       | High        | Low    | Show truncated ID as fallback — acceptable              |
 
 ---
 

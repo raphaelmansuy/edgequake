@@ -4,18 +4,18 @@ import { parseCOTContent } from "@/components/query/thinking-display";
 import { chatCompletion, chatCompletionStream } from "@/lib/api/chat";
 import { deleteMessage } from "@/lib/api/conversations";
 import { conversationKeys } from "@/lib/api/query-keys";
+import { isLlmProviderAuthFailure } from "@/lib/query-model-selection";
 import {
-  isConversationNotFoundError,
-  isServerPersistedMessageId,
+    isConversationNotFoundError,
+    isServerPersistedMessageId,
 } from "@/lib/query/conversation-errors";
 import type { QueryMessage, StreamingState } from "@/lib/query/query-interface-types";
 import {
-  applyStreamContext,
-  applyStreamConversationId,
-  applyStreamToken,
-  createStreamAccumulator,
+    applyStreamContext,
+    applyStreamConversationId,
+    applyStreamToken,
+    createStreamAccumulator,
 } from "@/lib/query/stream-accumulator";
-import { isLlmProviderAuthFailure } from "@/lib/query-model-selection";
 import { buildQueryContextFromRetrieval } from "@/lib/utils/source-mapper";
 import { generateUUID } from "@/lib/utils/uuid";
 import type { useQueryUIStore } from "@/stores/use-query-ui-store";

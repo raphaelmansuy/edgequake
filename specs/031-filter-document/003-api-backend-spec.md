@@ -277,14 +277,14 @@ fn passes_date_filter(
 
 ### 3.2 Key Behavioral Invariants
 
-| Scenario | Behavior |
-|----------|----------|
-| `document_ids = []` | Treated as `null` → no filtering (all workspace) |
-| `document_ids = ["a","b"]`, no date/pattern | Return `["a","b"]` immediately, no KV scan |
-| `document_ids = ["a"]`, `document_pattern = "report"` | Union: docs matching "report" OR doc "a" |
-| `document_ids = ["a"]`, `date_from = "2025-01-01"` | KV scan, return doc "a" only if its date passes |
-| `document_ids` contains non-existent ID | Silently ignored (missing in KV scan) |
-| All criteria set | Date filter is AND; IDs + pattern is OR union |
+| Scenario                                              | Behavior                                         |
+| ----------------------------------------------------- | ------------------------------------------------ |
+| `document_ids = []`                                   | Treated as `null` → no filtering (all workspace) |
+| `document_ids = ["a","b"]`, no date/pattern           | Return `["a","b"]` immediately, no KV scan       |
+| `document_ids = ["a"]`, `document_pattern = "report"` | Union: docs matching "report" OR doc "a"         |
+| `document_ids = ["a"]`, `date_from = "2025-01-01"`    | KV scan, return doc "a" only if its date passes  |
+| `document_ids` contains non-existent ID               | Silently ignored (missing in KV scan)            |
+| All criteria set                                      | Date filter is AND; IDs + pattern is OR union    |
 
 ---
 
@@ -581,10 +581,10 @@ DocumentFilter:
 
 ## 8. Migration & Backward Compatibility
 
-| Consumer | Impact | Action |
-|----------|--------|--------|
-| Existing SPEC-005 clients | None — `document_ids` is optional | None |
-| `query_types.rs` `DocumentFilter` | Additive field with `#[serde(default)]` | None |
-| `document_filter_resolver.rs` tests | Existing tests still pass (None behavior unchanged) | Add new tests |
-| Chat completions (`chat_types.rs`) | `DocumentFilter` reused — gets new field automatically | Test |
-| Streaming queries | Same resolver path — no change | Test |
+| Consumer                            | Impact                                                 | Action        |
+| ----------------------------------- | ------------------------------------------------------ | ------------- |
+| Existing SPEC-005 clients           | None — `document_ids` is optional                      | None          |
+| `query_types.rs` `DocumentFilter`   | Additive field with `#[serde(default)]`                | None          |
+| `document_filter_resolver.rs` tests | Existing tests still pass (None behavior unchanged)    | Add new tests |
+| Chat completions (`chat_types.rs`)  | `DocumentFilter` reused — gets new field automatically | Test          |
+| Streaming queries                   | Same resolver path — no change                         | Test          |

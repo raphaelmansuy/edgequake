@@ -7,8 +7,8 @@
  * @implements SPEC-031
  */
 
-import { useQueryClient } from "@tanstack/react-query";
 import type { DocumentSearchItem } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function useScopeDocumentLabel(documentId: string): string | undefined {
   const qc = useQueryClient();

@@ -50,9 +50,9 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { DocumentPickerPopover } from './document-picker-popover';
 import { ProviderModelSelector } from './provider-model-selector';
 import { QueryDocumentFilter } from './query-document-filter';
-import { DocumentPickerPopover } from './document-picker-popover';
 
 interface QuerySettings {
   stream: boolean;
