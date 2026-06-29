@@ -125,7 +125,22 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
         let mut edge_batch: Vec<(String, String, HashMap<String, serde_json::Value>)> =
             Vec::with_capacity(valid.len());
 
+        let ws = self.workspace_id.as_deref().unwrap_or("default");
+
         for (rel, source_key, target_key) in valid {
+            // SPEC-032 W-08: record lineage link for this chunk→relation pair
+            if let Some(ref chunk_id) = rel.source_chunk_id {
+                self.lineage_sink
+                    .record_relation_link(chunk_id, &source_key, &target_key, ws)
+                    .await
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            source = %source_key, target = %target_key,
+                            error = %e, "Lineage sink record_relation_link failed (best-effort)"
+                        );
+                    });
+            }
+
             if let Some(existing) = edge_map.get(&(source_key.clone(), target_key.clone())) {
                 let mut edge = existing.clone();
                 self.update_relationship_edge(&mut edge, &rel).await?;

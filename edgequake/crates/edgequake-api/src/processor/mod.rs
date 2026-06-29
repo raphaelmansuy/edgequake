@@ -165,6 +165,9 @@ pub struct DocumentTaskProcessor {
     /// WHY: Defaults to NoopEntitySink (zero overhead). Set to PostgresEntitySink
     /// via `with_relational_sink()` when entity_sync_mode = dual_write|full.
     relational_sink: Arc<dyn RelationalEntitySink>,
+    /// SPEC-032 W-08: Chunk lineage sink for chunk→entity/relation provenance.
+    /// Defaults to NoopLineageSink. Set to PostgresLineageSink when migration 066 applied.
+    lineage_sink: Arc<dyn edgequake_pipeline::LineageSink>,
     /// Persist task rows when ingestion identity is allocated mid-flight.
     task_storage: Option<edgequake_tasks::SharedTaskStorage>,
     /// P-G9: Invalidate query result cache after ingest (DIP port).
@@ -201,6 +204,7 @@ impl DocumentTaskProcessor {
             models_config: None,
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
+            lineage_sink: Arc::new(edgequake_pipeline::NoopLineageSink), // SPEC-032 W-08
             task_storage: None,
             query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
@@ -243,6 +247,7 @@ impl DocumentTaskProcessor {
             models_config: Some(models_config),
             strict_workspace_mode: false, // OODA-223: Legacy mode allows fallback
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
+            lineage_sink: Arc::new(edgequake_pipeline::NoopLineageSink), // SPEC-032 W-08
             task_storage: None,
             query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
@@ -282,6 +287,7 @@ impl DocumentTaskProcessor {
             models_config: Some(models_config),
             strict_workspace_mode: true, // OODA-223: Production mode - fail on workspace errors
             relational_sink: Arc::new(NoopEntitySink), // SPEC-021: no-op default
+            lineage_sink: Arc::new(edgequake_pipeline::NoopLineageSink), // SPEC-032 W-08
             task_storage: None,
             query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
@@ -296,6 +302,24 @@ impl DocumentTaskProcessor {
     pub fn with_relational_sink(mut self, sink: Arc<dyn RelationalEntitySink>) -> Self {
         self.relational_sink = sink;
         self
+    }
+
+    /// Set the lineage sink (SPEC-032 W-08).
+    ///
+    /// WHY: Defaults to `NoopLineageSink` (zero cost). Set this to `PostgresLineageSink`
+    /// when migration 066 has been applied to enable chunk→entity lineage persistence.
+    pub fn with_lineage_sink(mut self, sink: Arc<dyn edgequake_pipeline::LineageSink>) -> Self {
+        self.lineage_sink = sink;
+        self
+    }
+
+    /// Resolve the lineage sink for this processor (SPEC-032 W-08).
+    ///
+    /// Returns `self.lineage_sink` directly (already resolved at construction time).
+    pub(super) async fn resolve_lineage_sink(
+        &self,
+    ) -> Arc<dyn edgequake_pipeline::LineageSink> {
+        self.lineage_sink.clone()
     }
 
     /// Set PDF storage for PDF processing support (SPEC-007).

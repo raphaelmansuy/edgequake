@@ -8,8 +8,9 @@ use std::sync::Arc;
 use edgequake_llm::traits::LLMProvider;
 use edgequake_pipeline::{
     ChunkVectorBuildOptions, DefaultIngestionPersister, IngestionPersistContext,
-    IngestionPersistOutput, IngestionPersistSettings, IngestionPersister, NoopEntitySink,
-    ProcessingResult, RelationalEntitySink,
+    IngestionPersistOutput, IngestionPersistSettings, IngestionPersister, LineageSink,
+    MergeProgressCallback, NoopEntitySink, NoopLineageSink, ProcessingResult,
+    RelationalEntitySink,
 };
 use edgequake_query::QueryResultCacheInvalidator;
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};
@@ -112,6 +113,32 @@ pub async fn persist_with_providers(
     relational_sink: Arc<dyn RelationalEntitySink>,
     params: PersistIngestionParams<'_>,
 ) -> Result<IngestionPersistOutput, edgequake_pipeline::error::PipelineError> {
+    persist_with_providers_and_progress(
+        llm_provider,
+        cache_invalidator,
+        graph_storage,
+        vector_storage,
+        kv_storage,
+        relational_sink,
+        Arc::new(NoopLineageSink),
+        params,
+        None,
+    )
+    .await
+}
+
+/// Full variant: accepts an optional merge progress callback and lineage sink (SPEC-032 W-04/W-08).
+pub async fn persist_with_providers_and_progress(
+    llm_provider: Arc<dyn LLMProvider>,
+    cache_invalidator: Option<&dyn QueryResultCacheInvalidator>,
+    graph_storage: Arc<dyn GraphStorage>,
+    vector_storage: Arc<dyn VectorStorage>,
+    kv_storage: Arc<dyn KVStorage>,
+    relational_sink: Arc<dyn RelationalEntitySink>,
+    lineage_sink: Arc<dyn LineageSink>,
+    params: PersistIngestionParams<'_>,
+    merge_progress: Option<MergeProgressCallback>,
+) -> Result<IngestionPersistOutput, edgequake_pipeline::error::PipelineError> {
     let workspace_id = params.workspace_id.clone();
     let ctx = IngestionPersistContext::new(
         params.document_id,
@@ -123,14 +150,19 @@ pub async fn persist_with_providers(
         params.source_file_path.map(str::to_string),
     );
 
-    let persister = DefaultIngestionPersister::from_settings(
+    let mut persister = DefaultIngestionPersister::from_settings(
         graph_storage,
         vector_storage,
         IngestionPersistSettings::default(),
         relational_sink,
         Some(llm_provider),
         Some(kv_storage),
-    );
+    )
+    .with_lineage_sink(lineage_sink);
+
+    if let Some(cb) = merge_progress {
+        persister = persister.with_merge_progress(cb);
+    }
 
     let out = persister
         .persist(&ctx, params.result, params.chunk_options)

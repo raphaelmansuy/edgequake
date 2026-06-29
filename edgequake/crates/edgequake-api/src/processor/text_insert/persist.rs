@@ -151,7 +151,43 @@ impl DocumentTaskProcessor {
             }
         };
 
-        let chunk_embeddings_stored = match crate::services::persist_with_providers(
+        // SPEC-032 W-04: Build merge progress callback that broadcasts
+        // GraphStorageProgress events via PipelineState → WebSocket.
+        // Only wired when is_pdf_source (has a track_id for progress tracking).
+        let merge_progress_cb: Option<edgequake_pipeline::MergeProgressCallback> = if is_pdf_source
+        {
+            let pipeline_state = self.pipeline_state.clone();
+            let track_id_cb = track_id.clone();
+            let doc_id_cb = document_id.clone();
+            Some(Box::new(move |p: edgequake_pipeline::MergeProgress| {
+                let pipeline_state = pipeline_state.clone();
+                let track_id = track_id_cb.clone();
+                let doc_id = doc_id_cb.clone();
+                // Fire-and-forget: spawn async task to broadcast without blocking merge loop
+                tokio::spawn(async move {
+                    pipeline_state
+                        .broadcast_graph_storage_progress(
+                            &track_id,
+                            &doc_id,
+                            p.phase.label_id(),
+                            p.phase.label(),
+                            p.entities_processed as u32,
+                            p.entities_total as u32,
+                            p.entities_created as u32,
+                            p.entities_updated as u32,
+                            p.relationships_processed as u32,
+                            p.relationships_total as u32,
+                            p.relationships_created as u32,
+                            p.relationships_updated as u32,
+                        )
+                        .await;
+                });
+            }))
+        } else {
+            None
+        };
+
+        let chunk_embeddings_stored = match crate::services::persist_with_providers_and_progress(
             persist_llm,
             self.query_cache_invalidator
                 .as_ref()
@@ -160,6 +196,8 @@ impl DocumentTaskProcessor {
             workspace_vector_storage.clone(),
             self.kv_storage.clone(),
             self.relational_sink.clone(),
+            // SPEC-032 W-08: lineage sink — resolved from shared AppState pg_pool
+            self.resolve_lineage_sink().await,
             crate::services::PersistIngestionParams::for_document(
                 &document_id,
                 tenant_id.clone(),
@@ -168,6 +206,7 @@ impl DocumentTaskProcessor {
                 ChunkVectorBuildOptions::STANDARD,
                 Some(&data.file_source),
             ),
+            merge_progress_cb,
         )
         .await
         {

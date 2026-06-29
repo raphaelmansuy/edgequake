@@ -65,6 +65,18 @@ impl DefaultIngestionPersister {
                 .with_kv_storage(kv_storage),
         )
     }
+
+    /// Attach a merge progress callback (SPEC-032 W-04).
+    pub fn with_merge_progress(mut self, cb: MergeProgressCallback) -> Self {
+        self.config = self.config.with_merge_progress(cb);
+        self
+    }
+
+    /// Attach a lineage sink (SPEC-032 W-08).
+    pub fn with_lineage_sink(mut self, sink: Arc<dyn crate::merger::LineageSink>) -> Self {
+        self.config.lineage_sink = Some(sink);
+        self
+    }
 }
 
 #[async_trait]
@@ -168,8 +180,9 @@ pub struct IngestionPersistConfig {
     /// When set, chunk text is written to KV before vector upsert (SPEC-024 2.5 SSOT).
     pub kv_storage: Option<Arc<dyn KVStorage>>,
     /// Optional per-phase merge progress callback (SPEC-032 W-04).
-    /// Fire-and-forget from the persist path's perspective.
     pub merge_progress: Option<std::sync::Arc<MergeProgressCallback>>,
+    /// Optional lineage sink (SPEC-032 W-08).
+    pub lineage_sink: Option<Arc<dyn crate::merger::LineageSink>>,
 }
 
 impl IngestionPersistConfig {
@@ -188,6 +201,7 @@ impl IngestionPersistConfig {
             llm_provider,
             kv_storage: None,
             merge_progress: None,
+            lineage_sink: None,
         }
     }
 
@@ -285,6 +299,11 @@ async fn persist_processing_result_impl(
     )
     .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
     .with_relational_sink(config.relational_sink.clone());
+
+    // Wire lineage sink if provided (SPEC-032 W-08)
+    if let Some(ref ls) = config.lineage_sink {
+        merger = merger.with_lineage_sink(ls.clone());
+    }
 
     if config.merger_config.use_llm_summarization {
         if let Some(llm) = config.llm_provider.clone() {

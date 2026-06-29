@@ -3,9 +3,11 @@
  * @description Hook for tracking PDF upload progress with 6-phase visibility.
  * Consumes the /api/v1/documents/pdf/progress/{track_id} endpoint.
  * OODA-23: Now supports WebSocket with polling fallback.
+ * SPEC-032: GraphStorage sub-phase progress from WebSocket events.
  *
  * @implements OODA-20: PDF progress tracking hook
  * @implements OODA-23: WebSocket support with reconnection
+ * @implements SPEC-032 W-04: GraphStorage sub-phase progress events
  * @implements UC0709: User sees estimated time remaining
  * @implements FEAT0606: Multi-phase progress tracking with ETA
  *
@@ -117,6 +119,27 @@ export interface UsePdfProgressResult {
   totalPages: number | null;
   /** Current page being processed */
   currentPage: number | null;
+  /** SPEC-032: Live graph storage sub-phase progress (null until GraphStorage phase) */
+  graphStorageProgress: GraphStorageSubPhaseProgress | null;
+}
+
+/**
+ * SPEC-032 W-04: Live sub-phase progress for the GraphStorage pipeline phase.
+ * Received via WebSocket `graph_storage_progress` events from the backend.
+ */
+export interface GraphStorageSubPhaseProgress {
+  subPhase: string;
+  subPhaseLabel: string;
+  entitiesProcessed: number;
+  entitiesTotal: number;
+  entitiesCreated: number;
+  entitiesUpdated: number;
+  relationshipsProcessed: number;
+  relationshipsTotal: number;
+  relationshipsCreated: number;
+  relationshipsUpdated: number;
+  elapsedMs: number;
+  etaMs: number | null;
 }
 
 interface UsePdfProgressOptions {
@@ -229,6 +252,10 @@ export function usePdfProgress(
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<Error | null>(null);
 
+  // SPEC-032 W-04: Graph storage sub-phase progress
+  const [graphStorageProgress, setGraphStorageProgress] =
+    useState<GraphStorageSubPhaseProgress | null>(null);
+
   // SSE connection state for real-time page progress
   const [sseConnected, setSseConnected] = useState(false);
   const sseRef = useRef<EventSource | null>(null);
@@ -284,6 +311,50 @@ export function usePdfProgress(
       wsClient.unsubscribe([trackId]);
     };
   }, [trackId, enabled, preferWebSocket]);
+
+  // SPEC-032 W-04: Subscribe to graph_storage_progress WebSocket events.
+  // These events arrive during the GraphStorage pipeline phase (after extraction)
+  // and contain per-batch entity/relationship merge progress.
+  useEffect(() => {
+    if (!trackId || !enabled) return;
+
+    const wsClient = getWebSocketClient();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const unsubGraphStorage = (wsClient as any).on?.(
+      "graph_storage_progress",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (message: any) => {
+        try {
+          const data = typeof message === "string" ? JSON.parse(message) : message;
+          // Only update if this event is for our track_id
+          if (data?.track_id !== trackId && data?.data?.track_id !== trackId) return;
+          const payload = data?.data ?? data;
+          setGraphStorageProgress({
+            subPhase: payload.sub_phase ?? "",
+            subPhaseLabel: payload.sub_phase_label ?? "",
+            entitiesProcessed: payload.entities_processed ?? 0,
+            entitiesTotal: payload.entities_total ?? 0,
+            entitiesCreated: payload.entities_created ?? 0,
+            entitiesUpdated: payload.entities_updated ?? 0,
+            relationshipsProcessed: payload.relationships_processed ?? 0,
+            relationshipsTotal: payload.relationships_total ?? 0,
+            relationshipsCreated: payload.relationships_created ?? 0,
+            relationshipsUpdated: payload.relationships_updated ?? 0,
+            elapsedMs: payload.elapsed_ms ?? 0,
+            etaMs: payload.eta_ms ?? null,
+          });
+        } catch {
+          // Ignore malformed events
+        }
+      }
+    );
+
+    return () => {
+      if (typeof unsubGraphStorage === "function") unsubGraphStorage();
+      setGraphStorageProgress(null);
+    };
+  }, [trackId, enabled]);
 
   // SSE connection for real-time page-level progress
   // WHY: SSE provides lower-latency, server-push progress updates without
@@ -620,6 +691,8 @@ export function usePdfProgress(
     pagesPerMinute,
     totalPages,
     currentPage,
+    // SPEC-032 W-04: graph storage sub-phase progress
+    graphStorageProgress,
   };
 }
 

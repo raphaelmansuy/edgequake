@@ -16,6 +16,7 @@ pub use event::{PipelineEvent, PipelineMessage, PipelineStatusSnapshot};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::progress::PdfUploadProgress;
@@ -35,6 +36,9 @@ struct PipelineStateInner {
     /// OODA-12: Active PDF upload progress, keyed by track_id.
     /// Enables queryable progress for GET /api/v1/documents/pdf/:id/progress
     pub(crate) pdf_progress: HashMap<String, PdfUploadProgress>,
+    /// SPEC-032 W-04: GraphStorage phase start times for ETA calculation.
+    /// Keyed by track_id, set when PipelinePhase::GraphStorage begins.
+    pub(crate) graph_storage_start: HashMap<String, Instant>,
 }
 
 impl Default for PipelineStateInner {
@@ -51,6 +55,7 @@ impl Default for PipelineStateInner {
             cancellation_requested: false,
             max_messages: 100,
             pdf_progress: HashMap::new(),
+            graph_storage_start: HashMap::new(),
         }
     }
 }
