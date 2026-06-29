@@ -10,7 +10,9 @@ use async_trait::async_trait;
 use edgequake_llm::LLMProvider;
 use edgequake_storage::{compensation, traits::KVStorage, GraphStorage, VectorStorage};
 
-use crate::merger::{KnowledgeGraphMerger, MergeStats, MergerConfig, RelationalEntitySink};
+use crate::merger::{
+    KnowledgeGraphMerger, MergeProgressCallback, MergeStats, MergerConfig, RelationalEntitySink,
+};
 use crate::pipeline::ProcessingResult;
 use crate::summarizer::{LLMSummarizer, SummarizerConfig};
 use crate::Result;
@@ -165,6 +167,9 @@ pub struct IngestionPersistConfig {
     pub llm_provider: Option<Arc<dyn LLMProvider>>,
     /// When set, chunk text is written to KV before vector upsert (SPEC-024 2.5 SSOT).
     pub kv_storage: Option<Arc<dyn KVStorage>>,
+    /// Optional per-phase merge progress callback (SPEC-032 W-04).
+    /// Fire-and-forget from the persist path's perspective.
+    pub merge_progress: Option<std::sync::Arc<MergeProgressCallback>>,
 }
 
 impl IngestionPersistConfig {
@@ -182,11 +187,18 @@ impl IngestionPersistConfig {
             relational_sink,
             llm_provider,
             kv_storage: None,
+            merge_progress: None,
         }
     }
 
     pub fn with_kv_storage(mut self, kv_storage: Option<Arc<dyn KVStorage>>) -> Self {
         self.kv_storage = kv_storage;
+        self
+    }
+
+    /// Wire a merge progress callback. The callback is cloned for each persist call.
+    pub fn with_merge_progress(mut self, cb: MergeProgressCallback) -> Self {
+        self.merge_progress = Some(std::sync::Arc::new(cb));
         self
     }
 }
@@ -281,7 +293,12 @@ async fn persist_processing_result_impl(
         }
     }
 
-    let merge_result = merger.merge(result.extractions.clone()).await;
+    let merge_result = merger
+        .merge_with_progress(
+            result.extractions.clone(),
+            config.merge_progress.as_ref().map(|cb| cb.as_ref()),
+        )
+        .await;
 
     match merge_result {
         Ok(stats) if stats.errors == 0 => {

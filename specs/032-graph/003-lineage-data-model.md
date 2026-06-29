@@ -305,13 +305,13 @@ Migration 068: Add description_history to entities
 
 ## 7. Lineage Preservation: SOLID Principles
 
-| Principle | Application |
-|-----------|-------------|
+| Principle                     | Application                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------- |
 | **S** — Single Responsibility | `ChunkLineage` struct owns span data; merger owns merge history; CQRS sink owns DB writes |
-| **O** — Open/Closed | `RelationalEntitySink` trait is extended, not modified, to accept `source_spans` |
-| **L** — Liskov | All sinks (`NoopEntitySink`, `PostgresEntitySink`) honour the append-only contract |
+| **O** — Open/Closed           | `RelationalEntitySink` trait is extended, not modified, to accept `source_spans`          |
+| **L** — Liskov                | All sinks (`NoopEntitySink`, `PostgresEntitySink`) honour the append-only contract        |
 | **I** — Interface Segregation | Separate `LineageSink` trait from `RelationalEntitySink` to avoid bloating existing impls |
-| **D** — Dependency Inversion | Pipeline crate depends on `LineageSink` trait, not `sqlx::PgPool` |
+| **D** — Dependency Inversion  | Pipeline crate depends on `LineageSink` trait, not `sqlx::PgPool`                         |
 
 ### New `LineageSink` Trait (DIP)
 

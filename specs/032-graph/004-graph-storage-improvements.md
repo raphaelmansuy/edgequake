@@ -337,10 +337,10 @@ self.merge_relationships_batch(all_rels, &mut stats).await?;
 
 ## 8. SOLID Compliance Checklist
 
-| Principle | Current | Target |
-|-----------|---------|--------|
-| **S** | `KnowledgeGraphMerger` owns entity merge, vector upsert, LLM calls | Split LLM gate into `DescriptionMergePolicy` struct |
-| **O** | `merge()` is monolithic | `merge_with_progress()` overload without touching merge() |
-| **L** | `NoopEntitySink` / `PostgresEntitySink` both honour trait | Add `NoopLineageSink` honouring `LineageSink` |
-| **I** | `RelationalEntitySink` growing with lineage ops | New `LineageSink` trait (separate) |
-| **D** | Merger accepts `Arc<dyn GraphStorage>` correctly | `MergeProgressCallback` is type alias, not concrete type |
+| Principle | Current                                                            | Target                                                    |
+| --------- | ------------------------------------------------------------------ | --------------------------------------------------------- |
+| **S**     | `KnowledgeGraphMerger` owns entity merge, vector upsert, LLM calls | Split LLM gate into `DescriptionMergePolicy` struct       |
+| **O**     | `merge()` is monolithic                                            | `merge_with_progress()` overload without touching merge() |
+| **L**     | `NoopEntitySink` / `PostgresEntitySink` both honour trait          | Add `NoopLineageSink` honouring `LineageSink`             |
+| **I**     | `RelationalEntitySink` growing with lineage ops                    | New `LineageSink` trait (separate)                        |
+| **D**     | Merger accepts `Arc<dyn GraphStorage>` correctly                   | `MergeProgressCallback` is type alias, not concrete type  |

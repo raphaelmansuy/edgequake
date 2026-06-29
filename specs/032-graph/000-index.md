@@ -26,26 +26,26 @@ partially wired in the data model and is lost at the embedding layer.
 
 ## Document Map
 
-| # | Document | Focus |
-|---|----------|-------|
-| [001](001-current-architecture.md) | Current Architecture | Code path audit, data model, sequence diagrams |
-| [002](002-performance-analysis.md) | Performance Analysis | O(N) bottlenecks, AGE quirks, pgvector tuning |
-| [003](003-lineage-data-model.md) | Lineage Data Model | Chunk→Entity→Relation lineage, PDF page provenance |
-| [004](004-graph-storage-improvements.md) | Graph Storage Improvements | Batching, WAL tuning, streaming merge |
-| [005](005-progress-events.md) | Progress Events | Sub-phase events, WebSocket schema, UX design |
-| [006](006-improvement-plan.md) | Improvement Plan | Ranked work items, DRY/SOLID anchoring, migration path |
+| #                                        | Document                   | Focus                                                  |
+| ---------------------------------------- | -------------------------- | ------------------------------------------------------ |
+| [001](001-current-architecture.md)       | Current Architecture       | Code path audit, data model, sequence diagrams         |
+| [002](002-performance-analysis.md)       | Performance Analysis       | O(N) bottlenecks, AGE quirks, pgvector tuning          |
+| [003](003-lineage-data-model.md)         | Lineage Data Model         | Chunk→Entity→Relation lineage, PDF page provenance     |
+| [004](004-graph-storage-improvements.md) | Graph Storage Improvements | Batching, WAL tuning, streaming merge                  |
+| [005](005-progress-events.md)            | Progress Events            | Sub-phase events, WebSocket schema, UX design          |
+| [006](006-improvement-plan.md)           | Improvement Plan           | Ranked work items, DRY/SOLID anchoring, migration path |
 
 ---
 
 ## Expert Lenses Applied
 
-| Lens | Key concerns addressed |
-|------|----------------------|
-| **LightRAG expert** | Merge semantics, source-tracking, gleaning |
-| **Lineage expert** | Chunk↔entity provenance, PDF page spans, cross-doc merges |
-| **Graph expert** | AGE MERGE patterns, index design, traversal complexity |
-| **O(N) expert** | Algorithmic analysis of batch upsert, UNWIND body size |
-| **Postgres expert** | WAL, autovacuum, pgvector HNSW, `work_mem` tuning |
+| Lens                 | Key concerns addressed                                     |
+| -------------------- | ---------------------------------------------------------- |
+| **LightRAG expert**  | Merge semantics, source-tracking, gleaning                 |
+| **Lineage expert**   | Chunk↔entity provenance, PDF page spans, cross-doc merges  |
+| **Graph expert**     | AGE MERGE patterns, index design, traversal complexity     |
+| **O(N) expert**      | Algorithmic analysis of batch upsert, UNWIND body size     |
+| **Postgres expert**  | WAL, autovacuum, pgvector HNSW, `work_mem` tuning          |
 | **Systems engineer** | Cancellation propagation, saga compensation, observability |
 
 ---

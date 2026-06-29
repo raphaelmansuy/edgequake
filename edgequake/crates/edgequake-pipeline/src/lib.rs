@@ -116,8 +116,8 @@ pub use lineage::{
     ExtractionMetadata, LineageBuilder, RelationshipLineage, SourceSpan,
 };
 pub use merger::{
-    KnowledgeGraphMerger, MergeArtifacts, MergeStats, MergerConfig, NoopEntitySink,
-    RelationalEntitySink,
+    KnowledgeGraphMerger, MergeArtifacts, MergePhase, MergeProgress, MergeProgressCallback,
+    MergeStats, MergerConfig, NoopEntitySink, RelationalEntitySink,
 };
 pub use multimodal::{
     inject_modality_relations, parse_mm_display_name, MmChunkSidecarMeta, MmHeadingBlock,

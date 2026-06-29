@@ -50,18 +50,18 @@ edgequake-api  ──── DocumentTaskProcessor ──────────
 
 **Code paths (verbatim file references):**
 
-| Step | File | Key function |
-|------|------|-------------|
-| Pipeline build | `edgequake-pipeline/src/ingestion_pipeline.rs` | `build_ingestion_pipeline()` |
-| Chunk extraction | `edgequake-pipeline/src/pipeline/processing.rs` | `process_with_resilience_cancellable()` |
-| Embedding | `edgequake-pipeline/src/pipeline/helpers/embeddings.rs` | `generate_all_embeddings()` |
-| Persist entry | `edgequake-pipeline/src/persistence/ingestion_persister.rs` | `persist_processing_result_impl()` |
-| KV upsert | `edgequake-storage/src/adapters/postgres/kv.rs` | `upsert()` |
-| Vector upsert | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | `upsert()` (QW2) |
-| Entity graph | `edgequake-storage/src/adapters/postgres/graph/nodes_ops.rs` | `pg_upsert_nodes_batch()` |
-| Edge graph | `edgequake-storage/src/adapters/postgres/graph/edges_ops.rs` | `pg_upsert_edges_batch()` |
-| Merger orchestration | `edgequake-pipeline/src/merger/mod.rs` | `merge()` |
-| Entity merge logic | `edgequake-pipeline/src/merger/entity.rs` | `merge_entities_batch()` |
+| Step                 | File                                                             | Key function                            |
+| -------------------- | ---------------------------------------------------------------- | --------------------------------------- |
+| Pipeline build       | `edgequake-pipeline/src/ingestion_pipeline.rs`                   | `build_ingestion_pipeline()`            |
+| Chunk extraction     | `edgequake-pipeline/src/pipeline/processing.rs`                  | `process_with_resilience_cancellable()` |
+| Embedding            | `edgequake-pipeline/src/pipeline/helpers/embeddings.rs`          | `generate_all_embeddings()`             |
+| Persist entry        | `edgequake-pipeline/src/persistence/ingestion_persister.rs`      | `persist_processing_result_impl()`      |
+| KV upsert            | `edgequake-storage/src/adapters/postgres/kv.rs`                  | `upsert()`                              |
+| Vector upsert        | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | `upsert()` (QW2)                        |
+| Entity graph         | `edgequake-storage/src/adapters/postgres/graph/nodes_ops.rs`     | `pg_upsert_nodes_batch()`               |
+| Edge graph           | `edgequake-storage/src/adapters/postgres/graph/edges_ops.rs`     | `pg_upsert_edges_batch()`               |
+| Merger orchestration | `edgequake-pipeline/src/merger/mod.rs`                           | `merge()`                               |
+| Entity merge logic   | `edgequake-pipeline/src/merger/entity.rs`                        | `merge_entities_batch()`                |
 
 ---
 
@@ -143,13 +143,13 @@ PDF document
 
 ### What is NOT tracked / broken
 
-| Gap | Location | Impact |
-|-----|----------|--------|
-| PDF page number → chunk | `chunk_storage.rs` / chunker | Cannot cite "page 5" |
-| Chunk→embedding vector linkage | vector metadata partial | Cannot trace vector→chunk→doc |
-| Cross-doc entity lineage completeness | `source_id` only stores current doc's chunks | Older source docs overwritten |
-| Relationship source chunks | `source_chunk_ids` is pipe-sep string in AGE, not TEXT[] | Joins impossible |
-| `ChunkLineage` not persisted | in-memory only during `build_lineage()` | Lineage lost after ingestion |
+| Gap                                   | Location                                                 | Impact                        |
+| ------------------------------------- | -------------------------------------------------------- | ----------------------------- |
+| PDF page number → chunk               | `chunk_storage.rs` / chunker                             | Cannot cite "page 5"          |
+| Chunk→embedding vector linkage        | vector metadata partial                                  | Cannot trace vector→chunk→doc |
+| Cross-doc entity lineage completeness | `source_id` only stores current doc's chunks             | Older source docs overwritten |
+| Relationship source chunks            | `source_chunk_ids` is pipe-sep string in AGE, not TEXT[] | Joins impossible              |
+| `ChunkLineage` not persisted          | in-memory only during `build_lineage()`                  | Lineage lost after ingestion  |
 
 ---
 
@@ -176,17 +176,17 @@ accepted or emitted inside the merger loop.
 
 ## 5. Identified Findings (Summary)
 
-| ID | Finding | Severity |
-|----|---------|----------|
-| F-01 | AGE UNWIND Cypher literal body grows O(N·P) per batch | High |
-| F-02 | `get_nodes_batch` issues one round-trip per ExtractionResult, not globally batched | High |
-| F-03 | GraphStorage phase emits 0 intermediate progress events | High |
-| F-04 | ChunkLineage is in-memory only; never persisted | Medium |
-| F-05 | `source_id` in AGE nodes is pipe-sep string (no GIN index possible on AGE side) | Medium |
-| F-06 | PDF page→chunk mapping not stored | Medium |
-| F-07 | LLM summarizer called synchronously per entity (blocks merge loop) | Medium |
-| F-08 | `upsert_nodes_batch` CHUNK=500 is a fixed magic constant (not tunable) | Low |
-| F-09 | Entity vector batch collected then upserted once globally, but relationship vectors done per ExtractionResult (inconsistent) | Low |
-| F-10 | No WAL/autovacuum tuning guidance for 100K+ entity graphs | Low |
+| ID   | Finding                                                                                                                      | Severity |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------- | -------- |
+| F-01 | AGE UNWIND Cypher literal body grows O(N·P) per batch                                                                        | High     |
+| F-02 | `get_nodes_batch` issues one round-trip per ExtractionResult, not globally batched                                           | High     |
+| F-03 | GraphStorage phase emits 0 intermediate progress events                                                                      | High     |
+| F-04 | ChunkLineage is in-memory only; never persisted                                                                              | Medium   |
+| F-05 | `source_id` in AGE nodes is pipe-sep string (no GIN index possible on AGE side)                                              | Medium   |
+| F-06 | PDF page→chunk mapping not stored                                                                                            | Medium   |
+| F-07 | LLM summarizer called synchronously per entity (blocks merge loop)                                                           | Medium   |
+| F-08 | `upsert_nodes_batch` CHUNK=500 is a fixed magic constant (not tunable)                                                       | Low      |
+| F-09 | Entity vector batch collected then upserted once globally, but relationship vectors done per ExtractionResult (inconsistent) | Low      |
+| F-10 | No WAL/autovacuum tuning guidance for 100K+ entity graphs                                                                    | Low      |
 
 Detailed analysis of each finding is in [SPEC-032-002](002-performance-analysis.md).
