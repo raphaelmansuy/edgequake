@@ -18,13 +18,13 @@ This spec introduces **explicit document scope selection** — the ability to ha
 
 ## 2. Problem Statement
 
-| Dimension | Current State | Desired State |
-|-----------|--------------|--------------|
-| Scope control | Pattern-text + date range only | Explicit doc selection + existing filters |
-| Selection UX | Hidden inside settings sheet | Visible pills in query bar |
-| API contract | `document_filter.document_pattern` → fuzzy match | `document_filter.document_ids[]` → exact IDs |
-| Search | `GET /documents?document_pattern=` (full listing) | `GET /documents/search?q=` (type-ahead, lightweight) |
-| Default state | All workspace (implicit) | All workspace (explicit, represented as "no pills") |
+| Dimension     | Current State                                     | Desired State                                        |
+| ------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| Scope control | Pattern-text + date range only                    | Explicit doc selection + existing filters            |
+| Selection UX  | Hidden inside settings sheet                      | Visible pills in query bar                           |
+| API contract  | `document_filter.document_pattern` → fuzzy match  | `document_filter.document_ids[]` → exact IDs         |
+| Search        | `GET /documents?document_pattern=` (full listing) | `GET /documents/search?q=` (type-ahead, lightweight) |
+| Default state | All workspace (implicit)                          | All workspace (explicit, represented as "no pills")  |
 
 ---
 
@@ -51,15 +51,15 @@ This spec introduces **explicit document scope selection** — the ability to ha
 
 ## 4. Document Index
 
-| File | Lens | Content |
-|------|------|---------|
-| [001-problem-analysis.md](001-problem-analysis.md) | Engineering | Current state deep-dive, gap analysis |
-| [002-ux-ui-design.md](002-ux-ui-design.md) | UX/UI Designer | Interaction flows, ASCII layouts, pill design |
-| [003-api-backend-spec.md](003-api-backend-spec.md) | System + AI Engineer | API contract, pipeline changes, storage |
-| [004-frontend-spec.md](004-frontend-spec.md) | Full Stack | Components, hooks, types, state management |
-| [005-mcp-integration.md](005-mcp-integration.md) | MCP / Platform | MCP tool changes, surface contract |
-| [006-edge-cases.md](006-edge-cases.md) | Engineering | Edge cases, mitigations, invariants |
-| [007-implementation-plan.md](007-implementation-plan.md) | PM / Engineering | Phased tasks, acceptance criteria |
+| File                                                     | Lens                 | Content                                       |
+| -------------------------------------------------------- | -------------------- | --------------------------------------------- |
+| [001-problem-analysis.md](001-problem-analysis.md)       | Engineering          | Current state deep-dive, gap analysis         |
+| [002-ux-ui-design.md](002-ux-ui-design.md)               | UX/UI Designer       | Interaction flows, ASCII layouts, pill design |
+| [003-api-backend-spec.md](003-api-backend-spec.md)       | System + AI Engineer | API contract, pipeline changes, storage       |
+| [004-frontend-spec.md](004-frontend-spec.md)             | Full Stack           | Components, hooks, types, state management    |
+| [005-mcp-integration.md](005-mcp-integration.md)         | MCP / Platform       | MCP tool changes, surface contract            |
+| [006-edge-cases.md](006-edge-cases.md)                   | Engineering          | Edge cases, mitigations, invariants           |
+| [007-implementation-plan.md](007-implementation-plan.md) | PM / Engineering     | Phased tasks, acceptance criteria             |
 
 ---
 
@@ -89,10 +89,10 @@ If both `document_ids` and `document_pattern` are set in `DocumentFilter`, the r
 
 ## 6. Success Criteria
 
-| Criterion | Metric |
-|-----------|--------|
-| Type-ahead search latency | p99 < 200ms (KV scan on 1,000 docs) |
-| Query overhead when no scope filter | 0ms (short-circuit) |
-| Filter state survives page reload | Persisted in `localStorage` via `useQuerySettings` |
-| ARIA accessibility | All interactive elements have labels; pills have remove buttons |
-| No breaking change to SPEC-005 consumers | Existing `document_filter` JSON still accepted unchanged |
+| Criterion                                | Metric                                                          |
+| ---------------------------------------- | --------------------------------------------------------------- |
+| Type-ahead search latency                | p99 < 200ms (KV scan on 1,000 docs)                             |
+| Query overhead when no scope filter      | 0ms (short-circuit)                                             |
+| Filter state survives page reload        | Persisted in `localStorage` via `useQuerySettings`              |
+| ARIA accessibility                       | All interactive elements have labels; pills have remove buttons |
+| No breaking change to SPEC-005 consumers | Existing `document_filter` JSON still accepted unchanged        |

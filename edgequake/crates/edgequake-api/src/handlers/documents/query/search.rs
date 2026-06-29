@@ -12,7 +12,9 @@ use axum::{
 use tracing::debug;
 
 use crate::error::ApiResult;
-use crate::handlers::documents_types::{DocumentSearchItem, DocumentSearchRequest, DocumentSearchResponse};
+use crate::handlers::documents_types::{
+    DocumentSearchItem, DocumentSearchRequest, DocumentSearchResponse,
+};
 use crate::middleware::TenantContext;
 use crate::services::document_metadata_scan::load_scoped_document_metadata;
 use crate::services::tenant_guard::{has_full_tenant_context, warn_missing_tenant_context};
@@ -62,10 +64,7 @@ pub async fn search_documents(
         .map(|q| q[..q.len().min(200)].to_lowercase())
         .filter(|q| !q.is_empty());
 
-    let require_completed = params
-        .status
-        .as_deref()
-        .map_or(true, |s| s != "all");
+    let require_completed = params.status.as_deref().map_or(true, |s| s != "all");
 
     // Load metadata via the same SSOT as list_documents (SPEC-027)
     let metadata_values =

@@ -885,21 +885,21 @@ QueryInterface (query-interface.tsx)
 
 ### New Files
 
-| File | Purpose |
-|------|---------|
-| `src/components/query/document-picker-popover.tsx` | Picker popover component |
-| `src/components/query/query-scope-bar.tsx` | Scope bar with pills |
-| `src/hooks/use-document-search.ts` | Type-ahead search hook |
-| `src/hooks/use-document-title.ts` | Cache-based title resolver |
-| `src/hooks/use-debounce.ts` | Debounce utility (if not already present) |
+| File                                               | Purpose                                   |
+| -------------------------------------------------- | ----------------------------------------- |
+| `src/components/query/document-picker-popover.tsx` | Picker popover component                  |
+| `src/components/query/query-scope-bar.tsx`         | Scope bar with pills                      |
+| `src/hooks/use-document-search.ts`                 | Type-ahead search hook                    |
+| `src/hooks/use-document-title.ts`                  | Cache-based title resolver                |
+| `src/hooks/use-debounce.ts`                        | Debounce utility (if not already present) |
 
 ### Modified Files
 
-| File | Change |
-|------|--------|
-| `src/types/query.ts` | Add `document_ids?: string[]` to `DocumentFilter` |
+| File                                             | Change                                             |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `src/types/query.ts`                             | Add `document_ids?: string[]` to `DocumentFilter`  |
 | `src/types/index.ts` or `src/types/documents.ts` | Add `DocumentSearchItem`, `DocumentSearchResponse` |
-| `src/lib/api/edgequake/documents.ts` | Add `searchDocuments()` |
-| `src/components/query/query-interface.tsx` | Insert `<QueryScopeBar>` above input |
-| `src/components/query/query-settings-sheet.tsx` | Add scope section, extend props |
-| `src/hooks/use-query-settings.ts` | Add `scopedDocumentIds` to state |
+| `src/lib/api/edgequake/documents.ts`             | Add `searchDocuments()`                            |
+| `src/components/query/query-interface.tsx`       | Insert `<QueryScopeBar>` above input               |
+| `src/components/query/query-settings-sheet.tsx`  | Add scope section, extend props                    |
+| `src/hooks/use-query-settings.ts`                | Add `scopedDocumentIds` to state                   |

@@ -11,7 +11,7 @@
  *
  * Run: cd edgequake_webui && npx playwright test ../../specs/031-filter-document/e2e/query-scope.spec.ts
  */
-import { test, expect, Page } from "@playwright/test";
+import { expect, Page, test } from "@playwright/test";
 import path from "path";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";

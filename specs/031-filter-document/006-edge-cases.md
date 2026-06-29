@@ -9,66 +9,66 @@
 
 ### 1.1 Input Validation
 
-| Edge Case | Scenario | Mitigation | Behavior |
-|-----------|----------|------------|----------|
-| EC-01 | `document_ids: []` (empty array) | `DocumentFilter.is_empty()` checks `ids.is_empty()` | Treated as `null` — no filtering |
-| EC-02 | `document_ids` contains duplicates | `deduplicate()` in resolver | Deduped before matching |
-| EC-03 | `document_ids` contains non-existent IDs | Resolver does KV scan; absent IDs not found | Silently ignored, logged at DEBUG |
-| EC-04 | `document_ids` with 0 valid IDs (all phantom) | Resolver returns `Some(vec![])` | Empty result set — no context, no answer |
-| EC-05 | `document_ids` > 100 items | Server-side cap enforced in endpoint | HTTP 400: "Too many document IDs (max 100)" |
-| EC-06 | `document_ids` contains SQL injection / XSS | IDs are UUID strings, validated by storage layer | Invalid UUIDs return no match |
-| EC-07 | `q` search param is empty string | Treated same as absent `q` | Returns 20 most recent documents |
-| EC-08 | `q` search param > 200 chars | Server truncates to 200 chars | Search still executes on truncated input |
+| Edge Case | Scenario                                      | Mitigation                                          | Behavior                                    |
+| --------- | --------------------------------------------- | --------------------------------------------------- | ------------------------------------------- |
+| EC-01     | `document_ids: []` (empty array)              | `DocumentFilter.is_empty()` checks `ids.is_empty()` | Treated as `null` — no filtering            |
+| EC-02     | `document_ids` contains duplicates            | `deduplicate()` in resolver                         | Deduped before matching                     |
+| EC-03     | `document_ids` contains non-existent IDs      | Resolver does KV scan; absent IDs not found         | Silently ignored, logged at DEBUG           |
+| EC-04     | `document_ids` with 0 valid IDs (all phantom) | Resolver returns `Some(vec![])`                     | Empty result set — no context, no answer    |
+| EC-05     | `document_ids` > 100 items                    | Server-side cap enforced in endpoint                | HTTP 400: "Too many document IDs (max 100)" |
+| EC-06     | `document_ids` contains SQL injection / XSS   | IDs are UUID strings, validated by storage layer    | Invalid UUIDs return no match               |
+| EC-07     | `q` search param is empty string              | Treated same as absent `q`                          | Returns 20 most recent documents            |
+| EC-08     | `q` search param > 200 chars                  | Server truncates to 200 chars                       | Search still executes on truncated input    |
 
 ### 1.2 Concurrency & State
 
-| Edge Case | Scenario | Mitigation | Behavior |
-|-----------|----------|------------|----------|
-| EC-09 | Document deleted while it's in scope selection | Resolver returns `Some(vec![])` or partial | Missing doc silently excluded; context still valid for remaining docs |
-| EC-10 | Document re-ingested (same ID) while query runs | Engine uses stale context window | RAG query completes; next query sees fresh data |
-| EC-11 | Scope changes while query is streaming | Scope is captured at query start | In-flight query uses original scope; new scope applies next query |
-| EC-12 | User closes browser mid-selection | `scopedDocumentIds` persisted in `localStorage` | Selection restored on next visit |
-| EC-13 | Page refresh during active scope | `useQuerySettings` restores from `localStorage` | Pills re-render with previous selection |
+| Edge Case | Scenario                                        | Mitigation                                      | Behavior                                                              |
+| --------- | ----------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------- |
+| EC-09     | Document deleted while it's in scope selection  | Resolver returns `Some(vec![])` or partial      | Missing doc silently excluded; context still valid for remaining docs |
+| EC-10     | Document re-ingested (same ID) while query runs | Engine uses stale context window                | RAG query completes; next query sees fresh data                       |
+| EC-11     | Scope changes while query is streaming          | Scope is captured at query start                | In-flight query uses original scope; new scope applies next query     |
+| EC-12     | User closes browser mid-selection               | `scopedDocumentIds` persisted in `localStorage` | Selection restored on next visit                                      |
+| EC-13     | Page refresh during active scope                | `useQuerySettings` restores from `localStorage` | Pills re-render with previous selection                               |
 
 ### 1.3 Network & API
 
-| Edge Case | Scenario | Mitigation | Behavior |
-|-----------|----------|------------|----------|
-| EC-14 | `GET /documents/search` returns 500 | React Query error state | Picker shows "Unable to load documents" + retry button |
-| EC-15 | `GET /documents/search` returns 401 | API client interceptor | Redirect to login (same as all authenticated routes) |
-| EC-16 | Search timeout (> 5s) | React Query timeout config | Stale data shown (placeholderData) or error state |
-| EC-17 | Very fast typing (< 300ms between keystrokes) | Debounce at 300ms | Only sends one request per 300ms idle |
-| EC-18 | Race condition: fast typing + slow response | React Query deduplication | Only latest request is used (stale previous discarded) |
+| Edge Case | Scenario                                      | Mitigation                 | Behavior                                               |
+| --------- | --------------------------------------------- | -------------------------- | ------------------------------------------------------ |
+| EC-14     | `GET /documents/search` returns 500           | React Query error state    | Picker shows "Unable to load documents" + retry button |
+| EC-15     | `GET /documents/search` returns 401           | API client interceptor     | Redirect to login (same as all authenticated routes)   |
+| EC-16     | Search timeout (> 5s)                         | React Query timeout config | Stale data shown (placeholderData) or error state      |
+| EC-17     | Very fast typing (< 300ms between keystrokes) | Debounce at 300ms          | Only sends one request per 300ms idle                  |
+| EC-18     | Race condition: fast typing + slow response   | React Query deduplication  | Only latest request is used (stale previous discarded) |
 
 ### 1.4 Document Status Edge Cases
 
-| Edge Case | Scenario | Mitigation | Behavior |
-|-----------|----------|------------|----------|
-| EC-19 | User selects a `processing` document (via pattern filter) | Picker default shows only `completed` | Search endpoint defaults to `status=completed`; explicit selection still possible |
-| EC-20 | User explicitly passes ID of a `failed` document | No status check at query level | Query executes; no chunks found from that document (effectively empty) |
-| EC-21 | Document transitions from `processing` to `completed` while in scope | No change — scope is ID-based | Next query (after completion) will find chunks |
-| EC-22 | All scoped documents are `failed` (0 chunks) | Resolver returns `Some(ids)`, engine finds 0 chunks | LLM receives empty context; response indicates insufficient information |
+| Edge Case | Scenario                                                             | Mitigation                                          | Behavior                                                                          |
+| --------- | -------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------- |
+| EC-19     | User selects a `processing` document (via pattern filter)            | Picker default shows only `completed`               | Search endpoint defaults to `status=completed`; explicit selection still possible |
+| EC-20     | User explicitly passes ID of a `failed` document                     | No status check at query level                      | Query executes; no chunks found from that document (effectively empty)            |
+| EC-21     | Document transitions from `processing` to `completed` while in scope | No change — scope is ID-based                       | Next query (after completion) will find chunks                                    |
+| EC-22     | All scoped documents are `failed` (0 chunks)                         | Resolver returns `Some(ids)`, engine finds 0 chunks | LLM receives empty context; response indicates insufficient information           |
 
 ### 1.5 UX Edge Cases
 
-| Edge Case | Scenario | Mitigation | Behavior |
-|-----------|----------|------------|----------|
-| EC-23 | `scopedDocumentIds` has IDs with no cached titles | `useDocumentTitle` returns undefined | Pill shows truncated UUID (first 8 chars + ellipsis) |
-| EC-24 | More than 3 pills visible | Truncate to 3 + "+N more" chip | Click "+N more" to see all or open picker |
-| EC-25 | Very long document title (> 200 chars) | Truncate to 22 chars in pill | Full title in `title` tooltip attribute |
-| EC-26 | Workspace has 0 documents | Search endpoint returns empty `items` | Picker shows "No completed documents yet" |
-| EC-27 | Workspace has 10,000+ documents, no search query | Search endpoint defaults to `page_size=20` | User sees most recent 20; search narrows |
-| EC-28 | Scope bar overflows horizontally on mobile | `overflow-x-auto scrollbar-none` on pills list | Pills scroll, no wrapping or clipping |
-| EC-33 | User doesn't notice "All docs ▾" button | Button is always present above textarea | Low-contrast by design; tooltip explains on hover |
+| Edge Case | Scenario                                          | Mitigation                                     | Behavior                                             |
+| --------- | ------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
+| EC-23     | `scopedDocumentIds` has IDs with no cached titles | `useDocumentTitle` returns undefined           | Pill shows truncated UUID (first 8 chars + ellipsis) |
+| EC-24     | More than 3 pills visible                         | Truncate to 3 + "+N more" chip                 | Click "+N more" to see all or open picker            |
+| EC-25     | Very long document title (> 200 chars)            | Truncate to 22 chars in pill                   | Full title in `title` tooltip attribute              |
+| EC-26     | Workspace has 0 documents                         | Search endpoint returns empty `items`          | Picker shows "No completed documents yet"            |
+| EC-27     | Workspace has 10,000+ documents, no search query  | Search endpoint defaults to `page_size=20`     | User sees most recent 20; search narrows             |
+| EC-28     | Scope bar overflows horizontally on mobile        | `overflow-x-auto scrollbar-none` on pills list | Pills scroll, no wrapping or clipping                |
+| EC-33     | User doesn't notice "All docs ▾" button           | Button is always present above textarea        | Low-contrast by design; tooltip explains on hover    |
 
 ### 1.6 Interaction with SPEC-005 Filters
 
-| Edge Case | Scenario | Mitigation | Behavior |
-|-----------|----------|------------|----------|
-| EC-29 | Both `document_ids` and `document_pattern` set | Resolver unions both sets | A doc matches if it's in IDs OR matches pattern (then date filter applied) |
-| EC-30 | `document_ids = ["a"]` + `date_from` set but doc "a" has no `created_at` | `passes_date_filter` returns false + warns | Doc "a" excluded; behavior same as today for docs without timestamps |
-| EC-31 | All filters set: `document_ids`, `document_pattern`, `date_from`, `date_to` | Full resolve path executes | KV scan, union ids+pattern, AND date filter |
-| EC-32 | `document_ids = null` + `document_pattern = "report"` | `has_explicit_ids = false`, `has_pattern = true` | Pattern-only filter (backward compatible) |
+| Edge Case | Scenario                                                                    | Mitigation                                       | Behavior                                                                   |
+| --------- | --------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------- |
+| EC-29     | Both `document_ids` and `document_pattern` set                              | Resolver unions both sets                        | A doc matches if it's in IDs OR matches pattern (then date filter applied) |
+| EC-30     | `document_ids = ["a"]` + `date_from` set but doc "a" has no `created_at`    | `passes_date_filter` returns false + warns       | Doc "a" excluded; behavior same as today for docs without timestamps       |
+| EC-31     | All filters set: `document_ids`, `document_pattern`, `date_from`, `date_to` | Full resolve path executes                       | KV scan, union ids+pattern, AND date filter                                |
+| EC-32     | `document_ids = null` + `document_pattern = "report"`                       | `has_explicit_ids = false`, `has_pattern = true` | Pattern-only filter (backward compatible)                                  |
 
 ---
 
@@ -162,25 +162,25 @@ debug!(
 
 ### 5.1 Backend Unit Tests
 
-| Test | Assertion |
-|------|-----------|
-| `test_empty_document_ids_is_noop` | `document_ids: Some(vec![])` → returns `None` |
-| `test_explicit_ids_skip_kv_scan` | No pattern/date + IDs → returns IDs immediately (KV never called) |
-| `test_explicit_ids_with_date_filter` | IDs + date_from → KV scan, only matching doc returned |
-| `test_ids_union_pattern` | IDs + pattern → union of both sets |
-| `test_nonexistent_ids_silently_ignored` | IDs not in KV → empty result |
-| `test_search_endpoint_empty_query` | `q=""` → returns 20 most recent completed docs |
-| `test_search_endpoint_status_filter` | `status=all` → returns all statuses |
-| `test_search_endpoint_page_size_cap` | `page_size=1000` → returns max 50 |
+| Test                                    | Assertion                                                         |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| `test_empty_document_ids_is_noop`       | `document_ids: Some(vec![])` → returns `None`                     |
+| `test_explicit_ids_skip_kv_scan`        | No pattern/date + IDs → returns IDs immediately (KV never called) |
+| `test_explicit_ids_with_date_filter`    | IDs + date_from → KV scan, only matching doc returned             |
+| `test_ids_union_pattern`                | IDs + pattern → union of both sets                                |
+| `test_nonexistent_ids_silently_ignored` | IDs not in KV → empty result                                      |
+| `test_search_endpoint_empty_query`      | `q=""` → returns 20 most recent completed docs                    |
+| `test_search_endpoint_status_filter`    | `status=all` → returns all statuses                               |
+| `test_search_endpoint_page_size_cap`    | `page_size=1000` → returns max 50                                 |
 
 ### 5.2 Frontend Unit Tests
 
-| Test | Assertion |
-|------|-----------|
-| `QueryScopeBar renders null when empty` | `selectedIds=[]` → no DOM nodes |
-| `QueryScopeBar shows pills` | `selectedIds=["a","b"]` → 2 pill elements |
-| `QueryScopeBar shows +N for overflow` | `selectedIds=[1,2,3,4]` → 3 pills + "+1" |
-| `ScopePill remove button fires callback` | Click `×` → `onSelectionChange` called without that ID |
-| `DocumentPickerPopover checkboxes toggle IDs` | Click item → ID added/removed |
-| `useDocumentSearch debounces 300ms` | Rapid typing → single network request after delay |
-| `isEmptyDocumentFilter` | All cases: null, empty obj, partial, full |
+| Test                                          | Assertion                                              |
+| --------------------------------------------- | ------------------------------------------------------ |
+| `QueryScopeBar renders null when empty`       | `selectedIds=[]` → no DOM nodes                        |
+| `QueryScopeBar shows pills`                   | `selectedIds=["a","b"]` → 2 pill elements              |
+| `QueryScopeBar shows +N for overflow`         | `selectedIds=[1,2,3,4]` → 3 pills + "+1"               |
+| `ScopePill remove button fires callback`      | Click `×` → `onSelectionChange` called without that ID |
+| `DocumentPickerPopover checkboxes toggle IDs` | Click item → ID added/removed                          |
+| `useDocumentSearch debounces 300ms`           | Rapid typing → single network request after delay      |
+| `isEmptyDocumentFilter`                       | All cases: null, empty obj, partial, full              |

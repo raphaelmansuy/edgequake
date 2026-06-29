@@ -165,7 +165,7 @@ export function QueryInterface() {
         </div>
 
         <div
-          className="border-t px-4 sm:px-6 py-3 bg-background shrink-0"
+          className="border-t px-4 sm:px-6 py-3 bg-background shrink-0 relative z-10"
           role="form"
           aria-label={t("query.form", "Query form")}
         >

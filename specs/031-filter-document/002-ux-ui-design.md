@@ -240,16 +240,16 @@ Each pill in the scope bar:
 
 ## 6. Accessibility (ARIA)
 
-| Element | ARIA attributes |
-|---------|----------------|
-| Scope bar container | `role="region" aria-label="Query scope"` |
-| Individual pill | `role="listitem"` |
-| Pill dismiss button | `aria-label="Remove {document title} from scope"` |
-| `[+ Add]` button | `aria-label="Add documents to query scope"` |
-| `[× All]` button | `aria-label="Clear all document scope filters"` |
-| Search input | `aria-label="Search documents by title" aria-autocomplete="list"` |
-| Result list | `role="listbox" aria-label="Document search results"` |
-| Result item | `role="option" aria-selected={isChecked}` |
+| Element             | ARIA attributes                                                   |
+| ------------------- | ----------------------------------------------------------------- |
+| Scope bar container | `role="region" aria-label="Query scope"`                          |
+| Individual pill     | `role="listitem"`                                                 |
+| Pill dismiss button | `aria-label="Remove {document title} from scope"`                 |
+| `[+ Add]` button    | `aria-label="Add documents to query scope"`                       |
+| `[× All]` button    | `aria-label="Clear all document scope filters"`                   |
+| Search input        | `aria-label="Search documents by title" aria-autocomplete="list"` |
+| Result list         | `role="listbox" aria-label="Document search results"`             |
+| Result item         | `role="option" aria-selected={isChecked}`                         |
 
 ---
 
@@ -334,15 +334,15 @@ If the workspace has documents but search returns zero results:
 
 ## 11. Visual Design Tokens
 
-| Element | Token | Value |
-|---------|-------|-------|
-| Scope bar background | `bg-muted/40` | subtle gray tint |
-| Scope bar border | `border-b` | same as other dividers |
-| Pill background | `bg-secondary` | secondary button color |
-| Pill text | `text-secondary-foreground` | |
-| Pill hover background | `bg-secondary/80` | |
-| Pill dismiss `×` color | `text-muted-foreground` | |
-| Pill dismiss `×` hover | `text-destructive` | red on hover |
-| Picker popover width | `w-80` (320px) | |
-| Picker max list height | `max-h-60` (240px) | |
-| "+N more" chip | `bg-muted text-muted-foreground` | |
+| Element                | Token                            | Value                  |
+| ---------------------- | -------------------------------- | ---------------------- |
+| Scope bar background   | `bg-muted/40`                    | subtle gray tint       |
+| Scope bar border       | `border-b`                       | same as other dividers |
+| Pill background        | `bg-secondary`                   | secondary button color |
+| Pill text              | `text-secondary-foreground`      |                        |
+| Pill hover background  | `bg-secondary/80`                |                        |
+| Pill dismiss `×` color | `text-muted-foreground`          |                        |
+| Pill dismiss `×` hover | `text-destructive`               | red on hover           |
+| Picker popover width   | `w-80` (320px)                   |                        |
+| Picker max list height | `max-h-60` (240px)               |                        |
+| "+N more" chip         | `bg-muted text-muted-foreground` |                        |

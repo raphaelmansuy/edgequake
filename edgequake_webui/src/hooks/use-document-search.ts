@@ -7,10 +7,10 @@
  * @implements SPEC-031: Document search for scope picker
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { searchDocuments } from "@/lib/api/edgequake/documents";
 import type { DocumentSearchItem } from "@/types";
+import { useQuery } from "@tanstack/react-query";
 
 const SEARCH_DEBOUNCE_MS = 300;
 /** 30s stale time — documents don't change frequently enough to need fresh data on each keystroke. */

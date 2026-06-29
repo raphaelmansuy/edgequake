@@ -3,94 +3,94 @@
  */
 
 import {
-  cancelPipeline,
-  cancelTask,
-  getEnhancedPipelineStatus,
-  getMultipleTrackProgress,
-  getPipelineStatus,
-  getQueueMetrics,
-  getTaskStatus,
-  getTasksList,
-  getTrackProgress,
-  getTrackStatus,
-  requestPipelineCancellation,
-  retryTask,
-} from "./pipeline";
-import {
-  deleteDocument,
-  deleteAllDocuments,
-  getDocument,
-  getDocuments,
-  listFailedChunks,
-  searchDocuments,
-  reprocessDocument,
-  reprocessFailedDocuments,
-  retryFailedChunks,
-  scanDocuments,
-  uploadDocument,
-  uploadFile,
-} from "./documents";
-import { checkHealth } from "./health";
-import {
-  login,
-  logout,
-  refreshToken,
-  getCurrentUser,
+    getCurrentUser,
+    login,
+    logout,
+    refreshToken,
 } from "./auth";
 import {
-  createTenant,
-  createWorkspace,
-  deleteWorkspace,
-  getTenant,
-  getTenants,
-  getWorkspace,
-  getWorkspaces,
-  getWorkspaceStats,
-} from "./workspaces";
-import { query, queryStream } from "./query";
-import {
-  deleteEntity,
-  deleteRelationship,
-  getEntity,
-  getEntityNeighborhood,
-  getEntities,
-  getGraph,
-  getGraphLabels,
-  getGraphStats,
-  getPopularLabels,
-  getRelationship,
-  getRelationships,
-  graphStream,
-  mergeEntities,
-  searchLabels,
-  searchNodes,
-  updateEntity,
-  updateRelationship,
-} from "./graph";
-import {
-  exportDocumentLineage,
-  getChunkDetail,
-  getChunkLineage,
-  getDocumentFullLineage,
-  getDocumentLineage,
-  getDocumentMetadata,
-  getEntityProvenance,
-} from "./lineage";
-import {
-  getBudgetStatus,
-  getCostHistory,
-  getDocumentCost,
-  getIngestionCost,
-  getWorkspaceCostSummary,
-  updateBudget,
+    getBudgetStatus,
+    getCostHistory,
+    getDocumentCost,
+    getIngestionCost,
+    getWorkspaceCostSummary,
+    updateBudget,
 } from "./cost";
 import {
-  deleteInjection,
-  getInjection,
-  listInjections,
-  putInjection,
-  updateInjection,
+    deleteAllDocuments,
+    deleteDocument,
+    getDocument,
+    getDocuments,
+    listFailedChunks,
+    reprocessDocument,
+    reprocessFailedDocuments,
+    retryFailedChunks,
+    scanDocuments,
+    searchDocuments,
+    uploadDocument,
+    uploadFile,
+} from "./documents";
+import {
+    deleteEntity,
+    deleteRelationship,
+    getEntities,
+    getEntity,
+    getEntityNeighborhood,
+    getGraph,
+    getGraphLabels,
+    getGraphStats,
+    getPopularLabels,
+    getRelationship,
+    getRelationships,
+    graphStream,
+    mergeEntities,
+    searchLabels,
+    searchNodes,
+    updateEntity,
+    updateRelationship,
+} from "./graph";
+import { checkHealth } from "./health";
+import {
+    deleteInjection,
+    getInjection,
+    listInjections,
+    putInjection,
+    updateInjection,
 } from "./injection";
+import {
+    exportDocumentLineage,
+    getChunkDetail,
+    getChunkLineage,
+    getDocumentFullLineage,
+    getDocumentLineage,
+    getDocumentMetadata,
+    getEntityProvenance,
+} from "./lineage";
+import {
+    cancelPipeline,
+    cancelTask,
+    getEnhancedPipelineStatus,
+    getMultipleTrackProgress,
+    getPipelineStatus,
+    getQueueMetrics,
+    getTasksList,
+    getTaskStatus,
+    getTrackProgress,
+    getTrackStatus,
+    requestPipelineCancellation,
+    retryTask,
+} from "./pipeline";
+import { query, queryStream } from "./query";
+import {
+    createTenant,
+    createWorkspace,
+    deleteWorkspace,
+    getTenant,
+    getTenants,
+    getWorkspace,
+    getWorkspaces,
+    getWorkspaceStats,
+} from "./workspaces";
 
 export const edgequakeApi = {
   checkHealth,
@@ -174,3 +174,4 @@ export default edgequakeApi;
 export * from "../conversations";
 export * from "../folders";
 export * from "../query-keys";
+
