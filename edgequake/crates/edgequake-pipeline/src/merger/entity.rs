@@ -163,6 +163,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                     } else {
                         stats.entities_updated += 1;
                     }
+                    // CQRS relational sink (SPEC-021)
                     self.relational_sink
                         .upsert_entity(
                             key,
@@ -180,6 +181,21 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                                 "Relational entity sink failed (best-effort; graph write succeeded)"
                             );
                         });
+                    // Lineage sink (SPEC-032 W-08): record chunk→entity links
+                    let ws = self.workspace_id.as_deref().unwrap_or("default");
+                    for chunk_id in &source_chunk_ids[i] {
+                        self.lineage_sink
+                            .record_entity_link(chunk_id, key, ws)
+                            .await
+                            .unwrap_or_else(|e| {
+                                tracing::warn!(
+                                    entity = %key,
+                                    chunk = %chunk_id,
+                                    error = %e,
+                                    "Lineage sink record_entity_link failed (best-effort)"
+                                );
+                            });
+                    }
                 }
                 Err(e) => {
                     stats.errors += 1;

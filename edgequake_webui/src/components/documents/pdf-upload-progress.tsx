@@ -302,6 +302,138 @@ function getFailedPhaseName(phases: PhaseInfo[]): string | undefined {
   return failedPhase?.label;
 }
 
+/**
+ * SPEC-032 W-04: Graph Storage sub-phase detail panel.
+ *
+ * Shows 4 sub-phase rows (entity vectors, entity graph, rel vectors, rel graph)
+ * with a live progress bar and entity/relationship counts.
+ * Replaces the frozen "Storing in knowledge graph..." message with meaningful
+ * per-batch progress at ~500ms granularity.
+ */
+import type { GraphStorageSubPhaseProgress } from "@/hooks/use-pdf-progress";
+
+const GRAPH_STORAGE_SUB_PHASES = [
+  { id: "entity_vectors",      label: "Entity embeddings" },
+  { id: "entity_graph",        label: "Entity graph merge" },
+  { id: "relationship_vectors", label: "Relation embeddings" },
+  { id: "relationship_graph",  label: "Relation graph merge" },
+  { id: "finalizing",          label: "Finalizing" },
+] as const;
+
+function GraphStorageDetail({
+  progress,
+}: {
+  progress: GraphStorageSubPhaseProgress;
+}) {
+  const currentIdx = GRAPH_STORAGE_SUB_PHASES.findIndex(
+    (p) => p.id === progress.subPhase
+  );
+
+  const entityPct =
+    progress.entitiesTotal > 0
+      ? Math.round((progress.entitiesProcessed / progress.entitiesTotal) * 100)
+      : 0;
+
+  const relPct =
+    progress.relationshipsTotal > 0
+      ? Math.round(
+          (progress.relationshipsProcessed / progress.relationshipsTotal) * 100
+        )
+      : 0;
+
+  const etaLabel = useMemo(() => {
+    if (!progress.etaMs) return null;
+    const s = Math.round(progress.etaMs / 1000);
+    if (s < 60) return `~${s}s`;
+    return `~${Math.round(s / 60)}m`;
+  }, [progress.etaMs]);
+
+  return (
+    <div className="rounded-lg border bg-slate-50 dark:bg-slate-900/40 p-3 space-y-2 text-xs">
+      {/* Header */}
+      <div className="flex items-center justify-between text-muted-foreground">
+        <span className="font-medium text-foreground">Knowledge Graph Storage</span>
+        {etaLabel && (
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {etaLabel} remaining
+          </span>
+        )}
+      </div>
+
+      {/* Sub-phase rows */}
+      <div className="space-y-1">
+        {GRAPH_STORAGE_SUB_PHASES.map((phase, idx) => {
+          const isDone = idx < currentIdx;
+          const isActive = idx === currentIdx;
+          const isPending = idx > currentIdx;
+          return (
+            <div key={phase.id} className="flex items-center gap-2">
+              {isDone ? (
+                <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+              ) : isActive ? (
+                <Loader2 className="h-3 w-3 text-blue-500 animate-spin shrink-0" />
+              ) : (
+                <div className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
+              )}
+              <span
+                className={cn(
+                  isPending && "text-muted-foreground/60",
+                  isActive && "text-blue-600 dark:text-blue-400 font-medium",
+                  isDone && "text-green-600 dark:text-green-400"
+                )}
+              >
+                {phase.label}
+              </span>
+              {isActive &&
+                (phase.id === "entity_graph" || phase.id === "entity_vectors") && (
+                  <span className="ml-auto text-muted-foreground">
+                    {progress.entitiesProcessed.toLocaleString()} /{" "}
+                    {progress.entitiesTotal.toLocaleString()} entities
+                  </span>
+                )}
+              {isActive &&
+                (phase.id === "relationship_graph" ||
+                  phase.id === "relationship_vectors") && (
+                  <span className="ml-auto text-muted-foreground">
+                    {progress.relationshipsProcessed.toLocaleString()} /{" "}
+                    {progress.relationshipsTotal.toLocaleString()} relations
+                  </span>
+                )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Progress bar for active sub-phase */}
+      {(progress.subPhase === "entity_graph" ||
+        progress.subPhase === "entity_vectors") && (
+        <div>
+          <Progress value={entityPct} className="h-1.5" />
+          <div className="flex justify-between mt-0.5 text-muted-foreground">
+            <span>
+              +{progress.entitiesCreated} new, ~{progress.entitiesUpdated} updated
+            </span>
+            <span>{entityPct}%</span>
+          </div>
+        </div>
+      )}
+      {(progress.subPhase === "relationship_graph" ||
+        progress.subPhase === "relationship_vectors") && (
+        <div>
+          <Progress value={relPct} className="h-1.5" />
+          <div className="flex justify-between mt-0.5 text-muted-foreground">
+            <span>
+              +{progress.relationshipsCreated} new, ~{progress.relationshipsUpdated} updated
+            </span>
+            <span>{relPct}%</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -341,6 +473,7 @@ export function PdfUploadProgress({
     pagesPerMinute,
     totalPages,
     currentPage,
+    graphStorageProgress,
   } = usePdfProgress(trackId);
 
   // WHY: useEffect (not useMemo) because calling parent setState during render
@@ -519,8 +652,13 @@ export function PdfUploadProgress({
           />
         )}
 
+        {/* SPEC-032 W-04: Graph storage sub-phase progress — shown during graph_storage phase */}
+        {isProcessing && graphStorageProgress && (
+          <GraphStorageDetail progress={graphStorageProgress} />
+        )}
+
         {/* Live progress message for active phase */}
-        {isProcessing && (
+        {isProcessing && !graphStorageProgress && (
           <p className="text-xs text-center text-muted-foreground min-h-[1rem]">
             {phases.find((p) => p.status.type === "active")?.message ?? "Processing..."}
           </p>

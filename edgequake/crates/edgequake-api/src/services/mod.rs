@@ -98,6 +98,7 @@ pub use ingest_admission::{
 };
 pub use ingestion_persist::{
     build_chunk_kv_records, persist_ingestion_result, persist_with_providers,
+    persist_with_providers_and_progress,
     resolve_relational_sink, tag_injection_sources, PersistIngestionParams,
 };
 pub use injection_list::{

@@ -599,6 +599,16 @@ async fn main() -> Result<()> {
     if let Some(ref pool) = state.pg_pool {
         let entity_sink = PostgresEntitySink::create_if_enabled(Arc::new(pool.clone())).await;
         processor = processor.with_relational_sink(entity_sink);
+
+        // SPEC-032 W-08: Wire lineage sink when migration 066 has been applied.
+        // create_if_migration_applied() checks if chunk_entity_links table exists;
+        // returns NoopLineageSink if not (zero-downtime rollout).
+        let lineage_sink = edgequake_api::postgres_lineage_sink::PostgresLineageSink::create_if_migration_applied(
+            Arc::new(pool.clone()),
+        )
+        .await;
+        processor = processor.with_lineage_sink(lineage_sink);
+        info!("🔗 Lineage sink wired (SPEC-032 W-08)");
     }
 
     // CRITICAL: Attach PDF storage for PDF processing tasks

@@ -43,6 +43,83 @@ use crate::error::Result;
 use crate::extractor::ExtractionResult;
 use crate::summarizer::LLMSummarizer;
 
+// ── Lineage Sink (SPEC-032 W-08) ─────────────────────────────────────────────
+
+/// Trait for persisting chunk→entity and chunk→relation lineage links.
+///
+/// # WHY: Dependency Inversion Principle (SOLID-D)
+///
+/// The pipeline crate must not depend on `sqlx` or any concrete storage type.
+/// Callers (edgequake-api) provide a concrete implementation when lineage
+/// persistence is enabled. The default no-op implementation ensures backwards
+/// compatibility.
+///
+/// # Implementations
+///
+/// - `NoopLineageSink` — default, writes nothing
+/// - `PostgresLineageSink` in `edgequake-api` — inserts into `chunk_entity_links`
+///   and `chunk_relation_links` (migration 066)
+#[async_trait]
+pub trait LineageSink: Send + Sync {
+    /// Record that chunk `chunk_id` contributed to entity `entity_name`.
+    ///
+    /// Best-effort: must NOT fail the ingestion on error.
+    async fn record_entity_link(
+        &self,
+        chunk_id: &str,
+        entity_name: &str,
+        workspace_id: &str,
+    ) -> Result<()>;
+
+    /// Record that chunk `chunk_id` contributed to relation (source→target).
+    ///
+    /// Best-effort: must NOT fail the ingestion on error.
+    async fn record_relation_link(
+        &self,
+        chunk_id: &str,
+        source_entity: &str,
+        target_entity: &str,
+        workspace_id: &str,
+    ) -> Result<()>;
+
+    /// Append a description merge event to entity history.
+    ///
+    /// Called when `update_entity_node` merges a new description into an
+    /// existing entity. The history is stored in `entities.description_history`
+    /// as an append-only JSONB array.
+    ///
+    /// Best-effort: must NOT fail the ingestion on error.
+    async fn append_description_history(
+        &self,
+        entity_name: &str,
+        workspace_id: &str,
+        description: &str,
+        chunk_id: &str,
+    ) -> Result<()>;
+}
+
+/// No-op implementation — used when lineage tracking is disabled (default).
+pub struct NoopLineageSink;
+
+#[async_trait]
+impl LineageSink for NoopLineageSink {
+    async fn record_entity_link(&self, _: &str, _: &str, _: &str) -> Result<()> {
+        Ok(())
+    }
+    async fn record_relation_link(&self, _: &str, _: &str, _: &str, _: &str) -> Result<()> {
+        Ok(())
+    }
+    async fn append_description_history(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
 // ── Relational CQRS Sink (SPEC-021 P3-01) ────────────────────────────────────
 
 /// Trait for writing entity/relationship data to the relational CQRS read model.
@@ -182,6 +259,9 @@ pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Si
     /// Optional CQRS relational sink (SPEC-021 P3-01).
     /// When None, relational sync is skipped (backwards-compatible default).
     pub(super) relational_sink: Arc<dyn RelationalEntitySink>,
+    /// Optional lineage sink (SPEC-032 W-08).
+    /// When None, lineage links are not persisted.
+    pub(super) lineage_sink: Arc<dyn LineageSink>,
 }
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G, V> {
@@ -195,15 +275,19 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             workspace_id: None,
             summarizer: None,
             relational_sink: Arc::new(NoopEntitySink),
+            lineage_sink: Arc::new(NoopLineageSink),
         }
     }
 
     /// Wire a relational CQRS sink for dual-write (SPEC-021 P3-01).
-    ///
-    /// When set, the merger writes to both the AGE graph AND the relational
-    /// `entities` table after each successful entity merge.
     pub fn with_relational_sink(mut self, sink: Arc<dyn RelationalEntitySink>) -> Self {
         self.relational_sink = sink;
+        self
+    }
+
+    /// Wire a lineage sink for chunk→entity/relation provenance (SPEC-032 W-08).
+    pub fn with_lineage_sink(mut self, sink: Arc<dyn LineageSink>) -> Self {
+        self.lineage_sink = sink;
         self
     }
 
@@ -440,6 +524,17 @@ impl MergePhase {
             Self::RelationshipVectors => "Storing relationship embeddings",
             Self::RelationshipGraph => "Merging relationships into knowledge graph",
             Self::Finalizing => "Finalizing",
+        }
+    }
+
+    /// Snake_case identifier for serialization / event routing.
+    pub fn label_id(&self) -> &'static str {
+        match self {
+            Self::EntityVectors => "entity_vectors",
+            Self::EntityGraph => "entity_graph",
+            Self::RelationshipVectors => "relationship_vectors",
+            Self::RelationshipGraph => "relationship_graph",
+            Self::Finalizing => "finalizing",
         }
     }
 }

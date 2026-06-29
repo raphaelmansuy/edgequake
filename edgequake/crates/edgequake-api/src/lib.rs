@@ -111,6 +111,7 @@ pub mod path_validation;
 pub mod pipeline_progress_callback;
 #[cfg(feature = "postgres")]
 pub mod postgres_entity_sink;
+pub mod postgres_lineage_sink;
 pub mod processor;
 mod provider_catalog;
 pub mod provider_types;

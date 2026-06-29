@@ -105,6 +105,50 @@ pub enum PipelineEvent {
         /// Error message if extraction failed.
         error: Option<String>,
     },
+
+    /// Knowledge-graph merge sub-phase progress (SPEC-032 W-04).
+    ///
+    /// WHY: The GraphStorage pipeline phase previously emitted only start/complete.
+    /// For large KGs (100K+ entities) this creates a frozen progress bar for
+    /// 10–30 minutes. This event gives clients per-batch progress within the
+    /// merge, enabling meaningful ETA and sub-phase indicators.
+    ///
+    /// Emitted every 500 ms (debounced in the broadcaster) during:
+    ///   1. entity_vectors  — storing entity embeddings
+    ///   2. entity_graph    — merging entities into AGE graph
+    ///   3. rel_vectors     — storing relationship embeddings
+    ///   4. rel_graph       — merging relationships into AGE graph
+    ///   5. finalizing      — completing community index refresh
+    GraphStorageProgress {
+        /// Task tracking ID (same as track_id in the PDF phases).
+        track_id: String,
+        /// Document ID being processed.
+        document_id: String,
+        /// Merge sub-phase label.
+        sub_phase: String,
+        /// Human-readable sub-phase description.
+        sub_phase_label: String,
+        /// Entities merged so far.
+        entities_processed: u32,
+        /// Total entities to merge.
+        entities_total: u32,
+        /// Entities newly created in this document.
+        entities_created: u32,
+        /// Entities updated (merged with existing).
+        entities_updated: u32,
+        /// Relationships merged so far.
+        relationships_processed: u32,
+        /// Total relationships to merge.
+        relationships_total: u32,
+        /// Relationships newly created.
+        relationships_created: u32,
+        /// Relationships updated.
+        relationships_updated: u32,
+        /// Elapsed time in ms since GraphStorage phase began.
+        elapsed_ms: u64,
+        /// ETA in ms (null if not enough data yet).
+        eta_ms: Option<u64>,
+    },
 }
 
 /// A single pipeline message with timestamp and level.
