@@ -27,10 +27,8 @@ pub(super) fn make_scope_metadata_filter(
         .filter(|ids| !ids.is_empty())
         .map(|ids| ids.iter().map(String::from).collect::<Vec<_>>());
 
-    let has_any = tenant_id.is_some()
-        || workspace_id.is_some()
-        || doc_ids.is_some()
-        || vector_type.is_some();
+    let has_any =
+        tenant_id.is_some() || workspace_id.is_some() || doc_ids.is_some() || vector_type.is_some();
 
     if !has_any {
         return None;
