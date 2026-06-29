@@ -40,13 +40,12 @@ pub async fn load_document_body(
     load_pdf_markdown_body(storage, metadata).await
 }
 
-async fn load_kv_document_body(storage: &StorageRuntime, document_id: &str) -> Option<DocumentBody> {
+async fn load_kv_document_body(
+    storage: &StorageRuntime,
+    document_id: &str,
+) -> Option<DocumentBody> {
     let content_key = format!("{document_id}-content");
-    let values = storage
-        .kv_storage
-        .get_by_ids(&[content_key])
-        .await
-        .ok()?;
+    let values = storage.kv_storage.get_by_ids(&[content_key]).await.ok()?;
     let markdown = values.into_iter().next().and_then(|v| {
         v.get("content")
             .or_else(|| v.get("text"))
@@ -61,7 +60,10 @@ async fn load_kv_document_body(storage: &StorageRuntime, document_id: &str) -> O
     })
 }
 
-async fn load_pdf_markdown_body(storage: &StorageRuntime, metadata: &Value) -> Option<DocumentBody> {
+async fn load_pdf_markdown_body(
+    storage: &StorageRuntime,
+    metadata: &Value,
+) -> Option<DocumentBody> {
     let obj = metadata.as_object()?;
     let is_pdf = obj
         .get("source_type")

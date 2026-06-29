@@ -20,9 +20,8 @@ pub fn v1_task_location(job_id: &str) -> String {
 /// RFC 8288 Link + RFC 8594 Sunset headers pointing integrators at v2 workspace jobs.
 pub fn v1_rpc_migration_headers(workspace_id: &str) -> ApiResult<HeaderMap> {
     let base = format!("/api/v2/workspaces/{workspace_id}/jobs");
-    let link = format!(
-        "<{base}/catalog>; rel=\"describedby\", <{base}>; rel=\"successor-version\""
-    );
+    let link =
+        format!("<{base}/catalog>; rel=\"describedby\", <{base}>; rel=\"successor-version\"");
     let mut headers = HeaderMap::new();
     headers.insert(
         HeaderName::from_static("link"),
@@ -91,7 +90,10 @@ mod tests {
             headers.get("sunset").and_then(|v| v.to_str().ok()),
             Some(V1_RPC_SUNSET_RFC7231)
         );
-        let link = headers.get("link").and_then(|v| v.to_str().ok()).expect("link");
+        let link = headers
+            .get("link")
+            .and_then(|v| v.to_str().ok())
+            .expect("link");
         assert!(link.contains(ws));
         assert!(link.contains("successor-version"));
         assert!(link.contains("/jobs/catalog"));

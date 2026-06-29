@@ -68,9 +68,7 @@ pub(crate) async fn persist_user_record(
     state
         .username_index
         .insert(username_key, record.user_id.clone());
-    state
-        .email_index
-        .insert(email_key, record.user_id.clone());
+    state.email_index.insert(email_key, record.user_id.clone());
     state.users.insert(record.user_id.clone(), record.clone());
     Ok(())
 }
@@ -84,13 +82,13 @@ pub(crate) async fn delete_user_record(
     state
         .username_index
         .remove(&record.username.to_ascii_lowercase());
-    state
-        .email_index
-        .remove(&record.email.to_ascii_lowercase());
+    state.email_index.remove(&record.email.to_ascii_lowercase());
     Ok(())
 }
 
-pub(crate) async fn list_user_records(store: &AuthMemoryStore) -> Result<Vec<UserRecord>, ApiError> {
+pub(crate) async fn list_user_records(
+    store: &AuthMemoryStore,
+) -> Result<Vec<UserRecord>, ApiError> {
     Ok(store.inner.read().await.users.values().cloned().collect())
 }
 
@@ -101,9 +99,7 @@ pub(crate) async fn update_email_index(
     new_email: &str,
 ) -> Result<(), ApiError> {
     let mut state = store.inner.write().await;
-    state
-        .email_index
-        .remove(&old_email.to_ascii_lowercase());
+    state.email_index.remove(&old_email.to_ascii_lowercase());
     state
         .email_index
         .insert(new_email.to_ascii_lowercase(), user_id.to_string());

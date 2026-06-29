@@ -3,7 +3,7 @@
 use chrono::Utc;
 use edgequake_auth::Role;
 
-use crate::handlers::auth::{RequestAuthContext};
+use crate::handlers::auth::RequestAuthContext;
 use crate::state::AppState;
 
 /// Successful authentication with optional JWT tenant claims.
@@ -19,13 +19,9 @@ pub(crate) async fn validate_presented_token(
     state: &AppState,
     token: &str,
 ) -> Result<Option<AuthenticatedRequest>, crate::error::ApiError> {
-    if state
-        .auth
-        .config
-        .api_keys
-        .iter()
-        .any(|configured| crate::services::identity_storage::constant_time_str_eq(configured, token))
-    {
+    if state.auth.config.api_keys.iter().any(|configured| {
+        crate::services::identity_storage::constant_time_str_eq(configured, token)
+    }) {
         return Ok(Some(AuthenticatedRequest {
             auth: RequestAuthContext {
                 user_id: "master-api-key".to_string(),

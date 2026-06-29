@@ -18,9 +18,7 @@ use crate::handlers::auth::{ApiOptionalAuth, ApiRequireAdmin};
 use crate::state::{ApiSecurityConfig, AuthRuntime, PostgresRuntime, StorageRuntime};
 use edgequake_auth::{Role, User};
 
-use super::{
-    get_record_by_id, persist_user_record, UserRecord,
-};
+use super::{get_record_by_id, persist_user_record, UserRecord};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -208,12 +206,15 @@ pub async fn list_users(
     let page_size = query.page_size.clamp(1, 100);
 
     #[cfg(feature = "postgres")]
-    let mut users: Vec<UserInfo> =
-        crate::services::identity_storage::list_user_records(&storage, Some(&pg_runtime), &security)
-            .await?
-            .into_iter()
-            .map(|r| UserInfo::from(&r))
-            .collect();
+    let mut users: Vec<UserInfo> = crate::services::identity_storage::list_user_records(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+    )
+    .await?
+    .into_iter()
+    .map(|r| UserInfo::from(&r))
+    .collect();
 
     #[cfg(not(feature = "postgres"))]
     let mut users: Vec<UserInfo> = Vec::new();
@@ -364,8 +365,7 @@ pub async fn update_user(
         // WHY: Guard against demoting the last admin — system would be unmanageable.
         if current_role == Role::Admin
             && parsed != Role::Admin
-            && count_other_admin_users(&storage, Some(&pg_runtime), &security, &user_id).await?
-                == 0
+            && count_other_admin_users(&storage, Some(&pg_runtime), &security, &user_id).await? == 0
         {
             return Err(ApiError::Conflict(
                 "Cannot demote the last admin user".to_string(),

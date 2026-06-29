@@ -54,8 +54,7 @@ pub async fn reprocess_all_documents(
 ) -> Result<impl IntoResponse, ApiError> {
     let return_202 = state.security.v1_rpc_return_202;
     let ws = workspace_id.to_string();
-    let response =
-        run_reprocess_all_documents(state, workspace_id, tenant_ctx, request).await?;
+    let response = run_reprocess_all_documents(state, workspace_id, tenant_ctx, request).await?;
     let track_id = response.track_id.clone();
     crate::services::v1_rpc_migration::respond_v1_async_rpc(
         &ws,

@@ -4,8 +4,10 @@
 
 use axum::{
     body::Body,
+    extract::{FromRef, Query, State},
     http::{Request, StatusCode},
 };
+use edgequake_api::state::{GraphQueryRuntime, StorageRuntime};
 use edgequake_api::{AppState, Server, ServerConfig};
 use edgequake_core::ResourceBudgetConfig;
 use edgequake_storage::traits::NodeListFilter;
@@ -265,7 +267,8 @@ async fn resource_safety_popular_labels_503_when_materialize_full() {
         .expect("hold slot");
 
     let result = get_popular_labels(
-        State(state),
+        State(StorageRuntime::from_ref(&state)),
+        State(GraphQueryRuntime::from_ref(&state)),
         TenantContext::default(),
         Query(PopularLabelsQuery {
             limit: 5,

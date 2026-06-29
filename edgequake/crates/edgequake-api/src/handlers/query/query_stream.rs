@@ -319,21 +319,25 @@ pub async fn stream_query(
                         reranked: false,
                     };
                     let bundle = if stream_use_v3 {
-                        Some(crate::services::context_bundle_mapper::map_query_context_to_bundle(
-                            &context,
-                            &mapping_opts,
-                            &std::collections::HashMap::new(),
-                        ))
+                        Some(
+                            crate::services::context_bundle_mapper::map_query_context_to_bundle(
+                                &context,
+                                &mapping_opts,
+                                &std::collections::HashMap::new(),
+                            ),
+                        )
                     } else {
                         None
                     };
                     let subgraph = if stream_use_v3 || !stream_include_subgraph {
                         None
                     } else {
-                        Some(crate::services::context_bundle_mapper::map_query_context_to_subgraph(
-                            &context,
-                            &mapping_opts,
-                        ))
+                        Some(
+                            crate::services::context_bundle_mapper::map_query_context_to_subgraph(
+                                &context,
+                                &mapping_opts,
+                            ),
+                        )
                     };
                     let context_event = QueryStreamEvent::Context {
                         sources,

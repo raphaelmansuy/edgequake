@@ -6,8 +6,8 @@ use std::path::PathBuf;
 
 use axum::http::StatusCode;
 use common::spec028_mcp::{
-    default_mcp_app, mcp_post_legacy, mcp_post_modern, mcp_post_bytes, mcp_post_stream, parse_json, MCP_ACCEPT,
-    MCP_PROTOCOL,
+    default_mcp_app, mcp_post_bytes, mcp_post_legacy, mcp_post_modern, mcp_post_stream, parse_json,
+    MCP_ACCEPT, MCP_PROTOCOL,
 };
 use edgequake_api::mcp::gateway::body::MCP_MAX_BODY_BYTES;
 use serde_json::json;
@@ -293,10 +293,7 @@ async fn ec_mcp_07_batch_array_rejected() {
         {"jsonrpc":"2.0","id":1,"method":"tools/list"},
         {"jsonrpc":"2.0","id":2,"method":"ping"}
     ]);
-    let response = app
-        .oneshot(mcp_post_legacy("/mcp", batch))
-        .await
-        .unwrap();
+    let response = app.oneshot(mcp_post_legacy("/mcp", batch)).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -318,10 +315,7 @@ async fn ec_mcp_10_oversized_body_returns_413() {
     let app = default_mcp_app();
     let mut payload = vec![b' '];
     payload.resize(MCP_MAX_BODY_BYTES + 1, b'x');
-    let response = app
-        .oneshot(mcp_post_bytes("/mcp", payload))
-        .await
-        .unwrap();
+    let response = app.oneshot(mcp_post_bytes("/mcp", payload)).await.unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
 
@@ -358,10 +352,7 @@ async fn ec_mcp_35_rate_limit_returns_429_on_mcp() {
     let second = app.oneshot(req()).await.unwrap();
     assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
     assert!(
-        second
-            .headers()
-            .get("retry-after")
-            .is_some(),
+        second.headers().get("retry-after").is_some(),
         "429 must include Retry-After"
     );
 }
@@ -398,7 +389,12 @@ async fn ec_mcp_09_retrieve_sse_stream_returns_progress_and_result() {
         json!({ "query": "SSE retrieve test", "mode": "naive", "content_granularity": "agent" }),
     );
     let response = app
-        .oneshot(mcp_post_stream("/mcp", "tools/call", "edgequake_retrieve", body))
+        .oneshot(mcp_post_stream(
+            "/mcp",
+            "tools/call",
+            "edgequake_retrieve",
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -412,7 +408,10 @@ async fn ec_mcp_09_retrieve_sse_stream_returns_progress_and_result() {
         "expected SSE content-type, got {content_type}"
     );
     assert_eq!(
-        response.headers().get("x-accel-buffering").and_then(|v| v.to_str().ok()),
+        response
+            .headers()
+            .get("x-accel-buffering")
+            .and_then(|v| v.to_str().ok()),
         Some("no")
     );
     let raw = axum::body::to_bytes(response.into_body(), 1024 * 1024)

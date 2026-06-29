@@ -30,7 +30,10 @@ pub fn validate_accept(headers: &HeaderMap) -> Result<(), GatewayError> {
 }
 
 /// Validate Origin when present (DNS rebinding protection).
-pub fn validate_origin(headers: &HeaderMap, allowed_origins: Option<&[String]>) -> Result<(), GatewayError> {
+pub fn validate_origin(
+    headers: &HeaderMap,
+    allowed_origins: Option<&[String]>,
+) -> Result<(), GatewayError> {
     let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) else {
         return Ok(());
     };
@@ -97,7 +100,11 @@ pub fn validate_routing_headers(
 
     if matches!(method, "tools/call" | "resources/read" | "prompts/get") {
         let expected_name = params
-            .and_then(|p| p.get("name").or_else(|| p.get("uri")).and_then(|v| v.as_str()))
+            .and_then(|p| {
+                p.get("name")
+                    .or_else(|| p.get("uri"))
+                    .and_then(|v| v.as_str())
+            })
             .ok_or_else(|| {
                 GatewayError::transport(
                     StatusCode::BAD_REQUEST,
@@ -148,7 +155,10 @@ mod tests {
         let mut h = HeaderMap::new();
         h.insert("accept", "application/json".parse().unwrap());
         assert!(validate_accept(&h).is_err());
-        h.insert("accept", "application/json, text/event-stream".parse().unwrap());
+        h.insert(
+            "accept",
+            "application/json, text/event-stream".parse().unwrap(),
+        );
         assert!(validate_accept(&h).is_ok());
     }
 }

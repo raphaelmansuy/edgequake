@@ -38,19 +38,13 @@ pub async fn get_relationship(
 
     let relationship = edge_to_relationship_response(edge.clone(), &relationship_id);
 
-    let source_node = load_node_for_tenant_context(
-        storage.graph_storage.as_ref(),
-        &edge.source,
-        &tenant_ctx,
-    )
-    .await?;
+    let source_node =
+        load_node_for_tenant_context(storage.graph_storage.as_ref(), &edge.source, &tenant_ctx)
+            .await?;
 
-    let target_node = load_node_for_tenant_context(
-        storage.graph_storage.as_ref(),
-        &edge.target,
-        &tenant_ctx,
-    )
-    .await?;
+    let target_node =
+        load_node_for_tenant_context(storage.graph_storage.as_ref(), &edge.target, &tenant_ctx)
+            .await?;
 
     let entities = RelationshipEntities {
         source: EntitySummary {

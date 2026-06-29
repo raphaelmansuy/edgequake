@@ -20,13 +20,13 @@ use crate::middleware::default_tenant_uuid;
 use crate::state::ApiSecurityConfig;
 
 #[cfg(feature = "postgres")]
-use chrono::{DateTime, Utc};
-#[cfg(feature = "postgres")]
 use crate::error::ApiError;
 #[cfg(feature = "postgres")]
 use crate::handlers::auth::UserRecord;
 #[cfg(feature = "postgres")]
 use crate::state::{PostgresRuntime, StorageRuntime};
+#[cfg(feature = "postgres")]
+use chrono::{DateTime, Utc};
 
 /// Resolved identity persistence policy (SPEC-027 phase 38).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -274,7 +274,11 @@ pub async fn verify_membership_active(
         acquire_optional_pg_connection, release_optional_pg_connection, PgIsolationScope,
     };
 
-    let scope = Some(PgIsolationScope::for_membership(tenant_id, workspace_id, user_id));
+    let scope = Some(PgIsolationScope::for_membership(
+        tenant_id,
+        workspace_id,
+        user_id,
+    ));
     let mut conn = acquire_optional_pg_connection(pool, security, scope).await?;
 
     let exists = sqlx::query_scalar::<_, bool>(
@@ -310,7 +314,11 @@ pub async fn ensure_anonymous_user_in_postgres(
     };
 
     let workspace_id = edgequake_core::default_workspace_uuid();
-    let scope = Some(PgIsolationScope::for_membership(tenant_id, workspace_id, user_id));
+    let scope = Some(PgIsolationScope::for_membership(
+        tenant_id,
+        workspace_id,
+        user_id,
+    ));
     let mut conn = acquire_optional_pg_connection(pool, security, scope).await?;
 
     sqlx::query(
@@ -565,7 +573,8 @@ pub(crate) async fn persist_user_record(
             sync_auth_user_to_postgres(pool, security, record).await?;
         }
     } else {
-        crate::services::auth_memory_store::persist_user_record(&storage.auth_memory, record).await?;
+        crate::services::auth_memory_store::persist_user_record(&storage.auth_memory, record)
+            .await?;
     }
 
     Ok(())
@@ -607,7 +616,8 @@ pub(crate) async fn delete_user_record(
             delete_user_pg(pool, security, &record.user_id).await?;
         }
     } else {
-        crate::services::auth_memory_store::delete_user_record(&storage.auth_memory, record).await?;
+        crate::services::auth_memory_store::delete_user_record(&storage.auth_memory, record)
+            .await?;
     }
 
     Ok(())
@@ -692,7 +702,10 @@ mod tests {
         let user_id = Uuid::new_v4();
         let claims = access_token_claims(user_id, Role::User, 3600);
         let (tenant_id, workspace_id) = default_identity_scope();
-        assert_eq!(claims.tenant_id.as_deref(), Some(tenant_id.to_string().as_str()));
+        assert_eq!(
+            claims.tenant_id.as_deref(),
+            Some(tenant_id.to_string().as_str())
+        );
         assert_eq!(
             claims.workspace_id.as_deref(),
             Some(workspace_id.to_string().as_str())

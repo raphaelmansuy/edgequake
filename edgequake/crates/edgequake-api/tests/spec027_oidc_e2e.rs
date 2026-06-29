@@ -35,7 +35,12 @@ async fn parse_json(response: axum::response::Response) -> Value {
         .unwrap_or_else(|_| json!({ "raw": String::from_utf8_lossy(&body) }))
 }
 
-fn enable_oidc_on_state(state: &mut AppState, issuer_url: &str, redirect_uri: &str, client_secret: &str) {
+fn enable_oidc_on_state(
+    state: &mut AppState,
+    issuer_url: &str,
+    redirect_uri: &str,
+    client_secret: &str,
+) {
     let oidc_config = OidcConfig {
         enabled: true,
         issuer_url: issuer_url.to_string(),
@@ -250,13 +255,11 @@ async fn spec027_oidc_callback_roundtrip_issues_jwt() {
 
     Mock::given(method("POST"))
         .and(path("/token"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(json!({
-                "access_token": "provider-access",
-                "token_type": "Bearer",
-                "id_token": id_token,
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "provider-access",
+            "token_type": "Bearer",
+            "id_token": id_token,
+        })))
         .mount(&mock)
         .await;
 
@@ -278,9 +281,15 @@ async fn spec027_oidc_callback_roundtrip_issues_jwt() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = parse_json(response).await;
-    assert!(body["access_token"].as_str().map(|s| !s.is_empty()).unwrap_or(false));
+    assert!(body["access_token"]
+        .as_str()
+        .map(|s| !s.is_empty())
+        .unwrap_or(false));
     assert_eq!(body["token_type"], "Bearer");
-    assert!(body["refresh_token"].as_str().map(|s| !s.is_empty()).unwrap_or(false));
+    assert!(body["refresh_token"]
+        .as_str()
+        .map(|s| !s.is_empty())
+        .unwrap_or(false));
     assert_eq!(body["user"]["email"], "oidc-roundtrip@edgequake.test");
 }
 

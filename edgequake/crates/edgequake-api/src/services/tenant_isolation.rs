@@ -61,7 +61,11 @@ impl PgIsolationScope {
 }
 
 /// Attach parsed PG isolation scope to request extensions when context is complete enough.
-pub fn attach_pg_isolation_scope(request: &mut axum::http::Request<axum::body::Body>, ctx: &TenantContext, user_id: Option<&str>) {
+pub fn attach_pg_isolation_scope(
+    request: &mut axum::http::Request<axum::body::Body>,
+    ctx: &TenantContext,
+    user_id: Option<&str>,
+) {
     let user_uuid = user_id.and_then(|id| Uuid::parse_str(id).ok());
     if let Some(scope) = PgIsolationScope::from_tenant_context(ctx, user_uuid) {
         request.extensions_mut().insert(scope);
@@ -122,9 +126,7 @@ pub async fn release_optional_pg_connection(
     scope: Option<PgIsolationScope>,
 ) {
     if security.pg_rls_enabled && scope.is_some() {
-        if let Err(e) =
-            edgequake_storage::adapters::postgres::release_rls_connection(conn).await
-        {
+        if let Err(e) = edgequake_storage::adapters::postgres::release_rls_connection(conn).await {
             tracing::warn!(
                 target: "edgequake.tenant_isolation",
                 error = %e,

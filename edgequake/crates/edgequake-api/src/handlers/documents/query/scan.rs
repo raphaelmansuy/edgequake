@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::middleware::TenantContext;
-use crate::state::{AppConfig, StorageRuntime, TaskRuntime};
 use crate::path_validation::PathValidationConfig;
+use crate::state::{AppConfig, StorageRuntime, TaskRuntime};
 
 use crate::handlers::documents_types::*;
 
@@ -47,8 +47,7 @@ pub async fn scan_directory(
 
     // SECURITY (OODA-248): Validate path against allowed directories.
     // WHY: Prevents directory traversal attacks (e.g., ../../../etc/passwd).
-    let validated_path =
-        crate::path_validation::validate_path(&request.path, &path_config)?;
+    let validated_path = crate::path_validation::validate_path(&request.path, &path_config)?;
 
     let base_path = &validated_path.canonical;
 

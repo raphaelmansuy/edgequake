@@ -30,8 +30,7 @@ pub async fn get_node(
     Path(node_id): Path<String>,
 ) -> ApiResult<Json<GraphNodeResponse>> {
     let node =
-        load_node_for_tenant_context(storage.graph_storage.as_ref(), &node_id, &tenant_ctx)
-            .await?;
+        load_node_for_tenant_context(storage.graph_storage.as_ref(), &node_id, &tenant_ctx).await?;
 
     let degree = storage.graph_storage.node_degree(&node_id).await?;
 

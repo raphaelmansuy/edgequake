@@ -151,19 +151,17 @@ async fn ec_mcp_fetch_omits_subgraph_when_disabled() {
     .await;
     let subgraph = &fetch_body["result"]["bundle"]["subgraph"];
     assert_eq!(subgraph["entities"].as_array().map(|a| a.len()), Some(0));
-    assert_eq!(subgraph["relationships"].as_array().map(|a| a.len()), Some(0));
+    assert_eq!(
+        subgraph["relationships"].as_array().map(|a| a.len()),
+        Some(0)
+    );
 }
 
 #[tokio::test]
 async fn ec_mcp_21_empty_query_returns_invalid_params() {
     let app = default_mcp_app();
-    let (status, body) = mcp_tools_call(
-        &app,
-        "/mcp",
-        "edgequake_search",
-        json!({ "query": "   " }),
-    )
-    .await;
+    let (status, body) =
+        mcp_tools_call(&app, "/mcp", "edgequake_search", json!({ "query": "   " })).await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.get("error").is_some());
     assert_eq!(body["error"]["code"], -32602);
@@ -202,13 +200,7 @@ async fn ec_mcp_25_invalid_retrieval_id_prefix() {
 #[tokio::test]
 async fn ec_mcp_24_unknown_tool_name() {
     let app = default_mcp_app();
-    let (status, body) = mcp_tools_call(
-        &app,
-        "/mcp",
-        "nonexistent_tool",
-        json!({}),
-    )
-    .await;
+    let (status, body) = mcp_tools_call(&app, "/mcp", "nonexistent_tool", json!({})).await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.get("error").is_some());
 }
@@ -334,7 +326,10 @@ async fn ec_mcp_34_concurrent_fetch_same_retrieval_id() {
     )
     .await;
 
-    assert_eq!(fetch_a["result"]["retrieval_id"], fetch_b["result"]["retrieval_id"]);
+    assert_eq!(
+        fetch_a["result"]["retrieval_id"],
+        fetch_b["result"]["retrieval_id"]
+    );
     assert_eq!(fetch_a["result"]["bundle"], fetch_b["result"]["bundle"]);
 }
 
@@ -350,7 +345,10 @@ async fn ec_mcp_retrieve_one_shot() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.get("error").is_none(), "{body:?}");
-    assert!(body["result"]["retrieval_id"].as_str().unwrap().starts_with("ret_"));
+    assert!(body["result"]["retrieval_id"]
+        .as_str()
+        .unwrap()
+        .starts_with("ret_"));
 }
 
 #[tokio::test]
@@ -364,7 +362,10 @@ async fn ec_mcp_45_concurrent_read_only_tools() {
     ));
     let search_fut = app.clone().oneshot(mcp_post_legacy(
         "/mcp",
-        tools_call_body("edgequake_search", json!({ "query": "concurrent", "mode": "naive" })),
+        tools_call_body(
+            "edgequake_search",
+            json!({ "query": "concurrent", "mode": "naive" }),
+        ),
     ));
     let ping_fut = app.oneshot(mcp_post_legacy(
         "/mcp",
@@ -388,7 +389,10 @@ async fn ec_mcp_38_unicode_emoji_query() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.get("error").is_none(), "unicode query must succeed: {body:?}");
+    assert!(
+        body.get("error").is_none(),
+        "unicode query must succeed: {body:?}"
+    );
 }
 
 #[tokio::test]

@@ -2,9 +2,7 @@
 
 use serde_json::Value;
 
-use edgequake_observability::{
-    PropagationHeaders, TRACEPARENT_HEADER, TRACESTATE_HEADER,
-};
+use edgequake_observability::{PropagationHeaders, TRACEPARENT_HEADER, TRACESTATE_HEADER};
 
 use super::json_rpc::{GatewayError, PROTOCOL_2025_11_25, PROTOCOL_2026_07_28};
 
@@ -39,7 +37,10 @@ pub fn extract_meta(params: Option<&Value>) -> RequestMeta {
         .get("io.modelcontextprotocol/clientInfo")
         .and_then(|v| v.as_object())
     {
-        meta.client_name = info.get("name").and_then(|v| v.as_str()).map(str::to_string);
+        meta.client_name = info
+            .get("name")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
         meta.client_version = info
             .get("version")
             .and_then(|v| v.as_str())
@@ -106,9 +107,7 @@ mod tests {
     #[test]
     fn propagation_from_meta_includes_traceparent() {
         let meta = RequestMeta {
-            traceparent: Some(
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into(),
-            ),
+            traceparent: Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into()),
             ..Default::default()
         };
         let p = propagation_from_meta(&meta);

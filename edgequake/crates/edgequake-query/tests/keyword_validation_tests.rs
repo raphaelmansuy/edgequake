@@ -431,10 +431,16 @@ async fn test_keyword_validation_drops_nonexistent() {
     );
 
     // Verify graph has expected entities
-    let labels = graph_storage.search_labels("E-3008", 1, None, None).await.unwrap();
+    let labels = graph_storage
+        .search_labels("E-3008", 1, None, None)
+        .await
+        .unwrap();
     assert!(!labels.is_empty(), "E-3008 should exist in graph");
 
-    let labels = graph_storage.search_labels("STLA Medium", 1, None, None).await.unwrap();
+    let labels = graph_storage
+        .search_labels("STLA Medium", 1, None, None)
+        .await
+        .unwrap();
     assert!(labels.is_empty(), "STLA Medium should NOT exist in graph");
 
     println!("✓ Graph correctly contains E-3008 but not STLA Medium");
@@ -904,15 +910,24 @@ async fn test_graph_search_labels() {
     let graph_storage = create_automotive_graph_storage().await;
 
     // Test existing entities
-    let results = graph_storage.search_labels("E-3008", 5, None, None).await.unwrap();
+    let results = graph_storage
+        .search_labels("E-3008", 5, None, None)
+        .await
+        .unwrap();
     assert!(!results.is_empty(), "E-3008 should be found");
     println!("Found E-3008: {:?}", results);
 
-    let results = graph_storage.search_labels("BYD", 5, None, None).await.unwrap();
+    let results = graph_storage
+        .search_labels("BYD", 5, None, None)
+        .await
+        .unwrap();
     println!("BYD search results: {:?}", results);
 
     // Test non-existing entity
-    let results = graph_storage.search_labels("STLA Medium", 5, None, None).await.unwrap();
+    let results = graph_storage
+        .search_labels("STLA Medium", 5, None, None)
+        .await
+        .unwrap();
     assert!(results.is_empty(), "STLA Medium should NOT be found");
     println!("STLA Medium correctly not found");
 }
@@ -923,7 +938,10 @@ async fn test_entity_relationships() {
     let graph_storage = create_automotive_graph_storage().await;
 
     // Get neighbors of E-3008
-    let neighbors = graph_storage.get_neighbors("E-3008", 1, None, None).await.unwrap();
+    let neighbors = graph_storage
+        .get_neighbors("E-3008", 1, None, None)
+        .await
+        .unwrap();
     println!("\nE-3008 neighbors: {:?}", neighbors);
 
     // Should have relationships with BYD_SEAL_U and I-COCKPIT

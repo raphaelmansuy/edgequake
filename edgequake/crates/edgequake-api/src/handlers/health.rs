@@ -142,10 +142,8 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         state.pg_pool.is_some(),
     );
     #[cfg(not(feature = "postgres"))]
-    let identity_policy = crate::services::identity_storage::IdentityPolicy::resolve(
-        &state.security,
-        false,
-    );
+    let identity_policy =
+        crate::services::identity_storage::IdentityPolicy::resolve(&state.security, false);
 
     let response = HealthResponse {
         status: status.to_string(),

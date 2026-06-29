@@ -30,10 +30,7 @@ async fn load_refresh_token_kv(
     crate::services::auth_memory_store::load_refresh_token(&storage.auth_memory, token).await
 }
 
-async fn revoke_refresh_token_kv(
-    storage: &StorageRuntime,
-    token: &str,
-) -> Result<bool, ApiError> {
+async fn revoke_refresh_token_kv(storage: &StorageRuntime, token: &str) -> Result<bool, ApiError> {
     crate::services::auth_memory_store::revoke_refresh_token(&storage.auth_memory, token).await
 }
 
@@ -90,7 +87,16 @@ async fn load_refresh_token_pg(
 
     let mut conn = acquire_optional_pg_connection(pool, security, scope).await?;
 
-    let row = sqlx::query_as::<_, (Uuid, Uuid, bool, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)>(
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            bool,
+            chrono::DateTime<chrono::Utc>,
+            chrono::DateTime<chrono::Utc>,
+        ),
+    >(
         r#"
         SELECT token_id, user_id, revoked, created_at, expires_at
         FROM refresh_tokens
@@ -105,13 +111,15 @@ async fn load_refresh_token_pg(
 
     release_optional_pg_connection(&mut conn, security, scope).await;
 
-    Ok(row.map(|(_, user_id, revoked, created_at, expires_at)| RefreshTokenRecord {
-        token: token.to_string(),
-        user_id: user_id.to_string(),
-        created_at,
-        expires_at,
-        revoked,
-    }))
+    Ok(row.map(
+        |(_, user_id, revoked, created_at, expires_at)| RefreshTokenRecord {
+            token: token.to_string(),
+            user_id: user_id.to_string(),
+            created_at,
+            expires_at,
+            revoked,
+        },
+    ))
 }
 
 #[cfg(feature = "postgres")]
@@ -234,7 +242,10 @@ pub(crate) async fn revoke_refresh_token(
     }
 }
 
-async fn persist_api_key_kv(storage: &StorageRuntime, record: &ApiKeyRecord) -> Result<(), ApiError> {
+async fn persist_api_key_kv(
+    storage: &StorageRuntime,
+    record: &ApiKeyRecord,
+) -> Result<(), ApiError> {
     crate::services::auth_memory_store::persist_api_key(&storage.auth_memory, record).await
 }
 
@@ -446,7 +457,8 @@ async fn find_api_keys_by_prefix_kv(
     storage: &StorageRuntime,
     prefix: &str,
 ) -> Result<Vec<ApiKeyRecord>, ApiError> {
-    crate::services::auth_memory_store::find_active_api_keys_by_prefix(&storage.auth_memory, prefix).await
+    crate::services::auth_memory_store::find_active_api_keys_by_prefix(&storage.auth_memory, prefix)
+        .await
 }
 
 async fn revoke_api_key_kv(

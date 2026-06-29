@@ -57,8 +57,7 @@ pub async fn rebuild_embeddings(
 ) -> Result<impl IntoResponse, ApiError> {
     let return_202 = state.security.v1_rpc_return_202;
     let ws = workspace_id.to_string();
-    let response =
-        run_rebuild_embeddings(state, workspace_id, tenant_ctx, request).await?;
+    let response = run_rebuild_embeddings(state, workspace_id, tenant_ctx, request).await?;
     let job_id = response.job_id.clone();
     crate::services::v1_rpc_migration::respond_v1_async_rpc(
         &ws,

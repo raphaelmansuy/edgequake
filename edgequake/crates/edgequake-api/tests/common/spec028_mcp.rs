@@ -58,7 +58,12 @@ pub fn mcp_post_bearer(uri: &str, token: &str, body: Value) -> Request<Body> {
         .unwrap()
 }
 
-pub fn mcp_post_bearer_and_api_key(uri: &str, token: &str, api_key: &str, body: Value) -> Request<Body> {
+pub fn mcp_post_bearer_and_api_key(
+    uri: &str,
+    token: &str,
+    api_key: &str,
+    body: Value,
+) -> Request<Body> {
     Request::builder()
         .method("POST")
         .uri(uri)
@@ -78,7 +83,11 @@ pub async fn mcp_tools_call_bearer(
 ) -> (StatusCode, Value) {
     let response = app
         .clone()
-        .oneshot(mcp_post_bearer(uri, token, tools_call_body(name, arguments)))
+        .oneshot(mcp_post_bearer(
+            uri,
+            token,
+            tools_call_body(name, arguments),
+        ))
         .await
         .unwrap();
     let status = response.status();
@@ -151,10 +160,7 @@ pub async fn mcp_tools_call(
 ) -> (StatusCode, Value) {
     let response = app
         .clone()
-        .oneshot(mcp_post_legacy(
-            uri,
-            tools_call_body(name, arguments),
-        ))
+        .oneshot(mcp_post_legacy(uri, tools_call_body(name, arguments)))
         .await
         .unwrap();
     let status = response.status();

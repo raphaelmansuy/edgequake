@@ -142,7 +142,10 @@ impl ChunkingStrategy for PageAwareChunking {
         let segments = split_into_page_segments(content);
 
         // No markers → plain fallback (page fields stay None)
-        if segments.len() == 1 && segments[0].page == 1 && !content.contains(super::types::PAGE_MARKER_PREFIX) {
+        if segments.len() == 1
+            && segments[0].page == 1
+            && !content.contains(super::types::PAGE_MARKER_PREFIX)
+        {
             return self.inner.chunk(content, config).await;
         }
 
@@ -200,8 +203,14 @@ mod tests {
     #[tokio::test]
     async fn chunks_never_cross_page_boundary() {
         let md = make_pdf_markdown(&[
-            (1, "Page one content with several sentences. More text here."),
-            (2, "Page two has different content. Another sentence on page two."),
+            (
+                1,
+                "Page one content with several sentences. More text here.",
+            ),
+            (
+                2,
+                "Page two has different content. Another sentence on page two.",
+            ),
             (3, "Page three content. Final page."),
         ]);
 
@@ -230,10 +239,7 @@ mod tests {
     /// Chunks from page 1 must have page=1, page 2 must have page=2.
     #[tokio::test]
     async fn page_numbers_assigned_correctly() {
-        let md = make_pdf_markdown(&[
-            (1, "Alpha beta gamma delta"),
-            (2, "Epsilon zeta eta theta"),
-        ]);
+        let md = make_pdf_markdown(&[(1, "Alpha beta gamma delta"), (2, "Epsilon zeta eta theta")]);
 
         let config = ChunkerConfig {
             chunk_size: 5,
@@ -260,7 +266,10 @@ mod tests {
         };
         let chunker = PageAwareChunking::default();
         let chunks = chunker
-            .chunk("Hello world. This is plain text without any page markers.", &config)
+            .chunk(
+                "Hello world. This is plain text without any page markers.",
+                &config,
+            )
             .await
             .unwrap();
 
@@ -277,10 +286,7 @@ mod tests {
     /// split_into_page_segments correctly extracts page number and content.
     #[test]
     fn split_extracts_page_segments() {
-        let md = make_pdf_markdown(&[
-            (1, "Content of page one."),
-            (2, "Content of page two."),
-        ]);
+        let md = make_pdf_markdown(&[(1, "Content of page one."), (2, "Content of page two.")]);
         let segs = split_into_page_segments(&md);
         assert_eq!(segs.len(), 2);
         assert_eq!(segs[0].page, 1);

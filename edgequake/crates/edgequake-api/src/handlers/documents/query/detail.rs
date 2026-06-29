@@ -59,10 +59,7 @@ pub async fn get_document(
 
     // SPEC-011: prefix scan — no full keys() table scan
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_keys = storage
-        .kv_storage
-        .keys_with_prefix(&chunk_prefix)
-        .await?;
+    let chunk_keys = storage.kv_storage.keys_with_prefix(&chunk_prefix).await?;
     let chunk_count = chunk_keys.len();
     debug!(chunk_count = chunk_count, "Document chunk keys loaded");
 
@@ -102,7 +99,9 @@ pub async fn get_document(
     }
 
     // Fetch document content via SSOT loader (KV first, then PDF pipeline markdown).
-    let metadata_value = metadata.clone().unwrap_or(Value::Object(Default::default()));
+    let metadata_value = metadata
+        .clone()
+        .unwrap_or(Value::Object(Default::default()));
     let content = load_document_body(&storage, &document_id, &metadata_value)
         .await
         .map(|b| b.markdown);

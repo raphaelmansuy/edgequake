@@ -139,8 +139,8 @@ impl PostgresConversationStorage {
         mode: String,
         folder_id: Option<Uuid>,
     ) -> Result<ConversationRow> {
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, workspace_id, Some(user_id))
-            .await?;
+        let mut conn =
+            acquire_rls_connection(&self.pool, tenant_id, workspace_id, Some(user_id)).await?;
 
         let row = sqlx::query_as::<_, ConversationRow>(
             r#"
@@ -222,8 +222,8 @@ impl PostgresConversationStorage {
         }
 
         if updates.is_empty() {
-            let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id))
-                .await?;
+            let mut conn =
+                acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
             let row = sqlx::query_as::<_, ConversationRow>(
                 "SELECT * FROM conversations WHERE conversation_id = $1",
             )
@@ -250,8 +250,7 @@ impl PostgresConversationStorage {
             user_param
         );
 
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
-            .await?;
+        let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
 
         let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query).bind(conversation_id);
 
@@ -374,8 +373,7 @@ impl PostgresConversationStorage {
 
         let search_owned = search.map(|s| s.to_string());
 
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
-            .await?;
+        let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
 
         let mut query_builder = sqlx::query_as::<_, ConversationRow>(&query)
             .bind(tenant_id)
@@ -687,8 +685,8 @@ impl PostgresConversationStorage {
         parent_id: Option<Uuid>,
     ) -> Result<FolderRow> {
         let name = name.to_string();
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, workspace_id, Some(user_id))
-            .await?;
+        let mut conn =
+            acquire_rls_connection(&self.pool, tenant_id, workspace_id, Some(user_id)).await?;
 
         let max_pos: Option<i32> = sqlx::query_scalar(
             "SELECT MAX(position) FROM folders WHERE tenant_id = $1 AND user_id = $2 AND parent_id IS NOT DISTINCT FROM $3",
@@ -725,8 +723,7 @@ impl PostgresConversationStorage {
 
     /// List folders for a user.
     pub async fn list_folders(&self, tenant_id: Uuid, user_id: Uuid) -> Result<Vec<FolderRow>> {
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
-            .await?;
+        let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
 
         let rows = sqlx::query_as::<_, FolderRow>(
             r#"
@@ -773,8 +770,8 @@ impl PostgresConversationStorage {
         }
 
         if updates.is_empty() {
-            let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id))
-                .await?;
+            let mut conn =
+                acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
             let row = sqlx::query_as::<_, FolderRow>("SELECT * FROM folders WHERE folder_id = $1")
                 .bind(folder_id)
                 .fetch_optional(&mut *conn)
@@ -801,8 +798,7 @@ impl PostgresConversationStorage {
 
         let name_owned = name.map(|n| n.to_string());
 
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
-            .await?;
+        let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
 
         let mut query_builder = sqlx::query_as::<_, FolderRow>(&query).bind(folder_id);
 
@@ -845,8 +841,7 @@ impl PostgresConversationStorage {
         user_id: Uuid,
         folder_id: Uuid,
     ) -> Result<()> {
-        let mut conn = acquire_rls_connection(&self.pool,tenant_id, None, Some(user_id))
-            .await?;
+        let mut conn = acquire_rls_connection(&self.pool, tenant_id, None, Some(user_id)).await?;
 
         sqlx::query(
             "UPDATE conversations SET folder_id = NULL WHERE folder_id = $1 AND tenant_id = $2 AND user_id = $3",

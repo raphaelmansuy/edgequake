@@ -19,7 +19,9 @@ pub struct GraphMaterializationGuard {
 }
 
 /// Acquire global materialization permit (503 immediately when at capacity — never queues).
-pub fn admit_graph_materialization(runtime: &GraphQueryRuntime) -> ApiResult<GraphMaterializationGuard> {
+pub fn admit_graph_materialization(
+    runtime: &GraphQueryRuntime,
+) -> ApiResult<GraphMaterializationGuard> {
     let permit = runtime
         .materialize
         .try_acquire_owned()

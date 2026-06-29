@@ -313,6 +313,8 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            page_start: None,
+            page_end: None,
         }];
 
         let context = sources_to_message_context(&sources);
@@ -341,6 +343,8 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            page_start: None,
+            page_end: None,
         }];
 
         let context = sources_to_message_context(&sources);
@@ -367,6 +371,8 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            page_start: None,
+            page_end: None,
         }];
 
         let context = sources_to_message_context(&sources);

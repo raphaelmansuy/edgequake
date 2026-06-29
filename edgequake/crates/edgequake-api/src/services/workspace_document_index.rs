@@ -3,9 +3,9 @@
 //! Maintains `wsdoc:{workspace_id}:{document_id}` pointer keys so workspace
 //! operations use prefix scans instead of global `-metadata` suffix scans.
 
+use edgequake_storage::error::StorageError;
 use edgequake_storage::kv_keys;
 use edgequake_storage::traits::KVStorage;
-use edgequake_storage::error::StorageError;
 
 /// Sync workspace index entry from a document metadata KV write.
 pub async fn sync_workspace_document_index(

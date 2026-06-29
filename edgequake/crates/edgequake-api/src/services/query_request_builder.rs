@@ -26,7 +26,10 @@ pub struct QueryExecutionParams {
 
 impl QueryExecutionParams {
     /// Parse mode string; rejects bypass for context-only endpoints.
-    pub fn parse_mode(mode: Option<&String>, default: QueryMode) -> Result<QueryMode, &'static str> {
+    pub fn parse_mode(
+        mode: Option<&String>,
+        default: QueryMode,
+    ) -> Result<QueryMode, &'static str> {
         match mode {
             Some(m) => {
                 let parsed = QueryMode::parse(m).ok_or("INVALID_MODE")?;

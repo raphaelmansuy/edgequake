@@ -98,6 +98,7 @@ pub mod document_read_model;
 pub mod error;
 pub mod file_validation;
 pub mod handlers;
+pub mod mcp;
 pub mod middleware;
 pub mod observability_middleware;
 pub mod openapi;
@@ -111,13 +112,13 @@ pub mod path_validation;
 pub mod pipeline_progress_callback;
 #[cfg(feature = "postgres")]
 pub mod postgres_entity_sink;
+#[cfg(feature = "postgres")]
 pub mod postgres_lineage_sink;
 pub mod processor;
 mod provider_catalog;
 pub mod provider_types;
 pub mod providers;
 pub mod routes;
-pub mod mcp;
 pub mod safety_limits;
 pub mod server;
 pub mod services;

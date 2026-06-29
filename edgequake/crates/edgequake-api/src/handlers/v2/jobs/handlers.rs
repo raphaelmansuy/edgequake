@@ -74,7 +74,10 @@ pub async fn create_workspace_job(
     Ok((
         StatusCode::ACCEPTED,
         [
-            (header::LOCATION, job_location(workspace_id, &submitted.job_id)),
+            (
+                header::LOCATION,
+                job_location(workspace_id, &submitted.job_id),
+            ),
             (
                 header::LINK,
                 format!(
@@ -164,8 +167,7 @@ pub async fn cancel_workspace_job(
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<JobResponse>> {
     ensure_workspace_scope(workspace_id, &tenant_ctx)?;
-    let task_response =
-        cancel_task(State(state), tenant_ctx, Path(job_id.clone())).await?;
+    let task_response = cancel_task(State(state), tenant_ctx, Path(job_id.clone())).await?;
     Ok(Json(JobResponse::from_task_response_for_workspace(
         &workspace_id.to_string(),
         &task_response,

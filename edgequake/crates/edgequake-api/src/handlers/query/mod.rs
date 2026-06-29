@@ -51,17 +51,17 @@
 //!   Format response + sources
 //! ```
 
-pub(crate) mod document_filter_resolver;
 pub mod context;
+pub(crate) mod document_filter_resolver;
 mod query_execute;
 mod query_stream;
 pub(crate) mod workspace_resolve;
 
-pub use query_execute::*;
-pub use query_stream::*;
 pub use context::{
     fetch_query_context, get_context_artifact, retrieve_query_context, search_query_context,
 };
+pub use query_execute::*;
+pub use query_stream::*;
 
 // Re-export DTOs for backward compatibility
 pub use crate::handlers::query_types::{
@@ -200,6 +200,7 @@ mod tests {
             document_filter: None,
             mix_weights: None,
             extra_headers: None,
+            include_subgraph: true,
         };
 
         let (ctx, propagation) = test_extensions();
@@ -229,6 +230,7 @@ mod tests {
             document_filter: None,
             mix_weights: None,
             extra_headers: None,
+            include_subgraph: true,
         };
 
         let (ctx, propagation) = test_extensions();
@@ -250,6 +252,7 @@ mod tests {
             llm_model: None,
             stream_format: None,
             extra_headers: None,
+            include_subgraph: true,
         };
 
         let (ctx, propagation) = test_extensions();
@@ -281,6 +284,7 @@ mod tests {
                 document_filter: None,
                 mix_weights: None,
                 extra_headers: None,
+                include_subgraph: true,
             };
 
             let (ctx, propagation) = test_extensions();
@@ -318,6 +322,7 @@ mod tests {
             document_filter: None,
             mix_weights: None,
             extra_headers: None,
+            include_subgraph: true,
         };
 
         let (ctx, propagation) = test_extensions();
@@ -347,6 +352,7 @@ mod tests {
             document_filter: None,
             mix_weights: None,
             extra_headers: None,
+            include_subgraph: true,
         };
 
         let (ctx, propagation) = test_extensions();
@@ -368,6 +374,7 @@ mod tests {
             llm_model: None,
             stream_format: None,
             extra_headers: None,
+            include_subgraph: true,
         };
 
         let (ctx, propagation) = test_extensions();

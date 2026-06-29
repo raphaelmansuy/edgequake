@@ -38,11 +38,9 @@ pub async fn create_relationship(
     let tgt_id = normalize_entity_name(&req.tgt_id);
 
     // Verify both entities exist in this tenant/workspace
-    load_node_for_tenant_context(storage.graph_storage.as_ref(), &src_id, &tenant_ctx)
-        .await?;
+    load_node_for_tenant_context(storage.graph_storage.as_ref(), &src_id, &tenant_ctx).await?;
 
-    load_node_for_tenant_context(storage.graph_storage.as_ref(), &tgt_id, &tenant_ctx)
-        .await?;
+    load_node_for_tenant_context(storage.graph_storage.as_ref(), &tgt_id, &tenant_ctx).await?;
 
     // Generate relationship ID
     let rel_id = format!("rel-{}", Uuid::new_v4());

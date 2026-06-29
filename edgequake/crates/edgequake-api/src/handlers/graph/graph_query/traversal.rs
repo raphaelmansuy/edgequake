@@ -133,18 +133,19 @@ pub async fn get_graph(
         let tenant_id = tenant_ctx.tenant_id.clone();
         let workspace_id = tenant_ctx.workspace_id.clone();
         let graph_storage = storage.graph_storage.clone();
-        let nodes_with_degrees = run_timed_graph_query(&graph.budget, "popular_nodes", async move {
-            graph_storage
-                .get_popular_nodes_with_degree(
-                    max_nodes,
-                    None,
-                    None,
-                    tenant_id.as_deref(),
-                    workspace_id.as_deref(),
-                )
-                .await
-        })
-        .await?;
+        let nodes_with_degrees =
+            run_timed_graph_query(&graph.budget, "popular_nodes", async move {
+                graph_storage
+                    .get_popular_nodes_with_degree(
+                        max_nodes,
+                        None,
+                        None,
+                        tenant_id.as_deref(),
+                        workspace_id.as_deref(),
+                    )
+                    .await
+            })
+            .await?;
 
         // Convert to response format
         let nodes: Vec<GraphNodeResponse> = nodes_with_degrees
@@ -174,16 +175,17 @@ pub async fn get_graph(
         let tenant_for_edges = tenant_ctx.tenant_id.clone();
         let workspace_for_edges = tenant_ctx.workspace_id.clone();
         let graph_storage_edges = storage.graph_storage.clone();
-        let filtered_edges = run_timed_graph_query(&graph.budget, "edges_for_node_set", async move {
-            graph_storage_edges
-                .get_edges_for_node_set(
-                    &node_ids,
-                    tenant_for_edges.as_deref(),
-                    workspace_for_edges.as_deref(),
-                )
-                .await
-        })
-        .await?;
+        let filtered_edges =
+            run_timed_graph_query(&graph.budget, "edges_for_node_set", async move {
+                graph_storage_edges
+                    .get_edges_for_node_set(
+                        &node_ids,
+                        tenant_for_edges.as_deref(),
+                        workspace_for_edges.as_deref(),
+                    )
+                    .await
+            })
+            .await?;
 
         let edges: Vec<GraphEdgeResponse> = filtered_edges
             .into_iter()

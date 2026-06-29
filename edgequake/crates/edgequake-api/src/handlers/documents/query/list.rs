@@ -466,9 +466,7 @@ pub async fn list_documents(
     };
 
     // SPEC-027 IMP-020: honor query pagination (status_counts remain over full filtered set).
-    let page_size = budget
-        .clamp_page_size(params.page_size.min(u32::MAX as usize) as u32)
-        as usize;
+    let page_size = budget.clamp_page_size(params.page_size.min(u32::MAX as usize) as u32) as usize;
     let page = params.page.max(1);
     let (documents, pagination) = paginate_vec(documents, page, page_size);
 

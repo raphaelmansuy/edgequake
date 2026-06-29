@@ -45,7 +45,9 @@ pub fn make_page_marker(page: u32) -> String {
 /// Parse page number from a marker line, returns None if not a marker.
 pub fn parse_page_marker(line: &str) -> Option<u32> {
     let trimmed = line.trim();
-    let inner = trimmed.strip_prefix(PAGE_MARKER_PREFIX)?.strip_suffix(PAGE_MARKER_SUFFIX)?;
+    let inner = trimmed
+        .strip_prefix(PAGE_MARKER_PREFIX)?
+        .strip_suffix(PAGE_MARKER_SUFFIX)?;
     inner.trim().parse::<u32>().ok()
 }
 

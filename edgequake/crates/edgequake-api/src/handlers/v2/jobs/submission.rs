@@ -8,7 +8,9 @@ use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::documents::{run_reanalyze_multimodal, run_recover_stuck, run_reprocess_failed};
+use crate::handlers::documents::{
+    run_reanalyze_multimodal, run_recover_stuck, run_reprocess_failed,
+};
 use crate::handlers::documents_types::{
     ReanalyzeMultimodalRequest, RecoverStuckRequest, ReprocessFailedRequest,
 };
@@ -96,20 +98,13 @@ pub async fn submit_workspace_job(
             let task = Task::new(tenant_id, workspace_id, task_type, payload);
             let job_id = task.track_id.clone();
             state.enqueue_task(task).await?;
-            Ok(SubmittedJob {
-                job_id,
-                job_type,
-            })
+            Ok(SubmittedJob { job_id, job_type })
         }
         "rebuild_embeddings" => {
             let req: RebuildEmbeddingsRequest = payload_as(&request.payload)?;
-            let response = run_rebuild_embeddings(
-                state.clone(),
-                workspace_id,
-                tenant_ctx.clone(),
-                req,
-            )
-            .await?;
+            let response =
+                run_rebuild_embeddings(state.clone(), workspace_id, tenant_ctx.clone(), req)
+                    .await?;
             let job_id = response.job_id.clone().ok_or_else(|| {
                 ApiError::Internal("rebuild_embeddings returned no job_id".into())
             })?;
@@ -117,13 +112,9 @@ pub async fn submit_workspace_job(
         }
         "rebuild_knowledge_graph" => {
             let req: RebuildKnowledgeGraphRequest = payload_as(&request.payload)?;
-            let response = run_rebuild_knowledge_graph(
-                state.clone(),
-                workspace_id,
-                tenant_ctx.clone(),
-                req,
-            )
-            .await?;
+            let response =
+                run_rebuild_knowledge_graph(state.clone(), workspace_id, tenant_ctx.clone(), req)
+                    .await?;
             let job_id = response.track_id.clone().ok_or_else(|| {
                 ApiError::Internal("rebuild_knowledge_graph returned no track_id".into())
             })?;
@@ -131,13 +122,9 @@ pub async fn submit_workspace_job(
         }
         "reprocess_all" => {
             let req: ReprocessAllRequest = payload_as(&request.payload)?;
-            let response = run_reprocess_all_documents(
-                state.clone(),
-                workspace_id,
-                tenant_ctx.clone(),
-                req,
-            )
-            .await?;
+            let response =
+                run_reprocess_all_documents(state.clone(), workspace_id, tenant_ctx.clone(), req)
+                    .await?;
             Ok(SubmittedJob {
                 job_id: response.track_id,
                 job_type,
@@ -145,8 +132,7 @@ pub async fn submit_workspace_job(
         }
         "reprocess_failed" => {
             let req: ReprocessFailedRequest = payload_as(&request.payload)?;
-            let response =
-                run_reprocess_failed(state.clone(), tenant_ctx.clone(), req).await?;
+            let response = run_reprocess_failed(state.clone(), tenant_ctx.clone(), req).await?;
             Ok(SubmittedJob {
                 job_id: response.track_id,
                 job_type,

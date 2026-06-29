@@ -405,12 +405,8 @@ impl DocumentTaskProcessor {
                     updated.remove("warning_message");
                 }
 
-                upsert_metadata_with_wsdoc_index(
-                    &self.kv_storage,
-                    &metadata_key,
-                    json!(updated),
-                )
-                .await?;
+                upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, json!(updated))
+                    .await?;
 
                 // SPEC-021 P-A1: mirror the stats into the relational
                 // `documents` table so the P5-01 relational read-model

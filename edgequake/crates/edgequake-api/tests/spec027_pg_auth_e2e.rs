@@ -66,7 +66,9 @@ async fn spec027_pg_auth_login_refresh_stored_in_postgres() {
     let pool = match connect_and_bootstrap().await {
         Some(p) => p,
         None => {
-            eprintln!("SKIP spec027_pg_auth_login_refresh_stored_in_postgres: DATABASE_URL not set");
+            eprintln!(
+                "SKIP spec027_pg_auth_login_refresh_stored_in_postgres: DATABASE_URL not set"
+            );
             return;
         }
     };
@@ -120,9 +122,7 @@ async fn spec027_pg_auth_login_refresh_stored_in_postgres() {
         .unwrap();
     assert_eq!(login.status(), StatusCode::OK);
     let login_body = parse_json(login).await;
-    let refresh_token = login_body["refresh_token"]
-        .as_str()
-        .expect("refresh_token");
+    let refresh_token = login_body["refresh_token"].as_str().expect("refresh_token");
     let user_id = login_body["user"]["user_id"].as_str().expect("user_id");
 
     let pg_user_count: i64 = sqlx::query_scalar(
@@ -233,9 +233,7 @@ async fn spec027_pg_auth_logout_revokes_refresh_token_in_postgres() {
         .unwrap();
     assert_eq!(login.status(), StatusCode::OK);
     let login_body = parse_json(login).await;
-    let refresh_token = login_body["refresh_token"]
-        .as_str()
-        .expect("refresh_token");
+    let refresh_token = login_body["refresh_token"].as_str().expect("refresh_token");
 
     let logout_app = build_app(auth_enabled_pg_state(pool.clone()));
     let logout = logout_app
@@ -312,7 +310,9 @@ async fn spec027_pg_auth_api_key_roundtrip_postgres() {
                 .uri("/api/v1/api-keys")
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("x-api-key", "master-test-key")
-                .body(Body::from(json!({ "name": "spec027-pg-roundtrip" }).to_string()))
+                .body(Body::from(
+                    json!({ "name": "spec027-pg-roundtrip" }).to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -410,7 +410,9 @@ async fn spec027_pg_auth_list_users_reads_from_postgres() {
     let list_body = parse_json(list).await;
     let users = list_body["users"].as_array().expect("users array");
     assert!(
-        users.iter().any(|u| u["username"].as_str() == Some(&username)),
+        users
+            .iter()
+            .any(|u| u["username"].as_str() == Some(&username)),
         "list users must return PG-backed user"
     );
 
@@ -427,9 +429,7 @@ async fn spec027_pg_auth_kv_mirror_env_ignored_when_pool() {
     let pool = match connect_and_bootstrap().await {
         Some(p) => p,
         None => {
-            eprintln!(
-                "SKIP spec027_pg_auth_kv_mirror_env_ignored_when_pool: DATABASE_URL not set"
-            );
+            eprintln!("SKIP spec027_pg_auth_kv_mirror_env_ignored_when_pool: DATABASE_URL not set");
             return;
         }
     };
@@ -490,7 +490,9 @@ async fn spec027_pg_auth_kv_mirror_env_ignored_when_pool() {
         .unwrap();
     assert_eq!(health.status(), StatusCode::OK);
     let health_body = parse_json(health).await;
-    let caps = health_body["capabilities"].as_object().expect("capabilities");
+    let caps = health_body["capabilities"]
+        .as_object()
+        .expect("capabilities");
     assert_eq!(caps["auth_identity_ssot"], "postgresql");
     assert_eq!(caps["kv_identity_mirror_configured"], true);
     assert_eq!(caps["kv_identity_mirror_effective"], false);

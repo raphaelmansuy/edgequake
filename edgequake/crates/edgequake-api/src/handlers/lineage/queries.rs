@@ -116,20 +116,11 @@ pub async fn get_document_lineage(
 
     // SPEC-011: prefix scan for document chunks; point lookup for metadata
     let chunk_prefix = format!("{}-chunk-", document_id);
-    let chunk_ids = storage
-        .kv_storage
-        .keys_with_prefix(&chunk_prefix)
-        .await?;
+    let chunk_ids = storage.kv_storage.keys_with_prefix(&chunk_prefix).await?;
 
     let metadata_key =
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
-    if chunk_ids.is_empty()
-        && storage
-            .kv_storage
-            .get_by_id(&metadata_key)
-            .await?
-            .is_none()
-    {
+    if chunk_ids.is_empty() && storage.kv_storage.get_by_id(&metadata_key).await?.is_none() {
         return Err(ApiError::NotFound(format!(
             "Document '{}' not found",
             document_id
@@ -140,8 +131,7 @@ pub async fn get_document_lineage(
     let scope = DocumentSourceScope::from_document_id(document_id.clone());
     let mut entities: Vec<EntitySummaryResponse> = Vec::new();
 
-    for node in find_document_nodes(&storage.graph_storage, Some(&tenant_ctx), &scope).await?
-    {
+    for node in find_document_nodes(&storage.graph_storage, Some(&tenant_ctx), &scope).await? {
         let doc_sources = sources_for_document(&node.properties, &scope);
         if doc_sources.is_empty() {
             continue;
@@ -162,8 +152,7 @@ pub async fn get_document_lineage(
     }
 
     let mut relationships: Vec<RelationshipSummaryResponse> = Vec::new();
-    for edge in find_document_edges(&storage.graph_storage, Some(&tenant_ctx), &scope).await?
-    {
+    for edge in find_document_edges(&storage.graph_storage, Some(&tenant_ctx), &scope).await? {
         let doc_sources = sources_for_document(&edge.properties, &scope);
         if doc_sources.is_empty() {
             continue;
@@ -295,8 +284,7 @@ pub async fn get_chunk_lineage(
 
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     let doc_metadata =
-        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
-            .await?;
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     let document_name = doc_metadata
         .get("title")
@@ -310,19 +298,11 @@ pub async fn get_chunk_lineage(
 
     // SPEC-006 P1: chunk-scoped prefix query (bounded)
     let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
-    let chunk_nodes = find_document_nodes(
-        &storage.graph_storage,
-        Some(&tenant_ctx),
-        &chunk_scope,
-    )
-    .await?;
+    let chunk_nodes =
+        find_document_nodes(&storage.graph_storage, Some(&tenant_ctx), &chunk_scope).await?;
     let entity_names: Vec<String> = chunk_nodes.iter().map(|n| n.id.clone()).collect();
-    let chunk_edges = find_document_edges(
-        &storage.graph_storage,
-        Some(&tenant_ctx),
-        &chunk_scope,
-    )
-    .await?;
+    let chunk_edges =
+        find_document_edges(&storage.graph_storage, Some(&tenant_ctx), &chunk_scope).await?;
     let entity_count = entity_names.len();
     let relationship_count = chunk_edges.len();
 
@@ -427,8 +407,7 @@ pub async fn get_document_metadata(
     // SECURITY: verify_document_access already fetches and checks metadata,
     // so we reuse its return value directly.
     let metadata =
-        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
-            .await?;
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     Ok(Json(metadata))
 }

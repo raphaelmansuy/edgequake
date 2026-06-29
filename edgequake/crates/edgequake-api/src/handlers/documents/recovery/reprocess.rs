@@ -4,8 +4,8 @@
 //! for processing. Supports both KV-based text documents and PostgreSQL
 //! PDF documents (via `postgres` feature).
 
-use axum::{extract::State, response::IntoResponse, Json};
 use axum::response::Response;
+use axum::{extract::State, response::IntoResponse, Json};
 use chrono::Utc;
 use edgequake_pdf::PdfParserBackend;
 use tracing::debug;
@@ -644,9 +644,10 @@ pub(crate) async fn run_reprocess_failed(
 
     let response = ReprocessFailedResponse {
         track_id: new_track_id,
-        v2_migration: tenant_ctx.workspace_id.as_ref().map(|ws| {
-            crate::services::job_registry::v2_migration_hint("reprocess_failed", ws)
-        }),
+        v2_migration: tenant_ctx
+            .workspace_id
+            .as_ref()
+            .map(|ws| crate::services::job_registry::v2_migration_hint("reprocess_failed", ws)),
         failed_found: docs_to_reprocess.len(),
         requeued: requeued_ids.len(),
         document_ids: requeued_ids,

@@ -54,11 +54,12 @@ impl PasswordService {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = self.argon2()?;
 
-        let password_hash = argon2
-            .hash_password(secret, &salt)
-            .map_err(|e| AuthError::PasswordHashingFailed {
-                reason: e.to_string(),
-            })?;
+        let password_hash =
+            argon2
+                .hash_password(secret, &salt)
+                .map_err(|e| AuthError::PasswordHashingFailed {
+                    reason: e.to_string(),
+                })?;
 
         Ok(password_hash.to_string())
     }

@@ -172,6 +172,8 @@ mod tests {
             start_line: None,
             end_line: None,
             chunk_index: None,
+            page_start: None,
+            page_end: None,
         });
         ctx.chunks.push(RetrievedChunk {
             id: "c2".into(),
@@ -182,6 +184,8 @@ mod tests {
             start_line: None,
             end_line: None,
             chunk_index: None,
+            page_start: None,
+            page_end: None,
         });
 
         let sources = build_sources_from_context(&ctx, true, None, false);
@@ -201,6 +205,7 @@ mod tests {
             source_chunk_ids: vec![],
             source_document_id: None,
             source_file_path: None,
+            source_document_ids: vec![],
         });
 
         let with_refs = build_sources_from_context(&ctx, true, None, false);

@@ -304,12 +304,11 @@ impl PostgresAGEGraphStorage {
         // Quick check: is AGE available?
         let pool = self.pool.get().await?;
 
-        let age_available: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap_or(false);
+        let age_available: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+                .fetch_one(&pool)
+                .await
+                .unwrap_or(false);
 
         if !age_available {
             tracing::debug!("AGE not installed — skipping concurrent index bootstrap");

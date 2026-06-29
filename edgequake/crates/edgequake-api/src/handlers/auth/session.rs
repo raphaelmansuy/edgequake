@@ -15,7 +15,9 @@ use edgequake_auth::Role;
 use crate::error::ApiError;
 use crate::handlers::auth::ApiAuthenticated;
 use crate::services::record_compliance_event_runtime;
-use crate::state::{ApiSecurityConfig, AuthRuntime, ComplianceRuntime, PostgresRuntime, StorageRuntime};
+use crate::state::{
+    ApiSecurityConfig, AuthRuntime, ComplianceRuntime, PostgresRuntime, StorageRuntime,
+};
 
 use super::{
     find_user_by_login, get_record_by_id, get_user_by_id, RefreshTokenRecord, RequestAuthContext,
@@ -48,7 +50,8 @@ pub async fn login(
 ) -> Result<Json<LoginResponse>, ApiError> {
     info!("Login attempt for user: {}", request.username);
 
-    let user = find_user_by_login(&storage, Some(&pg_runtime), &security, &request.username).await?;
+    let user =
+        find_user_by_login(&storage, Some(&pg_runtime), &security, &request.username).await?;
 
     let user = match user {
         Some(u) => u,
@@ -104,7 +107,7 @@ pub async fn login(
             &auth.config,
             &mut record,
         )
-            .await?;
+        .await?;
         return Err(ApiError::auth_unauthorized(
             "login",
             "invalid_password",
@@ -234,11 +237,8 @@ pub async fn refresh_token(
         .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
 
     let expires_in = auth.jwt.expiry_duration().as_secs() as i64;
-    let claims = crate::services::identity_storage::access_token_claims(
-        user_uuid,
-        user.role,
-        expires_in,
-    );
+    let claims =
+        crate::services::identity_storage::access_token_claims(user_uuid, user.role, expires_in);
     let access_token = auth
         .jwt
         .generate_token_with_claims(claims)

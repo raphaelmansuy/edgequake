@@ -325,7 +325,7 @@ const DocumentsTab = ({
                                 <span>p.{chunk.page_start}</span>
                                 {chunk.chunk_id && (
                                   <a
-                                    href={`/documents/${chunk.document_id}?chunk=${chunk.chunk_id}#page=${chunk.page_start}`}
+                                    href={`/documents/${chunk.document_id}?chunk=${chunk.chunk_id}&page=${chunk.page_start}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}

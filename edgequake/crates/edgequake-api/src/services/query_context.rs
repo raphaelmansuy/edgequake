@@ -17,13 +17,15 @@ use crate::handlers::context_types::{
     ContextSearchResponse, ContextSearchResult, ModeSelection, SubgraphBundle,
 };
 use crate::handlers::query::resolve_query_workspace;
-use crate::handlers::query_types::{MixWeightRequest, QueryResponse as LegacyQueryResponse, QueryStats, SourceReference};
+use crate::handlers::query_types::{
+    MixWeightRequest, QueryResponse as LegacyQueryResponse, QueryStats, SourceReference,
+};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::context_bundle_mapper::{
-    build_agent_hints, build_retrieval_stats, build_search_graph_metadata,
-    build_truncation_info, compute_retrieval_fingerprint, compute_retrieval_quality,
-    map_engine_response_to_bundle, map_query_context_to_subgraph, DocumentMeta, MappingOptions,
+    build_agent_hints, build_retrieval_stats, build_search_graph_metadata, build_truncation_info,
+    compute_retrieval_fingerprint, compute_retrieval_quality, map_engine_response_to_bundle,
+    map_query_context_to_subgraph, DocumentMeta, MappingOptions,
 };
 use crate::services::query_execution::{
     execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
@@ -332,7 +334,10 @@ pub async fn search_context(
                 workspace, response.retrieval_id
             ),
             score: response.retrieval_quality.coverage_score,
-            metadata: Some(build_search_graph_metadata(&response.bundle, &response.mode)),
+            metadata: Some(build_search_graph_metadata(
+                &response.bundle,
+                &response.mode,
+            )),
         }],
     })
 }
@@ -386,12 +391,8 @@ pub async fn build_legacy_query_sources(
 ) -> Vec<SourceReference> {
     let reranker_configured = state.query.engine_impl.has_reranker();
     let reranked = enable_rerank && reranker_configured;
-    let mut sources = build_sources_from_context(
-        &result.context,
-        include_references,
-        rerank_top_k,
-        reranked,
-    );
+    let mut sources =
+        build_sources_from_context(&result.context, include_references, rerank_top_k, reranked);
     crate::handlers::query::resolve_chunk_file_paths(
         state.storage.kv_storage.as_ref(),
         &mut sources,

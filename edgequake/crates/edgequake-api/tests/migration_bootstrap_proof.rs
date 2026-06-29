@@ -110,8 +110,8 @@ async fn migration_bootstrap_proof_idempotent_second_run() {
     );
     assert!(
         second.migration_046.marker_present || second.migration_046.apply_executed,
+        "migration 046 graph isolation indexes must be reconciled at startup (migration_047 status: {})",
         second.migration_047.marker_present || second.migration_047.apply_executed,
-        "migration 046 graph isolation indexes must be reconciled at startup"
     );
     let version_046: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM _sqlx_migrations WHERE version = $1 AND success = true)",

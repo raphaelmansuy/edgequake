@@ -19,8 +19,7 @@ use crate::state::AppState;
 use edgequake_core::MetricsTriggerType;
 
 use crate::services::document_metadata_scan::{
-    document_id_from_metadata_key, load_all_document_metadata_entries,
-    metadata_key_for_document,
+    document_id_from_metadata_key, load_all_document_metadata_entries, metadata_key_for_document,
 };
 
 use super::super::storage_helpers::{

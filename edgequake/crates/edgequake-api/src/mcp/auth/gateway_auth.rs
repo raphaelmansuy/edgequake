@@ -23,9 +23,11 @@ pub async fn mcp_gateway_auth(
     if let Some(token) = crate::middleware::extract_api_key(&request) {
         match crate::services::auth_validation::validate_presented_token(&state, &token).await {
             Ok(Some(authenticated)) => {
-                if let Some(response) =
-                    crate::middleware::apply_authenticated_context(&state, &mut request, authenticated)
-                {
+                if let Some(response) = crate::middleware::apply_authenticated_context(
+                    &state,
+                    &mut request,
+                    authenticated,
+                ) {
                     return response;
                 }
                 return next.run(request).await;

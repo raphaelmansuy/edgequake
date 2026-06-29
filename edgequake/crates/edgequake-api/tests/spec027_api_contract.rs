@@ -427,8 +427,14 @@ fn spec027_v2_jobs_openapi_wired() {
     assert!(doc.paths.paths.contains_key(resource));
     assert!(doc.paths.paths.contains_key(catalog));
     let jobs_get = doc.paths.paths.get(collection).expect(collection);
-    assert!(jobs_get.get.is_some(), "GET workspace jobs must be registered");
-    assert!(jobs_get.post.is_some(), "POST workspace jobs must be registered");
+    assert!(
+        jobs_get.get.is_some(),
+        "GET workspace jobs must be registered"
+    );
+    assert!(
+        jobs_get.post.is_some(),
+        "POST workspace jobs must be registered"
+    );
     let job_item = doc.paths.paths.get(resource).expect(resource);
     assert!(job_item.get.is_some(), "GET job by id must be registered");
     assert!(
@@ -668,7 +674,9 @@ fn spec027_run_reanalyze_multimodal_extracted() {
     assert!(reanalyze.contains("v2_migration"));
     let recovery = read_crate_src("src/handlers/documents_types/recovery.rs");
     assert!(recovery.contains("ReanalyzeMultimodalResponse"));
-    let idx = recovery.find("struct ReanalyzeMultimodalResponse").expect("struct");
+    let idx = recovery
+        .find("struct ReanalyzeMultimodalResponse")
+        .expect("struct");
     let slice = &recovery[idx..recovery.len().min(idx + 400)];
     assert!(slice.contains("v2_migration"));
 }
@@ -958,7 +966,9 @@ fn spec027_migration_051_pg_identity_primary_wired() {
     assert!(bootstrap.contains("MIGRATION_051_VERSION"));
     assert!(bootstrap.contains("SQL_051_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m051.rs").exists());
-    assert!(std::path::Path::new("../../migrations/051_pg_identity_ssot_primary_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/051_pg_identity_ssot_primary_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -986,7 +996,9 @@ fn spec027_migration_052_session_artifacts_ssot_wired() {
     assert!(bootstrap.contains("MIGRATION_052_VERSION"));
     assert!(bootstrap.contains("SQL_052_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m052.rs").exists());
-    assert!(std::path::Path::new("../../migrations/052_pg_session_artifacts_ssot_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/052_pg_session_artifacts_ssot_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1057,7 +1069,9 @@ fn spec027_migration_055_auth_secure_default_wired() {
     assert!(bootstrap.contains("MIGRATION_055_VERSION"));
     assert!(bootstrap.contains("SQL_055_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m055.rs").exists());
-    assert!(std::path::Path::new("../../migrations/055_auth_secure_by_default_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/055_auth_secure_by_default_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1116,7 +1130,9 @@ fn spec027_migration_056_auth_kv_store_wired() {
     assert!(bootstrap.contains("MIGRATION_056_VERSION"));
     assert!(bootstrap.contains("SQL_056_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m056.rs").exists());
-    assert!(std::path::Path::new("../../migrations/056_auth_kv_store_consolidated_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/056_auth_kv_store_consolidated_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1139,7 +1155,10 @@ fn spec027_migration_057_kv_mirror_deprecated_wired() {
     assert!(bootstrap.contains("MIGRATION_057_VERSION"));
     assert!(bootstrap.contains("SQL_057_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m057.rs").exists());
-    assert!(std::path::Path::new("../../migrations/057_kv_identity_mirror_deprecated_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/057_kv_identity_mirror_deprecated_marker.sql")
+            .exists()
+    );
 }
 
 #[test]
@@ -1160,7 +1179,10 @@ fn spec027_migration_058_kv_mirror_ignored_wired() {
     assert!(bootstrap.contains("MIGRATION_058_VERSION"));
     assert!(bootstrap.contains("SQL_058_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m058.rs").exists());
-    assert!(std::path::Path::new("../../migrations/058_kv_mirror_ignored_with_pg_pool_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/058_kv_mirror_ignored_with_pg_pool_marker.sql")
+            .exists()
+    );
     let health = read_crate_src("src/handlers/health_types.rs");
     assert!(health.contains("kv_identity_mirror_effective"));
 }
@@ -1191,7 +1213,9 @@ fn spec027_migration_059_pg_only_auth_branch_wired() {
     assert!(bootstrap.contains("MIGRATION_059_VERSION"));
     assert!(bootstrap.contains("SQL_059_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m059.rs").exists());
-    assert!(std::path::Path::new("../../migrations/059_pg_only_auth_branch_ssot_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/059_pg_only_auth_branch_ssot_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1224,7 +1248,10 @@ fn spec027_migration_060_oauth_oidc_honesty_wired() {
     assert!(bootstrap.contains("MIGRATION_060_VERSION"));
     assert!(bootstrap.contains("SQL_060_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m060.rs").exists());
-    assert!(std::path::Path::new("../../migrations/060_oauth_oidc_honesty_auth_kv_quarantine_marker.sql").exists());
+    assert!(std::path::Path::new(
+        "../../migrations/060_oauth_oidc_honesty_auth_kv_quarantine_marker.sql"
+    )
+    .exists());
 }
 
 #[test]
@@ -1251,7 +1278,9 @@ fn spec027_migration_061_auth_kv_handler_isolation_wired() {
     assert!(bootstrap.contains("MIGRATION_061_VERSION"));
     assert!(bootstrap.contains("SQL_061_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m061.rs").exists());
-    assert!(std::path::Path::new("../../migrations/061_auth_kv_handler_isolation_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/061_auth_kv_handler_isolation_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1275,7 +1304,9 @@ fn spec027_migration_062_auth_mod_isolation_wired() {
     assert!(bootstrap.contains("MIGRATION_062_VERSION"));
     assert!(bootstrap.contains("SQL_062_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m062.rs").exists());
-    assert!(std::path::Path::new("../../migrations/062_auth_mod_identity_ssot_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/062_auth_mod_identity_ssot_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1318,8 +1349,8 @@ fn spec027_auth_memory_store_callers_only_phase55() {
             .to_string_lossy()
             .replace('\\', "/");
         let src = std::fs::read_to_string(&path).unwrap_or_default();
-        let references_memory = src.contains("auth_memory_store::")
-            || src.contains("mod auth_memory_store");
+        let references_memory =
+            src.contains("auth_memory_store::") || src.contains("mod auth_memory_store");
         let references_kv_auth =
             src.contains("auth_kv_store::") || src.contains("mod auth_kv_store");
         if references_kv_auth {
@@ -1495,7 +1526,9 @@ fn spec027_migration_063_auth_service_layer_wired() {
     assert!(bootstrap.contains("MIGRATION_063_VERSION"));
     assert!(bootstrap.contains("SQL_063_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m063.rs").exists());
-    assert!(std::path::Path::new("../../migrations/063_auth_service_layer_ssot_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/063_auth_service_layer_ssot_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1506,7 +1539,9 @@ fn spec027_migration_054_identity_pg_rls_envelope_wired() {
     assert!(bootstrap.contains("MIGRATION_054_VERSION"));
     assert!(bootstrap.contains("SQL_054_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m054.rs").exists());
-    assert!(std::path::Path::new("../../migrations/054_identity_pg_rls_envelope_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/054_identity_pg_rls_envelope_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1517,7 +1552,9 @@ fn spec027_migration_053_pg_auth_kv_reads_removed_wired() {
     assert!(bootstrap.contains("MIGRATION_053_VERSION"));
     assert!(bootstrap.contains("SQL_053_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m053.rs").exists());
-    assert!(std::path::Path::new("../../migrations/053_pg_auth_kv_reads_removed_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/053_pg_auth_kv_reads_removed_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1528,7 +1565,9 @@ fn spec027_migration_049_membership_ssot_wired() {
     assert!(bootstrap.contains("MIGRATION_049_VERSION"));
     assert!(bootstrap.contains("SQL_049_APPLY"));
     assert!(std::path::Path::new("src/state/migration_bootstrap/reconcile/m049.rs").exists());
-    assert!(std::path::Path::new("../../migrations/049_membership_identity_ssot_marker.sql").exists());
+    assert!(
+        std::path::Path::new("../../migrations/049_membership_identity_ssot_marker.sql").exists()
+    );
 }
 
 #[test]
@@ -1653,7 +1692,10 @@ fn spec027_openapi_bidirectional_parity_summary() {
         &doc.paths.paths.keys().cloned().collect::<Vec<_>>(),
     );
 
-    assert!(axum_count >= 100, "expected >= 100 axum routes, got {axum_count}");
+    assert!(
+        axum_count >= 100,
+        "expected >= 100 axum routes, got {axum_count}"
+    );
     assert!(
         openapi_count >= required.len(),
         "openapi paths ({openapi_count}) should cover required routes ({})",
@@ -1768,7 +1810,10 @@ fn spec027_metadata_write_paths_use_wsdoc_ssot() {
         ("stuck", "src/handlers/documents/recovery/stuck.rs"),
         ("bulk_ops", "src/handlers/workspaces/bulk_ops/mod.rs"),
         ("pdf_processing", "src/processor/pdf_processing.rs"),
-        ("text_insert_prepare", "src/processor/text_insert/prepare.rs"),
+        (
+            "text_insert_prepare",
+            "src/processor/text_insert/prepare.rs",
+        ),
         ("multimodal_stage", "src/services/multimodal/stage.rs"),
         ("status_updates", "src/processor/status_updates.rs"),
     ] {
