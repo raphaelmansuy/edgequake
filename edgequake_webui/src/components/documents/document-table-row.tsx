@@ -19,8 +19,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import {
-  getEffectiveErrorMessage,
-  isTerminalFailureDocument,
+    getEffectiveErrorMessage,
+    isTerminalFailureDocument,
 } from '@/lib/utils/document-status';
 import type { Document } from '@/types';
 import { formatDistanceToNow } from 'date-fns';

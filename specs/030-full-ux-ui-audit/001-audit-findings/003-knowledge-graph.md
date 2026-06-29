@@ -112,11 +112,11 @@ Target:
 
 ## Summary Score
 
-| Dimension         | Score | Notes |
-|-------------------|-------|-------|
-| Readability       | 3/10  | ALL_CAPS labels unreadable |
-| Navigation        | 5/10  | Toolbar bloat, no grouping |
-| Information Hierarchy | 5/10 | Dense, no hierarchy |
-| Empty State       | 6/10  | Has illustration |
-| Contrast          | 6/10  | Some labels may fail WCAG |
-| Elegance          | 4/10  | Bloated, noisy |
+| Dimension             | Score | Notes                      |
+| --------------------- | ----- | -------------------------- |
+| Readability           | 3/10  | ALL_CAPS labels unreadable |
+| Navigation            | 5/10  | Toolbar bloat, no grouping |
+| Information Hierarchy | 5/10  | Dense, no hierarchy        |
+| Empty State           | 6/10  | Has illustration           |
+| Contrast              | 6/10  | Some labels may fail WCAG  |
+| Elegance              | 4/10  | Bloated, noisy             |

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ENTITY_TYPE_COLORS, formatEntityType } from '@/lib/graph/label-utils';
+import { ENTITY_TYPE_COLORS } from '@/lib/graph/label-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { Eye, EyeOff, Palette } from 'lucide-react';
 import { useMemo, useState } from 'react';

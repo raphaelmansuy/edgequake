@@ -18,23 +18,23 @@
 'use client';
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { deleteEntity } from '@/lib/api/edgequake';
 import { formatEntityLabel, formatEntityType, getEntityTypeColor } from '@/lib/graph/label-utils';
@@ -45,21 +45,21 @@ import type { GraphEdge, GraphNode } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Edit,
-  ExternalLink,
-  GitMerge,
-  Hash,
-  Info,
-  Link2,
-  Sparkles,
-  Trash2
+    ArrowLeft,
+    ArrowRight,
+    Calendar,
+    Check,
+    ChevronDown,
+    ChevronRight,
+    Copy,
+    Edit,
+    ExternalLink,
+    GitMerge,
+    Hash,
+    Info,
+    Link2,
+    Sparkles,
+    Trash2
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';

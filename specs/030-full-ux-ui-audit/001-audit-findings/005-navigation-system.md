@@ -64,10 +64,10 @@ Collapsed:                    Expanded:
 
 ## Summary Score
 
-| Dimension         | Score | Notes |
-|-------------------|-------|-------|
+| Dimension         | Score | Notes                    |
+| ----------------- | ----- | ------------------------ |
 | Discoverability   | 5/10  | Icons alone insufficient |
-| Keyboard Nav      | 7/10  | Good focus indicators |
-| Context Awareness | 6/10  | Breadcrumbs present |
-| Mobile            | 6/10  | Drawer exists |
-| Accessibility     | 6/10  | Some missing labels |
+| Keyboard Nav      | 7/10  | Good focus indicators    |
+| Context Awareness | 6/10  | Breadcrumbs present      |
+| Mobile            | 6/10  | Drawer exists            |
+| Accessibility     | 6/10  | Some missing labels      |

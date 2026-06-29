@@ -34,10 +34,10 @@
 
 ## Remaining Work (Future Iterations)
 
-| Item | File | Priority |
-|------|------|---------|
-| Sidebar expanded by default | `sidebar.tsx` | P1 |
-| Documents pagination | `documents/` page | P1 |
-| "Clear All" button to danger zone | `documents/` page | P0 |
-| Graph toolbar grouping with dividers | `graph-viewer.tsx` | P1 |
-| Minimap show/hide toggle | `graph-viewer.tsx` | P2 |
+| Item                                 | File               | Priority |
+| ------------------------------------ | ------------------ | -------- |
+| Sidebar expanded by default          | `sidebar.tsx`      | P1       |
+| Documents pagination                 | `documents/` page  | P1       |
+| "Clear All" button to danger zone    | `documents/` page  | P0       |
+| Graph toolbar grouping with dividers | `graph-viewer.tsx` | P1       |
+| Minimap show/hide toggle             | `graph-viewer.tsx` | P2       |

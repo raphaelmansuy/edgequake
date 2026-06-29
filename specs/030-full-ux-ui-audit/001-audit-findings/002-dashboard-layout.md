@@ -100,10 +100,10 @@ Current (colorful):              Target (minimal):
 
 ## Summary Score
 
-| Dimension         | Score | Notes |
-|-------------------|-------|-------|
-| Information Hierarchy | 6/10 | Stats → actions → activity — OK order |
-| Visual Noise      | 5/10 | Color tints add noise |
-| Empty State       | 4/10 | No first-time flow |
-| Typography        | 7/10 | Good scale, generic title |
-| Layout Balance    | 6/10 | Status column underused |
+| Dimension             | Score | Notes                                 |
+| --------------------- | ----- | ------------------------------------- |
+| Information Hierarchy | 6/10  | Stats → actions → activity — OK order |
+| Visual Noise          | 5/10  | Color tints add noise                 |
+| Empty State           | 4/10  | No first-time flow                    |
+| Typography            | 7/10  | Good scale, generic title             |
+| Layout Balance        | 6/10  | Status column underused               |
