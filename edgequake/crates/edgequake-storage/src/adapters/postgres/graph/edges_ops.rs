@@ -88,6 +88,8 @@ impl PostgresAGEGraphStorage {
     /// nodes then MERGE on the relationship keyed by (source_id, target_id)
     /// guarantees at-most-one edge per pair (no DELETE/CREATE race), and
     /// `SET r.key = e.key` (per-key) applies last-write-wins property updates.
+    ///
+    /// # SPEC-032 W-05: Adaptive UNWIND chunk size (same logic as node batch)
     pub(super) async fn pg_upsert_edges_batch(
         &self,
         edges: &[(String, String, HashMap<String, serde_json::Value>)],
@@ -96,9 +98,10 @@ impl PostgresAGEGraphStorage {
             return Ok(());
         }
 
-        const CHUNK: usize = 500;
+        // SPEC-032 W-05: adaptive chunk based on estimated row bytes.
+        let chunk_size = Self::adaptive_edge_chunk_size(edges);
 
-        for chunk in edges.chunks(CHUNK) {
+        for chunk in edges.chunks(chunk_size) {
             let rows: Vec<String> = chunk
                 .iter()
                 .map(|(source, target, properties)| {
@@ -150,6 +153,29 @@ impl PostgresAGEGraphStorage {
         }
 
         Ok(())
+    }
+
+    /// SPEC-032 W-05: Adaptive UNWIND chunk size for edge batches.
+    fn adaptive_edge_chunk_size(
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> usize {
+        const MAX_BODY_BYTES: usize = 512 * 1024;
+        const MIN_CHUNK: usize = 50;
+        const MAX_CHUNK: usize = 500;
+
+        if let Some((src, tgt, props)) = edges.first() {
+            let estimated_row: usize = props
+                .iter()
+                .map(|(k, v)| k.len() + v.to_string().len() + 8)
+                .sum::<usize>()
+                + src.len()
+                + tgt.len()
+                + 24; // source_id + target_id + struct overhead
+            if estimated_row > 0 {
+                return (MAX_BODY_BYTES / estimated_row).clamp(MIN_CHUNK, MAX_CHUNK);
+            }
+        }
+        MAX_CHUNK
     }
 
     pub(super) async fn pg_delete_edge(&self, source: &str, target: &str) -> Result<()> {

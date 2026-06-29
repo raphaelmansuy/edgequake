@@ -141,6 +141,9 @@ mod tests {
 
     #[test]
     fn large_document_gets_smaller_chunks() {
+        // WHY: adaptive_chunk_size(150_000) = 600, but MockProvider.max_tokens() = 512
+        // so with_embedding_provider caps chunk_size to max(512/2, 100) = 256.
+        // This test documents the full pipeline behaviour including the embedding cap.
         let llm = Arc::new(MockProvider::new()) as Arc<dyn LLMProvider>;
         let embedding = Arc::new(MockProvider::new()) as Arc<dyn EmbeddingProvider>;
         let pipeline = build_ingestion_pipeline_simple(
@@ -149,7 +152,12 @@ mod tests {
             EntityExtractionSchema::server_default(),
             IngestionPipelineOptions::from_document_size(150_000),
         );
-        assert_eq!(pipeline.config().chunker.chunk_size, 600);
+        // MockProvider.max_tokens() = 512 → max_safe = 256; adaptive would be 600
+        assert_eq!(
+            pipeline.config().chunker.chunk_size,
+            256,
+            "Expected chunk_size to be capped at 256 by MockProvider.max_tokens()=512"
+        );
     }
 
     #[test]

@@ -34,6 +34,8 @@ mod entity;
 mod metadata;
 mod relationship;
 
+pub use entity::description_similarity;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -109,13 +111,7 @@ impl LineageSink for NoopLineageSink {
     async fn record_relation_link(&self, _: &str, _: &str, _: &str, _: &str) -> Result<()> {
         Ok(())
     }
-    async fn append_description_history(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-        _: &str,
-    ) -> Result<()> {
+    async fn append_description_history(&self, _: &str, _: &str, _: &str, _: &str) -> Result<()> {
         Ok(())
     }
 }

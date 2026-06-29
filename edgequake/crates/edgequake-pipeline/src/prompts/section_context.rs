@@ -111,8 +111,13 @@ mod tests {
 
     #[test]
     fn middle_collapse_for_three_levels() {
+        // WHY: "One → Two → Three → Four" = 25 chars → estimate_tokens = ceil(25/4) = 7.
+        // To force middle-collapse we need max_tokens < 7, so use 4.
         let path = "One → Two → Three → Four";
-        let truncated = truncate_section_context(path, 8);
-        assert!(truncated.contains("One → … → Four") || truncated.contains('…'));
+        let truncated = truncate_section_context(path, 4);
+        assert!(
+            truncated.contains("One → … → Four") || truncated.contains('…'),
+            "Expected middle-collapse ellipsis, got: {truncated:?}"
+        );
     }
 }

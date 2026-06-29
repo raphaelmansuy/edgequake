@@ -9,8 +9,7 @@ use edgequake_llm::traits::LLMProvider;
 use edgequake_pipeline::{
     ChunkVectorBuildOptions, DefaultIngestionPersister, IngestionPersistContext,
     IngestionPersistOutput, IngestionPersistSettings, IngestionPersister, LineageSink,
-    MergeProgressCallback, NoopEntitySink, NoopLineageSink, ProcessingResult,
-    RelationalEntitySink,
+    MergeProgressCallback, NoopEntitySink, NoopLineageSink, ProcessingResult, RelationalEntitySink,
 };
 use edgequake_query::QueryResultCacheInvalidator;
 use edgequake_storage::traits::{GraphStorage, KVStorage, VectorStorage};

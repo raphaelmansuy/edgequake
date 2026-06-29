@@ -4,10 +4,10 @@
 
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
+use edgequake_api::startup_security::{enforce_startup_security, validate_startup_security};
 #[cfg(feature = "postgres")]
 use edgequake_api::PostgresEntitySink;
 use edgequake_api::{AppState, DocumentTaskProcessor, Server, ServerConfig, StorageMode};
-use edgequake_api::startup_security::{enforce_startup_security, validate_startup_security};
 use edgequake_observability::{
     init_observability, record_db_pool_stats, ErrorEvent, ObservabilityConfig,
 };
@@ -603,10 +603,11 @@ async fn main() -> Result<()> {
         // SPEC-032 W-08: Wire lineage sink when migration 066 has been applied.
         // create_if_migration_applied() checks if chunk_entity_links table exists;
         // returns NoopLineageSink if not (zero-downtime rollout).
-        let lineage_sink = edgequake_api::postgres_lineage_sink::PostgresLineageSink::create_if_migration_applied(
-            Arc::new(pool.clone()),
-        )
-        .await;
+        let lineage_sink =
+            edgequake_api::postgres_lineage_sink::PostgresLineageSink::create_if_migration_applied(
+                Arc::new(pool.clone()),
+            )
+            .await;
         processor = processor.with_lineage_sink(lineage_sink);
         info!("🔗 Lineage sink wired (SPEC-032 W-08)");
     }

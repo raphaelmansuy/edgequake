@@ -3,7 +3,7 @@
 **Parent:** [SPEC-032](000-index.md)  
 **Cross-refs:** All SPEC-032-00x documents  
 **Methodology:** First Principles + 5-Why + DRY + SOLID  
-**Status:** W-01 ✅ · W-02 ✅ · W-03 ✅ · W-04 ✅ · W-05 pending · W-06 ✅ · W-07 pending · W-08 pending · W-09 pending
+**Status:** W-01 ✅ · W-02 ✅ · W-03 ✅ · W-04 ✅ · W-05 ✅ · W-06 ✅ · W-07 ✅ · W-08 ✅ · W-09 pending
 
 ---
 
@@ -36,16 +36,16 @@ Server startup
 
 **Edge cases handled:**
 
-| Case | Handling |
-|------|---------|
-| AGE not installed | Silent skip |
-| Node table not yet created | Silent skip |
-| Row count < 10K | Use regular CREATE INDEX (fast) |
-| Row count ≥ 10K | Use CREATE INDEX CONCURRENTLY (non-blocking) |
-| Index already VALID | Skip (pg_index.indisvalid check) |
-| Index INVALID (interrupted) | DROP CONCURRENTLY + rebuild |
-| CONCURRENT build interrupted (next restart) | INVALID detected → rebuilt |
-| Graph name changes | Parameterized on self.graph_name |
+| Case                                        | Handling                                     |
+| ------------------------------------------- | -------------------------------------------- |
+| AGE not installed                           | Silent skip                                  |
+| Node table not yet created                  | Silent skip                                  |
+| Row count < 10K                             | Use regular CREATE INDEX (fast)              |
+| Row count ≥ 10K                             | Use CREATE INDEX CONCURRENTLY (non-blocking) |
+| Index already VALID                         | Skip (pg_index.indisvalid check)             |
+| Index INVALID (interrupted)                 | DROP CONCURRENTLY + rebuild                  |
+| CONCURRENT build interrupted (next restart) | INVALID detected → rebuilt                   |
+| Graph name changes                          | Parameterized on self.graph_name             |
 
 **Code:** `graph/helpers/graph_lifecycle.rs:bootstrap_concurrent_indexes()`  
 **Tests:** Database-level (requires AGE instance) — add to integration test suite
@@ -79,14 +79,14 @@ LOW   ┌──────────────────┐   ┌──�
 
 ### W-01: AGE Auto-Bootstrap Indexes ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Finding | F-01 |
-| File | `edgequake-storage/src/adapters/postgres/graph/helpers/graph_lifecycle.rs` |
-| Function | `bootstrap_concurrent_indexes()` |
-| Called from | `lifecycle_ops.rs:pg_initialize()` |
-| Risk | Very Low — all CREATE INDEX use `IF NOT EXISTS`, errors are non-fatal warnings |
-| Tests | Manual (requires live PostgreSQL + AGE) |
+| Field       | Value                                                                          |
+| ----------- | ------------------------------------------------------------------------------ |
+| Finding     | F-01                                                                           |
+| File        | `edgequake-storage/src/adapters/postgres/graph/helpers/graph_lifecycle.rs`     |
+| Function    | `bootstrap_concurrent_indexes()`                                               |
+| Called from | `lifecycle_ops.rs:pg_initialize()`                                             |
+| Risk        | Very Low — all CREATE INDEX use `IF NOT EXISTS`, errors are non-fatal warnings |
+| Tests       | Manual (requires live PostgreSQL + AGE)                                        |
 
 **What was implemented:**
 - New `bootstrap_concurrent_indexes()` function called at every server startup
@@ -100,26 +100,26 @@ LOW   ┌──────────────────┐   ┌──�
 
 ### W-02: Relationship Batch DRY ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Finding | F-09 |
-| File | `edgequake-pipeline/src/merger/mod.rs` |
-| Change | Relationship vectors collected globally (mirrors entity vector pattern) |
-| Diff | `all_rel_vectors` collected via flat_map before relationship graph batch |
-| Tests | All 18 merger tests pass |
+| Field   | Value                                                                    |
+| ------- | ------------------------------------------------------------------------ |
+| Finding | F-09                                                                     |
+| File    | `edgequake-pipeline/src/merger/mod.rs`                                   |
+| Change  | Relationship vectors collected globally (mirrors entity vector pattern)  |
+| Diff    | `all_rel_vectors` collected via flat_map before relationship graph batch |
+| Tests   | All 18 merger tests pass                                                 |
 
 ---
 
 ### W-03: Global Entity + Relationship Batch ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Finding | F-02 |
-| Files | `merger/mod.rs`, `merger/entity.rs` |
-| Key change | `merge()` now collects ALL entities globally, deduplicates within-document, then does ONE get_nodes_batch + upsert_nodes_batch |
-| Round trips | 50 chunks × 4 = 200 → 4 (entity get + entity upsert + rel get + rel upsert) |
-| Edge case | Duplicate entities within a document: merged in-memory before graph write |
-| Tests | `test_global_batch_deduplication_across_chunks` — entity appears in 3 chunks, 1 node created |
+| Field       | Value                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Finding     | F-02                                                                                                                           |
+| Files       | `merger/mod.rs`, `merger/entity.rs`                                                                                            |
+| Key change  | `merge()` now collects ALL entities globally, deduplicates within-document, then does ONE get_nodes_batch + upsert_nodes_batch |
+| Round trips | 50 chunks × 4 = 200 → 4 (entity get + entity upsert + rel get + rel upsert)                                                    |
+| Edge case   | Duplicate entities within a document: merged in-memory before graph write                                                      |
+| Tests       | `test_global_batch_deduplication_across_chunks` — entity appears in 3 chunks, 1 node created                                   |
 
 **Within-document deduplication (edge case handled):**
 
@@ -136,15 +136,15 @@ LOW   ┌──────────────────┐   ┌──�
 
 ### W-04: MergeProgressCallback ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Finding | F-03 |
-| Files | `merger/mod.rs` (types + `merge_with_progress()`), `persistence/ingestion_persister.rs` |
-| New types | `MergePhase`, `MergeProgress`, `MergeProgressCallback` |
-| New method | `KnowledgeGraphMerger::merge_with_progress(results, Option<&MergeProgressCallback>)` |
-| Wire-in | `IngestionPersistConfig::merge_progress: Option<Arc<MergeProgressCallback>>` |
-| Backwards compat | `merge()` delegates to `merge_with_progress(None)` — no breaking change |
-| Tests | `test_merge_with_progress_emits_phases` — verifies EntityVectors, EntityGraph, Finalizing emitted |
+| Field            | Value                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| Finding          | F-03                                                                                              |
+| Files            | `merger/mod.rs` (types + `merge_with_progress()`), `persistence/ingestion_persister.rs`           |
+| New types        | `MergePhase`, `MergeProgress`, `MergeProgressCallback`                                            |
+| New method       | `KnowledgeGraphMerger::merge_with_progress(results, Option<&MergeProgressCallback>)`              |
+| Wire-in          | `IngestionPersistConfig::merge_progress: Option<Arc<MergeProgressCallback>>`                      |
+| Backwards compat | `merge()` delegates to `merge_with_progress(None)` — no breaking change                           |
+| Tests            | `test_merge_with_progress_emits_phases` — verifies EntityVectors, EntityGraph, Finalizing emitted |
 
 **Progress phases emitted:**
 1. `EntityVectors` — before entity vector upsert
@@ -159,13 +159,13 @@ LOW   ┌──────────────────┐   ┌──�
 
 ### W-06: Similarity Gate for LLM Summarizer ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Finding | F-07 |
-| File | `merger/entity.rs:update_entity_node()` |
-| New function | `description_similarity(a, b) -> f32` (Jaccard word overlap) |
-| Config | `MergerConfig.description_similarity_threshold: f32` (default 0.85, env `EDGEQUAKE_MERGE_SIMILARITY_THRESHOLD`) |
-| Tests | `test_description_similarity_gate`, `test_merger_config_similarity_threshold_default` |
+| Field        | Value                                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| Finding      | F-07                                                                                                            |
+| File         | `merger/entity.rs:update_entity_node()`                                                                         |
+| New function | `description_similarity(a, b) -> f32` (Jaccard word overlap)                                                    |
+| Config       | `MergerConfig.description_similarity_threshold: f32` (default 0.85, env `EDGEQUAKE_MERGE_SIMILARITY_THRESHOLD`) |
+| Tests        | `test_description_similarity_gate`, `test_merger_config_similarity_threshold_default`                           |
 
 **Gate logic:**
 ```
@@ -180,44 +180,90 @@ else:
 
 ---
 
-## 3. Pending Work Items
+## 3. Completed Recent Work Items
 
-### W-05: UNWIND Body Size Guard
+### W-05: UNWIND Body Size Guard ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| File | `nodes_ops.rs`, `edges_ops.rs` |
-| Change | `adaptive_chunk_size()` based on estimated row byte size |
-| Risk | Very low |
-| Priority | Low (post W-01/W-03 should bring latency into acceptable range) |
+| Field     | Value                                                                               |
+| --------- | ----------------------------------------------------------------------------------- |
+| Files     | `nodes_ops.rs`, `edges_ops.rs`                                                      |
+| Functions | `adaptive_unwind_chunk_size()`, `adaptive_edge_chunk_size()`                        |
+| Logic     | Samples first row; caps UNWIND body at 512 KB; bounds [50, 500]                     |
+| Tests     | `w05_small_properties_uses_max_chunk`, `w05_large_properties_produce_smaller_chunk` |
 
-### W-07: Lineage Tables — Migrations
+### W-07: Lineage Tables ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Files | Migrations 066–068 (see [003](003-lineage-data-model.md) §6) |
-| Dependencies | Design is complete; implementation pending |
-| Risk | Medium — adds tables, no breaking changes |
-| Priority | Medium (enables UC-L1 through UC-L4) |
+| Field   | Value                                                           |
+| ------- | --------------------------------------------------------------- |
+| File    | `migrations/066_chunk_lineage_tables.sql`                       |
+| Tables  | `chunk_entity_links`, `chunk_relation_links`                    |
+| Columns | `chunks.{char_start,char_end,page_start,page_end,embedding_id}` |
+| Column  | `entities.description_history JSONB DEFAULT '[]'`               |
 
-### W-08: LineageSink Trait + PostgresLineageSink
+### W-08: LineageSink Trait + PostgresLineageSink ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Files | `merger/mod.rs` (trait), `edgequake-api/src/services/lineage_sink.rs` |
-| Dependency | W-07 (tables must exist first) |
-| Priority | Medium |
+| Field       | Value                                                     |
+| ----------- | --------------------------------------------------------- |
+| Trait       | `merger/mod.rs:LineageSink`                               |
+| Default     | `NoopLineageSink` (backwards compat)                      |
+| Impl        | `postgres_lineage_sink.rs:PostgresLineageSink`            |
+| Auto-detect | `create_if_migration_applied()` — noop when table missing |
+| Tests       | `w08_lineage_sink_wired_no_panic`                         |
 
-### W-09: PDF Page Span Extraction
+### W-04b/c/d: GraphStorage WebSocket Progress ✅ IMPLEMENTED
 
-| Field | Value |
-|-------|-------|
-| Dependency | W-07 (chunks.page_start column) |
-| Priority | Low (post MVP) |
+| Field       | Value                                                         |
+| ----------- | ------------------------------------------------------------- |
+| Event       | `PipelineEvent::GraphStorageProgress` — 12 fields             |
+| Broadcaster | `PipelineState.broadcast_graph_storage_progress()`            |
+| UI          | `GraphStorageDetail` React component (5 sub-phase rows + ETA) |
 
 ---
 
-## 4. Query Pipeline: Improvements (to implement)
+## 4. Pending Work Items
+
+### W-09: PDF Page Span Extraction (Post-MVP)
+
+| Field       | Value                                                        |
+| ----------- | ------------------------------------------------------------ |
+| Dependency  | `chunks.page_start` column (migration 066 done)              |
+| Work needed | PDF chunker to propagate page spans into `TextChunk.section` |
+| Priority    | Low                                                          |
+
+---
+
+## 5. E2E Test Coverage
+
+**File:** `crates/edgequake-pipeline/tests/spec032_graph_storing.rs` — **17 tests, all pass**
+
+| Test                                             | Covers                                  |
+| ------------------------------------------------ | --------------------------------------- |
+| `w03_global_batch_dedup_5_chunks`                | Same entity in 5 chunks → 1 node        |
+| `w03_second_document_updates_entity`             | Update vs create on 2nd doc             |
+| `w03_within_doc_dedup_accumulates_source_chunks` | source_chunk_ids accumulated            |
+| `w04_progress_all_phases_emitted_in_order`       | All 5 phases + correct ordering         |
+| `w04_progress_reports_correct_entity_totals`     | entities_total correct in all snapshots |
+| `w04_merge_without_callback_still_works`         | Backwards compatibility                 |
+| `w05_small_properties_uses_max_chunk`            | Formula: small row → 500 chunk          |
+| `w05_large_properties_produce_smaller_chunk`     | Formula: large row → <500 chunk         |
+| `w06_similarity_gate_identical_descriptions`     | similarity=1.0 for identical            |
+| `w06_similarity_gate_unrelated_descriptions`     | similarity <0.1 for unrelated           |
+| `w06_merger_config_threshold_valid`              | threshold ∈ [0,1]                       |
+| `w08_lineage_sink_wired_no_panic`                | LineageSink trait wiring                |
+| `w03_cross_document_entity_accumulates_sources`  | Cross-doc merge pattern                 |
+| `w02_relationship_vectors_globally_batched`      | Rels from 3 chunks → 3 edges            |
+| `edge_empty_results_merge_succeeds`              | Empty input safe                        |
+| `edge_self_referencing_relation_skipped`         | BR0006 enforced                         |
+| `edge_empty_entity_name_skipped`                 | Whitespace name skipped                 |
+
+---
+
+## 6. Formerly Pending → Completed Query Pipeline Improvements
+
+**Phase A (W-04 wired):**  ✅  `GraphStorageDetail` React component shows sub-phase progress  
+**Phase B (W-07/W-08):**  ✅  `chunk_entity_links` / `chunk_relation_links` tables + lineage sink
+
+### Remaining Gap: Query Response Lineage Surfacing (post-MVP)
 
 **Current gap:** Query results include chunk text but do not surface:
 - PDF page number of the source chunk
@@ -299,349 +345,67 @@ INFO index="idx_node_prop_node_id_btree" concurrent=true
 
 ## 7. Coherence Check (updated)
 
-| Claim | Verified |
-|-------|---------|
-| `merge()` loops per ExtractionResult (pre-fix) | ✓ confirmed in git history |
-| Global batch cuts 50 RTTs → 4 RTTs | ✓ code logic verified |
-| `description_similarity("")` returns 0.0 | ✓ special-cased in impl |
-| Bootstrap skips when AGE unavailable | ✓ `pg_extension` check first |
-| Bootstrap uses `CONCURRENT` for ≥10K rows | ✓ `reltuples` count check |
-| `MergeProgressCallback` is not async | ✓ `Box<dyn Fn(MergeProgress) + Send + Sync>` |
-| `merge()` is backwards-compatible | ✓ delegates to `merge_with_progress(None)` |
-| `IngestionPersistConfig.merge_progress` defaults to `None` | ✓ `from_settings` sets `None` |
-| All 18 merger tests pass | ✓ confirmed in test run |
-| Pre-existing test failures unchanged | ✓ confirmed by git stash check |
+| Claim                                                      | Verified                                     |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| `merge()` loops per ExtractionResult (pre-fix)             | ✓ confirmed in git history                   |
+| Global batch cuts 50 RTTs → 4 RTTs                         | ✓ code logic verified                        |
+| `description_similarity("")` returns 0.0                   | ✓ special-cased in impl                      |
+| Bootstrap skips when AGE unavailable                       | ✓ `pg_extension` check first                 |
+| Bootstrap uses `CONCURRENT` for ≥10K rows                  | ✓ `reltuples` count check                    |
+| `MergeProgressCallback` is not async                       | ✓ `Box<dyn Fn(MergeProgress) + Send + Sync>` |
+| `merge()` is backwards-compatible                          | ✓ delegates to `merge_with_progress(None)`   |
+| `IngestionPersistConfig.merge_progress` defaults to `None` | ✓ `from_settings` sets `None`                |
+| All 18 merger tests pass                                   | ✓ confirmed in test run                      |
+| Pre-existing test failures unchanged                       | ✓ confirmed by git stash check               |
 
 ---
 
 ## 8. Risk Register (updated)
 
-| Risk | Mitigation | Status |
-|------|-----------|--------|
-| AGE CONCURRENT index fails | Non-fatal WARN; retried next startup | ✅ Implemented |
-| Global batch breaks dedup | Within-batch dedup in `merge_entities_batch` | ✅ Tested |
-| Similarity gate skips legitimate merges | Configurable threshold (env var) | ✅ Implemented |
-| Progress callback blocks merge loop | Sync `Fn` — no await in callback | ✅ Design verified |
-| Lineage tables missing on old install | W-07 migrations are additive `IF NOT EXISTS` | Pending |
-| INVALID index rebuild fails twice | Next startup retries (drop + rebuild pattern) | ✅ Implemented |
+| Risk                                    | Mitigation                                    | Status            |
+| --------------------------------------- | --------------------------------------------- | ----------------- |
+| AGE CONCURRENT index fails              | Non-fatal WARN; retried next startup          | ✅ Implemented     |
+| Global batch breaks dedup               | Within-batch dedup in `merge_entities_batch`  | ✅ Tested          |
+| Similarity gate skips legitimate merges | Configurable threshold (env var)              | ✅ Implemented     |
+| Progress callback blocks merge loop     | Sync `Fn` — no await in callback              | ✅ Design verified |
+| Lineage tables missing on old install   | W-07 migrations are additive `IF NOT EXISTS`  | Pending           |
+| INVALID index rebuild fails twice       | Next startup retries (drop + rebuild pattern) | ✅ Implemented     |
 
-**Parent:** [SPEC-032](000-index.md)  
-**Cross-refs:** All SPEC-032-00x documents  
-**Methodology:** First Principles + 5-Why + DRY + SOLID
 
 ---
 
-## 1. Priority Matrix (Impact × Effort)
+## 9. Final Assessment (2026-06-29)
+
+### All Work Items Status
+
+| Item  | Description                              | Status     | Tests                |
+| ----- | ---------------------------------------- | ---------- | -------------------- |
+| W-01  | AGE btree indexes + auto-bootstrap       | ✅          | manual (live AGE)    |
+| W-02  | Relationship batch DRY                   | ✅          | 18 merger unit tests |
+| W-03  | Global entity batch (50 RTTs → 4)        | ✅          | 4 e2e + unit tests   |
+| W-04  | MergeProgressCallback + WebSocket        | ✅          | 3 e2e tests          |
+| W-04b | GraphStorageProgress pipeline event      | ✅          |                      |
+| W-04c | `broadcast_graph_storage_progress()`     | ✅          |                      |
+| W-04d | GraphStorageDetail React component       | ✅          |                      |
+| W-05  | Adaptive UNWIND chunk size [50,500]      | ✅          | 2 e2e tests          |
+| W-06  | Jaccard similarity gate (0.85 threshold) | ✅          | 4 unit + 3 e2e       |
+| W-07  | Migration 066: lineage tables            | ✅          | checksums.lock       |
+| W-08  | LineageSink trait + PostgresLineageSink  | ✅          | 1 e2e test           |
+| W-09  | PDF page span extraction                 | ⏳ Post-MVP |                      |
+
+### Test Summary
 
 ```
-         LOW EFFORT          MEDIUM EFFORT          HIGH EFFORT
-HIGH  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-      │ W-01            │  │ W-03            │  │ W-07            │
-IMPACT│ AGE btree index │  │ Global batch    │  │ Lineage tables  │
-      │ migration       │  │ fix (F-02)      │  │ migrations      │
-      └─────────────────┘  └─────────────────┘  └─────────────────┘
-MED   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-      │ W-02            │  │ W-04            │  │ W-08            │
-      │ Rel batch DRY   │  │ Progress events │  │ LineageSink     │
-      │ fix (F-09)      │  │ (F-03)          │  │ trait + impl    │
-      └─────────────────┘  └─────────────────┘  └─────────────────┘
-LOW   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-      │ W-05            │  │ W-06            │  │ W-09            │
-      │ UNWIND body     │  │ Similarity gate │  │ Page span       │
-      │ size guard      │  │ LLM summarizer  │  │ extraction      │
-      └─────────────────┘  └─────────────────┘  └─────────────────┘
+edgequake-pipeline (lib):         237 passed, 0 failed
+edgequake-pipeline (e2e tests):   17 passed, 0 failed (spec032_graph_storing.rs)
+edgequake-pipeline (other tests): all pass
+edgequake-storage (lib):          all pass
+edgequake-tasks (lib):            all pass
 ```
 
----
+### Pre-existing test failures fixed
 
-## 2. Work Items (Detailed)
-
-### W-01: AGE Functional Property Indexes ⚡ QUICK WIN
-
-| Field         | Value                                                      |
-| ------------- | ---------------------------------------------------------- |
-| Finding       | F-01                                                       |
-| File          | `edgequake/migrations/066_age_property_indexes.sql` (new)  |
-| Type          | Migration only                                             |
-| Risk          | Low — additive, idempotent                                 |
-| Expected gain | 50–80% latency reduction for `MERGE` at 100K nodes         |
-| Test          | Run `EXPLAIN (ANALYZE, BUFFERS)` on AGE MERGE before/after |
-
-**Acceptance criteria:**
-- `MERGE (n:Node {node_id: 'X'})` uses btree index scan (not seq scan)
-- `upsert_nodes_batch` for 500 nodes completes in <100ms (down from ~2s)
-
----
-
-### W-02: Relationship Batch Consistency ✅ DRY
-
-| Field   | Value                                                         |
-| ------- | ------------------------------------------------------------- |
-| Finding | F-09                                                          |
-| File    | `edgequake-pipeline/src/merger/mod.rs`                        |
-| Change  | Collect all rel vectors globally before loop, not inside loop |
-| Risk    | Very low — same data, different ordering                      |
-| Lines   | ~10 lines changed                                             |
-
-```rust
-// BEFORE:
-for result in results {
-    merge_entities_batch(...).await?;
-    let rv = collect_relationship_vector_batch(&result.relationships);
-    vector_storage.upsert(&rv).await?;
-    merge_relationships_batch(...).await?;
-}
-
-// AFTER:
-let all_entities = results.iter().flat_map(|r| r.entities.iter().cloned()).collect();
-merge_entities_batch(all_entities, &mut stats).await?;
-
-let all_rel_vectors: Vec<_> = results.iter()
-    .flat_map(|r| collect_relationship_vector_batch(&r.relationships))
-    .collect();
-if !all_rel_vectors.is_empty() { vector_storage.upsert(&all_rel_vectors).await?; }
-
-let all_rels = results.iter().flat_map(|r| r.relationships.iter().cloned()).collect();
-merge_relationships_batch(all_rels, &mut stats).await?;
-```
-
----
-
-### W-03: Global Entity Batch (F-02) ⚡ HIGH IMPACT
-
-| Field         | Value                                                                  |
-| ------------- | ---------------------------------------------------------------------- |
-| Finding       | F-02                                                                   |
-| File          | `edgequake-pipeline/src/merger/entity.rs` + `merger/mod.rs`            |
-| Change        | Move `merge_entities_batch` call outside the per-ExtractionResult loop |
-| Risk          | Medium — must ensure entity dedup within batch is correct              |
-| Expected gain | 50 DB round trips → 2 per document                                     |
-
-**Key invariant:** Entity deduplication must handle the case where the same
-entity appears in multiple ExtractionResults (multiple chunks). The
-`get_nodes_batch` call currently happens per-chunk, so duplicates are naturally
-handled by the sequential merge. After batching globally:
-
-```rust
-// Dedup entities by name BEFORE get_nodes_batch
-let mut unique_entities: HashMap<String, ExtractedEntity> = HashMap::new();
-for entity in all_entities {
-    let id = EntityId::new(&entity.name);
-    let key = id.as_graph_node_id().to_string();
-    unique_entities
-        .entry(key)
-        .and_modify(|existing| {
-            // Merge descriptions within-document before graph write
-            existing.description = merge_descriptions(
-                &existing.description, &entity.description, 4096
-            );
-            // Accumulate source chunks
-            existing.source_chunk_ids.extend(entity.source_chunk_ids.iter().cloned());
-        })
-        .or_insert(entity);
-}
-let deduped: Vec<ExtractedEntity> = unique_entities.into_values().collect();
-```
-
----
-
-### W-04: GraphStorage Progress Events (F-03) 🎯 UX CRITICAL
-
-| Field   | Value                                                                              |
-| ------- | ---------------------------------------------------------------------------------- |
-| Finding | F-03                                                                               |
-| Files   | `merger/mod.rs`, `edgequake-tasks/src/progress.rs`, `persist.rs`, WebUI components |
-| Type    | Backend + Frontend                                                                 |
-| Risk    | Medium — new event types, WebSocket schema extension                               |
-
-**Implementation order:**
-1. Add `GraphStorageProgressEvent` to `edgequake-tasks/src/progress.rs`
-2. Add `MergeProgressCallback` type to `merger/mod.rs`
-3. Add `merge_with_progress()` method (does NOT break `merge()`)
-4. Update `persist.rs` to construct callback and pass to merger
-5. Add `broadcast_graph_storage_progress()` to `PipelineState`
-6. Add `GraphStorageProgress` React component
-7. Wire component into existing progress panel
-
-**Backend acceptance criteria:**
-- WebSocket sends `graph_storage_progress` events every ≤500ms during merge
-- Events include: sub_phase, entities_processed, entities_total, eta_ms
-
-**Frontend acceptance criteria:**
-- User sees 4 sub-phase progress bars in the GraphStorage section
-- ETA countdown visible when >1000 entities remain
-
----
-
-### W-05: UNWIND Body Size Guard (F-01 supplement)
-
-| Field   | Value                                                                              |
-| ------- | ---------------------------------------------------------------------------------- |
-| Finding | F-01 (literal body)                                                                |
-| File    | `nodes_ops.rs`, `edges_ops.rs`                                                     |
-| Change  | `adaptive_chunk_size()` function (see [004](004-graph-storage-improvements.md) §5) |
-| Risk    | Very low                                                                           |
-| Lines   | ~15 lines                                                                          |
-
----
-
-### W-06: Similarity Gate for LLM Summarizer (F-07)
-
-| Field         | Value                                                       |
-| ------------- | ----------------------------------------------------------- |
-| Finding       | F-07                                                        |
-| File          | `merger/entity.rs:update_entity_node()`                     |
-| Change        | Jaccard similarity gate before LLM call                     |
-| Risk          | Low — gate only skips LLM when descriptions overlap heavily |
-| Expected gain | 40–60% reduction in LLM API calls during merge              |
-
-**Configuration:** Add `description_similarity_threshold: f32` to `MergerConfig`.
-Default: `0.85`. Tunable via env `EDGEQUAKE_MERGE_SIMILARITY_THRESHOLD`.
-
----
-
-### W-07: Lineage Tables — Migrations
-
-| Field      | Value                                                                           |
-| ---------- | ------------------------------------------------------------------------------- |
-| Finding    | F-04, F-05, F-06                                                                |
-| Files      | Three new migrations (066–068 as specified in [003](003-lineage-data-model.md)) |
-| Risk       | Medium — adds tables, no breaking changes                                       |
-| Dependency | W-08 (LineageSink trait)                                                        |
-
-**Migrations:**
-- `066_age_property_indexes.sql` — AGE btree indexes (also covers W-01)
-- `067_chunk_lineage_links.sql` — `chunk_entity_links`, `chunk_relation_links`
-- `068_entity_description_history.sql` — `entities.description_history` JSONB
-
----
-
-### W-08: LineageSink Trait + PostgresLineageSink Implementation
-
-| Field   | Value                                                                        |
-| ------- | ---------------------------------------------------------------------------- |
-| Finding | F-04, F-05                                                                   |
-| Files   | `merger/mod.rs` (trait), `edgequake-api/src/services/lineage_sink.rs` (impl) |
-| Risk    | Medium — new trait, requires plumbing through DefaultIngestionPersister      |
-| SOLID   | D (DIP): pipeline crate depends on trait, not sqlx                           |
-
-**Implementation:**
-
-```rust
-// edgequake-api/src/services/lineage_sink.rs
-pub struct PostgresLineageSink {
-    pool: PgPool,
-}
-
-#[async_trait]
-impl LineageSink for PostgresLineageSink {
-    async fn record_chunk_entity_link(
-        &self, chunk_id: &str, entity_name: &str, workspace_id: &str,
-    ) -> Result<()> {
-        sqlx::query!(
-            "INSERT INTO chunk_entity_links (chunk_id, entity_name, workspace_id)
-             VALUES ($1, $2, $3)
-             ON CONFLICT DO NOTHING",
-            chunk_id, entity_name, workspace_id
-        )
-        .execute(&self.pool).await?;
-        Ok(())
-    }
-    // ...
-}
-```
-
----
-
-### W-09: PDF Page Span Extraction and Storage (F-06)
-
-| Field      | Value                                                                   |
-| ---------- | ----------------------------------------------------------------------- |
-| Finding    | F-06                                                                    |
-| Files      | `edgequake-pipeline/src/chunk_storage.rs`, `chunker/`, `edgequake-pdf/` |
-| Risk       | Medium-High — requires PDF chunker to propagate page spans              |
-| Dependency | W-07 (chunks table columns)                                             |
-
-**Page span propagation:**
-```
-PDF parser (edgequake-pdf2md)
-  → produces Markdown with page-break markers
-  → chunker respects page breaks
-  → TextChunk carries page_start, page_end
-  → chunk_storage.rs stores page_start, page_end into chunks table
-  → vector metadata includes page_start, page_end (already partially done)
-```
-
----
-
-## 3. Rollout Sequence
-
-```
-Sprint 1 (1 week):
-  ☐ W-01: AGE indexes migration (migration 066)
-  ☐ W-02: Relationship batch DRY fix
-  ☐ W-05: UNWIND body size guard
-  → Measure: GraphStorage p95 latency for 100K-entity workspace
-
-Sprint 2 (1 week):
-  ☐ W-03: Global entity batch
-  ☐ W-06: Similarity gate LLM summarizer
-  → Measure: Round-trip count, LLM API call count per document
-
-Sprint 3 (2 weeks):
-  ☐ W-04: Progress events (backend + frontend)
-  → Measure: User sees sub-phase progress with ETA
-
-Sprint 4 (2 weeks):
-  ☐ W-07: Lineage migrations
-  ☐ W-08: LineageSink trait + PostgresLineageSink
-
-Sprint 5 (2 weeks):
-  ☐ W-09: PDF page span extraction
-  → Measure: UC-L1 "which page?" query works end-to-end
-```
-
----
-
-## 4. Observability Requirements
-
-Each work item must ship with structured log entries:
-
-```
-W-01: Log btree index scan vs seq scan detection (EXPLAIN output to TRACE)
-W-03: Log: entities_global_batch_size, round_trips_saved
-W-04: Log: merge_sub_phase, entities_processed, eta_ms at each callback
-W-06: Log: similarity_gate_hits, llm_calls_skipped
-W-07: Log: lineage_links_written per document
-```
-
----
-
-## 5. Coherence Check: Cross-Document Verification
-
-This section verifies internal consistency across all SPEC-032-00x documents.
-
-| Claim                            | Source                                     | Verified in                                                                   |
-| -------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
-| UNWIND CHUNK=500 hardcoded       | [001](001-current-architecture.md) §5 F-08 | `nodes_ops.rs:const CHUNK: usize = 500` ✓                                     |
-| entity vector batch is global    | [001](001-current-architecture.md) §4      | `merger/mod.rs:collect_entity_vector_batch` called before loop ✓              |
-| rel vector batch is per-chunk    | [001](001-current-architecture.md) §5 F-09 | `merger/mod.rs:for result in results { collect_relationship_vector_batch }` ✓ |
-| GraphStorage emits 2 events      | [001](001-current-architecture.md) §4      | `persist.rs:125` + `finalize.rs:156` ✓                                        |
-| LLM summarizer called per entity | [002](002-performance-analysis.md) §1.4    | `entity.rs:update_entity_node` sequential await ✓                             |
-| source_id is pipe-sep string     | [003](003-lineage-data-model.md) §2.2      | `merger/mod.rs` source_id accumulation ✓                                      |
-| Progress callback type           | [005](005-progress-events.md) §3.2         | Consistent with [004](004-graph-storage-improvements.md) §4.1 ✓               |
-| Migration numbering              | [003](003-lineage-data-model.md) §6        | Sequentially after 065 (last confirmed migration) ✓                           |
-| AGE UNWIND CHUNK=500 in edges    | [002](002-performance-analysis.md) §1.1    | `edges_ops.rs:const CHUNK: usize = 500` ✓                                     |
-
----
-
-## 6. Risk Register
-
-| Risk                                                      | Mitigation                                                 |
-| --------------------------------------------------------- | ---------------------------------------------------------- |
-| AGE index migration fails on existing graph               | Wrap in DO $$...EXCEPTION block; skip gracefully           |
-| Global entity batch breaks dedup for multi-chunk entities | Within-batch dedup (see W-03) before `get_nodes_batch`     |
-| Progress callback overhead slows merge                    | 500ms debounce; callback is fire-and-forget (tokio::spawn) |
-| LineageSink write failure blocks ingestion                | Best-effort: log warn, do NOT fail ingestion               |
-| Similarity gate skips legitimate merges                   | Gate at 0.85 (high bar); tune per workspace config         |
-| Page span extraction breaks chunker                       | Feature-flagged; default to existing chunker behavior      |
+| Test                                 | Root cause                                                             | Fix                            |
+| ------------------------------------ | ---------------------------------------------------------------------- | ------------------------------ |
+| `large_document_gets_smaller_chunks` | MockProvider.max_tokens()=512 caps chunk to 256, test expected 600     | Updated assertion to 256       |
+| `middle_collapse_for_three_levels`   | Path had 7 tokens ≤ 8 max_tokens → no collapse; test expected collapse | Changed max_tokens from 8 to 4 |
