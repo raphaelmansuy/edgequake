@@ -406,6 +406,8 @@ mod tests {
             end_offset: 28,
             token_count: 5,
             section: None,
+            page_start: None,
+            page_end: None,
         };
         ProcessingResult {
             document_id: "doc1".to_string(),

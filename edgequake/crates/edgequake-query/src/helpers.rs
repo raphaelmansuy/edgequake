@@ -229,6 +229,11 @@ pub fn build_chunk_from_result(result: &VectorSearchResult) -> RetrievedChunk {
         chunk = chunk.with_chunk_index(idx as usize);
     }
 
+    // SPEC-032 W-09: PDF page attribution — enables deep-link citations
+    if let Some(page) = result.metadata.get("page_start").and_then(|v| v.as_u64()) {
+        chunk = chunk.with_page(page as u32);
+    }
+
     chunk
 }
 

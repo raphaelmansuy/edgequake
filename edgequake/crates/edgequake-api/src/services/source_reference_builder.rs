@@ -52,6 +52,8 @@ pub fn build_sources_from_context(
                 start_line: chunk.start_line,
                 end_line: chunk.end_line,
                 chunk_index: chunk.chunk_index,
+                page_start: chunk.page_start,
+                page_end: chunk.page_end,
                 entity_type: None,
                 degree: None,
                 source_chunk_ids: None,
@@ -95,6 +97,8 @@ pub fn build_sources_from_context(
             start_line: None,
             end_line: None,
             chunk_index: None,
+            page_start: None,
+            page_end: None,
             entity_type: Some(entity.entity_type.clone()),
             degree: if entity.degree > 0 {
                 Some(entity.degree)
@@ -140,6 +144,8 @@ pub fn build_sources_from_context(
             start_line: None,
             end_line: None,
             chunk_index: None,
+            page_start: None,
+            page_end: None,
             entity_type: None,
             degree: None,
             source_chunk_ids: None,

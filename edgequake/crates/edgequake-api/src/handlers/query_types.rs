@@ -402,6 +402,16 @@ pub struct SourceReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chunk_index: Option<usize>,
 
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Present only when the source is a PDF with page-aware chunking (SPEC-032).
+    /// The UI uses this to deep-link to `#page=N` in the document viewer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_start: Option<u32>,
+
+    /// PDF page number where this chunk ends (always equals page_start).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_end: Option<u32>,
+
     // ========================================================================
     // SPEC-006: Entity metadata enrichment (FR-002)
     // ========================================================================

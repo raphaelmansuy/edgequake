@@ -39,6 +39,7 @@
 //! - `strategies`: Chunking strategy implementations (token, character, sentence, paragraph)
 
 mod markdown_chunking;
+mod page_aware;
 mod recursive;
 pub mod registry;
 mod strategies;
@@ -51,13 +52,17 @@ use crate::error::Result;
 
 // Re-export types
 pub use registry::{resolve_chunker, ChunkOptions, ChunkStrategy};
-pub use types::{ChunkResult, ChunkerConfig, ChunkingStrategy, SectionMetadata, TextChunk};
+pub use types::{
+    make_page_marker, parse_page_marker, ChunkResult, ChunkerConfig, ChunkingStrategy,
+    SectionMetadata, TextChunk, PAGE_MARKER_PREFIX, PAGE_MARKER_SUFFIX,
+};
 
 // Re-export text utilities needed by external consumers
 pub use text_utils::calculate_line_numbers;
 
 // Re-export strategies
 pub use markdown_chunking::MarkdownChunking;
+pub use page_aware::{split_into_page_segments, PageAwareChunking};
 pub use recursive::{default_recursive_separators, RecursiveCharacterChunking};
 pub use strategies::{
     CharacterBasedChunking, ParagraphBoundaryChunking, SentenceBoundaryChunking, TokenBasedChunking,
@@ -141,6 +146,7 @@ impl Chunker {
                     end_line,
                 )
                 .with_section(result.section)
+                .with_page_opt(result.page_start)
             })
             .collect())
     }

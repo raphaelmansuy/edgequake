@@ -90,7 +90,32 @@ impl PdfConverter for VisionPdfConverter {
             "Vision conversion completed"
         );
 
-        Ok(output.markdown)
+        // SPEC-032 W-09: inject <!-- edgequake-page:N --> markers so the
+        // PageAwareChunking strategy can enforce page-boundary chunk splits.
+        // `output.pages` is sorted by page_num and contains per-page markdown.
+        let markdown = if output.pages.len() > 1 {
+            // Multi-page: rebuild with explicit page markers
+            let mut parts: Vec<String> = Vec::with_capacity(output.pages.len());
+            for page in &output.pages {
+                if !page.markdown.trim().is_empty() {
+                    parts.push(format!(
+                        "<!-- edgequake-page:{} -->\n{}",
+                        page.page_num,
+                        page.markdown.trim()
+                    ));
+                }
+            }
+            if parts.is_empty() {
+                output.markdown
+            } else {
+                parts.join("\n\n")
+            }
+        } else {
+            // Single page: prepend page 1 marker
+            format!("<!-- edgequake-page:1 -->\n{}", output.markdown.trim())
+        };
+
+        Ok(markdown)
     }
 
     fn backend_name(&self) -> &'static str {

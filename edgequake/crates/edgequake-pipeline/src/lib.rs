@@ -86,10 +86,12 @@ pub use cache::{
 };
 pub use chunk_storage::build_chunk_kv_records;
 pub use chunker::{
-    calculate_line_numbers, default_recursive_separators, resolve_chunker, CharacterBasedChunking,
-    ChunkOptions, ChunkResult, ChunkStrategy, Chunker, ChunkerConfig, ChunkingStrategy,
-    MarkdownChunking, ParagraphBoundaryChunking, RecursiveCharacterChunking, SectionMetadata,
-    SentenceBoundaryChunking, TextChunk, TokenBasedChunking,
+    calculate_line_numbers, default_recursive_separators, make_page_marker, parse_page_marker,
+    resolve_chunker, split_into_page_segments, CharacterBasedChunking, ChunkOptions, ChunkResult,
+    ChunkStrategy, Chunker, ChunkerConfig, ChunkingStrategy, MarkdownChunking,
+    PageAwareChunking, ParagraphBoundaryChunking, RecursiveCharacterChunking, SectionMetadata,
+    SentenceBoundaryChunking, TextChunk, TokenBasedChunking, PAGE_MARKER_PREFIX,
+    PAGE_MARKER_SUFFIX,
 };
 pub use error::{
     ChunkExtractionOutcome, ChunkFailure, PipelineError, ResilientExtractionResult, Result,

@@ -18,6 +18,12 @@ pub struct IngestionPipelineOptions {
     pub max_gleaning: usize,
     pub chunk_strategy: ChunkStrategy,
     pub chunk_options: Option<ChunkOptions>,
+    /// When true, use `ChunkStrategy::Pdf` unless an explicit strategy overrides it.
+    ///
+    /// Set by the API processor when the source document is a PDF and its
+    /// markdown content contains `<!-- edgequake-page:N -->` markers.
+    /// This ensures **no chunk ever crosses a PDF page boundary**.
+    pub is_pdf_source: bool,
 }
 
 impl IngestionPipelineOptions {
@@ -28,7 +34,18 @@ impl IngestionPipelineOptions {
             max_gleaning: 1,
             chunk_strategy: ChunkStrategy::default(),
             chunk_options: None,
+            is_pdf_source: false,
         }
+    }
+
+    /// Mark this document as a PDF source so the Pdf chunking strategy is
+    /// selected automatically (can still be overridden with `with_chunk_strategy`).
+    pub fn for_pdf(mut self) -> Self {
+        self.is_pdf_source = true;
+        if self.chunk_strategy == ChunkStrategy::Recursive || self.chunk_strategy == ChunkStrategy::Fixed {
+            self.chunk_strategy = ChunkStrategy::Pdf;
+        }
+        self
     }
 
     pub fn with_gleaning(mut self, enabled: bool, max_passes: usize) -> Self {
@@ -57,7 +74,7 @@ pub fn build_chunker_config(
     let mut chunk_size = calculate_adaptive_chunk_size(document_size_bytes);
     let chunk_overlap = adaptive_chunk_overlap(chunk_size);
 
-    // Recursive/markdown use LightRAG nominal 1200 when doc is small (adaptive still caps large docs).
+    // Recursive/markdown/pdf use LightRAG nominal 1200 when doc is small.
     if strategy != ChunkStrategy::Fixed && document_size_bytes <= 50_000 {
         chunk_size = chunk_size.max(800);
     }

@@ -173,6 +173,17 @@ impl DocumentTaskProcessor {
             edgequake_pipeline::IngestionPipelineOptions::from_document_size(text_content.len())
                 .with_gleaning(enable_gleaning, max_gleaning)
                 .with_chunk_strategy(chunk_strategy);
+        // SPEC-032 W-09: auto-select Pdf chunking strategy for PDF sources so
+        // chunks never cross page boundaries. Only applies when no explicit
+        // strategy override was provided by the caller.
+        let source_is_pdf = source_type.eq_ignore_ascii_case("pdf")
+            || source_type.eq_ignore_ascii_case("pdf_upload")
+            || text_content.contains(edgequake_pipeline::PAGE_MARKER_PREFIX);
+        let ingestion_options = if source_is_pdf && chunk_strategy == edgequake_pipeline::ChunkStrategy::default() {
+            ingestion_options.for_pdf()
+        } else {
+            ingestion_options
+        };
         let ingestion_options = if let Some(opts) = chunk_options {
             ingestion_options.with_chunk_options(opts)
         } else {

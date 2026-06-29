@@ -29,6 +29,26 @@ impl SectionMetadata {
     }
 }
 
+/// Standard page marker embedded in PDF-derived markdown by PDF converters.
+///
+/// Format: `<!-- edgequake-page:N -->` (1-indexed page number).
+/// The chunker parses these markers to split content at page boundaries so
+/// that **no chunk ever spans two PDF pages** (First Principle: page attribution).
+pub const PAGE_MARKER_PREFIX: &str = "<!-- edgequake-page:";
+pub const PAGE_MARKER_SUFFIX: &str = " -->";
+
+/// Build the page marker string for a given 1-indexed page number.
+pub fn make_page_marker(page: u32) -> String {
+    format!("{}{}{}", PAGE_MARKER_PREFIX, page, PAGE_MARKER_SUFFIX)
+}
+
+/// Parse page number from a marker line, returns None if not a marker.
+pub fn parse_page_marker(line: &str) -> Option<u32> {
+    let trimmed = line.trim();
+    let inner = trimmed.strip_prefix(PAGE_MARKER_PREFIX)?.strip_suffix(PAGE_MARKER_SUFFIX)?;
+    inner.trim().parse::<u32>().ok()
+}
+
 /// Result of a custom chunking operation.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ChunkResult {
@@ -47,6 +67,14 @@ pub struct ChunkResult {
     /// Source document end offset when the strategy preserves spans.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Set by `PageAwareChunking`; None for non-PDF or single-page sources.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_start: Option<u32>,
+    /// PDF page number (1-indexed) where this chunk ends.
+    /// Always equal to `page_start` — chunks never cross page boundaries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_end: Option<u32>,
 }
 
 /// Trait for custom chunking strategies.
@@ -158,6 +186,19 @@ pub struct TextChunk {
     /// Heading breadcrumb metadata when chunking strategy is markdown-aware.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub section: Option<SectionMetadata>,
+
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Set when the source document is a PDF processed with `PageAwareChunking`.
+    /// None for plain text, Markdown, or single-page PDFs without markers.
+    ///
+    /// Key invariant: a chunk NEVER spans two pages — `page_start == page_end`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_start: Option<u32>,
+
+    /// PDF page number (1-indexed) where this chunk ends.
+    /// Always equal to `page_start` by construction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_end: Option<u32>,
 }
 
 impl TextChunk {
@@ -182,6 +223,8 @@ impl TextChunk {
             token_count,
             embedding: None,
             section: None,
+            page_start: None,
+            page_end: None,
         }
     }
 
@@ -208,12 +251,30 @@ impl TextChunk {
             token_count,
             embedding: None,
             section: None,
+            page_start: None,
+            page_end: None,
         }
     }
 
     /// Attach section metadata after creation.
     pub fn with_section(mut self, section: Option<SectionMetadata>) -> Self {
         self.section = section;
+        self
+    }
+
+    /// Assign PDF page attribution (1-indexed). page_start == page_end always.
+    pub fn with_page(mut self, page: u32) -> Self {
+        self.page_start = Some(page);
+        self.page_end = Some(page);
+        self
+    }
+
+    /// Assign page attribution from an Option (no-op when None).
+    pub fn with_page_opt(mut self, page: Option<u32>) -> Self {
+        if let Some(p) = page {
+            self.page_start = Some(p);
+            self.page_end = Some(p);
+        }
         self
     }
 
