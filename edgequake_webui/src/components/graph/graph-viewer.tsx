@@ -40,7 +40,7 @@ import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Menu, Network, PanelRightClose, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

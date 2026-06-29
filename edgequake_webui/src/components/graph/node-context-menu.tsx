@@ -56,21 +56,22 @@ export function NodeContextMenu({
     onClose();
   }, [onClose]);
 
-  // Compute final position:
-  // - position.x/y is already the node's right edge (set by graph-renderer using
-  //   graphToViewport + nodeScreenRadius + gap).
-  // - Shift top up by MENU_H/2 so the menu is vertically centered on the node.
-  // - Clamp to viewport bounds so the menu never clips off screen.
+  // Compute final safe position for the context menu.
+  // position.x/y = absolute screen coords of the right-click cursor (on the node).
+  // Push the menu to the right by a small offset so it sits beside the node,
+  // center it vertically on the click point, clamp to viewport bounds.
   const safePos = useCallback(() => {
     if (!position) return { left: 0, top: 0 };
     const W = window.innerWidth;
     const H = window.innerHeight;
-    const MENU_W = 224;
-    const MENU_H = 320; // approximate — 6 items × ~40px + header ~60px
-    const centeredTop = position.y - MENU_H / 2;
+    const MENU_W = 240;
+    const MENU_H = 340;
+    const OFFSET_X = 8;  // push right from click point
+    const rawLeft = position.x + OFFSET_X;
+    const rawTop  = position.y - MENU_H / 2; // center vertically on click point
     return {
-      left: Math.min(Math.max(position.x, 8), W - MENU_W - 8),
-      top:  Math.min(Math.max(centeredTop,  8), H - MENU_H - 8),
+      left: Math.min(Math.max(rawLeft, 8), W - MENU_W - 8),
+      top:  Math.min(Math.max(rawTop,  8), H - MENU_H - 8),
     };
   }, [position]);
 
@@ -123,7 +124,7 @@ export function NodeContextMenu({
       className="fixed z-50"
       style={{ left: pos.left, top: pos.top }}
     >
-      <div className="bg-popover border rounded-lg shadow-lg p-1 min-w-56">
+      <div className="bg-popover border rounded-lg shadow-lg p-1 min-w-60">
         {/* Header: formatted name + type with color dot */}
         <div className="px-2.5 py-2 border-b mb-1">
           <div

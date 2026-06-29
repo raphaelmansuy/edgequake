@@ -623,31 +623,17 @@ export function GraphRenderer({ nodes, edges, onNodeClick, onNodeHover, onNodeRi
         containerRef.current.addEventListener('contextmenu', (e) => e.preventDefault(), { once: true });
       }
 
-      // Anchor the menu to the node's screen-space position, NOT the raw mouse cursor.
-      // WHY: Using event.x/y places the menu ON TOP of the node, creating visual
-      // competition. By converting the node's graph position to viewport coordinates
-      // and adding a gap = node screen-size + padding, the menu appears cleanly to
-      // the right of the node regardless of where on it the user right-clicked.
-      const nodeDisplayData = sigma.getNodeDisplayData(node);
-      if (nodeDisplayData) {
-        const container = containerRef.current!.getBoundingClientRect();
-        const viewportPos = sigma.graphToViewport({
-          x: nodeDisplayData.x,
-          y: nodeDisplayData.y,
-        });
-        // In Sigma 3.x: screen radius ≈ node.size / camera.ratio
-        const cameraRatio = sigma.getCamera().ratio;
-        const nodeScreenRadius = Math.max(
-          8,
-          Math.min(60, (nodeDisplayData.size ?? 8) / cameraRatio),
-        );
-        const GAP = 12;
-        // Place menu to the right of the node; vertically centered on the node
-        const screenX = container.left + viewportPos.x + nodeScreenRadius + GAP;
-        const screenY = container.top  + viewportPos.y;
+      // WHY: event.x/y from Sigma are canvas-relative coordinates.
+      // Adding container.left/top converts them to absolute viewport (screen) coords,
+      // which is what fixed-position elements expect.
+      // The cursor is on the node when right-clicking, so this naturally
+      // anchors the menu at the click point on the node edge.
+      if (containerRef.current) {
+        const container = containerRef.current.getBoundingClientRect();
+        const screenX = container.left + event.x;
+        const screenY = container.top  + event.y;
         onNodeRightClickRef.current?.(node, screenX, screenY);
       } else {
-        // Fallback: use raw event position if node data unavailable
         onNodeRightClickRef.current?.(node, event.x, event.y);
       }
     });
