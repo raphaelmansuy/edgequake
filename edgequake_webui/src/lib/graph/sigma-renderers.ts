@@ -23,9 +23,9 @@
  *   - MDN Canvas 2D: roundRect, measureText, fillText performance notes
  *   - Knowledge Graph Visualization Handbook (Neo4j, 2023) — label density
  */
-import { formatEntityType } from './label-utils';
 import type { Settings } from 'sigma/settings';
 import type { NodeDisplayData, PartialButFor } from 'sigma/types';
+import { formatEntityType } from './label-utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

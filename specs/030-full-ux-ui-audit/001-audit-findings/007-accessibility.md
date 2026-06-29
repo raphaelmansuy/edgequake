@@ -6,16 +6,16 @@
 
 ## Automated Checklist
 
-| Criterion | Status | Notes |
-|-----------|--------|-------|
-| 1.1.1 Non-text Content | ⚠ Partial | Graph node icons missing alt |
-| 1.4.3 Contrast (4.5:1) | ⚠ Partial | muted-foreground was 0.556 (fixed to 0.48) |
-| 1.4.11 Non-text Contrast (3:1) | ✅ Fixed | border darkened to 0.86 |
-| 2.1.1 Keyboard | ⚠ Partial | Dropdown selector not searchable by keyboard |
-| 2.4.3 Focus Order | ✅ | Logical tab order in sidebar |
-| 2.4.7 Focus Visible | ⚠ | Dark mode ring may be low contrast |
-| 3.2.2 On Input | ✅ | Workspace switch shows toast |
-| 4.1.2 Name, Role, Value | ⚠ | Avatar "N" button missing aria-label |
+| Criterion                      | Status    | Notes                                        |
+| ------------------------------ | --------- | -------------------------------------------- |
+| 1.1.1 Non-text Content         | ⚠ Partial | Graph node icons missing alt                 |
+| 1.4.3 Contrast (4.5:1)         | ⚠ Partial | muted-foreground was 0.556 (fixed to 0.48)   |
+| 1.4.11 Non-text Contrast (3:1) | ✅ Fixed   | border darkened to 0.86                      |
+| 2.1.1 Keyboard                 | ⚠ Partial | Dropdown selector not searchable by keyboard |
+| 2.4.3 Focus Order              | ✅         | Logical tab order in sidebar                 |
+| 2.4.7 Focus Visible            | ⚠         | Dark mode ring may be low contrast           |
+| 3.2.2 On Input                 | ✅         | Workspace switch shows toast                 |
+| 4.1.2 Name, Role, Value        | ⚠         | Avatar "N" button missing aria-label         |
 
 ---
 
@@ -45,12 +45,12 @@
 
 ## Keyboard Navigation Matrix
 
-| Flow | Works? | Notes |
-|------|--------|-------|
-| Tab through sidebar | ✅ | Good focus rings |
-| Open workspace selector | ✅ | Enter/Space opens dropdown |
-| Search workspace (fuzzy) | ❌ | Not implemented |
-| Navigate graph nodes | ⚠ | Via list panel only |
-| Upload document | ✅ | Dropzone has keyboard trigger |
-| Dismiss dialogs | ✅ | Escape closes |
-| Tab to action buttons | ✅ | |
+| Flow                     | Works? | Notes                         |
+| ------------------------ | ------ | ----------------------------- |
+| Tab through sidebar      | ✅      | Good focus rings              |
+| Open workspace selector  | ✅      | Enter/Space opens dropdown    |
+| Search workspace (fuzzy) | ❌      | Not implemented               |
+| Navigate graph nodes     | ⚠      | Via list panel only           |
+| Upload document          | ✅      | Dropzone has keyboard trigger |
+| Dismiss dialogs          | ✅      | Escape closes                 |
+| Tab to action buttons    | ✅      |                               |

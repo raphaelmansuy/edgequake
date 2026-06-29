@@ -86,10 +86,10 @@ const tenantPart = selectedTenant.name.length > 15
 
 ## Summary Score
 
-| Dimension           | Score | Notes |
-|---------------------|-------|-------|
-| Discoverability     | 4/10  | No search |
-| Keyboard Navigation | 5/10  | Focus trap but no shortcut |
-| Progressive Disclose| 4/10  | All items shown flat |
-| Context Clarity     | 6/10  | "Tenant / Workspace" format helps |
-| Deep-linking        | 2/10  | localStorage only |
+| Dimension            | Score | Notes                             |
+| -------------------- | ----- | --------------------------------- |
+| Discoverability      | 4/10  | No search                         |
+| Keyboard Navigation  | 5/10  | Focus trap but no shortcut        |
+| Progressive Disclose | 4/10  | All items shown flat              |
+| Context Clarity      | 6/10  | "Tenant / Workspace" format helps |
+| Deep-linking         | 2/10  | localStorage only                 |

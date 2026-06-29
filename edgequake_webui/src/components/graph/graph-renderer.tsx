@@ -20,16 +20,16 @@ import { detectCommunities, getCommunityColor } from '@/lib/graph/clustering';
 import { getGraphEdgeKeyFromEdge } from '@/lib/graph/ids';
 import { formatEntityLabel, getEntityTypeColor } from '@/lib/graph/label-utils';
 import {
-    drawEdgeLabelWithBackground,
-    drawNodeHoverWithCard,
-    drawNodeLabelWithBackground,
-} from '@/lib/graph/sigma-renderers';
-import {
     applyLayoutToGraph,
     calculateLayoutPositions,
     getGraphPerformanceProfile,
     type GraphLayoutType,
 } from '@/lib/graph/layouts';
+import {
+    drawEdgeLabelWithBackground,
+    drawNodeHoverWithCard,
+    drawNodeLabelWithBackground,
+} from '@/lib/graph/sigma-renderers';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import type { GraphEdge, GraphNode } from '@/types';

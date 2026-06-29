@@ -62,10 +62,10 @@
 
 ## Summary Score
 
-| Dimension         | Score | Notes |
-|-------------------|-------|-------|
-| Error Prevention  | 4/10  | Clear All too accessible |
-| Information Hierarchy | 6/10 | OK table structure |
-| Pagination        | 4/10  | All rows shown |
-| Action Hierarchy  | 5/10  | Too many row actions |
-| Visual Noise      | 5/10  | NEW badge, cost column |
+| Dimension             | Score | Notes                    |
+| --------------------- | ----- | ------------------------ |
+| Error Prevention      | 4/10  | Clear All too accessible |
+| Information Hierarchy | 6/10  | OK table structure       |
+| Pagination            | 4/10  | All rows shown           |
+| Action Hierarchy      | 5/10  | Too many row actions     |
+| Visual Noise          | 5/10  | NEW badge, cost column   |

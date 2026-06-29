@@ -35,14 +35,14 @@ import { useGraphKeyboardNavigation } from '@/hooks/use-graph-keyboard-navigatio
 import { useGraphStream } from '@/hooks/use-graph-stream';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { deleteEntity, getGraph } from '@/lib/api/edgequake';
-import { formatEntityLabel } from '@/lib/graph/label-utils';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
+import { formatEntityLabel } from '@/lib/graph/label-utils';
 import { useGraphStore } from '@/stores/use-graph-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Menu, Network, PanelRightClose, RefreshCw, Upload, ZoomIn, ZoomOut } from 'lucide-react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { GraphEmptyIllustration } from '../illustrations/graph-empty-illustration';

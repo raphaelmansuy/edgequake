@@ -1,6 +1,6 @@
 'use client';
 
-import { getEntityTypeColor, formatEntityLabel, formatEntityType } from '@/lib/graph/label-utils';
+import { formatEntityLabel, formatEntityType, getEntityTypeColor } from '@/lib/graph/label-utils';
 import type { GraphNode } from '@/types';
 import {
     Copy,
