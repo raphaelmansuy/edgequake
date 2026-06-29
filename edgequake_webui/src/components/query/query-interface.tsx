@@ -23,6 +23,7 @@ import { MobileHistoryPanel } from "./mobile-history-panel";
 import { QueryEmptyState } from "./query-empty-state";
 import { LoadingMessage, NonStreamingLoadingIndicator } from "./query-loading-indicators";
 import { QueryModeSelector } from "./query-mode-selector";
+import { QueryScopeBar } from "./query-scope-bar";
 import { QuerySettingsSheet } from "./query-settings-sheet";
 
 export function QueryInterface() {
@@ -117,6 +118,8 @@ export function QueryInterface() {
               }}
               documentFilter={querySettings.documentFilter}
               onDocumentFilterChange={(documentFilter) => setQuerySettings({ documentFilter })}
+              scopedDocumentIds={querySettings.scopedDocumentIds ?? []}
+              onScopedDocumentIdsChange={(ids) => setQuerySettings({ scopedDocumentIds: ids })}
             />
           </div>
         </header>
@@ -162,11 +165,19 @@ export function QueryInterface() {
         </div>
 
         <div
-          className="border-t px-4 sm:px-6 py-4 bg-background shrink-0"
+          className="border-t px-4 sm:px-6 py-3 bg-background shrink-0"
           role="form"
           aria-label={t("query.form", "Query form")}
         >
           <form onSubmit={handleSubmit} className="max-w-4xl lg:max-w-5xl mx-auto">
+            {/* SPEC-031: Always-visible scope toolbar — shows "All docs ▾" when
+                no scope set, pills when docs selected. Enables feature discovery
+                without requiring users to open Settings. */}
+            <QueryScopeBar
+              selectedIds={querySettings.scopedDocumentIds ?? []}
+              onSelectionChange={(ids) => setQuerySettings({ scopedDocumentIds: ids })}
+              disabled={isLoading}
+            />
             <input
               ref={imageInputRef}
               type="file"

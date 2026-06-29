@@ -375,6 +375,9 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/documents/pdf/{pdf_id}", delete(handlers::delete_pdf))
         // Document Scan API (GAP-014) - MUST come before /documents/{document_id}
         .route("/documents/scan", post(handlers::scan_directory))
+        // SPEC-031: Lightweight document title search for scope picker
+        // MUST come before /documents/{document_id} to avoid routing conflict
+        .route("/documents/search", get(handlers::search_documents))
         // Reprocess Failed Documents (GAP-039) - MUST come before /documents/{document_id}
         .route("/documents/reprocess", post(handlers::reprocess_failed))
         // Recover Stuck Processing Documents - MUST come before /documents/{document_id}

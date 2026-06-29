@@ -51,7 +51,7 @@ export function QueryDocumentFilter({
   const count = activeFilterCount(value);
 
   const handleFieldChange = useCallback(
-    (field: keyof DocumentFilter, val: string) => {
+    (field: 'date_from' | 'date_to' | 'document_pattern', val: string) => {
       const next: DocumentFilter = { ...value };
       if (val) {
         next[field] = val;

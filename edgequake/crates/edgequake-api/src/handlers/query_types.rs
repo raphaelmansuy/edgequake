@@ -25,11 +25,12 @@ fn default_include_subgraph() -> bool {
 
 /// Document filter criteria for narrowing query scope.
 ///
-/// Allows filtering RAG query results to only include content from documents
-/// matching the specified date range and/or name pattern.
+/// Fields are AND-combined across types: date range AND (document_ids OR document_pattern).
+/// Within `document_ids` and `document_pattern`, matches are OR-unioned.
 ///
 /// @implements SPEC-005: Document date and pattern filters
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+/// @implements SPEC-031: Explicit document scope selection
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema, Default)]
 pub struct DocumentFilter {
     /// Start date (inclusive) in ISO 8601 format (e.g., "2025-01-01T00:00:00Z").
     /// Only documents created on or after this date are included.
@@ -46,6 +47,32 @@ pub struct DocumentFilter {
     /// Example: "report,summary" matches documents containing "report" OR "summary".
     #[serde(default)]
     pub document_pattern: Option<String>,
+
+    /// Explicit document IDs to restrict query scope.
+    ///
+    /// When set, only these documents contribute RAG context, subject to any
+    /// active date_from/date_to constraints (AND logic across field types).
+    /// Union with document_pattern when both are set (OR membership logic).
+    ///
+    /// An empty list `[]` is treated identically to `null` (no filtering).
+    /// IDs not present in the workspace are silently ignored.
+    ///
+    /// @implements SPEC-031: Explicit document scope selection
+    #[serde(default)]
+    pub document_ids: Option<Vec<String>>,
+}
+
+impl DocumentFilter {
+    /// Returns true when no filter criteria are active (all-pass, no KV scan needed).
+    pub fn is_empty(&self) -> bool {
+        self.date_from.is_none()
+            && self.date_to.is_none()
+            && self.document_pattern.is_none()
+            && self
+                .document_ids
+                .as_ref()
+                .map_or(true, |ids| ids.is_empty())
+    }
 }
 
 /// A single message in the conversation history.

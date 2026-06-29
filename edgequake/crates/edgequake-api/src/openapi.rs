@@ -134,6 +134,7 @@ use crate::handlers;
         handlers::get_document,
         handlers::delete_document,
         handlers::scan_directory,
+        handlers::search_documents,
         handlers::reprocess_failed,
         handlers::recover_stuck,
         handlers::analyze_deletion_impact,
