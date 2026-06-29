@@ -12,7 +12,10 @@ pub const MCP_MAX_BODY_BYTES: usize = 1024 * 1024;
 #[derive(Debug, Clone)]
 pub enum ParsedMcpBody {
     Request(JsonRpcRequest),
-    Notification { method: String, params: Option<Value> },
+    Notification {
+        method: String,
+        params: Option<Value>,
+    },
 }
 
 /// Parse raw POST bytes into a single JSON-RPC object or notification.
@@ -29,11 +32,7 @@ pub fn parse_mcp_body(bytes: &[u8]) -> Result<ParsedMcpBody, GatewayError> {
     }
 
     let value: Value = serde_json::from_slice(bytes).map_err(|_| {
-        GatewayError::transport(
-            StatusCode::BAD_REQUEST,
-            -32700,
-            "Parse error: invalid JSON",
-        )
+        GatewayError::transport(StatusCode::BAD_REQUEST, -32700, "Parse error: invalid JSON")
     })?;
 
     if value.is_array() {

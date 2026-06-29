@@ -4,9 +4,7 @@ mod common;
 
 use std::path::PathBuf;
 
-use edgequake_api::mcp::{
-    build_registry_manifest, REGISTRY_SERVER_NAME, SERVER_JSON_SCHEMA,
-};
+use edgequake_api::mcp::{build_registry_manifest, REGISTRY_SERVER_NAME, SERVER_JSON_SCHEMA};
 use serde_json::Value;
 
 fn read_server_json() -> Value {
@@ -27,7 +25,10 @@ fn spec028_mcp_registry_server_json_matches_rust_ssot() {
     }
     assert_eq!(file["name"].as_str(), Some(REGISTRY_SERVER_NAME));
     assert_eq!(file["remotes"][0]["type"], "streamable-http");
-    assert!(file["remotes"][0]["url"].as_str().unwrap().contains("{host}"));
+    assert!(file["remotes"][0]["url"]
+        .as_str()
+        .unwrap()
+        .contains("{host}"));
 }
 
 #[test]
@@ -42,10 +43,9 @@ fn spec028_mcp_registry_server_json_required_fields() {
 
 #[test]
 fn spec028_mcp_registry_module_wired() {
-    let routes = std::fs::read_to_string(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/routes.rs"),
-    )
-    .unwrap();
+    let routes =
+        std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/routes.rs"))
+            .unwrap();
     assert!(routes.contains("/.well-known/mcp/server.json"));
     assert!(routes.contains("mcp_registry_server_json"));
 }

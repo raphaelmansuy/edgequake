@@ -57,6 +57,26 @@ export default function DocumentViewPage() {
   // Deep-link: chunk UUID passed from query citation click
   const chunkIdFromUrl = searchParams.get('chunk') || undefined;
 
+  // SPEC-032 W-09: PDF page deep-link — ?page=N or #page=N from citation "Go to page"
+  // Priority: URL search param `page=N` > hash fragment `#page=N` > default 1
+  // The URL param is set by source-citations.tsx in the deep-link href.
+  const pageFromUrl = useMemo(() => {
+    const paramPage = searchParams.get('page');
+    if (paramPage) {
+      const n = parseInt(paramPage, 10);
+      if (!isNaN(n) && n >= 1) return n;
+    }
+    return undefined;
+  }, [searchParams]);
+
+  const [initialPdfPage, setInitialPdfPage] = useState<number>(pageFromUrl ?? 1);
+
+  // Sync initialPdfPage when URL param changes (e.g. user clicks different citations)
+  useEffect(() => {
+    if (pageFromUrl !== undefined) {
+      setInitialPdfPage(pageFromUrl);
+    }
+  }, [pageFromUrl]);
   // OODA-chunk-select: Local chunk selection state for sidebar → content highlighting.
   // State is always kept in sync with the URL (`?chunk=<id>`) so any selection
   // is addressable, shareable, and survives page refresh.
@@ -337,6 +357,7 @@ export default function DocumentViewPage() {
                   // OODA-48: Use pdfIdForViewer which is guaranteed to exist when isPdfDocument is true
                   <PDFViewer
                     file={getPdfDownloadUrl(pdfIdForViewer!)}
+                    initialPage={initialPdfPage}
                   />
                 }
                 rightPanel={

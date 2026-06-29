@@ -81,12 +81,12 @@
 //! 2. Headers (`X-Tenant-ID`, `X-Workspace-ID`)
 //! 3. Default tenant (for non-authenticated deployments)
 
+use axum::extract::DefaultBodyLimit;
 use axum::{
     middleware,
     routing::{delete, get, patch, post, put},
     Router,
 };
-use axum::extract::DefaultBodyLimit;
 
 use crate::handlers;
 use crate::state::AppState;
@@ -425,7 +425,10 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/query", post(handlers::execute_query))
         .route("/query/stream", post(handlers::stream_query))
         .route("/query/context", post(handlers::retrieve_query_context))
-        .route("/query/context/search", post(handlers::search_query_context))
+        .route(
+            "/query/context/search",
+            post(handlers::search_query_context),
+        )
         .route(
             "/query/context/artifacts/{artifact_type}/{artifact_id}",
             get(handlers::get_context_artifact),

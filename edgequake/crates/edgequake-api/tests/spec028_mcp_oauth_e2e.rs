@@ -322,7 +322,11 @@ async fn ec_mcp_oidc_roundtrip_jwt_then_mcp_tools_list() {
         )
         .await
         .unwrap();
-    assert_eq!(callback.status(), StatusCode::OK, "OIDC callback must issue tokens");
+    assert_eq!(
+        callback.status(),
+        StatusCode::OK,
+        "OIDC callback must issue tokens"
+    );
     let login_body = parse_json(callback).await;
     let access_token = login_body["access_token"]
         .as_str()
@@ -445,5 +449,8 @@ async fn ec_mcp_39_prompt_injection_query_treated_as_data() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.get("error").is_none(), "injection string is data-only: {body:?}");
+    assert!(
+        body.get("error").is_none(),
+        "injection string is data-only: {body:?}"
+    );
 }

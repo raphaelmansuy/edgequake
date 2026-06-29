@@ -103,13 +103,19 @@ pub async fn admin_from_headers(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::{Method, Request};
     use edgequake_auth::Role;
 
     #[tokio::test]
     async fn api_require_admin_synthetic_when_auth_disabled() {
         let state = AppState::test_state();
         assert!(!state.auth.config.auth_enabled);
-        let mut parts = Parts::default();
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri("/")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let (mut parts, _) = request.into_parts();
         let admin = ApiRequireAdmin::from_request_parts(&mut parts, &state)
             .await
             .expect("synthetic admin");

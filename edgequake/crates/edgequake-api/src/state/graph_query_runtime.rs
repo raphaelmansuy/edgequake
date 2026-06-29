@@ -19,6 +19,9 @@ impl GraphQueryRuntime {
         materialize: Arc<GraphMaterializationSemaphore>,
         budget: ResourceBudgetConfig,
     ) -> Self {
-        Self { materialize, budget }
+        Self {
+            materialize,
+            budget,
+        }
     }
 }

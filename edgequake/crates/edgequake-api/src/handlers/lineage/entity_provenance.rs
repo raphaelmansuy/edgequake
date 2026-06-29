@@ -130,10 +130,7 @@ pub async fn get_entity_provenance(
     }
 
     // SPEC-006 P1: O(degree) lookup via get_node_edges (no full graph scan)
-    let node_edges = storage
-        .graph_storage
-        .get_node_edges(&normalized_id)
-        .await?;
+    let node_edges = storage.graph_storage.get_node_edges(&normalized_id).await?;
     let mut related: Vec<RelatedEntityInfo> = Vec::new();
     for edge in node_edges {
         let (other_id, _) = if edge.source == normalized_id {

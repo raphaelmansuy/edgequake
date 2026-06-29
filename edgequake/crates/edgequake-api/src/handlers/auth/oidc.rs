@@ -46,7 +46,10 @@ pub async fn oidc_login(State(state): State<AppState>) -> Result<Response, ApiEr
         return Err(map_oidc_service_error(OidcServiceError::NotConfigured));
     };
 
-    let start = service.begin_login().await.map_err(map_oidc_service_error)?;
+    let start = service
+        .begin_login()
+        .await
+        .map_err(map_oidc_service_error)?;
     store_oidc_pending(&state.storage, &start.pending.csrf_token, &start.pending).await?;
     Ok(Redirect::to(&start.authorization_url).into_response())
 }

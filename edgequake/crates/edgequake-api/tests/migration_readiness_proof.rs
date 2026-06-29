@@ -10,7 +10,11 @@ use edgequake_api::handlers::health::readiness_check;
 use edgequake_api::state::migration_bootstrap::{
     Migration038Report, Migration042Report, Migration043Report, Migration044Report,
     Migration045Report, Migration046Report, Migration047Report, Migration048Report,
-    Migration049Report, Migration050Report, MigrationBootstrapReport,
+    Migration049Report, Migration050Report, Migration051Report, Migration052Report,
+    Migration053Report, Migration054Report, Migration055Report, Migration056Report,
+    Migration057Report, Migration058Report, Migration059Report, Migration060Report,
+    Migration061Report, Migration062Report, Migration063Report, Migration064Report,
+    Migration065Report, MigrationBootstrapReport,
 };
 use edgequake_api::AppState;
 
@@ -72,6 +76,66 @@ fn degraded_bootstrap_report() -> MigrationBootstrapReport {
             apply_executed: false,
         },
         migration_050: Migration050Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_051: Migration051Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_052: Migration052Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_053: Migration053Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_054: Migration054Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_055: Migration055Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_056: Migration056Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_057: Migration057Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_058: Migration058Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_059: Migration059Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_060: Migration060Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_061: Migration061Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_062: Migration062Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_063: Migration063Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_064: Migration064Report {
+            marker_present: true,
+            apply_executed: false,
+        },
+        migration_065: Migration065Report {
             marker_present: true,
             apply_executed: false,
         },

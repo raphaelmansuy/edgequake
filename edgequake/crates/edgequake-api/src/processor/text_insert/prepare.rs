@@ -179,11 +179,12 @@ impl DocumentTaskProcessor {
         let source_is_pdf = source_type.eq_ignore_ascii_case("pdf")
             || source_type.eq_ignore_ascii_case("pdf_upload")
             || text_content.contains(edgequake_pipeline::PAGE_MARKER_PREFIX);
-        let ingestion_options = if source_is_pdf && chunk_strategy == edgequake_pipeline::ChunkStrategy::default() {
-            ingestion_options.for_pdf()
-        } else {
-            ingestion_options
-        };
+        let ingestion_options =
+            if source_is_pdf && chunk_strategy == edgequake_pipeline::ChunkStrategy::default() {
+                ingestion_options.for_pdf()
+            } else {
+                ingestion_options
+            };
         let ingestion_options = if let Some(opts) = chunk_options {
             ingestion_options.with_chunk_options(opts)
         } else {

@@ -118,20 +118,14 @@ mod tests {
         let state = AppState::test_state();
         let storage = StorageRuntime::from_ref(&state);
         assert_eq!(storage.mode, state.storage.mode);
-        assert!(Arc::ptr_eq(
-            &storage.kv_storage,
-            &state.storage.kv_storage
-        ));
+        assert!(Arc::ptr_eq(&storage.kv_storage, &state.storage.kv_storage));
     }
 
     #[tokio::test]
     async fn from_ref_clones_query_bundle() {
         let state = AppState::test_state();
         let query = QueryRuntime::from_ref(&state);
-        assert_eq!(
-            query.llm_provider.name(),
-            state.query.llm_provider.name()
-        );
+        assert_eq!(query.llm_provider.name(), state.query.llm_provider.name());
     }
 
     #[tokio::test]

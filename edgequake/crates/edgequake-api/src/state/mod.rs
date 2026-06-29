@@ -71,31 +71,31 @@
 
 mod auth_runtime;
 pub(crate) mod bundled_models;
+mod compliance_runtime;
 mod config;
+mod graph_query_runtime;
 mod memory;
 #[cfg(feature = "postgres")]
 pub mod migration_bootstrap;
 #[cfg(feature = "postgres")]
 mod postgres;
+mod postgres_runtime;
 mod provider_setup;
 mod query_bootstrap;
 mod query_runtime;
 mod resource_runtime;
 pub mod runtime_extractors;
 pub mod security_config;
-mod compliance_runtime;
-mod graph_query_runtime;
-mod postgres_runtime;
 mod storage_runtime;
 mod task_runtime;
 
 pub use auth_runtime::AuthRuntime;
-pub use config::*;
-pub use query_runtime::QueryRuntime;
-pub use security_config::ApiSecurityConfig;
 pub use compliance_runtime::ComplianceRuntime;
+pub use config::*;
 pub use graph_query_runtime::GraphQueryRuntime;
 pub use postgres_runtime::PostgresRuntime;
+pub use query_runtime::QueryRuntime;
+pub use security_config::ApiSecurityConfig;
 pub use storage_runtime::StorageRuntime;
 pub use task_runtime::TaskRuntime;
 

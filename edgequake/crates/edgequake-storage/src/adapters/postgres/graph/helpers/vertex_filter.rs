@@ -63,9 +63,7 @@ impl PostgresAGEGraphStorage {
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
-                conditions.push(format!(
-                    "({props}->>'community_id')::bigint IN ({id_list})"
-                ));
+                conditions.push(format!("({props}->>'community_id')::bigint IN ({id_list})"));
             }
         }
 
@@ -166,11 +164,8 @@ impl PostgresAGEGraphStorage {
         table_alias: &str,
         filter: &EdgeListFilter,
     ) -> String {
-        let predicate = Self::build_edge_property_where(
-            table_alias,
-            filter,
-            EdgeTenantFilterMode::Strict,
-        );
+        let predicate =
+            Self::build_edge_property_where(table_alias, filter, EdgeTenantFilterMode::Strict);
         if predicate == "TRUE" {
             format!("SELECT COUNT(*)::bigint FROM {graph_name}.\"_ag_label_edge\" {table_alias}")
         } else {
@@ -202,7 +197,8 @@ mod tests {
 
     #[test]
     fn empty_filter_is_true_predicate() {
-        let sql = PostgresAGEGraphStorage::build_vertex_property_where("v", &NodeListFilter::default());
+        let sql =
+            PostgresAGEGraphStorage::build_vertex_property_where("v", &NodeListFilter::default());
         assert_eq!(sql, "TRUE");
     }
 
@@ -213,8 +209,11 @@ mod tests {
             workspace_id: Some("w1".into()),
             relationship_type: None,
         };
-        let strict =
-            PostgresAGEGraphStorage::build_edge_property_where("e", &filter, EdgeTenantFilterMode::Strict);
+        let strict = PostgresAGEGraphStorage::build_edge_property_where(
+            "e",
+            &filter,
+            EdgeTenantFilterMode::Strict,
+        );
         assert!(strict.contains("tenant_id' = 't1'"));
         assert!(!strict.contains("IS NULL"));
 

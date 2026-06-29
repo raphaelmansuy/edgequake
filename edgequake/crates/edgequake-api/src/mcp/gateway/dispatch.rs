@@ -110,8 +110,12 @@ fn server_discover(protocol_version: &str) -> Value {
     })
 }
 
-async fn tools_call(ctx: &DispatchContext<'_>, params: Option<Value>) -> Result<Value, GatewayError> {
-    let params = params.ok_or_else(|| GatewayError::Api(ApiError::BadRequest("Missing params".into())))?;
+async fn tools_call(
+    ctx: &DispatchContext<'_>,
+    params: Option<Value>,
+) -> Result<Value, GatewayError> {
+    let params =
+        params.ok_or_else(|| GatewayError::Api(ApiError::BadRequest("Missing params".into())))?;
     execute_tool_call(ctx.clone_for_task(), params).await
 }
 
@@ -125,10 +129,7 @@ pub async fn execute_tool_call(
         .and_then(|v| v.as_str())
         .ok_or_else(|| GatewayError::Api(ApiError::BadRequest("Missing tool name".into())))?;
 
-    let mut arguments = params
-        .get("arguments")
-        .cloned()
-        .unwrap_or(json!({}));
+    let mut arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
     if let Some(ws) = &ctx.workspace_header {
         if arguments.get("workspace_id").is_none() {
@@ -166,11 +167,9 @@ async fn execute_tool(
     arguments: Value,
     propagation: &PropagationHeaders,
 ) -> ApiResult<Value> {
-    let workspace = crate::handlers::query::resolve_query_workspace(
-        state,
-        tenant_ctx.workspace_id.as_deref(),
-    )
-    .await?;
+    let workspace =
+        crate::handlers::query::resolve_query_workspace(state, tenant_ctx.workspace_id.as_deref())
+            .await?;
 
     let propagation = propagation.clone();
     let llm_override: Option<Arc<dyn LLMProvider>> =

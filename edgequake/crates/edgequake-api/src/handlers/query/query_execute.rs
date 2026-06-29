@@ -5,8 +5,8 @@
 //! @implements SPEC-028: Uses QueryContextService DRY helpers for source mapping
 
 use axum::{
-    http::{HeaderMap, HeaderValue},
     extract::State,
+    http::{HeaderMap, HeaderValue},
     Extension, Json,
 };
 use edgequake_audit::{AuditEvent, AuditEventType, AuditResult};
@@ -216,7 +216,9 @@ pub async fn execute_query(
 
     let mut headers = HeaderMap::new();
     if request.context_only {
-        if let Ok(link) = HeaderValue::from_str("</api/v1/query/context>; rel=\"successor-version\"") {
+        if let Ok(link) =
+            HeaderValue::from_str("</api/v1/query/context>; rel=\"successor-version\"")
+        {
             headers.insert("Deprecation", HeaderValue::from_static("true"));
             headers.insert("Link", link);
         }

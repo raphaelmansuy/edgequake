@@ -147,12 +147,11 @@ pub async fn plan_workspace_document_kv_deletion(
     kv_storage: &(dyn KVStorage + Send + Sync),
     workspace_id: &str,
 ) -> ApiResult<WorkspaceDocumentDeletePlan> {
-    let doc_ids =
-        crate::services::workspace_document_index::list_workspace_document_ids(
-            kv_storage,
-            workspace_id,
-        )
-        .await?;
+    let doc_ids = crate::services::workspace_document_index::list_workspace_document_ids(
+        kv_storage,
+        workspace_id,
+    )
+    .await?;
     if !doc_ids.is_empty() {
         return build_delete_plan_for_doc_ids(kv_storage, workspace_id, doc_ids).await;
     }
@@ -170,10 +169,11 @@ async fn build_delete_plan_for_doc_ids(
         let metadata_key = metadata_key_for_document(&doc_id);
         plan.keys.push(metadata_key.clone());
         plan.keys.push(format!("{doc_id}-content"));
-        plan.keys.push(edgequake_storage::kv_keys::workspace_doc_index(
-            workspace_id,
-            &doc_id,
-        ));
+        plan.keys
+            .push(edgequake_storage::kv_keys::workspace_doc_index(
+                workspace_id,
+                &doc_id,
+            ));
 
         let chunk_prefix = format!("{doc_id}-chunk-");
         let chunk_keys = kv_storage.keys_with_prefix(&chunk_prefix).await?;
@@ -416,8 +416,14 @@ mod tests {
         });
         kv.upsert(&[
             ("doc-indexed-metadata".to_string(), meta.clone()),
-            ("doc-indexed-content".to_string(), serde_json::json!({ "content": "x" })),
-            ("doc-indexed-chunk-0".to_string(), serde_json::json!({ "text": "c" })),
+            (
+                "doc-indexed-content".to_string(),
+                serde_json::json!({ "content": "x" }),
+            ),
+            (
+                "doc-indexed-chunk-0".to_string(),
+                serde_json::json!({ "text": "c" }),
+            ),
         ])
         .await
         .unwrap();

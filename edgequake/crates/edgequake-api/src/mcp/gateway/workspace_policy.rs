@@ -57,12 +57,8 @@ mod tests {
             workspace_id: Some("ws-a".into()),
             ..Default::default()
         };
-        enforce_workspace_claim(
-            &ctx,
-            &json!({ "workspace_id": "ws-a" }),
-            Some(Role::User),
-        )
-        .expect("match");
+        enforce_workspace_claim(&ctx, &json!({ "workspace_id": "ws-a" }), Some(Role::User))
+            .expect("match");
     }
 
     #[test]

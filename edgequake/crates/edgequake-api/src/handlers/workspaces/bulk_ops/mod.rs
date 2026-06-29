@@ -123,8 +123,7 @@ pub(super) async fn read_stored_content(state: &AppState, doc_id: &str) -> Optio
 pub(super) async fn mark_document_pending(state: &AppState, doc_id: &str, track_id: &str) {
     use chrono::Utc;
 
-    let metadata_key =
-        crate::services::document_metadata_scan::metadata_key_for_document(doc_id);
+    let metadata_key = crate::services::document_metadata_scan::metadata_key_for_document(doc_id);
     if let Some(mut metadata) = state
         .storage
         .kv_storage

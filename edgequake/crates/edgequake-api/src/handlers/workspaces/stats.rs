@@ -197,10 +197,12 @@ async fn try_kv_storage_stats(
     workspace_id: Uuid,
 ) -> Result<WorkspaceStatsResponse, ApiError> {
     // SPEC-027 phase 10: wsdoc index prefix scan with suffix-scan fallback.
-    let metadata_values =
-        load_workspace_metadata_values(state.storage.kv_storage.as_ref(), &workspace_id.to_string())
-            .await
-            .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
+    let metadata_values = load_workspace_metadata_values(
+        state.storage.kv_storage.as_ref(),
+        &workspace_id.to_string(),
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to get document metadata: {}", e)))?;
 
     // Aggregate stats from documents belonging to this workspace
     let mut document_count = 0;

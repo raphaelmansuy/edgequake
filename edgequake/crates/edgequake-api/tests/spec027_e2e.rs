@@ -292,7 +292,10 @@ async fn spec027_health_includes_api_capabilities() {
     assert_eq!(caps["openapi_url"], "/api-docs/openapi.json");
     assert_eq!(caps["asyncapi_url"], "/api-docs/asyncapi.json");
     assert_eq!(caps["admin_api_prefix"], "/api/v1/admin");
-    assert_eq!(caps["jobs_v2_catalog"], "/api/v2/workspaces/{workspace_id}/jobs/catalog");
+    assert_eq!(
+        caps["jobs_v2_catalog"],
+        "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+    );
     assert_eq!(caps["auth_identity_ssot"], "in-memory");
     assert_eq!(caps["auth_enabled"], false);
     assert_eq!(caps["dev_mode"], true);
@@ -344,7 +347,10 @@ async fn spec027_openapi_json_endpoint_serves_valid_document() {
     assert_eq!(body["openapi"], "3.1.0");
     assert_eq!(body["info"]["version"], env!("CARGO_PKG_VERSION"));
     assert!(body["paths"].as_object().map(|p| p.len()).unwrap_or(0) >= 100);
-    assert!(body["servers"].as_array().map(|s| !s.is_empty()).unwrap_or(false));
+    assert!(body["servers"]
+        .as_array()
+        .map(|s| !s.is_empty())
+        .unwrap_or(false));
     assert!(body["x-edgequake-asyncapi"]["channels"].is_object());
 }
 
@@ -366,7 +372,10 @@ async fn spec027_asyncapi_json_endpoint_serves_standalone_document() {
     assert_eq!(body["asyncapi"], "2.6.0");
     assert_eq!(body["info"]["version"], env!("CARGO_PKG_VERSION"));
     assert!(body["channels"]["/ws/pipeline/progress"]["subscribe"].is_object());
-    assert!(body["servers"]["local"]["url"].as_str().unwrap().starts_with("ws://"));
+    assert!(body["servers"]["local"]["url"]
+        .as_str()
+        .unwrap()
+        .starts_with("ws://"));
 }
 
 #[tokio::test]
@@ -620,12 +629,10 @@ async fn spec027_v2_jobs_catalog_lists_task_and_rpc_types() {
         .find(|e| e["job_type"] == "rebuild_embeddings")
         .expect("rebuild_embeddings entry");
     assert_eq!(rebuild["creatable_via_v2"], true);
-    assert!(
-        rebuild["endpoints"][0]
-            .as_str()
-            .unwrap()
-            .contains(SPEC027_WORKSPACE)
-    );
+    assert!(rebuild["endpoints"][0]
+        .as_str()
+        .unwrap()
+        .contains(SPEC027_WORKSPACE));
 }
 
 #[tokio::test]
@@ -658,7 +665,9 @@ async fn spec027_v1_rpc_includes_sunset_and_link_headers() {
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
-                .body(Body::from(json!({ "stuck_threshold_minutes": 60 }).to_string()))
+                .body(Body::from(
+                    json!({ "stuck_threshold_minutes": 60 }).to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -698,7 +707,9 @@ async fn spec027_v1_rpc_returns_202_by_default() {
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
-                .body(Body::from(json!({ "stuck_threshold_minutes": 60 }).to_string()))
+                .body(Body::from(
+                    json!({ "stuck_threshold_minutes": 60 }).to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -739,7 +750,9 @@ async fn spec027_v1_rpc_returns_200_when_legacy_opt_out() {
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("X-Tenant-ID", SPEC027_TENANT)
                 .header("X-Workspace-ID", SPEC027_WORKSPACE)
-                .body(Body::from(json!({ "stuck_threshold_minutes": 60 }).to_string()))
+                .body(Body::from(
+                    json!({ "stuck_threshold_minutes": 60 }).to_string(),
+                ))
                 .unwrap(),
         )
         .await

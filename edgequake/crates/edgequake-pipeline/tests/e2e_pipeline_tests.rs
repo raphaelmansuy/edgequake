@@ -480,7 +480,10 @@ async fn test_memory_storage_full_cycle() {
     assert_eq!(results[0].id, "edgequake", "Should find EdgeQuake");
 
     // Graph traversal
-    let neighbors = graph_storage.get_neighbors("edgequake", 1, None, None).await.unwrap();
+    let neighbors = graph_storage
+        .get_neighbors("edgequake", 1, None, None)
+        .await
+        .unwrap();
     assert!(!neighbors.is_empty(), "Should find neighbors");
 
     // Verify document retrieval
@@ -528,7 +531,10 @@ async fn test_knowledge_graph_traversal() {
     }
 
     // Test traversals
-    let edgequake_neighbors = graph_storage.get_neighbors("edgequake", 1, None, None).await.unwrap();
+    let edgequake_neighbors = graph_storage
+        .get_neighbors("edgequake", 1, None, None)
+        .await
+        .unwrap();
     assert!(
         edgequake_neighbors.len() >= 2,
         "EdgeQuake should have multiple neighbors"
@@ -825,7 +831,10 @@ async fn test_complete_e2e_flow() {
         assert!(edge_count > 0, "Graph should have edges");
 
         // 7. Test graph queries (normalized key is UPPERCASE)
-        let neighbors = graph_storage.get_neighbors("EDGEQUAKE", 1, None, None).await.unwrap();
+        let neighbors = graph_storage
+            .get_neighbors("EDGEQUAKE", 1, None, None)
+            .await
+            .unwrap();
         assert!(!neighbors.is_empty(), "EdgeQuake should have neighbors");
     }
 

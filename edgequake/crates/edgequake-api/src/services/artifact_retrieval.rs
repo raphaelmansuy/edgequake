@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::context_types::{
-    ContextArtifactChunk, ContextArtifactDocument, ContextArtifactFigure,
-    ContextArtifactMarkdown, ContextArtifactPdf, ContextArtifactResponse,
+    ContextArtifactChunk, ContextArtifactDocument, ContextArtifactFigure, ContextArtifactMarkdown,
+    ContextArtifactPdf, ContextArtifactResponse,
 };
 use crate::handlers::isolation::verify_document_access;
 use crate::middleware::TenantContext;
@@ -66,9 +66,7 @@ pub async fn retrieve_artifact(
             })?;
             retrieve_figure_artifact(state, tenant_ctx, &document_id, artifact_id).await
         }
-        ArtifactKind::Markdown => {
-            retrieve_markdown_artifact(state, tenant_ctx, artifact_id).await
-        }
+        ArtifactKind::Markdown => retrieve_markdown_artifact(state, tenant_ctx, artifact_id).await,
         ArtifactKind::Pdf => {
             retrieve_pdf_artifact(
                 state,
@@ -88,12 +86,8 @@ async fn retrieve_document_artifact(
     document_id: &str,
     include_content: bool,
 ) -> ApiResult<ContextArtifactResponse> {
-    let metadata = verify_document_access(
-        state.storage.kv_storage.as_ref(),
-        document_id,
-        tenant_ctx,
-    )
-    .await?;
+    let metadata =
+        verify_document_access(state.storage.kv_storage.as_ref(), document_id, tenant_ctx).await?;
 
     let chunk_prefix = format!("{document_id}-chunk-");
     let chunk_keys = state
@@ -103,10 +97,7 @@ async fn retrieve_document_artifact(
         .await?;
 
     let manifest = load_manifest(state.storage.kv_storage.as_ref(), document_id).await;
-    let multimodal_item_count = manifest
-        .as_ref()
-        .map(|m| m.items.len())
-        .unwrap_or(0);
+    let multimodal_item_count = manifest.as_ref().map(|m| m.items.len()).unwrap_or(0);
 
     let meta_obj = metadata.as_object();
     let title = meta_obj
@@ -188,19 +179,13 @@ async fn retrieve_markdown_artifact(
     tenant_ctx: &TenantContext,
     document_id: &str,
 ) -> ApiResult<ContextArtifactResponse> {
-    let metadata = verify_document_access(
-        state.storage.kv_storage.as_ref(),
-        document_id,
-        tenant_ctx,
-    )
-    .await?;
+    let metadata =
+        verify_document_access(state.storage.kv_storage.as_ref(), document_id, tenant_ctx).await?;
 
     let body = load_document_body(&state.storage, document_id, &metadata)
         .await
         .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "No markdown content for document '{document_id}'"
-            ))
+            ApiError::NotFound(format!("No markdown content for document '{document_id}'"))
         })?;
 
     Ok(ContextArtifactResponse {
@@ -226,31 +211,29 @@ async fn retrieve_pdf_artifact(
     document_id_hint: Option<&str>,
     include_markdown: bool,
 ) -> ApiResult<ContextArtifactResponse> {
-    let pdf_storage = state.storage.pdf_storage.as_ref().ok_or_else(|| {
-        ApiError::ServiceUnavailable {
-            message: "PDF storage not available".into(),
-            retry_after_secs: 30,
-        }
-    })?;
+    let pdf_storage =
+        state
+            .storage
+            .pdf_storage
+            .as_ref()
+            .ok_or_else(|| ApiError::ServiceUnavailable {
+                message: "PDF storage not available".into(),
+                retry_after_secs: 30,
+            })?;
 
     let (pdf_id, linked_document_id) = if let Ok(uuid) = Uuid::parse_str(artifact_id) {
         (uuid, document_id_hint.map(str::to_string))
     } else if let Some(doc_id) = document_id_hint {
-        let metadata = verify_document_access(
-            state.storage.kv_storage.as_ref(),
-            doc_id,
-            tenant_ctx,
-        )
-        .await?;
+        let metadata =
+            verify_document_access(state.storage.kv_storage.as_ref(), doc_id, tenant_ctx).await?;
         let pdf_id_str = metadata
             .get("pdf_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
                 ApiError::NotFound(format!("Document '{doc_id}' has no linked pdf_id"))
             })?;
-        let uuid = Uuid::parse_str(pdf_id_str).map_err(|_| {
-            ApiError::BadRequest(format!("Invalid pdf_id on document '{doc_id}'"))
-        })?;
+        let uuid = Uuid::parse_str(pdf_id_str)
+            .map_err(|_| ApiError::BadRequest(format!("Invalid pdf_id on document '{doc_id}'")))?;
         (uuid, Some(doc_id.to_string()))
     } else {
         return Err(ApiError::BadRequest(
@@ -286,9 +269,7 @@ async fn retrieve_pdf_artifact(
         markdown: None,
         pdf: Some(ContextArtifactPdf {
             pdf_id: pdf_id.to_string(),
-            document_id: linked_document_id.or_else(|| {
-                pdf.document_id.map(|id| id.to_string())
-            }),
+            document_id: linked_document_id.or_else(|| pdf.document_id.map(|id| id.to_string())),
             filename: pdf.filename,
             file_size_bytes: pdf.file_size_bytes,
             content_type: pdf.content_type,
@@ -326,12 +307,7 @@ async fn retrieve_chunk_artifact(
             .to_string()
     };
 
-    verify_document_access(
-        state.storage.kv_storage.as_ref(),
-        &document_id,
-        tenant_ctx,
-    )
-    .await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), &document_id, tenant_ctx).await?;
 
     let content = chunk_data
         .get("content")
@@ -381,12 +357,7 @@ async fn retrieve_figure_artifact(
     document_id: &str,
     item_id: &str,
 ) -> ApiResult<ContextArtifactResponse> {
-    verify_document_access(
-        state.storage.kv_storage.as_ref(),
-        document_id,
-        tenant_ctx,
-    )
-    .await?;
+    verify_document_access(state.storage.kv_storage.as_ref(), document_id, tenant_ctx).await?;
 
     let manifest = load_manifest(state.storage.kv_storage.as_ref(), document_id)
         .await
@@ -411,15 +382,13 @@ async fn retrieve_figure_artifact(
         .iter()
         .find(|v| v.item_id == item_id)
         .cloned()
-        .unwrap_or_else(|| {
-            crate::services::MultimodalItemStatusView {
-                item_id: item.item_id.clone(),
-                modality: item.modality.clone(),
-                status: "pending".into(),
-                name: None,
-                item_type: None,
-                message: None,
-            }
+        .unwrap_or_else(|| crate::services::MultimodalItemStatusView {
+            item_id: item.item_id.clone(),
+            modality: item.modality.clone(),
+            status: "pending".into(),
+            name: None,
+            item_type: None,
+            message: None,
         });
 
     let analyzed_text = load_mm_chunks(state.storage.kv_storage.as_ref(), document_id)

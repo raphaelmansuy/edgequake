@@ -72,7 +72,10 @@ fn validate_retrieve(arguments: &Value) -> Result<(), GatewayError> {
     require_non_empty_query(arguments)?;
     validate_mode(arguments)?;
     validate_max_results(arguments)?;
-    if let Some(g) = arguments.get("content_granularity").and_then(|v| v.as_str()) {
+    if let Some(g) = arguments
+        .get("content_granularity")
+        .and_then(|v| v.as_str())
+    {
         validate_granularity(g)?;
     }
     Ok(())
@@ -88,16 +91,24 @@ fn validate_fetch(arguments: &Value) -> Result<(), GatewayError> {
             "Invalid retrieval_id".into(),
         )));
     }
-    if let Some(g) = arguments.get("content_granularity").and_then(|v| v.as_str()) {
+    if let Some(g) = arguments
+        .get("content_granularity")
+        .and_then(|v| v.as_str())
+    {
         validate_granularity(g)?;
     }
     Ok(())
 }
 
 fn require_non_empty_query(arguments: &Value) -> Result<(), GatewayError> {
-    let query = arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
+    let query = arguments
+        .get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if query.trim().is_empty() {
-        return Err(GatewayError::Api(ApiError::BadRequest("query is required".into())));
+        return Err(GatewayError::Api(ApiError::BadRequest(
+            "query is required".into(),
+        )));
     }
     Ok(())
 }
@@ -169,20 +180,18 @@ mod tests {
 
     #[test]
     fn debug_granularity_requires_admin_when_role_user() {
-        let err = enforce_debug_granularity(
-            &json!({"content_granularity": "debug"}),
-            Some(Role::User),
-        )
-        .unwrap_err();
-        assert_eq!(err.json_rpc_http_status(), axum::http::StatusCode::FORBIDDEN);
+        let err =
+            enforce_debug_granularity(&json!({"content_granularity": "debug"}), Some(Role::User))
+                .unwrap_err();
+        assert_eq!(
+            err.json_rpc_http_status(),
+            axum::http::StatusCode::FORBIDDEN
+        );
     }
 
     #[test]
     fn debug_granularity_allowed_for_admin() {
-        enforce_debug_granularity(
-            &json!({"content_granularity": "debug"}),
-            Some(Role::Admin),
-        )
-        .expect("admin may use debug");
+        enforce_debug_granularity(&json!({"content_granularity": "debug"}), Some(Role::Admin))
+            .expect("admin may use debug");
     }
 }

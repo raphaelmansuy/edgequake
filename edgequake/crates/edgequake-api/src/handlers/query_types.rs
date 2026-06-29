@@ -550,6 +550,8 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            page_start: None,
+            page_end: None,
         };
         let json = serde_json::to_value(&source).unwrap();
         assert_eq!(json["source_type"], "chunk");
@@ -575,6 +577,8 @@ mod tests {
             entity_type: Some("ORGANIZATION".to_string()),
             degree: Some(5),
             source_chunk_ids: Some(vec!["chunk-1".to_string()]),
+            page_start: None,
+            page_end: None,
         };
         let json = serde_json::to_value(&source).unwrap();
         assert!(json.get("rerank_score").is_none());

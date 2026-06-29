@@ -23,9 +23,7 @@ pub fn wants_sse_response(headers: &HeaderMap, method: &str, params: Option<&Val
     if method != "tools/call" {
         return false;
     }
-    let tool = params
-        .and_then(|p| p.get("name"))
-        .and_then(|v| v.as_str());
+    let tool = params.and_then(|p| p.get("name")).and_then(|v| v.as_str());
     if tool != Some("edgequake_retrieve") {
         return false;
     }
@@ -79,11 +77,7 @@ impl Drop for CancelOnDrop {
 }
 
 /// Build SSE stream for `edgequake_retrieve` with progress + final JSON-RPC response.
-pub fn retrieve_sse_stream(
-    ctx: &DispatchContext<'_>,
-    params: Value,
-    request_id: Value,
-) -> SseBody {
+pub fn retrieve_sse_stream(ctx: &DispatchContext<'_>, params: Value, request_id: Value) -> SseBody {
     let task_ctx = ctx.clone_for_task();
     let progress_token = request_id.clone();
 

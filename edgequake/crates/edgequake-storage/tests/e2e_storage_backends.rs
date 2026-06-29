@@ -889,7 +889,10 @@ mod trait_compliance_tests {
         storage.get_all_edges().await.unwrap();
 
         // Graph queries
-        storage.get_knowledge_graph("N", 1, 10, None, None).await.unwrap();
+        storage
+            .get_knowledge_graph("N", 1, 10, None, None)
+            .await
+            .unwrap();
         storage.get_popular_labels(5, None, None).await.unwrap();
         storage.search_labels("N", 5, None, None).await.unwrap();
         storage.get_neighbors("N", 1, None, None).await.unwrap();

@@ -249,10 +249,7 @@ mod tests {
         let doc = "doc-abc-123";
         let key = kv_keys::workspace_doc_index(ws, doc);
         assert_eq!(key, format!("wsdoc:{ws}:{doc}"));
-        assert_eq!(
-            kv_keys::parse_workspace_doc_index(&key),
-            Some((ws, doc))
-        );
+        assert_eq!(kv_keys::parse_workspace_doc_index(&key), Some((ws, doc)));
         assert!(kv_keys::workspace_doc_index_prefix(ws).starts_with("wsdoc:"));
     }
 

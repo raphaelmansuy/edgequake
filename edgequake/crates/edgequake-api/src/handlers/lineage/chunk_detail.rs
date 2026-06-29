@@ -99,8 +99,7 @@ pub async fn get_chunk_detail(
     // SECURITY: Verify the parent document belongs to the requesting tenant/workspace.
     // Returns 404 (not 403) to avoid leaking cross-tenant document IDs.
     let doc_metadata =
-        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx)
-            .await?;
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // Get document name from already-fetched metadata
     let doc_name = doc_metadata
@@ -110,12 +109,8 @@ pub async fn get_chunk_detail(
 
     // SPEC-006 P1: chunk-scoped prefix query (bounded)
     let chunk_scope = DocumentSourceScope::from_document_id(chunk_id.clone());
-    let chunk_nodes = find_document_nodes(
-        &storage.graph_storage,
-        Some(&tenant_ctx),
-        &chunk_scope,
-    )
-    .await?;
+    let chunk_nodes =
+        find_document_nodes(&storage.graph_storage, Some(&tenant_ctx), &chunk_scope).await?;
     let mut entities: Vec<ExtractedEntityInfo> = Vec::new();
     for node in &chunk_nodes {
         let entity_type = node
@@ -137,12 +132,8 @@ pub async fn get_chunk_detail(
         });
     }
 
-    let chunk_edges = find_document_edges(
-        &storage.graph_storage,
-        Some(&tenant_ctx),
-        &chunk_scope,
-    )
-    .await?;
+    let chunk_edges =
+        find_document_edges(&storage.graph_storage, Some(&tenant_ctx), &chunk_scope).await?;
     let mut relationships: Vec<ExtractedRelationshipInfo> = Vec::new();
     for edge in chunk_edges {
         let relation_type = edge

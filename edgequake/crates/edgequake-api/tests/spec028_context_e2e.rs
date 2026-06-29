@@ -4,8 +4,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use edgequake_api::{AppState, Server, ServerConfig};
 use edgequake_api::services::global_retrieval_cache;
+use edgequake_api::{AppState, Server, ServerConfig};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -321,7 +321,9 @@ async fn ec_retrieval_quality_coverage_score_in_range() {
 
     let quality = &body["retrieval_quality"];
     assert!(quality.get("coverage_score").is_some());
-    let score = quality["coverage_score"].as_f64().expect("coverage_score number");
+    let score = quality["coverage_score"]
+        .as_f64()
+        .expect("coverage_score number");
     assert!((0.0..=1.0).contains(&score));
     assert!(quality.get("empty_context").is_some());
     assert!(quality.get("is_sufficient").is_some());
@@ -505,7 +507,10 @@ async fn ec_query_response_includes_subgraph() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = extract_json(response).await;
-    assert!(body.get("subgraph").is_some(), "POST /query must expose subgraph");
+    assert!(
+        body.get("subgraph").is_some(),
+        "POST /query must expose subgraph"
+    );
     assert!(body["subgraph"].get("entities").is_some());
     assert!(body["subgraph"].get("relationships").is_some());
 }
@@ -712,8 +717,7 @@ async fn ec_artifact_markdown_retrieve_from_kv() {
 #[tokio::test]
 async fn ec_artifact_pdf_retrieve_with_markdown() {
     use edgequake_storage::{
-        CreatePdfRequest, ExtractionMethod, PdfProcessingStatus,
-        UpdatePdfProcessingRequest,
+        CreatePdfRequest, ExtractionMethod, PdfProcessingStatus, UpdatePdfProcessingRequest,
     };
     use uuid::Uuid;
 

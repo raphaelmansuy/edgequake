@@ -42,7 +42,9 @@ impl IngestionPipelineOptions {
     /// selected automatically (can still be overridden with `with_chunk_strategy`).
     pub fn for_pdf(mut self) -> Self {
         self.is_pdf_source = true;
-        if self.chunk_strategy == ChunkStrategy::Recursive || self.chunk_strategy == ChunkStrategy::Fixed {
+        if self.chunk_strategy == ChunkStrategy::Recursive
+            || self.chunk_strategy == ChunkStrategy::Fixed
+        {
             self.chunk_strategy = ChunkStrategy::Pdf;
         }
         self

@@ -13,9 +13,7 @@ use crate::state::{ApiSecurityConfig, PostgresRuntime, StorageRuntime};
 
 /// Whether the account is currently locked.
 pub(crate) fn is_account_locked(record: &UserRecord, now: DateTime<Utc>) -> bool {
-    record
-        .locked_until
-        .is_some_and(|until| until > now)
+    record.locked_until.is_some_and(|until| until > now)
 }
 
 /// Reject login when lockout is active (HTTP 423).

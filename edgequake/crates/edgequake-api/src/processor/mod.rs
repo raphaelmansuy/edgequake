@@ -316,9 +316,7 @@ impl DocumentTaskProcessor {
     /// Resolve the lineage sink for this processor (SPEC-032 W-08).
     ///
     /// Returns `self.lineage_sink` directly (already resolved at construction time).
-    pub(super) async fn resolve_lineage_sink(
-        &self,
-    ) -> Arc<dyn edgequake_pipeline::LineageSink> {
+    pub(super) async fn resolve_lineage_sink(&self) -> Arc<dyn edgequake_pipeline::LineageSink> {
         self.lineage_sink.clone()
     }
 

@@ -154,8 +154,8 @@ impl AuthConfig {
 
     /// Create configuration from environment variables.
     pub fn from_env() -> Self {
-        let jwt_secret = std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| DEFAULT_INSECURE_JWT_SECRET.to_string());
+        let jwt_secret =
+            std::env::var("JWT_SECRET").unwrap_or_else(|_| DEFAULT_INSECURE_JWT_SECRET.to_string());
 
         let jwt_expiry_hours: u64 = std::env::var("JWT_EXPIRY_HOURS")
             .ok()

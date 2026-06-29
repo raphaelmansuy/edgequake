@@ -47,7 +47,6 @@ pub async fn create_api_key(
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
-
     // Generate API key
     let key_id = Uuid::new_v4().to_string();
     let raw_key = generate_api_key();

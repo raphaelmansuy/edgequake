@@ -70,6 +70,8 @@ fn mm_chunks_and_modality_relations_from_sidecars() {
         token_count: 10,
         embedding: None,
         section: None,
+        page_start: None,
+        page_end: None,
     }];
     let mut extractions = vec![ExtractionResult {
         entities: vec![ExtractedEntity::new("OTHER", "CONCEPT", "ctx")],

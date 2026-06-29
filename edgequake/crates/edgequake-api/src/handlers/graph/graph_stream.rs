@@ -123,18 +123,8 @@ pub async fn stream_graph(
         let graph_for_edges = graph_storage.clone();
 
         let (total_nodes, total_edges, nodes_result) = tokio::join!(
-            async move {
-                graph_for_node_count
-                    .node_count_fast()
-                    .await
-                    .unwrap_or(0)
-            },
-            async move {
-                graph_for_edge_count
-                    .edge_count_fast()
-                    .await
-                    .unwrap_or(0)
-            },
+            async move { graph_for_node_count.node_count_fast().await.unwrap_or(0) },
+            async move { graph_for_edge_count.edge_count_fast().await.unwrap_or(0) },
             async move {
                 run_timed_graph_query(&graph_for_query.budget, "graph_stream", async move {
                     graph_for_popular

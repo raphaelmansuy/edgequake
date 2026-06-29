@@ -71,9 +71,8 @@ impl OidcFlowService {
             return Err(OidcServiceError::NotConfigured);
         }
 
-        let issuer = IssuerUrl::new(self.config.issuer_url.clone()).map_err(|e| {
-            OidcServiceError::Provider(format!("invalid issuer URL: {e}"))
-        })?;
+        let issuer = IssuerUrl::new(self.config.issuer_url.clone())
+            .map_err(|e| OidcServiceError::Provider(format!("invalid issuer URL: {e}")))?;
         let metadata = CoreProviderMetadata::discover_async(issuer, &self.http_client)
             .await
             .map_err(|e| OidcServiceError::Provider(format!("discovery failed: {e}")))?;
@@ -82,9 +81,8 @@ impl OidcFlowService {
             .client_secret
             .as_ref()
             .map(|s| ClientSecret::new(s.clone()));
-        let redirect = RedirectUrl::new(self.config.redirect_uri.clone()).map_err(|e| {
-            OidcServiceError::Provider(format!("invalid redirect URI: {e}"))
-        })?;
+        let redirect = RedirectUrl::new(self.config.redirect_uri.clone())
+            .map_err(|e| OidcServiceError::Provider(format!("invalid redirect URI: {e}")))?;
         let client = CoreClient::from_provider_metadata(
             metadata,
             ClientId::new(self.config.client_id.clone()),
@@ -124,9 +122,8 @@ impl OidcFlowService {
             return Err(OidcServiceError::StateMismatch);
         }
 
-        let issuer = IssuerUrl::new(self.config.issuer_url.clone()).map_err(|e| {
-            OidcServiceError::Provider(format!("invalid issuer URL: {e}"))
-        })?;
+        let issuer = IssuerUrl::new(self.config.issuer_url.clone())
+            .map_err(|e| OidcServiceError::Provider(format!("invalid issuer URL: {e}")))?;
         let metadata = CoreProviderMetadata::discover_async(issuer, &self.http_client)
             .await
             .map_err(|e| OidcServiceError::Provider(format!("discovery failed: {e}")))?;
@@ -135,9 +132,8 @@ impl OidcFlowService {
             .client_secret
             .as_ref()
             .map(|s| ClientSecret::new(s.clone()));
-        let redirect = RedirectUrl::new(self.config.redirect_uri.clone()).map_err(|e| {
-            OidcServiceError::Provider(format!("invalid redirect URI: {e}"))
-        })?;
+        let redirect = RedirectUrl::new(self.config.redirect_uri.clone())
+            .map_err(|e| OidcServiceError::Provider(format!("invalid redirect URI: {e}")))?;
         let client = CoreClient::from_provider_metadata(
             metadata,
             ClientId::new(self.config.client_id.clone()),

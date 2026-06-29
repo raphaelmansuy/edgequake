@@ -82,9 +82,10 @@ pub fn map_query_context_to_bundle(
             let lineage = if options.include_lineage {
                 Some(ChunkLineage {
                     document_id: chunk.document_id.clone(),
-                    file_path: chunk.document_id.as_ref().and_then(|id| {
-                        document_titles.get(id).map(|m| m.title.clone())
-                    }),
+                    file_path: chunk
+                        .document_id
+                        .as_ref()
+                        .and_then(|id| document_titles.get(id).map(|m| m.title.clone())),
                     start_line: chunk.start_line,
                     end_line: chunk.end_line,
                     chunk_index: chunk.chunk_index,
@@ -157,9 +158,7 @@ pub fn map_query_context_to_subgraph(
                 ContentGranularity::Citation => {
                     entity.description.chars().take(SNIPPET_LEN).collect()
                 }
-                ContentGranularity::Agent | ContentGranularity::Debug => {
-                    entity.description.clone()
-                }
+                ContentGranularity::Agent | ContentGranularity::Debug => entity.description.clone(),
             };
 
             let lineage = if options.include_lineage {
@@ -449,6 +448,8 @@ mod tests {
             start_line: None,
             end_line: None,
             chunk_index: None,
+            page_start: None,
+            page_end: None,
         });
 
         let bundle = map_query_context_to_bundle(
@@ -488,6 +489,9 @@ mod tests {
                 ..Default::default()
             },
         };
-        assert_eq!(build_retrieval_stats(&response, false).embedding_time_ms, 10);
+        assert_eq!(
+            build_retrieval_stats(&response, false).embedding_time_ms,
+            10
+        );
     }
 }

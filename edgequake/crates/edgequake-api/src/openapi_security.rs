@@ -45,8 +45,7 @@ fn is_public_path(path: &str) -> bool {
             | "/api/v1/auth/refresh"
             | "/api/v1/auth/oidc/login"
             | "/api/v1/auth/oidc/callback"
-    )
-        || path.starts_with("/api/v1/shared/")
+    ) || path.starts_with("/api/v1/shared/")
 }
 
 fn auth_only() -> Vec<SecurityRequirement> {

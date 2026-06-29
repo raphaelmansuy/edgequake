@@ -3,8 +3,8 @@
 //! Finds documents that have been processing longer than a configurable
 //! threshold and requeues them, cleaning up partial graph data first.
 
-use axum::{extract::State, response::IntoResponse, Json};
 use axum::response::Response;
+use axum::{extract::State, response::IntoResponse, Json};
 use chrono::Utc;
 use tracing::debug;
 use uuid::Uuid;
@@ -233,9 +233,10 @@ pub(crate) async fn run_recover_stuck(
 
     let response = RecoverStuckResponse {
         track_id: new_track_id,
-        v2_migration: tenant_ctx.workspace_id.as_ref().map(|ws| {
-            crate::services::job_registry::v2_migration_hint("recover_stuck", ws)
-        }),
+        v2_migration: tenant_ctx
+            .workspace_id
+            .as_ref()
+            .map(|ws| crate::services::job_registry::v2_migration_hint("recover_stuck", ws)),
         stuck_found: stuck_docs.len(),
         requeued: requeued_ids.len(),
         document_ids: requeued_ids,

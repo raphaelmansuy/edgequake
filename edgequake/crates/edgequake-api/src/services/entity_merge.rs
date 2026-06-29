@@ -81,8 +81,11 @@ pub async fn rewire_merged_entity_edges(
         existing_by_pair.insert((edge.source.clone(), edge.target.clone()), edge);
     }
 
-    let mut edges_to_upsert: Vec<(String, String, std::collections::HashMap<String, serde_json::Value>)> =
-        Vec::with_capacity(plans.len());
+    let mut edges_to_upsert: Vec<(
+        String,
+        String,
+        std::collections::HashMap<String, serde_json::Value>,
+    )> = Vec::with_capacity(plans.len());
 
     for plan in plans {
         let pair = (plan.new_source.clone(), plan.new_target.clone());
@@ -266,10 +269,7 @@ mod tests {
     fn merge_edge_properties_combines_weight_and_merged_from() {
         let mut incoming = std::collections::HashMap::new();
         incoming.insert("weight".to_string(), serde_json::json!(2.0));
-        incoming.insert(
-            "relation_type".to_string(),
-            serde_json::json!("WORKS_AT"),
-        );
+        incoming.insert("relation_type".to_string(), serde_json::json!("WORKS_AT"));
 
         let merged = merge_edge_properties(None, &incoming, "SOURCE_A");
         assert_eq!(merged.get("weight").and_then(|v| v.as_f64()), Some(2.0));

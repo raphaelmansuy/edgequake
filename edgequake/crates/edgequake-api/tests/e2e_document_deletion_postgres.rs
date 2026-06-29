@@ -181,7 +181,9 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
             vector_registry,
             graph_storage: Arc::clone(&graph_storage)
                 as Arc<dyn edgequake_storage::traits::GraphStorage>,
-            auth_memory: Arc::new(edgequake_api::services::auth_memory_store::AuthMemoryStore::new()),
+            auth_memory: Arc::new(
+                edgequake_api::services::auth_memory_store::AuthMemoryStore::new(),
+            ),
             pdf_storage: None,
             mode: StorageMode::Memory,
         },
@@ -209,6 +211,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
         },
         audit_logger: None,
         migration_bootstrap: None,
+        security: edgequake_api::state::ApiSecurityConfig::default(),
         resource_guard: edgequake_core::ResourceGuard::default(),
         graph_materialize: std::sync::Arc::new(edgequake_core::GraphMaterializationSemaphore::new(
             4,

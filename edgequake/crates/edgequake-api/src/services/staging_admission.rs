@@ -35,17 +35,9 @@ pub async fn promote_staging_to_final(
 
     if !batch.is_empty() {
         kv.upsert(&batch).await.map_err(kv_err)?;
-        if let Some(meta) = kv
-            .get_by_id(&final_meta)
-            .await
-            .map_err(kv_err)?
-        {
-            let _ = crate::services::sync_after_metadata_upsert(
-                kv.as_ref(),
-                &final_meta,
-                &meta,
-            )
-            .await;
+        if let Some(meta) = kv.get_by_id(&final_meta).await.map_err(kv_err)? {
+            let _ =
+                crate::services::sync_after_metadata_upsert(kv.as_ref(), &final_meta, &meta).await;
         }
     }
 

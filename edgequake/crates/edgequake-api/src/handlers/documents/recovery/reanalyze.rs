@@ -1,11 +1,11 @@
 //! POST `/documents/{document_id}/reanalyze` — multimodal analyze without re-parse (Phase 4h).
 
+use axum::response::Response;
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
     Json,
 };
-use axum::response::Response;
 use tracing::debug;
 
 use crate::error::ApiResult;
@@ -46,9 +46,10 @@ pub(crate) async fn run_reanalyze_multimodal(
         success: outcome.summary.success,
         skipped: outcome.summary.skipped,
         failed: outcome.summary.failed,
-        v2_migration: tenant_ctx.workspace_id.as_ref().map(|ws| {
-            crate::services::job_registry::v2_migration_hint("reanalyze_multimodal", ws)
-        }),
+        v2_migration: tenant_ctx
+            .workspace_id
+            .as_ref()
+            .map(|ws| crate::services::job_registry::v2_migration_hint("reanalyze_multimodal", ws)),
     })
 }
 

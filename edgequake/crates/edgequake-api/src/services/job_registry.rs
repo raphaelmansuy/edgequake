@@ -182,20 +182,18 @@ fn job_entry(workspace_id: &str, job_type: &str, description: &str) -> JobCatalo
 
 fn v1_hint(job_type: &str) -> Option<String> {
     match job_type {
-        "rebuild_embeddings" => Some(
-            "POST /api/v1/workspaces/{workspace_id}/rebuild-embeddings".into(),
-        ),
-        "rebuild_knowledge_graph" => Some(
-            "POST /api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph".into(),
-        ),
+        "rebuild_embeddings" => {
+            Some("POST /api/v1/workspaces/{workspace_id}/rebuild-embeddings".into())
+        }
+        "rebuild_knowledge_graph" => {
+            Some("POST /api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph".into())
+        }
         "reprocess_all" => {
             Some("POST /api/v1/workspaces/{workspace_id}/reprocess-documents".into())
         }
         "reprocess_failed" => Some("POST /api/v1/documents/reprocess".into()),
         "recover_stuck" => Some("POST /api/v1/documents/recover-stuck".into()),
-        "reanalyze_multimodal" => {
-            Some("POST /api/v1/documents/{document_id}/reanalyze".into())
-        }
+        "reanalyze_multimodal" => Some("POST /api/v1/documents/{document_id}/reanalyze".into()),
         _ => Some(format!("POST /api/v1/tasks (type={job_type})")),
     }
 }

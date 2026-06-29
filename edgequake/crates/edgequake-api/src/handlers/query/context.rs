@@ -14,11 +14,11 @@ use crate::handlers::context_types::{
     ContextSearchRequest, ContextSearchResponse,
 };
 use crate::middleware::TenantContext;
+use crate::services::artifact_retrieval::{retrieve_artifact, ArtifactRetrievalOptions};
 use crate::services::query_context::{
     fetch_context_by_id, resolve_keyword_llm_override, retrieve_context, search_context,
     FetchContextOptions,
 };
-use crate::services::artifact_retrieval::{retrieve_artifact, ArtifactRetrievalOptions};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -60,18 +60,11 @@ pub async fn retrieve_query_context(
     Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<ContextRetrievalRequest>,
 ) -> ApiResult<(HeaderMap, Json<ContextRetrievalResponse>)> {
-    let workspace = crate::handlers::query::resolve_query_workspace(
-        &state,
-        tenant_ctx.workspace_id.as_deref(),
-    )
-    .await?;
-    let llm_override = resolve_keyword_llm_override(
-        &state,
-        workspace.as_ref(),
-        &propagation,
-        None,
-        None,
-    )?;
+    let workspace =
+        crate::handlers::query::resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref())
+            .await?;
+    let llm_override =
+        resolve_keyword_llm_override(&state, workspace.as_ref(), &propagation, None, None)?;
 
     let response = retrieve_context(&state, &tenant_ctx, request, llm_override).await?;
 
@@ -101,18 +94,11 @@ pub async fn search_query_context(
     Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<ContextSearchRequest>,
 ) -> ApiResult<Json<ContextSearchResponse>> {
-    let workspace = crate::handlers::query::resolve_query_workspace(
-        &state,
-        tenant_ctx.workspace_id.as_deref(),
-    )
-    .await?;
-    let llm_override = resolve_keyword_llm_override(
-        &state,
-        workspace.as_ref(),
-        &propagation,
-        None,
-        None,
-    )?;
+    let workspace =
+        crate::handlers::query::resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref())
+            .await?;
+    let llm_override =
+        resolve_keyword_llm_override(&state, workspace.as_ref(), &propagation, None, None)?;
 
     Ok(Json(
         search_context(&state, &tenant_ctx, request, llm_override).await?,
@@ -137,7 +123,9 @@ pub async fn fetch_query_context(
     Path(retrieval_id): Path<String>,
     Query(query): Query<FetchContextQuery>,
 ) -> ApiResult<Json<ContextRetrievalResponse>> {
-    let granularity = query.content_granularity.unwrap_or(ContentGranularity::Agent);
+    let granularity = query
+        .content_granularity
+        .unwrap_or(ContentGranularity::Agent);
     Ok(Json(fetch_context_by_id(
         &retrieval_id,
         FetchContextOptions {

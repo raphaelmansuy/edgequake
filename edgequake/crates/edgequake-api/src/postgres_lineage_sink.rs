@@ -18,14 +18,17 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use edgequake_pipeline::{LineageSink, NoopLineageSink};
+#[cfg(feature = "postgres")]
 use sqlx::PgPool;
 use tracing::warn;
 
 /// Production lineage sink backed by PostgreSQL (migration 066).
+#[cfg(feature = "postgres")]
 pub struct PostgresLineageSink {
     pool: Arc<PgPool>,
 }
 
+#[cfg(feature = "postgres")]
 impl PostgresLineageSink {
     pub fn new(pool: Arc<PgPool>) -> Self {
         Self { pool }
@@ -59,6 +62,7 @@ impl PostgresLineageSink {
     }
 }
 
+#[cfg(feature = "postgres")]
 #[async_trait]
 impl LineageSink for PostgresLineageSink {
     async fn record_entity_link(

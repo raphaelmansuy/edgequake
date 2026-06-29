@@ -40,9 +40,7 @@ pub enum McpHandleOutcome {
     /// JSON-RPC notification — no response body (EC-MCP-08).
     Accepted,
     /// Streamable HTTP SSE response (MCP-E / EC-MCP-09).
-    Sse {
-        body: sse::SseBody,
-    },
+    Sse { body: sse::SseBody },
 }
 
 impl McpHandleOutcome {
@@ -83,7 +81,9 @@ pub async fn handle_mcp_request(
 
     let meta = extract_meta(request.params.as_ref());
     let protocol_version = match normalize_protocol_version(
-        headers.get("mcp-protocol-version").and_then(|v| v.to_str().ok()),
+        headers
+            .get("mcp-protocol-version")
+            .and_then(|v| v.to_str().ok()),
         &meta,
     ) {
         Ok(v) => v,
@@ -136,11 +136,18 @@ fn run_transport_validation(
 
     let meta = extract_meta(request.params.as_ref());
     let protocol_version = normalize_protocol_version(
-        headers.get("mcp-protocol-version").and_then(|v| v.to_str().ok()),
+        headers
+            .get("mcp-protocol-version")
+            .and_then(|v| v.to_str().ok()),
         &meta,
     )?;
 
-    validate_routing_headers(headers, &protocol_version, &request.method, request.params.as_ref())?;
+    validate_routing_headers(
+        headers,
+        &protocol_version,
+        &request.method,
+        request.params.as_ref(),
+    )?;
     Ok(())
 }
 

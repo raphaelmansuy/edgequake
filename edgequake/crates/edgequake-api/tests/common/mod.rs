@@ -30,10 +30,10 @@ use tower::ServiceExt;
 #[cfg(feature = "postgres")]
 pub mod spec013_postgres;
 
+pub mod oidc_wiremock;
 pub mod spec026_delivery;
 pub mod spec026_multimodal;
 pub mod spec028_mcp;
-pub mod oidc_wiremock;
 
 // ============================================================================
 // Constants

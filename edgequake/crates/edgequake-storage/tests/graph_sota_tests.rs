@@ -264,7 +264,10 @@ mod tests {
         setup_test_graph(&storage).await;
 
         // Exact match search
-        let results = storage.search_labels("ALICE_CHEN", 10, None, None).await.unwrap();
+        let results = storage
+            .search_labels("ALICE_CHEN", 10, None, None)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty(), "Should find exact match");
         assert!(
@@ -280,7 +283,10 @@ mod tests {
         setup_test_graph(&storage).await;
 
         // Prefix search
-        let results = storage.search_labels("ALICE", 10, None, None).await.unwrap();
+        let results = storage
+            .search_labels("ALICE", 10, None, None)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty(), "Should find prefix match");
         assert!(
@@ -296,7 +302,10 @@ mod tests {
         setup_test_graph(&storage).await;
 
         // Case-insensitive search
-        let results = storage.search_labels("alice", 10, None, None).await.unwrap();
+        let results = storage
+            .search_labels("alice", 10, None, None)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty(), "Should find case-insensitive match");
     }

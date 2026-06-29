@@ -39,8 +39,9 @@ async fn contract_batch_merge_creates_all_entity_nodes() {
         end_offset: 10,
         token_count: 3,
         section: None,
-            page_start: None,
-            page_end: None,
+        page_start: None,
+        page_end: None,
+    };
 
     let result = ProcessingResult {
         document_id: "doc-batch".to_string(),
