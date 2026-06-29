@@ -59,7 +59,7 @@ impl PageAwareChunking {
 
 /// A page-delimited segment extracted from the markdown.
 #[derive(Debug)]
-struct PageSegment {
+pub struct PageSegment {
     /// 1-indexed PDF page number.
     page: u32,
     /// Content of this page (page marker stripped).

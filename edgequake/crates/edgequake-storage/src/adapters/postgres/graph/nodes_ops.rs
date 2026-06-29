@@ -173,8 +173,8 @@ impl PostgresAGEGraphStorage {
             self.cypher_execute(&cypher).await?;
         }
 
-        /// Lazily create indexes after the first successful batch (AGE builds the
-        /// Node table lazily, mirroring the single-node path).
+        // Lazily create indexes after the first successful batch (AGE builds the
+        // Node table lazily, mirroring the single-node path).
         if !self.indexes_verified.load(Ordering::Relaxed) {
             self.ensure_indexes().await?;
             self.indexes_verified.store(true, Ordering::Relaxed);
