@@ -5,6 +5,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::markdown_chunking::MarkdownChunking;
+use super::page_aware::PageAwareChunking;
 use super::recursive::RecursiveCharacterChunking;
 use super::strategies::TokenBasedChunking;
 use super::types::{ChunkerConfig, ChunkingStrategy};
@@ -21,6 +22,11 @@ pub enum ChunkStrategy {
     Recursive,
     /// Markdown heading-aware splits with breadcrumbs.
     Markdown,
+    /// Page-aware chunking for PDF sources (SPEC-032 W-09).
+    ///
+    /// Wraps the Recursive strategy but treats `<!-- edgequake-page:N -->`
+    /// markers as hard split points so **no chunk ever crosses a page boundary**.
+    Pdf,
 }
 
 impl ChunkStrategy {
@@ -30,6 +36,7 @@ impl ChunkStrategy {
             "fixed" | "f" => Some(Self::Fixed),
             "recursive" | "r" => Some(Self::Recursive),
             "markdown" | "md" | "p" => Some(Self::Markdown),
+            "pdf" => Some(Self::Pdf),
             _ => None,
         }
     }
@@ -39,10 +46,15 @@ impl ChunkStrategy {
             Self::Fixed => "fixed",
             Self::Recursive => "recursive",
             Self::Markdown => "markdown",
+            Self::Pdf => "pdf",
         }
     }
 
-    /// Auto-select markdown for MD mime/extension when strategy not explicit.
+    /// Auto-select the best strategy for an uploaded file.
+    ///
+    /// - `.md` / `text/markdown` → `Markdown`
+    /// - `.pdf` / `application/pdf` → `Pdf`  (page-aware, SPEC-032)
+    /// - anything else → `Recursive` (default)
     pub fn resolve_for_upload(
         explicit: Option<Self>,
         mime_type: Option<&str>,
@@ -51,11 +63,15 @@ impl ChunkStrategy {
         if let Some(s) = explicit {
             return s;
         }
+        let lc = filename.to_lowercase();
         let is_md = mime_type.is_some_and(|m| m.contains("markdown"))
-            || filename.to_lowercase().ends_with(".md")
-            || filename.to_lowercase().ends_with(".markdown");
+            || lc.ends_with(".md")
+            || lc.ends_with(".markdown");
+        let is_pdf = mime_type.is_some_and(|m| m.contains("pdf")) || lc.ends_with(".pdf");
         if is_md {
             Self::Markdown
+        } else if is_pdf {
+            Self::Pdf
         } else {
             Self::default()
         }
@@ -104,6 +120,9 @@ pub fn resolve_chunker(strategy: ChunkStrategy, config: ChunkerConfig) -> Chunke
         ChunkStrategy::Fixed => Arc::new(TokenBasedChunking),
         ChunkStrategy::Recursive => Arc::new(RecursiveCharacterChunking),
         ChunkStrategy::Markdown => Arc::new(MarkdownChunking),
+        // Pdf wraps Recursive: splits at page markers first, then applies
+        // the same recursive token-based strategy within each page.
+        ChunkStrategy::Pdf => Arc::new(PageAwareChunking::default()),
     };
     Chunker::with_strategy(config, strategy_impl)
 }

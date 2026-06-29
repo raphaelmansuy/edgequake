@@ -99,6 +99,13 @@ export interface QueryContext {
     chunk_index?: number;
     /** Chunk UUID from storage. Used for deep-linking to document detail with selected chunk. */
     chunk_id?: string;
+    /** PDF page number (1-indexed) where this chunk starts.
+     * Present only when the source is a PDF processed with page-aware chunking.
+     * Enables deep links to the exact page: navigate to `/documents/{id}#page={page_start}`
+     */
+    page_start?: number;
+    /** PDF page number where this chunk ends. Always equals page_start. */
+    page_end?: number;
   }>;
   entities: Array<{
     id: string;

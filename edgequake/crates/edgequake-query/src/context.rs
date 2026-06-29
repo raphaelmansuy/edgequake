@@ -148,6 +148,14 @@ pub struct RetrievedChunk {
 
     /// Chunk index in the document.
     pub chunk_index: Option<usize>,
+
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Present only when the source is a PDF with page-aware chunking.
+    /// Enables the UI to deep-link to `#page=N` in the PDF viewer.
+    pub page_start: Option<u32>,
+
+    /// PDF page number where this chunk ends (always equals page_start).
+    pub page_end: Option<u32>,
 }
 
 impl RetrievedChunk {
@@ -164,6 +172,8 @@ impl RetrievedChunk {
             start_line: None,
             end_line: None,
             chunk_index: None,
+            page_start: None,
+            page_end: None,
         }
     }
 
@@ -183,6 +193,13 @@ impl RetrievedChunk {
     /// Set chunk index.
     pub fn with_chunk_index(mut self, index: usize) -> Self {
         self.chunk_index = Some(index);
+        self
+    }
+
+    /// Set PDF page attribution (SPEC-032 W-09).
+    pub fn with_page(mut self, page: u32) -> Self {
+        self.page_start = Some(page);
+        self.page_end = Some(page);
         self
     }
 }

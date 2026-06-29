@@ -40,6 +40,11 @@ fn chunk_kv_value(document_id: &str, source_file: Option<&str>, chunk: &TextChun
             "heading_level": section.heading_level,
         });
     }
+    // SPEC-032 W-09: page attribution for PDF sources
+    if let Some(page) = chunk.page_start {
+        value["page_start"] = json!(page);
+        value["page_end"] = json!(chunk.page_end.unwrap_or(page));
+    }
     value
 }
 
@@ -62,6 +67,11 @@ pub fn build_chunk_vector_metadata(
         metadata["start_offset"] = json!(chunk.start_offset);
         metadata["end_offset"] = json!(chunk.end_offset);
         metadata["token_count"] = json!(chunk.token_count);
+        // SPEC-032 W-09: page attribution — enables deep-link citations to PDF pages
+        if let Some(page) = chunk.page_start {
+            metadata["page_start"] = json!(page);
+            metadata["page_end"] = json!(chunk.page_end.unwrap_or(page));
+        }
     }
 
     if let Some(tenant_id) = &ctx.tenant_id {
@@ -104,6 +114,8 @@ mod tests {
             token_count: 500,
             embedding: Some(vec![0.0; 8]),
             section: None,
+            page_start: None,
+            page_end: None,
         }
     }
 

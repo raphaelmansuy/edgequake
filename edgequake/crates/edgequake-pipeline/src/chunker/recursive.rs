@@ -390,6 +390,8 @@ impl ChunkingStrategy for RecursiveCharacterChunking {
                 section: None,
                 start_offset: Some(start),
                 end_offset: Some(end),
+                page_start: None,
+                page_end: None,
             })
             .filter(|c| !c.content.is_empty())
             .collect())

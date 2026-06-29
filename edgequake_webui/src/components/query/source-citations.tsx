@@ -318,8 +318,26 @@ const DocumentsTab = ({
                                 <ExternalLink className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/chunk:opacity-70 transition-opacity" aria-hidden="true" />
                               </div>
                             </div>
-                            {/* Locator: line range preferred, chunk ID as fallback */}
-                            {chunk.start_line !== undefined && chunk.end_line !== undefined ? (
+                            {/* Locator: PDF page (deep link) > line range > chunk ID fallback */}
+                            {chunk.page_start !== undefined ? (
+                              <div className="text-[9px] text-muted-foreground mt-1 pl-6 flex items-center gap-1">
+                                <BookOpen className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
+                                <span>p.{chunk.page_start}</span>
+                                {chunk.chunk_id && (
+                                  <a
+                                    href={`/documents/${chunk.document_id}?chunk=${chunk.chunk_id}#page=${chunk.page_start}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="ml-1 text-blue-500 hover:text-blue-600 underline"
+                                    title={`Open PDF at page ${chunk.page_start}`}
+                                    aria-label={`Open document at page ${chunk.page_start}`}
+                                  >
+                                    Go to page
+                                  </a>
+                                )}
+                              </div>
+                            ) : chunk.start_line !== undefined && chunk.end_line !== undefined ? (
                               <div className="text-[9px] text-muted-foreground mt-1 pl-6">
                                 L{chunk.start_line}–{chunk.end_line}
                               </div>
