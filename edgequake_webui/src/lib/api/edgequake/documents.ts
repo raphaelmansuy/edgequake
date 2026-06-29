@@ -489,3 +489,23 @@ export async function listFailedChunks(
     `/documents/${documentId}/failed-chunks`,
   );
 }
+
+/**
+ * Search documents by title for the scope picker (type-ahead).
+ * Returns minimal projections (id, title, status) — no chunk/entity counts.
+ * @implements SPEC-031: Document search endpoint
+ */
+export async function searchDocuments(params: {
+  q?: string;
+  page_size?: number;
+  status?: string;
+}): Promise<import("@/types").DocumentSearchResponse> {
+  const query = buildQueryString({
+    q: params.q,
+    page_size: params.page_size ?? 20,
+    status: params.status ?? "completed",
+  });
+  return api.get<import("@/types").DocumentSearchResponse>(
+    withQuery("/documents/search", query),
+  );
+}

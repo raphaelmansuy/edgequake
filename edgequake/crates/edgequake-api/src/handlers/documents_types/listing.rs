@@ -209,3 +209,62 @@ pub struct DocumentSummary {
     #[schema(example = "8866e3c3-bbd6-4384-b86f-215c9844914d")]
     pub pdf_id: Option<String>,
 }
+
+// ── SPEC-031: Lightweight document search for the scope picker ───────────────
+
+fn default_search_page_size() -> usize {
+    20
+}
+
+fn default_search_status() -> Option<String> {
+    Some("completed".to_string())
+}
+
+/// Query params for `GET /api/v1/documents/search`.
+///
+/// Returns minimal projections (id, title, status) for type-ahead picking.
+/// @implements SPEC-031: Document search endpoint
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct DocumentSearchRequest {
+    /// Case-insensitive substring match on document title.
+    /// Omit or leave empty to list the 20 most recent documents.
+    #[serde(default)]
+    pub q: Option<String>,
+
+    /// Maximum number of results (default 20, max 50).
+    #[serde(default = "default_search_page_size")]
+    pub page_size: usize,
+
+    /// Status filter. `"completed"` (default) or `"all"`.
+    #[serde(default = "default_search_status")]
+    pub status: Option<String>,
+}
+
+/// Minimal document projection for the scope picker.
+///
+/// Intentionally slim — only the fields needed to render a picker row.
+/// @implements SPEC-031
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DocumentSearchItem {
+    /// Document UUID.
+    pub id: String,
+    /// Document title (from metadata, or file name fallback).
+    pub title: String,
+    /// Processing status (e.g., "completed", "failed", "processing").
+    pub status: String,
+    /// ISO 8601 creation timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+}
+
+/// Response from `GET /api/v1/documents/search`.
+/// @implements SPEC-031
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct DocumentSearchResponse {
+    /// Matching documents, sorted by `created_at` descending (most recent first).
+    pub items: Vec<DocumentSearchItem>,
+    /// Total matches found (may exceed `items.len()` when capped by `page_size`).
+    pub total: usize,
+    /// True when `total > items.len()`.
+    pub has_more: bool,
+}

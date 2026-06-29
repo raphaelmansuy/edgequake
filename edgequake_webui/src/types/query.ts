@@ -37,6 +37,7 @@ export type QueryModeSelectorOption = (typeof QUERY_MODES_SELECTOR)[number];
 /**
  * Document filter criteria for narrowing query scope.
  * @implements SPEC-005: Document date and pattern filters
+ * @implements SPEC-031: Explicit document scope selection
  */
 export interface DocumentFilter {
   /** Start date (inclusive) in ISO 8601 format (e.g., "2025-01-01T00:00:00Z"). */
@@ -48,6 +49,25 @@ export interface DocumentFilter {
    * Comma-separated values are treated as OR conditions.
    */
   document_pattern?: string;
+  /**
+   * Explicit document IDs to restrict query scope.
+   * When set, only these documents contribute RAG context (OR-unioned with
+   * document_pattern; AND-combined with date filters).
+   * An empty array is treated as null (no filtering).
+   * @implements SPEC-031
+   */
+  document_ids?: string[];
+}
+
+/** Returns true when the filter has no active criteria. */
+export function isEmptyDocumentFilter(f?: DocumentFilter): boolean {
+  if (!f) return true;
+  return (
+    !f.date_from &&
+    !f.date_to &&
+    !f.document_pattern &&
+    (!f.document_ids || f.document_ids.length === 0)
+  );
 }
 
 export interface QueryRequest {

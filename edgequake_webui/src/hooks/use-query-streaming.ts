@@ -20,6 +20,7 @@ import { buildQueryContextFromRetrieval } from "@/lib/utils/source-mapper";
 import { generateUUID } from "@/lib/utils/uuid";
 import type { useQueryUIStore } from "@/stores/use-query-ui-store";
 import type { useSettingsStore } from "@/stores/use-settings-store";
+import type { DocumentFilter } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +28,28 @@ import { toast } from "sonner";
 
 type QuerySettings = ReturnType<typeof useSettingsStore.getState>["querySettings"];
 type QueryUIStore = ReturnType<typeof useQueryUIStore.getState>;
+
+/**
+ * Merge SPEC-031 scopedDocumentIds into a DocumentFilter for the API call.
+ * - If neither documentFilter nor scopedDocumentIds are set → undefined (no filter)
+ * - Otherwise merges them: scopedDocumentIds maps to document_ids field
+ * @implements SPEC-031
+ */
+function buildDocumentFilter(settings: QuerySettings): DocumentFilter | undefined {
+  const hasScopedIds =
+    settings.scopedDocumentIds && settings.scopedDocumentIds.length > 0;
+  const hasDateOrPattern =
+    settings.documentFilter?.date_from ||
+    settings.documentFilter?.date_to ||
+    settings.documentFilter?.document_pattern;
+
+  if (!hasScopedIds && !hasDateOrPattern) return undefined;
+
+  return {
+    ...settings.documentFilter,
+    document_ids: hasScopedIds ? settings.scopedDocumentIds : undefined,
+  };
+}
 
 interface UseQueryStreamingOptions {
   querySettings: QuerySettings;
@@ -99,7 +122,8 @@ export function useQueryStreaming({
           model: querySettings.model,
           language: i18n.language,
           system_prompt: querySettings.systemPrompt || undefined,
-          document_filter: querySettings.documentFilter || undefined,
+          // SPEC-031: merge scopedDocumentIds + documentFilter into unified filter
+          document_filter: buildDocumentFilter(querySettings),
           images: payloadImages,
         })) {
           if (abortControllerRef.current?.signal.aborted) break;
@@ -285,7 +309,8 @@ export function useQueryStreaming({
           model: querySettings.model,
           language: i18n.language,
           system_prompt: querySettings.systemPrompt || undefined,
-          document_filter: querySettings.documentFilter || undefined,
+          // SPEC-031: merge scopedDocumentIds + documentFilter into unified filter
+          document_filter: buildDocumentFilter(querySettings),
           images: payloadImages,
         });
 

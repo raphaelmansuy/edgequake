@@ -347,3 +347,24 @@ export interface PdfUploadResponse {
   metadata: PdfMetadata;
   duplicate_of?: string;
 }
+
+// ── SPEC-031: Lightweight document search types ───────────────────────────────
+
+/**
+ * Minimal document projection for the scope picker.
+ * Returned by GET /api/v1/documents/search.
+ * @implements SPEC-031
+ */
+export interface DocumentSearchItem {
+  id: string;
+  title: string;
+  status: string;
+  created_at?: string;
+}
+
+/** Response from GET /api/v1/documents/search. @implements SPEC-031 */
+export interface DocumentSearchResponse {
+  items: DocumentSearchItem[];
+  total: number;
+  has_more: boolean;
+}

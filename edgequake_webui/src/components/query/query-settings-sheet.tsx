@@ -52,6 +52,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ProviderModelSelector } from './provider-model-selector';
 import { QueryDocumentFilter } from './query-document-filter';
+import { DocumentPickerPopover } from './document-picker-popover';
 
 interface QuerySettings {
   stream: boolean;
@@ -76,6 +77,9 @@ interface QuerySettingsSheetProps {
   /** Document filter — moved from main toolbar for density reduction */
   documentFilter?: DocumentFilter | undefined;
   onDocumentFilterChange?: (value: DocumentFilter | undefined) => void;
+  /** SPEC-031: Explicit document scope selection */
+  scopedDocumentIds?: string[];
+  onScopedDocumentIdsChange?: (ids: string[]) => void;
 }
 
 export function QuerySettingsSheet({
@@ -87,6 +91,8 @@ export function QuerySettingsSheet({
   onProviderModelChange,
   documentFilter,
   onDocumentFilterChange,
+  scopedDocumentIds,
+  onScopedDocumentIdsChange,
 }: QuerySettingsSheetProps) {
   const { t } = useTranslation();
 
@@ -144,6 +150,48 @@ export function QuerySettingsSheet({
                         value={documentFilter}
                         onChange={onDocumentFilterChange}
                         disabled={disabled}
+                      />
+                    </div>
+                  )}
+                  {/* SPEC-031: Explicit document scope picker */}
+                  {onScopedDocumentIdsChange && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium">
+                          {t('query.scope.sectionTitle', 'Document Scope')}
+                        </Label>
+                        {scopedDocumentIds && scopedDocumentIds.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {t('query.scope.selectedCount', '{{count}} selected', {
+                              count: scopedDocumentIds.length,
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {t('query.scope.description',
+                          'Restrict queries to specific documents. Default is all workspace docs.'
+                        )}
+                      </p>
+                      <DocumentPickerPopover
+                        selectedIds={scopedDocumentIds ?? []}
+                        onSelectionChange={onScopedDocumentIdsChange}
+                        disabled={disabled}
+                        trigger={
+                          <button
+                            type="button"
+                            disabled={disabled}
+                            className="w-full flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                            {scopedDocumentIds && scopedDocumentIds.length > 0
+                              ? t('query.scope.editSelection', 'Edit scope ({{count}} docs)', {
+                                  count: scopedDocumentIds.length,
+                                })
+                              : t('query.scope.addDocuments', 'Add documents to scope')
+                            }
+                          </button>
+                        }
                       />
                     </div>
                   )}
