@@ -19,6 +19,8 @@ impl QueryEngine {
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        // Document IDs to restrict vector search to (SPEC-031 Tier 1 pre-filter).
+        allowed_document_ids: Option<&[String]>,
         vector_storage: &Arc<dyn VectorStorage>,
         max_chunks: usize,
     ) -> Result<QueryContext> {
@@ -29,6 +31,7 @@ impl QueryEngine {
                 embeddings,
                 tenant_id.clone(),
                 workspace_id.clone(),
+                allowed_document_ids,
                 vector_storage,
                 max_chunks,
             ),
@@ -38,6 +41,7 @@ impl QueryEngine {
                 embeddings,
                 tenant_id.clone(),
                 workspace_id.clone(),
+                allowed_document_ids,
                 vector_storage,
                 max_chunks,
             ),
@@ -46,6 +50,7 @@ impl QueryEngine {
                 embeddings,
                 tenant_id.clone(),
                 workspace_id.clone(),
+                allowed_document_ids,
                 vector_storage,
                 max_chunks,
             ),

@@ -261,6 +261,8 @@ impl QueryEngine {
         let embeddings = &prepared.embeddings;
 
         let max_chunks = prepared.max_chunks;
+        // SPEC-031: pass allowed_document_ids into every mode for Tier 1 pre-filter
+        let allowed_doc_ids = request.allowed_document_ids.as_deref();
 
         match providers.vector_storage {
             Some(vector_storage) => match mode {
@@ -271,6 +273,7 @@ impl QueryEngine {
                         embeddings,
                         tenant,
                         workspace,
+                        allowed_doc_ids,
                         vector_storage,
                         max_chunks,
                     )
@@ -283,6 +286,7 @@ impl QueryEngine {
                         embeddings,
                         tenant,
                         workspace,
+                        allowed_doc_ids,
                         vector_storage,
                         max_chunks,
                     )
@@ -295,6 +299,7 @@ impl QueryEngine {
                         embeddings,
                         tenant,
                         workspace,
+                        allowed_doc_ids,
                         vector_storage,
                         max_chunks,
                     )
@@ -307,6 +312,7 @@ impl QueryEngine {
                         embeddings,
                         tenant,
                         workspace,
+                        allowed_doc_ids,
                         vector_storage,
                         request.mix_weights.as_ref(),
                         max_chunks,
@@ -319,6 +325,7 @@ impl QueryEngine {
                         embeddings,
                         tenant,
                         workspace,
+                        allowed_doc_ids,
                         vector_storage,
                         max_chunks,
                     )
