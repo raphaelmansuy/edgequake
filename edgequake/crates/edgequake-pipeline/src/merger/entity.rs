@@ -1,4 +1,8 @@
 //! Entity merge, update, and creation logic for the knowledge graph.
+//!
+//! # SPEC-032 changes
+//! - W-03: `merge_entities_batch` deduplicates within-document before graph read
+//! - W-06: Similarity gate skips LLM summarizer when descriptions are near-identical
 
 use std::collections::HashMap;
 
@@ -8,6 +12,32 @@ use crate::error::Result;
 use crate::extractor::{ExtractedEntity, ExtractionResult};
 
 use super::{merge_descriptions, metadata, MergeArtifacts, MergeStats};
+
+/// Jaccard word-overlap similarity between two strings (pub for tests).
+pub(crate) fn description_similarity(a: &str, b: &str) -> f32 {
+    if a == b {
+        // Identical strings: if both empty → 0 (no overlap to measure); if same non-empty → 1.0
+        return if a.is_empty() { 0.0 } else { 1.0 };
+    }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let a_words: std::collections::HashSet<&str> = a.split_whitespace().collect();
+    let b_words: std::collections::HashSet<&str> = b.split_whitespace().collect();
+    let intersection = a_words.intersection(&b_words).count();
+    let union = a_words.union(&b_words).count();
+    if union == 0 {
+        1.0
+    } else {
+        intersection as f32 / union as f32
+    }
+}
+
+/// Threshold above which we skip LLM summarization (descriptions are near-identical).
+/// Tunable via `MergerConfig.description_similarity_threshold`.
+/// Default exposed here for tests; runtime value comes from `MergerConfig`.
+#[cfg(test)]
+pub(crate) const DEFAULT_SIMILARITY_THRESHOLD: f32 = 0.85;
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphMerger<G, V> {
     /// Collect batched entity vector upserts for all extractions (P-G4-merger).
@@ -37,6 +67,17 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
     }
 
     /// Merge entities with one `get_nodes_batch` + one `upsert_nodes_batch` (P-G4-graph).
+    ///
+    /// # SPEC-032 W-03: Within-document deduplication
+    ///
+    /// When the same entity appears in multiple chunks of the same document,
+    /// the previous per-chunk loop would issue N get+upsert pairs.
+    /// Now we deduplicate first: same-named entities within one call are merged
+    /// in-memory (concatenating source_chunk_ids, taking the longer description)
+    /// before a single get_nodes_batch reads the existing graph state.
+    ///
+    /// Edge case: entity with same name but different types → keep first type,
+    /// append description (LightRAG convention: type is stable once set).
     pub(super) async fn merge_entities_batch(
         &self,
         entities: Vec<ExtractedEntity>,
@@ -46,8 +87,13 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             return Ok(());
         }
 
-        let mut keys = Vec::new();
-        let mut valid = Vec::new();
+        // ── Within-batch deduplication (SPEC-032 W-03) ───────────────────
+        // If the same entity name appears in multiple chunks of this document,
+        // merge them in-memory before hitting the database.
+        // Use Vec<(key, entity)> to preserve first-seen order for determinism.
+        let mut dedup_keys: Vec<String> = Vec::new();
+        let mut dedup_map: HashMap<String, ExtractedEntity> = HashMap::new();
+
         for entity in entities {
             let entity_id = EntityId::new(&entity.name);
             if entity_id.is_empty() {
@@ -57,19 +103,55 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                 );
                 continue;
             }
-            keys.push(entity_id.as_graph_node_id().to_string());
-            valid.push(entity);
+            let key = entity_id.as_graph_node_id().to_string();
+            if let Some(existing) = dedup_map.get_mut(&key) {
+                // Merge descriptions: keep longer (richer)
+                if entity.description.len() > existing.description.len() {
+                    existing.description = entity.description.clone();
+                }
+                // Accumulate source chunks
+                for cid in &entity.source_chunk_ids {
+                    if !existing.source_chunk_ids.contains(cid) {
+                        existing.source_chunk_ids.push(cid.clone());
+                    }
+                }
+                // Merge source spans
+                for span in &entity.source_spans {
+                    if !existing.source_spans.contains(span) {
+                        existing.source_spans.push(span.clone());
+                    }
+                }
+                // Take max importance
+                if entity.importance > existing.importance {
+                    existing.importance = entity.importance;
+                }
+            } else {
+                dedup_keys.push(key.clone());
+                dedup_map.insert(key, entity);
+            }
         }
+
+        // Collect in insertion order (deterministic)
+        let (keys, valid): (Vec<String>, Vec<ExtractedEntity>) = dedup_keys
+            .into_iter()
+            .filter_map(|k| dedup_map.remove(&k).map(|e| (k, e)))
+            .unzip();
 
         if valid.is_empty() {
             return Ok(());
         }
 
+        // Store entity types for relational sink (borrow before move into loop)
+        let entity_types: Vec<String> = valid.iter().map(|e| e.entity_type.clone()).collect();
+        let descriptions: Vec<String> = valid.iter().map(|e| e.description.clone()).collect();
+        let source_chunk_ids: Vec<Vec<String>> =
+            valid.iter().map(|e| e.source_chunk_ids.clone()).collect();
+
         let existing_map = self.graph_storage.get_nodes_batch(&keys).await?;
         let mut node_batch: Vec<(String, HashMap<String, serde_json::Value>)> =
             Vec::with_capacity(valid.len());
 
-        for (entity, key) in valid.into_iter().zip(keys.iter()) {
+        for (i, (entity, key)) in valid.into_iter().zip(keys.iter()).enumerate() {
             match self
                 .build_entity_node_batch_entry(&entity, existing_map.get(key), &mut stats.artifacts)
                 .await
@@ -84,11 +166,11 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                     self.relational_sink
                         .upsert_entity(
                             key,
-                            &entity.entity_type,
-                            &entity.description,
+                            &entity_types[i],
+                            &descriptions[i],
                             self.tenant_id.as_deref(),
                             self.workspace_id.as_deref(),
-                            &entity.source_chunk_ids,
+                            &source_chunk_ids[i],
                         )
                         .await
                         .unwrap_or_else(|e| {
@@ -144,6 +226,16 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
     }
 
     /// Update an existing entity node with new information.
+    ///
+    /// # SPEC-032 W-06: Similarity gate for LLM summarizer
+    ///
+    /// WHY: When the same entity appears across multiple chunks or documents,
+    /// its description is often near-identical (same sentence, slightly reworded).
+    /// Calling the LLM to "merge" two 95%-similar descriptions costs ~500ms and
+    /// API credits while adding minimal value.
+    ///
+    /// Gate: if Jaccard(existing_desc, new_desc) ≥ threshold → keep the longer
+    /// description (richer), skip the LLM call. Below threshold → use LLM.
     async fn update_entity_node(
         &self,
         node: &mut GraphNode,
@@ -156,16 +248,27 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        // Use LLM summarizer if available and enabled
-        let merged_desc = if self.config.use_llm_summarization {
+        // ── SPEC-032 W-06: Similarity gate ───────────────────────────────
+        let similarity = super::entity::description_similarity(existing_desc, &entity.description);
+        let use_llm = self.config.use_llm_summarization
+            && self.summarizer.is_some()
+            && similarity < self.config.description_similarity_threshold;
+
+        let merged_desc = if use_llm {
             if let Some(summarizer) = &self.summarizer {
-                // Use LLM to intelligently merge descriptions
                 let descriptions = vec![existing_desc.to_string(), entity.description.clone()];
                 match summarizer
                     .merge_entity_descriptions(&entity.name, &descriptions)
                     .await
                 {
-                    Ok(merged) => merged,
+                    Ok(merged) => {
+                        tracing::debug!(
+                            entity = %entity.name,
+                            similarity,
+                            "LLM description merge completed"
+                        );
+                        merged
+                    }
                     Err(e) => {
                         tracing::warn!(
                             entity = %entity.name,
@@ -180,7 +283,6 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                     }
                 }
             } else {
-                // No summarizer provided, use simple merge
                 merge_descriptions(
                     existing_desc,
                     &entity.description,
@@ -188,12 +290,20 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                 )
             }
         } else {
-            // LLM summarization disabled
-            merge_descriptions(
-                existing_desc,
-                &entity.description,
-                self.config.max_description_length,
-            )
+            // Similarity gate: descriptions overlap enough → keep the longer one
+            if similarity >= self.config.description_similarity_threshold {
+                tracing::debug!(
+                    entity = %entity.name,
+                    similarity,
+                    threshold = self.config.description_similarity_threshold,
+                    "Similarity gate: skipping LLM summarizer (descriptions near-identical)"
+                );
+            }
+            if entity.description.len() > existing_desc.len() {
+                entity.description.clone()
+            } else {
+                existing_desc.to_string()
+            }
         };
 
         node.properties.insert(

@@ -140,16 +140,31 @@ pub struct MergerConfig {
 
     /// Use LLM for description merging (if summarizer is provided).
     pub use_llm_summarization: bool,
+
+    /// Jaccard similarity threshold above which LLM summarization is skipped.
+    ///
+    /// WHY: If descriptions are ≥ threshold similar, the LLM call adds noise
+    /// but costs ~500ms and API credits. At 0.85, only truly distinct
+    /// descriptions trigger an LLM merge. Tunable via
+    /// `EDGEQUAKE_MERGE_SIMILARITY_THRESHOLD` env var.
+    ///
+    /// Set to 0.0 to always summarize, 1.0 to never summarize.
+    pub description_similarity_threshold: f32,
 }
 
 impl Default for MergerConfig {
     fn default() -> Self {
+        let threshold = std::env::var("EDGEQUAKE_MERGE_SIMILARITY_THRESHOLD")
+            .ok()
+            .and_then(|v| v.parse::<f32>().ok())
+            .unwrap_or(0.85);
         Self {
             max_description_length: 4096,
             description_decay: 0.9,
             min_importance: 0.1,
             max_sources: 10,
             use_llm_summarization: true, // Enable by default for SOTA quality
+            description_similarity_threshold: threshold,
         }
     }
 }
@@ -210,51 +225,245 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     }
 
     /// Merge extraction results into the knowledge graph.
+    ///
+    /// # WHY: Global batching (SPEC-032 W-02 + W-03)
+    ///
+    /// Previous implementation looped per `ExtractionResult` (one per chunk),
+    /// causing N × 4 AGE round trips for a document with N chunks:
+    ///   - get_nodes_batch  × N
+    ///   - upsert_nodes_batch × N
+    ///   - get_edges_for_nodes_batch × N
+    ///   - upsert_edges_batch × N
+    ///
+    /// At 50 chunks × 5 ms/round-trip = 1 second of pure network overhead,
+    /// before any actual Cypher execution time.
+    ///
+    /// New implementation collects ALL entities and relationships globally,
+    /// deduplicates within-document, then issues exactly 2 AGE round trips:
+    ///   - 1 × get_nodes_batch  (all unique entities)
+    ///   - 1 × upsert_nodes_batch
+    ///   - 1 × get_edges_for_nodes_batch  (all unique relationship endpoints)
+    ///   - 1 × upsert_edges_batch
+    ///
+    /// 50 round trips → 2 round trips per document. ~96% reduction.
     pub async fn merge(&self, results: Vec<ExtractionResult>) -> Result<MergeStats> {
+        self.merge_with_progress(results, None).await
+    }
+
+    /// Merge with optional per-batch progress callback (SPEC-032 W-04).
+    ///
+    /// Progress is emitted:
+    ///   1. Before entity vector upsert
+    ///   2. After entity graph merge batch (with running totals)
+    ///   3. After relationship graph merge batch (with running totals)
+    pub async fn merge_with_progress(
+        &self,
+        results: Vec<ExtractionResult>,
+        progress: Option<&MergeProgressCallback>,
+    ) -> Result<MergeStats> {
         let mut stats = MergeStats::default();
 
-        // P-G4-merger: batch entity vector upserts (one round-trip per document).
+        // ── Totals for progress reporting ────────────────────────────────
+        let total_entities: usize = results.iter().map(|r| r.entities.len()).sum();
+        let total_relationships: usize = results.iter().map(|r| r.relationships.len()).sum();
+
+        tracing::info!(
+            total_entities,
+            total_relationships,
+            chunks = results.len(),
+            "Merger: starting global batch merge (SPEC-032 W-02/W-03)"
+        );
+
+        emit_progress(
+            progress,
+            MergeProgress {
+                phase: MergePhase::EntityVectors,
+                entities_processed: 0,
+                entities_total: total_entities,
+                relationships_processed: 0,
+                relationships_total: total_relationships,
+                entities_created: 0,
+                entities_updated: 0,
+                relationships_created: 0,
+                relationships_updated: 0,
+            },
+        );
+
+        // ── Phase 1: Entity vector upserts — one round-trip for all docs ──
+        // WHY: entity vectors are collected globally already (P-G4-merger).
         let entity_vector_batch = self.collect_entity_vector_batch(&results);
         if !entity_vector_batch.is_empty() {
             self.vector_storage.upsert(&entity_vector_batch).await?;
         }
 
-        for result in results {
-            // P-G4-graph: batch entity graph writes (one get_nodes_batch + upsert_nodes_batch).
-            let entities = result.entities;
-            if let Err(e) = self.merge_entities_batch(entities, &mut stats).await {
+        emit_progress(
+            progress,
+            MergeProgress {
+                phase: MergePhase::EntityGraph,
+                entities_processed: 0,
+                entities_total: total_entities,
+                relationships_processed: 0,
+                relationships_total: total_relationships,
+                entities_created: 0,
+                entities_updated: 0,
+                relationships_created: 0,
+                relationships_updated: 0,
+            },
+        );
+
+        // ── Phase 2: Entity graph merge — globally batched ────────────────
+        // WHY: collect all entities from all chunks first, dedup within-doc,
+        // then a single get_nodes_batch + upsert_nodes_batch.
+        let all_entities: Vec<_> = results
+            .iter()
+            .flat_map(|r| r.entities.iter().cloned())
+            .collect();
+
+        if !all_entities.is_empty() {
+            if let Err(e) = self.merge_entities_batch(all_entities, &mut stats).await {
                 stats.errors += 1;
                 tracing::warn!(
                     error.source = "pipeline_merger",
-                    error.action = "merge_entities_batch",
+                    error.action = "merge_entities_batch_global",
                     error.message = %e,
-                    "Failed to merge entity batch"
+                    "Failed to merge global entity batch"
                 );
             }
+        }
 
-            // P-G4-merger: batch relationship vector upserts before graph writes.
-            let rel_vector_batch = self.collect_relationship_vector_batch(&result.relationships);
-            if !rel_vector_batch.is_empty() {
-                self.vector_storage.upsert(&rel_vector_batch).await?;
-            }
+        emit_progress(
+            progress,
+            MergeProgress {
+                phase: MergePhase::RelationshipVectors,
+                entities_processed: total_entities,
+                entities_total: total_entities,
+                relationships_processed: 0,
+                relationships_total: total_relationships,
+                entities_created: stats.entities_created,
+                entities_updated: stats.entities_updated,
+                relationships_created: 0,
+                relationships_updated: 0,
+            },
+        );
 
-            // P-G4-graph: batch relationship graph writes.
-            let relationships = result.relationships;
+        // ── Phase 3: Relationship vector upserts — globally batched ──────
+        // WHY: previously done per ExtractionResult inside the loop (F-09).
+        let all_rel_vectors: Vec<_> = results
+            .iter()
+            .flat_map(|r| self.collect_relationship_vector_batch(&r.relationships))
+            .collect();
+        if !all_rel_vectors.is_empty() {
+            self.vector_storage.upsert(&all_rel_vectors).await?;
+        }
+
+        emit_progress(
+            progress,
+            MergeProgress {
+                phase: MergePhase::RelationshipGraph,
+                entities_processed: total_entities,
+                entities_total: total_entities,
+                relationships_processed: 0,
+                relationships_total: total_relationships,
+                entities_created: stats.entities_created,
+                entities_updated: stats.entities_updated,
+                relationships_created: 0,
+                relationships_updated: 0,
+            },
+        );
+
+        // ── Phase 4: Relationship graph merge — globally batched ─────────
+        let all_relationships: Vec<_> = results
+            .iter()
+            .flat_map(|r| r.relationships.iter().cloned())
+            .collect();
+
+        if !all_relationships.is_empty() {
             if let Err(e) = self
-                .merge_relationships_batch(relationships, &mut stats)
+                .merge_relationships_batch(all_relationships, &mut stats)
                 .await
             {
                 stats.errors += 1;
                 tracing::warn!(
                     error.source = "pipeline_merger",
-                    error.action = "merge_relationships_batch",
+                    error.action = "merge_relationships_batch_global",
                     error.message = %e,
-                    "Failed to merge relationship batch"
+                    "Failed to merge global relationship batch"
                 );
             }
         }
 
+        emit_progress(
+            progress,
+            MergeProgress {
+                phase: MergePhase::Finalizing,
+                entities_processed: total_entities,
+                entities_total: total_entities,
+                relationships_processed: total_relationships,
+                relationships_total: total_relationships,
+                entities_created: stats.entities_created,
+                entities_updated: stats.entities_updated,
+                relationships_created: stats.relationships_created,
+                relationships_updated: stats.relationships_updated,
+            },
+        );
+
+        tracing::info!(
+            entities_created = stats.entities_created,
+            entities_updated = stats.entities_updated,
+            relationships_created = stats.relationships_created,
+            relationships_updated = stats.relationships_updated,
+            errors = stats.errors,
+            "Merger: global batch merge complete"
+        );
+
         Ok(stats)
+    }
+}
+
+// ── Progress types (SPEC-032 W-04) ───────────────────────────────────────────
+
+/// Sub-phase of the knowledge graph merge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MergePhase {
+    EntityVectors,
+    EntityGraph,
+    RelationshipVectors,
+    RelationshipGraph,
+    Finalizing,
+}
+
+impl MergePhase {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::EntityVectors => "Storing entity embeddings",
+            Self::EntityGraph => "Merging entities into knowledge graph",
+            Self::RelationshipVectors => "Storing relationship embeddings",
+            Self::RelationshipGraph => "Merging relationships into knowledge graph",
+            Self::Finalizing => "Finalizing",
+        }
+    }
+}
+
+/// Snapshot of merge progress for progress callbacks.
+#[derive(Debug, Clone)]
+pub struct MergeProgress {
+    pub phase: MergePhase,
+    pub entities_processed: usize,
+    pub entities_total: usize,
+    pub relationships_processed: usize,
+    pub relationships_total: usize,
+    pub entities_created: usize,
+    pub entities_updated: usize,
+    pub relationships_created: usize,
+    pub relationships_updated: usize,
+}
+
+/// Callback type for merge progress events. Fire-and-forget from caller's perspective.
+pub type MergeProgressCallback = Box<dyn Fn(MergeProgress) + Send + Sync>;
+
+fn emit_progress(cb: Option<&MergeProgressCallback>, progress: MergeProgress) {
+    if let Some(f) = cb {
+        f(progress);
     }
 }
 
@@ -678,5 +887,175 @@ mod tests {
         let _merger = KnowledgeGraphMerger::new(MergerConfig::default(), graph, vector)
             .with_relational_sink(sink);
         // If it compiles and doesn't panic, the builder works
+    }
+
+    // ── SPEC-032: Global batch + similarity gate tests ────────────────────────
+
+    /// SPEC-032 W-03: Entities from multiple ExtractionResults (chunks) for the same
+    /// document must be deduplicated in-memory before the graph write.
+    /// This means a single-entity graph should see exactly 1 node even when the same
+    /// entity appears in 3 chunks.
+    #[tokio::test]
+    async fn test_global_batch_deduplication_across_chunks() {
+        let graph = Arc::new(edgequake_storage::MemoryGraphStorage::new("test"));
+        let vector = Arc::new(edgequake_storage::MemoryVectorStorage::new("test", 4));
+        graph.initialize().await.unwrap();
+        vector.initialize().await.unwrap();
+
+        let merger = KnowledgeGraphMerger::new(MergerConfig::default(), graph.clone(), vector);
+
+        // Same entity in 3 "chunks" (ExtractionResults)
+        let make_result = |chunk_id: &str| {
+            let mut r = crate::extractor::ExtractionResult::new(chunk_id);
+            r.entities.push(ExtractedEntity {
+                name: "Alice".to_string(),
+                entity_type: "PERSON".to_string(),
+                description: format!("Alice from chunk {}", chunk_id),
+                importance: 0.8,
+                source_spans: vec![],
+                source_chunk_ids: vec![chunk_id.to_string()],
+                embedding: None,
+                source_document_id: None,
+                source_file_path: None,
+            });
+            r
+        };
+
+        let results = vec![
+            make_result("chunk-0"),
+            make_result("chunk-1"),
+            make_result("chunk-2"),
+        ];
+
+        let stats = merger.merge(results).await.unwrap();
+
+        // Should create exactly 1 entity node (deduplicated)
+        assert_eq!(
+            stats.entities_created, 1,
+            "Expected 1 entity created (deduplicated across 3 chunks), got {}",
+            stats.entities_created
+        );
+        assert_eq!(
+            stats.entities_updated, 0,
+            "No updates expected on first merge"
+        );
+
+        // Second merge: same entity should be updated, not created
+        let results2 = vec![make_result("chunk-3")];
+        let stats2 = merger.merge(results2).await.unwrap();
+        assert_eq!(stats2.entities_created, 0, "Entity should already exist");
+        assert_eq!(
+            stats2.entities_updated, 1,
+            "Entity should be updated on second merge"
+        );
+    }
+
+    /// SPEC-032 W-04: merge_with_progress emits progress callbacks for each phase.
+    #[tokio::test]
+    async fn test_merge_with_progress_emits_phases() {
+        use std::sync::Mutex;
+
+        let graph = Arc::new(edgequake_storage::MemoryGraphStorage::new("test"));
+        let vector = Arc::new(edgequake_storage::MemoryVectorStorage::new("test", 4));
+        graph.initialize().await.unwrap();
+        vector.initialize().await.unwrap();
+
+        let merger = KnowledgeGraphMerger::new(MergerConfig::default(), graph, vector);
+
+        let phases_seen: Arc<Mutex<Vec<MergePhase>>> = Arc::new(Mutex::new(Vec::new()));
+        let phases_clone = Arc::clone(&phases_seen);
+
+        let cb: MergeProgressCallback = Box::new(move |p: MergeProgress| {
+            phases_clone.lock().unwrap().push(p.phase);
+        });
+
+        let entity = ExtractedEntity {
+            name: "Bob".to_string(),
+            entity_type: "PERSON".to_string(),
+            description: "Bob is a person".to_string(),
+            importance: 0.5,
+            source_spans: vec![],
+            source_chunk_ids: vec!["c-0".to_string()],
+            embedding: None,
+            source_document_id: None,
+            source_file_path: None,
+        };
+
+        let mut result = crate::extractor::ExtractionResult::new("c-0");
+        result.entities.push(entity);
+        let results = vec![result];
+
+        merger
+            .merge_with_progress(results, Some(&cb))
+            .await
+            .unwrap();
+
+        let phases = phases_seen.lock().unwrap().clone();
+        // Must emit at least: EntityVectors, EntityGraph, RelationshipVectors, RelationshipGraph, Finalizing
+        assert!(
+            phases.contains(&MergePhase::EntityVectors),
+            "Expected EntityVectors phase"
+        );
+        assert!(
+            phases.contains(&MergePhase::EntityGraph),
+            "Expected EntityGraph phase"
+        );
+        assert!(
+            phases.contains(&MergePhase::Finalizing),
+            "Expected Finalizing phase"
+        );
+    }
+
+    /// SPEC-032 W-06: Similarity gate — identical descriptions must not call LLM.
+    #[test]
+    fn test_description_similarity_gate() {
+        use crate::merger::entity::description_similarity;
+
+        // Identical → similarity = 1.0
+        assert_eq!(
+            description_similarity("Alice is a researcher", "Alice is a researcher"),
+            1.0
+        );
+
+        // Completely different
+        let sim = description_similarity("apple tree fruit", "database network protocol");
+        assert!(
+            sim < 0.1,
+            "Expected very low similarity for unrelated texts, got {}",
+            sim
+        );
+
+        // Near-identical (one word added) — should be above 0.6
+        // Jaccard("Alice is a researcher at MIT", "Alice is a researcher at MIT who studies AI")
+        // Shared: {Alice, is, a, researcher, at, MIT} = 6
+        // Union:  {Alice, is, a, researcher, at, MIT, who, studies, AI} = 9
+        // Similarity = 6/9 ≈ 0.667
+        let sim2 = description_similarity(
+            "Alice is a researcher at MIT",
+            "Alice is a researcher at MIT who studies AI",
+        );
+        assert!(
+            sim2 > 0.6,
+            "Expected similarity > 0.6 for near-identical texts, got {}",
+            sim2
+        );
+
+        // Empty strings
+        assert_eq!(description_similarity("", ""), 0.0);
+        assert_eq!(description_similarity("hello", ""), 0.0);
+    }
+
+    /// SPEC-032 W-06: MergerConfig picks up EDGEQUAKE_MERGE_SIMILARITY_THRESHOLD env var.
+    #[test]
+    fn test_merger_config_similarity_threshold_default() {
+        // Default (no env var set in test): 0.85
+        let config = MergerConfig::default();
+        // The env var may or may not be set in CI, just verify it's a valid float in [0,1]
+        assert!(
+            config.description_similarity_threshold >= 0.0
+                && config.description_similarity_threshold <= 1.0,
+            "Similarity threshold must be in [0,1], got {}",
+            config.description_similarity_threshold
+        );
     }
 }

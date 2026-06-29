@@ -20,10 +20,17 @@ impl PostgresAGEGraphStorage {
         // Without these, Cypher queries like MATCH (n:Node {node_id: 'xxx'}) scan all vertices
         self.ensure_indexes().await?;
 
+        // SPEC-032 W-01: Bootstrap critical btree indexes CONCURRENTLY for
+        // existing databases. For graphs with ≥10K nodes, this runs
+        // CREATE INDEX CONCURRENTLY (non-blocking). For empty/new graphs,
+        // a regular CREATE INDEX is used (fast).
+        // Edge cases: AGE not installed, graph not yet created, INVALID index → all handled.
+        self.bootstrap_concurrent_indexes().await?;
+
         self.initialized.store(true, Ordering::Relaxed);
 
         tracing::info!(
-            "Initialized PostgresAGEGraphStorage with graph '{}' (indexes verified)",
+            "Initialized PostgresAGEGraphStorage with graph '{}' (indexes verified, concurrent bootstrap done)",
             self.graph_name
         );
 
