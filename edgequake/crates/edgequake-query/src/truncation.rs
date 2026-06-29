@@ -276,6 +276,7 @@ mod tests {
             degree: 0,
             source_chunk_ids: Vec::new(),
             source_document_id: None,
+            source_document_ids: Vec::new(),
             source_file_path: None,
         }
     }
@@ -289,6 +290,7 @@ mod tests {
             score: 1.0,
             source_chunk_id: None,
             source_document_id: None,
+            source_document_ids: Vec::new(),
             source_file_path: None,
         }
     }

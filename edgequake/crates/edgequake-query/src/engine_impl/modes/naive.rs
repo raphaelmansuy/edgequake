@@ -6,9 +6,10 @@ use crate::context::QueryContext;
 use crate::error::Result;
 use crate::helpers::build_chunk_from_result;
 
-use edgequake_storage::traits::{MetadataFilter, VectorStorage};
+use edgequake_storage::traits::VectorStorage;
 
 use super::super::{QueryEmbeddings, QueryEngine};
+use super::make_scope_metadata_filter;
 
 impl QueryEngine {
     pub(in crate::engine_impl) async fn query_naive_with_vector_storage(
@@ -17,13 +18,22 @@ impl QueryEngine {
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        // Document IDs to restrict vector search to (SPEC-031 Tier 1 pre-filter).
+        allowed_document_ids: Option<&[String]>,
         vector_storage: &Arc<dyn VectorStorage>,
         max_chunks: usize,
     ) -> Result<QueryContext> {
         let retrieval_config = self.config_with_max_chunks(max_chunks);
         let mut context = QueryContext::new();
 
-        let mf = MetadataFilter::from_tenant_workspace_type(tenant_id, workspace_id, "chunk");
+        // SPEC-031: push document scope filter to SQL layer — type=chunk AND
+        // optionally document_ids (Tier 1 pre-filter)
+        let mf = make_scope_metadata_filter(
+            tenant_id,
+            workspace_id,
+            allowed_document_ids,
+            Some("chunk"),
+        );
 
         let candidate_k = retrieval_config
             .max_chunks

@@ -209,9 +209,16 @@ pub struct RetrievedEntity {
     #[serde(default)]
     pub source_chunk_ids: Vec<String>,
 
-    /// Source document ID.
+    /// Source document ID (single — legacy, may be overwritten during reconciliation).
     #[serde(default)]
     pub source_document_id: Option<String>,
+
+    /// Union of ALL source document IDs for this entity.
+    /// Populated from the `source_document_ids` JSON array on the graph node.
+    /// An entity that appears in docs A + B carries both IDs here.
+    /// @implements SPEC-031: Multi-document entity lineage
+    #[serde(default)]
+    pub source_document_ids: Vec<String>,
 
     /// Original file path of the source document.
     #[serde(default)]
@@ -233,6 +240,7 @@ impl RetrievedEntity {
             degree: 0,
             source_chunk_ids: Vec::new(),
             source_document_id: None,
+            source_document_ids: Vec::new(),
             source_file_path: None,
         }
     }
@@ -258,6 +266,13 @@ impl RetrievedEntity {
     /// Set source document ID.
     pub fn with_source_document_id(mut self, doc_id: impl Into<String>) -> Self {
         self.source_document_id = Some(doc_id.into());
+        self
+    }
+
+    /// Set union of all source document IDs.
+    /// @implements SPEC-031
+    pub fn with_source_document_ids(mut self, doc_ids: Vec<String>) -> Self {
+        self.source_document_ids = doc_ids;
         self
     }
 
@@ -290,9 +305,14 @@ pub struct RetrievedRelationship {
     #[serde(default)]
     pub source_chunk_id: Option<String>,
 
-    /// Source document ID.
+    /// Source document ID (single — legacy, may be overwritten during reconciliation).
     #[serde(default)]
     pub source_document_id: Option<String>,
+
+    /// Union of ALL source document IDs for this relationship.
+    /// @implements SPEC-031: Multi-document relationship lineage
+    #[serde(default)]
+    pub source_document_ids: Vec<String>,
 
     /// Original file path of the source document.
     #[serde(default)]
@@ -314,6 +334,7 @@ impl RetrievedRelationship {
             score: 0.0,
             source_chunk_id: None,
             source_document_id: None,
+            source_document_ids: Vec::new(),
             source_file_path: None,
         }
     }
@@ -339,6 +360,13 @@ impl RetrievedRelationship {
     /// Set source document ID.
     pub fn with_source_document_id(mut self, doc_id: impl Into<String>) -> Self {
         self.source_document_id = Some(doc_id.into());
+        self
+    }
+
+    /// Set union of all source document IDs.
+    /// @implements SPEC-031
+    pub fn with_source_document_ids(mut self, doc_ids: Vec<String>) -> Self {
+        self.source_document_ids = doc_ids;
         self
     }
 

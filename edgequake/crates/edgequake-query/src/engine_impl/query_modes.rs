@@ -27,6 +27,7 @@ impl QueryEngine {
             embeddings,
             tenant_id,
             workspace_id,
+            None, // no document scope on default path
             &self.vector_storage,
             max_chunks,
         )
@@ -48,6 +49,7 @@ impl QueryEngine {
             embeddings,
             tenant_id,
             workspace_id,
+            None,
             &self.vector_storage,
             max_chunks,
         )
@@ -69,6 +71,7 @@ impl QueryEngine {
             embeddings,
             tenant_id,
             workspace_id,
+            None,
             &self.vector_storage,
             max_chunks,
         )
@@ -92,6 +95,7 @@ impl QueryEngine {
             embeddings,
             tenant_id,
             workspace_id,
+            None,
             &self.vector_storage,
             mix_weights,
             max_chunks,
@@ -112,6 +116,7 @@ impl QueryEngine {
             embeddings,
             tenant_id,
             workspace_id,
+            None,
             &self.vector_storage,
             max_chunks,
         )
@@ -260,6 +265,7 @@ mod tests {
                 &embeddings,
                 None,
                 None,
+                None, // no doc scope
                 &(storage as Arc<dyn VectorStorage>),
                 20,
             )

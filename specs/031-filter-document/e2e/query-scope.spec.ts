@@ -353,7 +353,134 @@ test.describe("SPEC-031: Document Scope Filter", () => {
   });
 });
 
-// ── API endpoint tests ────────────────────────────────────────────────────────
+// ── Entity/Relationship scope filter tests (SPEC-031 §008) ───────────────────
+
+test.describe("SPEC-031: Entity & Relationship lineage filtering", () => {
+  const API_URL = process.env.API_BASE_URL ?? "http://localhost:8080";
+
+  /**
+   * TC-E01: Verify the context_filter correctly excludes entities from
+   * out-of-scope documents using the new strict filter.
+   *
+   * Uses the /api/v1/query/context endpoint (context_only=true) to inspect
+   * what entities appear in the context when scope is restricted.
+   */
+  test("TC-E01: scoped query context excludes out-of-scope entities", async ({
+    request,
+  }) => {
+    // Get a list of documents to find two with different content
+    const listResp = await request.get(`${API_URL}/api/v1/documents`, {
+      headers: { "x-workspace-id": "default", "x-tenant-id": "default" },
+    });
+    if (listResp.status() !== 200) {
+      test.skip(true, "Documents API requires auth or no workspace");
+      return;
+    }
+    const listBody = await listResp.json();
+    const docs: Array<{ id: string; status: string }> =
+      listBody.documents ?? [];
+    const completedDocs = docs.filter((d) => d.status === "completed");
+    if (completedDocs.length < 2) {
+      test.skip(true, "Need at least 2 completed documents");
+      return;
+    }
+
+    const scopedDocId = completedDocs[0].id;
+    const excludedDocId = completedDocs[1].id;
+
+    // Query scoped to only the first document
+    const scopedResp = await request.post(`${API_URL}/api/v1/query`, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-workspace-id": "default",
+        "x-tenant-id": "default",
+      },
+      data: {
+        query: "What are the main topics?",
+        mode: "hybrid",
+        context_only: true,
+        document_filter: {
+          document_ids: [scopedDocId],
+        },
+      },
+    });
+
+    if (scopedResp.status() !== 200) {
+      test.skip(true, "Query API requires auth");
+      return;
+    }
+
+    const scopedBody = await scopedResp.json();
+    const context = scopedBody.context ?? {};
+    const chunks: Array<{ document_id?: string }> = context.chunks ?? [];
+    const entities: Array<{ source_document_id?: string }> = context.entities ?? [];
+
+    // All returned chunks must be from the scoped document
+    for (const chunk of chunks) {
+      if (chunk.document_id) {
+        expect(chunk.document_id).toBe(scopedDocId);
+      }
+    }
+
+    // No entity should come exclusively from the excluded document
+    for (const entity of entities) {
+      if (entity.source_document_id) {
+        expect(entity.source_document_id).not.toBe(excludedDocId);
+      }
+    }
+
+    console.log(
+      `TC-E01: scoped to ${scopedDocId}, got ${chunks.length} chunks, ${entities.length} entities`,
+    );
+  });
+
+  /**
+   * TC-E02: GET /documents/search returns lightweight projections
+   * and content_filter works correctly for empty document_ids (no-op).
+   */
+  test("TC-E02: empty document_ids is a no-op (full workspace query)", async ({
+    request,
+  }) => {
+    const fullResp = await request.post(`${API_URL}/api/v1/query`, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-workspace-id": "default",
+        "x-tenant-id": "default",
+      },
+      data: {
+        query: "What are the main topics?",
+        mode: "naive",
+        context_only: true,
+        document_filter: {
+          document_ids: [], // empty — should be no-op
+        },
+      },
+    });
+
+    const emptyFilterResp = await request.post(`${API_URL}/api/v1/query`, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-workspace-id": "default",
+        "x-tenant-id": "default",
+      },
+      data: {
+        query: "What are the main topics?",
+        mode: "naive",
+        context_only: true,
+        // no document_filter — full workspace
+      },
+    });
+
+    if (fullResp.status() === 200 && emptyFilterResp.status() === 200) {
+      const full = await fullResp.json();
+      const noFilter = await emptyFilterResp.json();
+      const fullCount = (full.context?.chunks ?? []).length;
+      const noFilterCount = (noFilter.context?.chunks ?? []).length;
+      // Both should return the same number of chunks (empty [] = no-op)
+      expect(fullCount).toBe(noFilterCount);
+    }
+  });
+});
 
 test.describe("SPEC-031: GET /api/v1/documents/search endpoint", () => {
   const API_URL = process.env.API_BASE_URL ?? "http://localhost:8080";

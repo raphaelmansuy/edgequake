@@ -78,8 +78,11 @@ pub(crate) fn decode_entity_name_from_result(
 pub struct EntitySourceTracking {
     /// Chunk IDs that contributed to this entity.
     pub source_chunk_ids: Vec<String>,
-    /// Primary source document ID.
+    /// Primary source document ID (legacy single-doc field).
     pub source_document_id: Option<String>,
+    /// Union of all document IDs this entity was extracted from.
+    /// @implements SPEC-031: Multi-document entity lineage
+    pub source_document_ids: Vec<String>,
     /// File path of the source document.
     pub source_file_path: Option<String>,
 }
@@ -132,6 +135,13 @@ pub fn extract_entity_source_tracking(props: &HashMap<String, Value>) -> EntityS
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
 
+    // Plural first (union of all documents this entity appears in — SPEC-031)
+    let source_document_ids: Vec<String> = props
+        .get("source_document_ids")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+
+    // Singular fallback (legacy single-doc provenance field)
     let source_document_id = props
         .get("source_document_id")
         .and_then(|v| v.as_str())
@@ -144,6 +154,7 @@ pub fn extract_entity_source_tracking(props: &HashMap<String, Value>) -> EntityS
 
     EntitySourceTracking {
         source_chunk_ids,
+        source_document_ids,
         source_document_id,
         source_file_path,
     }
@@ -257,6 +268,10 @@ pub fn build_entity_from_node(
     }
     if let Some(doc_id) = source_tracking.source_document_id {
         entity = entity.with_source_document_id(doc_id);
+    }
+    // SPEC-031: propagate multi-document lineage array
+    if !source_tracking.source_document_ids.is_empty() {
+        entity = entity.with_source_document_ids(source_tracking.source_document_ids);
     }
     if let Some(file_path) = source_tracking.source_file_path {
         entity = entity.with_source_file_path(file_path);

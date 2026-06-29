@@ -9,10 +9,11 @@ use crate::helpers::{build_entity_from_node, build_relationship_from_edge};
 use crate::keywords::ExtractedKeywords;
 use crate::vector_filter::{filter_by_type, VectorType};
 
-use edgequake_storage::traits::{MetadataFilter, VectorStorage};
+use edgequake_storage::traits::VectorStorage;
 
 use super::super::{QueryEmbeddings, QueryEngine};
 use super::chunk_retrieval::append_score_ranked_chunks;
+use super::make_scope_metadata_filter;
 
 impl QueryEngine {
     /// Global mode with workspace-specific vector storage.
@@ -24,6 +25,8 @@ impl QueryEngine {
         embeddings: &QueryEmbeddings,
         tenant_id: Option<String>,
         workspace_id: Option<String>,
+        // Document IDs to restrict vector search to (SPEC-031 Tier 1 pre-filter).
+        allowed_document_ids: Option<&[String]>,
         vector_storage: &Arc<dyn VectorStorage>,
         max_chunks: usize,
     ) -> Result<QueryContext> {
@@ -31,7 +34,13 @@ impl QueryEngine {
         let mut context = QueryContext::new();
         let mut entity_ids: Vec<String> = Vec::new();
         let mut seen_relationships = std::collections::HashSet::new();
-        let mf = MetadataFilter::from_tenant_workspace(tenant_id.clone(), workspace_id.clone());
+        // SPEC-031: push document scope filter to SQL layer (Tier 1 pre-filter)
+        let mf = make_scope_metadata_filter(
+            tenant_id.clone(),
+            workspace_id.clone(),
+            allowed_document_ids,
+            None,
+        );
 
         let vector_results = vector_storage
             .query_filtered(
