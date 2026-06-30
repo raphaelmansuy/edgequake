@@ -28,6 +28,15 @@ pub struct ChunkDetailResponse {
     /// Ending line number (1-based, inclusive) in the source document.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_line: Option<usize>,
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Present only for PDFs ingested with SPEC-032 page-aware chunking.
+    /// @implements SPEC-033 — page attribution surfacing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_start: Option<u32>,
+    /// PDF page number (1-indexed) where this chunk ends.
+    /// Always equal to `page_start` — chunks never cross page boundaries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_end: Option<u32>,
     /// Token count.
     pub token_count: usize,
     /// Entities extracted from this chunk.

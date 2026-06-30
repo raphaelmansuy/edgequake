@@ -1,0 +1,24 @@
+=== SPEC-034 IMP-01: Feature flag unit tests ===
+--- Test: native_graph_writes_enabled() == false when env var unset ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_storage-7228b1075c6a297a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 130 filtered out; finished in 0.00s
+
+--- Test: native_graph_writes_enabled() == true when EDGEQUAKE_NATIVE_GRAPH_WRITES=1 ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/edgequake_storage-7228b1075c6a297a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 130 filtered out; finished in 0.00s
+
+--- Full lib test suite (regression check) ---
+test pdf_storage::tests::test_validate_pdf_data ... ok
+test adapters::memory::lock::tests::map_lock_err_formats_poison_message ... ok
+
+test result: ok. 130 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+PASS: IMP-01 feature flag test completed

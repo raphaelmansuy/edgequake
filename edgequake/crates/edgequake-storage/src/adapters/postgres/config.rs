@@ -93,7 +93,7 @@ impl Default for PostgresConfig {
             ssl_mode: SslMode::Prefer,
             vector_index_type: VectorIndexType::HNSW,
             hnsw_m: 16,
-            hnsw_ef_construction: 64,
+            hnsw_ef_construction: 32, // SPEC-034 IMP-04: reduced from 64 → ~35% smaller index, <2% recall loss
             ivfflat_lists: 100,
         }
     }

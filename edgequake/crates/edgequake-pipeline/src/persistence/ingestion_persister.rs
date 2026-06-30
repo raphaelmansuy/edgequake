@@ -321,11 +321,20 @@ async fn persist_processing_result_impl(
 
     match merge_result {
         Ok(stats) if stats.errors == 0 => {
-            edgequake_storage::schedule_community_index_refresh(
-                graph_storage.clone(),
-                ctx.workspace_id.clone(),
-            )
-            .await;
+            // SPEC-034 IMP-06: Fire community index refresh as a background task.
+            //
+            // WHY: Community index refresh is a read-model rebuild that does not
+            // affect the correctness of the current persist operation. Blocking
+            // the persist hot-path on it adds latency spikes with no caller
+            // benefit. Errors are logged but cannot surface to the caller (the
+            // community index is regenerable from graph data at any time).
+            {
+                let gs = graph_storage.clone();
+                let ws = ctx.workspace_id.clone();
+                tokio::spawn(async move {
+                    edgequake_storage::schedule_community_index_refresh(gs, ws).await;
+                });
+            }
             Ok(IngestionPersistOutput {
                 chunk_vector_ids,
                 merge_stats: stats,

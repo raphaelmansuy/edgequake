@@ -61,8 +61,15 @@ interface PDFViewerProps {
   file: PDFFileSource;
   /** Optional class name for container */
   className?: string;
-  /** Initial page number (1-indexed) */
+  /** Initial page number (1-indexed). One-shot seed used on first mount. */
   initialPage?: number;
+  /**
+   * Controlled current page (1-indexed).
+   * When provided and changes, the viewer navigates to this page.
+   * Takes precedence over `initialPage` for runtime navigation.
+   * SPEC-033: Required for chunk-click-to-page navigation from the hierarchy tree.
+   */
+  currentPage?: number;
   /** Initial zoom scale (1.0 = 100%) */
   initialScale?: number;
   /** Whether to show toolbar */
@@ -132,6 +139,7 @@ export function PDFViewer({
   file,
   className,
   initialPage = 1,
+  currentPage,
   initialScale = 1.0,
   showToolbar = true,
   width,
@@ -146,6 +154,23 @@ export function PDFViewer({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullWidth, setIsFullWidth] = useState<boolean>(false);
+
+  // SPEC-033: Sync pageNumber with the controlled `currentPage` prop.
+  // WHY: `initialPage` is a one-shot seed; `currentPage` drives the viewer
+  // after mount so external events (chunk clicks, citation deeplinks) can
+  // navigate the PDF without a full re-mount.
+  // numPages is included so we clamp correctly once the PDF has loaded.
+  // The effect intentionally excludes `pageNumber` from deps to prevent a
+  // feedback loop where the internal state change re-triggers the effect.
+  useEffect(() => {
+    if (currentPage === undefined) return;
+    const clamped =
+      numPages > 0
+        ? Math.max(1, Math.min(numPages, currentPage))
+        : Math.max(1, currentPage);
+    setPageNumber(clamped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, numPages]);
   // WHY: Pre-check the URL before mounting <Document> so that PDF.js never
   // attempts to fetch a 404 URL. Without this guard, react-pdf's internal worker
   // logs "ResponseException: Unexpected server response (404)" to the console even

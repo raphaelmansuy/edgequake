@@ -19,10 +19,10 @@
  * - Single API call for complete chat flow
  */
 
-import { apiClient, streamClient } from "./client";
 import { buildQueryContextFromRetrieval } from "@/lib/utils/source-mapper";
 import type { SubgraphBundle } from "@/lib/utils/subgraph-types";
 import type { DocumentFilter, QueryContext, QueryMode } from "@/types";
+import { apiClient, streamClient } from "./client";
 
 // ============================================================================
 // Types
@@ -100,6 +100,20 @@ export interface SourceReference {
   reference_id?: number;
   document_id?: string;
   file_path?: string;
+  /** Source line range start (for line-level citation). */
+  start_line?: number;
+  /** Source line range end (for line-level citation). */
+  end_line?: number;
+  /** Chunk position index within the document. */
+  chunk_index?: number;
+  /**
+   * PDF page number (1-indexed) where this chunk starts.
+   * Present only for PDFs processed with page-aware chunking (SPEC-033).
+   * Enables deep links to the exact PDF page.
+   */
+  page_start?: number;
+  /** PDF page number (1-indexed) where this chunk ends. Always equals page_start. */
+  page_end?: number;
   /** Entity type (e.g., "PERSON", "ORGANIZATION"). @implements SPEC-006 */
   entity_type?: string;
   /** Entity degree (number of relationships). @implements SPEC-006 */

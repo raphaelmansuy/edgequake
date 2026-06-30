@@ -98,7 +98,7 @@ export default function DocumentViewPage() {
    * - Updates local line-range state so ContentRenderer highlights the range.
    */
   const handleChunkSelect = useCallback(
-    (chunkId: string, start?: number, end?: number) => {
+    (chunkId: string, start?: number, end?: number, page?: number) => {
       const isDeselecting = selectedChunkId === chunkId;
       const nextChunkId = isDeselecting ? undefined : chunkId;
 
@@ -114,6 +114,11 @@ export default function DocumentViewPage() {
         params.set('chunk', nextChunkId);
       } else {
         params.delete('chunk');
+      }
+      // SPEC-033: include page in URL when chunk has page attribution.
+      // This drives the PDFViewer via currentPage prop (controlled navigation).
+      if (page !== undefined && page >= 1 && !isDeselecting) {
+        params.set('page', String(page));
       }
       const newSearch = params.toString();
       router.replace(
@@ -358,6 +363,7 @@ export default function DocumentViewPage() {
                   <PDFViewer
                     file={getPdfDownloadUrl(pdfIdForViewer!)}
                     initialPage={initialPdfPage}
+                    currentPage={pageFromUrl}
                   />
                 }
                 rightPanel={
@@ -473,6 +479,8 @@ export default function DocumentViewPage() {
               <TabsContent value="pdf" className="flex-1 overflow-hidden m-0 mt-0">
                 <PDFViewer
                   file={getPdfDownloadUrl(pdfIdForViewer)}
+                  initialPage={initialPdfPage}
+                  currentPage={pageFromUrl}
                 />
               </TabsContent>
             )}

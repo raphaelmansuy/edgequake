@@ -83,6 +83,18 @@ pub async fn get_chunk_detail(
         .and_then(|v: &serde_json::Value| v.as_u64())
         .map(|v| v as usize);
 
+    // SPEC-033: Read PDF page attribution from chunk KV record.
+    // Written by chunk_storage::chunk_kv_value() during ingestion.
+    let page_start = chunk_data
+        .get("page_start")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .map(|v| v as u32);
+
+    let page_end = chunk_data
+        .get("page_end")
+        .and_then(|v: &serde_json::Value| v.as_u64())
+        .map(|v| v as u32);
+
     // WHY: Chunk IDs follow a deterministic format "{document_id}-chunk-{N}".
     // Extracting the document ID from this format avoids an extra KV lookup
     // and maintains the F8 bidirectional chain (Document ↔ Chunk).
@@ -168,6 +180,8 @@ pub async fn get_chunk_detail(
         },
         start_line,
         end_line,
+        page_start,
+        page_end,
         token_count,
         entities,
         relationships,

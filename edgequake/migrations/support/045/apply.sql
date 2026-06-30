@@ -32,11 +32,12 @@ BEGIN
                 RAISE NOTICE '  ✓ added content_tsv on %', tbl.tablename;
             END IF;
 
-            EXECUTE format(
-                'CREATE INDEX IF NOT EXISTS idx_%s_content_tsv ON %I USING GIN (content_tsv)',
-                replace(tbl.tablename, '.', '_'),
-                tbl.tablename
-            );
+            -- SPEC-034 IMP-05: Do NOT create the idx_%s_content_tsv duplicate.
+            -- WHY: The canonical index eq_%s_vectors_content_tsv_idx is created by
+            --      the vector DDL bootstrap (ddl.rs ensure_content_fts). The idx_ form
+            --      was a duplicate with 0 additional query coverage at 1.9 MB each.
+            --      Only add the column here; index creation is owned by the DDL layer.
+            NULL; -- index creation intentionally removed
         EXCEPTION WHEN OTHERS THEN
             RAISE NOTICE '  ✗ content_tsv on % failed: %', tbl.tablename, SQLERRM;
         END;

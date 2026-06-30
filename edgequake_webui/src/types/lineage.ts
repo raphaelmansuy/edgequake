@@ -56,6 +56,10 @@ export interface ChunkLineage {
   end_line?: number;
   start_offset?: number;
   end_offset?: number;
+  /** PDF page number (1-indexed) where this chunk starts. SPEC-033. */
+  page_start?: number;
+  /** PDF page number (1-indexed) where this chunk ends. Always equals page_start. */
+  page_end?: number;
   char_range?: {
     start: number;
     end: number;
@@ -82,6 +86,10 @@ export interface ChunkDetail {
   start_line?: number;
   /** OODA-10: End line number in source document (1-based, inclusive). */
   end_line?: number;
+  /** PDF page number (1-indexed) where this chunk starts. SPEC-033. */
+  page_start?: number;
+  /** PDF page number (1-indexed) where this chunk ends. Always equals page_start. */
+  page_end?: number;
   char_range?: {
     start: number;
     end: number;

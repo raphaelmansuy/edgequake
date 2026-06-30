@@ -119,11 +119,16 @@ impl MessageContextRelationship {
 }
 
 /// A source reference in message context.
+///
+/// This is the persisted form of a `SourceReference` attached to an
+/// assistant message. Adding page attribution here (SPEC-033 FP-033-1) ensures
+/// that PDF page grouping survives the write → persist → reload cycle and is
+/// not silently dropped when a conversation is stored to the database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageSource {
-    /// Source identifier.
+    /// Source identifier (chunk id or entity id).
     pub id: String,
-    /// Source title.
+    /// Source title (file path or document id).
     pub title: Option<String>,
     /// Content snippet.
     pub content: Option<String>,
@@ -131,6 +136,21 @@ pub struct MessageSource {
     pub score: f32,
     /// Document ID this came from.
     pub document_id: Option<String>,
+    /// Source type: "chunk", "entity", or "relationship".
+    /// Required for correct filtering in the frontend source-mapper.
+    /// @implements SPEC-033 FP-033-1
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_type: Option<String>,
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Present only for PDFs processed with page-aware chunking (SPEC-033).
+    /// Persisting this allows the citation panel to group passages by page
+    /// even after the conversation is reloaded from the database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_start: Option<u32>,
+    /// PDF page number (1-indexed) where this chunk ends.
+    /// Always equals `page_start` — chunks never cross page boundaries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_end: Option<u32>,
 }
 
 impl MessageSource {
@@ -142,6 +162,9 @@ impl MessageSource {
             content: None,
             score,
             document_id: None,
+            source_type: None,
+            page_start: None,
+            page_end: None,
         }
     }
 }

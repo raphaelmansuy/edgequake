@@ -1,0 +1,13 @@
+=== SPEC-034 IMP-06: Async community indexing validation ===
+--- Static check: tokio::spawn wraps community refresh ---
+PASS: schedule_community_index_refresh is wrapped in tokio::spawn
+--- Check: no blocking .await on schedule_community_index_refresh ---
+Occurrences of schedule_community_index_refresh:
+335:                    edgequake_storage::schedule_community_index_refresh(gs, ws).await;
+--- Pipeline lib tests ---
+test prompts::parser::json_parser::tests::test_empty_on_missing_json_returns_empty_result ... ok
+test prompts::parser::tests::test_json_empty_relationship_endpoints_filtered ... ok
+
+test result: ok. 243 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+PASS: IMP-06 async community index validation completed
