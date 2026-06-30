@@ -51,14 +51,9 @@ impl PostgresAGEGraphStorage {
         Self::setup_age_session(&mut conn).await?;
 
         let index_queries = [
-            (
-                "idx_node_prop_node_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_node_prop_node_id 
-                       ON {}."Node" (ag_catalog.agtype_access_operator(properties, '"node_id"'::agtype))"#,
-                    self.graph_name
-                ),
-            ),
+            // ── "Node" label indexes (child table — contains all node rows) ──────────
+            // REMOVED: idx_node_prop_node_id (agtype_access_operator form, 0 scans)
+            //   → superseded by idx_node_prop_node_id_unique (UNIQUE btree, Migration 074)
             (
                 "idx_node_props_gin",
                 format!(
@@ -72,110 +67,6 @@ impl PostgresAGEGraphStorage {
                 format!(
                     r#"CREATE INDEX IF NOT EXISTS idx_node_id 
                        ON {}."Node" (id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_edge_start_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_edge_start_id 
-                       ON {}."EDGE" (start_id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_edge_end_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_edge_end_id 
-                       ON {}."EDGE" (end_id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_edge_start_end",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_edge_start_end 
-                       ON {}."EDGE" (start_id, end_id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_edge_props_gin",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_edge_props_gin 
-                       ON {}."EDGE" USING gin(properties)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_vertex_props_gin",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_vertex_props_gin 
-                       ON {}."_ag_label_vertex" USING gin(properties)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_edge_start_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_start_id 
-                       ON {}."_ag_label_edge" (start_id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_edge_end_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_end_id 
-                       ON {}."_ag_label_edge" (end_id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_edge_start_end",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_start_end 
-                       ON {}."_ag_label_edge" (start_id, end_id)"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_vertex_tenant_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_vertex_tenant_id 
-                       ON {}."_ag_label_vertex" (
-                         (ag_catalog.agtype_to_json(properties)->>'tenant_id')
-                       )"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_vertex_workspace_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_vertex_workspace_id 
-                       ON {}."_ag_label_vertex" (
-                         (ag_catalog.agtype_to_json(properties)->>'workspace_id')
-                       )"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_edge_source_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_source_id 
-                       ON {}."_ag_label_edge" (
-                         (ag_catalog.agtype_to_json(properties)->>'source_id')
-                       )"#,
-                    self.graph_name
-                ),
-            ),
-            (
-                "idx_ag_edge_target_id",
-                format!(
-                    r#"CREATE INDEX IF NOT EXISTS idx_ag_edge_target_id 
-                       ON {}."_ag_label_edge" (
-                         (ag_catalog.agtype_to_json(properties)->>'target_id')
-                       )"#,
                     self.graph_name
                 ),
             ),
@@ -199,6 +90,25 @@ impl PostgresAGEGraphStorage {
                     self.graph_name
                 ),
             ),
+            // ── "EDGE" label indexes ────────────────────────────────────────────────
+            // REMOVED: idx_edge_start_end (composite, 0 scans — superseded by text-cast indexes)
+            // REMOVED: idx_edge_props_gin (GIN on edge properties, 0 scans)
+            (
+                "idx_edge_start_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_start_id 
+                       ON {}."EDGE" (start_id)"#,
+                    self.graph_name
+                ),
+            ),
+            (
+                "idx_edge_end_id",
+                format!(
+                    r#"CREATE INDEX IF NOT EXISTS idx_edge_end_id 
+                       ON {}."EDGE" (end_id)"#,
+                    self.graph_name
+                ),
+            ),
             (
                 "idx_edge_source_id",
                 format!(
@@ -219,6 +129,11 @@ impl PostgresAGEGraphStorage {
                     self.graph_name
                 ),
             ),
+            // REMOVED: All _ag_label_vertex and _ag_label_edge parent-table indexes.
+            // WHY: Those are AGE inheritance parent tables with 0 rows. All data lives
+            //      in the child label tables ("Node" and "EDGE"). Parent-table indexes
+            //      are never scanned and cause write amplification on every INSERT.
+            //      (SPEC-034 IMP-02, confirmed by pg_stat_user_indexes scan counts = 0)
         ];
 
         let mut indexes_created = 0;
@@ -359,11 +274,13 @@ impl PostgresAGEGraphStorage {
             "AGE graph bootstrap: checking critical indexes"
         );
 
-        // ── Critical indexes for MERGE (n:Node {node_id: 'X'}) performance ──
-        // These directly impact the cost of every entity upsert.
-        let node_idx_name = "idx_node_prop_node_id_btree";
+        // ── Critical unique index for MERGE/ON CONFLICT performance ────────────
+        // WHY UNIQUE: Migration 074 replaced the plain btree with a UNIQUE index so
+        // that pg_upsert_nodes_batch_native() can use ON CONFLICT DO UPDATE.
+        // A UNIQUE btree still serves all read queries that used the old plain btree.
+        let node_idx_name = "idx_node_prop_node_id_unique";
         let node_idx_sql = format!(
-            r#"CREATE INDEX {concurrent} IF NOT EXISTS {name}
+            r#"CREATE UNIQUE INDEX {concurrent} IF NOT EXISTS {name}
                ON {graph}."Node"
                ((ag_catalog.agtype_to_json(properties)->>'node_id'))"#,
             concurrent = if use_concurrent { "CONCURRENTLY" } else { "" },
@@ -387,11 +304,13 @@ impl PostgresAGEGraphStorage {
         .unwrap_or(false);
 
         if edge_table_exists {
+            // WHY UNIQUE: Migration 074 created idx_edge_source_target_unique so that
+            // pg_upsert_edges_batch_native() can use ON CONFLICT DO UPDATE.
             self.ensure_critical_index_concurrent(
                 &pool,
-                "idx_edge_source_target_btree",
+                "idx_edge_source_target_unique",
                 &format!(
-                    r#"CREATE INDEX {concurrent} IF NOT EXISTS idx_edge_source_target_btree
+                    r#"CREATE UNIQUE INDEX {concurrent} IF NOT EXISTS idx_edge_source_target_unique
                        ON {graph}."EDGE"
                        (
                          (ag_catalog.agtype_to_json(properties)->>'source_id'),

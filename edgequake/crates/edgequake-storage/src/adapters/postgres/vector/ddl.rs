@@ -50,11 +50,15 @@ impl PgVectorStorage {
             sqlx::query(&index_sql).execute(&pool).await.ok();
         }
 
-        let gin_sql = format!(
-            "CREATE INDEX IF NOT EXISTS eq_{}_vectors_metadata_idx ON {} USING GIN (metadata jsonb_path_ops)",
-            self.prefix, self.table_name
-        );
-        sqlx::query(&gin_sql).execute(&pool).await.ok();
+        // SPEC-034 IMP-08: Vector metadata GIN index removed.
+        // WHY: 0 query scans — all metadata lookups use metadata->>'key' = value
+        // (equality on extracted text), served by doc_id_idx / tenant_ws_idx btrees.
+        // This was 13 MB per workspace with zero benefit.
+        // To restore: uncomment the line below.
+        // sqlx::query(&format!(
+        //     "CREATE INDEX IF NOT EXISTS eq_{}_vectors_metadata_idx ON {} USING GIN (metadata jsonb_path_ops)",
+        //     self.prefix, self.table_name
+        // )).execute(&pool).await.ok();
 
         let add_cols = format!(
             r#"

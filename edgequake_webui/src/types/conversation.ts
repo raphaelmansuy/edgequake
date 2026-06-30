@@ -64,6 +64,13 @@ export interface MessageSource {
   document_id?: string;
   /** Original file path for citation display */
   file_path?: string;
+  /**
+   * PDF page number (1-indexed) where this chunk starts.
+   * SPEC-033: enables page-grouped citations in persisted conversation history.
+   */
+  page_start?: number;
+  /** PDF page number (1-indexed) where this chunk ends. Always equals page_start. */
+  page_end?: number;
 }
 
 /** Entity returned in context with source tracking */

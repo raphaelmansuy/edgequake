@@ -30,7 +30,7 @@ import { SourceInfoGrid } from './source-info-grid';
 interface MetadataSidebarProps {
   document: Document;
   /** Called when a chunk is selected in the hierarchy tree. */
-  onChunkSelect?: (chunkId: string, startLine?: number, endLine?: number) => void;
+  onChunkSelect?: (chunkId: string, startLine?: number, endLine?: number, page?: number) => void;
   /**
    * Called once when chunk data loads and the pre-selected chunk's line range
    * is resolved. Used to drive content-area highlighting on deep-link arrival.

@@ -31,6 +31,8 @@ impl Pipeline {
                 chunk.end_line,
                 chunk.start_offset,
                 chunk.end_offset,
+                // SPEC-033: propagate page attribution into lineage for Data Hierarchy tree
+                chunk.page_start,
                 metadata,
             );
         }

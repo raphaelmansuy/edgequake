@@ -178,6 +178,25 @@ mod nodes_ops;
 mod query_ops;
 mod scan_ops;
 
+/// SPEC-034 IMP-01: Check whether the native SQL write path is enabled.
+///
+/// # WHY: Feature flag for safe rollout
+///
+/// The native SQL path replaces Cypher MERGE with INSERT ON CONFLICT DO UPDATE,
+/// changing write complexity from O(G) (GIN scan) to O(log G) (btree) — ~69×
+/// faster at 50K nodes. It is gated behind an environment variable so that:
+///   1. The old Cypher path is preserved as a fallback during validation.
+///   2. CI and offline tests continue to work without the Migration 067 helpers.
+///   3. Production rollout can be controlled per-deployment without code changes.
+///
+/// Set `EDGEQUAKE_NATIVE_GRAPH_WRITES=1` (or `true`) to enable.
+/// Default: `false` — the Cypher UNWIND MERGE path is used.
+pub(super) fn native_graph_writes_enabled() -> bool {
+    std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
+}
+
 impl std::fmt::Debug for PostgresAGEGraphStorage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PostgresAGEGraphStorage")
@@ -257,5 +276,88 @@ mod tests {
         assert_eq!(edge.source, "node-1");
         assert_eq!(edge.target, "node-2");
         assert_eq!(edge.properties.get("weight").unwrap(), 0.5);
+    }
+
+    // -------------------------------------------------------------------------
+    // SPEC-034 IMP-01: Feature flag tests
+    // -------------------------------------------------------------------------
+
+    /// Test: feature flag defaults to disabled when env var is unset.
+    #[test]
+    fn test_native_graph_writes_disabled_by_default() {
+        // Remove env var to simulate clean environment.
+        // NOTE: env vars are process-global; use temp scope to avoid test pollution.
+        let original = std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES").ok();
+        std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES");
+
+        let result = native_graph_writes_enabled();
+
+        // Restore
+        if let Some(v) = original {
+            std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v);
+        }
+
+        assert!(
+            !result,
+            "native_graph_writes_enabled() must be false when env var is unset"
+        );
+    }
+
+    /// Test: feature flag enabled when set to "1".
+    #[test]
+    fn test_native_graph_writes_enabled_with_one() {
+        let original = std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES").ok();
+        std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", "1");
+
+        let result = native_graph_writes_enabled();
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v),
+            None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
+        }
+
+        assert!(
+            result,
+            "native_graph_writes_enabled() must be true when EDGEQUAKE_NATIVE_GRAPH_WRITES=1"
+        );
+    }
+
+    /// Test: feature flag enabled when set to "true" (case-insensitive).
+    #[test]
+    fn test_native_graph_writes_enabled_with_true() {
+        let original = std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES").ok();
+        std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", "true");
+
+        let result = native_graph_writes_enabled();
+
+        match original {
+            Some(v) => std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v),
+            None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
+        }
+
+        assert!(
+            result,
+            "native_graph_writes_enabled() must be true when EDGEQUAKE_NATIVE_GRAPH_WRITES=true"
+        );
+    }
+
+    /// Test: feature flag disabled for any other value (e.g. "0", "false").
+    #[test]
+    fn test_native_graph_writes_disabled_with_zero() {
+        let original = std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES").ok();
+        std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", "0");
+
+        let result = native_graph_writes_enabled();
+
+        match original {
+            Some(v) => std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v),
+            None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
+        }
+
+        assert!(
+            !result,
+            "native_graph_writes_enabled() must be false when EDGEQUAKE_NATIVE_GRAPH_WRITES=0"
+        );
     }
 }

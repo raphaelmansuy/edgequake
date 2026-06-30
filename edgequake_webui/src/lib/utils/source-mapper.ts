@@ -26,6 +26,13 @@ function mapChunkSources(sources: SourceReference[]): QueryContext["chunks"] {
       score: s.score,
       file_path: s.file_path,
       chunk_id: s.id,
+      start_line: s.start_line,
+      end_line: s.end_line,
+      chunk_index: s.chunk_index,
+      // SPEC-033: propagate PDF page attribution so citations can group by page
+      // and render deeplink badges ("p.N ↗") to the exact PDF page.
+      page_start: s.page_start,
+      page_end: s.page_end,
     }));
 }
 
@@ -112,6 +119,9 @@ export function mapServerMessageContextToQueryContext(
       score: source.score,
       file_path: source.file_path ?? source.title,
       chunk_id: source.id,
+      // SPEC-033: propagate page attribution from persisted conversation context
+      page_start: source.page_start,
+      page_end: source.page_end,
     })),
     entities:
       ctx.entities?.map((entity) => ({

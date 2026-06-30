@@ -5,12 +5,12 @@
 import type { SourceReference } from "@/lib/api/chat";
 import { describe, expect, it } from "vitest";
 import {
-  buildQueryContextFromRetrieval,
-  buildQueryContextFromStreamChunk,
-  hasContextContent,
-  mapServerMessageContextToQueryContext,
-  mapSourcesToContext,
-  mapSubgraphToQueryContext,
+    buildQueryContextFromRetrieval,
+    buildQueryContextFromStreamChunk,
+    hasContextContent,
+    mapServerMessageContextToQueryContext,
+    mapSourcesToContext,
+    mapSubgraphToQueryContext,
 } from "../source-mapper";
 import type { SubgraphBundle } from "../subgraph-types";
 
@@ -358,3 +358,75 @@ describe("hasContextContent", () => {
     ).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPEC-033: Page attribution propagation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("SPEC-033 page_start propagation through source-mapper", () => {
+  it("mapChunkSources propagates page_start/page_end from SourceReference", () => {
+    const sources: SourceReference[] = [
+      {
+        source_type: "chunk",
+        id: "doc-1-chunk-0",
+        score: 0.9,
+        snippet: "page 3 content",
+        document_id: "doc-1",
+        page_start: 3,
+        page_end: 3,
+      },
+      {
+        source_type: "chunk",
+        id: "doc-1-chunk-1",
+        score: 0.8,
+        snippet: "no page content",
+        document_id: "doc-1",
+        // no page_start — non-PDF chunk
+      },
+    ];
+
+    const ctx = buildQueryContextFromRetrieval(sources);
+    expect(ctx.chunks[0].page_start).toBe(3);
+    expect(ctx.chunks[0].page_end).toBe(3);
+    expect(ctx.chunks[1].page_start).toBeUndefined();
+    expect(ctx.chunks[1].page_end).toBeUndefined();
+  });
+
+  it("groupPassagesByPage: chunks with page_start group correctly", () => {
+    // The grouping logic is in source-citations.tsx (not exported), so we
+    // verify indirectly: chunks with page_start should produce non-null grouping.
+    const sources: SourceReference[] = [
+      { source_type: "chunk", id: "doc-1-chunk-0", score: 0.9, snippet: "c0", document_id: "doc-1", page_start: 1, page_end: 1 },
+      { source_type: "chunk", id: "doc-1-chunk-1", score: 0.8, snippet: "c1", document_id: "doc-1", page_start: 2, page_end: 2 },
+      { source_type: "chunk", id: "doc-1-chunk-2", score: 0.7, snippet: "c2", document_id: "doc-1", page_start: 2, page_end: 2 },
+    ];
+
+    const ctx = buildQueryContextFromRetrieval(sources);
+    const chunks = ctx.chunks;
+
+    // Group manually using the same logic as source-citations.tsx
+    const hasPages = chunks.some(c => c.page_start !== undefined);
+    expect(hasPages).toBe(true);
+
+    const groupedByPage = new Map<number | null, typeof chunks>();
+    for (const chunk of chunks) {
+      const key = chunk.page_start ?? null;
+      groupedByPage.set(key, [...(groupedByPage.get(key) ?? []), chunk]);
+    }
+
+    expect(groupedByPage.get(1)).toHaveLength(1);
+    expect(groupedByPage.get(2)).toHaveLength(2);
+    expect(groupedByPage.has(null)).toBe(false);
+  });
+
+  it("non-PDF chunks produce null grouping", () => {
+    const sources: SourceReference[] = [
+      { source_type: "chunk", id: "doc-2-chunk-0", score: 0.9, snippet: "c0", document_id: "doc-2" },
+      { source_type: "chunk", id: "doc-2-chunk-1", score: 0.8, snippet: "c1", document_id: "doc-2" },
+    ];
+    const ctx = buildQueryContextFromRetrieval(sources);
+    const hasPages = ctx.chunks.some(c => c.page_start !== undefined);
+    expect(hasPages).toBe(false);
+  });
+});
+

@@ -98,6 +98,11 @@ impl PostgresAGEGraphStorage {
             return Ok(());
         }
 
+        // SPEC-034 IMP-01: Use native SQL path when feature flag is enabled.
+        if super::native_graph_writes_enabled() {
+            return self.pg_upsert_edges_batch_native(edges).await;
+        }
+
         // SPEC-032 W-05: adaptive chunk based on estimated row bytes.
         let chunk_size = Self::adaptive_edge_chunk_size(edges);
 
@@ -297,5 +302,111 @@ impl PostgresAGEGraphStorage {
             .collect();
 
         Ok(edges)
+    }
+
+    /// SPEC-034 IMP-01: Native SQL batch edge upsert — O(log G) per edge.
+    ///
+    /// # WHY: Replace Cypher MERGE with native INSERT ON CONFLICT DO UPDATE
+    ///
+    /// Cypher MERGE for edges does GIN containment scans on BOTH endpoint nodes
+    /// plus the edge table. Native SQL uses the btree expression indexes on
+    /// `(source_id::text)` and `(target_id::text)` added in Migration 072.
+    ///
+    /// # Prerequisite
+    ///
+    /// This method requires that the endpoint nodes already exist in the "Node"
+    /// table (written by `pg_upsert_nodes_batch_native` first). The edge
+    /// references start_id and end_id by graphid, looked up via the btree index.
+    ///
+    /// # Monitoring
+    ///
+    /// Logs a WARNING when the batch exceeds 800ms to detect regressions.
+    pub(super) async fn pg_upsert_edges_batch_native(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        let start = std::time::Instant::now();
+
+        let pool = self.pool.get().await?;
+        let graph = &self.graph_name;
+
+        // Build parallel arrays: source_ids, target_ids, serialised JSON props.
+        let mut source_ids: Vec<String> = Vec::with_capacity(edges.len());
+        let mut target_ids: Vec<String> = Vec::with_capacity(edges.len());
+        let mut props_json: Vec<String> = Vec::with_capacity(edges.len());
+
+        for (src, tgt, props) in edges {
+            source_ids.push(src.clone());
+            target_ids.push(tgt.clone());
+            let mut full = props.clone();
+            full.insert(
+                "source_id".to_string(),
+                serde_json::Value::String(src.clone()),
+            );
+            full.insert(
+                "target_id".to_string(),
+                serde_json::Value::String(tgt.clone()),
+            );
+            props_json.push(serde_json::to_string(&full).unwrap_or_else(|_| "{}".to_string()));
+        }
+
+        // WHY ::ag_catalog.agtype (not ::jsonb::agtype):
+        // AGE has no registered jsonb→agtype cast. The correct path is
+        // text→agtype via agtype's input function (agtype_in).
+        // Verified: text::ag_catalog.agtype works in AGE 1.6.0.
+        //
+        // The conflict target matches idx_edge_source_target_unique (Migration 074):
+        //   CREATE UNIQUE INDEX ... ON "EDGE" (
+        //     (agtype_to_json(properties)->>'source_id'),
+        //     (agtype_to_json(properties)->>'target_id'))
+        let sql = format!(
+            r#"
+            INSERT INTO {graph}."EDGE" (id, start_id, end_id, properties)
+            SELECT
+                eq_next_edge_id('{graph}'),
+                sn.id      AS start_id,
+                tn.id      AS end_id,
+                p.props_text::ag_catalog.agtype
+            FROM unnest($1::text[], $2::text[], $3::text[])
+                   AS p(source_id_val, target_id_val, props_text)
+            JOIN {graph}."Node" sn
+              ON ag_catalog.agtype_to_json(sn.properties)->>'node_id' = p.source_id_val
+            JOIN {graph}."Node" tn
+              ON ag_catalog.agtype_to_json(tn.properties)->>'node_id' = p.target_id_val
+            ON CONFLICT (
+                (ag_catalog.agtype_to_json(properties)->>'source_id'),
+                (ag_catalog.agtype_to_json(properties)->>'target_id')
+            )
+            DO UPDATE SET
+                properties = EXCLUDED.properties
+            "#,
+            graph = graph
+        );
+
+        sqlx::query(&sql)
+            .bind(&source_ids)
+            .bind(&target_ids)
+            .bind(&props_json)
+            .execute(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Native SQL edge batch upsert failed: {e}"))
+            })?;
+
+        let elapsed = start.elapsed();
+        if elapsed.as_millis() > 800 {
+            tracing::warn!(
+                batch_size = edges.len(),
+                elapsed_ms = elapsed.as_millis(),
+                "SPEC-034 IMP-01: Native edge batch upsert exceeded 800ms threshold"
+            );
+        }
+        tracing::debug!(
+            batch_size = edges.len(),
+            elapsed_ms = elapsed.as_millis(),
+            "SPEC-034 IMP-01: Native edge batch upsert completed"
+        );
+
+        Ok(())
     }
 }

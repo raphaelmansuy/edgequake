@@ -121,6 +121,14 @@ pub struct ChunkLineage {
     pub start_offset: usize,
     /// End offset in document.
     pub end_offset: usize,
+    /// PDF page number (1-indexed) where this chunk starts.
+    /// Present only for PDFs processed with page-aware chunking (SPEC-033).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_start: Option<u32>,
+    /// PDF page number (1-indexed) where this chunk ends.
+    /// Always equal to `page_start`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_end: Option<u32>,
     /// Entity IDs extracted from this chunk.
     pub entity_ids: Vec<String>,
     /// Relationship IDs extracted from this chunk.
@@ -139,10 +147,19 @@ impl ChunkLineage {
             end_line: 0,
             start_offset: 0,
             end_offset: 0,
+            page_start: None,
+            page_end: None,
             entity_ids: Vec::new(),
             relationship_ids: Vec::new(),
             extraction_metadata: ExtractionMetadata::default(),
         }
+    }
+
+    /// Set PDF page attribution (SPEC-033).
+    pub fn with_page(mut self, page: u32) -> Self {
+        self.page_start = Some(page);
+        self.page_end = Some(page);
+        self
     }
 
     /// Set line numbers.
@@ -500,19 +517,26 @@ impl LineageBuilder {
         end_line: usize,
         start_offset: usize,
         end_offset: usize,
+        page_start: Option<u32>,
         metadata: ExtractionMetadata,
     ) {
-        let chunk = ChunkLineage {
+        let mut chunk = ChunkLineage {
             chunk_id: chunk_id.to_string(),
             chunk_index,
             start_line,
             end_line,
             start_offset,
             end_offset,
+            page_start: None,
+            page_end: None,
             entity_ids: Vec::new(),
             relationship_ids: Vec::new(),
             extraction_metadata: metadata,
         };
+        // SPEC-033: stamp page attribution when available.
+        if let Some(page) = page_start {
+            chunk = chunk.with_page(page);
+        }
         self.lineage.add_chunk(chunk);
     }
 
@@ -691,6 +715,7 @@ mod tests {
             10,
             0,
             500,
+            None,
             ExtractionMetadata::new("gpt-4.1-nano"),
         );
 

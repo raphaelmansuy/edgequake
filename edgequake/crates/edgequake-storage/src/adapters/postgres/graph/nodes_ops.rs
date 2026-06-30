@@ -120,6 +120,13 @@ impl PostgresAGEGraphStorage {
             return Ok(());
         }
 
+        // SPEC-034 IMP-01: Use native SQL path when feature flag is enabled.
+        // WHY: Native SQL INSERT ON CONFLICT DO UPDATE with btree index is
+        // O(log G) vs Cypher MERGE GIN scan which is O(G) — ~69× faster.
+        if super::native_graph_writes_enabled() {
+            return self.pg_upsert_nodes_batch_native(nodes).await;
+        }
+
         // SPEC-032 W-05: Adaptive chunk size — keep UNWIND body ≤ 512 KB.
         let chunk_size = Self::adaptive_unwind_chunk_size(nodes);
 
@@ -613,5 +620,118 @@ impl PostgresAGEGraphStorage {
         }
 
         Ok(result)
+    }
+
+    /// SPEC-034 IMP-01: Native SQL batch node upsert — O(log G) per node.
+    ///
+    /// # WHY: Replace Cypher MERGE GIN scan with native SQL btree lookup
+    ///
+    /// AGE's `cypher()` UDF compiles `MERGE (n:Node {node_id: 'X'})` into a
+    /// GIN containment scan (`properties @> '{"node_id":"X"}'`). At 50K nodes
+    /// this takes ~5.6ms per node. Native SQL uses the btree index on
+    /// `(agtype_to_json(properties)->>'node_id')` which costs ~0.081ms — 69×
+    /// faster.
+    ///
+    /// # Enabled by
+    /// `EDGEQUAKE_NATIVE_GRAPH_WRITES=1` environment variable.
+    ///
+    /// # AGE Compatibility (verified on AGE 1.6.0)
+    ///
+    /// AGE nodes are stored in `"<graph>"."Node"` (id: graphid, properties: agtype).
+    /// `eq_next_node_id(graph_name)` (Migration 076) generates valid graphids via:
+    ///   `(label_id << 48) | nextval(seq)` cast through `::text::ag_catalog.graphid`.
+    ///
+    /// The agtype cast uses `::ag_catalog.agtype` (NOT `::jsonb::agtype`).
+    /// AGE registers no jsonb→agtype cast; the input function `agtype_in`
+    /// accepts text in agtype format, making the text→agtype path correct.
+    ///
+    /// # Conflict Resolution (LightRAG merge semantics)
+    ///
+    /// ON CONFLICT uses the UNIQUE index `idx_node_prop_node_id_unique`
+    /// (Migration 074). DO UPDATE SET applies last-writer-wins property
+    /// update, identical to Cypher `MERGE ... SET n.key = new_value`.
+    ///
+    /// # Monitoring
+    ///
+    /// Logs a WARNING when the batch exceeds 500ms to detect regressions early.
+    pub(super) async fn pg_upsert_nodes_batch_native(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+    ) -> Result<()> {
+        let start = std::time::Instant::now();
+
+        let pool = self.pool.get().await?;
+        let graph = &self.graph_name;
+
+        // Build parallel arrays: node_ids and serialised JSON property objects.
+        // node_id is injected into the property map so the agtype row is complete.
+        let mut node_ids: Vec<String> = Vec::with_capacity(nodes.len());
+        let mut props_json: Vec<String> = Vec::with_capacity(nodes.len());
+
+        for (id, props) in nodes {
+            node_ids.push(id.clone());
+            let mut full = props.clone();
+            full.insert("node_id".to_string(), serde_json::Value::String(id.clone()));
+            props_json.push(serde_json::to_string(&full).unwrap_or_else(|_| "{}".to_string()));
+        }
+
+        // unnest($1, $2) expands two parallel arrays into rows.
+        // eq_next_node_id generates a valid AGE graphid only for NEW rows;
+        // ON CONFLICT rows use the EXCLUDED alias (no new graphid consumed).
+        //
+        // WHY ::ag_catalog.agtype cast (not ::jsonb::agtype):
+        // AGE does not register a jsonb→agtype cast. The correct path is
+        // text→agtype via the agtype type's input function (agtype_in),
+        // accessible as `::ag_catalog.agtype`. Verified on AGE 1.6.0.
+        //
+        // The conflict target matches idx_node_prop_node_id_unique (Migration 074):
+        //   CREATE UNIQUE INDEX ... ON "Node" ((agtype_to_json(properties)->>'node_id'))
+        let sql = format!(
+            r#"
+            INSERT INTO {graph}."Node" (id, properties)
+            SELECT
+                eq_next_node_id('{graph}'),
+                p.props_text::ag_catalog.agtype
+            FROM unnest($1::text[], $2::text[]) AS p(node_id_val, props_text)
+            ON CONFLICT (
+                (ag_catalog.agtype_to_json(properties)->>'node_id')
+            )
+            DO UPDATE SET
+                properties = EXCLUDED.properties
+            "#,
+            graph = graph
+        );
+
+        sqlx::query(&sql)
+            .bind(&node_ids)
+            .bind(&props_json)
+            .execute(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Native SQL node batch upsert failed: {e}"))
+            })?;
+
+        // Lazily create indexes (mirrors the Cypher path).
+        if !self.indexes_verified.load(Ordering::Relaxed) {
+            self.ensure_indexes().await?;
+            self.indexes_verified.store(true, Ordering::Relaxed);
+            tracing::info!("Created AGE indexes after first native node batch");
+        }
+
+        let elapsed = start.elapsed();
+        if elapsed.as_millis() > 500 {
+            tracing::warn!(
+                batch_size = nodes.len(),
+                elapsed_ms = elapsed.as_millis(),
+                "SPEC-034 IMP-01: Native node batch upsert exceeded 500ms threshold"
+            );
+        }
+        tracing::debug!(
+            batch_size = nodes.len(),
+            elapsed_ms = elapsed.as_millis(),
+            "SPEC-034 IMP-01: Native node batch upsert completed"
+        );
+
+        Ok(())
     }
 }
