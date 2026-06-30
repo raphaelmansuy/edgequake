@@ -24,6 +24,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { buildDocumentCitationUrl } from '@/lib/utils/document-url';
 import { cn } from '@/lib/utils';
 import type { QueryContext, QueryMode } from '@/types';
 import {
@@ -533,32 +534,18 @@ const AssistantMessage = memo(function AssistantMessage({
                   // Use router.push so browser history is preserved (back-button works)
                   router.push(`/graph?entity=${encodeURIComponent(entityId)}`);
                 }}
-                onDocumentClick={(documentId, chunkContent, chunkIndex, startLine, endLine, chunkId) => {
-                  // Build document deep-link URL
-                  const params = new URLSearchParams();
+                onDocumentClick={(documentId, chunkContent, chunkIndex, startLine, endLine, chunkId, page) => {
+                  const url = buildDocumentCitationUrl({
+                    documentId: encodeURIComponent(documentId),
+                    chunkId,
+                    page,
+                    chunkContent,
+                    startLine,
+                    endLine,
+                  });
 
-                  // Line range (highest priority for content highlighting)
-                  if (startLine !== undefined && endLine !== undefined) {
-                    params.set('start_line', startLine.toString());
-                    params.set('end_line', endLine.toString());
-                  }
-
-                  // ?chunk=<id> selects the chunk in the sidebar tree
-                  if (chunkId) {
-                    params.set('chunk', chunkId);
-                  }
-
-                  // ?highlight=<text> scrolls to + highlights yellow in the content area.
-                  // Set for BOTH chunk-id path AND plain content path (no line range).
-                  // When chunk is present, this gives dual feedback: sidebar row selected
-                  // AND content area scrolls to the passage in yellow.
-                  if (chunkContent && startLine === undefined) {
-                    params.set('highlight', chunkContent.slice(0, 100));
-                  }
-
-                  const search = params.toString();
                   // router.push preserves browser history so the back-button returns here
-                  router.push(`/documents/${encodeURIComponent(documentId)}${search ? `?${search}` : ''}`);
+                  router.push(url);
                 }}
                 onExploreGraph={(entityLabels) => {
                   const params = new URLSearchParams();
