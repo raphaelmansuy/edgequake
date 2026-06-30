@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/hover-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { buildDocumentPageUrl } from '@/lib/utils/document-url';
 import type { QueryContext } from '@/types';
 import {
     BookOpen,
@@ -41,6 +42,7 @@ import {
     Network,
     Sparkles
 } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 interface SourceCitationsProps {
@@ -52,7 +54,8 @@ interface SourceCitationsProps {
     chunkIndex?: number,
     startLine?: number,
     endLine?: number,
-    chunkId?: string
+    chunkId?: string,
+    page?: number,
   ) => void;
   onExploreGraph?: (entityLabels: string[]) => void;
 }
@@ -145,16 +148,246 @@ const getDocumentTitle = (chunks: NonNullable<QueryContext['chunks']>): string =
   return 'Untitled Document';
 };
 
+/**
+ * Strip common markdown syntax for clean plain-text display in citation previews.
+ *
+ * Removes: heading markers, bold/italic delimiters, inline code ticks,
+ * link brackets, image prefixes, horizontal rules, and leading/trailing whitespace.
+ * Preserves actual text content.
+ */
+function stripMarkdownSyntax(text: string): string {
+  return text
+    // Remove ATX heading markers (## Heading → Heading)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold+italic (***/___), bold (**/__)
+    .replace(/(\*{1,3}|_{1,3})(.+?)\1/g, '$2')
+    // Remove inline code ticks
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove markdown link [text](url) → text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    // Remove image prefix ![]()
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Remove footnote references [^N] or [^label]
+    .replace(/\[\^[^\]]+\]/g, '')
+    // Remove standalone horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    // Strip orphaned leading inline-markers (*, **, _, ~~) that weren't matched above
+    .replace(/(\*{1,3}|_{1,3}|~~)(?=\S)/g, '')
+    // Collapse multiple blank lines / leading+trailing whitespace on each line
+    .replace(/^\s+/gm, '')
+    .trim();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Sub-Components
+// Page grouping helpers (SPEC-033)
 // ─────────────────────────────────────────────────────────────────────────────
 
+type Chunks = NonNullable<QueryContext['chunks']>;
+
+/**
+ * Group passages by PDF page number.
+ * Returns null when no passage has page_start (non-PDF, flat fallback).
+ *
+ * @implements SPEC-033 FR-008 — page-grouped citations in query results
+ */
+function groupPassagesByPage(
+  chunks: Chunks,
+): Map<number | null, Chunks> | null {
+  const hasPages = chunks.some((c) => c.page_start !== undefined);
+  if (!hasPages) return null;
+
+  const map = new Map<number | null, Chunks>();
+  for (const chunk of chunks) {
+    const key = chunk.page_start ?? null;
+    const list = map.get(key) ?? [];
+    list.push(chunk);
+    map.set(key, list);
+  }
+  return map;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Passage row sub-component (SPEC-033 FR-009)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PassageRowProps {
+  chunk: Chunks[number];
+  chunkIdx: number;
+  docId: string;
+  normalizeScore: (s: number) => number;
+  onDocumentClick?: (
+    docId: string,
+    content?: string,
+    idx?: number,
+    start?: number,
+    end?: number,
+    chunkId?: string,
+    page?: number,
+  ) => void;
+}
+
+function PassageRow({
+  chunk,
+  chunkIdx,
+  docId,
+  normalizeScore,
+  onDocumentClick,
+}: PassageRowProps) {
+  const score = normalizeScore(chunk.score);
+  const { color: scoreColor } = getConfidenceLabel(score);
+
+  // SPEC-033: canonical deeplink using shared URL helper (DRY)
+  const pageUrl =
+    chunk.document_id && chunk.page_start !== undefined
+      ? buildDocumentPageUrl(chunk.document_id, chunk.chunk_id, chunk.page_start)
+      : null;
+
+  return (
+    <div className="relative">
+      <button
+        className="w-full text-left p-2.5 rounded-lg bg-muted/30 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 border border-transparent hover:border-yellow-200 dark:hover:border-yellow-800 transition-all duration-150 group/chunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        title="Click to open and highlight this passage in the document viewer"
+        aria-label={`Open passage ${(chunk.chunk_index ?? chunkIdx) + 1}: ${stripMarkdownSyntax(chunk.content).slice(0, 80)}${chunk.content.length > 80 ? '...' : ''}`}
+        onClick={() =>
+          onDocumentClick?.(
+            docId,
+            chunk.content,
+            chunk.chunk_index ?? chunkIdx,
+            chunk.start_line,
+            chunk.end_line,
+            chunk.chunk_id,
+            chunk.page_start,
+          )
+        }
+      >
+        {/* Row 1: passage index + content + score */}
+        <div className="flex items-start gap-2">
+          {/* Passage number — muted mono badge for clear hierarchy */}
+          <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded bg-muted/60 text-muted-foreground text-[9px] font-mono flex items-center justify-center select-none" aria-hidden="true">
+            {(chunk.chunk_index ?? chunkIdx) + 1}
+          </span>
+
+          <p className="text-xs text-foreground/85 line-clamp-3 flex-1 leading-relaxed break-words overflow-hidden">
+            {(() => {
+              const clean = stripMarkdownSyntax(chunk.content);
+              const snippet = clean.length > 220 ? clean.slice(0, 220).replace(/[*_`~]+$/, '') + '…' : clean;
+              return snippet || chunk.content.slice(0, 220);
+            })()}
+          </p>
+
+          <span className={`text-[10px] font-semibold flex-shrink-0 mt-0.5 tabular-nums ${scoreColor}`}>
+            {Math.round(score * 100)}%
+          </span>
+        </div>
+
+        {/* Row 2: page deeplink (inside the card, always visible, not floating) */}
+        {pageUrl && (
+          <div className="mt-1.5 pl-7 flex items-center">
+            <Link
+              href={pageUrl}
+              className="inline-flex items-center gap-0.5 text-[10px] font-medium text-primary/75 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50 rounded-sm"
+              title={`Open PDF at page ${chunk.page_start}`}
+              aria-label={`Go to page ${chunk.page_start} in document viewer`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <BookOpen className="h-2.5 w-2.5" aria-hidden="true" />
+              <span className="ml-0.5">p.{chunk.page_start}</span>
+              <ExternalLink className="h-2 w-2 ml-0.5 opacity-70" aria-hidden="true" />
+            </Link>
+          </div>
+        )}
+
+        {/* Row 2 fallback: line range for non-PDF sources */}
+        {!pageUrl && chunk.start_line !== undefined && chunk.end_line !== undefined && (
+          <div className="mt-1 pl-7 text-[9px] text-muted-foreground/50">
+            L{chunk.start_line}–{chunk.end_line}
+          </div>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page passage group sub-component (SPEC-033 FR-008)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PagePassageGroupProps {
+  page: number | null;
+  passages: Chunks;
+  docId: string;
+  normalizeScore: (s: number) => number;
+  onDocumentClick?: PassageRowProps['onDocumentClick'];
+}
+
+function PagePassageGroup({
+  page,
+  passages,
+  docId,
+  normalizeScore,
+  onDocumentClick,
+}: PagePassageGroupProps) {
+  // Build the page-level deeplink (navigates PDF viewer, no chunk selected)
+  const firstChunkDocId = passages[0]?.document_id;
+  const pageDeeplink =
+    page !== null && firstChunkDocId
+      ? buildDocumentPageUrl(firstChunkDocId, undefined, page)
+      : null;
+
+  return (
+    <div className="space-y-1.5">
+      {/* ── Page group header ── */}
+      {page !== null && (
+        <div className="flex items-center gap-2 pt-1.5 pb-0.5">
+          {/* Colored pill label */}
+          <div className="flex items-center gap-1 bg-primary/8 dark:bg-primary/12 border border-primary/15 rounded-full px-2 py-0.5">
+            <BookOpen className="h-2.5 w-2.5 text-primary/70 flex-shrink-0" aria-hidden="true" />
+            <span className="text-[10px] font-semibold text-primary/80 leading-none">
+              Page {page}
+            </span>
+          </div>
+
+          {/* Hairline separator */}
+          <div className="flex-1 h-px bg-border/40" aria-hidden="true" />
+
+          {/* Page deeplink — opens PDF at this page */}
+          {pageDeeplink && (
+            <Link
+              href={pageDeeplink}
+              className="inline-flex items-center gap-0.5 text-[10px] font-medium text-primary/70 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 rounded-sm"
+              aria-label={`Open PDF at page ${page}`}
+              title={`Jump to page ${page} in the document viewer`}
+            >
+              <ExternalLink className="h-2.5 w-2.5" />
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Passages within this page group */}
+      <div className={page !== null ? 'pl-1 space-y-1.5' : 'space-y-1.5'}>
+        {passages.map((chunk, idx) => (
+          <PassageRow
+            key={chunk.chunk_id ?? idx}
+            chunk={chunk}
+            chunkIdx={idx}
+            docId={docId}
+            normalizeScore={normalizeScore}
+            onDocumentClick={onDocumentClick}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Documents Tab Component
 const ConfidenceDots = ({ score, className = '' }: { score: number; className?: string }) => {
   const filled = Math.round(score * 5);
   const { bgColor } = getConfidenceLabel(score);
   return (
-    <span 
-      className={`inline-flex gap-0.5 items-center ${className}`} 
+    <span
+      className={`inline-flex gap-0.5 items-center ${className}`}
       title={`${Math.round(score * 100)}% confidence`}
       aria-label={`Confidence: ${Math.round(score * 100)}%`}
     >
@@ -170,19 +403,19 @@ const ConfidenceDots = ({ score, className = '' }: { score: number; className?: 
   );
 };
 
-// Documents Tab Component
-const DocumentsTab = ({ 
-  chunksByDocument, 
-  onDocumentClick 
-}: { 
+const DocumentsTab = ({
+  chunksByDocument,
+  onDocumentClick,
+}: {
   chunksByDocument: Record<string, NonNullable<QueryContext['chunks']>>;
   onDocumentClick?: (
-    docId: string, 
-    chunkContent?: string, 
+    docId: string,
+    chunkContent?: string,
     chunkIndex?: number,
     startLine?: number,
     endLine?: number,
-    chunkId?: string
+    chunkId?: string,
+    page?: number,
   ) => void;
 }) => {
   // Track which documents have their chunk list expanded beyond the default 3
@@ -255,7 +488,17 @@ const DocumentsTab = ({
                       <div className="flex items-center justify-between gap-2">
                         <button
                           className="text-sm font-semibold flex items-center gap-1.5 hover:text-primary transition-colors text-left max-w-full overflow-hidden text-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-sm"
-                          onClick={() => onDocumentClick?.(docId, chunks[0]?.content, 0, undefined, undefined, chunks[0]?.chunk_id)}
+                          onClick={() =>
+                            onDocumentClick?.(
+                              docId,
+                              chunks[0]?.content,
+                              0,
+                              undefined,
+                              undefined,
+                              chunks[0]?.chunk_id,
+                              chunks[0]?.page_start,
+                            )
+                          }
                           title={`Open: ${getDocumentTitle(chunks)}`}
                           aria-label={`Open document: ${getDocumentTitle(chunks)}`}
                         >
@@ -276,7 +519,17 @@ const DocumentsTab = ({
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => onDocumentClick?.(docId, chunks[0]?.content, 0, undefined, undefined, chunks[0]?.chunk_id)}
+                            onClick={() =>
+                              onDocumentClick?.(
+                                docId,
+                                chunks[0]?.content,
+                                0,
+                                undefined,
+                                undefined,
+                                chunks[0]?.chunk_id,
+                                chunks[0]?.page_start,
+                              )
+                            }
                             aria-label={`Open document: ${getDocumentTitle(chunks)}`}
                           >
                             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -284,70 +537,41 @@ const DocumentsTab = ({
                         </div>
                       </div>
                       
-                      {/* Passages — each is clickable and deep-links via ?chunk=<id> */}
+                      {/* Passages — page-grouped when PDF page data is available (SPEC-033 FR-008) */}
                       <div className="space-y-1.5 mt-2">
-                        {visibleChunks.map((chunk, chunkIdx) => (
-                          <button
-                            key={chunk.chunk_id ?? chunkIdx}
-                            onClick={() => onDocumentClick?.(
-                              docId,
-                              chunk.content,
-                              chunk.chunk_index ?? chunkIdx,
-                              chunk.start_line,
-                              chunk.end_line,
-                              chunk.chunk_id
-                            )}
-                          className="w-full text-left p-2 rounded-md bg-muted/30 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 border border-transparent hover:border-yellow-200 dark:hover:border-yellow-800 transition-colors group/chunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                            title="Click to open and highlight this passage in the document viewer"
-                            aria-label={`Open passage ${(chunk.chunk_index ?? chunkIdx) + 1}: ${chunk.content.slice(0, 80)}${chunk.content.length > 80 ? '...' : ''}`}
-                          >
-                            <div className="flex items-start gap-2">
-                              <Badge
-                                variant="outline"
-                                className="text-[9px] h-4 px-1 flex-shrink-0 mt-0.5"
-                              >
-                                §{(chunk.chunk_index ?? chunkIdx) + 1}
-                              </Badge>
-                              <p className="text-xs text-foreground/80 line-clamp-2 flex-1 leading-relaxed break-words overflow-hidden">
-                                {chunk.content.slice(0, 200)}{chunk.content.length > 200 ? '…' : ''}
-                              </p>
-                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                <span className={`text-xs font-semibold ${getConfidenceLabel(normalizeScore(chunk.score)).color}`}>
-                                  {Math.round(normalizeScore(chunk.score) * 100)}%
-                                </span>
-                                <ExternalLink className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/chunk:opacity-70 transition-opacity" aria-hidden="true" />
-                              </div>
-                            </div>
-                            {/* Locator: PDF page (deep link) > line range > chunk ID fallback */}
-                            {chunk.page_start !== undefined ? (
-                              <div className="text-[9px] text-muted-foreground mt-1 pl-6 flex items-center gap-1">
-                                <BookOpen className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
-                                <span>p.{chunk.page_start}</span>
-                                {chunk.chunk_id && (
-                                  <a
-                                    href={`/documents/${chunk.document_id}?chunk=${chunk.chunk_id}&page=${chunk.page_start}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="ml-1 text-blue-500 hover:text-blue-600 underline"
-                                    title={`Open PDF at page ${chunk.page_start}`}
-                                    aria-label={`Open document at page ${chunk.page_start}`}
-                                  >
-                                    Go to page
-                                  </a>
-                                )}
-                              </div>
-                            ) : chunk.start_line !== undefined && chunk.end_line !== undefined ? (
-                              <div className="text-[9px] text-muted-foreground mt-1 pl-6">
-                                L{chunk.start_line}–{chunk.end_line}
-                              </div>
-                            ) : chunk.chunk_id ? (
-                              <div className="text-[9px] text-muted-foreground/50 mt-1 pl-6 font-mono truncate">
-                                {chunk.chunk_id.slice(0, 12)}…
-                              </div>
-                            ) : null}
-                          </button>
-                        ))}
+                        {(() => {
+                          const grouped = groupPassagesByPage(visibleChunks);
+                          if (grouped) {
+                            // Page-grouped mode
+                            return [...grouped.entries()]
+                              .sort(([a], [b]) => {
+                                if (a === null) return 1;
+                                if (b === null) return -1;
+                                return a - b;
+                              })
+                              .map(([page, passages]) => (
+                                <PagePassageGroup
+                                  key={page ?? 'nopage'}
+                                  page={page}
+                                  passages={passages}
+                                  docId={docId}
+                                  normalizeScore={normalizeScore}
+                                  onDocumentClick={onDocumentClick}
+                                />
+                              ));
+                          }
+                          // Flat fallback — non-PDF or no page data
+                          return visibleChunks.map((chunk, chunkIdx) => (
+                            <PassageRow
+                              key={chunk.chunk_id ?? chunkIdx}
+                              chunk={chunk}
+                              chunkIdx={chunkIdx}
+                              docId={docId}
+                              normalizeScore={normalizeScore}
+                              onDocumentClick={onDocumentClick}
+                            />
+                          ));
+                        })()}
 
                         {/* Per-document expand / collapse for docs with many passages */}
                         {hiddenCount > 0 && (
@@ -385,7 +609,7 @@ const KnowledgeTab = ({
   entities: QueryContext['entities'];
   relationships: QueryContext['relationships'];
   onEntityClick?: (entityId: string) => void;
-  onDocumentClick?: (documentId: string, chunkContent?: string, chunkIndex?: number, startLine?: number, endLine?: number, chunkId?: string) => void;
+  onDocumentClick?: (documentId: string, chunkContent?: string, chunkIndex?: number, startLine?: number, endLine?: number, chunkId?: string, page?: number) => void;
 }) => {
   const [showAllEntities, setShowAllEntities] = useState(false);
   const [showAllRelationships, setShowAllRelationships] = useState(false);
