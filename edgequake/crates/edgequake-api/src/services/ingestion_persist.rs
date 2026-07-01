@@ -127,6 +127,7 @@ pub async fn persist_with_providers(
 }
 
 /// Full variant: accepts an optional merge progress callback and lineage sink (SPEC-032 W-04/W-08).
+#[allow(clippy::too_many_arguments)]
 pub async fn persist_with_providers_and_progress(
     llm_provider: Arc<dyn LLMProvider>,
     cache_invalidator: Option<&dyn QueryResultCacheInvalidator>,

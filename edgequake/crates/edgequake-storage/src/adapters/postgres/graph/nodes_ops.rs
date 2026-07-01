@@ -213,15 +213,16 @@ impl PostgresAGEGraphStorage {
                 .sum::<usize>()
                 + 16; // node_id + struct punctuation
 
-            if estimated_row > 0 {
-                let cap = (MAX_BODY_BYTES / estimated_row).clamp(MIN_CHUNK, MAX_CHUNK);
-                tracing::trace!(
-                    estimated_row_bytes = estimated_row,
-                    adaptive_chunk = cap,
-                    "UNWIND node chunk size (SPEC-032 W-05)"
-                );
-                return cap;
-            }
+            let cap = MAX_BODY_BYTES
+                .checked_div(estimated_row)
+                .map(|n| n.clamp(MIN_CHUNK, MAX_CHUNK))
+                .unwrap_or(MAX_CHUNK);
+            tracing::trace!(
+                estimated_row_bytes = estimated_row,
+                adaptive_chunk = cap,
+                "UNWIND node chunk size (SPEC-032 W-05)"
+            );
+            return cap;
         }
         MAX_CHUNK
     }

@@ -37,6 +37,7 @@ pub async fn execute_full_query(
 }
 
 /// Execute query and assemble legacy HTTP `QueryResponse` (sources + stats).
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_legacy_query_response(
     state: &AppState,
     tenant_ctx: &TenantContext,

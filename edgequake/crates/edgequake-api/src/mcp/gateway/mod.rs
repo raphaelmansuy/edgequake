@@ -31,6 +31,7 @@ pub use json_rpc::{GatewayError, JsonRpcRequest, JsonRpcResponse};
 pub use tools::tools_list_result;
 
 /// Outcome of an MCP gateway request (JSON-RPC body + optional HTTP status override).
+#[allow(clippy::large_enum_variant)]
 pub enum McpHandleOutcome {
     Json {
         status: StatusCode,

@@ -252,11 +252,11 @@ impl PostgresAGEGraphStorage {
         }
 
         // Check row count: if small, regular CREATE INDEX is fine; skip CONCURRENT
-        let node_count: i64 = sqlx::query_scalar(&format!(
+        let node_count: i64 = sqlx::query_scalar(
             r#"SELECT reltuples::bigint FROM pg_class c
                JOIN pg_namespace n ON n.oid = c.relnamespace
-               WHERE n.nspname = $1 AND c.relname = 'Node'"#
-        ))
+               WHERE n.nspname = $1 AND c.relname = 'Node'"#,
+        )
         .bind(&self.graph_name)
         .fetch_one(&pool)
         .await

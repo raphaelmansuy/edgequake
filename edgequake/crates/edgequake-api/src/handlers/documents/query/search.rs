@@ -64,7 +64,7 @@ pub async fn search_documents(
         .map(|q| q[..q.len().min(200)].to_lowercase())
         .filter(|q| !q.is_empty());
 
-    let require_completed = params.status.as_deref().map_or(true, |s| s != "all");
+    let require_completed = params.status.as_deref() != Some("all");
 
     // Load metadata via the same SSOT as list_documents (SPEC-027)
     let metadata_values =

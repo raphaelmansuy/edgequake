@@ -597,7 +597,7 @@ pub(crate) async fn list_user_records(
         return Ok(Vec::new());
     }
 
-    Ok(crate::services::auth_memory_store::list_user_records(&storage.auth_memory).await?)
+    crate::services::auth_memory_store::list_user_records(&storage.auth_memory).await
 }
 
 /// Delete user — PG SSOT when pool; in-memory test harness otherwise.

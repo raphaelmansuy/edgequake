@@ -39,7 +39,7 @@ pub async fn resolve_document_filter(
     let has_explicit_ids = filter
         .document_ids
         .as_ref()
-        .map_or(false, |ids| !ids.is_empty());
+        .is_some_and(|ids| !ids.is_empty());
     let has_pattern = filter.document_pattern.is_some();
     let has_date_filter = filter.date_from.is_some() || filter.date_to.is_some();
 

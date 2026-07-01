@@ -12,6 +12,7 @@ use super::super::{QueryEmbeddings, QueryEngine};
 use super::make_scope_metadata_filter;
 
 impl QueryEngine {
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::engine_impl) async fn query_naive_with_vector_storage(
         &self,
         query_text: &str,
