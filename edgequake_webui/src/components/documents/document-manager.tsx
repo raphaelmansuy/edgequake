@@ -46,9 +46,16 @@ import { DocumentPreviewRightPanel } from './document-preview-right-panel';
 import { DocumentTableSection } from './document-table-section';
 import { DocumentToolbarSection } from './document-toolbar-section';
 import { DuplicateUploadDialog } from './duplicate-upload-dialog';
+import { LargePdfAdmissionDialog } from './large-pdf-admission-dialog';
 import { BulkReprocessDialog, type BulkReprocessChoice } from './bulk-reprocess-dialog';
 import { ReprocessDialog, type ReprocessChoice } from './reprocess-dialog';
 import { isProcessingStatus } from './status-badge';
+import {
+  filterLargePdfFiles,
+  type LargePdfAdmissionPreview,
+  type PdfParserChoice,
+} from '@/lib/pdf/large-pdf-admission';
+import { useCallback } from 'react';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -81,6 +88,9 @@ export function DocumentManager() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [pdfParserBackend, setPdfParserBackend] = useState<'default' | 'vision' | 'edgeparse'>('default');
+  const [largePdfAdmissionOpen, setLargePdfAdmissionOpen] = useState(false);
+  const [largePdfPreviews, setLargePdfPreviews] = useState<LargePdfAdmissionPreview[]>([]);
+  const [pendingAdmissionFiles, setPendingAdmissionFiles] = useState<File[]>([]);
 
   // VS-03: No pagination state — virtual scrolling handles windowing client-side.
   // We fetch all documents at once (up to VIRTUAL_PAGE_SIZE) and let the
@@ -114,6 +124,45 @@ export function DocumentManager() {
       pdfParserBackend === 'default' ? undefined : pdfParserBackend,
   });
 
+  const handleFilesAccepted = useCallback(
+    async (files: File[]) => {
+      const largePreviews = await filterLargePdfFiles(files);
+      if (largePreviews.length > 0) {
+        setLargePdfPreviews(largePreviews);
+        setPendingAdmissionFiles(files);
+        setLargePdfAdmissionOpen(true);
+        return;
+      }
+      await handleFilesUpload(files);
+    },
+    [handleFilesUpload],
+  );
+
+  const handleAdmissionConfirm = useCallback(
+    async (parserChoice: PdfParserChoice, files: File[]) => {
+      setLargePdfAdmissionOpen(false);
+      setLargePdfPreviews([]);
+      setPendingAdmissionFiles([]);
+      const parserOverride =
+        parserChoice === 'default'
+          ? undefined
+          : parserChoice;
+      if (parserChoice !== 'default') {
+        setPdfParserBackend(parserChoice);
+      }
+      await handleFilesUpload(files, {
+        pdfParserBackend: parserOverride,
+      });
+    },
+    [handleFilesUpload],
+  );
+
+  const handleAdmissionCancel = useCallback(() => {
+    setLargePdfAdmissionOpen(false);
+    setPendingAdmissionFiles([]);
+    setLargePdfPreviews([]);
+  }, []);
+
   // OODA-14: Document mutations extracted to useDocumentMutations hook
   const {
     deleteMutation,
@@ -146,7 +195,7 @@ export function DocumentManager() {
 
   // OODA-21: Document dropzone with file validation
   const { getRootProps, getInputProps, isDragActive, openFileDialog } = useDocumentDropzone({
-    onFilesAccepted: handleFilesUpload,
+    onFilesAccepted: handleFilesAccepted,
     t,
   });
 
@@ -343,6 +392,14 @@ export function DocumentManager() {
         open={pendingDuplicates.length > 0}
         duplicates={pendingDuplicates}
         onResolve={resolvePendingDuplicates}
+      />
+
+      <LargePdfAdmissionDialog
+        open={largePdfAdmissionOpen}
+        previews={largePdfPreviews}
+        onOpenChange={setLargePdfAdmissionOpen}
+        onConfirm={handleAdmissionConfirm}
+        onCancel={handleAdmissionCancel}
       />
 
       {/* Reprocess choice dialog — lets the user choose full PDF re-conversion

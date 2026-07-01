@@ -26,6 +26,8 @@ pub mod graph_materialization;
 pub mod health_schema;
 pub mod identity_storage;
 pub mod ingest_admission;
+pub mod large_document_profile;
+pub mod pdf_auto_routing;
 pub mod ingestion_persist;
 pub mod injection_list;
 pub mod injection_process;
@@ -94,6 +96,10 @@ pub use graph_materialization::{
     admit_graph_materialization, graph_query_timeout, run_timed_graph_query,
     GraphMaterializationGuard,
 };
+pub use large_document_profile::{
+    classify_ingestion_failure, IngestionEstimate, IngestionFailureClass, LargeDocumentProfile,
+};
+pub use pdf_auto_routing::{should_try_edgeparse_before_vision, try_edgeparse_fast_path};
 pub use ingest_admission::{
     admit_pdf_processing_enqueue, persist_pdf_task_document_id,
     provision_queued_pdf_document_shell, resolve_pdf_ingest_document_id,

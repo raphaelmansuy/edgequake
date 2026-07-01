@@ -8,6 +8,7 @@ import {
   uploadPdfDocument,
 } from "@/lib/api/edgequake";
 import type { PdfUploadOptions } from "@/types";
+import type { MultipartUploadProgress } from "@/lib/upload/multipart-upload-client";
 
 import { classifyUploadFile } from "./file-kind";
 
@@ -16,6 +17,7 @@ export interface PerformFileUploadOptions {
   pdfParserBackend?: PdfUploadOptions["pdf_parser_backend"];
   /** Enable inline image VLM analysis on PDF markdown (LightRAG `process_options=i`). */
   analyzeInlineImages?: boolean;
+  onUploadProgress?: (progress: MultipartUploadProgress) => void;
 }
 
 /** Normalized shape consumed by useFileUpload optimistic updates. */
@@ -59,6 +61,7 @@ export async function performFileUpload(
       track_id: options.trackId,
       pdf_parser_backend: options.pdfParserBackend,
       analyze_inline_images: options.analyzeInlineImages ?? false,
+      onUploadProgress: options.onUploadProgress,
     });
     return {
       document_id: pdfResponse.document_id,
@@ -75,7 +78,9 @@ export async function performFileUpload(
   }
 
   if (kind === "image") {
-    const fileResponse = await uploadFile(file);
+    const fileResponse = await uploadFile(file, {
+      onUploadProgress: options.onUploadProgress,
+    });
     return {
       document_id: fileResponse.document_id,
       duplicate_of: duplicateFromFileUpload(

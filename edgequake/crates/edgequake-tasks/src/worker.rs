@@ -395,7 +395,11 @@ impl WorkerPool {
                                     // recovery can never catch these "zombie" tasks. The timeout
                                     // ensures every task eventually completes or fails.
                                     let timeout_duration = tokio::time::Duration::from_secs(
-                                        config.processing_timeout_secs,
+                                        task.metadata
+                                            .as_ref()
+                                            .and_then(|m| m.get("processing_timeout_secs"))
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(config.processing_timeout_secs),
                                     );
                                     let span_task_id = task.track_id.clone();
                                     let span_tenant_id = task.tenant_id;

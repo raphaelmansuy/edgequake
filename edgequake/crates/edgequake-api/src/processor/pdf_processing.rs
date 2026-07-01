@@ -502,7 +502,40 @@ impl DocumentTaskProcessor {
         };
         let mut fallback_warning: Option<String> = None;
 
-        let converter = match backend {
+        // SPEC-038: born-digital PDFs default to Vision but often have embedded text.
+        // Try EdgeParse first when routing is automatic to avoid O(pages × LLM) conversion.
+        let mut precomputed_markdown: Option<String> = None;
+        if crate::services::should_try_edgeparse_before_vision(backend, data.pdf_parser_backend_explicit)
+        {
+            if let Some(markdown) =
+                crate::services::try_edgeparse_fast_path(&pdf_data, page_count, &filename).await
+            {
+                info!(
+                    pdf_id = %data.pdf_id,
+                    page_count = page_count,
+                    markdown_len = markdown.len(),
+                    "SPEC-038: auto-routed born-digital PDF to EdgeParse (skipped Vision OCR)"
+                );
+                let _ = self
+                    .update_document_status(
+                        &early_doc_id,
+                        "processing",
+                        Some("Born-digital text detected — using fast parse (EdgeParse)"),
+                    )
+                    .await;
+                extraction_method = ExtractionMethod::EdgeParse;
+                vision_model = None;
+                precomputed_markdown = Some(markdown);
+            }
+        }
+
+        let converter = if precomputed_markdown.is_some() {
+            edgequake_pdf::create_pdf_converter(
+                edgequake_pdf::PdfParserBackend::EdgeParse,
+                None,
+            )
+        } else {
+            match backend {
             edgequake_pdf::PdfParserBackend::Vision => {
                 if !data.enable_vision {
                     let error = edgequake_tasks::TaskError::UnsupportedOperation(
@@ -594,6 +627,7 @@ impl DocumentTaskProcessor {
             edgequake_pdf::PdfParserBackend::EdgeParse => {
                 edgequake_pdf::create_pdf_converter(backend, None)
             }
+            }
         };
 
         // WHY: Local providers (Ollama, LM Studio) run on a single GPU that is
@@ -640,7 +674,10 @@ impl DocumentTaskProcessor {
             ..conversion_config.clone()
         };
 
-        let markdown = match extraction_method {
+        let markdown = if let Some(md) = precomputed_markdown {
+            md
+        } else {
+            match extraction_method {
             ExtractionMethod::Vision => {
                 // WHY: EDGEQUAKE_VISION_TIMEOUT_SECS is kept for backwards
                 // compatibility. When not set, use the provider-aware formula:
@@ -781,6 +818,7 @@ impl DocumentTaskProcessor {
                         ))
                     })?
             }
+        }
         };
 
         let markdown = strip_nul_bytes(markdown);

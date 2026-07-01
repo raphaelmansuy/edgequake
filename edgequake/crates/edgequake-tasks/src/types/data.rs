@@ -112,6 +112,11 @@ pub struct PdfProcessingData {
     #[serde(default)]
     pub pdf_parser_backend: PdfParserBackend,
 
+    /// When true, the user/workspace/env explicitly chose `pdf_parser_backend`.
+    /// SPEC-038: auto-routing to EdgeParse is disabled when this is set.
+    #[serde(default)]
+    pub pdf_parser_backend_explicit: bool,
+
     /// If true, ignore any saved conversion checkpoint and restart from page 1.
     /// WHY: Resume should be the safe default for long-running PDFs. A full restart
     /// must be an explicit choice, not an accidental side effect of reprocessing.

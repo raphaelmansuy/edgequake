@@ -155,6 +155,23 @@ impl DocumentTaskProcessor {
             .map(|v| v as usize)
             .unwrap_or(1);
 
+        let page_count_for_profile = data
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("page_count"))
+            .and_then(|v| v.as_i64())
+            .map(|n| n.max(0) as usize)
+            .unwrap_or(0);
+        let large_profile = crate::services::LargeDocumentProfile::new(
+            page_count_for_profile.max(1),
+            text_content.len() as u64,
+        );
+        let (enable_gleaning, max_gleaning) = if large_profile.should_disable_gleaning() {
+            (false, 0)
+        } else {
+            (enable_gleaning, max_gleaning)
+        };
+
         let chunk_strategy = data
             .metadata
             .as_ref()

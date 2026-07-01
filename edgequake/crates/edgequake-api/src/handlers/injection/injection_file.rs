@@ -38,7 +38,7 @@ pub async fn put_injection_file(
 ) -> ApiResult<(StatusCode, Json<PutInjectionResponse>)> {
     let workspace_id = workspace_id_from_tenant(&tenant_ctx);
 
-    const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
+    const MAX_FILE_BYTES: usize = edgequake_core::MAX_UPLOAD_BYTES;
 
     let mut filename = String::new();
     let mut name = String::new();

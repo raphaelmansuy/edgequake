@@ -96,6 +96,10 @@ pub struct PdfUploadResponse {
     /// Estimated processing time in seconds.
     pub estimated_time_seconds: u64,
 
+    /// SPEC-038: Detailed ingestion time breakdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ingestion_estimate: Option<crate::services::IngestionEstimate>,
+
     /// PDF metadata.
     pub metadata: PdfMetadata,
 

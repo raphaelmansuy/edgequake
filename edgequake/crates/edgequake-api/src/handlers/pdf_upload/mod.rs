@@ -28,15 +28,21 @@ mod tests {
 
     #[test]
     fn test_estimate_processing_time() {
-        // Small PDF, few pages
-        let data = vec![0u8; 100_000]; // 100KB
-        let time = helpers::estimate_processing_time(&data, Some(5));
-        assert!((15..=30).contains(&time)); // 5 pages * 3s + 0.1MB * 0.5
+        let time = helpers::estimate_processing_time(
+            100_000,
+            Some(5),
+            edgequake_pdf::PdfParserBackend::EdgeParse,
+            "mock",
+        );
+        assert!(time >= 7200);
 
-        // Large PDF, many pages
-        let data = vec![0u8; 10_000_000]; // 10MB
-        let time = helpers::estimate_processing_time(&data, Some(50));
-        assert!((150..=200).contains(&time)); // 50 pages * 3s + 10MB * 0.5
+        let time = helpers::estimate_processing_time(
+            10_000_000,
+            Some(50),
+            edgequake_pdf::PdfParserBackend::Vision,
+            "openai",
+        );
+        assert!(time >= 7200);
     }
 
     #[test]

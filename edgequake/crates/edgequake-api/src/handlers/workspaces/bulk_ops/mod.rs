@@ -89,6 +89,7 @@ pub(super) fn build_pdf_task(
         // the existing document in-place instead of creating a duplicate.
         existing_document_id: Some(doc_id.to_string()),
         pdf_parser_backend: workspace.resolved_pdf_parser_backend(),
+        pdf_parser_backend_explicit: workspace.pdf_parser_backend.is_some(),
         // WHY: Workspace bulk rebuild re-extracts the KG from the existing
         // markdown; it does not re-convert PDFs by default (avoid spending
         // vision tokens on every rebuild). Restart stays false so the resume

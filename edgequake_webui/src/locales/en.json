@@ -110,6 +110,8 @@
       "inProgress": "Uploading {{count}} file(s)...",
       "reading": "Step 1: Reading file...",
       "uploading": "Step 2: Uploading to server...",
+      "sending": "Sending {{sent}} / {{total}} MB",
+      "saving": "Saving to workspace...",
       "extracting": "Step 3: Processing pipeline...",
       "queued": "Queued for extraction (Task: {{taskId}})",
       "success": "{{count}} file(s) uploaded successfully",

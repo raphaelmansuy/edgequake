@@ -9,6 +9,12 @@ fn apply_status_notice_fields(
     if let Some(msg) = message {
         if is_terminal_failure_status(status) {
             metadata.insert("error_message".to_string(), json!(msg));
+            let failure = crate::services::classify_ingestion_failure(msg);
+            metadata.insert("failure_class".to_string(), json!(failure.as_str()));
+            metadata.insert(
+                "recommended_action".to_string(),
+                json!(failure.recommended_action()),
+            );
         } else {
             metadata.insert("warning_message".to_string(), json!(msg));
             // Scrub legacy informational errors that would render as Failed in the WebUI.

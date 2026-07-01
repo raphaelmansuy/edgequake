@@ -372,6 +372,7 @@ pub(crate) async fn run_reprocess_failed(
                         // FIX-REBUILD: Reuse existing document ID
                         existing_document_id: Some(doc_id.clone()),
                         pdf_parser_backend,
+                        pdf_parser_backend_explicit: true,
                         restart_from_scratch,
                         reprocess_mode: Some(reprocess_mode),
                         multimodal_process_options,
@@ -599,6 +600,7 @@ pub(crate) async fn run_reprocess_failed(
                     vision_model: vision_model.clone(),
                     existing_document_id: pdf.document_id.map(|id| id.to_string()),
                     pdf_parser_backend,
+                    pdf_parser_backend_explicit: true,
                     restart_from_scratch,
                     reprocess_mode: Some(reprocess_mode),
                     multimodal_process_options,

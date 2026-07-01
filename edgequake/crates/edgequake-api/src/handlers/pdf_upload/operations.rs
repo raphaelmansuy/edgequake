@@ -140,6 +140,8 @@ pub async fn retry_pdf_processing(
             &options,
             None,
             super::helpers::PdfReprocessIntent::fresh(),
+            pdf.page_count,
+            pdf.file_size_bytes.max(0) as u64,
         )
         .await?;
 

@@ -517,6 +517,8 @@ async fn process_pdf_upload_parts(
                     restart_from_scratch: true, // re-run PDF -> markdown conversion
                     reprocess_mode: Some(edgequake_tasks::ReprocessMode::Full),
                 },
+                existing.page_count,
+                existing.file_size_bytes.max(0) as u64,
             )
             .await?;
 
@@ -533,7 +535,12 @@ async fn process_pdf_upload_parts(
                     &existing.filename,
                 )
                 .await;
-            let estimated_time = estimate_processing_time(&[], existing.page_count);
+            let estimated_time = estimate_processing_time(
+                existing.file_size_bytes.max(0) as u64,
+                existing.page_count,
+                options.resolved_backend(workspace.as_ref()),
+                &options.resolved_vision_provider(),
+            );
             return Ok(PdfUploadResponse {
                 pdf_id: existing.pdf_id.to_string(),
                 document_id: existing_document_id,
@@ -542,6 +549,7 @@ async fn process_pdf_upload_parts(
                 track_id: options.track_id.clone(),
                 message: "Re-indexing document. PDF will be re-converted to markdown and graph/vector data cleared.".to_string(),
                 estimated_time_seconds: estimated_time,
+                ingestion_estimate: None,
                 metadata: PdfMetadata {
                     filename: existing.filename,
                     file_size_bytes: existing.file_size_bytes,
@@ -575,6 +583,7 @@ async fn process_pdf_upload_parts(
             track_id: options.track_id.clone(),
             message: format!("PDF already uploaded with ID: {}", existing_pdf_id),
             estimated_time_seconds: 0,
+            ingestion_estimate: None,
             metadata: PdfMetadata {
                 filename: existing.filename,
                 file_size_bytes: existing.file_size_bytes,
@@ -587,21 +596,23 @@ async fn process_pdf_upload_parts(
         });
     }
 
+    let file_size_bytes = file_data.len() as u64;
     let page_count = extract_page_count(&file_data);
     let vision_model = if resolved_backend == PdfParserBackend::Vision && options.enable_vision {
         Some(options.vision_model())
     } else {
         None
     };
+    // SPEC-038 REQ-038-11: move bytes into storage — avoid clone() doubling RAM on admit.
     let pdf_id = match pdf_storage
         .create_pdf(CreatePdfRequest {
             workspace_id,
             filename: filename.clone(),
             content_type: "application/pdf".to_string(),
-            file_size_bytes: file_data.len() as i64,
+            file_size_bytes: file_size_bytes as i64,
             sha256_checksum: checksum.clone(),
             page_count,
-            pdf_data: file_data.clone(),
+            pdf_data: file_data,
             vision_model: vision_model.clone(),
         })
         .await
@@ -630,6 +641,7 @@ async fn process_pdf_upload_parts(
                             existing_pdf_id
                         ),
                         estimated_time_seconds: 0,
+                        ingestion_estimate: None,
                         metadata: PdfMetadata {
                             filename: existing.filename,
                             file_size_bytes: existing.file_size_bytes,
@@ -653,6 +665,8 @@ async fn process_pdf_upload_parts(
         &options,
         workspace.as_ref(),
         super::helpers::PdfReprocessIntent::fresh(), // fresh upload — mint a new document id
+        page_count,
+        file_size_bytes,
     )
     .await?;
 
@@ -672,7 +686,7 @@ async fn process_pdf_upload_parts(
             tenant_id,
             workspace_id,
             track_id: enqueue.track_id.clone(),
-            file_size_bytes: file_data.len() as i64,
+            file_size_bytes: file_size_bytes as i64,
             sha256_checksum: checksum.clone(),
             page_count,
         },
@@ -690,7 +704,20 @@ async fn process_pdf_upload_parts(
         .start_pdf_progress(&effective_track_id, &pdf_id.to_string(), &filename)
         .await;
 
-    let estimated_time = estimate_processing_time(&file_data, page_count);
+    let estimated_time = estimate_processing_time(
+        file_size_bytes,
+        page_count,
+        resolved_backend,
+        &options.resolved_vision_provider(),
+    );
+    let ingestion_estimate = {
+        let pages = page_count.unwrap_or(1).max(1) as usize;
+        let profile = crate::services::LargeDocumentProfile::new(pages, file_size_bytes);
+        Some(profile.ingestion_estimate(
+            resolved_backend,
+            &options.resolved_vision_provider(),
+        ))
+    };
 
     let tenant_for_audit = context
         .tenant_id
@@ -715,9 +742,10 @@ async fn process_pdf_upload_parts(
         track_id: options.track_id,
         message: "PDF uploaded successfully. Processing in background.".to_string(),
         estimated_time_seconds: estimated_time,
+        ingestion_estimate,
         metadata: PdfMetadata {
             filename,
-            file_size_bytes: file_data.len() as i64,
+            file_size_bytes: file_size_bytes as i64,
             page_count,
             sha256_checksum: checksum,
             vision_enabled: options.enable_vision,
