@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.12.11-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.13.0-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.12.11** — Document status notices + workspace-scoped duplicate detection. See [CHANGELOG](CHANGELOG.md).
+> **v0.13.0** — Large PDF ingestion (SPEC-038), graph lineage + page-aware chunking (SPEC-032), query full-chunk mode (SPEC-037), API audit + PG auth SSOT (SPEC-027). **Review [migration risk guide](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md) before upgrading from v0.12.x.** See [CHANGELOG](CHANGELOG.md).
 
 ## Release & CD Cycle
 
@@ -40,8 +40,8 @@ cd .. && make backend-bg frontend-bg && make spec013-proof-ui
 
 ```bash
 # Example
-git tag v0.12.11
-git push origin v0.12.11
+git tag v0.13.0
+git push origin v0.13.0
 ```
 
 This triggers `.github/workflows/release-docker.yml`, which:
@@ -51,10 +51,10 @@ This triggers `.github/workflows/release-docker.yml`, which:
 ### 4) Post-publish verification
 
 ```bash
-gh release view v0.12.11
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.12.11
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.12.11
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.12.11
+gh release view v0.13.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.13.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.13.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.13.0
 ```
 
 ---
@@ -135,7 +135,7 @@ Traditional RAG systems retrieve document chunks using vector similarity alone. 
 - **Text Mode**: Fast pdfium-based extraction for standard PDFs (default, zero-config)
 - **Vision Mode** ✨: LLM reads each page as an image — GPT-4o, Claude 3.5+, Gemini 2.5 supported
 - **Automatic Fallback**: Vision failures gracefully fall back to text extraction (BR1010)
-- **Safe Large-PDF Guardrails**: Adaptive DPI/concurrency limits and early byte release reduce memory spikes and make local-model ingestion more reliable for large files
+- **Safe Large-PDF Guardrails** ✨ **v0.13.0**: Pre-upload admission dialog (EdgeParse vs Vision), scaled worker timeouts, honest byte upload progress, EdgeParse auto-routing for born-digital PDFs ≥100 pages, 50 MB upload limit — see [SPEC-038](specs/038-ingestion-large-pdf/)
 - **Restart-Safe Recovery**: Deleted or cancelled PDFs do not reappear from stale background jobs after a server restart
 - **Fail-Closed Query Isolation**: Invalid or missing explicit workspace selectors are rejected instead of being silently remapped to defaults
 - **Safer Dev Service Checks**: Health/status flows now rely on lightweight database port checks first, which is less disruptive when Docker/OrbStack is unavailable

@@ -55,7 +55,10 @@ export function UploadProgressList({
   }
 
   return (
-    <div className="shrink-0 px-4 py-3 border-b space-y-2 bg-muted/20">
+    <div
+      className="shrink-0 px-4 py-3 border-b space-y-2 bg-muted/20"
+      data-testid="spec038-upload-progress-list"
+    >
       {/* Overall Progress Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -156,12 +159,19 @@ export function UploadProgressList({
                       {(uploadFile.file.size / 1024).toFixed(1)} KB
                     </p>
                     {uploadFile.phase && uploadFile.status !== 'success' && uploadFile.status !== 'error' && (
-                      <span className={`text-xs font-medium ${
+                      <span
+                        className={`text-xs font-medium ${
                         uploadFile.status === 'reading' ? 'text-amber-500' :
                         uploadFile.status === 'uploading' ? 'text-blue-500' :
                         uploadFile.status === 'extracting' ? 'text-purple-500' :
                         'text-muted-foreground'
-                      }`}>
+                      }`}
+                        data-testid={
+                          uploadFile.status === 'uploading'
+                            ? 'spec038-upload-bytes-sent'
+                            : undefined
+                        }
+                      >
                         • {uploadFile.phase}
                       </span>
                     )}

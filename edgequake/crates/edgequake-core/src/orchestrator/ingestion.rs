@@ -133,10 +133,9 @@ impl EdgeQuake {
             });
         }
 
-        // Edge case: Extremely large document (>10MB)
-        // WHY: Documents over 10MB are likely to cause OOM or extreme timeouts
-        const MAX_DOCUMENT_SIZE_BYTES: usize = 10 * 1024 * 1024; // 10MB
-        if content.len() > MAX_DOCUMENT_SIZE_BYTES {
+        // Edge case: Extremely large document — align with upload SSOT (SPEC-038 REQ-038-08)
+        let max_document_size_bytes = crate::MAX_UPLOAD_BYTES;
+        if content.len() > max_document_size_bytes {
             let doc_id = document_id
                 .map(String::from)
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -146,7 +145,7 @@ impl EdgeQuake {
                 doc_id = %doc_id,
                 size_bytes = content.len(),
                 size_mb = %format!("{:.2}", size_mb),
-                max_size_mb = MAX_DOCUMENT_SIZE_BYTES / (1024 * 1024),
+                max_size_mb = max_document_size_bytes / (1024 * 1024),
                 "Document exceeds maximum size limit"
             );
 
@@ -154,7 +153,7 @@ impl EdgeQuake {
                 "Document too large: {:.2}MB. Maximum allowed: {}MB. \
                 Please split the document into smaller files.",
                 size_mb,
-                MAX_DOCUMENT_SIZE_BYTES / (1024 * 1024)
+                max_document_size_bytes / (1024 * 1024)
             )));
         }
 

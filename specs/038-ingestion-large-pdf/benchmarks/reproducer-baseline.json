@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-07-01",
+  "fixture": "guide_2606.24937v1-opt.pdf",
+  "pages": 603,
+  "file_bytes": 11043120,
+  "pdftotext_bytes": 1443139,
+  "chars_per_page": 2389,
+  "timeouts": {
+    "worker_default_secs": 7200,
+    "vision_outer_cloud_secs": 4944,
+    "vision_realistic_secs": 4522
+  },
+  "estimates": {
+    "edgeparse_convert_secs": 120,
+    "extract_chunks_603_secs": 950,
+    "edgeparse_total_secs": 1332,
+    "vision_total_secs": 5794
+  },
+  "failure_mode_current": "worker_timeout_or_vision_timeout_before_edgeparse_fallback",
+  "observed_ui_block_2026_07_01": {
+    "phase": "uploading",
+    "ui_label": "Step 2: Uploading to server...",
+    "ui_progress_percent": 40,
+    "note": "Static placeholder — HTTP admit (BYTEA+checksum) not complete; conversion not started",
+    "root_cause_ref": "specs/038-ingestion-large-pdf/001-five-whys.md Symptom D"
+  }
+}

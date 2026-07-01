@@ -6,6 +6,59 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.13.0] — 2026-07-01
+
+Major feature release since `v0.12.11`. **32 new SQL migrations (046–077)** — see [v0.13.0 upgrade risk assessment](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md) before production deploy.
+
+### Added
+
+- **SPEC-038 Large PDF ingestion** — `LargeDocumentProfile` SSOT (thresholds, scaled worker timeout, `IngestionEstimate`, `failure_class`); EdgeParse auto-routing before Vision; 50 MB upload limit alignment; frontend admission dialog with parser choice + ETA; honest XHR byte upload progress (`spec038-upload-bytes-sent`); E2E proof + screenshots.
+- **SPEC-037 Query full-chunk mode** — `content_granularity` on query/chat/stream APIs; scrollable query settings sheet; passage preview in citations.
+- **SPEC-032 Graph storage at scale** — page-aware PDF chunking (chunks never cross page boundaries); global batch merge; chunk lineage tables (migration 066); progress sub-phases in WebUI; adaptive UNWIND chunk sizing.
+- **SPEC-031 Document scope filter** — always-visible discovery affordance; entity/relationship filtering via lineage.
+- **SPEC-030 UX/UI audit** — navigation groups, virtual scroll, sticky headers, graph toolbar polish, contrast and accessibility fixes.
+- **SPEC-028 MCP query context** — subgraph and artifact retrieval across API, MCP gateway, and WebUI.
+- **SPEC-027 API audit (A++)** — OpenAPI-native codegen workflow; PG-only auth SSOT + builtin OIDC; v2 jobs API with v1 ascending path; ISP runtime extractors; batch graph I/O cold-path fixes.
+- **SPEC-026 Multimodal ingestion** — VLM analysis pipeline with retrieval parity; recursive chunking default aligned with LightRAG.
+- **SPEC-024 Hybrid query** — BM25/FTS fusion, community labels, ingest hardening.
+- **SPEC-021 Ingestion resilience** — P-G2 single `IngestionPersister` path; P-G13–G18 worker cache, saga, batch merge, E2E closure.
+- **SPEC-033 Citation UX** — page deeplinks, markdown preview strip.
+- **API Explorer** — OpenAPI-native integration and documentation paths.
+- **SPEC-036** — `edgequake-llm` 0.6.26 from crates.io.
+
+### Changed
+
+- **Upload admit** — removed `file_data.clone()` before BYTEA insert (halves peak RAM on large PDFs); scaled multipart upload timeout; split UI copy ("Sending X / Y MB" vs "Saving to workspace…").
+- **Graph write path (SPEC-034)** — native SQL upsert helpers (migrations 067, 074–076); HNSW `ef_construction` 64→32 (~35% index size reduction, migration 071); redundant index cleanup (068–070, 073, 077).
+- **Worker timeouts** — per-task `processing_timeout_secs` from PDF profile metadata (SPEC-038).
+- **Gleaning policy** — disabled when page count ≥ 500 (large PDF fast path).
+- **Specs tracking** — all `specs/` subfolders tracked in git.
+
+### Fixed
+
+- Graph context menu positioning and all seven actions (SPEC-030).
+- Markdown HTML/LaTeX rendering (`sup`/`sub`/`mark`/`abbr` token merge).
+- Document table column widths, date truncation, hydration errors.
+- In-progress badge pulse for all processing substates.
+- WebUI dev runtime config honors `EDGEQUAKE_API_URL`.
+- Compilation warnings in storage and pipeline crates.
+- Global query N+1 pattern; `EntityId` newtype.
+
+### Database migrations (046–077)
+
+- **066** — chunk lineage tables + entity `description_history` (additive).
+- **067–076** — native graph write helpers, index optimization, dedup for UNIQUE upsert targets.
+- **071** — HNSW rebuild at startup (plan 30–120 s per workspace vectors table).
+- **077** — post-startup index cleanup (pairs with source fixes).
+
+### Operations
+
+- **Upgrade guide:** [edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md)
+- **CD:** Tag `v0.13.0` → `release-gates` preflight → GHCR multi-arch images + GitHub Release.
+- **Verify:** `cargo test -p edgequake-api --features postgres --test spec038_large_pdf`; `PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test e2e/spec038-*.spec.ts`
+
+---
+
 ## [0.12.11] — 2026-06-09
 
 ### Fixed

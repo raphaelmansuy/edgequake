@@ -19,6 +19,12 @@ import {
   type DocumentsListResult,
 } from "@/lib/api/edgequake";
 import { performFileUpload } from "@/lib/upload/perform-file-upload";
+import {
+  ADMIT_PROGRESS_PERCENT,
+  formatUploadMegabytes,
+  transferProgressPercent,
+} from "@/lib/upload/upload-timeout";
+import type { MultipartUploadProgress } from "@/lib/upload/multipart-upload-client";
 import { isImageUploadFile, isPdfUploadFile } from "@/lib/upload/file-kind";
 import type { Document } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,7 +50,10 @@ export interface UseFileUploadReturn {
   /** Whether any upload is in progress */
   isUploading: boolean;
   /** Upload files handler */
-  handleFilesUpload: (files: File[]) => Promise<void>;
+  handleFilesUpload: (
+    files: File[],
+    uploadOptions?: { pdfParserBackend?: "vision" | "edgeparse" },
+  ) => Promise<void>;
   /** Remove a file from upload list */
   removeUploadingFile: (index: number) => void;
   /** Mark upload as complete (for PdfUploadProgress) */
@@ -95,7 +104,10 @@ export function useFileUpload(
    * WHY: Process files sequentially for better feedback and error isolation
    */
   const handleFilesUpload = useCallback(
-    async (files: File[]) => {
+    async (
+      files: File[],
+      uploadOptions?: { pdfParserBackend?: "vision" | "edgeparse" },
+    ) => {
       if (files.length === 0) return;
 
       // FIX-DUPLICATE-BUG: Prevent double-submit when upload is already in progress.
@@ -155,18 +167,53 @@ export function useFileUpload(
         );
 
         try {
-          // Phase 2: Uploading to server
+          const applyUploadProgress = (progress: MultipartUploadProgress) => {
+            const { loaded, total, phase } = progress;
+            const bytesTotal = total > 0 ? total : file.size;
+            const bytesSent = Math.min(loaded, bytesTotal);
+            const progressPercent =
+              phase === "admit"
+                ? ADMIT_PROGRESS_PERCENT
+                : transferProgressPercent(bytesSent, bytesTotal);
+            const phaseLabel =
+              phase === "admit"
+                ? t("documents.upload.saving", "Saving to workspace...")
+                : t("documents.upload.sending", "Sending {{sent}} / {{total}} MB", {
+                    sent: formatUploadMegabytes(bytesSent),
+                    total: formatUploadMegabytes(bytesTotal),
+                  });
+
+            setUploadingFiles((prev) =>
+              prev.map((f, idx) =>
+                idx === i
+                  ? {
+                      ...f,
+                      status: "uploading" as const,
+                      progress: progressPercent,
+                      phase: phaseLabel,
+                      bytesSent,
+                      bytesTotal,
+                      uploadPhase: phase,
+                    }
+                  : f,
+              ),
+            );
+          };
+
           setUploadingFiles((prev) =>
             prev.map((f, idx) =>
               idx === i
                 ? {
                     ...f,
                     status: "uploading" as const,
-                    progress: 40,
-                    phase: t(
-                      "documents.upload.uploading",
-                      "Uploading to server...",
-                    ),
+                    progress: 5,
+                    phase: t("documents.upload.sending", "Sending {{sent}} / {{total}} MB", {
+                      sent: "0.0",
+                      total: formatUploadMegabytes(file.size),
+                    }),
+                    bytesSent: 0,
+                    bytesTotal: file.size,
+                    uploadPhase: "transfer" as const,
                   }
                 : f,
             ),
@@ -184,7 +231,8 @@ export function useFileUpload(
 
           const uploadResult = await performFileUpload(file, {
             trackId,
-            pdfParserBackend,
+            pdfParserBackend: uploadOptions?.pdfParserBackend ?? pdfParserBackend,
+            onUploadProgress: applyUploadProgress,
           });
           response = {
             document_id: uploadResult.document_id,
