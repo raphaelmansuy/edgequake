@@ -4,7 +4,7 @@
 //! `cargo test -p edgequake-api --features postgres --test spec038_large_pdf`
 
 use edgequake_api::services::{
-    classify_ingestion_failure, LargeDocumentProfile, IngestionFailureClass,
+    classify_ingestion_failure, IngestionFailureClass, LargeDocumentProfile,
 };
 use edgequake_pdf::PdfParserBackend;
 
@@ -57,12 +57,9 @@ fn spec038_gleaning_disabled_at_500_pages() {
 
 #[tokio::test]
 async fn spec038_auto_route_edgeparse_on_simple_pdf() {
-    let markdown = edgequake_api::services::try_edgeparse_fast_path(
-        SIMPLE_TEXT_PDF,
-        1,
-        "001_simple_text.pdf",
-    )
-    .await;
+    let markdown =
+        edgequake_api::services::try_edgeparse_fast_path(SIMPLE_TEXT_PDF, 1, "001_simple_text.pdf")
+            .await;
     assert!(
         markdown.is_some(),
         "born-digital fixture should produce markdown via EdgeParse fast path"
@@ -102,6 +99,12 @@ async fn spec038_reproducer_fixture_edgeparse_if_present() {
         path
     );
     let md = markdown.unwrap();
-    assert!(md.len() > 500_000, "expected >500KB markdown, got {}", md.len());
-    assert!(LargeDocumentProfile::markdown_has_text_layer(&md, page_count));
+    assert!(
+        md.len() > 500_000,
+        "expected >500KB markdown, got {}",
+        md.len()
+    );
+    assert!(LargeDocumentProfile::markdown_has_text_layer(
+        &md, page_count
+    ));
 }

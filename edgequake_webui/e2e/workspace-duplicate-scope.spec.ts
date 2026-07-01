@@ -7,6 +7,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { GOTO_OPTS } from "./helpers/app-ready";
 
 const MOCK_TENANT_ID = "tenant-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const MOCK_WORKSPACE_UUID = "00000000-0000-0000-0000-000000000003";
@@ -23,7 +24,7 @@ const MOCK_TENANT = {
 const MOCK_WORKSPACE = {
   id: MOCK_WORKSPACE_ID,
   name: "Default Workspace",
-  slug: "default-workspace",
+  slug: "bootstrap-workspace",
   tenant_id: MOCK_TENANT_ID,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
@@ -230,8 +231,7 @@ test.describe("Workspace duplicate scope", () => {
   test("lists UUID-scoped documents in workspace (not Documents 0)", async ({
     page,
   }) => {
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/documents", GOTO_OPTS);
 
     await expect(page.getByText("Documents (1)")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("row", { name: /SPF TOME II/i })).toBeVisible();

@@ -505,8 +505,10 @@ impl DocumentTaskProcessor {
         // SPEC-038: born-digital PDFs default to Vision but often have embedded text.
         // Try EdgeParse first when routing is automatic to avoid O(pages × LLM) conversion.
         let mut precomputed_markdown: Option<String> = None;
-        if crate::services::should_try_edgeparse_before_vision(backend, data.pdf_parser_backend_explicit)
-        {
+        if crate::services::should_try_edgeparse_before_vision(
+            backend,
+            data.pdf_parser_backend_explicit,
+        ) {
             if let Some(markdown) =
                 crate::services::try_edgeparse_fast_path(&pdf_data, page_count, &filename).await
             {
@@ -530,86 +532,19 @@ impl DocumentTaskProcessor {
         }
 
         let converter = if precomputed_markdown.is_some() {
-            edgequake_pdf::create_pdf_converter(
-                edgequake_pdf::PdfParserBackend::EdgeParse,
-                None,
-            )
+            edgequake_pdf::create_pdf_converter(edgequake_pdf::PdfParserBackend::EdgeParse, None)
         } else {
             match backend {
-            edgequake_pdf::PdfParserBackend::Vision => {
-                if !data.enable_vision {
-                    let error = edgequake_tasks::TaskError::UnsupportedOperation(
-                        "Vision PDF extraction requires enable_vision=true.".to_string(),
-                    );
-                    let message = build_edgeparse_fallback_message(&data.vision_provider, &error);
-                    warn!(
-                        pdf_id = %data.pdf_id,
-                        "Vision disabled for requested vision extraction; falling back to EdgeParse"
-                    );
-                    let _ = self
-                        .update_document_status(&early_doc_id, "processing", Some(&message))
-                        .await;
-                    fallback_warning = Some(message);
-                    extraction_method = ExtractionMethod::EdgeParse;
-                    vision_model = None;
-                    edgequake_pdf::create_pdf_converter(
-                        edgequake_pdf::PdfParserBackend::EdgeParse,
-                        None,
-                    )
-                } else {
-                    #[cfg(feature = "vision")]
-                    {
-                        use crate::safety_limits::create_safe_vision_provider;
-
-                        match create_safe_vision_provider(
-                            &data.vision_provider,
-                            vision_model.as_deref().unwrap_or_default(),
-                        ) {
-                            Ok(provider) => {
-                                edgequake_pdf::create_pdf_converter(backend, Some(provider))
-                            }
-                            Err(e) => {
-                                let error = edgequake_tasks::TaskError::Processing(format!(
-                                    "Failed to create vision provider '{}': {e}",
-                                    data.vision_provider
-                                ));
-                                if !vision_fallback_allowed(backend, &error) {
-                                    return Err(error);
-                                }
-                                let message =
-                                    build_edgeparse_fallback_message(&data.vision_provider, &error);
-                                warn!(
-                                    pdf_id = %data.pdf_id,
-                                    error = %error,
-                                    "Vision provider setup failed; falling back to EdgeParse"
-                                );
-                                let _ = self
-                                    .update_document_status(
-                                        &early_doc_id,
-                                        "processing",
-                                        Some(&message),
-                                    )
-                                    .await;
-                                fallback_warning = Some(message);
-                                extraction_method = ExtractionMethod::EdgeParse;
-                                vision_model = None;
-                                edgequake_pdf::create_pdf_converter(
-                                    edgequake_pdf::PdfParserBackend::EdgeParse,
-                                    None,
-                                )
-                            }
-                        }
-                    }
-                    #[cfg(not(feature = "vision"))]
-                    {
+                edgequake_pdf::PdfParserBackend::Vision => {
+                    if !data.enable_vision {
                         let error = edgequake_tasks::TaskError::UnsupportedOperation(
-                            "Vision extraction requires the 'vision' feature flag".to_string(),
+                            "Vision PDF extraction requires enable_vision=true.".to_string(),
                         );
                         let message =
                             build_edgeparse_fallback_message(&data.vision_provider, &error);
                         warn!(
                             pdf_id = %data.pdf_id,
-                            "Vision feature is unavailable; falling back to EdgeParse"
+                            "Vision disabled for requested vision extraction; falling back to EdgeParse"
                         );
                         let _ = self
                             .update_document_status(&early_doc_id, "processing", Some(&message))
@@ -621,12 +556,79 @@ impl DocumentTaskProcessor {
                             edgequake_pdf::PdfParserBackend::EdgeParse,
                             None,
                         )
+                    } else {
+                        #[cfg(feature = "vision")]
+                        {
+                            use crate::safety_limits::create_safe_vision_provider;
+
+                            match create_safe_vision_provider(
+                                &data.vision_provider,
+                                vision_model.as_deref().unwrap_or_default(),
+                            ) {
+                                Ok(provider) => {
+                                    edgequake_pdf::create_pdf_converter(backend, Some(provider))
+                                }
+                                Err(e) => {
+                                    let error = edgequake_tasks::TaskError::Processing(format!(
+                                        "Failed to create vision provider '{}': {e}",
+                                        data.vision_provider
+                                    ));
+                                    if !vision_fallback_allowed(backend, &error) {
+                                        return Err(error);
+                                    }
+                                    let message = build_edgeparse_fallback_message(
+                                        &data.vision_provider,
+                                        &error,
+                                    );
+                                    warn!(
+                                        pdf_id = %data.pdf_id,
+                                        error = %error,
+                                        "Vision provider setup failed; falling back to EdgeParse"
+                                    );
+                                    let _ = self
+                                        .update_document_status(
+                                            &early_doc_id,
+                                            "processing",
+                                            Some(&message),
+                                        )
+                                        .await;
+                                    fallback_warning = Some(message);
+                                    extraction_method = ExtractionMethod::EdgeParse;
+                                    vision_model = None;
+                                    edgequake_pdf::create_pdf_converter(
+                                        edgequake_pdf::PdfParserBackend::EdgeParse,
+                                        None,
+                                    )
+                                }
+                            }
+                        }
+                        #[cfg(not(feature = "vision"))]
+                        {
+                            let error = edgequake_tasks::TaskError::UnsupportedOperation(
+                                "Vision extraction requires the 'vision' feature flag".to_string(),
+                            );
+                            let message =
+                                build_edgeparse_fallback_message(&data.vision_provider, &error);
+                            warn!(
+                                pdf_id = %data.pdf_id,
+                                "Vision feature is unavailable; falling back to EdgeParse"
+                            );
+                            let _ = self
+                                .update_document_status(&early_doc_id, "processing", Some(&message))
+                                .await;
+                            fallback_warning = Some(message);
+                            extraction_method = ExtractionMethod::EdgeParse;
+                            vision_model = None;
+                            edgequake_pdf::create_pdf_converter(
+                                edgequake_pdf::PdfParserBackend::EdgeParse,
+                                None,
+                            )
+                        }
                     }
                 }
-            }
-            edgequake_pdf::PdfParserBackend::EdgeParse => {
-                edgequake_pdf::create_pdf_converter(backend, None)
-            }
+                edgequake_pdf::PdfParserBackend::EdgeParse => {
+                    edgequake_pdf::create_pdf_converter(backend, None)
+                }
             }
         };
 
@@ -678,147 +680,147 @@ impl DocumentTaskProcessor {
             md
         } else {
             match extraction_method {
-            ExtractionMethod::Vision => {
-                // WHY: EDGEQUAKE_VISION_TIMEOUT_SECS is kept for backwards
-                // compatibility. When not set, use the provider-aware formula:
-                //   120 + (page_count × secs_per_page_for_provider)
-                // This gives ~3 720s for 120 pages with Ollama vs the previous
-                // 660s, matching the real hardware requirement.
-                // See ADR-04-002 in mission/04-heavy-pdf.md.
-                let base_timeout_secs: u64 = std::env::var("EDGEQUAKE_VISION_TIMEOUT_SECS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0);
-                let vision_timeout_secs = if base_timeout_secs > 0 {
-                    base_timeout_secs
-                } else {
-                    use crate::safety_limits::vision_outer_timeout_secs;
-                    vision_outer_timeout_secs(&data.vision_provider, page_count)
-                };
-                let vision_timeout = std::time::Duration::from_secs(vision_timeout_secs);
+                ExtractionMethod::Vision => {
+                    // WHY: EDGEQUAKE_VISION_TIMEOUT_SECS is kept for backwards
+                    // compatibility. When not set, use the provider-aware formula:
+                    //   120 + (page_count × secs_per_page_for_provider)
+                    // This gives ~3 720s for 120 pages with Ollama vs the previous
+                    // 660s, matching the real hardware requirement.
+                    // See ADR-04-002 in mission/04-heavy-pdf.md.
+                    let base_timeout_secs: u64 = std::env::var("EDGEQUAKE_VISION_TIMEOUT_SECS")
+                        .ok()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0);
+                    let vision_timeout_secs = if base_timeout_secs > 0 {
+                        base_timeout_secs
+                    } else {
+                        use crate::safety_limits::vision_outer_timeout_secs;
+                        vision_outer_timeout_secs(&data.vision_provider, page_count)
+                    };
+                    let vision_timeout = std::time::Duration::from_secs(vision_timeout_secs);
 
-                let _vision_job_permit = if let Some(semaphore) = &self.pdf_vision {
+                    let _vision_job_permit = if let Some(semaphore) = &self.pdf_vision {
+                        info!(
+                            pdf_id = %data.pdf_id,
+                            max_concurrent_jobs = semaphore.max_concurrent(),
+                            "Waiting for vision PDF admission slot"
+                        );
+                        Some(semaphore.acquire_owned().await.ok_or_else(|| {
+                            edgequake_tasks::TaskError::Processing(
+                                "Vision PDF admission semaphore closed".to_string(),
+                            )
+                        })?)
+                    } else {
+                        None
+                    };
+
                     info!(
                         pdf_id = %data.pdf_id,
-                        max_concurrent_jobs = semaphore.max_concurrent(),
-                        "Waiting for vision PDF admission slot"
+                        vision_provider = %data.vision_provider,
+                        vision_model = %vision_model.clone().unwrap_or_default(),
+                        page_count = page_count,
+                        concurrency = concurrency,
+                        dpi = dpi,
+                        timeout_secs = vision_timeout_secs,
+                        "Starting Vision PDF conversion"
                     );
-                    Some(semaphore.acquire_owned().await.ok_or_else(|| {
-                        edgequake_tasks::TaskError::Processing(
-                            "Vision PDF admission semaphore closed".to_string(),
-                        )
-                    })?)
-                } else {
-                    None
-                };
 
-                info!(
-                    pdf_id = %data.pdf_id,
-                    vision_provider = %data.vision_provider,
-                    vision_model = %vision_model.clone().unwrap_or_default(),
-                    page_count = page_count,
-                    concurrency = concurrency,
-                    dpi = dpi,
-                    timeout_secs = vision_timeout_secs,
-                    "Starting Vision PDF conversion"
-                );
+                    match tokio::time::timeout(
+                        vision_timeout,
+                        converter.convert(&pdf_data, &conversion_config),
+                    )
+                    .await
+                    {
+                        Ok(Ok(markdown)) => markdown,
+                        Ok(Err(e)) => {
+                            let error = edgequake_tasks::TaskError::Processing(format!(
+                                "PDF conversion failed: {e}"
+                            ));
+                            if !vision_fallback_allowed(backend, &error) {
+                                return Err(error);
+                            }
 
-                match tokio::time::timeout(
-                    vision_timeout,
-                    converter.convert(&pdf_data, &conversion_config),
-                )
-                .await
-                {
-                    Ok(Ok(markdown)) => markdown,
-                    Ok(Err(e)) => {
-                        let error = edgequake_tasks::TaskError::Processing(format!(
-                            "PDF conversion failed: {e}"
-                        ));
-                        if !vision_fallback_allowed(backend, &error) {
-                            return Err(error);
+                            let message =
+                                build_edgeparse_fallback_message(&data.vision_provider, &error);
+                            warn!(
+                                pdf_id = %data.pdf_id,
+                                error = %error,
+                                "Vision conversion failed; falling back to EdgeParse"
+                            );
+                            let _ = self
+                                .update_document_status(&early_doc_id, "processing", Some(&message))
+                                .await;
+                            fallback_warning = Some(message);
+                            extraction_method = ExtractionMethod::EdgeParse;
+                            vision_model = None;
+
+                            edgequake_pdf::create_pdf_converter(
+                                edgequake_pdf::PdfParserBackend::EdgeParse,
+                                None,
+                            )
+                            .convert(&pdf_data, &edgeparse_config)
+                            .await
+                            .map_err(|e| {
+                                edgequake_tasks::TaskError::Processing(format!(
+                                    "PDF conversion failed after EdgeParse fallback: {e}"
+                                ))
+                            })?
                         }
-
-                        let message =
-                            build_edgeparse_fallback_message(&data.vision_provider, &error);
-                        warn!(
-                            pdf_id = %data.pdf_id,
-                            error = %error,
-                            "Vision conversion failed; falling back to EdgeParse"
-                        );
-                        let _ = self
-                            .update_document_status(&early_doc_id, "processing", Some(&message))
-                            .await;
-                        fallback_warning = Some(message);
-                        extraction_method = ExtractionMethod::EdgeParse;
-                        vision_model = None;
-
-                        edgequake_pdf::create_pdf_converter(
-                            edgequake_pdf::PdfParserBackend::EdgeParse,
-                            None,
-                        )
-                        .convert(&pdf_data, &edgeparse_config)
-                        .await
-                        .map_err(|e| {
-                            edgequake_tasks::TaskError::Processing(format!(
-                                "PDF conversion failed after EdgeParse fallback: {e}"
-                            ))
-                        })?
-                    }
-                    Err(_elapsed) => {
-                        let error = edgequake_tasks::TaskError::Timeout(format!(
+                        Err(_elapsed) => {
+                            let error = edgequake_tasks::TaskError::Timeout(format!(
                             "Vision extraction timed out after {}s for PDF {}. Provider '{}' may be unresponsive.",
                             vision_timeout.as_secs(),
                             data.pdf_id,
                             data.vision_provider
                         ));
-                        if !vision_fallback_allowed(backend, &error) {
-                            return Err(error);
+                            if !vision_fallback_allowed(backend, &error) {
+                                return Err(error);
+                            }
+
+                            let message =
+                                build_edgeparse_fallback_message(&data.vision_provider, &error);
+                            warn!(
+                                pdf_id = %data.pdf_id,
+                                timeout_secs = vision_timeout.as_secs(),
+                                "Vision extraction timed out; falling back to EdgeParse"
+                            );
+                            let _ = self
+                                .update_document_status(&early_doc_id, "processing", Some(&message))
+                                .await;
+                            fallback_warning = Some(message);
+                            extraction_method = ExtractionMethod::EdgeParse;
+                            vision_model = None;
+
+                            edgequake_pdf::create_pdf_converter(
+                                edgequake_pdf::PdfParserBackend::EdgeParse,
+                                None,
+                            )
+                            .convert(&pdf_data, &edgeparse_config)
+                            .await
+                            .map_err(|e| {
+                                edgequake_tasks::TaskError::Processing(format!(
+                                    "PDF conversion failed after EdgeParse fallback: {e}"
+                                ))
+                            })?
                         }
-
-                        let message =
-                            build_edgeparse_fallback_message(&data.vision_provider, &error);
-                        warn!(
-                            pdf_id = %data.pdf_id,
-                            timeout_secs = vision_timeout.as_secs(),
-                            "Vision extraction timed out; falling back to EdgeParse"
-                        );
-                        let _ = self
-                            .update_document_status(&early_doc_id, "processing", Some(&message))
-                            .await;
-                        fallback_warning = Some(message);
-                        extraction_method = ExtractionMethod::EdgeParse;
-                        vision_model = None;
-
-                        edgequake_pdf::create_pdf_converter(
-                            edgequake_pdf::PdfParserBackend::EdgeParse,
-                            None,
-                        )
+                    }
+                }
+                ExtractionMethod::EdgeParse | ExtractionMethod::Text | ExtractionMethod::Hybrid => {
+                    info!(
+                        pdf_id = %data.pdf_id,
+                        page_count = page_count,
+                        "Starting EdgeParse PDF conversion"
+                    );
+                    converter
                         .convert(&pdf_data, &edgeparse_config)
                         .await
                         .map_err(|e| {
                             edgequake_tasks::TaskError::Processing(format!(
-                                "PDF conversion failed after EdgeParse fallback: {e}"
+                                "PDF conversion failed: {e}"
                             ))
                         })?
-                    }
                 }
             }
-            ExtractionMethod::EdgeParse | ExtractionMethod::Text | ExtractionMethod::Hybrid => {
-                info!(
-                    pdf_id = %data.pdf_id,
-                    page_count = page_count,
-                    "Starting EdgeParse PDF conversion"
-                );
-                converter
-                    .convert(&pdf_data, &edgeparse_config)
-                    .await
-                    .map_err(|e| {
-                        edgequake_tasks::TaskError::Processing(format!(
-                            "PDF conversion failed: {e}"
-                        ))
-                    })?
-            }
-        }
         };
 
         let markdown = strip_nul_bytes(markdown);

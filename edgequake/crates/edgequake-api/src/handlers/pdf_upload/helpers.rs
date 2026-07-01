@@ -128,14 +128,11 @@ pub(super) async fn create_pdf_processing_task(
 
     let resolved_backend = options.resolved_backend(workspace);
     let backend_explicit = options.pdf_parser_backend.is_some()
-        || workspace
-            .and_then(|ws| ws.pdf_parser_backend)
-            .is_some()
+        || workspace.and_then(|ws| ws.pdf_parser_backend).is_some()
         || edgequake_pdf::PdfParserBackend::from_env().is_some();
 
     let page_count_usize = page_count.unwrap_or(1).max(1) as usize;
-    let profile =
-        crate::services::LargeDocumentProfile::new(page_count_usize, file_size_bytes);
+    let profile = crate::services::LargeDocumentProfile::new(page_count_usize, file_size_bytes);
     let processing_timeout_secs =
         profile.task_timeout_secs(resolved_backend, &options.resolved_vision_provider());
 

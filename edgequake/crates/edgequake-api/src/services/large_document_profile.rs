@@ -7,7 +7,9 @@ use edgequake_pdf::PdfParserBackend;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::safety_limits::{is_local_provider, vision_outer_timeout_secs, VISION_MAX_OUTER_TIMEOUT_SECS};
+use crate::safety_limits::{
+    is_local_provider, vision_outer_timeout_secs, VISION_MAX_OUTER_TIMEOUT_SECS,
+};
 
 /// Page-count threshold for large-PDF admission UX and gleaning policy.
 pub const LARGE_PDF_PAGE_THRESHOLD: usize = 100;
@@ -90,7 +92,9 @@ pub fn classify_ingestion_failure(error_msg: &str) -> IngestionFailureClass {
         }
         return IngestionFailureClass::TimeoutPhaseExtract;
     }
-    if lower.contains("provider") && (lower.contains("unavailable") || lower.contains("failed to create")) {
+    if lower.contains("provider")
+        && (lower.contains("unavailable") || lower.contains("failed to create"))
+    {
         return IngestionFailureClass::ProviderUnavailable;
     }
     IngestionFailureClass::Unknown
@@ -204,9 +208,7 @@ impl LargeDocumentProfile {
         backend: PdfParserBackend,
         backend_explicit: bool,
     ) -> bool {
-        Self::auto_routing_enabled()
-            && !backend_explicit
-            && backend == PdfParserBackend::Vision
+        Self::auto_routing_enabled() && !backend_explicit && backend == PdfParserBackend::Vision
     }
 
     /// Build upload-time estimate DTO.
@@ -271,13 +273,17 @@ mod tests {
         let pages = 603;
         let chars_per_page = LargeDocumentProfile::min_chars_per_page();
         let markdown = "x".repeat(pages * chars_per_page);
-        assert!(LargeDocumentProfile::markdown_has_text_layer(&markdown, pages));
+        assert!(LargeDocumentProfile::markdown_has_text_layer(
+            &markdown, pages
+        ));
     }
 
     #[test]
     fn sparse_markdown_not_born_digital() {
         let markdown = "short";
-        assert!(!LargeDocumentProfile::markdown_has_text_layer(&markdown, 603));
+        assert!(!LargeDocumentProfile::markdown_has_text_layer(
+            &markdown, 603
+        ));
     }
 
     #[test]
