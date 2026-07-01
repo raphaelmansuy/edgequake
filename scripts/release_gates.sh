@@ -39,7 +39,11 @@ for crate in "${CRATES[@]}"; do
 done
 
 echo "== workspace lib tests =="
-(cd "$EQ" && cargo test --workspace --lib --no-fail-fast)
+if [[ "${RELEASE_SKIP_LIB_TESTS:-}" == "1" ]]; then
+  echo "skipped (RELEASE_SKIP_LIB_TESTS=1 — full suite runs on main CI)"
+else
+  (cd "$EQ" && cargo test --workspace --lib --no-fail-fast)
+fi
 
 echo "== SPEC-006 resource-proof =="
 (cd "$ROOT" && make resource-proof --no-print-directory)
