@@ -382,7 +382,7 @@ pub fn build_agent_hints(context: &QueryContext, bundle: &ContextBundle) -> Agen
     }
 
     let mut dominant: Vec<(String, usize)> = type_counts.into_iter().collect();
-    dominant.sort_by(|a, b| b.1.cmp(&a.1));
+    dominant.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     let suggested_followups = if context.is_empty() {
         vec!["Try broadening the query or relaxing document filters.".to_string()]

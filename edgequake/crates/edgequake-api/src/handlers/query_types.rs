@@ -74,10 +74,7 @@ impl DocumentFilter {
         self.date_from.is_none()
             && self.date_to.is_none()
             && self.document_pattern.is_none()
-            && self
-                .document_ids
-                .as_ref()
-                .map_or(true, |ids| ids.is_empty())
+            && self.document_ids.as_ref().is_none_or(|ids| ids.is_empty())
     }
 }
 

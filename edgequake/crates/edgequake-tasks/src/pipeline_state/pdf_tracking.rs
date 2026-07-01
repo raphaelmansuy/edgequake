@@ -109,6 +109,7 @@ impl PipelineState {
     /// - The `Instant` for ETA calculation is stored under `graph_storage_start`
     ///   in `PipelineStateInner` (set by `start_pdf_phase(GraphStorage, ...)`).
     /// - The broadcast is fire-and-forget: dropped if no subscriber.
+    #[allow(clippy::too_many_arguments)]
     pub async fn broadcast_graph_storage_progress(
         &self,
         track_id: &str,

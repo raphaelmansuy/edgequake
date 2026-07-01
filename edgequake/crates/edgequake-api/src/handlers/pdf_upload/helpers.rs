@@ -79,6 +79,7 @@ pub(super) struct PdfProcessingEnqueueResult {
 }
 
 /// Create PDF processing background task.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn create_pdf_processing_task(
     state: &AppState,
     context: &TenantContext,

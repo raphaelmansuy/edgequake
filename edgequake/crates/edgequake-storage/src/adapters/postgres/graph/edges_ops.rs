@@ -176,9 +176,11 @@ impl PostgresAGEGraphStorage {
                 + src.len()
                 + tgt.len()
                 + 24; // source_id + target_id + struct overhead
-            if estimated_row > 0 {
-                return (MAX_BODY_BYTES / estimated_row).clamp(MIN_CHUNK, MAX_CHUNK);
-            }
+            let cap = MAX_BODY_BYTES
+                .checked_div(estimated_row)
+                .map(|n| n.clamp(MIN_CHUNK, MAX_CHUNK))
+                .unwrap_or(MAX_CHUNK);
+            return cap;
         }
         MAX_CHUNK
     }

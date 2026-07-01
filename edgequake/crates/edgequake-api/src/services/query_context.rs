@@ -102,6 +102,7 @@ struct PreparedContextRun {
     filter_json: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_context_retrieval(
     state: &AppState,
     tenant_ctx: &TenantContext,
@@ -451,6 +452,7 @@ pub fn build_query_response_subgraph(
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_legacy_query_response(
     result: QueryResponse,
     sources: Vec<SourceReference>,

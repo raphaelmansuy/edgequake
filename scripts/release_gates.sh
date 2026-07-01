@@ -29,7 +29,13 @@ echo "== workspace clippy =="
 echo "== per-crate clippy =="
 for crate in "${CRATES[@]}"; do
   echo "→ clippy -p $crate"
-  (cd "$EQ" && cargo clippy -p "$crate" --lib -- -D warnings)
+  FEATURES=()
+  case "$crate" in
+    edgequake-api|edgequake-core|edgequake-storage|edgequake-tasks)
+      FEATURES=(--features postgres)
+      ;;
+  esac
+  (cd "$EQ" && cargo clippy -p "$crate" --lib "${FEATURES[@]}" -- -D warnings)
 done
 
 echo "== workspace lib tests =="
