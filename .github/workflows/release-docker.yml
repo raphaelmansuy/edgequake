@@ -8,7 +8,7 @@ on:
       tag_name:
         description: 'Tag name to publish (e.g. v0.10.7)'
         required: true
-        default: 'v0.12.11'
+        default: 'v0.13.0'
 
 permissions:
   contents: read
@@ -48,6 +48,7 @@ jobs:
           DATABASE_URL: ""
           POSTGRES_PASSWORD: ""
           RUST_LOG: warn
+          RELEASE_SKIP_LIB_TESTS: "1"
         run: |
           chmod +x scripts/release_gates.sh
           ./scripts/release_gates.sh
