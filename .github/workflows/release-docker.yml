@@ -18,7 +18,7 @@ jobs:
   # ── Preflight: fmt, clippy, tests, SPEC-006 + SPEC-018 proofs ─────────────────
   quality-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
 
