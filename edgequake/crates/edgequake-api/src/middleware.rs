@@ -484,13 +484,15 @@ pub async fn ws_validate_token(state: &crate::state::AppState, token: Option<&st
 fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str) -> bool {
     let normalized_path = path.strip_prefix("/api/v1").unwrap_or(path);
 
+    if is_public_documentation_path(normalized_path) {
+        return true;
+    }
+
     matches!(
         normalized_path,
         "/health"
             | "/ready"
             | "/live"
-            | "/swagger-ui"
-            | "/api-docs"
             | "/auth/login"
             | "/auth/refresh"
             | "/auth/oidc/login"
@@ -498,6 +500,14 @@ fn is_public_request(state: &crate::state::AppState, method: &Method, path: &str
     ) || (*method == Method::POST
         && normalized_path == "/users"
         && state.auth.config.allow_registration)
+}
+
+/// OpenAPI / Swagger documentation paths (including static assets under subpaths).
+pub(crate) fn is_public_documentation_path(path: &str) -> bool {
+    path == "/swagger-ui"
+        || path.starts_with("/swagger-ui/")
+        || path == "/api-docs"
+        || path.starts_with("/api-docs/")
 }
 
 pub(crate) fn extract_api_key(request: &Request) -> Option<String> {
@@ -983,6 +993,16 @@ mod tests {
         assert!(!config.is_public_path("/api/v1/graph"));
         assert!(!config.is_public_path("/admin"));
         assert!(!config.is_public_path("/rapidoc")); // Not in default public paths
+    }
+
+    #[test]
+    fn test_public_documentation_subpaths_for_jwt_middleware() {
+        assert!(super::is_public_documentation_path("/swagger-ui"));
+        assert!(super::is_public_documentation_path("/swagger-ui/"));
+        assert!(super::is_public_documentation_path("/swagger-ui/index.html"));
+        assert!(super::is_public_documentation_path("/api-docs"));
+        assert!(super::is_public_documentation_path("/api-docs/openapi.json"));
+        assert!(!super::is_public_documentation_path("/api/v1/documents"));
     }
 
     #[test]

@@ -1,3 +1,4 @@
+@layer scalar-base, scalar-theme, scalar-config, theme, base, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./design-tokens.css";

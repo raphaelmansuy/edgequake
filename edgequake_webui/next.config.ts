@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
   // Output configuration
   output: "standalone",
 
+  // Dev proxy: utoipa serves /swagger-ui/ (with slash); Next default strips trailing
+  // slashes (308) → infinite redirect loop with backend (303). Disable for proxied paths.
+  skipTrailingSlashRedirect: true,
+
   // Reduce logging
   logging: {
     fetches: {
@@ -43,6 +47,7 @@ const nextConfig: NextConfig = {
     const backend = resolveDevProxyBackend();
     return [
       { source: "/api/:path*", destination: `${backend}/api/:path*` },
+      { source: "/api-docs/:path*", destination: `${backend}/api-docs/:path*` },
       { source: "/health", destination: `${backend}/health` },
       { source: "/ready", destination: `${backend}/ready` },
       { source: "/live", destination: `${backend}/live` },
