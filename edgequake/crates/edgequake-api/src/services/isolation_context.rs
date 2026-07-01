@@ -109,15 +109,15 @@ fn metadata_matches_tenant_id_context(
         return is_legacy_default_tenant_context(tenant_ctx.tenant_id.as_deref());
     }
 
-    let Some(ctx_tenant_id) = resolve_tenant_uuid(tenant_ctx.tenant_id.as_deref()) else {
-        return true;
-    };
+    let ctx_tenant_raw = tenant_ctx.tenant_id.as_deref().map(str::trim);
 
-    let Some(stored_tenant_id) = resolve_tenant_uuid(stored_tenant_raw) else {
-        return false;
-    };
-
-    stored_tenant_id == ctx_tenant_id
+    match (
+        resolve_tenant_uuid(ctx_tenant_raw),
+        resolve_tenant_uuid(stored_tenant_raw),
+    ) {
+        (Some(ctx_id), Some(stored_id)) => ctx_id == stored_id,
+        _ => ctx_tenant_raw == stored_tenant_raw,
+    }
 }
 
 #[cfg(test)]
@@ -175,5 +175,13 @@ mod tests {
             &ctx("default", "default"),
             IsolationMode::Strict,
         ));
+    }
+
+    #[test]
+    fn slug_tenant_ids_match_literally_when_not_uuid() {
+        let doc_t1 = serde_json::json!({ "tenant_id": "t1", "title": "Alpha" });
+        let doc_t2 = serde_json::json!({ "tenant_id": "t2", "title": "Beta" });
+        assert!(metadata_matches(&doc_t1, &ctx("t1", "default")));
+        assert!(!metadata_matches(&doc_t2, &ctx("t1", "default")));
     }
 }

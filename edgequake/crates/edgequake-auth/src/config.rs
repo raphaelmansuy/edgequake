@@ -272,6 +272,12 @@ pub(crate) fn parse_bool_env(var_name: &str, default: bool) -> bool {
 mod tests {
     use super::*;
 
+    fn clear_auth_env_for_tests() {
+        for key in ["EDGEQUAKE_AUTH_ENABLED", "EDGEQUAKE_AUTH_DISABLED", "AUTH_ENABLED"] {
+            std::env::remove_var(key);
+        }
+    }
+
     #[test]
     fn test_default_config() {
         let config = AuthConfig::default();
@@ -283,13 +289,11 @@ mod tests {
     }
 
     #[test]
-    fn resolve_auth_enabled_secure_by_default() {
+    fn resolve_auth_enabled_from_env_variants() {
+        clear_auth_env_for_tests();
         assert!(resolve_auth_enabled_from_env(false));
         assert!(!resolve_auth_enabled_from_env(true));
-    }
 
-    #[test]
-    fn resolve_auth_enabled_explicit_env_overrides_default() {
         std::env::set_var("EDGEQUAKE_AUTH_ENABLED", "false");
         assert!(!resolve_auth_enabled_from_env(false));
         std::env::remove_var("EDGEQUAKE_AUTH_ENABLED");
