@@ -7,12 +7,12 @@
 
 ## The Four Options
 
-| Option | Description |
-|--------|-------------|
-| **A** | Redirect / iframe to existing `/swagger-ui/` |
-| **B** | Embed `@scalar/api-reference` React component |
-| **C** | Rewrite custom explorer to consume spec dynamically |
-| **D** | Keep current custom explorer, maintain manually |
+| Option | Description                                         |
+| ------ | --------------------------------------------------- |
+| **A**  | Redirect / iframe to existing `/swagger-ui/`        |
+| **B**  | Embed `@scalar/api-reference` React component       |
+| **C**  | Rewrite custom explorer to consume spec dynamically |
+| **D**  | Keep current custom explorer, maintain manually     |
 
 ---
 
@@ -20,38 +20,38 @@
 
 ### Criteria and Weights
 
-| # | Criterion | Weight | Rationale |
-|---|-----------|--------|-----------|
-| C1 | Endpoint coverage (% of API visible) | 20% | Core functional requirement |
-| C2 | Stays in sync with API without manual work | 20% | Prevents regression |
-| C3 | Developer UX quality | 15% | Primary user is a developer |
-| C4 | Visual consistency with app | 10% | Product quality |
-| C5 | Auth token injection from session | 10% | 95% of endpoints need auth |
-| C6 | Schema documentation quality | 10% | Developer productivity |
-| C7 | Implementation effort (less = better) | 10% | Engineering ROI |
-| C8 | Long-term maintenance cost (less = better) | 5% | Sustainability |
+| #   | Criterion                                  | Weight | Rationale                   |
+| --- | ------------------------------------------ | ------ | --------------------------- |
+| C1  | Endpoint coverage (% of API visible)       | 20%    | Core functional requirement |
+| C2  | Stays in sync with API without manual work | 20%    | Prevents regression         |
+| C3  | Developer UX quality                       | 15%    | Primary user is a developer |
+| C4  | Visual consistency with app                | 10%    | Product quality             |
+| C5  | Auth token injection from session          | 10%    | 95% of endpoints need auth  |
+| C6  | Schema documentation quality               | 10%    | Developer productivity      |
+| C7  | Implementation effort (less = better)      | 10%    | Engineering ROI             |
+| C8  | Long-term maintenance cost (less = better) | 5%     | Sustainability              |
 
 ### Scoring (1–5, where 5 is best)
 
-| Criterion | Weight | A: Redirect | B: Scalar | C: Custom rewrite | D: Status quo |
-|-----------|--------|-------------|-----------|-------------------|---------------|
-| C1 Coverage | 20% | 5 | 5 | 5 | 1 |
-| C2 Sync | 20% | 5 | 5 | 4 | 1 |
-| C3 Dev UX | 15% | 3 | 5 | 3 | 2 |
-| C4 Visual consistency | 10% | 1 | 4 | 5 | 5 |
-| C5 Auth injection | 10% | 2 | 5 | 4 | 1 |
-| C6 Schema docs | 10% | 5 | 5 | 3 | 1 |
-| C7 Effort (less=better) | 10% | 5 | 4 | 2 | 5 |
-| C8 Maintenance (less=better) | 5% | 5 | 5 | 4 | 1 |
+| Criterion                    | Weight | A: Redirect | B: Scalar | C: Custom rewrite | D: Status quo |
+| ---------------------------- | ------ | ----------- | --------- | ----------------- | ------------- |
+| C1 Coverage                  | 20%    | 5           | 5         | 5                 | 1             |
+| C2 Sync                      | 20%    | 5           | 5         | 4                 | 1             |
+| C3 Dev UX                    | 15%    | 3           | 5         | 3                 | 2             |
+| C4 Visual consistency        | 10%    | 1           | 4         | 5                 | 5             |
+| C5 Auth injection            | 10%    | 2           | 5         | 4                 | 1             |
+| C6 Schema docs               | 10%    | 5           | 5         | 3                 | 1             |
+| C7 Effort (less=better)      | 10%    | 5           | 4         | 2                 | 5             |
+| C8 Maintenance (less=better) | 5%     | 5           | 5         | 4                 | 1             |
 
 ### Weighted Totals
 
-| Option | Score | Normalized (%) |
-|--------|-------|----------------|
-| **B: Scalar** | **4.65** | **93%** ✅ WINNER |
-| A: Redirect | 3.80 | 76% |
-| C: Custom rewrite | 3.75 | 75% |
-| D: Status quo | 1.90 | 38% |
+| Option            | Score    | Normalized (%)   |
+| ----------------- | -------- | ---------------- |
+| **B: Scalar**     | **4.65** | **93%** ✅ WINNER |
+| A: Redirect       | 3.80     | 76%              |
+| C: Custom rewrite | 3.75     | 75%              |
+| D: Status quo     | 1.90     | 38%              |
 
 Calculation:
 - **B**: 0.20×5 + 0.20×5 + 0.15×5 + 0.10×4 + 0.10×5 + 0.10×5 + 0.10×4 + 0.05×5 = **4.65**
@@ -126,13 +126,13 @@ Calculation:
 
 The backend Swagger UI is a valid tool. The specific reasons for preferring Option B:
 
-| Problem with Option A | Impact |
-|-----------------------|--------|
-| Auth token not pre-populated | Developer must manually copy JWT from browser DevTools |
-| No workspace base URL injection | Developer must type `http://localhost:8080` manually |
-| Completely different visual design | Product feels incoherent |
-| Separate domain context | Breaks navigation history |
-| No integration with app router | Can't pass context from the app |
+| Problem with Option A              | Impact                                                 |
+| ---------------------------------- | ------------------------------------------------------ |
+| Auth token not pre-populated       | Developer must manually copy JWT from browser DevTools |
+| No workspace base URL injection    | Developer must type `http://localhost:8080` manually   |
+| Completely different visual design | Product feels incoherent                               |
+| Separate domain context            | Breaks navigation history                              |
+| No integration with app router     | Can't pass context from the app                        |
 
 **Option A is acceptable as a fallback or complement** (e.g., a "View in Swagger UI" link), but not as the primary experience.
 

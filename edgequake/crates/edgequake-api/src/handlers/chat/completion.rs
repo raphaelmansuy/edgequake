@@ -8,12 +8,13 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::OptionalAuth;
 use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace, QueryStats};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
-    build_message_context_from_engine, execute_sota_query_with_auth_fallback,
-    resolve_workspace_query_resources,
+    build_message_context_from_engine, ensure_debug_granularity_allowed,
+    execute_sota_query_with_auth_fallback, resolve_workspace_query_resources,
 };
 use crate::state::AppState;
 use edgequake_core::types::{
@@ -45,6 +46,7 @@ use super::{
 pub async fn chat_completion(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Json(request): Json<ChatCompletionRequest>,
 ) -> ApiResult<Json<ChatCompletionResponse>> {
     // Validate request
@@ -58,6 +60,10 @@ pub async fn chat_completion(
     if let Some(ref images) = request.images {
         super::validation::validate_image_attachments(images)?;
     }
+    ensure_debug_granularity_allowed(
+        request.content_granularity,
+        auth_user.as_ref().map(|u| u.role.clone()),
+    )?;
 
     let tenant_id = tenant_ctx
         .tenant_id
@@ -266,7 +272,7 @@ pub async fn chat_completion(
     .await?;
 
     // 4. Build sources and resolve document names for chunk sources
-    let mut sources = build_sources(&result.context);
+    let mut sources = build_sources(&result.context, request.content_granularity);
     resolve_chunk_file_paths(state.storage.kv_storage.as_ref(), &mut sources).await;
     let context = build_message_context_from_engine(&result.context, &sources);
 

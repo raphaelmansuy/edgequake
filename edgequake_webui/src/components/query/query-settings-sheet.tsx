@@ -60,6 +60,7 @@ interface QuerySettings {
   temperature: number;
   maxTokens: number;
   systemPrompt?: string;
+  fullChunkContent?: boolean;
 }
 
 interface QuerySettingsSheetProps {
@@ -100,12 +101,15 @@ export function QuerySettingsSheet({
     <Sheet>
       <SheetTrigger asChild>
         {trigger || (
-          <Button variant="ghost" size="icon" disabled={disabled}>
+          <Button variant="ghost" size="icon" disabled={disabled} data-testid="query-settings-trigger">
             <Settings2 className="h-4 w-4" />
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent className="w-[400px] sm:w-[480px] flex flex-col p-0">
+      <SheetContent
+        data-testid="query-settings-sheet"
+        className="w-[400px] sm:w-[480px] flex flex-col p-0 overflow-hidden"
+      >
         <SheetHeader className="px-6 py-4 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Sliders className="h-4 w-4 text-primary" />
@@ -116,8 +120,8 @@ export function QuerySettingsSheet({
           </SheetDescription>
         </SheetHeader>
         
-        <ScrollArea className="flex-1">
-          <div className="px-6 py-4 space-y-5">
+        <ScrollArea className="flex-1 min-h-0" showShadows>
+          <div className="px-6 py-4 pb-6 space-y-5" data-testid="query-settings-scroll-body">
 
             {/* Context Section — Provider & Document Filter (moved from main toolbar) */}
             {(onProviderModelChange || onDocumentFilterChange) && (
@@ -220,8 +224,30 @@ export function QuerySettingsSheet({
                   </div>
                   <Switch
                     id="stream-toggle"
+                    data-testid="query-settings-stream-toggle"
                     checked={settings.stream}
                     onCheckedChange={(stream) => onSettingsChange({ stream })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="full-chunk-toggle" className="text-sm font-medium cursor-pointer">
+                      {t('query.settings.fullPassageText', 'Full passage text')}
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      {t(
+                        'query.settings.fullPassageTextDescription',
+                        'Show complete retrieved chunks in citations (uses more bandwidth)',
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    id="full-chunk-toggle"
+                    data-testid="query-settings-full-chunk-toggle"
+                    checked={settings.fullChunkContent ?? false}
+                    onCheckedChange={(fullChunkContent) => onSettingsChange({ fullChunkContent })}
+                    disabled={disabled}
                   />
                 </div>
               </div>
@@ -402,6 +428,7 @@ export function QuerySettingsSheet({
                 </div>
                 <Textarea
                   id="system-prompt"
+                  data-testid="query-settings-system-prompt"
                   placeholder={t('query.settings.systemPromptPlaceholder', 'e.g. "Always respond in bullet points" or "Focus on security implications"')}
                   value={settings.systemPrompt ?? ''}
                   onChange={(e) => onSettingsChange({ systemPrompt: e.target.value || undefined })}

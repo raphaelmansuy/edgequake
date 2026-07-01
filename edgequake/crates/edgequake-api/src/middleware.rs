@@ -999,9 +999,13 @@ mod tests {
     fn test_public_documentation_subpaths_for_jwt_middleware() {
         assert!(super::is_public_documentation_path("/swagger-ui"));
         assert!(super::is_public_documentation_path("/swagger-ui/"));
-        assert!(super::is_public_documentation_path("/swagger-ui/index.html"));
+        assert!(super::is_public_documentation_path(
+            "/swagger-ui/index.html"
+        ));
         assert!(super::is_public_documentation_path("/api-docs"));
-        assert!(super::is_public_documentation_path("/api-docs/openapi.json"));
+        assert!(super::is_public_documentation_path(
+            "/api-docs/openapi.json"
+        ));
         assert!(!super::is_public_documentation_path("/api/v1/documents"));
     }
 

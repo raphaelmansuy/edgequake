@@ -15,14 +15,15 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::context_types::ContentGranularity;
+use crate::handlers::auth::OptionalAuth;
 use crate::handlers::query::{resolve_chunk_file_paths, resolve_query_workspace};
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
     build_message_context_from_engine,
     context_bundle_mapper::{map_query_context_to_subgraph, MappingOptions},
-    execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
+    ensure_debug_granularity_allowed, execute_sota_query_stream_with_auth_fallback,
+    resolve_workspace_query_resources,
 };
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
@@ -70,6 +71,7 @@ use super::{
 pub async fn chat_completion_stream(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Extension(req_ctx): Extension<RequestContext>,
     Json(request): Json<ChatCompletionRequest>,
 ) -> ApiResult<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>> {
@@ -84,6 +86,10 @@ pub async fn chat_completion_stream(
     if let Some(ref images) = request.images {
         super::validation::validate_image_attachments(images)?;
     }
+    ensure_debug_granularity_allowed(
+        request.content_granularity,
+        auth_user.as_ref().map(|u| u.role.clone()),
+    )?;
 
     let tenant_id = tenant_ctx
         .tenant_id
@@ -184,6 +190,7 @@ pub async fn chat_completion_stream(
     // FEAT0505: Clone for auto-title generation
     let first_message_for_title = request.message.clone();
     let stream_request_id = req_ctx.request_id.clone();
+    let stream_content_granularity = request.content_granularity;
 
     // 5. Send initial conversation event
     let initial_event = ChatStreamEvent::Conversation {
@@ -415,7 +422,7 @@ pub async fn chat_completion_stream(
         match stream_result {
             Ok((context, used_mode, mut stream)) => {
                 // Send context event BEFORE streaming tokens (for source citations)
-                let mut sources = build_sources(&context);
+                let mut sources = build_sources(&context, stream_content_granularity);
 
                 // Resolve document names for chunk sources
                 resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
@@ -430,7 +437,7 @@ pub async fn chat_completion_stream(
                     let subgraph = Some(map_query_context_to_subgraph(
                         &context,
                         &MappingOptions {
-                            granularity: ContentGranularity::Citation,
+                            granularity: stream_content_granularity,
                             include_lineage: true,
                             include_documents: false,
                             include_agent_hints: false,

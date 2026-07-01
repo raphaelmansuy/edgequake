@@ -85,6 +85,11 @@ export interface ChatCompletionRequest {
    * @implements Issue #203: Image upload support
    */
   images?: Array<{ data: string; mime_type: string }>;
+  /**
+   * Payload tier for source snippets: citation (200 chars) | agent (full chunk).
+   * @implements SPEC-037 + SPEC-028
+   */
+  content_granularity?: 'citation' | 'agent' | 'debug';
 }
 
 /**

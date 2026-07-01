@@ -20,14 +20,14 @@ edgequake_webui/src/
 
 **Violations identified:**
 
-| Violation | Location | Principle |
-|-----------|----------|-----------|
-| Hardcoded endpoint list (30 entries) | `api-explorer.tsx:48–95` | DRY |
-| No single source of truth for endpoint data | `api-explorer.tsx` | DRY |
-| Component does 5 things: list + select + request + execute + display | `api-explorer.tsx` | SRP (Single Responsibility) |
-| Static body examples will drift from schema | `api-explorer.tsx:49–95` | DRY |
-| Path parameters not handled | `api-explorer.tsx` | Correctness |
-| Auth not integrated with auth store | `api-explorer.tsx` | Coupling (should use Zustand) |
+| Violation                                                            | Location                 | Principle                     |
+| -------------------------------------------------------------------- | ------------------------ | ----------------------------- |
+| Hardcoded endpoint list (30 entries)                                 | `api-explorer.tsx:48–95` | DRY                           |
+| No single source of truth for endpoint data                          | `api-explorer.tsx`       | DRY                           |
+| Component does 5 things: list + select + request + execute + display | `api-explorer.tsx`       | SRP (Single Responsibility)   |
+| Static body examples will drift from schema                          | `api-explorer.tsx:49–95` | DRY                           |
+| Path parameters not handled                                          | `api-explorer.tsx`       | Correctness                   |
+| Auth not integrated with auth store                                  | `api-explorer.tsx`       | Coupling (should use Zustand) |
 
 ---
 
@@ -54,13 +54,13 @@ Rust code
 
 ### SOLID Application
 
-| Principle | How it applies |
-|-----------|---------------|
+| Principle                     | How it applies                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
 | **S** — Single Responsibility | `ApiExplorerPage` renders the explorer. Auth injection hook has one job. Theme config has one job. |
-| **O** — Open/Closed | New endpoints don't require frontend code changes — open for extension, closed for modification |
-| **L** — Liskov | Not applicable (no inheritance hierarchy) |
-| **I** — Interface Segregation | Separate `useApiExplorerConfig()` hook isolates auth+URL concerns |
-| **D** — Dependency Inversion | Component depends on spec URL abstraction, not on concrete endpoint list |
+| **O** — Open/Closed           | New endpoints don't require frontend code changes — open for extension, closed for modification    |
+| **L** — Liskov                | Not applicable (no inheritance hierarchy)                                                          |
+| **I** — Interface Segregation | Separate `useApiExplorerConfig()` hook isolates auth+URL concerns                                  |
+| **D** — Dependency Inversion  | Component depends on spec URL abstraction, not on concrete endpoint list                           |
 
 ---
 

@@ -16,12 +16,14 @@ use edgequake_observability::{
 use tracing::debug;
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::OptionalAuth;
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
     build_engine_request, build_legacy_query_response, build_legacy_query_sources,
-    execute_sota_query_with_auth_fallback, record_audit, resolve_workspace_query_resources,
-    validate_llm_override_pair, with_request_context, QueryExecutionParams,
+    ensure_debug_granularity_allowed, execute_sota_query_with_auth_fallback, record_audit,
+    resolve_workspace_query_resources, validate_llm_override_pair, with_request_context,
+    QueryExecutionParams,
 };
 use crate::state::AppState;
 use crate::validation::validate_query;
@@ -52,6 +54,7 @@ pub use crate::handlers::query_types::{QueryRequest, QueryResponse};
 pub async fn execute_query(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Extension(req_ctx): Extension<RequestContext>,
     Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<QueryRequest>,
@@ -76,6 +79,10 @@ pub async fn execute_query(
     );
 
     validate_query(&request.query, state.config.max_query_length)?;
+    ensure_debug_granularity_allowed(
+        request.content_granularity,
+        auth_user.as_ref().map(|u| u.role.clone()),
+    )?;
 
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
 
@@ -165,6 +172,7 @@ pub async fn execute_query(
         request.include_references,
         request.enable_rerank,
         request.rerank_top_k,
+        request.content_granularity,
     )
     .await;
 

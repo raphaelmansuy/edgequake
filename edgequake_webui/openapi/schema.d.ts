@@ -4,6 +4,39 @@
  */
 
 export interface paths {
+    "/.well-known/mcp/server.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** MCP Registry manifest (official `server.json` format) for discovery and publish SSOT. */
+        get: operations["mcp_registry_server_json"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mcp_oauth_protected_resource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat": {
         parameters: {
             query?: never;
@@ -298,6 +331,40 @@ export interface paths {
          * @description GET /api/v1/auth/me
          */
         get: operations["get_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/auth/oidc/callback — complete OIDC flow and issue EdgeQuake JWT. */
+        get: operations["oidc_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/auth/oidc/login — redirect to IdP authorization endpoint (PKCE). */
+        get: operations["oidc_login"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1080,6 +1147,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search documents by title for the scope picker.
+         * @description Requires full tenant context (workspace_id + tenant_id).
+         *     Returns at most 50 results sorted by `created_at` descending.
+         *
+         *     @implements SPEC-031: Document search endpoint
+         */
+        get: operations["search_documents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/track/{track_id}": {
         parameters: {
             query?: never;
@@ -1695,6 +1785,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** OpenAPI schema anchor for `/api/v1/mcp` alias. */
+        post: operations["mcp_openapi_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/messages/{message_id}": {
         parameters: {
             query?: never;
@@ -2004,32 +2111,71 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Execute a RAG query with multi-mode retrieval.
-         * @description # Implements
-         *
-         *     - **UC0201**: Execute Query
-         *     - **FEAT0007**: Multi-Mode Query Execution
-         *     - **FEAT0101**: Naive mode (vector search only)
-         *     - **FEAT0102**: Local mode (entity-centric)
-         *     - **FEAT0103**: Global mode (community summaries)
-         *     - **FEAT0104**: Hybrid mode (local + global)
-         *     - **FEAT0105**: Mix mode (adaptive blend)
-         *     - **FEAT0106**: Bypass mode (direct LLM, no RAG)
-         *
-         *     # Enforces
-         *
-         *     - **BR0101**: Token budget enforcement
-         *     - **BR0103**: Mode validation
-         *     - **BR0201**: Tenant/workspace scoping
-         *
-         *     # Returns
-         *
-         *     - `response`: LLM-generated answer
-         *     - `sources`: Source references with document lineage
-         *     - `stats`: Retrieval statistics (chunks, entities, latency)
-         */
         post: operations["execute_query"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/query/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retrieve_query_context"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/query/context/artifacts/{artifact_type}/{artifact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_context_artifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/query/context/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["search_query_context"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/query/context/{retrieval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["fetch_query_context"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2649,33 +2795,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/jobs": {
+    "/api/v2/workspaces/{workspace_id}/jobs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List jobs for the requester's tenant/workspace (v2 wrapper over task list). */
-        get: operations["list_jobs"];
+        /** List jobs for a workspace (paginated). */
+        get: operations["list_workspace_jobs"];
         put?: never;
-        /** Submit a new async job (202 Accepted + Location header). */
-        post: operations["create_job"];
+        /** Submit a new async job under a workspace (202 Accepted + Location). */
+        post: operations["create_workspace_job"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/jobs/{job_id}": {
+    "/api/v2/workspaces/{workspace_id}/jobs/catalog": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get job status by ID. */
-        get: operations["get_job"];
+        /** List supported job types for this workspace (Level 4 discovery). */
+        get: operations["list_workspace_job_catalog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2684,18 +2830,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/jobs/{job_id}/cancel": {
+    "/api/v2/workspaces/{workspace_id}/jobs/{job_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get job status by ID within a workspace. */
+        get: operations["get_workspace_job"];
         put?: never;
-        /** Cancel a pending job (delegates to v1 task cancel semantics). */
-        post: operations["cancel_job"];
-        delete?: never;
+        post?: never;
+        /** Cancel a pending job (Level 4 — DELETE on job resource). */
+        delete: operations["cancel_workspace_job"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2771,6 +2918,23 @@ export interface paths {
         get: operations["liveness_check"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** OpenAPI schema anchor (runtime uses raw body parsing in [`mcp_handler`]). */
+        post: operations["mcp_openapi"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2922,6 +3086,20 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * @example {
+         *       "data_quality_warnings": [],
+         *       "documents_touched": {},
+         *       "dominant_entity_types": [],
+         *       "suggested_followups": []
+         *     }
+         */
+        AgentHints: {
+            data_quality_warnings?: string[];
+            documents_touched: number;
+            dominant_entity_types?: string[];
+            suggested_followups?: string[];
+        };
+        /**
          * @description Operator-facing API discovery hints (additive JSON on `/health`).
          * @example {
          *       "openapi_url": "/api-docs/openapi.json",
@@ -2929,7 +3107,17 @@ export interface components {
          *       "swagger_ui_url": "/swagger-ui",
          *       "admin_api_prefix": "/api/v1/admin",
          *       "shared_conversations_prefix": "/api/v1/shared",
-         *       "jobs_v2_prefix": "/api/v2/jobs"
+         *       "jobs_v2_prefix": "/api/v2/workspaces/{workspace_id}/jobs",
+         *       "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+         *       "auth_identity_ssot": "postgresql",
+         *       "auth_enabled": true,
+         *       "oauth2_oidc_builtin": false,
+         *       "auth_kv_harness_active": false,
+         *       "external_sso_pattern": "oauth2-proxy",
+         *       "auth_mechanisms": [
+         *         "jwt_password",
+         *         "api_key"
+         *       ]
          *     }
          */
         ApiCapabilities: {
@@ -2937,8 +3125,28 @@ export interface components {
             admin_api_prefix: string;
             /** @description Standalone AsyncAPI document URL (WebSocket channels). */
             asyncapi_url: string;
-            /** @description v2 async jobs API prefix (SPEC-027 IMP-025). */
+            /** @description Whether JWT/API-key auth is enforced on protected routes. */
+            auth_enabled?: boolean | null;
+            /** @description Identity/auth SSOT backend label (`postgresql` or `in-memory`) — SPEC-027 phase 55. */
+            auth_identity_ssot?: string | null;
+            /** @description Whether in-memory auth harness is active (no PG pool — not KV). */
+            auth_kv_harness_active?: boolean | null;
+            /** @description Built-in auth mechanisms (`jwt_password`, `api_key`) — SPEC-027 phase 49. */
+            auth_mechanisms?: string[] | null;
+            /** @description Local dev opt-out (`EDGEQUAKE_DEV_MODE`) — auth disabled when true. */
+            dev_mode?: boolean | null;
+            /** @description Documented external SSO integration pattern when `oauth2_oidc_builtin` is false. */
+            external_sso_pattern?: string | null;
+            /** @description v2 job catalog path template. */
+            jobs_v2_catalog: string;
+            /** @description v2 async jobs API path template (Level 4 — substitute `{workspace_id}`). */
             jobs_v2_prefix: string;
+            /** @description Whether `EDGEQUAKE_KV_IDENTITY_MIRROR` was set in env (may be ignored when PG pool exists). */
+            kv_identity_mirror_configured?: boolean | null;
+            /** @description Effective KV mirror after policy resolution (`false` when PostgreSQL pool is SSOT). */
+            kv_identity_mirror_effective?: boolean | null;
+            /** @description Whether OAuth2/OIDC login is implemented in-process (always `false` today). */
+            oauth2_oidc_builtin?: boolean | null;
             /** @description OpenAPI document URL. */
             openapi_url: string;
             /** @description Public shared-conversation path prefix. */
@@ -3224,6 +3432,11 @@ export interface components {
          */
         ChatCompletionRequest: {
             /**
+             * @description Payload tier for source snippets in stream context events.
+             *     @implements SPEC-037 + SPEC-028
+             */
+            content_granularity?: components["schemas"]["ContentGranularity"];
+            /**
              * Format: uuid
              * @description Existing conversation ID. If null, creates a new conversation.
              */
@@ -3368,6 +3581,7 @@ export interface components {
              */
             retrieval_time_ms?: number | null;
             sources: components["schemas"]["SourceReference"][];
+            subgraph?: null | components["schemas"]["SubgraphBundle"];
             /** @enum {string} */
             type: "context";
         } | {
@@ -3421,6 +3635,8 @@ export interface components {
          *       "entities": [],
          *       "extraction_metadata": {},
          *       "index": {},
+         *       "page_end": {},
+         *       "page_start": {},
          *       "relationships": [],
          *       "start_line": {},
          *       "token_count": {}
@@ -3444,6 +3660,19 @@ export interface components {
             extraction_metadata?: null | components["schemas"]["ExtractionMetadataInfo"];
             /** @description Chunk index in document. */
             index: number;
+            /**
+             * Format: int32
+             * @description PDF page number (1-indexed) where this chunk ends.
+             *     Always equal to `page_start` — chunks never cross page boundaries.
+             */
+            page_end?: number | null;
+            /**
+             * Format: int32
+             * @description PDF page number (1-indexed) where this chunk starts.
+             *     Present only for PDFs ingested with SPEC-032 page-aware chunking.
+             *     @implements SPEC-033 — page attribution surfacing
+             */
+            page_start?: number | null;
             /** @description Relationships extracted from this chunk. */
             relationships: components["schemas"]["ExtractedRelationshipInfo"][];
             /**
@@ -3453,6 +3682,22 @@ export interface components {
             start_line?: number | null;
             /** @description Token count. */
             token_count: number;
+        };
+        /**
+         * @example {
+         *       "chunk_index": {},
+         *       "document_id": {},
+         *       "end_line": {},
+         *       "file_path": {},
+         *       "start_line": {}
+         *     }
+         */
+        ChunkLineage: {
+            chunk_index?: number | null;
+            document_id?: string | null;
+            end_line?: number | null;
+            file_path?: string | null;
+            start_line?: number | null;
         };
         /**
          * @description Complete chunk lineage response — parent document context + position + entities.
@@ -3629,6 +3874,386 @@ export interface components {
          * @enum {string}
          */
         ConnectionStatus: "connected" | "connecting" | "disconnected" | "error";
+        /**
+         * @description Content payload tier for context retrieval.
+         * @example {}
+         * @enum {string}
+         */
+        ContentGranularity: "citation" | "agent" | "debug";
+        /**
+         * @example {
+         *       "chunk_id": {},
+         *       "chunk_index": {},
+         *       "content": {},
+         *       "document_id": {},
+         *       "end_line": {},
+         *       "start_line": {},
+         *       "token_count": {}
+         *     }
+         */
+        ContextArtifactChunk: {
+            chunk_id: string;
+            chunk_index: number;
+            content: string;
+            document_id: string;
+            end_line?: number | null;
+            start_line?: number | null;
+            token_count: number;
+        };
+        /**
+         * @example {
+         *       "chunk_count": {},
+         *       "content": {},
+         *       "content_source": {},
+         *       "content_summary": {},
+         *       "document_id": {},
+         *       "file_name": {},
+         *       "markdown": {},
+         *       "mime_type": {},
+         *       "multimodal_item_count": {},
+         *       "pdf_content_path": {},
+         *       "pdf_download_path": {},
+         *       "pdf_id": {},
+         *       "title": {}
+         *     }
+         */
+        ContextArtifactDocument: {
+            chunk_count: number;
+            /** @description Full markdown/text body when `include_content=true`. */
+            content?: string | null;
+            /** @description `kv` or `pdf_storage` when body loaded. */
+            content_source?: string | null;
+            content_summary?: string | null;
+            document_id: string;
+            file_name?: string | null;
+            /** @description Same as `content` when markdown is available (explicit agent field). */
+            markdown?: string | null;
+            mime_type?: string | null;
+            multimodal_item_count: number;
+            pdf_content_path?: string | null;
+            pdf_download_path?: string | null;
+            pdf_id?: string | null;
+            title?: string | null;
+        };
+        /**
+         * @example {
+         *       "analyzed_text": {},
+         *       "caption": {},
+         *       "document_id": {},
+         *       "item_id": {},
+         *       "item_type": {},
+         *       "modality": {},
+         *       "name": {},
+         *       "status": {}
+         *     }
+         */
+        ContextArtifactFigure: {
+            analyzed_text?: string | null;
+            caption?: string | null;
+            document_id: string;
+            item_id: string;
+            item_type?: string | null;
+            modality: string;
+            name?: string | null;
+            status: string;
+        };
+        /**
+         * @example {
+         *       "document_id": {},
+         *       "markdown": {},
+         *       "pdf_id": {},
+         *       "source": {}
+         *     }
+         */
+        ContextArtifactMarkdown: {
+            document_id: string;
+            markdown: string;
+            pdf_id?: string | null;
+            /** @description `kv` or `pdf_storage` */
+            source: string;
+        };
+        /**
+         * @example {
+         *       "content_path": {},
+         *       "content_type": {},
+         *       "document_id": {},
+         *       "download_path": {},
+         *       "file_size_bytes": {},
+         *       "filename": {},
+         *       "is_processed": {},
+         *       "markdown_content": {},
+         *       "pdf_id": {}
+         *     }
+         */
+        ContextArtifactPdf: {
+            /** @description REST path to PDF metadata + markdown JSON. */
+            content_path: string;
+            content_type: string;
+            document_id?: string | null;
+            /** @description REST path to download raw PDF bytes. */
+            download_path: string;
+            /** Format: int64 */
+            file_size_bytes: number;
+            filename: string;
+            is_processed: boolean;
+            markdown_content?: string | null;
+            pdf_id: string;
+        };
+        /**
+         * @description Agent-facing artifact fetch response (`GET /query/context/artifacts/{type}/{id}`).
+         * @example {
+         *       "artifact_id": {},
+         *       "artifact_type": {},
+         *       "chunk": {},
+         *       "document": {},
+         *       "figure": {},
+         *       "markdown": {},
+         *       "pdf": {}
+         *     }
+         */
+        ContextArtifactResponse: {
+            artifact_id: string;
+            /** @description `document` | `chunk` | `figure` | `markdown` | `pdf` */
+            artifact_type: string;
+            chunk?: null | components["schemas"]["ContextArtifactChunk"];
+            document?: null | components["schemas"]["ContextArtifactDocument"];
+            figure?: null | components["schemas"]["ContextArtifactFigure"];
+            markdown?: null | components["schemas"]["ContextArtifactMarkdown"];
+            pdf?: null | components["schemas"]["ContextArtifactPdf"];
+        };
+        /**
+         * @example {
+         *       "chunks": [],
+         *       "context_string": {},
+         *       "documents": [],
+         *       "subgraph": {}
+         *     }
+         */
+        ContextBundle: {
+            chunks: components["schemas"]["ContextChunk"][];
+            context_string?: string | null;
+            documents?: components["schemas"]["ContextDocumentSummary"][];
+            subgraph: components["schemas"]["SubgraphBundle"];
+        };
+        /**
+         * @example {
+         *       "content": {},
+         *       "id": {},
+         *       "is_truncated": {},
+         *       "lineage": {},
+         *       "reference_id": {},
+         *       "rerank_score": {},
+         *       "score": {},
+         *       "token_count": {}
+         *     }
+         */
+        ContextChunk: {
+            content: string;
+            id: string;
+            is_truncated?: boolean | null;
+            lineage?: null | components["schemas"]["ChunkLineage"];
+            reference_id?: number | null;
+            /** Format: float */
+            rerank_score?: number | null;
+            /** Format: float */
+            score: number;
+            token_count: number;
+        };
+        /**
+         * @example {
+         *       "chunk_count_in_bundle": {},
+         *       "created_at": {},
+         *       "document_id": {},
+         *       "entity_count_in_bundle": {},
+         *       "mime_type": {},
+         *       "title": {}
+         *     }
+         */
+        ContextDocumentSummary: {
+            chunk_count_in_bundle: number;
+            created_at?: string | null;
+            document_id: string;
+            entity_count_in_bundle: number;
+            mime_type?: string | null;
+            title: string;
+        };
+        /**
+         * @example {
+         *       "degree": {},
+         *       "description": {},
+         *       "entity_type": {},
+         *       "id": {},
+         *       "lineage": {},
+         *       "name": {},
+         *       "score": {}
+         *     }
+         */
+        ContextEntity: {
+            degree: number;
+            description: string;
+            entity_type: string;
+            id: string;
+            lineage?: null | components["schemas"]["EntityLineage"];
+            name: string;
+            /** Format: float */
+            score: number;
+        };
+        /**
+         * @example {
+         *       "description": {},
+         *       "id": {},
+         *       "lineage": {},
+         *       "relation_type": {},
+         *       "score": {},
+         *       "source": {},
+         *       "target": {}
+         *     }
+         */
+        ContextRelationship: {
+            description: string;
+            id: string;
+            lineage?: null | components["schemas"]["RelationshipLineage"];
+            relation_type: string;
+            /** Format: float */
+            score: number;
+            source: string;
+            target: string;
+        };
+        /**
+         * @description Context retrieval request (`POST /api/v1/query/context`).
+         * @example {
+         *       "content_granularity": {},
+         *       "conversation_history": [],
+         *       "document_filter": {},
+         *       "enable_rerank": {},
+         *       "include_agent_hints": {},
+         *       "include_documents": {},
+         *       "include_lineage": {},
+         *       "include_subgraph": {},
+         *       "max_results": {},
+         *       "mix_weights": {},
+         *       "mode": {},
+         *       "query": {},
+         *       "rerank_model": {},
+         *       "rerank_top_k": {}
+         *     }
+         */
+        ContextRetrievalRequest: {
+            /** @description Payload tier: citation | agent | debug. */
+            content_granularity?: components["schemas"]["ContentGranularity"];
+            conversation_history?: components["schemas"]["ConversationMessage"][] | null;
+            document_filter?: null | components["schemas"]["DocumentFilter"];
+            enable_rerank?: boolean;
+            include_agent_hints?: boolean;
+            include_documents?: boolean;
+            include_lineage?: boolean;
+            /** @description Include query-matched entities and relationships in `bundle.subgraph`. */
+            include_subgraph?: boolean;
+            max_results?: number | null;
+            mix_weights?: null | components["schemas"]["MixWeightRequest"];
+            /** @description Retrieval mode (naive, local, global, hybrid, mix). */
+            mode?: string | null;
+            /** @description Natural language query. */
+            query: string;
+            rerank_model?: string | null;
+            rerank_top_k?: number | null;
+        };
+        /**
+         * @description Full context retrieval response.
+         * @example {
+         *       "agent_hints": {},
+         *       "bundle": {},
+         *       "cached": {},
+         *       "mode": {},
+         *       "mode_selection": {},
+         *       "query": {},
+         *       "retrieval_fingerprint": {},
+         *       "retrieval_id": {},
+         *       "retrieval_quality": {},
+         *       "stats": {},
+         *       "truncation": {}
+         *     }
+         */
+        ContextRetrievalResponse: {
+            agent_hints?: null | components["schemas"]["AgentHints"];
+            bundle: components["schemas"]["ContextBundle"];
+            cached: boolean;
+            mode: string;
+            mode_selection: components["schemas"]["ModeSelection"];
+            query: string;
+            retrieval_fingerprint: string;
+            retrieval_id: string;
+            retrieval_quality: components["schemas"]["RetrievalQuality"];
+            stats: components["schemas"]["ContextRetrievalStats"];
+            truncation: components["schemas"]["TruncationInfo"];
+        };
+        /**
+         * @example {
+         *       "embedding_time_ms": {},
+         *       "items_retrieved": {},
+         *       "keywords_extracted": [],
+         *       "rerank_time_ms": {},
+         *       "reranked": {},
+         *       "retrieval_time_ms": {},
+         *       "total_time_ms": {}
+         *     }
+         */
+        ContextRetrievalStats: {
+            /** Format: int64 */
+            embedding_time_ms: number;
+            items_retrieved: components["schemas"]["ItemsRetrieved"];
+            keywords_extracted?: string[];
+            /** Format: int64 */
+            rerank_time_ms?: number | null;
+            reranked: boolean;
+            /** Format: int64 */
+            retrieval_time_ms: number;
+            /** Format: int64 */
+            total_time_ms: number;
+        };
+        /**
+         * @description Lightweight search request (`POST /api/v1/query/context/search`).
+         * @example {
+         *       "document_filter": {},
+         *       "max_results": {},
+         *       "mode": {},
+         *       "query": {}
+         *     }
+         */
+        ContextSearchRequest: {
+            document_filter?: null | components["schemas"]["DocumentFilter"];
+            max_results?: number | null;
+            mode?: string | null;
+            query: string;
+        };
+        /**
+         * @example {
+         *       "results": []
+         *     }
+         */
+        ContextSearchResponse: {
+            results: components["schemas"]["ContextSearchResult"][];
+        };
+        /**
+         * @description Search result summary for MCP `edgequake_search`.
+         * @example {
+         *       "metadata": {},
+         *       "retrieval_id": {},
+         *       "score": {},
+         *       "snippet": {},
+         *       "title": {},
+         *       "url": {}
+         *     }
+         */
+        ContextSearchResult: {
+            metadata?: unknown;
+            retrieval_id: string;
+            /** Format: float */
+            score: number;
+            snippet: string;
+            title: string;
+            url: string;
+        };
         /**
          * @description A single message in the conversation history.
          * @example {
@@ -3891,17 +4516,18 @@ export interface components {
             parent_id?: string | null;
         };
         /**
-         * @description Create an async job (maps to background task queue).
+         * @description Create an async job under a workspace.
          * @example {
-         *       "type": "document_reprocess",
-         *       "document_id": "f6fa9cad-bbff-4892-a855-3bd7d70da044",
-         *       "workspace_id": "00000000-0000-0000-0000-000000000002"
+         *       "job_type": "insert",
+         *       "payload": {
+         *         "source": "spec027-example"
+         *       }
          *     }
          */
         CreateJobRequest: {
-            /** @description Job type (`insert`, `scan`, `reindex`, `upload`, `pdf_processing`, `knowledge_injection`). */
+            /** @description Job type — see `GET .../jobs/catalog` for supported values. */
             job_type: string;
-            /** @description Opaque payload stored on the underlying task. */
+            /** @description Type-specific payload (document_id for reanalyze, force for rebuild, etc.). */
             payload?: unknown;
         };
         /**
@@ -4474,13 +5100,15 @@ export interface components {
         /**
          * @description Document filter criteria for narrowing query scope.
          *
-         *     Allows filtering RAG query results to only include content from documents
-         *     matching the specified date range and/or name pattern.
+         *     Fields are AND-combined across types: date range AND (document_ids OR document_pattern).
+         *     Within `document_ids` and `document_pattern`, matches are OR-unioned.
          *
          *     @implements SPEC-005: Document date and pattern filters
+         *     @implements SPEC-031: Explicit document scope selection
          * @example {
          *       "date_from": {},
          *       "date_to": {},
+         *       "document_ids": [],
          *       "document_pattern": {}
          *     }
          */
@@ -4495,6 +5123,19 @@ export interface components {
              *     Only documents created on or before this date are included.
              */
             date_to?: string | null;
+            /**
+             * @description Explicit document IDs to restrict query scope.
+             *
+             *     When set, only these documents contribute RAG context, subject to any
+             *     active date_from/date_to constraints (AND logic across field types).
+             *     Union with document_pattern when both are set (OR membership logic).
+             *
+             *     An empty list `[]` is treated identically to `null` (no filtering).
+             *     IDs not present in the workspace are silently ignored.
+             *
+             *     @implements SPEC-031: Explicit document scope selection
+             */
+            document_ids?: string[] | null;
             /**
              * @description Case-insensitive substring pattern to match against document titles.
              *     Comma-separated values are treated as OR conditions.
@@ -4587,6 +5228,45 @@ export interface components {
             relationship_types?: string[] | null;
             /** @description Total tokens (input + output). */
             total_tokens?: number | null;
+        };
+        /**
+         * @description Minimal document projection for the scope picker.
+         *
+         *     Intentionally slim — only the fields needed to render a picker row.
+         *     @implements SPEC-031
+         * @example {
+         *       "created_at": {},
+         *       "id": {},
+         *       "status": {},
+         *       "title": {}
+         *     }
+         */
+        DocumentSearchItem: {
+            /** @description ISO 8601 creation timestamp. */
+            created_at?: string | null;
+            /** @description Document UUID. */
+            id: string;
+            /** @description Processing status (e.g., "completed", "failed", "processing"). */
+            status: string;
+            /** @description Document title (from metadata, or file name fallback). */
+            title: string;
+        };
+        /**
+         * @description Response from `GET /api/v1/documents/search`.
+         *     @implements SPEC-031
+         * @example {
+         *       "has_more": {},
+         *       "items": [],
+         *       "total": {}
+         *     }
+         */
+        DocumentSearchResponse: {
+            /** @description True when `total > items.len()`. */
+            has_more: boolean;
+            /** @description Matching documents, sorted by `created_at` descending (most recent first). */
+            items: components["schemas"]["DocumentSearchItem"][];
+            /** @description Total matches found (may exceed `items.len()` when capped by `page_size`). */
+            total: number;
         };
         /**
          * @description Document summary.
@@ -4695,6 +5375,18 @@ export interface components {
             updated_at?: string | null;
             /** @description Non-fatal processing notice (e.g. vision parser fallback). */
             warning_message?: string | null;
+        };
+        /**
+         * @example {
+         *       "chunks": {},
+         *       "entities": {},
+         *       "relationships": {}
+         *     }
+         */
+        DroppedCounts: {
+            chunks: number;
+            entities: number;
+            relationships: number;
         };
         /**
          * @description Full effective configuration response.
@@ -4875,6 +5567,18 @@ export interface components {
             entity_type?: string | null;
             /** @description Whether the entity exists. */
             exists: boolean;
+        };
+        /**
+         * @example {
+         *       "source_chunk_ids": [],
+         *       "source_document_id": {},
+         *       "source_file_path": {}
+         *     }
+         */
+        EntityLineage: {
+            source_chunk_ids?: string[];
+            source_document_id?: string | null;
+            source_file_path?: string | null;
         };
         /**
          * @description Entity lineage response showing all source documents.
@@ -5747,32 +6451,131 @@ export interface components {
         };
         /**
          * @example {
+         *       "chunks": {},
+         *       "documents": {},
+         *       "entities": {},
+         *       "relationships": {}
+         *     }
+         */
+        ItemsRetrieved: {
+            chunks: number;
+            documents: number;
+            entities: number;
+            relationships: number;
+        };
+        /**
+         * @description One entry in the v2 job catalog.
+         * @example {
+         *       "creatable_via_v2": {},
+         *       "description": {},
+         *       "endpoints": [],
+         *       "job_type": {},
+         *       "v1_equivalent": {}
+         *     }
+         */
+        JobCatalogEntry: {
+            creatable_via_v2: boolean;
+            description: string;
+            endpoints: string[];
+            job_type: string;
+            v1_equivalent?: string | null;
+        };
+        /**
+         * @example {
+         *       "catalog": {},
+         *       "create": {},
+         *       "list": {}
+         *     }
+         */
+        JobCatalogLinks: {
+            catalog: string;
+            create: string;
+            list: string;
+        };
+        /**
+         * @description Full catalog for `GET /api/v2/workspaces/{workspace_id}/jobs/catalog`.
+         * @example {
+         *       "workspace_id": "00000000-0000-0000-0000-000000000002",
+         *       "links": {
+         *         "create": "/api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs",
+         *         "list": "/api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs",
+         *         "catalog": "/api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs/catalog"
+         *       },
+         *       "entries": [
+         *         {
+         *           "job_type": "rebuild_embeddings",
+         *           "description": "Rebuild all workspace vector embeddings with the current model.",
+         *           "creatable_via_v2": true,
+         *           "v1_equivalent": "POST /api/v1/workspaces/{workspace_id}/rebuild-embeddings",
+         *           "endpoints": [
+         *             "POST /api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs { \"job_type\": \"rebuild_embeddings\" }",
+         *             "GET /api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs/{job_id}",
+         *             "DELETE /api/v2/workspaces/00000000-0000-0000-0000-000000000002/jobs/{job_id}"
+         *           ]
+         *         }
+         *       ]
+         *     }
+         */
+        JobCatalogResponse: {
+            entries: components["schemas"]["JobCatalogEntry"][];
+            links: components["schemas"]["JobCatalogLinks"];
+            workspace_id: string;
+        };
+        /**
+         * @example {
+         *       "catalog": {},
+         *       "self_link": {}
+         *     }
+         */
+        JobCollectionLinks: {
+            catalog: string;
+            self_link: string;
+        };
+        /**
+         * @example {
+         *       "cancel": {},
+         *       "catalog": {},
          *       "self_link": {},
          *       "v1_task": {}
          *     }
          */
         JobLinks: {
+            /** @description DELETE target to cancel a pending job. */
+            cancel: string;
+            catalog: string;
             self_link: string;
+            /** @description Legacy v1 task monitor (migration hint). */
             v1_task: string;
         };
         /**
          * @example {
          *       "jobs": [],
-         *       "pagination": {}
+         *       "links": {},
+         *       "pagination": {},
+         *       "workspace_id": {}
          *     }
          */
         JobListResponse: {
             jobs: components["schemas"]["JobResponse"][];
+            links: components["schemas"]["JobCollectionLinks"];
             pagination: components["schemas"]["PaginationInfo"];
+            workspace_id: string;
         };
         /**
-         * @description Job resource (v2 REST wrapper over v1 task).
+         * @description Job resource (Level 4 — workspace-scoped async operation).
          * @example {
-         *       "id": "job-0027-example",
-         *       "status": "queued",
-         *       "type": "document_reprocess",
+         *       "job_id": "job-0027-example",
+         *       "job_type": "insert",
+         *       "status": "pending",
+         *       "tenant_id": "aaaaaaaa-0027-0027-0027-aaaaaaaaaaaa",
+         *       "workspace_id": "cccccccc-0027-0027-0027-cccccccccccc",
+         *       "created_at": "2026-06-28T12:00:00Z",
+         *       "updated_at": "2026-06-28T12:00:00Z",
          *       "links": {
-         *         "self": "/api/v2/jobs/job-0027-example"
+         *         "self_link": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/job-0027-example",
+         *         "cancel": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/job-0027-example",
+         *         "catalog": "/api/v2/workspaces/cccccccc-0027-0027-0027-cccccccccccc/jobs/catalog",
+         *         "v1_task": "/api/v1/tasks/job-0027-example"
          *       }
          *     }
          */
@@ -6269,6 +7072,20 @@ export interface components {
             user: components["schemas"]["UserInfo"];
         };
         /**
+         * @example {
+         *       "id": {},
+         *       "jsonrpc": {},
+         *       "method": {},
+         *       "params": {}
+         *     }
+         */
+        McpJsonRpcRequest: {
+            id: unknown;
+            jsonrpc: string;
+            method: string;
+            params?: unknown;
+        };
+        /**
          * @description Merge operation details.
          * @example {
          *       "description_strategy": {},
@@ -6509,6 +7326,20 @@ export interface components {
             local?: number | null;
             /** Format: float */
             naive?: number | null;
+        };
+        /**
+         * @example {
+         *       "adaptive": {},
+         *       "effective": {},
+         *       "intent": {},
+         *       "requested": {}
+         *     }
+         */
+        ModeSelection: {
+            adaptive: boolean;
+            effective: string;
+            intent?: string | null;
+            requested: string;
         };
         /**
          * @description Model capabilities information.
@@ -7921,6 +8752,11 @@ export interface components {
          *     }
          */
         QueryRequest: {
+            /**
+             * @description Payload tier for source snippets: citation (200 chars) | agent (full chunk) | debug.
+             *     @implements SPEC-037 + SPEC-028
+             */
+            content_granularity?: components["schemas"]["ContentGranularity"];
             /** @description Only return context, don't generate an answer. */
             context_only?: boolean;
             /** @description Conversation history for multi-turn context. */
@@ -7948,6 +8784,8 @@ export interface components {
             } | null;
             /** @description Include detailed reference metadata (document_id, file_path, reference_id) in sources. */
             include_references?: boolean;
+            /** @description Include structured query-matched graph (entities + relationships) in the response. */
+            include_subgraph?: boolean;
             /**
              * @description Specific model name within the provider (e.g., "gpt-4o-mini", "gemma3:12b").
              *     When combined with provider, allows full model selection from models.toml.
@@ -8008,6 +8846,7 @@ export interface components {
             sources: components["schemas"]["SourceReference"][];
             /** @description Query statistics. */
             stats: components["schemas"]["QueryStats"];
+            subgraph?: null | components["schemas"]["SubgraphBundle"];
         };
         /**
          * @description Query statistics.
@@ -8072,10 +8911,12 @@ export interface components {
          *     @implements SPEC-006: Unified streaming protocol for /query/stream
          */
         QueryStreamEvent: {
+            bundle?: null | components["schemas"]["ContextBundle"];
             query_mode: string;
             /** Format: int64 */
             retrieval_time_ms: number;
             sources: components["schemas"]["SourceReference"][];
+            subgraph?: null | components["schemas"]["SubgraphBundle"];
             /** @enum {string} */
             type: "context";
         } | {
@@ -8283,7 +9124,8 @@ export interface components {
          *       "requeued": {},
          *       "skipped": {},
          *       "success": {},
-         *       "track_id": {}
+         *       "track_id": {},
+         *       "v2_migration": {}
          *     }
          */
         ReanalyzeMultimodalResponse: {
@@ -8296,6 +9138,7 @@ export interface components {
             /** Format: int32 */
             success: number;
             track_id?: string | null;
+            v2_migration?: null | components["schemas"]["V2MigrationHint"];
         };
         /**
          * @description Request to rebuild workspace embeddings with a new model.
@@ -8351,6 +9194,7 @@ export interface components {
          *       "job_id": {},
          *       "model_context_length": {},
          *       "status": {},
+         *       "v2_migration": {},
          *       "vectors_cleared": {},
          *       "workspace_id": {}
          *     }
@@ -8388,6 +9232,7 @@ export interface components {
             model_context_length: number;
             /** @description Status of the operation ("started", "in_progress", "completed", "failed"). */
             status: string;
+            v2_migration?: null | components["schemas"]["V2MigrationHint"];
             /** @description Number of vectors cleared. */
             vectors_cleared: number;
             /**
@@ -8455,6 +9300,7 @@ export interface components {
          *       "nodes_cleared": {},
          *       "status": {},
          *       "track_id": {},
+         *       "v2_migration": {},
          *       "vectors_cleared": {},
          *       "workspace_id": {}
          *     }
@@ -8481,6 +9327,7 @@ export interface components {
             status: string;
             /** @description Track ID for monitoring progress. */
             track_id?: string | null;
+            v2_migration?: null | components["schemas"]["V2MigrationHint"];
             /** @description Number of vectors cleared (if rebuild_embeddings was true). */
             vectors_cleared: number;
             /**
@@ -8516,7 +9363,8 @@ export interface components {
          *       "document_titles": [],
          *       "requeued": {},
          *       "stuck_found": {},
-         *       "track_id": {}
+         *       "track_id": {},
+         *       "v2_migration": {}
          *     }
          */
         RecoverStuckResponse: {
@@ -8530,6 +9378,7 @@ export interface components {
             stuck_found: number;
             /** @description Track ID for the recovery batch. */
             track_id: string;
+            v2_migration?: null | components["schemas"]["V2MigrationHint"];
         };
         /**
          * @description Refresh token request.
@@ -8607,6 +9456,18 @@ export interface components {
             source: components["schemas"]["EntitySummary"];
             /** @description Target entity. */
             target: components["schemas"]["EntitySummary"];
+        };
+        /**
+         * @example {
+         *       "source_chunk_id": {},
+         *       "source_document_id": {},
+         *       "source_file_path": {}
+         *     }
+         */
+        RelationshipLineage: {
+            source_chunk_id?: string | null;
+            source_document_id?: string | null;
+            source_file_path?: string | null;
         };
         /**
          * @description Relationship response.
@@ -8765,6 +9626,7 @@ export interface components {
          *       "estimated_time_seconds": {},
          *       "status": {},
          *       "track_id": {},
+         *       "v2_migration": {},
          *       "workspace_id": {}
          *     }
          */
@@ -8784,6 +9646,7 @@ export interface components {
             status: string;
             /** @description Track ID for monitoring progress. */
             track_id: string;
+            v2_migration?: null | components["schemas"]["V2MigrationHint"];
             /**
              * Format: uuid
              * @description Workspace ID.
@@ -8831,7 +9694,8 @@ export interface components {
          *       "document_ids": [],
          *       "failed_found": {},
          *       "requeued": {},
-         *       "track_id": {}
+         *       "track_id": {},
+         *       "v2_migration": {}
          *     }
          */
         ReprocessFailedResponse: {
@@ -8843,6 +9707,20 @@ export interface components {
             requeued: number;
             /** @description Track ID for the reprocess batch. */
             track_id: string;
+            v2_migration?: null | components["schemas"]["V2MigrationHint"];
+        };
+        /**
+         * @example {
+         *       "coverage_score": {},
+         *       "empty_context": {},
+         *       "is_sufficient": {}
+         *     }
+         */
+        RetrievalQuality: {
+            /** Format: float */
+            coverage_score: number;
+            empty_context: boolean;
+            is_sufficient: boolean;
         };
         /**
          * @description Request to retry failed chunks for a document.
@@ -9151,6 +10029,8 @@ export interface components {
          *       "entity_type": {},
          *       "file_path": {},
          *       "id": {},
+         *       "page_end": {},
+         *       "page_start": {},
          *       "reference_id": {},
          *       "rerank_score": {},
          *       "score": {},
@@ -9181,6 +10061,18 @@ export interface components {
             file_path?: string | null;
             /** @description Source ID. */
             id: string;
+            /**
+             * Format: int32
+             * @description PDF page number where this chunk ends (always equals page_start).
+             */
+            page_end?: number | null;
+            /**
+             * Format: int32
+             * @description PDF page number (1-indexed) where this chunk starts.
+             *     Present only when the source is a PDF with page-aware chunking (SPEC-032).
+             *     The UI uses this to deep-link to `#page=N` in the document viewer.
+             */
+            page_start?: number | null;
             /** @description Reference ID for citation (1, 2, 3, ...). */
             reference_id?: number | null;
             /**
@@ -9380,8 +10272,10 @@ export interface components {
          *
          *     @implements SPEC-006: Unified streaming protocol
          * @example {
+         *       "content_granularity": {},
          *       "document_filter": {},
          *       "extra_headers": {},
+         *       "include_subgraph": {},
          *       "llm_model": {},
          *       "llm_provider": {},
          *       "mode": {},
@@ -9391,6 +10285,11 @@ export interface components {
          *     }
          */
         StreamQueryRequest: {
+            /**
+             * @description Payload tier for source snippets in context events.
+             *     @implements SPEC-037 + SPEC-028
+             */
+            content_granularity?: components["schemas"]["ContentGranularity"];
             document_filter?: null | components["schemas"]["DocumentFilter"];
             /**
              * @description Optional HTTP headers to propagate to the upstream LLM provider call.
@@ -9402,6 +10301,8 @@ export interface components {
             extra_headers?: {
                 [key: string]: string;
             } | null;
+            /** @description Include structured query-matched graph in stream context events (v2+). */
+            include_subgraph?: boolean;
             /**
              * @description Specific model name within the provider.
              *     @implements SPEC-006 + SPEC-032: Model selection in streaming queries
@@ -9426,6 +10327,16 @@ export interface components {
              *     @implements SPEC-004: System prompt extension point
              */
             system_prompt?: string | null;
+        };
+        /**
+         * @example {
+         *       "entities": [],
+         *       "relationships": []
+         *     }
+         */
+        SubgraphBundle: {
+            entities: components["schemas"]["ContextEntity"][];
+            relationships: components["schemas"]["ContextRelationship"][];
         };
         /**
          * @description Detailed error response for failed tasks.
@@ -9666,6 +10577,20 @@ export interface components {
             total_count: number;
             /** @description Track ID for this batch. */
             track_id: string;
+        };
+        /**
+         * @example {
+         *       "dropped": {},
+         *       "is_truncated": {},
+         *       "token_budget": {},
+         *       "tokens_used": {}
+         *     }
+         */
+        TruncationInfo: {
+            dropped: components["schemas"]["DroppedCounts"];
+            is_truncated: boolean;
+            token_budget: number;
+            tokens_used: number;
         };
         /**
          * @description Update conversation request DTO.
@@ -10094,6 +11019,21 @@ export interface components {
             username: string;
         };
         /**
+         * @description Additive hint on v1 RPC responses pointing integrators to Level 4 v2 jobs (ascending-compat).
+         * @example {
+         *       "catalog": {},
+         *       "create": {},
+         *       "job_type": {},
+         *       "note": {}
+         *     }
+         */
+        V2MigrationHint: {
+            catalog: string;
+            create: string;
+            job_type: string;
+            note: string;
+        };
+        /**
          * @description Workspace cost summary response.
          * @example {
          *       "average_cost_per_document": {},
@@ -10269,6 +11209,42 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    mcp_registry_server_json: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description MCP Registry server.json manifest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mcp_oauth_protected_resource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OAuth Protected Resource Metadata (RFC 9728) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ollama_chat: {
         parameters: {
             query?: never;
@@ -10769,6 +11745,77 @@ export interface operations {
             };
             /** @description Not authenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    oidc_callback: {
+        parameters: {
+            query: {
+                /** @description Authorization code from IdP */
+                code: string;
+                /** @description CSRF state from login redirect */
+                state: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Login successful (JSON tokens) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description Redirect to EDGEQUAKE_OIDC_SUCCESS_REDIRECT_URL with tokens in query */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description State mismatch or expired pending session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OIDC not enabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    oidc_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to OIDC provider authorization URL */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OIDC not enabled (EDGEQUAKE_OIDC_ENABLED=false) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11982,8 +13029,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Stuck documents recovered */
+            /** @description Stuck documents recovered (legacy default) */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoverStuckResponse"];
+                };
+            };
+            /** @description Recovery accepted when REST-025 opt-in or strict startup */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12013,8 +13069,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Documents requeued for processing */
+            /** @description Documents requeued (legacy default) */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReprocessFailedResponse"];
+                };
+            };
+            /** @description Reprocess accepted when REST-025 opt-in or strict startup */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12073,6 +13138,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    search_documents: {
+        parameters: {
+            query?: {
+                /** @description Title search query (case-insensitive substring) */
+                q?: string;
+                /** @description Max results (default 20, max 50) */
+                page_size?: number;
+                /** @description Status filter: 'completed' (default) or 'all' */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Search results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSearchResponse"];
+                };
             };
         };
     };
@@ -12424,8 +13516,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Multimodal re-analyze completed or reindex queued */
+            /** @description Multimodal re-analyze completed (legacy default) */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReanalyzeMultimodalResponse"];
+                };
+            };
+            /** @description Reanalyze accepted when REST-025 opt-in or strict startup */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13268,6 +14369,35 @@ export interface operations {
             };
         };
     };
+    mcp_openapi_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpJsonRpcRequest"];
+            };
+        };
+        responses: {
+            /** @description JSON-RPC 2.0 response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description JSON-RPC notification accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     delete_message: {
         parameters: {
             query?: never;
@@ -13598,6 +14728,145 @@ export interface operations {
             };
             /** @description Invalid query */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    retrieve_query_context: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextRetrievalRequest"];
+            };
+        };
+        responses: {
+            /** @description Structured context bundle */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextRetrievalResponse"];
+                };
+            };
+            /** @description Invalid query or mode */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_context_artifact: {
+        parameters: {
+            query?: {
+                /** @description Required for figure; resolves pdf by document */
+                document_id?: string;
+                /** @description Include markdown (document) or markdown_content (pdf) */
+                include_content?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description document | chunk | figure | markdown | pdf */
+                artifact_type: string;
+                /** @description Stable artifact ID from bundle lineage */
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artifact payload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextArtifactResponse"];
+                };
+            };
+            /** @description Invalid artifact type or missing document_id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Artifact not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_query_context: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Search summaries with retrieval handles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextSearchResponse"];
+                };
+            };
+        };
+    };
+    fetch_query_context: {
+        parameters: {
+            query?: {
+                /** @description Payload tier */
+                content_granularity?: components["schemas"]["ContentGranularity"];
+            };
+            header?: never;
+            path: {
+                /** @description Retrieval handle from search */
+                retrieval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full cached context bundle */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContextRetrievalResponse"];
+                };
+            };
+            /** @description Unknown retrieval_id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Retrieval expired */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14680,8 +15949,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Rebuild started */
+            /** @description Rebuild started (legacy default) */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebuildEmbeddingsResponse"];
+                };
+            };
+            /** @description Rebuild accepted when EDGEQUAKE_V1_RPC_RETURN_202=1 or strict startup */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14721,8 +15999,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Knowledge graph rebuild started */
+            /** @description Knowledge graph rebuild started (legacy default) */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebuildKnowledgeGraphResponse"];
+                };
+            };
+            /** @description Rebuild accepted when REST-025 opt-in or strict startup */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14762,8 +16049,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Documents queued for reprocessing */
+            /** @description Documents queued (legacy default) */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReprocessAllResponse"];
+                };
+            };
+            /** @description Reprocess accepted when REST-025 opt-in or strict startup */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14817,7 +16113,7 @@ export interface operations {
             };
         };
     };
-    list_jobs: {
+    list_workspace_jobs: {
         parameters: {
             query?: {
                 /** @description Filter by status */
@@ -14828,7 +16124,10 @@ export interface operations {
                 page_size?: number;
             };
             header?: never;
-            path?: never;
+            path: {
+                /** @description Workspace ID */
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -14844,11 +16143,14 @@ export interface operations {
             };
         };
     };
-    create_job: {
+    create_workspace_job: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                /** @description Workspace ID */
+                workspace_id: string;
+            };
             cookie?: never;
         };
         requestBody: {
@@ -14866,7 +16168,7 @@ export interface operations {
                     "application/json": components["schemas"]["JobResponse"];
                 };
             };
-            /** @description Invalid job type or missing tenant context */
+            /** @description Invalid job type, payload, or workspace scope */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14875,12 +16177,44 @@ export interface operations {
             };
         };
     };
-    get_job: {
+    list_workspace_job_catalog: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Job ID (same as v1 track_id) */
+                /** @description Workspace ID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job type catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobCatalogResponse"];
+                };
+            };
+            /** @description Path workspace_id must match X-Workspace-ID header */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_workspace_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                workspace_id: string;
+                /** @description Job ID (track_id) */
                 job_id: string;
             };
             cookie?: never;
@@ -14905,11 +16239,13 @@ export interface operations {
             };
         };
     };
-    cancel_job: {
+    cancel_workspace_job: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                /** @description Workspace ID */
+                workspace_id: string;
                 /** @description Job ID */
                 job_id: string;
             };
@@ -14993,6 +16329,42 @@ export interface operations {
         responses: {
             /** @description Service is alive */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mcp_openapi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpJsonRpcRequest"];
+            };
+        };
+        responses: {
+            /** @description JSON-RPC 2.0 response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description JSON-RPC notification accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Payload too large */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

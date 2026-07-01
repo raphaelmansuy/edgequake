@@ -36,6 +36,8 @@ export interface StreamQueryRequest {
   mode?: "naive" | "local" | "global" | "hybrid" | "mix";
   /** Optional system prompt to prepend to the LLM context (SPEC-004). */
   system_prompt?: string;
+  /** Payload tier for source snippets (SPEC-037 + SPEC-028). */
+  content_granularity?: "citation" | "agent" | "debug";
 }
 
 // ── Shared Response Types ─────────────────────────────────────

@@ -22,13 +22,15 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info};
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::OptionalAuth;
 use crate::handlers::chat::build_sources;
 use crate::handlers::query::resolve_chunk_file_paths;
 use crate::middleware::TenantContext;
 use crate::providers::{LlmResolutionRequest, WorkspaceProviderResolver};
 use crate::services::{
-    build_engine_request, execute_sota_query_stream_with_auth_fallback,
-    resolve_workspace_query_resources, validate_llm_override_pair, QueryExecutionParams,
+    build_engine_request, ensure_debug_granularity_allowed,
+    execute_sota_query_stream_with_auth_fallback, resolve_workspace_query_resources,
+    validate_llm_override_pair, QueryExecutionParams,
 };
 use crate::state::AppState;
 use crate::streaming::StreamAccumulator;
@@ -73,6 +75,7 @@ type SseStream = KeepAliveStream<BoxedSseStream>;
 pub async fn stream_query(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Extension(req_ctx): Extension<RequestContext>,
     Extension(propagation): Extension<PropagationHeaders>,
     Json(request): Json<StreamQueryRequest>,
@@ -97,6 +100,10 @@ pub async fn stream_query(
     );
 
     validate_query(&request.query, state.config.max_query_length)?;
+    ensure_debug_granularity_allowed(
+        request.content_granularity,
+        auth_user.as_ref().map(|u| u.role.clone()),
+    )?;
 
     // SPEC-006 FR-004: Check stream format
     let use_v1 = request
@@ -254,6 +261,7 @@ pub async fn stream_query(
     let stream_request_id = request_id.clone();
     let stream_include_subgraph = request.include_subgraph;
     let stream_use_v3 = use_v3;
+    let stream_content_granularity = request.content_granularity;
 
     let spawn_provider = used_provider
         .clone()
@@ -304,13 +312,13 @@ pub async fn stream_query(
                     let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
 
                     // Build and enrich sources
-                    let mut sources = build_sources(&context);
+                    let mut sources = build_sources(&context, stream_content_granularity);
                     resolve_chunk_file_paths(state_clone.storage.kv_storage.as_ref(), &mut sources)
                         .await;
 
                     // SPEC-006 FR-001: Emit context event BEFORE tokens
                     let mapping_opts = crate::services::context_bundle_mapper::MappingOptions {
-                        granularity: crate::handlers::context_types::ContentGranularity::Citation,
+                        granularity: stream_content_granularity,
                         include_lineage: true,
                         include_documents: false,
                         include_agent_hints: false,

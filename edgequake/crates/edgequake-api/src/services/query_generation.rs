@@ -8,6 +8,7 @@ use edgequake_llm::traits::LLMProvider;
 use edgequake_query::QueryResponse;
 
 use crate::error::ApiResult;
+use crate::handlers::context_types::ContentGranularity;
 use crate::handlers::query::resolve_query_workspace;
 use crate::handlers::query_types::QueryResponse as LegacyQueryResponse;
 use crate::middleware::TenantContext;
@@ -56,6 +57,7 @@ pub async fn execute_legacy_query_response(
         include_references,
         params.enable_rerank,
         params.rerank_top_k,
+        ContentGranularity::Citation,
     )
     .await;
 

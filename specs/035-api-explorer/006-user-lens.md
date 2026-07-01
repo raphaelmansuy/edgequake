@@ -148,46 +148,46 @@ STEP 4: Analyst checks "is this secure?"
 
 ### Developer User Stories
 
-| ID | As a developer, I want to... | So that... | Priority |
-|----|------------------------------|------------|---------|
-| US-001 | Find all endpoints related to "pdf" with a single search | I don't miss PDF-specific endpoints | MUST |
-| US-002 | See the required and optional fields for any POST/PUT/PATCH body | I send correct requests on the first try | MUST |
-| US-003 | Have my auth token pre-populated | I can test protected endpoints without Postman | MUST |
-| US-004 | Input path parameter values (e.g., document ID) | Parameterized requests work correctly | MUST |
-| US-005 | See the response schema for any endpoint | I can write client-side type definitions | SHOULD |
-| US-006 | Copy a curl command for any request | I can share reproducible test cases | SHOULD |
-| US-007 | See example responses from real calls | I understand the data shape | SHOULD |
-| US-008 | Use the explorer on mobile (at minimum, readable) | Field testing while discussing API | COULD |
+| ID     | As a developer, I want to...                                     | So that...                                     | Priority |
+| ------ | ---------------------------------------------------------------- | ---------------------------------------------- | -------- |
+| US-001 | Find all endpoints related to "pdf" with a single search         | I don't miss PDF-specific endpoints            | MUST     |
+| US-002 | See the required and optional fields for any POST/PUT/PATCH body | I send correct requests on the first try       | MUST     |
+| US-003 | Have my auth token pre-populated                                 | I can test protected endpoints without Postman | MUST     |
+| US-004 | Input path parameter values (e.g., document ID)                  | Parameterized requests work correctly          | MUST     |
+| US-005 | See the response schema for any endpoint                         | I can write client-side type definitions       | SHOULD   |
+| US-006 | Copy a curl command for any request                              | I can share reproducible test cases            | SHOULD   |
+| US-007 | See example responses from real calls                            | I understand the data shape                    | SHOULD   |
+| US-008 | Use the explorer on mobile (at minimum, readable)                | Field testing while discussing API             | COULD    |
 
 ### Business User Stories
 
-| ID | As a business user, I want to... | So that... | Priority |
-|----|----------------------------------|------------|---------|
-| US-010 | Browse all API capabilities by logical group | I understand what EdgeQuake can do | MUST |
-| US-011 | Read plain-language descriptions of endpoints | I understand without technical background | MUST |
-| US-012 | See response schemas without executing requests | I understand data structures | SHOULD |
-| US-013 | Know which endpoints require authentication | I can assess security requirements | SHOULD |
-| US-014 | Test a simple GET request (like /health) | I verify the system is working | SHOULD |
-| US-015 | Share a specific endpoint with a colleague | I communicate API capabilities | COULD |
+| ID     | As a business user, I want to...                | So that...                                | Priority |
+| ------ | ----------------------------------------------- | ----------------------------------------- | -------- |
+| US-010 | Browse all API capabilities by logical group    | I understand what EdgeQuake can do        | MUST     |
+| US-011 | Read plain-language descriptions of endpoints   | I understand without technical background | MUST     |
+| US-012 | See response schemas without executing requests | I understand data structures              | SHOULD   |
+| US-013 | Know which endpoints require authentication     | I can assess security requirements        | SHOULD   |
+| US-014 | Test a simple GET request (like /health)        | I verify the system is working            | SHOULD   |
+| US-015 | Share a specific endpoint with a colleague      | I communicate API capabilities            | COULD    |
 
 ---
 
 ## Jobs-to-be-Done Matrix
 
-| Job | Current Explorer | New Explorer (Scalar) |
-|-----|-----------------|----------------------|
-| Discover all PDF endpoints | ❌ (0 of 11 shown) | ✅ |
-| Understand request body schema | ❌ (static example only) | ✅ (full JSON Schema) |
-| Test with authentication | ❌ (no auth support) | ✅ (pre-populated token) |
-| Input path parameters | ❌ (literal `{id}`) | ✅ (dedicated input field) |
-| See response schema | ❌ | ✅ |
-| Browse by API category | ✅ (partial) | ✅ (complete) |
-| Search endpoints | ❌ | ✅ |
-| Copy curl command | ❌ | ✅ |
-| See conversation endpoints | ❌ (0 of 12 shown) | ✅ |
-| See workspace management | ❌ (0 of 8 shown) | ✅ |
-| Understand auth requirements | ❌ | ✅ |
-| Test without writing code | ⚠️ (GET only, 30 endpoints) | ✅ (all 169 endpoints) |
+| Job                            | Current Explorer           | New Explorer (Scalar)     |
+| ------------------------------ | -------------------------- | ------------------------- |
+| Discover all PDF endpoints     | ❌ (0 of 11 shown)          | ✅                         |
+| Understand request body schema | ❌ (static example only)    | ✅ (full JSON Schema)      |
+| Test with authentication       | ❌ (no auth support)        | ✅ (pre-populated token)   |
+| Input path parameters          | ❌ (literal `{id}`)         | ✅ (dedicated input field) |
+| See response schema            | ❌                          | ✅                         |
+| Browse by API category         | ✅ (partial)                | ✅ (complete)              |
+| Search endpoints               | ❌                          | ✅                         |
+| Copy curl command              | ❌                          | ✅                         |
+| See conversation endpoints     | ❌ (0 of 12 shown)          | ✅                         |
+| See workspace management       | ❌ (0 of 8 shown)           | ✅                         |
+| Understand auth requirements   | ❌                          | ✅                         |
+| Test without writing code      | ⚠️ (GET only, 30 endpoints) | ✅ (all 169 endpoints)     |
 
 ---
 

@@ -128,14 +128,14 @@ ROOT:   No "build vs consume" decision process for infra-duplicating UI features
 
 ## Structural Failures Identified
 
-| Failure | Impact | DRY/SOLID Violation |
-|---------|--------|---------------------|
-| Hardcoded endpoint list | 82% blind spot | DRY — second source of truth |
-| No path parameter handling | Silent request failures | — |
-| No auth token injection | All protected endpoints untestable | — |
-| No response schema display | User cannot understand API | — |
-| No body schema validation | Invalid requests sent silently | — |
-| Manual maintenance required | O(n) cost per endpoint | DRY — must update two places |
+| Failure                     | Impact                             | DRY/SOLID Violation          |
+| --------------------------- | ---------------------------------- | ---------------------------- |
+| Hardcoded endpoint list     | 82% blind spot                     | DRY — second source of truth |
+| No path parameter handling  | Silent request failures            | —                            |
+| No auth token injection     | All protected endpoints untestable | —                            |
+| No response schema display  | User cannot understand API         | —                            |
+| No body schema validation   | Invalid requests sent silently     | —                            |
+| Manual maintenance required | O(n) cost per endpoint             | DRY — must update two places |
 
 ---
 

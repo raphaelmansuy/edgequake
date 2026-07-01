@@ -50,6 +50,7 @@ const defaultQuerySettings: QuerySettings = {
   provider: undefined, // Use server default provider (SPEC-032)
   model: undefined, // Use server default model (SPEC-032)
   systemPrompt: undefined, // No system prompt extension by default (SPEC-004)
+  fullChunkContent: false, // Citation snippets by default (SPEC-037)
 };
 
 const defaultIngestionSettings: IngestionSettings = {

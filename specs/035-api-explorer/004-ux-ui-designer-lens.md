@@ -159,17 +159,17 @@ Tenant: Default (ID: xyz-789)
 
 The Scalar API reference theme should be configured to match:
 
-| EdgeQuake Token | Scalar CSS Variable | Value (dark mode) |
-|-----------------|--------------------|--------------------|
-| `--background` | `--scalar-background-1` | `hsl(222.2 84% 4.9%)` |
-| `--card` | `--scalar-background-2` | `hsl(217.2 32.6% 17.5%)` |
-| `--primary` | `--scalar-color-accent` | `hsl(217.2 91.2% 59.8%)` |
-| `--foreground` | `--scalar-color-1` | `hsl(210 40% 98%)` |
-| `--muted-foreground` | `--scalar-color-3` | `hsl(215 20.2% 65.1%)` |
-| GET green | `--scalar-color-green` | `hsl(142 71% 45%)` |
-| POST blue | `--scalar-color-blue` | `hsl(217 91% 60%)` |
-| DELETE red | `--scalar-color-red` | `hsl(0 84% 60%)` |
-| PATCH orange | `--scalar-color-orange` | `hsl(24.6 95% 53.1%)` |
+| EdgeQuake Token      | Scalar CSS Variable     | Value (dark mode)        |
+| -------------------- | ----------------------- | ------------------------ |
+| `--background`       | `--scalar-background-1` | `hsl(222.2 84% 4.9%)`    |
+| `--card`             | `--scalar-background-2` | `hsl(217.2 32.6% 17.5%)` |
+| `--primary`          | `--scalar-color-accent` | `hsl(217.2 91.2% 59.8%)` |
+| `--foreground`       | `--scalar-color-1`      | `hsl(210 40% 98%)`       |
+| `--muted-foreground` | `--scalar-color-3`      | `hsl(215 20.2% 65.1%)`   |
+| GET green            | `--scalar-color-green`  | `hsl(142 71% 45%)`       |
+| POST blue            | `--scalar-color-blue`   | `hsl(217 91% 60%)`       |
+| DELETE red           | `--scalar-color-red`    | `hsl(0 84% 60%)`         |
+| PATCH orange         | `--scalar-color-orange` | `hsl(24.6 95% 53.1%)`    |
 
 ### Principle 5: Responsive Layout Integration
 
@@ -195,16 +195,16 @@ The explorer should be full-height within the dashboard layout:
 
 ## UX Anti-Patterns to Avoid
 
-| Anti-Pattern | Problem | Solution |
-|-------------|---------|---------|
-| Blank "Select an endpoint" state | Wastes viewport, no orientation | Show welcome state with search + quick starts |
-| Silent 401 errors | User doesn't know why it failed | Show auth status banner; pre-populate token |
-| Literal `{id}` in requests | Confusing failed requests | Path param inputs — always |
-| Static example JSON only | No schema understanding | Show full JSON Schema with descriptions |
-| No loading state | User doesn't know if request is in flight | Spinner with "Executing…" + timeout |
-| Truncated response | Large responses unreadable | Scrollable, collapsible JSON viewer |
-| No copy-as-curl | Developer productivity | Copy curl command for every request |
-| No search/filter | 169 endpoints, hard to navigate | Persistent search bar at top |
+| Anti-Pattern                     | Problem                                   | Solution                                      |
+| -------------------------------- | ----------------------------------------- | --------------------------------------------- |
+| Blank "Select an endpoint" state | Wastes viewport, no orientation           | Show welcome state with search + quick starts |
+| Silent 401 errors                | User doesn't know why it failed           | Show auth status banner; pre-populate token   |
+| Literal `{id}` in requests       | Confusing failed requests                 | Path param inputs — always                    |
+| Static example JSON only         | No schema understanding                   | Show full JSON Schema with descriptions       |
+| No loading state                 | User doesn't know if request is in flight | Spinner with "Executing…" + timeout           |
+| Truncated response               | Large responses unreadable                | Scrollable, collapsible JSON viewer           |
+| No copy-as-curl                  | Developer productivity                    | Copy curl command for every request           |
+| No search/filter                 | 169 endpoints, hard to navigate           | Persistent search bar at top                  |
 
 ---
 
@@ -254,13 +254,13 @@ User lands on /api-explorer
 
 ## Accessibility Requirements
 
-| Requirement | Standard | Notes |
-|------------|---------|-------|
-| Keyboard navigation | WCAG 2.1 AA | Full keyboard access to all endpoints |
+| Requirement          | Standard    | Notes                                       |
+| -------------------- | ----------- | ------------------------------------------- |
+| Keyboard navigation  | WCAG 2.1 AA | Full keyboard access to all endpoints       |
 | Screen reader labels | WCAG 2.1 AA | Method badges labeled (e.g., "GET request") |
-| Color contrast | WCAG 4.5:1 | All text on dark background |
-| Focus indicators | WCAG 2.4.7 | Visible focus rings on interactive elements |
-| Status announcements | ARIA live | Response loaded / error occurred |
+| Color contrast       | WCAG 4.5:1  | All text on dark background                 |
+| Focus indicators     | WCAG 2.4.7  | Visible focus rings on interactive elements |
+| Status announcements | ARIA live   | Response loaded / error occurred            |
 
 ---
 
@@ -274,14 +274,14 @@ User lands on /api-explorer
 
 ### Error States
 
-| Error | Display |
-|-------|---------|
-| 401 Unauthorized | "Authentication required — your session may have expired" + [Re-login] button |
-| 404 Not Found | "Endpoint not found — check path parameters" |
-| 422 Validation Error | Highlight invalid fields in request body |
-| 500 Server Error | "Server error — check backend logs" + raw response |
-| Network Error | "Cannot reach backend — is the server running?" |
-| CORS Error | "CORS blocked — ensure backend allows requests from this origin" |
+| Error                | Display                                                                       |
+| -------------------- | ----------------------------------------------------------------------------- |
+| 401 Unauthorized     | "Authentication required — your session may have expired" + [Re-login] button |
+| 404 Not Found        | "Endpoint not found — check path parameters"                                  |
+| 422 Validation Error | Highlight invalid fields in request body                                      |
+| 500 Server Error     | "Server error — check backend logs" + raw response                            |
+| Network Error        | "Cannot reach backend — is the server running?"                               |
+| CORS Error           | "CORS blocked — ensure backend allows requests from this origin"              |
 
 ---
 

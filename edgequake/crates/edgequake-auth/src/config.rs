@@ -273,7 +273,11 @@ mod tests {
     use super::*;
 
     fn clear_auth_env_for_tests() {
-        for key in ["EDGEQUAKE_AUTH_ENABLED", "EDGEQUAKE_AUTH_DISABLED", "AUTH_ENABLED"] {
+        for key in [
+            "EDGEQUAKE_AUTH_ENABLED",
+            "EDGEQUAKE_AUTH_DISABLED",
+            "AUTH_ENABLED",
+        ] {
             std::env::remove_var(key);
         }
     }
