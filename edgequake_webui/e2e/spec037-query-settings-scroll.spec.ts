@@ -10,7 +10,7 @@ import { spec037Screenshot } from "./helpers/screenshot-paths";
 test.describe("SPEC-037 Query Settings Scroll", () => {
   test.beforeEach(async ({ page }) => {
     await gotoApp(page, "/query");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
   });
 
   test("settings sheet scrolls to system prompt", async ({ page }) => {

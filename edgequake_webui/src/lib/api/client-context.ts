@@ -7,7 +7,7 @@
  * session state lives here. The request/response client and the streaming
  * client consume these helpers without owning the storage details.
  *
- * @implements FEAT0771 - Request/response interceptors (context injection)
+ * @implements FEAT0772 - Session context injection for API client
  * @implements SPEC-018 - W3C traceparent correlation
  */
 

@@ -6,6 +6,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import { GOTO_OPTS } from "./helpers/app-ready";
 
 const MOCK_TENANT_ID = "tenant-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const MOCK_WORKSPACE_ID = "ws-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -22,7 +23,7 @@ const MOCK_TENANT = {
 const MOCK_WORKSPACE = {
   id: MOCK_WORKSPACE_ID,
   name: "Default Workspace",
-  slug: "default-workspace",
+  slug: "bootstrap-workspace",
   tenant_id: MOCK_TENANT_ID,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
@@ -198,8 +199,7 @@ test.describe("Document status notices", () => {
   test("processing doc with vision fallback does not show Failed badge", async ({
     page,
   }) => {
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/documents", GOTO_OPTS);
 
     const spfRow = page.getByRole("row", { name: /SPF TOME II/i });
     await expect(spfRow).toBeVisible({ timeout: 15_000 });
@@ -211,8 +211,7 @@ test.describe("Document status notices", () => {
   });
 
   test("terminal failed doc still shows Failed badge", async ({ page }) => {
-    await page.goto("/documents");
-    await page.waitForLoadState("networkidle");
+    await page.goto("/documents", GOTO_OPTS);
 
     const failedRow = page.getByRole("row", { name: /broken\.pdf/i });
     await expect(failedRow).toBeVisible({ timeout: 15_000 });

@@ -26,13 +26,12 @@ pub mod graph_materialization;
 pub mod health_schema;
 pub mod identity_storage;
 pub mod ingest_admission;
-pub mod large_document_profile;
-pub mod pdf_auto_routing;
 pub mod ingestion_persist;
 pub mod injection_list;
 pub mod injection_process;
 pub mod isolation_context;
 pub mod job_registry;
+pub mod large_document_profile;
 pub mod list_pagination;
 pub mod login_lockout;
 pub mod message_context_mapper;
@@ -43,6 +42,7 @@ pub mod multimodal_markdown;
 pub mod oidc_flow;
 pub mod oidc_pending;
 pub mod pdf_admission_registry;
+pub mod pdf_auto_routing;
 pub mod pdf_lineage;
 pub mod pdf_workspace_dedup;
 pub mod query_context;
@@ -96,10 +96,6 @@ pub use graph_materialization::{
     admit_graph_materialization, graph_query_timeout, run_timed_graph_query,
     GraphMaterializationGuard,
 };
-pub use large_document_profile::{
-    classify_ingestion_failure, IngestionEstimate, IngestionFailureClass, LargeDocumentProfile,
-};
-pub use pdf_auto_routing::{should_try_edgeparse_before_vision, try_edgeparse_fast_path};
 pub use ingest_admission::{
     admit_pdf_processing_enqueue, persist_pdf_task_document_id,
     provision_queued_pdf_document_shell, resolve_pdf_ingest_document_id,
@@ -117,6 +113,9 @@ pub use injection_list::{
 pub use injection_process::{
     build_injection_metadata, injection_doc_id, injection_list_prefix, injection_meta_key,
     run_injection_pipeline, write_injection_status,
+};
+pub use large_document_profile::{
+    classify_ingestion_failure, IngestionEstimate, IngestionFailureClass, LargeDocumentProfile,
 };
 pub use message_context_mapper::{
     build_message_context_from_engine, message_context_from_subgraph,
@@ -141,6 +140,7 @@ pub use multimodal_admission::{
     resolve_upload_content, MultimodalAdmissionMeta, ResolvedUploadContent,
 };
 pub use pdf_admission_registry::PdfAdmissionRegistry;
+pub use pdf_auto_routing::{should_try_edgeparse_before_vision, try_edgeparse_fast_path};
 pub use pdf_workspace_dedup::{
     find_kv_document_id_for_pdf, recycle_orphan_workspace_pdf,
     workspace_has_visible_document_for_pdf,

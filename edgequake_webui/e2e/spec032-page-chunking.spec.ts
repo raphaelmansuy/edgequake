@@ -1,5 +1,6 @@
 /**
  * SPEC-032: Page-Aware PDF Chunking — E2E Tests
+ * @audit — exploratory UI captures; not chromium PR gate
  *
  * Proves the following invariants end-to-end:
  *

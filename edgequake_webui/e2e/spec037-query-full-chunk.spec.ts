@@ -51,7 +51,7 @@ function mockStreamBody(snippet: string): string {
 test.describe("SPEC-037 Full Passage Text", () => {
   test.beforeEach(async ({ page }) => {
     await gotoApp(page, "/query");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
   });
 
   test("toggle ON sends content_granularity agent in stream request", async ({ page }) => {

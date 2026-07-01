@@ -7,7 +7,7 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { seedTenantStoreOnPage } from "./helpers/bootstrap-ui";
+import { seedTenantStoreOnPage } from "./helpers/spec013-bootstrap";
 
 const MOCK_TENANT_ID = "tenant-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const MOCK_WORKSPACE_ID = "ws-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
