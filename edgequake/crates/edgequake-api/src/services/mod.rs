@@ -7,6 +7,7 @@ pub mod artifact_retrieval;
 pub mod audit;
 pub mod auth_memory_store;
 pub mod auth_validation;
+pub mod content_granularity;
 pub mod content_hasher;
 pub mod context_bundle_mapper;
 pub mod cost_aggregation;
@@ -69,6 +70,9 @@ pub use crate::handlers::documents::upload::document_admission::{
     admit_document_for_processing, chunk_fields_from_metadata, parse_upload_chunk_fields,
     DocumentAdmissionAccepted, DocumentAdmissionDuplicateProcessing, DocumentAdmissionInput,
     DocumentAdmissionOutcome, GleaningAdmissionOptions,
+};
+pub use content_granularity::{
+    ensure_debug_granularity_allowed, truncate_for_granularity, SNIPPET_LEN,
 };
 pub use content_hasher::ContentHasher;
 pub use document_graph_cascade::{

@@ -22,6 +22,33 @@
     }
   ],
   "paths": {
+    "/.well-known/mcp/server.json": {
+      "get": {
+        "tags": [
+          "MCP"
+        ],
+        "summary": "MCP Registry manifest (official `server.json` format) for discovery and publish SSOT.",
+        "operationId": "mcp_registry_server_json",
+        "responses": {
+          "200": {
+            "description": "MCP Registry server.json manifest"
+          }
+        }
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "tags": [
+          "MCP"
+        ],
+        "operationId": "mcp_oauth_protected_resource",
+        "responses": {
+          "200": {
+            "description": "OAuth Protected Resource Metadata (RFC 9728)"
+          }
+        }
+      }
+    },
     "/api/chat": {
       "post": {
         "tags": [
@@ -666,6 +693,75 @@
             "workspace_id": []
           }
         ]
+      }
+    },
+    "/api/v1/auth/oidc/callback": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /api/v1/auth/oidc/callback — complete OIDC flow and issue EdgeQuake JWT.",
+        "operationId": "oidc_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "description": "Authorization code from IdP",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "CSRF state from login redirect",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Login successful (JSON tokens)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to EDGEQUAKE_OIDC_SUCCESS_REDIRECT_URL with tokens in query"
+          },
+          "401": {
+            "description": "State mismatch or expired pending session"
+          },
+          "503": {
+            "description": "OIDC not enabled"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/oidc/login": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "GET /api/v1/auth/oidc/login — redirect to IdP authorization endpoint (PKCE).",
+        "operationId": "oidc_login",
+        "responses": {
+          "302": {
+            "description": "Redirect to OIDC provider authorization URL"
+          },
+          "503": {
+            "description": "OIDC not enabled (EDGEQUAKE_OIDC_ENABLED=false)"
+          }
+        },
+        "security": []
       }
     },
     "/api/v1/auth/refresh": {
@@ -2597,7 +2693,17 @@
         },
         "responses": {
           "200": {
-            "description": "Stuck documents recovered",
+            "description": "Stuck documents recovered (legacy default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoverStuckResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Recovery accepted when REST-025 opt-in or strict startup",
             "content": {
               "application/json": {
                 "schema": {
@@ -2622,8 +2728,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "recover_stuck",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "recover_stuck"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -2645,7 +2751,17 @@
         },
         "responses": {
           "200": {
-            "description": "Documents requeued for processing",
+            "description": "Documents requeued (legacy default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocessFailedResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Reprocess accepted when REST-025 opt-in or strict startup",
             "content": {
               "application/json": {
                 "schema": {
@@ -2670,8 +2786,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_failed",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_failed"
       }
     },
     "/api/v1/documents/scan": {
@@ -2711,6 +2827,70 @@
           },
           "404": {
             "description": "Directory not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/search": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Search documents by title for the scope picker.",
+        "description": "Requires full tenant context (workspace_id + tenant_id).\nReturns at most 50 results sorted by `created_at` descending.\n\n@implements SPEC-031: Document search endpoint",
+        "operationId": "search_documents",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Title search query (case-insensitive substring)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Max results (default 20, max 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Status filter: 'completed' (default) or 'all'",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSearchResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3270,7 +3450,17 @@
         },
         "responses": {
           "200": {
-            "description": "Multimodal re-analyze completed or reindex queued",
+            "description": "Multimodal re-analyze completed (legacy default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReanalyzeMultimodalResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Reanalyze accepted when REST-025 opt-in or strict startup",
             "content": {
               "application/json": {
                 "schema": {
@@ -4789,6 +4979,45 @@
         ]
       }
     },
+    "/api/v1/mcp": {
+      "post": {
+        "tags": [
+          "MCP"
+        ],
+        "summary": "OpenAPI schema anchor for `/api/v1/mcp` alias.",
+        "operationId": "mcp_openapi_v1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpJsonRpcRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC 2.0 response"
+          },
+          "202": {
+            "description": "JSON-RPC notification accepted"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/messages/{message_id}": {
       "delete": {
         "tags": [
@@ -5334,8 +5563,6 @@
         "tags": [
           "Query"
         ],
-        "summary": "Execute a RAG query with multi-mode retrieval.",
-        "description": "# Implements\n\n- **UC0201**: Execute Query\n- **FEAT0007**: Multi-Mode Query Execution\n- **FEAT0101**: Naive mode (vector search only)\n- **FEAT0102**: Local mode (entity-centric)\n- **FEAT0103**: Global mode (community summaries)\n- **FEAT0104**: Hybrid mode (local + global)\n- **FEAT0105**: Mix mode (adaptive blend)\n- **FEAT0106**: Bypass mode (direct LLM, no RAG)\n\n# Enforces\n\n- **BR0101**: Token budget enforcement\n- **BR0103**: Mode validation\n- **BR0201**: Tenant/workspace scoping\n\n# Returns\n\n- `response`: LLM-generated answer\n- `sources`: Source references with document lineage\n- `stats`: Retrieval statistics (chunks, entities, latency)",
         "operationId": "execute_query",
         "requestBody": {
           "content": {
@@ -5360,6 +5587,227 @@
           },
           "400": {
             "description": "Invalid query"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/query/context": {
+      "post": {
+        "tags": [
+          "Query Context"
+        ],
+        "operationId": "retrieve_query_context",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContextRetrievalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Structured context bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextRetrievalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or mode"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/query/context/artifacts/{artifact_type}/{artifact_id}": {
+      "get": {
+        "tags": [
+          "Query Context"
+        ],
+        "operationId": "get_context_artifact",
+        "parameters": [
+          {
+            "name": "artifact_type",
+            "in": "path",
+            "description": "document | chunk | figure | markdown | pdf",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "description": "Stable artifact ID from bundle lineage",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "description": "Required for figure; resolves pdf by document",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_content",
+            "in": "query",
+            "description": "Include markdown (document) or markdown_content (pdf)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextArtifactResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid artifact type or missing document_id"
+          },
+          "404": {
+            "description": "Artifact not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/query/context/search": {
+      "post": {
+        "tags": [
+          "Query Context"
+        ],
+        "operationId": "search_query_context",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContextSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Search summaries with retrieval handles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextSearchResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/query/context/{retrieval_id}": {
+      "get": {
+        "tags": [
+          "Query Context"
+        ],
+        "operationId": "fetch_query_context",
+        "parameters": [
+          {
+            "name": "retrieval_id",
+            "in": "path",
+            "description": "Retrieval handle from search",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content_granularity",
+            "in": "query",
+            "description": "Payload tier",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ContentGranularity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full cached context bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextRetrievalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown retrieval_id"
+          },
+          "410": {
+            "description": "Retrieval expired"
           }
         },
         "security": [
@@ -7077,7 +7525,17 @@
         },
         "responses": {
           "200": {
-            "description": "Rebuild started",
+            "description": "Rebuild started (legacy default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebuildEmbeddingsResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Rebuild accepted when EDGEQUAKE_V1_RPC_RETURN_202=1 or strict startup",
             "content": {
               "application/json": {
                 "schema": {
@@ -7105,8 +7563,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_embeddings",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_embeddings"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -7141,7 +7599,17 @@
         },
         "responses": {
           "200": {
-            "description": "Knowledge graph rebuild started",
+            "description": "Knowledge graph rebuild started (legacy default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebuildKnowledgeGraphResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Rebuild accepted when REST-025 opt-in or strict startup",
             "content": {
               "application/json": {
                 "schema": {
@@ -7205,7 +7673,17 @@
         },
         "responses": {
           "200": {
-            "description": "Documents queued for reprocessing",
+            "description": "Documents queued (legacy default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocessAllResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Reprocess accepted when REST-025 opt-in or strict startup",
             "content": {
               "application/json": {
                 "schema": {
@@ -7447,6 +7925,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Path workspace_id must match X-Workspace-ID header"
           }
         },
         "security": [
@@ -7637,6 +8118,36 @@
         "security": []
       }
     },
+    "/mcp": {
+      "post": {
+        "tags": [
+          "MCP"
+        ],
+        "summary": "OpenAPI schema anchor (runtime uses raw body parsing in [`mcp_handler`]).",
+        "operationId": "mcp_openapi",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpJsonRpcRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC 2.0 response"
+          },
+          "202": {
+            "description": "JSON-RPC notification accepted"
+          },
+          "413": {
+            "description": "Payload too large"
+          }
+        }
+      }
+    },
     "/metrics": {
       "get": {
         "tags": [
@@ -7694,8 +8205,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     },
     "/ws/progress/{track_id}": {
@@ -7725,13 +8236,49 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
   "components": {
     "schemas": {
+      "AgentHints": {
+        "type": "object",
+        "required": [
+          "documents_touched"
+        ],
+        "properties": {
+          "data_quality_warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "documents_touched": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dominant_entity_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggested_followups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "example": {
+          "data_quality_warnings": [],
+          "documents_touched": {},
+          "dominant_entity_types": [],
+          "suggested_followups": []
+        }
+      },
       "ApiCapabilities": {
         "type": "object",
         "description": "Operator-facing API discovery hints (additive JSON on `/health`).",
@@ -7753,6 +8300,51 @@
             "type": "string",
             "description": "Standalone AsyncAPI document URL (WebSocket channels)."
           },
+          "auth_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether JWT/API-key auth is enforced on protected routes."
+          },
+          "auth_identity_ssot": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identity/auth SSOT backend label (`postgresql` or `in-memory`) — SPEC-027 phase 55."
+          },
+          "auth_kv_harness_active": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether in-memory auth harness is active (no PG pool — not KV)."
+          },
+          "auth_mechanisms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Built-in auth mechanisms (`jwt_password`, `api_key`) — SPEC-027 phase 49."
+          },
+          "dev_mode": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Local dev opt-out (`EDGEQUAKE_DEV_MODE`) — auth disabled when true."
+          },
+          "external_sso_pattern": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Documented external SSO integration pattern when `oauth2_oidc_builtin` is false."
+          },
           "jobs_v2_catalog": {
             "type": "string",
             "description": "v2 job catalog path template."
@@ -7760,6 +8352,27 @@
           "jobs_v2_prefix": {
             "type": "string",
             "description": "v2 async jobs API path template (Level 4 — substitute `{workspace_id}`)."
+          },
+          "kv_identity_mirror_configured": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether `EDGEQUAKE_KV_IDENTITY_MIRROR` was set in env (may be ignored when PG pool exists)."
+          },
+          "kv_identity_mirror_effective": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Effective KV mirror after policy resolution (`false` when PostgreSQL pool is SSOT)."
+          },
+          "oauth2_oidc_builtin": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether OAuth2/OIDC login is implemented in-process (always `false` today)."
           },
           "openapi_url": {
             "type": "string",
@@ -7781,7 +8394,16 @@
           "admin_api_prefix": "/api/v1/admin",
           "shared_conversations_prefix": "/api/v1/shared",
           "jobs_v2_prefix": "/api/v2/workspaces/{workspace_id}/jobs",
-          "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+          "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+          "auth_identity_ssot": "postgresql",
+          "auth_enabled": true,
+          "oauth2_oidc_builtin": false,
+          "auth_kv_harness_active": false,
+          "external_sso_pattern": "oauth2-proxy",
+          "auth_mechanisms": [
+            "jwt_password",
+            "api_key"
+          ]
         }
       },
       "ApiKeySummary": {
@@ -8290,6 +8912,10 @@
           "message"
         ],
         "properties": {
+          "content_granularity": {
+            "$ref": "#/components/schemas/ContentGranularity",
+            "description": "Payload tier for source snippets in stream context events.\n@implements SPEC-037 + SPEC-028"
+          },
           "conversation_id": {
             "type": [
               "string",
@@ -8520,7 +9146,7 @@
           },
           {
             "type": "object",
-            "description": "Context/sources retrieved.\n@implements SPEC-006: Enriched context event with query mode and timing",
+            "description": "Context/sources retrieved.\n@implements SPEC-006: Enriched context event with query mode and timing\n@implements SPEC-028 FP-028-09: Structured subgraph for WebUI/agents",
             "required": [
               "sources",
               "type"
@@ -8547,6 +9173,17 @@
                 "items": {
                   "$ref": "#/components/schemas/SourceReference"
                 }
+              },
+              "subgraph": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SubgraphBundle",
+                    "description": "Query-matched knowledge graph (entities + relationships)."
+                  }
+                ]
               },
               "type": {
                 "type": "string",
@@ -8758,6 +9395,24 @@
             "description": "Chunk index in document.",
             "minimum": 0
           },
+          "page_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "PDF page number (1-indexed) where this chunk ends.\nAlways equal to `page_start` — chunks never cross page boundaries.",
+            "minimum": 0
+          },
+          "page_start": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "PDF page number (1-indexed) where this chunk starts.\nPresent only for PDFs ingested with SPEC-032 page-aware chunking.\n@implements SPEC-033 — page attribution surfacing",
+            "minimum": 0
+          },
           "relationships": {
             "type": "array",
             "items": {
@@ -8789,9 +9444,56 @@
           "entities": [],
           "extraction_metadata": {},
           "index": {},
+          "page_end": {},
+          "page_start": {},
           "relationships": [],
           "start_line": {},
           "token_count": {}
+        }
+      },
+      "ChunkLineage": {
+        "type": "object",
+        "properties": {
+          "chunk_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "file_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "example": {
+          "chunk_index": {},
+          "document_id": {},
+          "end_line": {},
+          "file_path": {},
+          "start_line": {}
         }
       },
       "ChunkLineageResponse": {
@@ -9140,6 +9842,970 @@
           "error"
         ],
         "example": {}
+      },
+      "ContentGranularity": {
+        "type": "string",
+        "description": "Content payload tier for context retrieval.",
+        "enum": [
+          "citation",
+          "agent",
+          "debug"
+        ],
+        "example": {}
+      },
+      "ContextArtifactChunk": {
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "document_id",
+          "content",
+          "chunk_index",
+          "token_count"
+        ],
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "content": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "end_line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "start_line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "token_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "chunk_id": {},
+          "chunk_index": {},
+          "content": {},
+          "document_id": {},
+          "end_line": {},
+          "start_line": {},
+          "token_count": {}
+        }
+      },
+      "ContextArtifactDocument": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "chunk_count",
+          "multimodal_item_count"
+        ],
+        "properties": {
+          "chunk_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Full markdown/text body when `include_content=true`."
+          },
+          "content_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`kv` or `pdf_storage` when body loaded."
+          },
+          "content_summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "markdown": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Same as `content` when markdown is available (explicit agent field)."
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "multimodal_item_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pdf_content_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pdf_download_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pdf_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "chunk_count": {},
+          "content": {},
+          "content_source": {},
+          "content_summary": {},
+          "document_id": {},
+          "file_name": {},
+          "markdown": {},
+          "mime_type": {},
+          "multimodal_item_count": {},
+          "pdf_content_path": {},
+          "pdf_download_path": {},
+          "pdf_id": {},
+          "title": {}
+        }
+      },
+      "ContextArtifactFigure": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "document_id",
+          "modality",
+          "status"
+        ],
+        "properties": {
+          "analyzed_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string"
+          },
+          "item_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modality": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "analyzed_text": {},
+          "caption": {},
+          "document_id": {},
+          "item_id": {},
+          "item_type": {},
+          "modality": {},
+          "name": {},
+          "status": {}
+        }
+      },
+      "ContextArtifactMarkdown": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "markdown",
+          "source"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "pdf_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "`kv` or `pdf_storage`"
+          }
+        },
+        "example": {
+          "document_id": {},
+          "markdown": {},
+          "pdf_id": {},
+          "source": {}
+        }
+      },
+      "ContextArtifactPdf": {
+        "type": "object",
+        "required": [
+          "pdf_id",
+          "filename",
+          "file_size_bytes",
+          "content_type",
+          "is_processed",
+          "download_path",
+          "content_path"
+        ],
+        "properties": {
+          "content_path": {
+            "type": "string",
+            "description": "REST path to PDF metadata + markdown JSON."
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "download_path": {
+            "type": "string",
+            "description": "REST path to download raw PDF bytes."
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "is_processed": {
+            "type": "boolean"
+          },
+          "markdown_content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pdf_id": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "content_path": {},
+          "content_type": {},
+          "document_id": {},
+          "download_path": {},
+          "file_size_bytes": {},
+          "filename": {},
+          "is_processed": {},
+          "markdown_content": {},
+          "pdf_id": {}
+        }
+      },
+      "ContextArtifactResponse": {
+        "type": "object",
+        "description": "Agent-facing artifact fetch response (`GET /query/context/artifacts/{type}/{id}`).",
+        "required": [
+          "artifact_type",
+          "artifact_id"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string"
+          },
+          "artifact_type": {
+            "type": "string",
+            "description": "`document` | `chunk` | `figure` | `markdown` | `pdf`"
+          },
+          "chunk": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextArtifactChunk"
+              }
+            ]
+          },
+          "document": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextArtifactDocument"
+              }
+            ]
+          },
+          "figure": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextArtifactFigure"
+              }
+            ]
+          },
+          "markdown": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextArtifactMarkdown"
+              }
+            ]
+          },
+          "pdf": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextArtifactPdf"
+              }
+            ]
+          }
+        },
+        "example": {
+          "artifact_id": {},
+          "artifact_type": {},
+          "chunk": {},
+          "document": {},
+          "figure": {},
+          "markdown": {},
+          "pdf": {}
+        }
+      },
+      "ContextBundle": {
+        "type": "object",
+        "required": [
+          "subgraph",
+          "chunks"
+        ],
+        "properties": {
+          "chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextChunk"
+            }
+          },
+          "context_string": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextDocumentSummary"
+            }
+          },
+          "subgraph": {
+            "$ref": "#/components/schemas/SubgraphBundle"
+          }
+        },
+        "example": {
+          "chunks": [],
+          "context_string": {},
+          "documents": [],
+          "subgraph": {}
+        }
+      },
+      "ContextChunk": {
+        "type": "object",
+        "required": [
+          "id",
+          "content",
+          "score",
+          "token_count"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_truncated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lineage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChunkLineage"
+              }
+            ]
+          },
+          "reference_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "rerank_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "score": {
+            "type": "number",
+            "format": "float"
+          },
+          "token_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "content": {},
+          "id": {},
+          "is_truncated": {},
+          "lineage": {},
+          "reference_id": {},
+          "rerank_score": {},
+          "score": {},
+          "token_count": {}
+        }
+      },
+      "ContextDocumentSummary": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "title",
+          "chunk_count_in_bundle",
+          "entity_count_in_bundle"
+        ],
+        "properties": {
+          "chunk_count_in_bundle": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "entity_count_in_bundle": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "chunk_count_in_bundle": {},
+          "created_at": {},
+          "document_id": {},
+          "entity_count_in_bundle": {},
+          "mime_type": {},
+          "title": {}
+        }
+      },
+      "ContextEntity": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "entity_type",
+          "description",
+          "score",
+          "degree"
+        ],
+        "properties": {
+          "degree": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lineage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EntityLineage"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "example": {
+          "degree": {},
+          "description": {},
+          "entity_type": {},
+          "id": {},
+          "lineage": {},
+          "name": {},
+          "score": {}
+        }
+      },
+      "ContextRelationship": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target",
+          "relation_type",
+          "description",
+          "score"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lineage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RelationshipLineage"
+              }
+            ]
+          },
+          "relation_type": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "float"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "description": {},
+          "id": {},
+          "lineage": {},
+          "relation_type": {},
+          "score": {},
+          "source": {},
+          "target": {}
+        }
+      },
+      "ContextRetrievalRequest": {
+        "type": "object",
+        "description": "Context retrieval request (`POST /api/v1/query/context`).",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "content_granularity": {
+            "$ref": "#/components/schemas/ContentGranularity",
+            "description": "Payload tier: citation | agent | debug."
+          },
+          "conversation_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessage"
+            }
+          },
+          "document_filter": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentFilter"
+              }
+            ]
+          },
+          "enable_rerank": {
+            "type": "boolean"
+          },
+          "include_agent_hints": {
+            "type": "boolean"
+          },
+          "include_documents": {
+            "type": "boolean"
+          },
+          "include_lineage": {
+            "type": "boolean"
+          },
+          "include_subgraph": {
+            "type": "boolean",
+            "description": "Include query-matched entities and relationships in `bundle.subgraph`."
+          },
+          "max_results": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "mix_weights": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MixWeightRequest"
+              }
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Retrieval mode (naive, local, global, hybrid, mix)."
+          },
+          "query": {
+            "type": "string",
+            "description": "Natural language query."
+          },
+          "rerank_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rerank_top_k": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "example": {
+          "content_granularity": {},
+          "conversation_history": [],
+          "document_filter": {},
+          "enable_rerank": {},
+          "include_agent_hints": {},
+          "include_documents": {},
+          "include_lineage": {},
+          "include_subgraph": {},
+          "max_results": {},
+          "mix_weights": {},
+          "mode": {},
+          "query": {},
+          "rerank_model": {},
+          "rerank_top_k": {}
+        }
+      },
+      "ContextRetrievalResponse": {
+        "type": "object",
+        "description": "Full context retrieval response.",
+        "required": [
+          "retrieval_id",
+          "query",
+          "mode",
+          "mode_selection",
+          "bundle",
+          "stats",
+          "retrieval_quality",
+          "truncation",
+          "retrieval_fingerprint",
+          "cached"
+        ],
+        "properties": {
+          "agent_hints": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentHints"
+              }
+            ]
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/ContextBundle"
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "mode_selection": {
+            "$ref": "#/components/schemas/ModeSelection"
+          },
+          "query": {
+            "type": "string"
+          },
+          "retrieval_fingerprint": {
+            "type": "string"
+          },
+          "retrieval_id": {
+            "type": "string"
+          },
+          "retrieval_quality": {
+            "$ref": "#/components/schemas/RetrievalQuality"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/ContextRetrievalStats"
+          },
+          "truncation": {
+            "$ref": "#/components/schemas/TruncationInfo"
+          }
+        },
+        "example": {
+          "agent_hints": {},
+          "bundle": {},
+          "cached": {},
+          "mode": {},
+          "mode_selection": {},
+          "query": {},
+          "retrieval_fingerprint": {},
+          "retrieval_id": {},
+          "retrieval_quality": {},
+          "stats": {},
+          "truncation": {}
+        }
+      },
+      "ContextRetrievalStats": {
+        "type": "object",
+        "required": [
+          "embedding_time_ms",
+          "retrieval_time_ms",
+          "total_time_ms",
+          "items_retrieved",
+          "reranked"
+        ],
+        "properties": {
+          "embedding_time_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "items_retrieved": {
+            "$ref": "#/components/schemas/ItemsRetrieved"
+          },
+          "keywords_extracted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rerank_time_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "reranked": {
+            "type": "boolean"
+          },
+          "retrieval_time_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total_time_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "embedding_time_ms": {},
+          "items_retrieved": {},
+          "keywords_extracted": [],
+          "rerank_time_ms": {},
+          "reranked": {},
+          "retrieval_time_ms": {},
+          "total_time_ms": {}
+        }
+      },
+      "ContextSearchRequest": {
+        "type": "object",
+        "description": "Lightweight search request (`POST /api/v1/query/context/search`).",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "document_filter": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentFilter"
+              }
+            ]
+          },
+          "max_results": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "document_filter": {},
+          "max_results": {},
+          "mode": {},
+          "query": {}
+        }
+      },
+      "ContextSearchResponse": {
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextSearchResult"
+            }
+          }
+        },
+        "example": {
+          "results": []
+        }
+      },
+      "ContextSearchResult": {
+        "type": "object",
+        "description": "Search result summary for MCP `edgequake_search`.",
+        "required": [
+          "retrieval_id",
+          "title",
+          "snippet",
+          "url",
+          "score"
+        ],
+        "properties": {
+          "metadata": {},
+          "retrieval_id": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "float"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "metadata": {},
+          "retrieval_id": {},
+          "score": {},
+          "snippet": {},
+          "title": {},
+          "url": {}
+        }
       },
       "ConversationMessage": {
         "type": "object",
@@ -10653,7 +12319,7 @@
       },
       "DocumentFilter": {
         "type": "object",
-        "description": "Document filter criteria for narrowing query scope.\n\nAllows filtering RAG query results to only include content from documents\nmatching the specified date range and/or name pattern.\n\n@implements SPEC-005: Document date and pattern filters",
+        "description": "Document filter criteria for narrowing query scope.\n\nFields are AND-combined across types: date range AND (document_ids OR document_pattern).\nWithin `document_ids` and `document_pattern`, matches are OR-unioned.\n\n@implements SPEC-005: Document date and pattern filters\n@implements SPEC-031: Explicit document scope selection",
         "properties": {
           "date_from": {
             "type": [
@@ -10669,6 +12335,16 @@
             ],
             "description": "End date (inclusive) in ISO 8601 format (e.g., \"2025-12-31T23:59:59Z\").\nOnly documents created on or before this date are included."
           },
+          "document_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Explicit document IDs to restrict query scope.\n\nWhen set, only these documents contribute RAG context, subject to any\nactive date_from/date_to constraints (AND logic across field types).\nUnion with document_pattern when both are set (OR membership logic).\n\nAn empty list `[]` is treated identically to `null` (no filtering).\nIDs not present in the workspace are silently ignored.\n\n@implements SPEC-031: Explicit document scope selection"
+          },
           "document_pattern": {
             "type": [
               "string",
@@ -10680,6 +12356,7 @@
         "example": {
           "date_from": {},
           "date_to": {},
+          "document_ids": [],
           "document_pattern": {}
         }
       },
@@ -10881,6 +12558,74 @@
           "processing_duration_ms": {},
           "relationship_types": [],
           "total_tokens": {}
+        }
+      },
+      "DocumentSearchItem": {
+        "type": "object",
+        "description": "Minimal document projection for the scope picker.\n\nIntentionally slim — only the fields needed to render a picker row.\n@implements SPEC-031",
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 creation timestamp."
+          },
+          "id": {
+            "type": "string",
+            "description": "Document UUID."
+          },
+          "status": {
+            "type": "string",
+            "description": "Processing status (e.g., \"completed\", \"failed\", \"processing\")."
+          },
+          "title": {
+            "type": "string",
+            "description": "Document title (from metadata, or file name fallback)."
+          }
+        },
+        "example": {
+          "created_at": {},
+          "id": {},
+          "status": {},
+          "title": {}
+        }
+      },
+      "DocumentSearchResponse": {
+        "type": "object",
+        "description": "Response from `GET /api/v1/documents/search`.\n@implements SPEC-031",
+        "required": [
+          "items",
+          "total",
+          "has_more"
+        ],
+        "properties": {
+          "has_more": {
+            "type": "boolean",
+            "description": "True when `total > items.len()`."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSearchItem"
+            },
+            "description": "Matching documents, sorted by `created_at` descending (most recent first)."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total matches found (may exceed `items.len()` when capped by `page_size`).",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "has_more": {},
+          "items": [],
+          "total": {}
         }
       },
       "DocumentSummary": {
@@ -11092,6 +12837,33 @@
           "track_id": {},
           "updated_at": {},
           "warning_message": {}
+        }
+      },
+      "DroppedCounts": {
+        "type": "object",
+        "required": [
+          "chunks",
+          "entities",
+          "relationships"
+        ],
+        "properties": {
+          "chunks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entities": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "relationships": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "chunks": {},
+          "entities": {},
+          "relationships": {}
         }
       },
       "EffectiveConfigResponse": {
@@ -11431,6 +13203,34 @@
           "entity_id": {},
           "entity_type": {},
           "exists": {}
+        }
+      },
+      "EntityLineage": {
+        "type": "object",
+        "properties": {
+          "source_chunk_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_file_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "source_chunk_ids": [],
+          "source_document_id": {},
+          "source_file_path": {}
         }
       },
       "EntityLineageResponse": {
@@ -13148,6 +14948,39 @@
           "severity": {}
         }
       },
+      "ItemsRetrieved": {
+        "type": "object",
+        "required": [
+          "chunks",
+          "entities",
+          "relationships",
+          "documents"
+        ],
+        "properties": {
+          "chunks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entities": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "relationships": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "chunks": {},
+          "documents": {},
+          "entities": {},
+          "relationships": {}
+        }
+      },
       "JobCatalogEntry": {
         "type": "object",
         "description": "One entry in the v2 job catalog.",
@@ -14269,6 +16102,30 @@
           "expires_in": 3600
         }
       },
+      "McpJsonRpcRequest": {
+        "type": "object",
+        "required": [
+          "jsonrpc",
+          "id",
+          "method"
+        ],
+        "properties": {
+          "id": {},
+          "jsonrpc": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "params": {}
+        },
+        "example": {
+          "id": {},
+          "jsonrpc": {},
+          "method": {},
+          "params": {}
+        }
+      },
       "MergeDetails": {
         "type": "object",
         "description": "Merge operation details.",
@@ -14664,6 +16521,37 @@
           "global": {},
           "local": {},
           "naive": {}
+        }
+      },
+      "ModeSelection": {
+        "type": "object",
+        "required": [
+          "requested",
+          "effective",
+          "adaptive"
+        ],
+        "properties": {
+          "adaptive": {
+            "type": "boolean"
+          },
+          "effective": {
+            "type": "string"
+          },
+          "intent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "adaptive": {},
+          "effective": {},
+          "intent": {},
+          "requested": {}
         }
       },
       "ModelCapabilitiesResponse": {
@@ -17159,6 +19047,10 @@
           "query"
         ],
         "properties": {
+          "content_granularity": {
+            "$ref": "#/components/schemas/ContentGranularity",
+            "description": "Payload tier for source snippets: citation (200 chars) | agent (full chunk) | debug.\n@implements SPEC-037 + SPEC-028"
+          },
           "context_only": {
             "type": "boolean",
             "description": "Only return context, don't generate an answer."
@@ -17204,6 +19096,10 @@
           "include_references": {
             "type": "boolean",
             "description": "Include detailed reference metadata (document_id, file_path, reference_id) in sources."
+          },
+          "include_subgraph": {
+            "type": "boolean",
+            "description": "Include structured query-matched graph (entities + relationships) in the response."
           },
           "llm_model": {
             "type": [
@@ -17321,6 +19217,17 @@
           "stats": {
             "$ref": "#/components/schemas/QueryStats",
             "description": "Query statistics."
+          },
+          "subgraph": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SubgraphBundle",
+                "description": "Query-matched knowledge graph (entities + relationships)."
+              }
+            ]
           }
         },
         "example": {
@@ -17437,6 +19344,17 @@
               "type"
             ],
             "properties": {
+              "bundle": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ContextBundle",
+                    "description": "SPEC-028: Full structured bundle (stream_format=v3 only)."
+                  }
+                ]
+              },
               "query_mode": {
                 "type": "string"
               },
@@ -17450,6 +19368,17 @@
                 "items": {
                   "$ref": "#/components/schemas/SourceReference"
                 }
+              },
+              "subgraph": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SubgraphBundle",
+                    "description": "SPEC-028 FP-028-09: structured graph on v2 stream (when bundle absent)."
+                  }
+                ]
               },
               "type": {
                 "type": "string",
@@ -17831,6 +19760,16 @@
               "string",
               "null"
             ]
+          },
+          "v2_migration": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/V2MigrationHint"
+              }
+            ]
           }
         },
         "example": {
@@ -17839,7 +19778,8 @@
           "requeued": {},
           "skipped": {},
           "success": {},
-          "track_id": {}
+          "track_id": {},
+          "v2_migration": {}
         }
       },
       "RebuildEmbeddingsRequest": {
@@ -18350,6 +20290,34 @@
           "target": {}
         }
       },
+      "RelationshipLineage": {
+        "type": "object",
+        "properties": {
+          "source_chunk_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_file_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "source_chunk_id": {},
+          "source_document_id": {},
+          "source_file_path": {}
+        }
+      },
       "RelationshipResponse": {
         "type": "object",
         "description": "Relationship response.",
@@ -18855,6 +20823,31 @@
           "requeued": {},
           "track_id": {},
           "v2_migration": {}
+        }
+      },
+      "RetrievalQuality": {
+        "type": "object",
+        "required": [
+          "coverage_score",
+          "is_sufficient",
+          "empty_context"
+        ],
+        "properties": {
+          "coverage_score": {
+            "type": "number",
+            "format": "float"
+          },
+          "empty_context": {
+            "type": "boolean"
+          },
+          "is_sufficient": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "coverage_score": {},
+          "empty_context": {},
+          "is_sufficient": {}
         }
       },
       "RetryChunksRequest": {
@@ -19480,6 +21473,24 @@
             "type": "string",
             "description": "Source ID."
           },
+          "page_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "PDF page number where this chunk ends (always equals page_start).",
+            "minimum": 0
+          },
+          "page_start": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "PDF page number (1-indexed) where this chunk starts.\nPresent only when the source is a PDF with page-aware chunking (SPEC-032).\nThe UI uses this to deep-link to `#page=N` in the document viewer.",
+            "minimum": 0
+          },
           "reference_id": {
             "type": [
               "integer",
@@ -19539,6 +21550,8 @@
           "entity_type": {},
           "file_path": {},
           "id": {},
+          "page_end": {},
+          "page_start": {},
           "reference_id": {},
           "rerank_score": {},
           "score": {},
@@ -19806,6 +21819,10 @@
           "query"
         ],
         "properties": {
+          "content_granularity": {
+            "$ref": "#/components/schemas/ContentGranularity",
+            "description": "Payload tier for source snippets in context events.\n@implements SPEC-037 + SPEC-028"
+          },
           "document_filter": {
             "oneOf": [
               {
@@ -19829,6 +21846,10 @@
             "propertyNames": {
               "type": "string"
             }
+          },
+          "include_subgraph": {
+            "type": "boolean",
+            "description": "Include structured query-matched graph in stream context events (v2+)."
           },
           "llm_model": {
             "type": [
@@ -19871,14 +21892,41 @@
           }
         },
         "example": {
+          "content_granularity": {},
           "document_filter": {},
           "extra_headers": {},
+          "include_subgraph": {},
           "llm_model": {},
           "llm_provider": {},
           "mode": {},
           "query": {},
           "stream_format": {},
           "system_prompt": {}
+        }
+      },
+      "SubgraphBundle": {
+        "type": "object",
+        "required": [
+          "entities",
+          "relationships"
+        ],
+        "properties": {
+          "entities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextEntity"
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextRelationship"
+            }
+          }
+        },
+        "example": {
+          "entities": [],
+          "relationships": []
         }
       },
       "TaskErrorResponse": {
@@ -20340,6 +22388,37 @@
           "status_summary": {},
           "total_count": {},
           "track_id": {}
+        }
+      },
+      "TruncationInfo": {
+        "type": "object",
+        "required": [
+          "is_truncated",
+          "token_budget",
+          "tokens_used",
+          "dropped"
+        ],
+        "properties": {
+          "dropped": {
+            "$ref": "#/components/schemas/DroppedCounts"
+          },
+          "is_truncated": {
+            "type": "boolean"
+          },
+          "token_budget": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens_used": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "dropped": {},
+          "is_truncated": {},
+          "token_budget": {},
+          "tokens_used": {}
         }
       },
       "UpdateConversationApiRequest": {

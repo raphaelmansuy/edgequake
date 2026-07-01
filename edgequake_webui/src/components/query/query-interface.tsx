@@ -98,6 +98,7 @@ export function QueryInterface() {
                 temperature: querySettings.temperature,
                 maxTokens: querySettings.maxTokens,
                 systemPrompt: querySettings.systemPrompt,
+                fullChunkContent: querySettings.fullChunkContent,
               }}
               onSettingsChange={(updates) => setQuerySettings(updates)}
               disabled={isLoading}

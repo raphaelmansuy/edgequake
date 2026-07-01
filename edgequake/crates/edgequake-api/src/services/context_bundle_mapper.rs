@@ -12,7 +12,8 @@ use crate::handlers::context_types::{
 };
 use crate::services::source_reference_builder::is_injection_source;
 
-const SNIPPET_LEN: usize = 200;
+use crate::services::truncate_for_granularity;
+
 const DEFAULT_TOKEN_BUDGET: usize = 30_000;
 const COVERAGE_SUFFICIENT_THRESHOLD: f32 = 0.35;
 
@@ -69,10 +70,7 @@ pub fn map_query_context_to_bundle(
         .iter()
         .filter(|c| !is_injection_source(c.document_id.as_deref(), None))
         .map(|chunk| {
-            let content = match options.granularity {
-                ContentGranularity::Citation => chunk.content.chars().take(SNIPPET_LEN).collect(),
-                ContentGranularity::Agent | ContentGranularity::Debug => chunk.content.clone(),
-            };
+            let content = truncate_for_granularity(&chunk.content, options.granularity);
             let reference_id = {
                 let id = ref_counter;
                 ref_counter += 1;
@@ -154,12 +152,7 @@ pub fn map_query_context_to_subgraph(
             )
         })
         .map(|entity| {
-            let description = match options.granularity {
-                ContentGranularity::Citation => {
-                    entity.description.chars().take(SNIPPET_LEN).collect()
-                }
-                ContentGranularity::Agent | ContentGranularity::Debug => entity.description.clone(),
-            };
+            let description = truncate_for_granularity(&entity.description, options.granularity);
 
             let lineage = if options.include_lineage {
                 Some(EntityLineage {

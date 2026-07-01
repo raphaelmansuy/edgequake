@@ -60,6 +60,11 @@ export interface QuerySettings {
    * @implements SPEC-031: Explicit document scope selection
    */
   scopedDocumentIds?: string[];
+  /**
+   * When true, stream context events request full chunk text (content_granularity: agent).
+   * @implements SPEC-037
+   */
+  fullChunkContent?: boolean;
 }
 
 export interface IngestionSettings {

@@ -83,6 +83,14 @@ export function e2eScreenshot(
   return path.join(ensureDir(path.join(SCREENSHOT_ROOT.e2e, subdir)), fileName);
 }
 
+/** `specs/037-query-option-full-chunk/e2e/screenshots/<fileName>` */
+export function spec037Screenshot(fileName: string): string {
+  return path.join(
+    ensureDir(path.join(REPO_ROOT, "specs/037-query-option-full-chunk/e2e/screenshots")),
+    fileName,
+  );
+}
+
 /** `e2e/screenshots/issues/<issueId>/<fileName>` */
 export function issueScreenshot(issueId: string, fileName: string): string {
   return e2eScreenshot(`issues/${issueId}`, fileName);

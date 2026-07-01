@@ -388,11 +388,17 @@ pub async fn build_legacy_query_sources(
     include_references: bool,
     enable_rerank: bool,
     rerank_top_k: Option<usize>,
+    granularity: ContentGranularity,
 ) -> Vec<SourceReference> {
     let reranker_configured = state.query.engine_impl.has_reranker();
     let reranked = enable_rerank && reranker_configured;
-    let mut sources =
-        build_sources_from_context(&result.context, include_references, rerank_top_k, reranked);
+    let mut sources = build_sources_from_context(
+        &result.context,
+        include_references,
+        rerank_top_k,
+        reranked,
+        granularity,
+    );
     crate::handlers::query::resolve_chunk_file_paths(
         state.storage.kv_storage.as_ref(),
         &mut sources,

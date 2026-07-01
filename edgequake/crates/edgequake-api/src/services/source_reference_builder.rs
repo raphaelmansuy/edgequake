@@ -2,9 +2,9 @@
 
 use edgequake_query::QueryContext;
 
+use crate::handlers::context_types::ContentGranularity;
 use crate::handlers::query_types::SourceReference;
-
-const SNIPPET_LEN: usize = 200;
+use crate::services::truncate_for_granularity;
 
 /// Returns true when a document/file path indicates knowledge injection (not citable).
 pub fn is_injection_source(document_id: Option<&str>, file_path: Option<&str>) -> bool {
@@ -23,6 +23,7 @@ pub fn build_sources_from_context(
     include_reference_ids: bool,
     rerank_top_k: Option<usize>,
     reranked: bool,
+    granularity: ContentGranularity,
 ) -> Vec<SourceReference> {
     let mut sources = Vec::new();
     let mut ref_counter = 1usize;
@@ -45,7 +46,7 @@ pub fn build_sources_from_context(
                 id: chunk.id.clone(),
                 score: chunk.score,
                 rerank_score: None,
-                snippet: Some(chunk.content.chars().take(SNIPPET_LEN).collect()),
+                snippet: Some(truncate_for_granularity(&chunk.content, granularity)),
                 reference_id: ref_id,
                 document_id: chunk.document_id.clone(),
                 file_path: None,
@@ -90,7 +91,7 @@ pub fn build_sources_from_context(
             id: entity.name.clone(),
             score: entity.score,
             rerank_score: None,
-            snippet: Some(entity.description.chars().take(SNIPPET_LEN).collect()),
+            snippet: Some(truncate_for_granularity(&entity.description, granularity)),
             reference_id: ref_id,
             document_id: entity.source_document_id.clone(),
             file_path: entity.source_file_path.clone(),
@@ -188,7 +189,8 @@ mod tests {
             page_end: None,
         });
 
-        let sources = build_sources_from_context(&ctx, true, None, false);
+        let sources =
+            build_sources_from_context(&ctx, true, None, false, ContentGranularity::Citation);
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].id, "c2");
     }
@@ -208,10 +210,36 @@ mod tests {
             source_document_ids: vec![],
         });
 
-        let with_refs = build_sources_from_context(&ctx, true, None, false);
+        let with_refs =
+            build_sources_from_context(&ctx, true, None, false, ContentGranularity::Citation);
         assert_eq!(with_refs[0].reference_id, Some(1));
 
-        let without = build_sources_from_context(&ctx, false, None, false);
+        let without =
+            build_sources_from_context(&ctx, false, None, false, ContentGranularity::Citation);
         assert!(without[0].reference_id.is_none());
+    }
+
+    #[test]
+    fn citation_truncates_chunk_snippet() {
+        let mut ctx = QueryContext::default();
+        ctx.chunks.push(RetrievedChunk {
+            id: "c1".into(),
+            content: "a".repeat(500),
+            score: 0.9,
+            document_id: Some("doc-1".into()),
+            token_count: 100,
+            start_line: None,
+            end_line: None,
+            chunk_index: None,
+            page_start: None,
+            page_end: None,
+        });
+
+        let citation =
+            build_sources_from_context(&ctx, true, None, false, ContentGranularity::Citation);
+        assert_eq!(citation[0].snippet.as_ref().unwrap().len(), 200);
+
+        let agent = build_sources_from_context(&ctx, true, None, false, ContentGranularity::Agent);
+        assert_eq!(agent[0].snippet.as_ref().unwrap().len(), 500);
     }
 }

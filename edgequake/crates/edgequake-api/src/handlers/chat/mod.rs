@@ -170,8 +170,11 @@ fn enrich_query_with_language(query: &str, language: &Option<String>) -> String 
     }
 }
 
-pub(crate) fn build_sources(context: &edgequake_query::QueryContext) -> Vec<SourceReference> {
-    crate::services::build_sources_from_context(context, true, None, false)
+pub(crate) fn build_sources(
+    context: &edgequake_query::QueryContext,
+    granularity: crate::handlers::context_types::ContentGranularity,
+) -> Vec<SourceReference> {
+    crate::services::build_sources_from_context(context, true, None, false, granularity)
 }
 
 #[cfg(test)]

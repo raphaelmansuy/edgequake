@@ -6,6 +6,8 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use super::context_types::ContentGranularity;
+
 // ============================================================================
 // Default value helper functions
 // ============================================================================
@@ -17,6 +19,10 @@ pub fn default_enable_rerank() -> bool {
 
 fn default_include_subgraph() -> bool {
     true
+}
+
+fn default_content_granularity() -> ContentGranularity {
+    ContentGranularity::Citation
 }
 
 // ============================================================================
@@ -202,6 +208,11 @@ pub struct QueryRequest {
     /// Other providers silently ignore this field.
     #[serde(default)]
     pub extra_headers: Option<std::collections::HashMap<String, String>>,
+
+    /// Payload tier for source snippets: citation (200 chars) | agent (full chunk) | debug.
+    /// @implements SPEC-037 + SPEC-028
+    #[serde(default = "default_content_granularity")]
+    pub content_granularity: ContentGranularity,
 }
 
 /// Streaming query request.
@@ -252,6 +263,11 @@ pub struct StreamQueryRequest {
     /// Include structured query-matched graph in stream context events (v2+).
     #[serde(default = "default_include_subgraph")]
     pub include_subgraph: bool,
+
+    /// Payload tier for source snippets in context events.
+    /// @implements SPEC-037 + SPEC-028
+    #[serde(default = "default_content_granularity")]
+    pub content_granularity: ContentGranularity,
 }
 
 // ============================================================================

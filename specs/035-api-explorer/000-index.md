@@ -16,17 +16,17 @@
 
 ## The Evidence (Code is Law)
 
-| Metric | Custom Explorer | Real API |
-|--------|----------------|----------|
-| **Endpoints hardcoded** | 30 | — |
-| **Endpoints documented in OpenAPI** | — | 169 |
-| **Coverage** | **17.8%** | 100% |
-| **Auto-synced with code** | ❌ Never | ✅ Always |
-| **Path parameters handled** | ❌ No | ✅ Yes |
-| **Request body schema** | ❌ Static JSON | ✅ Full schema |
-| **Auth token injection** | ❌ No | ✅ Yes |
-| **Response schemas shown** | ❌ No | ✅ Yes |
-| **Maintenance cost / endpoint** | O(n) manual | O(0) |
+| Metric                              | Custom Explorer | Real API      |
+| ----------------------------------- | --------------- | ------------- |
+| **Endpoints hardcoded**             | 30              | —             |
+| **Endpoints documented in OpenAPI** | —               | 169           |
+| **Coverage**                        | **17.8%**       | 100%          |
+| **Auto-synced with code**           | ❌ Never         | ✅ Always      |
+| **Path parameters handled**         | ❌ No            | ✅ Yes         |
+| **Request body schema**             | ❌ Static JSON   | ✅ Full schema |
+| **Auth token injection**            | ❌ No            | ✅ Yes         |
+| **Response schemas shown**          | ❌ No            | ✅ Yes         |
+| **Maintenance cost / endpoint**     | O(n) manual     | O(0)          |
 
 **Source files:**
 - Custom explorer: [`edgequake_webui/src/components/shared/api-explorer.tsx`](../../edgequake_webui/src/components/shared/api-explorer.tsx)
@@ -37,17 +37,17 @@
 
 ## Documents in this Spec
 
-| File | Lens | Key Question |
-|------|------|-------------|
-| [001-five-whys.md](./001-five-whys.md) | Root Cause | Why is the explorer broken? |
-| [002-first-principles.md](./002-first-principles.md) | First Principles | What are we really solving? |
-| [003-product-owner-lens.md](./003-product-owner-lens.md) | Product Owner | What is the business cost? |
-| [004-ux-ui-designer-lens.md](./004-ux-ui-designer-lens.md) | UX/UI Designer | What is the best user experience? |
-| [005-fullstack-developer-lens.md](./005-fullstack-developer-lens.md) | Full Stack Dev | How to implement it correctly? |
-| [006-user-lens.md](./006-user-lens.md) | EdgeQuake User | What does the user actually need? |
-| [007-decision-matrix.md](./007-decision-matrix.md) | Decision | Custom vs Swagger UI vs Hybrid |
-| [008-implementation-plan.md](./008-implementation-plan.md) | Implementation | Phased plan with DRY/SOLID |
-| [009-cross-reference-matrix.md](./009-cross-reference-matrix.md) | Cross-Reference | Every claim linked to its evidence |
+| File                                                                 | Lens             | Key Question                       |
+| -------------------------------------------------------------------- | ---------------- | ---------------------------------- |
+| [001-five-whys.md](./001-five-whys.md)                               | Root Cause       | Why is the explorer broken?        |
+| [002-first-principles.md](./002-first-principles.md)                 | First Principles | What are we really solving?        |
+| [003-product-owner-lens.md](./003-product-owner-lens.md)             | Product Owner    | What is the business cost?         |
+| [004-ux-ui-designer-lens.md](./004-ux-ui-designer-lens.md)           | UX/UI Designer   | What is the best user experience?  |
+| [005-fullstack-developer-lens.md](./005-fullstack-developer-lens.md) | Full Stack Dev   | How to implement it correctly?     |
+| [006-user-lens.md](./006-user-lens.md)                               | EdgeQuake User   | What does the user actually need?  |
+| [007-decision-matrix.md](./007-decision-matrix.md)                   | Decision         | Custom vs Swagger UI vs Hybrid     |
+| [008-implementation-plan.md](./008-implementation-plan.md)           | Implementation   | Phased plan with DRY/SOLID         |
+| [009-cross-reference-matrix.md](./009-cross-reference-matrix.md)     | Cross-Reference  | Every claim linked to its evidence |
 
 ---
 

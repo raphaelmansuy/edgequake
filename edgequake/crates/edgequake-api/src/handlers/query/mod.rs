@@ -165,11 +165,17 @@ pub use workspace_resolve::{
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::handlers::auth::OptionalAuth;
+    use crate::handlers::context_types::ContentGranularity;
     use crate::middleware::TenantContext;
     use crate::state::AppState;
     use axum::extract::State;
     use axum::{Extension, Json};
     use edgequake_observability::{PropagationHeaders, RequestContext};
+
+    fn no_auth() -> OptionalAuth {
+        OptionalAuth(None)
+    }
 
     fn test_extensions() -> (Extension<RequestContext>, Extension<PropagationHeaders>) {
         (
@@ -201,10 +207,19 @@ mod tests {
             mix_weights: None,
             extra_headers: None,
             include_subgraph: true,
+            content_granularity: ContentGranularity::Citation,
         };
 
         let (ctx, propagation) = test_extensions();
-        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(
+            State(state),
+            tenant_ctx,
+            no_auth(),
+            ctx,
+            propagation,
+            Json(request),
+        )
+        .await;
         assert!(result.is_err());
     }
 
@@ -231,10 +246,19 @@ mod tests {
             mix_weights: None,
             extra_headers: None,
             include_subgraph: true,
+            content_granularity: ContentGranularity::Citation,
         };
 
         let (ctx, propagation) = test_extensions();
-        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(
+            State(state),
+            tenant_ctx,
+            no_auth(),
+            ctx,
+            propagation,
+            Json(request),
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -253,10 +277,19 @@ mod tests {
             stream_format: None,
             extra_headers: None,
             include_subgraph: true,
+            content_granularity: ContentGranularity::Citation,
         };
 
         let (ctx, propagation) = test_extensions();
-        let result = stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = stream_query(
+            State(state),
+            tenant_ctx,
+            no_auth(),
+            ctx,
+            propagation,
+            Json(request),
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -285,12 +318,14 @@ mod tests {
                 mix_weights: None,
                 extra_headers: None,
                 include_subgraph: true,
+                content_granularity: ContentGranularity::Citation,
             };
 
             let (ctx, propagation) = test_extensions();
             let result = execute_query(
                 State(state.clone()),
                 tenant_ctx,
+                no_auth(),
                 ctx,
                 propagation,
                 Json(request),
@@ -323,10 +358,19 @@ mod tests {
             mix_weights: None,
             extra_headers: None,
             include_subgraph: true,
+            content_granularity: ContentGranularity::Citation,
         };
 
         let (ctx, propagation) = test_extensions();
-        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(
+            State(state),
+            tenant_ctx,
+            no_auth(),
+            ctx,
+            propagation,
+            Json(request),
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -353,10 +397,19 @@ mod tests {
             mix_weights: None,
             extra_headers: None,
             include_subgraph: true,
+            content_granularity: ContentGranularity::Citation,
         };
 
         let (ctx, propagation) = test_extensions();
-        let result = execute_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = execute_query(
+            State(state),
+            tenant_ctx,
+            no_auth(),
+            ctx,
+            propagation,
+            Json(request),
+        )
+        .await;
         assert!(result.is_err());
     }
 
@@ -375,10 +428,19 @@ mod tests {
             stream_format: None,
             extra_headers: None,
             include_subgraph: true,
+            content_granularity: ContentGranularity::Citation,
         };
 
         let (ctx, propagation) = test_extensions();
-        let result = stream_query(State(state), tenant_ctx, ctx, propagation, Json(request)).await;
+        let result = stream_query(
+            State(state),
+            tenant_ctx,
+            no_auth(),
+            ctx,
+            propagation,
+            Json(request),
+        )
+        .await;
         assert!(result.is_err());
     }
 }

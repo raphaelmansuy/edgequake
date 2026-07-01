@@ -124,6 +124,7 @@ export function useQueryStreaming({
           system_prompt: querySettings.systemPrompt || undefined,
           // SPEC-031: merge scopedDocumentIds + documentFilter into unified filter
           document_filter: buildDocumentFilter(querySettings),
+          content_granularity: querySettings.fullChunkContent ? 'agent' : 'citation',
           images: payloadImages,
         })) {
           if (abortControllerRef.current?.signal.aborted) break;
@@ -311,6 +312,7 @@ export function useQueryStreaming({
           system_prompt: querySettings.systemPrompt || undefined,
           // SPEC-031: merge scopedDocumentIds + documentFilter into unified filter
           document_filter: buildDocumentFilter(querySettings),
+          content_granularity: querySettings.fullChunkContent ? 'agent' : 'citation',
           images: payloadImages,
         });
 

@@ -31,6 +31,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildDocumentPageUrl } from '@/lib/utils/document-url';
+import { useSettingsStore } from '@/stores/use-settings-store';
 import type { QueryContext } from '@/types';
 import {
     BookOpen,
@@ -210,11 +211,26 @@ function groupPassagesByPage(
 // Passage row sub-component (SPEC-033 FR-009)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Format passage preview text for citation cards (SPEC-037).
+ */
+function formatPassagePreview(content: string, fullChunkContent: boolean): string {
+  const clean = stripMarkdownSyntax(content);
+  if (fullChunkContent) {
+    return clean || content;
+  }
+  if (clean.length > 220) {
+    return clean.slice(0, 220).replace(/[*_`~]+$/, '') + '…';
+  }
+  return clean || content.slice(0, 220);
+}
+
 interface PassageRowProps {
   chunk: Chunks[number];
   chunkIdx: number;
   docId: string;
   normalizeScore: (s: number) => number;
+  fullChunkContent: boolean;
   onDocumentClick?: (
     docId: string,
     content?: string,
@@ -231,6 +247,7 @@ function PassageRow({
   chunkIdx,
   docId,
   normalizeScore,
+  fullChunkContent,
   onDocumentClick,
 }: PassageRowProps) {
   const score = normalizeScore(chunk.score);
@@ -267,12 +284,14 @@ function PassageRow({
             {(chunk.chunk_index ?? chunkIdx) + 1}
           </span>
 
-          <p className="text-xs text-foreground/85 line-clamp-3 flex-1 leading-relaxed break-words overflow-hidden">
-            {(() => {
-              const clean = stripMarkdownSyntax(chunk.content);
-              const snippet = clean.length > 220 ? clean.slice(0, 220).replace(/[*_`~]+$/, '') + '…' : clean;
-              return snippet || chunk.content.slice(0, 220);
-            })()}
+          <p
+            data-testid="source-passage-text"
+            data-full-chunk={fullChunkContent ? 'true' : 'false'}
+            className={`text-xs text-foreground/85 flex-1 leading-relaxed break-words overflow-hidden ${
+              fullChunkContent ? 'whitespace-pre-wrap' : 'line-clamp-3'
+            }`}
+          >
+            {formatPassagePreview(chunk.content, fullChunkContent)}
           </p>
 
           <span className={`text-[10px] font-semibold flex-shrink-0 mt-0.5 tabular-nums ${scoreColor}`}>
@@ -317,6 +336,7 @@ interface PagePassageGroupProps {
   passages: Chunks;
   docId: string;
   normalizeScore: (s: number) => number;
+  fullChunkContent: boolean;
   onDocumentClick?: PassageRowProps['onDocumentClick'];
 }
 
@@ -325,6 +345,7 @@ function PagePassageGroup({
   passages,
   docId,
   normalizeScore,
+  fullChunkContent,
   onDocumentClick,
 }: PagePassageGroupProps) {
   // Build the page-level deeplink (navigates PDF viewer, no chunk selected)
@@ -373,6 +394,7 @@ function PagePassageGroup({
             chunkIdx={idx}
             docId={docId}
             normalizeScore={normalizeScore}
+            fullChunkContent={fullChunkContent}
             onDocumentClick={onDocumentClick}
           />
         ))}
@@ -405,9 +427,11 @@ const ConfidenceDots = ({ score, className = '' }: { score: number; className?: 
 
 const DocumentsTab = ({
   chunksByDocument,
+  fullChunkContent,
   onDocumentClick,
 }: {
   chunksByDocument: Record<string, NonNullable<QueryContext['chunks']>>;
+  fullChunkContent: boolean;
   onDocumentClick?: (
     docId: string,
     chunkContent?: string,
@@ -556,6 +580,7 @@ const DocumentsTab = ({
                                   passages={passages}
                                   docId={docId}
                                   normalizeScore={normalizeScore}
+                                  fullChunkContent={fullChunkContent}
                                   onDocumentClick={onDocumentClick}
                                 />
                               ));
@@ -568,6 +593,7 @@ const DocumentsTab = ({
                               chunkIdx={chunkIdx}
                               docId={docId}
                               normalizeScore={normalizeScore}
+                              fullChunkContent={fullChunkContent}
                               onDocumentClick={onDocumentClick}
                             />
                           ));
@@ -847,6 +873,9 @@ export function SourceCitations({
   onExploreGraph,
 }: SourceCitationsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const fullChunkContent = useSettingsStore(
+    (state) => state.querySettings.fullChunkContent ?? false,
+  );
 
   // Memoized calculations
   const hasChunks = context.chunks && context.chunks.length > 0;
@@ -939,6 +968,7 @@ export function SourceCitations({
               <TabsContent value="documents" className="mt-0 focus-visible:outline-none">
                 <DocumentsTab 
                   chunksByDocument={chunksByDocument}
+                  fullChunkContent={fullChunkContent}
                   onDocumentClick={onDocumentClick}
                 />
               </TabsContent>

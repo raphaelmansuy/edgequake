@@ -86,6 +86,8 @@ export interface QueryRequest {
   llm_provider?: string;
   /** LLM model override. @implements SPEC-006 + SPEC-032 */
   llm_model?: string;
+  /** Payload tier for source snippets. @implements SPEC-037 + SPEC-028 */
+  content_granularity?: 'citation' | 'agent' | 'debug';
 }
 
 export interface QueryContext {
