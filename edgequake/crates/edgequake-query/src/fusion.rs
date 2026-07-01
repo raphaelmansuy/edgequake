@@ -93,7 +93,11 @@ mod tests {
         ];
         let weights = [1.0, 1.0];
         let fused = reciprocal_rank_fusion(&lists, &weights, RRF_K);
-        assert_eq!(fused[0].0, "b");
+        assert_eq!(fused.len(), 2);
+        // Symmetric ranks → tied scores; order is stable-sort arbitrary.
+        assert_eq!(fused[0].1, fused[1].1);
+        assert!(fused.iter().any(|(id, _)| id == "a"));
+        assert!(fused.iter().any(|(id, _)| id == "b"));
     }
 
     #[test]

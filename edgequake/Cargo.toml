@@ -149,15 +149,14 @@ edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
-# Patched to local edgequake-llm (PR #79) via [patch.crates-io] until 0.6.26 publishes.
-edgequake-llm = "0.6.23"
+edgequake-llm = "0.6.26"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 edgequake-observability = { path = "crates/edgequake-observability" }
-edgeparse-core = "0.2.3"
-edgequake-pdf2md = { path = "../../edgequake-pdf2md", default-features = false, features = ["bundled"] }
+edgeparse-core = "0.2.5"
+edgequake-pdf2md = { version = "0.9.2", default-features = false, features = ["bundled"] }
 
 # CPU utilities
 num_cpus = "1.16"
@@ -179,7 +178,3 @@ debug = true
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3
-
-[patch.crates-io]
-edgequake-llm = { path = "../../edgequake-llm" }
-edgequake-pdf2md = { path = "../../edgequake-pdf2md" }

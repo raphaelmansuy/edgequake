@@ -93,7 +93,9 @@ mod tests {
 
     #[test]
     fn local_db_with_auth_off_only_warns() {
-        let auth = AuthConfig::new("secure-test-secret-spec027");
+        let mut auth = AuthConfig::new("secure-test-secret-spec027");
+        auth.auth_enabled = false;
+        auth.dev_mode = true;
         let security = ApiSecurityConfig::default();
         let outcome = validate_startup_security(
             Some("postgres://edgequake:edgequake@localhost/edgequake"),
