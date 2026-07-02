@@ -98,10 +98,7 @@ impl PostgresAGEGraphStorage {
         } else {
             "create_elabel"
         };
-        let create_sql = format!(
-            "SELECT {}('{}', '{}')",
-            create_fn, self.graph_name, label
-        );
+        let create_sql = format!("SELECT {}('{}', '{}')", create_fn, self.graph_name, label);
 
         match sqlx::query(&create_sql).execute(&mut *conn).await {
             Ok(_) => {
