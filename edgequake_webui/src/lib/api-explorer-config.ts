@@ -11,10 +11,20 @@
 import type { AnyApiReferenceConfiguration } from '@scalar/api-reference-react';
 
 /** Scalar auth prefills mapped from EdgeQuake session context. */
+export interface ScalarSecuritySchemeValue {
+  token?: string;
+  value?: string;
+  name?: string;
+  in?: 'header' | 'query' | 'cookie';
+}
+
 export interface ScalarAuthenticationConfig {
   preferredSecurityScheme?: string | (string | string[])[];
-  securitySchemes?: Record<string, { token?: string; value?: string }>;
+  securitySchemes?: Record<string, ScalarSecuritySchemeValue>;
 }
+
+/** App theme mode bridged into Scalar `forceDarkModeState`. */
+export type ApiExplorerThemeMode = 'dark' | 'light';
 
 /** OpenAPI document path served by edgequake-api (see server.rs). */
 export const OPENAPI_SPEC_PATH = '/api-docs/openapi.json';
@@ -134,7 +144,6 @@ export function buildScalarApiReferenceConfiguration(
     defaultOpenFirstTag: true,
     hideClientButton: true,
     showDeveloperTools: 'never',
-    showToolbar: 'never',
     hideDarkModeToggle: true,
     forceDarkModeState: themeMode,
     hideDownloadButton: false,
@@ -147,7 +156,9 @@ export function buildScalarApiReferenceConfiguration(
       clientKey: 'fetch',
     },
     ...(authentication ? { authentication } : {}),
-  };
+    // Scalar supports this at runtime; upstream types may lag.
+    showToolbar: 'never',
+  } as AnyApiReferenceConfiguration;
 }
 
 /** Compose explorer config from raw inputs (used by hook + unit tests). */
