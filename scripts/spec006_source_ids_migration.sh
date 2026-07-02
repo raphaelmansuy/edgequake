@@ -53,8 +53,9 @@ rg -q 'verification failed' "$SUPPORT/verify.sql" || {
   exit 1
 }
 
-rg -q 'support/038/apply.sql' "$ROOT/edgequake/crates/edgequake-api/src/state/migration_bootstrap.rs" || {
-  echo "migration_bootstrap.rs must include_str support/038/apply.sql"
+BOOTSTRAP_MOD="$ROOT/edgequake/crates/edgequake-api/src/state/migration_bootstrap/mod.rs"
+rg -q 'support/038/apply.sql' "$BOOTSTRAP_MOD" || {
+  echo "migration_bootstrap/mod.rs must include_str support/038/apply.sql"
   exit 1
 }
 

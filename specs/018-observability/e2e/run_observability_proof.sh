@@ -14,15 +14,15 @@ echo "== edgequake-tasks =="
 cargo test -p edgequake-tasks --lib
 
 echo "== edgequake-api observability =="
-cargo test -p edgequake-api --test observability_proof
-cargo test -p edgequake-api --lib test_request_id_header_added 2>/dev/null || \
-  cargo test -p edgequake-api --test integration_tests test_request_id_header_added
+cargo test -p edgequake-api --test observability_proof --features postgres
+cargo test -p edgequake-api --lib test_request_id_header_added --features postgres 2>/dev/null || \
+  cargo test -p edgequake-api --test integration_tests test_request_id_header_added --features postgres
 
 echo "== edgequake-audit =="
 cargo test -p edgequake-audit --lib
 
 echo "== edgequake-api lib (smoke) =="
-cargo test -p edgequake-api --lib -- handlers::query::tests::test_query_success
+cargo test -p edgequake-api --lib --features postgres -- handlers::query::tests::test_query_success
 
 echo "== edgequake-webui =="
 cd "$WEBUI"

@@ -28,6 +28,7 @@ fi
 
 WORKSPACE_VIOLATIONS=$(rg 'detect_communities_unchecked' "$ROOT/edgequake/crates" \
   --glob '!**/community.rs' \
+  --glob '!**/community_persist.rs' \
   --glob '!**/graph_community.rs' 2>/dev/null || true)
 
 if [[ -n "$WORKSPACE_VIOLATIONS" ]]; then

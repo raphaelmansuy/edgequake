@@ -35,7 +35,11 @@ for crate in "${CRATES[@]}"; do
       FEATURES=(--features postgres)
       ;;
   esac
-  (cd "$EQ" && cargo clippy -p "$crate" --lib "${FEATURES[@]}" -- -D warnings)
+  if ((${#FEATURES[@]})); then
+    (cd "$EQ" && cargo clippy -p "$crate" --lib "${FEATURES[@]}" -- -D warnings)
+  else
+    (cd "$EQ" && cargo clippy -p "$crate" --lib -- -D warnings)
+  fi
 done
 
 echo "== workspace lib tests =="

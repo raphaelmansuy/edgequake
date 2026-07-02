@@ -13,14 +13,14 @@ echo "== SPEC-006: edgequake-storage graph_scan_ops =="
 cargo test -p edgequake-storage graph_scan_ops --quiet
 
 echo "== SPEC-006: edgequake-api resource_safety proof =="
-cargo test -p edgequake-api resource_safety --quiet
-cargo test -p edgequake-api graph_materialization --lib --quiet
+cargo test -p edgequake-api resource_safety --features postgres --quiet
+cargo test -p edgequake-api graph_materialization --lib --features postgres --quiet
 
 echo "== SPEC-006: migration readiness battle test =="
 cargo test -p edgequake-api --test migration_readiness_proof --features postgres --quiet
 
 echo "== SPEC-006: e2e_document_deletion shared-entity smoke =="
-cargo test -p edgequake-api test_delete_preserves_shared_entities --quiet
+cargo test -p edgequake-api test_delete_preserves_shared_entities --features postgres --quiet
 
 postgres_bootstrap_ready() {
   if [[ -z "${DATABASE_URL:-}" && -z "${POSTGRES_PASSWORD:-}" ]]; then
