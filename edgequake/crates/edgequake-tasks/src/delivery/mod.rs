@@ -88,6 +88,7 @@ mod tests {
         let (tenant, workspace) = test_ids();
         let task = Task::new(tenant, workspace, TaskType::Insert, serde_json::json!({}));
 
+        let mut sub = notifier.subscribe();
         enqueue_with_delivery(
             &storage,
             &bridged,
@@ -98,7 +99,6 @@ mod tests {
         .await
         .unwrap();
 
-        let mut sub = notifier.subscribe();
         let notified = sub.recv().await.unwrap();
         assert_eq!(notified, task.track_id);
         let received = inner.receive().await.unwrap();
@@ -114,6 +114,7 @@ mod tests {
         let task = Task::new(tenant, workspace, TaskType::Insert, serde_json::json!({}));
         let track_id = task.track_id.clone();
 
+        let mut hydrating = StorageHydratingTaskQueue::new(Arc::clone(&storage), &notifier);
         enqueue_with_delivery(
             &storage,
             &queue,
@@ -125,7 +126,6 @@ mod tests {
         .unwrap();
 
         assert!(queue.try_receive().await.unwrap().is_none());
-        let mut hydrating = StorageHydratingTaskQueue::new(Arc::clone(&storage), &notifier);
         let loaded = hydrating.receive_hydrated().await.unwrap();
         assert_eq!(loaded.track_id, track_id);
     }
