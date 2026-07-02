@@ -8,7 +8,7 @@ on:
       tag_name:
         description: 'Tag name to publish (e.g. v0.10.7)'
         required: true
-        default: 'v0.13.0'
+        default: 'v0.13.1'
 
 permissions:
   contents: read

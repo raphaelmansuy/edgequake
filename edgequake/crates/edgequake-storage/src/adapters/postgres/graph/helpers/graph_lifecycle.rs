@@ -39,7 +39,96 @@ impl PostgresAGEGraphStorage {
             tracing::info!("Created AGE graph: {}", self.graph_name);
         }
 
+        // SPEC-039: AGE creates label child tables lazily on first Cypher MERGE.
+        // Native SQL reads/writes (get_nodes_batch, pg_upsert_nodes_batch_native)
+        // require `"Node"` and `"EDGE"` to exist before any ingestion — bootstrap
+        // them eagerly on fresh Docker / empty graphs.
+        self.ensure_graph_labels(&mut conn).await?;
+
         Ok(())
+    }
+
+    /// Ensure EdgeQuake's canonical AGE labels exist (`Node`, `EDGE`).
+    ///
+    /// # First principle
+    ///
+    /// `create_graph()` only creates the graph schema + parent `_ag_label_*` tables.
+    /// Child label tables are normally created on first Cypher use. SPEC-032/034
+    /// batch SQL paths query `{graph}."Node"` directly — they fail on empty graphs
+    /// with `relation does not exist` (SPEC-039 fresh Docker E2E).
+    pub(in crate::adapters::postgres::graph) async fn ensure_graph_labels(
+        &self,
+        conn: &mut sqlx::PgConnection,
+    ) -> Result<()> {
+        self.ensure_age_label(conn, 'v', "Node").await?;
+        self.ensure_age_label(conn, 'e', "EDGE").await?;
+        Ok(())
+    }
+
+    async fn ensure_age_label(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        kind: char,
+        label: &str,
+    ) -> Result<()> {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+               SELECT 1 FROM pg_class c
+               JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE n.nspname = $1 AND c.relname = $2
+             )",
+        )
+        .bind(&self.graph_name)
+        .bind(label)
+        .fetch_one(&mut *conn)
+        .await
+        .unwrap_or(false);
+
+        if exists {
+            tracing::debug!(
+                graph = %self.graph_name,
+                label,
+                "AGE label table already exists"
+            );
+            return Ok(());
+        }
+
+        let create_fn = if kind == 'v' {
+            "create_vlabel"
+        } else {
+            "create_elabel"
+        };
+        let create_sql = format!(
+            "SELECT {}('{}', '{}')",
+            create_fn, self.graph_name, label
+        );
+
+        match sqlx::query(&create_sql).execute(&mut *conn).await {
+            Ok(_) => {
+                tracing::info!(
+                    graph = %self.graph_name,
+                    label,
+                    "Created AGE label table (SPEC-039 bootstrap)"
+                );
+                Ok(())
+            }
+            Err(e) => {
+                let err_str = e.to_string();
+                // Race: another worker may have created the label between EXISTS and CREATE.
+                if err_str.contains("already exists") || err_str.contains("duplicate") {
+                    tracing::debug!(
+                        graph = %self.graph_name,
+                        label,
+                        "AGE label already created by concurrent bootstrap"
+                    );
+                    return Ok(());
+                }
+                Err(StorageError::Database(format!(
+                    "Failed to create AGE label {label} on graph {}: {e}",
+                    self.graph_name
+                )))
+            }
+        }
     }
 
     pub(in crate::adapters::postgres::graph) async fn ensure_indexes(&self) -> Result<()> {

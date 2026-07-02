@@ -21,7 +21,16 @@
 #     docker compose -f docker-compose.quickstart.yml up -d
 #
 # Pin to a specific release:
-#   EDGEQUAKE_VERSION=0.10.6 docker compose -f docker-compose.quickstart.yml up -d
+#   EDGEQUAKE_VERSION=0.13.1 docker compose -f docker-compose.quickstart.yml up -d
+#
+# Mistral (tested v0.13.1):
+#   EDGEQUAKE_VERSION=0.13.1 EDGEQUAKE_LLM_PROVIDER=mistral MISTRAL_API_KEY=... \
+#     EDGEQUAKE_LLM_MODEL=mistral-small-latest EDGEQUAKE_EMBEDDING_PROVIDER=mistral \
+#     MISTRAL_EMBEDDING_MODEL=mistral-embed docker compose -f docker-compose.quickstart.yml up -d
+#
+# Ollama gemma4:e4b on host (tested v0.13.1):
+#   EDGEQUAKE_VERSION=0.13.1 EDGEQUAKE_LLM_PROVIDER=ollama EDGEQUAKE_LLM_MODEL=gemma4:e4b \
+#     OLLAMA_EMBEDDING_MODEL=embeddinggemma docker compose -f docker-compose.quickstart.yml up -d
 
 services:
   # ── PostgreSQL with pgvector + Apache AGE ──────────────────────────────────

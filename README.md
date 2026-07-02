@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.13.0-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.13.1-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.13.0** — Large PDF ingestion (SPEC-038), graph lineage + page-aware chunking (SPEC-032), query full-chunk mode (SPEC-037), API audit + PG auth SSOT (SPEC-027). **Review [migration risk guide](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md) before upgrading from v0.12.x.** See [CHANGELOG](CHANGELOG.md).
+> **v0.13.1** — Fresh Docker graph bootstrap fix (SPEC-039): AGE `Node`/`EDGE` labels created eagerly on first graph init. **v0.13.0** added large PDF ingestion (SPEC-038), graph lineage (SPEC-032), query full-chunk mode (SPEC-037). Review [migration risk guide](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md) before upgrading from v0.12.x. See [CHANGELOG](CHANGELOG.md).
 
 ## Release & CD Cycle
 
@@ -232,9 +232,41 @@ EDGEQUAKE_LLM_PROVIDER=openai \
   OPENAI_API_KEY=sk-... \
   docker compose -f docker-compose.quickstart.yml up -d
 
-# Mistral La Plateforme ✨ new in v0.11.0
-MISTRAL_API_KEY=... \
+# Mistral La Plateforme (tested v0.13.1)
+EDGEQUAKE_VERSION=0.13.1 \
+  EDGEQUAKE_LLM_PROVIDER=mistral \
+  EDGEQUAKE_LLM_MODEL=mistral-small-latest \
+  EDGEQUAKE_EMBEDDING_PROVIDER=mistral \
+  MISTRAL_EMBEDDING_MODEL=mistral-embed \
+  EDGEQUAKE_VISION_PROVIDER=mistral \
+  EDGEQUAKE_VISION_MODEL=pixtral-large-latest \
+  MISTRAL_API_KEY=... \
   docker compose -f docker-compose.quickstart.yml up -d
+
+# Ollama on host with gemma4:e4b (tested v0.13.1)
+# Prerequisites: ollama serve &  &&  ollama pull gemma4:e4b  &&  ollama pull embeddinggemma
+EDGEQUAKE_VERSION=0.13.1 \
+  EDGEQUAKE_LLM_PROVIDER=ollama \
+  EDGEQUAKE_LLM_MODEL=gemma4:e4b \
+  EDGEQUAKE_EMBEDDING_PROVIDER=ollama \
+  OLLAMA_EMBEDDING_MODEL=embeddinggemma \
+  EDGEQUAKE_VISION_PROVIDER=ollama \
+  EDGEQUAKE_VISION_MODEL=gemma4:e4b \
+  docker compose -f docker-compose.quickstart.yml up -d
+```
+
+Verify after startup (register at http://localhost:3000 — auth is enabled in Docker by default):
+
+```bash
+curl -s http://localhost:8080/health | python3 -m json.tool
+# Expect status=healthy, llm_provider matches your choice, embedding dimensions set
+```
+
+Fresh-install E2E proof (ingest + query):
+
+```bash
+./specs/039-fix-docker/e2e/run_docker_fresh_install_proof.sh mistral   # requires MISTRAL_API_KEY
+OLLAMA_MODEL=gemma4:e4b ./specs/039-fix-docker/e2e/run_docker_fresh_install_proof.sh ollama
 ```
 
 **Management:**
@@ -245,7 +277,7 @@ docker compose -f docker-compose.quickstart.yml ps         # check status
 docker compose -f docker-compose.quickstart.yml down       # stop
 ```
 
-> **Pinned version:** `EDGEQUAKE_VERSION=0.10.8 sh quickstart.sh` to use a specific release.
+> **Pinned version:** `EDGEQUAKE_VERSION=0.13.1 sh quickstart.sh` to use a specific release. **v0.13.0 Docker users:** upgrade to v0.13.1 for fresh-install graph bootstrap fix ([SPEC-039](specs/039-fix-docker/000-index.md)).
 
 > Production auth/runtime deployment guidance is available in [docs/operations/runtime-auth-hardening.md](docs/operations/runtime-auth-hardening.md).
 

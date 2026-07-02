@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.13.1] — 2026-07-02
+
+Patch release fixing fresh Docker installs where document ingestion and query failed on empty AGE graphs.
+
+### Fixed
+
+- **SPEC-039 Fresh Docker graph bootstrap** — `create_graph()` now eagerly creates AGE `Node` and `EDGE` label tables via `ensure_graph_labels()`. Without this, SPEC-032/034 native batch SQL (`pg_get_nodes_batch`) fails with `relation "…Node" does not exist` on first ingestion. Verified with Mistral and Ollama `gemma4:e4b` Docker E2E.
+
+### Documentation
+
+- README Docker quickstart: tested Mistral + Ollama `gemma4:e4b` compose commands
+- `specs/039-fix-docker/` — 5 WHY, first principles, code-is-law, fix plan, cross-ref matrix
+
+---
+
 ## [0.13.0] — 2026-07-01
 
 Major feature release since `v0.12.11`. **32 new SQL migrations (046–077)** — see [v0.13.0 upgrade risk assessment](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md) before production deploy.
