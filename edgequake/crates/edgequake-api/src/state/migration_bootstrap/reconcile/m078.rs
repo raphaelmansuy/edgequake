@@ -9,8 +9,8 @@ use std::collections::HashSet;
 use sqlx::PgPool;
 use tracing::{info, warn};
 
-use super::execute_bootstrap_apply_sql;
 use super::super::{MIGRATION_078_VERSION, MIGRATION_079_VERSION, SQL_078_APPLY};
+use super::execute_bootstrap_apply_sql;
 
 const CHILD_NODE_INDEXES: &[&str] = &[
     "idx_node_workspace_id",
@@ -29,9 +29,7 @@ pub(super) const M078_CHECKSUM_FIXED_V0133: &str =
 
 /// Before sqlx runs: repair v0.13.2 broken M078 checksum so upgrade does not fail
 /// with "migration 78 was previously applied but has been modified".
-pub(super) async fn repair_migration_078_checksum_if_needed(
-    pool: &PgPool,
-) -> Result<bool, sqlx::Error> {
+pub async fn repair_migration_078_checksum_if_needed(pool: &PgPool) -> Result<bool, sqlx::Error> {
     let current: Option<String> = sqlx::query_scalar(
         "SELECT encode(checksum, 'hex') FROM _sqlx_migrations \
          WHERE version = $1 AND success = true",
@@ -69,7 +67,7 @@ pub(super) async fn repair_migration_078_checksum_if_needed(
 }
 
 /// After sqlx: ensure child-table indexes exist when M078/M079 marker present.
-pub(super) async fn reconcile_migration_078(
+pub async fn reconcile_migration_078(
     pool: &PgPool,
     applied_after: &HashSet<i64>,
 ) -> Result<bool, sqlx::Error> {

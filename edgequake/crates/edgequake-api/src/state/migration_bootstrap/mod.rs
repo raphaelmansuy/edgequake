@@ -653,9 +653,7 @@ pub async fn run_postgres_migrations(
         );
     }
 
-    if reconcile::repair_migration_078_checksum_if_needed(pool)
-        .await?
-    {
+    if reconcile::repair_migration_078_checksum_if_needed(pool).await? {
         info!(
             target: "edgequake.migration",
             step = "migration_078_checksum_repaired",
@@ -712,9 +710,7 @@ pub async fn run_postgres_migrations(
         );
     }
 
-    if reconcile::reconcile_migration_078(pool, &applied_after)
-        .await?
-    {
+    if reconcile::reconcile_migration_078(pool, &applied_after).await? {
         info!(
             target: "edgequake.migration",
             step = "migration_078_ok",
