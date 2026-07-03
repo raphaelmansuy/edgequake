@@ -151,13 +151,29 @@ pub struct StorageHealthSnapshot {
     pub vector_metadata_ref: String,
     /// Chunk KV writes happen inside IngestionPersister (not a second path).
     pub chunk_kv_in_persister: bool,
+    /// SPEC-042-E: `full` or `halfvec` (`EDGEQUAKE_VECTOR_STORAGE`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_storage_mode: Option<String>,
+    /// SPEC-042-E: `uuidv4` or `uuidv7` document ID generator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_id_generator: Option<String>,
+    /// SPEC-042-E: AGE 1.7 graph RLS active (`EDGEQUAKE_AGE_RLS=true` on PG17+).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age_rls_enabled: Option<bool>,
+    /// SPEC-042-E: AGE COPY bulk loader available (AGE >= 1.7.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age_copy_loader_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MigrationHealthSnapshot {
     pub latest_version: Option<i64>,
     pub source_ids_indexes_ready: bool,
+    pub pgvector_extversion: Option<String>,
+    pub pgvector_shipped_version: Option<String>,
     pub pgvector_iterative_scan_capable: bool,
+    pub age_extversion: Option<String>,
+    pub age_shipped_version: Option<String>,
     pub ready_for_traffic: bool,
 }
 

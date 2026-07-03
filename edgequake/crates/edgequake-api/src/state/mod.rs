@@ -170,6 +170,10 @@ pub struct AppState {
     #[cfg(feature = "postgres")]
     pub migration_bootstrap: Option<crate::state::migration_bootstrap::MigrationBootstrapReport>,
 
+    /// SPEC-042-E: PostgreSQL runtime capabilities (uuidv7, halfvec, AGE RLS/COPY gates).
+    #[cfg(feature = "postgres")]
+    pub postgres_capabilities: Option<edgequake_storage::adapters::postgres::PostgresCapabilities>,
+
     /// SPEC-027: runtime security flags (auth hardening, CORS, rate limits).
     pub security: ApiSecurityConfig,
 }

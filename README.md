@@ -5,13 +5,13 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.13.1-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.14.0-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg?style=flat)](docs/README.md)
 
-> **v0.13.1** — Fresh Docker graph bootstrap fix (SPEC-039): AGE `Node`/`EDGE` labels created eagerly on first graph init. **v0.13.0** added large PDF ingestion (SPEC-038), graph lineage (SPEC-032), query full-chunk mode (SPEC-037). Review [migration risk guide](edgequake/docs/migrations/v0.13.0-upgrade-risk-assessment.md) before upgrading from v0.12.x. See [CHANGELOG](CHANGELOG.md).
+> **v0.14.0** — SPEC-042 triple-track PostgreSQL: PG18 default for `make dev`, PG16/PG17 legacy tiers, pgvector 0.8.3 + AGE 1.7.0 on PG17/PG18, HNSW dimension guard ([#275](https://github.com/raphaelmansuy/edgequake/issues/275)). See [PostgreSQL migration guide](edgequake/docs/migrations/postgres-triple-track-spec042.md). Prior: **v0.13.3** migration 078 fix. [CHANGELOG](CHANGELOG.md).
 
 ## Release & CD Cycle
 
@@ -40,21 +40,31 @@ cd .. && make backend-bg frontend-bg && make spec013-proof-ui
 
 ```bash
 # Example
-git tag v0.13.0
-git push origin v0.13.0
+git tag v0.14.0
+git push origin v0.14.0
 ```
 
 This triggers `.github/workflows/release-docker.yml`, which:
-- builds/publishes multi-arch API, frontend, and postgres images to GHCR
+- builds/publishes multi-arch API, frontend, and **triple-track** postgres images (`:VERSION`, `:VERSION-pg16`, `:VERSION-pg17`, `:VERSION-pg18`) to GHCR
 - creates/updates the GitHub Release notes for that tag
 
 ### 4) Post-publish verification
 
 ```bash
-gh release view v0.13.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.13.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.13.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.13.0
+gh release view v0.14.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.14.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.14.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.14.0
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.14.0-pg16
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.14.0-pg17
+```
+
+### SPEC-042 verification (before tag)
+
+```bash
+make check-extension-pins          # pg16 + pg17 + pg18 pin SSOT
+make spec042-battle-test-all       # docker battle suite (all tiers + #275)
+make dev-e2e-proof-all             # dev-stack /health proof per profile
 ```
 
 ---
@@ -420,7 +430,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 │                    ▼                               ▼                        │
 │  ┌─────────────────────────────┐   ┌──────────────────────────────────┐     │
 │  │   LLM Providers             │   │   Storage Backends               │     │
-│  │  • OpenAI (gpt-4.1-nano)    │   │  • PostgreSQL 15+ (AGE + vector) │     │
+│  │  • OpenAI (gpt-4.1-nano)    │   │  • PostgreSQL 16/17/18 (AGE + vector)│     │
 │  │  • Anthropic (Claude)       │   │  • In-Memory (dev/testing)       │     │
 │  │  • Mistral (mistral-small)  │   │  • Graph: Property graph model   │     │
 │  │  • MiniMax (MiniMax-M2.7)   │   │  • Vector: pgvector embeddings   │     │
@@ -641,7 +651,17 @@ Services started:
 | --------------- | ---- | ------------------------------------------------- |
 | `edgequake` API | 8080 | `ghcr.io/raphaelmansuy/edgequake:latest`          |
 | `frontend`      | 3000 | `ghcr.io/raphaelmansuy/edgequake-frontend:latest` |
-| `postgres`      | 5432 | `ghcr.io/raphaelmansuy/edgequake-postgres:latest` |
+| `postgres`      | 5432 | `ghcr.io/raphaelmansuy/edgequake-postgres:latest` (PG18) |
+
+Pin a PostgreSQL major tier:
+
+```bash
+# PG16 legacy (AGE 1.6.0)
+EDGEQUAKE_POSTGRES_TAG=latest-pg16 docker compose -f docker-compose.prebuilt.yml up -d
+
+# PG17 modern (AGE 1.7.0)
+EDGEQUAKE_POSTGRES_TAG=latest-pg17 docker compose -f docker-compose.prebuilt.yml up -d
+```
 
 ```bash
 # Use a specific API version
@@ -674,7 +694,9 @@ Services started:
 | -------------------- | ---- | ------------------------------------- |
 | `edgequake` API      | 8080 | REST API + document processing        |
 | `frontend` (Next.js) | 3000 | Web UI                                |
-| `postgres`           | 5432 | PostgreSQL with pgvector + Apache AGE |
+| `postgres`           | 5432 | PostgreSQL 18 (default) — pgvector 0.8.3 + AGE 1.7.0 |
+
+Use `EQ_POSTGRES_PROFILE=pg16|pg17` for other tiers. See [migration guide](edgequake/docs/migrations/postgres-triple-track-spec042.md).
 
 ```bash
 # Follow logs

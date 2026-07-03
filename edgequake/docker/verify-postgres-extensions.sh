@@ -2,6 +2,10 @@
 # Verify edgequake-postgres image ships all required extensions at expected versions.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=extension-pins.sh
+source "$SCRIPT_DIR/extension-pins.sh"
+
 IMAGE="${1:-edgequake-postgres:local}"
 CONTAINER="edgequake-postgres-verify-$$"
 PGPASSWORD="${POSTGRES_PASSWORD:-edgequake_secret}"
@@ -52,25 +56,25 @@ wait_for_postgres() {
 
 wait_for_postgres
 
-docker exec -e PGPASSWORD="$PGPASSWORD" "$CONTAINER" psql -U edgequake -d edgequake -v ON_ERROR_STOP=1 <<'SQL'
+docker exec -e PGPASSWORD="$PGPASSWORD" "$CONTAINER" psql -U edgequake -d edgequake -v ON_ERROR_STOP=1 <<SQL
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS btree_gin;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-DO $$
+DO \$\$
 BEGIN
   CREATE EXTENSION IF NOT EXISTS age;
 EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'Apache AGE failed to load: %', SQLERRM;
-END $$;
+END \$\$;
 
 SELECT extname, extversion
 FROM pg_extension
 WHERE extname IN ('vector', 'age', 'pg_trgm', 'btree_gin', 'uuid-ossp')
 ORDER BY extname;
 
-DO $$
+DO \$\$
 DECLARE
   v_vector text;
   v_age text;
@@ -78,13 +82,13 @@ BEGIN
   SELECT extversion INTO v_vector FROM pg_extension WHERE extname = 'vector';
   SELECT extversion INTO v_age FROM pg_extension WHERE extname = 'age';
 
-  IF v_vector IS NULL OR string_to_array(v_vector, '.')::int[] < string_to_array('0.8.3', '.')::int[] THEN
-    RAISE EXCEPTION 'pgvector must be >= 0.8.3 (got %)', v_vector;
+  IF v_vector IS NULL OR string_to_array(v_vector, '.')::int[] < string_to_array('${EQ_PGVECTOR_MIN}', '.')::int[] THEN
+    RAISE EXCEPTION 'pgvector must be >= ${EQ_PGVECTOR_MIN} (got %)', v_vector;
   END IF;
-  IF v_age IS NULL OR string_to_array(v_age, '.')::int[] < string_to_array('1.6.0', '.')::int[] THEN
-    RAISE EXCEPTION 'Apache AGE must be >= 1.6.0 (got %)', v_age;
+  IF v_age IS NULL OR string_to_array(v_age, '.')::int[] < string_to_array('${EQ_AGE_MIN}', '.')::int[] THEN
+    RAISE EXCEPTION 'Apache AGE must be >= ${EQ_AGE_MIN} (got %)', v_age;
   END IF;
-END $$;
+END \$\$;
 SQL
 
 echo "✓ All EdgeQuake PostgreSQL extensions verified on $IMAGE"

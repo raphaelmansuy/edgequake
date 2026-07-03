@@ -21,6 +21,30 @@ use crate::middleware::TenantContext;
 use crate::services::pdf_workspace_dedup::find_kv_document_id_for_pdf;
 use crate::state::AppState;
 
+/// Allocate a document ID — uuidv7 on PG18 when capabilities allow (SPEC-042-E E-03).
+#[cfg(feature = "postgres")]
+pub async fn allocate_new_document_id(state: &AppState) -> String {
+    allocate_document_id_from_pool(state.pg_pool.as_ref(), state.postgres_capabilities.as_ref())
+        .await
+}
+
+#[cfg(not(feature = "postgres"))]
+pub async fn allocate_new_document_id(_state: &AppState) -> String {
+    Uuid::new_v4().to_string()
+}
+
+/// Allocate using optional pool + capabilities (handlers without full AppState).
+#[cfg(feature = "postgres")]
+pub async fn allocate_document_id_from_pool(
+    pool: Option<&sqlx::PgPool>,
+    caps: Option<&edgequake_storage::adapters::postgres::PostgresCapabilities>,
+) -> String {
+    if let (Some(pool), Some(caps)) = (pool, caps) {
+        return edgequake_storage::adapters::postgres::allocate_document_id(pool, caps).await;
+    }
+    Uuid::new_v4().to_string()
+}
+
 /// Resolve the document id to use for a PDF ingest at **enqueue** time.
 pub async fn resolve_pdf_ingest_document_id(
     state: &AppState,
@@ -49,7 +73,7 @@ pub async fn resolve_pdf_ingest_document_id(
         return doc_id;
     }
 
-    Uuid::new_v4().to_string()
+    allocate_new_document_id(state).await
 }
 
 /// Worker-time resolver: never mint a second id when one already exists.
@@ -61,6 +85,10 @@ pub async fn resolve_worker_pdf_document_id(
     data: &PdfProcessingData,
     task_storage: Option<&SharedTaskStorage>,
     tenant_ctx: Option<&TenantContext>,
+    #[cfg(feature = "postgres")] pg_pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] postgres_capabilities: Option<
+        &edgequake_storage::adapters::postgres::PostgresCapabilities,
+    >,
 ) -> Result<String, edgequake_tasks::TaskError> {
     if let Some(ref id) = data.existing_document_id {
         return Ok(id.clone());
@@ -82,6 +110,9 @@ pub async fn resolve_worker_pdf_document_id(
         }
     }
 
+    #[cfg(feature = "postgres")]
+    let id = allocate_document_id_from_pool(pg_pool, postgres_capabilities).await;
+    #[cfg(not(feature = "postgres"))]
     let id = Uuid::new_v4().to_string();
     persist_pdf_task_document_id(task, &id, task_storage).await?;
     Ok(id)

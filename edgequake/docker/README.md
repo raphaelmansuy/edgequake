@@ -5,6 +5,41 @@ This directory ships two supported Docker flows:
 - `docker-compose.prebuilt.yml`: pull versioned GHCR images for API, frontend, and PostgreSQL
 - `docker-compose.yml`: build the API and frontend locally, then run the PostgreSQL image locally
 
+## PostgreSQL triple-track (SPEC-042)
+
+EdgeQuake supports three PostgreSQL major tiers with a **single application binary**:
+
+| Profile | PG | pgvector | AGE | Local build | GHCR tag |
+| ------- | -- | -------- | --- | ----------- | -------- |
+| `pg18` (default) | 18 | 0.8.3 | 1.7.0 | `Dockerfile.postgres.pg18` | `:latest` / `:VERSION` |
+| `pg17` | 17 | 0.8.3 | 1.7.0 | `Dockerfile.postgres.pg17` | `:latest-pg17` |
+| `pg16` (legacy) | 16 | 0.8.3 | 1.6.0 | `Dockerfile.postgres` | `:latest-pg16` |
+
+**SSOT:** `extension-pins.sh` — all Dockerfiles, verify scripts, and Makefile targets source this file.
+
+```bash
+# Default (PG18 recommended)
+make dev
+
+# Explicit PostgreSQL major (recreates container + per-major volume when switching)
+make dev-pg18   # same as make dev
+make dev-pg17
+make dev-pg16   # legacy
+
+# Or override via env / .env
+EQ_POSTGRES_PROFILE=pg16 make dev
+make dev-bg-pg17   # background mode
+```
+
+# Prebuilt GHCR — PG18 default
+docker compose -f docker-compose.prebuilt.yml up -d
+
+# Prebuilt GHCR — stay on PG16
+EDGEQUAKE_POSTGRES_TAG=latest-pg16 docker compose -f docker-compose.prebuilt.yml up -d
+```
+
+Migration guide: [postgres-triple-track-spec042.md](../docs/migrations/postgres-triple-track-spec042.md)
+
 ## Prebuilt Flow
 
 Use this when you want the fastest install path and a repeatable release version.
@@ -65,16 +100,16 @@ Canonical `EDGEQUAKE_*` variables take precedence when both are set.
 | --- | --- | --- |
 | `edgequake` | `8080` | EdgeQuake API server |
 | `frontend` | `3000` | Next.js web UI |
-| `postgres` | `5432` | PostgreSQL with `pgvector` 0.8.3, Apache AGE 1.6.0, `pg_trgm`, `btree_gin` |
+| `postgres` | `5432` | PostgreSQL (PG18 default) with `pgvector` 0.8.3, Apache AGE 1.7.0 |
 
 ## PostgreSQL Image (extensions)
 
-Built from `Dockerfile.postgres` with pinned stable extensions:
+Built from `Dockerfile.postgres.pg18` (default), `.pg17`, or `Dockerfile.postgres` (PG16):
 
-| Extension | Version | Purpose |
+| Extension | Version (PG18) | Purpose |
 | --- | --- | --- |
 | `vector` (pgvector) | 0.8.3 | embedding ANN + iterative scan |
-| `age` (Apache AGE) | 1.6.0 | property graph / Cypher |
+| `age` (Apache AGE) | 1.7.0 | property graph / Cypher |
 | `pg_trgm` | contrib | trigram fuzzy search |
 | `btree_gin` | contrib | GIN btree operator classes |
 | `uuid-ossp` | contrib | legacy UUID helpers |
@@ -82,12 +117,14 @@ Built from `Dockerfile.postgres` with pinned stable extensions:
 Build and verify locally:
 
 ```bash
-cd edgequake/docker
-docker build -f Dockerfile.postgres -t edgequake-postgres:local .
-bash verify-postgres-extensions.sh edgequake-postgres:local
-```
+# PG18 (default dev profile)
+make postgres-image-build-pg18
 
-Or via Makefile from repo root: `make postgres-image-build`
+# All tiers + DRY pin check + battle test
+make check-extension-pins
+make postgres-image-build && make postgres-image-build-pg17 && make postgres-image-build-pg18
+make postgres-battle-test
+```
 
 ## Common Commands
 

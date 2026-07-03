@@ -214,6 +214,22 @@ impl AppState {
         let migration_bootstrap =
             super::migration_bootstrap::run_postgres_migrations(&pool).await?;
 
+        let age_extversion = migration_bootstrap.migration_043.extversion_after.clone();
+        let postgres_capabilities =
+            edgequake_storage::adapters::postgres::PostgresCapabilities::detect(
+                &pool,
+                age_extversion,
+            )
+            .await;
+        tracing::info!(
+            postgres_major = postgres_capabilities.postgres_major,
+            document_id_generator = postgres_capabilities.document_id_generator.as_str(),
+            vector_storage_mode = postgres_capabilities.vector_storage_mode.as_str(),
+            age_rls_effective = postgres_capabilities.age_rls_effective,
+            age_copy_loader = postgres_capabilities.age_copy_loader_effective,
+            "SPEC-042-E PostgreSQL capabilities detected"
+        );
+
         // Auto-configure vector dimension from embedding provider
         let embedding_dim = embedding_provider.dimension();
         tracing::info!(
@@ -379,6 +395,7 @@ impl AppState {
             graph_materialize,
             pdf_vision,
             migration_bootstrap: Some(migration_bootstrap),
+            postgres_capabilities: Some(postgres_capabilities),
             security: ApiSecurityConfig::from_env(),
         };
 

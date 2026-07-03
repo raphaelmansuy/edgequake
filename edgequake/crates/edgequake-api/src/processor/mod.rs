@@ -175,6 +175,11 @@ pub struct DocumentTaskProcessor {
     /// P-G13: Process-wide cap on concurrent vision PDF conversions.
     #[cfg(feature = "postgres")]
     pdf_vision: Option<Arc<edgequake_core::PdfVisionSemaphore>>,
+    /// SPEC-042-E E-03: uuidv7 document ID allocation on PG18.
+    #[cfg(feature = "postgres")]
+    pg_pool: Option<sqlx::PgPool>,
+    #[cfg(feature = "postgres")]
+    postgres_capabilities: Option<edgequake_storage::adapters::postgres::PostgresCapabilities>,
 }
 
 impl DocumentTaskProcessor {
@@ -209,6 +214,10 @@ impl DocumentTaskProcessor {
             query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
             pdf_vision: None,
+            #[cfg(feature = "postgres")]
+            pg_pool: None,
+            #[cfg(feature = "postgres")]
+            postgres_capabilities: None,
         }
     }
 
@@ -252,6 +261,10 @@ impl DocumentTaskProcessor {
             query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
             pdf_vision: None,
+            #[cfg(feature = "postgres")]
+            pg_pool: None,
+            #[cfg(feature = "postgres")]
+            postgres_capabilities: None,
         }
     }
 
@@ -292,6 +305,10 @@ impl DocumentTaskProcessor {
             query_cache_invalidator: None,
             #[cfg(feature = "postgres")]
             pdf_vision: None,
+            #[cfg(feature = "postgres")]
+            pg_pool: None,
+            #[cfg(feature = "postgres")]
+            postgres_capabilities: None,
         }
     }
 
@@ -370,6 +387,18 @@ impl DocumentTaskProcessor {
         pdf_vision: Arc<edgequake_core::PdfVisionSemaphore>,
     ) -> Self {
         self.pdf_vision = Some(pdf_vision);
+        self
+    }
+
+    /// SPEC-042-E E-03: Enable uuidv7 document ID allocation when PG18+.
+    #[cfg(feature = "postgres")]
+    pub fn with_postgres_id_allocation(
+        mut self,
+        pool: sqlx::PgPool,
+        capabilities: edgequake_storage::adapters::postgres::PostgresCapabilities,
+    ) -> Self {
+        self.pg_pool = Some(pool);
+        self.postgres_capabilities = Some(capabilities);
         self
     }
 }

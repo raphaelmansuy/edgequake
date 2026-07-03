@@ -1,0 +1,65 @@
+# EdgeQuake PostgreSQL 18 — pgvector + Apache AGE 1.7.0 (SPEC-042-B)
+#
+# SSOT extension pins: edgequake/docker/extension-pins.sh (EQ_POSTGRES_PROFILE=pg18)
+#   PostgreSQL 18 (bookworm)
+#   pgvector     v0.8.3  — https://pgxn.org/dist/vector
+#   Apache AGE   1.7.0   — tag PG18/v1.7.0-rc0 (official PG18 release)
+#   contrib      pg_trgm, btree_gin, uuid-ossp (postgresql-contrib-18)
+
+FROM postgres:18-bookworm
+
+ARG PGVECTOR_VERSION=v0.8.3
+ARG AGE_GIT_REF=PG18/v1.7.0-rc0
+
+LABEL org.edgequake.postgres.version="18-bookworm" \
+      org.edgequake.pgvector.version="0.8.3" \
+      org.edgequake.age.version="1.7.0" \
+      org.edgequake.extensions="vector,age,pg_trgm,btree_gin,uuid-ossp"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    postgresql-server-dev-18 \
+    postgresql-contrib-18 \
+    ca-certificates \
+    curl \
+    git \
+    flex \
+    bison \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    cd /tmp; \
+    git clone --depth 1 --branch "${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git; \
+    cd pgvector; \
+    make OPTFLAGS=""; \
+    make install; \
+    rm -rf /tmp/pgvector
+
+RUN set -eux; \
+    cd /tmp; \
+    git clone --depth 1 --branch "${AGE_GIT_REF}" https://github.com/apache/age.git; \
+    cd age; \
+    make; \
+    make install; \
+    rm -rf /tmp/age
+
+RUN apt-get purge -y --auto-remove \
+    build-essential \
+    postgresql-server-dev-18 \
+    git \
+    curl \
+    flex \
+    bison \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    test -f /usr/share/postgresql/18/extension/vector.control; \
+    test -f /usr/share/postgresql/18/extension/age.control; \
+    test -f /usr/share/postgresql/18/extension/pg_trgm.control; \
+    test -f /usr/share/postgresql/18/extension/btree_gin.control; \
+    test -f /usr/share/postgresql/18/extension/uuid-ossp.control; \
+    grep -q "default_version = '0.8.3'" /usr/share/postgresql/18/extension/vector.control; \
+    grep -q "default_version = '1.7.0'" /usr/share/postgresql/18/extension/age.control
+
+EXPOSE 5432
+CMD ["postgres"]

@@ -90,6 +90,7 @@ impl FromRef<AppState> for PostgresRuntime {
     fn from_ref(state: &AppState) -> Self {
         PostgresRuntime {
             pool: state.pg_pool.clone(),
+            capabilities: state.postgres_capabilities.clone(),
         }
     }
 }

@@ -160,7 +160,7 @@ pub async fn admit_document_for_processing(
         &input.title,
     );
 
-    let document_id = Uuid::new_v4().to_string();
+    let document_id = crate::services::ingest_admission::allocate_new_document_id(state).await;
     let track_id = input.build_track_id(track_prefix);
     let content_summary = crate::validation::generate_content_summary(&input.text_content);
     let content_length = input.text_content.len();

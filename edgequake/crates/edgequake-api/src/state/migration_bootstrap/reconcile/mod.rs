@@ -38,7 +38,10 @@ mod m062;
 mod m063;
 mod m064;
 mod m065;
+mod m071;
 mod m078;
+mod m080;
+mod m081;
 
 pub(super) use m038::reconcile_migration_038;
 pub(super) use m040::reconcile_migration_040_background;
@@ -67,4 +70,7 @@ pub(super) use m062::reconcile_migration_062;
 pub(super) use m063::reconcile_migration_063;
 pub(super) use m064::reconcile_migration_064;
 pub(super) use m065::reconcile_migration_065;
+pub(super) use m071::repair_migration_071_checksum_if_needed;
 pub(super) use m078::{reconcile_migration_078, repair_migration_078_checksum_if_needed};
+pub(super) use m080::reconcile_migration_080;
+pub(super) use m081::reconcile_migration_081;

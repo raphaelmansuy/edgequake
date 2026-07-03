@@ -6,6 +6,34 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.14.0] — 2026-07-03
+
+SPEC-042 PostgreSQL triple-track release — PG18 default, multi-tier CI/CD, HNSW dimension guard ([#275](https://github.com/raphaelmansuy/edgequake/issues/275)).
+
+### Added — SPEC-042 PostgreSQL triple-track (Issue #161)
+
+- **Triple-track PostgreSQL** — PG16 (legacy AGE 1.6.0), PG17 (modern AGE 1.7.0), PG18 (recommended) with a single application binary; extension pins SSOT in `edgequake/docker/extension-pins.sh`.
+- **PG18 default for `make dev`** — `make dev-pg16|pg17|pg18`, `make dev-bg-pg*`, `make db-start-pg*`; per-major Docker volumes and profile mismatch detection in `db-start`.
+- **CI/CD multi-tier postgres images** — `release-docker.yml` publishes `edgequake-postgres:VERSION` (PG18 default), plus `-pg16`, `-pg17`, `-pg18` suffixed tags (multi-arch amd64 + arm64).
+- **Phase E capabilities** — M080 halfvec marker, M081 AGE RLS marker; `/health` exposes `vector_storage_mode`, `document_id_generator` (uuidv7 on PG18), `age_rls_enabled`, `age_copy_loader_enabled`, and extension versions.
+- **HNSW dimension guard (#275)** — `AnnIndexPolicy` SSOT; M071 promotes `vector(>2000)` → `halfvec` for HNSW; skips ANN index when dim > 4000; M071 checksum repair at bootstrap.
+- **Migration bootstrap hardening** — `sqlx_migrations_table_exists()` guard for fresh PG16 DBs; M043/M078 reconcile guards; `extension_version_at_least()` helper.
+- **Operator tooling** — `scripts/migrate_postgres_major.sh`, `scripts/check_extension_pins.sh`, `make check-extension-pins`, `make spec042-battle-test-all`, `make dev-e2e-proof-all`.
+- **Battle-tested E2E** — `specs/042-update-age-pgvector/e2e/` (version matrix, Phase E, BT-275, multi-profile dev proof with screenshots).
+- **Migration guide** — [postgres-triple-track-spec042.md](edgequake/docs/migrations/postgres-triple-track-spec042.md).
+
+### Changed
+
+- **`edgequake-postgres:latest` now points to PG18** (was PG16). Existing PG16 deployments should pin `latest-pg16` or `VERSION-pg16`.
+
+### Fixed
+
+- **#275 HNSW startup failure on upgrade** — v0.13.3 M071 could create `vector_cosine_ops` HNSW on 3072-d embeddings; migration now dimension-aware with halfvec promotion.
+- **PG16 fresh-database bootstrap** — `repair_migration_078_checksum_if_needed()` no longer queries `_sqlx_migrations` before sqlx creates the table.
+- **`make dev` PG18 hang** — PG18+ Docker volume mount path (`/var/lib/postgresql` vs `/data`); crash-loop detection and per-major volumes.
+
+---
+
 ## [0.13.3] — 2026-07-03
 
 Hotfix for migration 078 startup blocker ([#273](https://github.com/raphaelmansuy/edgequake/issues/273)).

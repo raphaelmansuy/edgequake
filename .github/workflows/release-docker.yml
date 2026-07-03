@@ -8,7 +8,7 @@ on:
       tag_name:
         description: 'Tag name to publish (e.g. v0.10.7)'
         required: true
-        default: 'v0.13.2'
+        default: 'v0.14.0'
 
 permissions:
   contents: read
@@ -239,12 +239,20 @@ jobs:
         run: |
           docker buildx imagetools inspect "$IMAGE:$VERSION"
 
-  # ── Build PostgreSQL amd64 — native ubuntu-latest runner ──────────────────────
-  # Building postgres once in CI lets users pull a ready-to-go image instead of
-  # waiting for a local `docker build` every time they run `make stack`.
+  # ── Build PostgreSQL amd64 — triple-track PG16/PG17/PG18 (SPEC-042) ───────────
   build-postgres-amd64:
     needs: meta
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: pg16
+            dockerfile: Dockerfile.postgres
+          - profile: pg17
+            dockerfile: Dockerfile.postgres.pg17
+          - profile: pg18
+            dockerfile: Dockerfile.postgres.pg18
     steps:
       - uses: actions/checkout@v6
 
@@ -256,21 +264,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push postgres (amd64)
+      - name: Build and push postgres (${{ matrix.profile }} amd64)
         uses: docker/build-push-action@v6
         with:
           context: edgequake/docker
-          file: edgequake/docker/Dockerfile.postgres
+          file: edgequake/docker/${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository_owner }}/edgequake-postgres:${{ needs.meta.outputs.version }}-amd64
-          cache-from: type=gha,scope=postgres-amd64
-          cache-to:   type=gha,scope=postgres-amd64,mode=max
+          tags: ghcr.io/${{ github.repository_owner }}/edgequake-postgres:${{ needs.meta.outputs.version }}-${{ matrix.profile }}-amd64
+          cache-from: type=gha,scope=postgres-${{ matrix.profile }}-amd64
+          cache-to:   type=gha,scope=postgres-${{ matrix.profile }}-amd64,mode=max
 
-  # ── Build PostgreSQL arm64 — native ARM64 runner (no QEMU) ───────────────────
+  # ── Build PostgreSQL arm64 — triple-track PG16/PG17/PG18 (SPEC-042) ─────────
   build-postgres-arm64:
     needs: meta
     runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: pg16
+            dockerfile: Dockerfile.postgres
+          - profile: pg17
+            dockerfile: Dockerfile.postgres.pg17
+          - profile: pg18
+            dockerfile: Dockerfile.postgres.pg18
     steps:
       - uses: actions/checkout@v6
 
@@ -282,18 +300,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push postgres (arm64)
+      - name: Build and push postgres (${{ matrix.profile }} arm64)
         uses: docker/build-push-action@v6
         with:
           context: edgequake/docker
-          file: edgequake/docker/Dockerfile.postgres
+          file: edgequake/docker/${{ matrix.dockerfile }}
           push: true
           platforms: linux/arm64
-          tags: ghcr.io/${{ github.repository_owner }}/edgequake-postgres:${{ needs.meta.outputs.version }}-arm64
-          cache-from: type=gha,scope=postgres-arm64
-          cache-to:   type=gha,scope=postgres-arm64,mode=max
+          tags: ghcr.io/${{ github.repository_owner }}/edgequake-postgres:${{ needs.meta.outputs.version }}-${{ matrix.profile }}-arm64
+          cache-from: type=gha,scope=postgres-${{ matrix.profile }}-arm64
+          cache-to:   type=gha,scope=postgres-${{ matrix.profile }}-arm64,mode=max
 
-  # ── Merge PostgreSQL into a single multi-arch manifest ────────────────────────
+  # ── Merge PostgreSQL into multi-arch manifests (per tier + PG18 default) ─────
   merge-postgres:
     needs: [meta, build-postgres-amd64, build-postgres-arm64]
     runs-on: ubuntu-latest
@@ -304,23 +322,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push postgres multi-arch manifest
+      - name: Create and push postgres multi-arch manifests
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/edgequake-postgres
           VERSION: ${{ needs.meta.outputs.version }}
         run: |
+          set -euo pipefail
+          for PROFILE in pg16 pg17 pg18; do
+            docker buildx imagetools create \
+              --tag "$IMAGE:$VERSION-$PROFILE" \
+              --tag "$IMAGE:latest-$PROFILE" \
+              "$IMAGE:$VERSION-$PROFILE-amd64" \
+              "$IMAGE:$VERSION-$PROFILE-arm64"
+          done
+          # PG18 is the recommended default (:VERSION and :latest)
           docker buildx imagetools create \
             --tag "$IMAGE:$VERSION" \
             --tag "$IMAGE:latest" \
-            "$IMAGE:$VERSION-amd64" \
-            "$IMAGE:$VERSION-arm64"
+            "$IMAGE:$VERSION-pg18-amd64" \
+            "$IMAGE:$VERSION-pg18-arm64"
 
-      - name: Inspect postgres manifest
+      - name: Inspect postgres manifests
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/edgequake-postgres
           VERSION: ${{ needs.meta.outputs.version }}
         run: |
           docker buildx imagetools inspect "$IMAGE:$VERSION"
+          docker buildx imagetools inspect "$IMAGE:$VERSION-pg16"
+          docker buildx imagetools inspect "$IMAGE:$VERSION-pg17"
+          docker buildx imagetools inspect "$IMAGE:$VERSION-pg18"
 
   # ── Trigger GitHub Release after all images are published ────────────────────
   release:
@@ -367,7 +397,10 @@ jobs:
           |-------|-------------|
           | \`ghcr.io/raphaelmansuy/edgequake:${VERSION}\` | linux/amd64, linux/arm64 |
           | \`ghcr.io/raphaelmansuy/edgequake-frontend:${VERSION}\` | linux/amd64, linux/arm64 |
-          | \`ghcr.io/raphaelmansuy/edgequake-postgres:${VERSION}\` | linux/amd64, linux/arm64 |
+          | \`ghcr.io/raphaelmansuy/edgequake-postgres:${VERSION}\` | linux/amd64, linux/arm64 | **PG18** (recommended default) |
+          | \`ghcr.io/raphaelmansuy/edgequake-postgres:${VERSION}-pg16\` | linux/amd64, linux/arm64 | PG16 legacy (AGE 1.6.0) |
+          | \`ghcr.io/raphaelmansuy/edgequake-postgres:${VERSION}-pg17\` | linux/amd64, linux/arm64 | PG17 modern (AGE 1.7.0) |
+          | \`ghcr.io/raphaelmansuy/edgequake-postgres:${VERSION}-pg18\` | linux/amd64, linux/arm64 | PG18 explicit tag |
 
           Full CHANGELOG: https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/CHANGELOG.md"
 

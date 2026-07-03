@@ -226,6 +226,8 @@ impl DocumentTaskProcessor {
             &data,
             self.task_storage.as_ref(),
             Some(&tenant_ctx),
+            self.pg_pool.as_ref(),
+            self.postgres_capabilities.as_ref(),
         )
         .await?;
 

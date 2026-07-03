@@ -48,7 +48,9 @@ fi
 echo -e "${YELLOW}✓ Checking Dockerfiles...${RESET}"
 BACKEND_DOCKERFILE="edgequake/docker/Dockerfile"
 FRONTEND_DOCKERFILE="edgequake_webui/Dockerfile"
-POSTGRES_DOCKERFILE="edgequake/docker/Dockerfile.postgres"
+POSTGRES_DOCKERFILE="edgequake/docker/Dockerfile.postgres.pg18"
+POSTGRES_DOCKERFILE_PG16="edgequake/docker/Dockerfile.postgres"
+POSTGRES_DOCKERFILE_PG17="edgequake/docker/Dockerfile.postgres.pg17"
 
 if [ -f "$BACKEND_DOCKERFILE" ]; then
     echo -e "${GREEN}✓ Backend Dockerfile found${RESET}"
@@ -65,11 +67,20 @@ else
 fi
 
 if [ -f "$POSTGRES_DOCKERFILE" ]; then
-    echo -e "${GREEN}✓ PostgreSQL Dockerfile found${RESET}"
+    echo -e "${GREEN}✓ PostgreSQL Dockerfile (PG18 default) found${RESET}"
 else
     echo -e "${RED}✗ PostgreSQL Dockerfile not found at $POSTGRES_DOCKERFILE${RESET}"
     exit 1
 fi
+
+for _tier in "$POSTGRES_DOCKERFILE_PG16" "$POSTGRES_DOCKERFILE_PG17"; do
+    if [ -f "$_tier" ]; then
+        echo -e "${GREEN}✓ PostgreSQL tier Dockerfile found: $_tier${RESET}"
+    else
+        echo -e "${RED}✗ Missing $_tier${RESET}"
+        exit 1
+    fi
+done
 
 # Check 5: docker-compose.yml is valid
 echo -e "${YELLOW}✓ Checking docker-compose configuration...${RESET}"

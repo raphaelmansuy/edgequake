@@ -120,6 +120,14 @@ pub(super) const SQL_065_APPLY: &str =
 pub(super) const SQL_078_APPLY: &str =
     include_str!("../../../../../migrations/support/078/apply.sql");
 
+/// halfvec embedding conversion — SSOT: `migrations/support/080/apply.sql`
+pub(super) const SQL_080_APPLY: &str =
+    include_str!("../../../../../migrations/support/080/apply.sql");
+
+/// AGE graph RLS policies — SSOT: `migrations/support/081/apply.sql`
+pub(super) const SQL_081_APPLY: &str =
+    include_str!("../../../../../migrations/support/081/apply.sql");
+
 /// sqlx migration version marker (no blocking DDL in sqlx file).
 pub const MIGRATION_038_VERSION: i64 = 38;
 
@@ -204,6 +212,15 @@ pub const MIGRATION_078_VERSION: i64 = 78;
 /// sqlx migration version for AGE child Node index reconcile (SPEC-041 / #273).
 pub const MIGRATION_079_VERSION: i64 = 79;
 
+/// sqlx migration version for HNSW ef_construction optimization (SPEC-034 IMP-04).
+pub const MIGRATION_071_VERSION: i64 = 71;
+
+/// sqlx migration version for halfvec embeddings (SPEC-042-E E-01).
+pub const MIGRATION_080_VERSION: i64 = 80;
+
+/// sqlx migration version for AGE graph RLS (SPEC-042-E E-02).
+pub const MIGRATION_081_VERSION: i64 = 81;
+
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
 /// Outcome of bootstrap migration run (surfaced in `/health` and `/ready`).
@@ -281,6 +298,7 @@ pub struct Migration043Report {
     pub age_available: bool,
     pub extversion_before: Option<String>,
     pub extversion_after: Option<String>,
+    pub shipped_extversion: Option<String>,
     pub extension_updated: bool,
 }
 
@@ -653,6 +671,14 @@ pub async fn run_postgres_migrations(
         );
     }
 
+    if reconcile::repair_migration_071_checksum_if_needed(pool).await? {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_071_checksum_repaired",
+            "v0.13.3 → #275 M071 checksum reconciled before sqlx run"
+        );
+    }
+
     if reconcile::repair_migration_078_checksum_if_needed(pool).await? {
         info!(
             target: "edgequake.migration",
@@ -715,6 +741,22 @@ pub async fn run_postgres_migrations(
             target: "edgequake.migration",
             step = "migration_078_ok",
             "Migration 078/079 child Node indexes reconciled"
+        );
+    }
+
+    if reconcile::reconcile_migration_080(pool, &applied_after, &applied_this_run).await? {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_080_ok",
+            "Migration 080 halfvec conversion reconciled"
+        );
+    }
+
+    if reconcile::reconcile_migration_081(pool, &applied_after, &applied_this_run).await? {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_081_ok",
+            "Migration 081 AGE graph RLS reconciled"
         );
     }
 
@@ -1101,16 +1143,7 @@ pub async fn run_postgres_migrations(
 }
 
 async fn fetch_applied_versions(pool: &PgPool) -> Result<HashSet<i64>, sqlx::Error> {
-    let table_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = '_sqlx_migrations'
-        )",
-    )
-    .fetch_one(pool)
-    .await?;
-
-    if !table_exists {
+    if !helpers::sqlx_migrations_table_exists(pool).await? {
         return Ok(HashSet::new());
     }
 
@@ -1148,6 +1181,7 @@ mod tests {
             age_available: true,
             extversion_before: Some("1.6.0".into()),
             extversion_after: Some("1.6.0".into()),
+            shipped_extversion: Some("1.6.0".into()),
             extension_updated: false,
         }
     }
@@ -1409,6 +1443,15 @@ mod tests {
     fn pgvector_iterative_scan_version_gate() {
         assert!(helpers::pgvector_supports_iterative_scan("0.8.0"));
         assert!(!helpers::pgvector_supports_iterative_scan("0.7.4"));
+    }
+
+    #[test]
+    fn extension_version_at_least_semantics() {
+        assert!(helpers::extension_version_at_least("0.8.3", "0.8.3"));
+        assert!(helpers::extension_version_at_least("1.6.0", "1.6.0"));
+        assert!(helpers::extension_version_at_least("1.7.0", "1.6.0"));
+        assert!(!helpers::extension_version_at_least("0.7.4", "0.8.0"));
+        assert!(!helpers::extension_version_at_least("1.5.0", "1.6.0"));
     }
 
     #[test]

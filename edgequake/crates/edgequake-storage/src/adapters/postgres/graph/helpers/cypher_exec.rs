@@ -48,7 +48,7 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        Self::setup_age_session(&mut conn).await?;
+        Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let sql = Self::cypher_bound_sql(&self.graph_name, cypher, columns, false);
         let rows = sqlx::query(&sql)
@@ -90,7 +90,7 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        Self::setup_age_session(&mut conn).await?;
+        Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let as_clause = columns
             .iter()
@@ -149,7 +149,7 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        Self::setup_age_session(&mut conn).await?;
+        Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let tag = Self::dollar_quote_tag(cypher);
         let sql = format!(
@@ -175,7 +175,7 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        Self::setup_age_session(&mut conn).await?;
+        Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let rows = sqlx::query(sql)
             .bind(ids)

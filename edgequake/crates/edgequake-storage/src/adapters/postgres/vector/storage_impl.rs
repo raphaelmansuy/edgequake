@@ -33,6 +33,7 @@ impl VectorStorage for PgVectorStorage {
     ) -> Result<Vec<VectorSearchResult>> {
         let pool = self.pool.get().await?;
         let embedding_str = Self::format_embedding(query_embedding);
+        let emb_type = self.embedding_pg_type();
 
         let sql = if let Some(ids) = filter_ids {
             if ids.is_empty() {
@@ -40,10 +41,10 @@ impl VectorStorage for PgVectorStorage {
             }
             format!(
                 r#"
-                SELECT id, metadata, 1 - (embedding <=> $1::vector) as score
+                SELECT id, metadata, 1 - (embedding <=> $1::{emb_type}) as score
                 FROM {}
                 WHERE id = ANY($2)
-                ORDER BY embedding <=> $1::vector
+                ORDER BY embedding <=> $1::{emb_type}
                 LIMIT $3
                 "#,
                 self.table_name
@@ -51,9 +52,9 @@ impl VectorStorage for PgVectorStorage {
         } else {
             format!(
                 r#"
-                SELECT id, metadata, 1 - (embedding <=> $1::vector) as score
+                SELECT id, metadata, 1 - (embedding <=> $1::{emb_type}) as score
                 FROM {}
-                ORDER BY embedding <=> $1::vector
+                ORDER BY embedding <=> $1::{emb_type}
                 LIMIT $2
                 "#,
                 self.table_name
@@ -159,12 +160,13 @@ impl VectorStorage for PgVectorStorage {
         // parameter cap. All chunks run in ONE transaction for atomicity.
         const CHUNK: usize = 1_000;
 
+        let emb_type = self.embedding_pg_type();
         let sql = format!(
             r#"
             INSERT INTO {} (id, embedding, metadata, document_id, tenant_id, workspace_id)
             SELECT
                 t.id,
-                t.embedding::vector,
+                t.embedding::{emb_type},
                 t.metadata,
                 COALESCE(t.metadata->>'document_id', t.metadata->>'source_document_id'),
                 t.metadata->>'tenant_id',
@@ -446,6 +448,7 @@ impl VectorStorage for PgVectorStorage {
 
         let pool = self.pool.get().await?;
         let embedding_str = Self::format_embedding(query_embedding);
+        let emb_type = self.embedding_pg_type();
 
         let has_id_filter = filter_ids.map(|ids| !ids.is_empty()).unwrap_or(false);
         let filter_sql = mf.build_sql(has_id_filter, 2);
@@ -457,10 +460,10 @@ impl VectorStorage for PgVectorStorage {
 
         let sql = format!(
             r#"
-            SELECT id, metadata, 1 - (embedding <=> $1::vector) as score
+            SELECT id, metadata, 1 - (embedding <=> $1::{emb_type}) as score
             FROM {}
             {}
-            ORDER BY embedding <=> $1::vector
+            ORDER BY embedding <=> $1::{emb_type}
             LIMIT ${}
             "#,
             self.table_name, where_clause, filter_sql.next_param

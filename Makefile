@@ -131,10 +131,11 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 
 
 .PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-memory kill-app stop clean build test lint format \
+        dev-pg16 dev-pg17 dev-pg18 dev-bg-pg16 dev-bg-pg17 dev-bg-pg18 \
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
         openapi-snapshot codegen-openapi codegen-openapi-refresh codegen-openapi-live \
-        db-start db-stop db-wait db-logs db-shell postgres-image-build docker-network-diagnose stop-docker-services \
+        db-start db-start-pg16 db-start-pg17 db-start-pg18 db-stop db-wait db-logs db-shell postgres-image-build postgres-image-build-pg17 postgres-image-build-pg18 check-extension-pins postgres-battle-test hnsw-dimension-battle-test spec042-battle-test-all dev-e2e-proof dev-e2e-proof-all docker-network-diagnose stop-docker-services \
         docker-build docker-up docker-prebuilt docker-prebuilt-down docker-prebuilt-logs docker-ps-prebuilt docker-api-only docker-down docker-logs \
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
@@ -179,6 +180,12 @@ ROOT_DIR := $(shell pwd)
 BACKEND_DIR := $(ROOT_DIR)/edgequake
 FRONTEND_DIR := $(ROOT_DIR)/edgequake_webui
 DOCKER_DIR := $(BACKEND_DIR)/docker
+
+# SPEC-042: PostgreSQL major profile (pg16|pg17|pg18). PG18 is recommended for new dev installs.
+# Override via: make dev-pg17 | EQ_POSTGRES_PROFILE=pg16 make dev | .env EQ_POSTGRES_PROFILE=pg17
+EQ_POSTGRES_PROFILE ?= pg18
+export EQ_POSTGRES_PROFILE
+PG_PROFILES := pg16 pg17 pg18
 
 # Local development ports.
 # WHY: Local EdgeQuake and the published Docker stack both document the Web UI
@@ -272,9 +279,15 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Quick Start$(RESET)"
 	@echo "  $(GREEN)make install$(RESET)      Install all dependencies"
-	@echo "  $(GREEN)make dev$(RESET)          Start full development stack without authentication (default local mode)"
+	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL PG18 — default)"
+	@echo "  $(GREEN)make dev-pg16$(RESET)     Start dev stack with PostgreSQL 16 (legacy)"
+	@echo "  $(GREEN)make dev-pg17$(RESET)     Start dev stack with PostgreSQL 17"
+	@echo "  $(GREEN)make dev-pg18$(RESET)     Start dev stack with PostgreSQL 18 (same as make dev)"
 	@echo "  $(GREEN)make dev-auth$(RESET)     Start full development stack with authentication enabled"
 	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND without authentication"
+	@echo "  $(GREEN)make dev-bg-pg16$(RESET)  Background dev with PostgreSQL 16"
+	@echo "  $(GREEN)make dev-bg-pg17$(RESET)  Background dev with PostgreSQL 17"
+	@echo "  $(GREEN)make dev-bg-pg18$(RESET)  Background dev with PostgreSQL 18"
 	@echo "  $(GREEN)make dev-auth-bg$(RESET)  Start full stack in BACKGROUND with authentication enabled"
 	@echo "  $(GREEN)make dev-memory$(RESET)   Start with in-memory storage (for testing)"
 	@echo "  $(GREEN)make stop$(RESET)         Stop all services"
@@ -304,9 +317,13 @@ help: ## Show this help message
 	@echo "  $(GREEN)make codegen-openapi-refresh$(RESET) Refresh OpenAPI snapshot + TypeScript types (offline)"
 	@echo "  $(GREEN)make codegen-openapi-live$(RESET) Fetch live OpenAPI from backend + regenerate types"
 	@echo ""
-	@echo "$(BOLD)$(BLUE)🗄️  Database$(RESET)"
-	@echo "  $(GREEN)make db-start$(RESET)     Start PostgreSQL container"
-	@echo "  $(GREEN)make db-stop$(RESET)      Stop PostgreSQL container"
+	@echo "$(BOLD)$(BLUE)🗄️  Database (SPEC-042 triple-track)$(RESET)"
+	@echo "  $(GREEN)make db-start$(RESET)       Start PostgreSQL (profile: $(EQ_POSTGRES_PROFILE))"
+	@echo "  $(GREEN)make db-start-pg16$(RESET)  Start PostgreSQL 16 only"
+	@echo "  $(GREEN)make db-start-pg17$(RESET)  Start PostgreSQL 17 only"
+	@echo "  $(GREEN)make db-start-pg18$(RESET)  Start PostgreSQL 18 only"
+	@echo "  $(GREEN)EQ_POSTGRES_PROFILE=pg17 make dev$(RESET)  Alternative profile override"
+	@echo "  $(GREEN)make db-stop$(RESET)        Stop PostgreSQL container"
 	@echo "  $(GREEN)make db-wait$(RESET)      Wait for database to be ready"
 	@echo "  $(GREEN)make db-logs$(RESET)      View database logs"
 	@echo "  $(GREEN)make db-shell$(RESET)     Open psql shell"
@@ -454,9 +471,10 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
 	fi
 	@echo ""
-	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
+	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
 	@echo ""
+	@echo "  $(BLUE)PostgreSQL$(RESET): $(EQ_POSTGRES_PROFILE) (see extension-pins.sh)"
 	@echo "  $(BLUE)Backend$(RESET):  $(BACKEND_URL)"
 	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
 	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
@@ -508,6 +526,26 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
 	wait
 
+# SPEC-042: PostgreSQL major profile dev shortcuts (SSOT: extension-pins.sh)
+define PG_DEV_RULE
+dev-$(1): ## Start dev stack with PostgreSQL $(subst pg,,$(1)) (SPEC-042)
+	@$(MAKE) dev EQ_POSTGRES_PROFILE=$(1) --no-print-directory
+endef
+
+define PG_DEV_BG_RULE
+dev-bg-$(1): ## Start dev stack in background with PostgreSQL $(subst pg,,$(1))
+	@$(MAKE) dev-bg EQ_POSTGRES_PROFILE=$(1) --no-print-directory
+endef
+
+define PG_DB_START_RULE
+db-start-$(1): ## Start PostgreSQL $(subst pg,,$(1)) container only
+	@$(MAKE) db-start EQ_POSTGRES_PROFILE=$(1) --no-print-directory
+endef
+
+$(foreach p,$(PG_PROFILES),$(eval $(call PG_DEV_RULE,$(p))))
+$(foreach p,$(PG_PROFILES),$(eval $(call PG_DEV_BG_RULE,$(p))))
+$(foreach p,$(PG_PROFILES),$(eval $(call PG_DB_START_RULE,$(p))))
+
 dev-auth: ## Start full development stack with authentication enabled
 	@$(MAKE) dev --no-print-directory DEV_AUTH_ENABLED=true DEV_DISABLE_DEMO_LOGIN=true
 
@@ -544,7 +582,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
 		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
 	fi
-	@echo "$(YELLOW)→ Ensuring PostgreSQL availability...$(RESET)"
+	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-wait --no-print-directory
 	@echo ""
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
@@ -1033,22 +1071,54 @@ db-start: ## Start PostgreSQL container
 	_DB_NAME=$$(printf '%s' "$(DATABASE_URL)" | sed -E 's|^[^:]+://[^/]+/([^?]*).*|\1|'); \
 	if pg_isready -h "$$_DB_HOST" -p "$$_DB_PORT" >/dev/null 2>&1; then \
 		if PGPASSWORD="$$_DB_PASS" psql -h "$$_DB_HOST" -p "$$_DB_PORT" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
-			echo "$(GREEN)✓ PostgreSQL already reachable on port $$_DB_PORT (credentials verified)$(RESET)"; \
-			printf '%s' "$(DATABASE_URL)" > /tmp/edgequake-db-url; \
-			exit 0; \
+			. $(DOCKER_DIR)/extension-pins.sh; \
+			_PROFILE_OK=1; \
+			if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+				_RUN_MAJOR=$$(docker exec edgequake-postgres psql -U edgequake -d edgequake -tAc "SELECT (current_setting('server_version_num')::int / 10000)" 2>/dev/null | tr -d '[:space:]' || true); \
+				if [ -n "$$_RUN_MAJOR" ] && [ "$$_RUN_MAJOR" != "$$EQ_POSTGRES_MAJOR" ]; then \
+					echo "$(YELLOW)→ Port $$_DB_PORT has PG$$_RUN_MAJOR but $$EQ_POSTGRES_PROFILE (PG$$EQ_POSTGRES_MAJOR) was requested; recreating...$(RESET)"; \
+					docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+					_PROFILE_OK=0; \
+				fi; \
+			fi; \
+			if [ "$$_PROFILE_OK" = "1" ]; then \
+				echo "$(GREEN)✓ PostgreSQL already reachable on port $$_DB_PORT (credentials verified)$(RESET)"; \
+				printf '%s' "$(DATABASE_URL)" > /tmp/edgequake-db-url; \
+				printf '%s' "$$EQ_POSTGRES_PROFILE" > /tmp/edgequake-postgres-profile; \
+				exit 0; \
+			fi; \
 		else \
 			echo "$(YELLOW)⚠  Port $$_DB_PORT is occupied by a PostgreSQL instance that does not accept our credentials.$(RESET)"; \
 			echo "$(YELLOW)   Root cause: another service (infrastructure-postgres, k8s, etc.) is using that port.$(RESET)"; \
+			if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+				. $(DOCKER_DIR)/extension-pins.sh; \
+				_RUN_MAJOR=$$(docker exec edgequake-postgres psql -U edgequake -d edgequake -tAc "SELECT (current_setting('server_version_num')::int / 10000)" 2>/dev/null | tr -d '[:space:]' || true); \
+				if [ -n "$$_RUN_MAJOR" ] && [ "$$_RUN_MAJOR" != "$$EQ_POSTGRES_MAJOR" ]; then \
+					echo "$(YELLOW)→ edgequake-postgres is PG$$_RUN_MAJOR but $$EQ_POSTGRES_PROFILE (PG$$EQ_POSTGRES_MAJOR) was requested; recreating...$(RESET)"; \
+					docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+				else \
+					_EQ_PORT=$$(docker port edgequake-postgres 5432/tcp 2>/dev/null | sed -E 's/.*:([0-9]+).*/\1/' | head -1); \
+					if [ -n "$$_EQ_PORT" ] && PGPASSWORD="$$_DB_PASS" psql -h localhost -p "$$_EQ_PORT" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
+						echo "$(GREEN)✓ Reusing edgequake-postgres (PG$$_RUN_MAJOR) on port $$_EQ_PORT (credentials verified)$(RESET)"; \
+						_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_EQ_PORT/|"); \
+						printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+						printf '%s' "$$EQ_POSTGRES_PROFILE" > /tmp/edgequake-postgres-profile; \
+						exit 0; \
+					fi; \
+				fi; \
+			fi; \
 			echo "$(YELLOW)   Auto-detecting a free port for edgequake-postgres...$(RESET)"; \
 			_FREE_PORT=""; \
-			for _TRY in 5433 5434 5435 5436 5437; do \
-				if ! pg_isready -h localhost -p "$$_TRY" >/dev/null 2>&1 && ! lsof -ti ":$$_TRY" >/dev/null 2>&1; then \
-					_FREE_PORT="$$_TRY"; \
-					break; \
+			for _TRY in 5433 5434 5435 5436 5437 5438 5439; do \
+				if ! lsof -ti ":$$_TRY" >/dev/null 2>&1; then \
+					if ! PGPASSWORD="$$_DB_PASS" psql -h localhost -p "$$_TRY" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
+						_FREE_PORT="$$_TRY"; \
+						break; \
+					fi; \
 				fi; \
 			done; \
 			if [ -z "$$_FREE_PORT" ]; then \
-				echo "$(RED)✗ No free PostgreSQL port found in range 5433-5437$(RESET)"; \
+				echo "$(RED)✗ No free PostgreSQL port found in range 5433-5439$(RESET)"; \
 				exit 1; \
 			fi; \
 			echo "$(YELLOW)→ Will start edgequake-postgres on port $$_FREE_PORT instead$(RESET)"; \
@@ -1059,15 +1129,32 @@ db-start: ## Start PostgreSQL container
 			fi; \
 		fi; \
 	fi; \
+	if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+		. $(DOCKER_DIR)/extension-pins.sh; \
+		_RUN_MAJOR=$$(docker exec edgequake-postgres psql -U edgequake -d edgequake -tAc "SELECT (current_setting('server_version_num')::int / 10000)" 2>/dev/null | tr -d '[:space:]' || true); \
+		if [ -n "$$_RUN_MAJOR" ] && [ "$$_RUN_MAJOR" != "$$EQ_POSTGRES_MAJOR" ]; then \
+			echo "$(YELLOW)→ PostgreSQL profile mismatch (running PG$$_RUN_MAJOR, requested $$EQ_POSTGRES_PROFILE); recreating container...$(RESET)"; \
+			docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+		fi; \
+	fi; \
+	if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}} {{.Status}}' 2>/dev/null | grep -E 'edgequake-postgres.*(Restarting|Exited)'; then \
+		if docker logs edgequake-postgres 2>&1 | grep -q 'Counter to that, there appears to be PostgreSQL data'; then \
+			echo "$(YELLOW)→ edgequake-postgres crash-loop: PG18+ volume layout mismatch; removing container$(RESET)"; \
+			docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+		fi; \
+	fi; \
 	if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
+		. $(DOCKER_DIR)/extension-pins.sh; \
+		_PG_EXT="/usr/share/postgresql/$$EQ_POSTGRES_MAJOR/extension"; \
 		for i in 1 2 3 4 5; do \
 			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
-				_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" /usr/share/postgresql/16/extension/vector.control 2>/dev/null || true); \
+				_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" "$$_PG_EXT/vector.control" 2>/dev/null || true); \
 				case "$$_PV_SHIP" in \
 					0.8.*|0.9.*|[1-9]*) \
 						echo "$(GREEN)✓ Existing edgequake-postgres container is already running and reachable$(RESET)"; \
 						_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
 						printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+						printf '%s' "$$EQ_POSTGRES_PROFILE" > /tmp/edgequake-postgres-profile; \
 						exit 0 ;; \
 					*) \
 						echo "$(YELLOW)→ edgequake-postgres ships pgvector $$_PV_SHIP (< 0.8); rebuilding container...$(RESET)"; \
@@ -1083,14 +1170,17 @@ db-start: ## Start PostgreSQL container
 	if command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then \
 		echo "$(YELLOW)→ Starting existing edgequake-postgres container...$(RESET)"; \
 		docker start edgequake-postgres >/dev/null 2>&1 || true; \
+		. $(DOCKER_DIR)/extension-pins.sh; \
+		_PG_EXT="/usr/share/postgresql/$$EQ_POSTGRES_MAJOR/extension"; \
 		for i in 1 2 3 4 5; do \
 			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
-				_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" /usr/share/postgresql/16/extension/vector.control 2>/dev/null || true); \
+				_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" "$$_PG_EXT/vector.control" 2>/dev/null || true); \
 				case "$$_PV_SHIP" in \
 					0.8.*|0.9.*|[1-9]*) \
 						echo "$(GREEN)✓ Existing edgequake-postgres container is ready$(RESET)"; \
 						_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
 						printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
+						printf '%s' "$$EQ_POSTGRES_PROFILE" > /tmp/edgequake-postgres-profile; \
 						exit 0 ;; \
 					*) \
 						echo "$(YELLOW)→ edgequake-postgres ships pgvector $$_PV_SHIP (< 0.8); rebuilding container...$(RESET)"; \
@@ -1116,9 +1206,24 @@ db-start: ## Start PostgreSQL container
 		exit 1; \
 	fi; \
 	TMP_LOG=$$(mktemp); \
-	if cd $(DOCKER_DIR) && POSTGRES_PORT="$$_DB_PORT" docker compose up -d --build postgres >"$$TMP_LOG" 2>&1; then \
+	. $(DOCKER_DIR)/extension-pins.sh; \
+	if [ "$$EQ_POSTGRES_MAJOR" -ge 18 ] 2>/dev/null; then \
+		_PG_DATA_DIR=/var/lib/postgresql; \
+		_PG_VOL_NAME=postgres-data-pg18; \
+	else \
+		_PG_DATA_DIR=/var/lib/postgresql/data; \
+		_PG_VOL_NAME=postgres-data-pg$$EQ_POSTGRES_MAJOR; \
+	fi; \
+	echo "$(BLUE)→ PostgreSQL profile: $$EQ_POSTGRES_PROFILE (PG$$EQ_POSTGRES_MAJOR, $$(basename $$EQ_POSTGRES_DOCKERFILE))$(RESET)"; \
+	_start_postgres() { \
+		cd $(DOCKER_DIR) && EQ_POSTGRES_PROFILE="$$EQ_POSTGRES_PROFILE" EQ_POSTGRES_DOCKERFILE="$$EQ_POSTGRES_DOCKERFILE" \
+			POSTGRES_PORT="$$_DB_PORT" \
+			POSTGRES_VOLUME_NAME="$$_PG_VOL_NAME" \
+			POSTGRES_DATA_DIR="$$_PG_DATA_DIR" \
+			docker compose up -d --build postgres >"$$TMP_LOG" 2>&1; \
+	}; \
+	if _start_postgres; then \
 		cat "$$TMP_LOG"; \
-		rm -f "$$TMP_LOG"; \
 	else \
 		cat "$$TMP_LOG"; \
 		echo "$(RED)✗ Failed to start PostgreSQL container$(RESET)"; \
@@ -1131,30 +1236,103 @@ db-start: ## Start PostgreSQL container
 	fi; \
 	echo "$(GREEN)✓ PostgreSQL container started on port $$_DB_PORT$(RESET)"; \
 	echo "$(YELLOW)Waiting for database to be ready...$(RESET)"; \
-	for i in 1 2 3 4 5 6 7 8 9 10; do \
-		pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1 && break || { echo "Waiting..."; sleep 2; }; \
-	done; \
-	if ! pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1; then \
-		echo "$(RED)✗ Database failed to start$(RESET)"; exit 1; \
+	_wait_db() { \
+		for i in $$(seq 1 30); do \
+			if pg_isready -h localhost -p "$$_DB_PORT" >/dev/null 2>&1 && \
+			   PGPASSWORD="$$_DB_PASS" psql -h localhost -p "$$_DB_PORT" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
+				return 0; \
+			fi; \
+			echo "Waiting..."; sleep 2; \
+		done; \
+		return 1; \
+	}; \
+	if ! _wait_db; then \
+		if docker logs edgequake-postgres 2>&1 | grep -q 'Counter to that, there appears to be PostgreSQL data'; then \
+			echo "$(YELLOW)→ PG$$EQ_POSTGRES_MAJOR volume layout mismatch (upgrade from older image); recreating volume $$_PG_VOL_NAME...$(RESET)"; \
+			docker rm -f edgequake-postgres >/dev/null 2>&1 || true; \
+			docker volume rm "edgequake-dev_$$_PG_VOL_NAME" "docker_$$_PG_VOL_NAME" "edgequake-dev_postgres-data" "docker_postgres-data" 2>/dev/null || true; \
+			if _start_postgres; then cat "$$TMP_LOG"; else cat "$$TMP_LOG"; rm -f "$$TMP_LOG"; exit 1; fi; \
+			if ! _wait_db; then \
+				echo "$(RED)✗ Database failed to start after volume reset$(RESET)"; \
+				docker logs edgequake-postgres 2>&1 | tail -30; \
+				rm -f "$$TMP_LOG"; exit 1; \
+			fi; \
+		else \
+			echo "$(RED)✗ Database failed to start$(RESET)"; \
+			docker logs edgequake-postgres 2>&1 | tail -30; \
+			rm -f "$$TMP_LOG"; exit 1; \
+		fi; \
 	fi; \
+	rm -f "$$TMP_LOG"; \
 	echo "$(GREEN)✓ Database is ready$(RESET)"; \
+	. $(DOCKER_DIR)/extension-pins.sh; \
+	_PG_EXT="/usr/share/postgresql/$$EQ_POSTGRES_MAJOR/extension"; \
 	_PV_DB=$$(docker exec edgequake-postgres psql -U edgequake -d edgequake -tAc "SELECT extversion FROM pg_extension WHERE extname = 'vector'" 2>/dev/null | tr -d '[:space:]' || true); \
-	_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" /usr/share/postgresql/16/extension/vector.control 2>/dev/null | tr -d '[:space:]' || true); \
+	_PV_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" "$$_PG_EXT/vector.control" 2>/dev/null | tr -d '[:space:]' || true); \
 	if [ -n "$$_PV_DB" ] && [ -n "$$_PV_SHIP" ] && [ "$$_PV_DB" != "$$_PV_SHIP" ]; then \
 		echo "$(YELLOW)→ Upgrading pgvector catalog $$_PV_DB → $$_PV_SHIP (ALTER EXTENSION vector UPDATE)...$(RESET)"; \
 		docker exec edgequake-postgres psql -U edgequake -d edgequake -c "ALTER EXTENSION vector UPDATE;" >/dev/null 2>&1 || \
 			echo "$(YELLOW)  pgvector catalog upgrade deferred to backend migration 042$(RESET)"; \
 	fi; \
+	_AGE_DB=$$(docker exec edgequake-postgres psql -U edgequake -d edgequake -tAc "SELECT extversion FROM pg_extension WHERE extname = 'age'" 2>/dev/null | tr -d '[:space:]' || true); \
+	_AGE_SHIP=$$(docker exec edgequake-postgres sed -n "s/default_version = '\([^']*\)'.*/\1/p" "$$_PG_EXT/age.control" 2>/dev/null | tr -d '[:space:]' || true); \
+	if [ -n "$$_AGE_DB" ] && [ -n "$$_AGE_SHIP" ] && [ "$$_AGE_DB" != "$$_AGE_SHIP" ]; then \
+		echo "$(YELLOW)→ Upgrading Apache AGE catalog $$_AGE_DB → $$_AGE_SHIP (ALTER EXTENSION age UPDATE)...$(RESET)"; \
+		docker exec edgequake-postgres psql -U edgequake -d edgequake -c "ALTER EXTENSION age UPDATE;" >/dev/null 2>&1 || \
+			echo "$(YELLOW)  AGE catalog upgrade deferred to backend migration 043$(RESET)"; \
+	fi; \
 	_EFF_URL=$$(printf '%s' "$(DATABASE_URL)" | sed -E "s|(@[^:]+):[0-9]+/|\1:$$_DB_PORT/|"); \
 	printf '%s' "$$_EFF_URL" > /tmp/edgequake-db-url; \
-	echo "$(GREEN)✓ Effective DATABASE_URL written to /tmp/edgequake-db-url$(RESET)"
+	printf '%s' "$$EQ_POSTGRES_PROFILE" > /tmp/edgequake-postgres-profile; \
+	echo "$(GREEN)✓ Effective DATABASE_URL written to /tmp/edgequake-db-url (profile: $$EQ_POSTGRES_PROFILE)$(RESET)"
 
-postgres-image-build: ## Build and verify edgequake-postgres Docker image (pgvector 0.8.3 + AGE 1.6.0)
-	@echo "$(BLUE)Building edgequake-postgres image...$(RESET)"
-	@cd $(DOCKER_DIR) && docker build -f Dockerfile.postgres -t edgequake-postgres:local .
+postgres-image-build: ## Build and verify edgequake-postgres Docker image (pgvector 0.8.3 + AGE 1.6.0, PG16)
+	@echo "$(BLUE)Building edgequake-postgres image (PG16)...$(RESET)"
+	@cd $(DOCKER_DIR) && docker build -f Dockerfile.postgres -t edgequake-postgres:pg16 .
 	@chmod +x $(DOCKER_DIR)/verify-postgres-extensions.sh
-	@bash $(DOCKER_DIR)/verify-postgres-extensions.sh edgequake-postgres:local
-	@echo "$(GREEN)✓ edgequake-postgres:local ready$(RESET)"
+	@EQ_POSTGRES_PROFILE=pg16 bash $(DOCKER_DIR)/verify-postgres-extensions.sh edgequake-postgres:pg16
+	@echo "$(GREEN)✓ edgequake-postgres:pg16 ready$(RESET)"
+
+postgres-image-build-pg17: ## Build and verify edgequake-postgres PG17 image (pgvector 0.8.3 + AGE 1.7.0)
+	@echo "$(BLUE)Building edgequake-postgres image (PG17 / SPEC-042-C)...$(RESET)"
+	@cd $(DOCKER_DIR) && docker build -f Dockerfile.postgres.pg17 -t edgequake-postgres:pg17 .
+	@chmod +x $(DOCKER_DIR)/verify-postgres-extensions.sh
+	@EQ_POSTGRES_PROFILE=pg17 bash $(DOCKER_DIR)/verify-postgres-extensions.sh edgequake-postgres:pg17
+	@echo "$(GREEN)✓ edgequake-postgres:pg17 ready$(RESET)"
+
+postgres-image-build-pg18: ## Build and verify edgequake-postgres PG18 image (pgvector 0.8.3 + AGE 1.7.0) — default dev profile
+	@echo "$(BLUE)Building edgequake-postgres image (PG18 / SPEC-042-B)...$(RESET)"
+	@cd $(DOCKER_DIR) && docker build -f Dockerfile.postgres.pg18 -t edgequake-postgres:pg18 -t edgequake-postgres:local .
+	@chmod +x $(DOCKER_DIR)/verify-postgres-extensions.sh
+	@EQ_POSTGRES_PROFILE=pg18 bash $(DOCKER_DIR)/verify-postgres-extensions.sh edgequake-postgres:local
+	@echo "$(GREEN)✓ edgequake-postgres:local (PG18) ready$(RESET)"
+
+check-extension-pins: ## Verify Dockerfile pins match extension-pins.sh SSOT (SPEC-042 DRY gate)
+	@bash scripts/check_extension_pins.sh all
+
+postgres-battle-test: ## Run SPEC-042 version feature battle test (all PG tiers)
+	@chmod +x specs/042-update-age-pgvector/e2e/run_version_feature_battle_test.sh
+	@./specs/042-update-age-pgvector/e2e/run_version_feature_battle_test.sh all
+
+hnsw-dimension-battle-test: ## Run SPEC-042 #275 HNSW dimension guard battle test (all PG tiers)
+	@chmod +x specs/042-update-age-pgvector/e2e/run_hnsw_dimension_battle_test.sh
+	@./specs/042-update-age-pgvector/e2e/run_hnsw_dimension_battle_test.sh all
+
+spec042-battle-test-all: ## Run full SPEC-042 battle suite (pins + version + Phase E + #275)
+	@chmod +x specs/042-update-age-pgvector/e2e/run_all_battle_tests.sh
+	@./specs/042-update-age-pgvector/e2e/run_all_battle_tests.sh
+
+phase-e-battle-test: ## Run SPEC-042-E Phase E acceptance probes (pg17 + pg18)
+	@chmod +x specs/042-update-age-pgvector/e2e/run_phase_e_battle_test.sh
+	@./specs/042-update-age-pgvector/e2e/run_phase_e_battle_test.sh all
+
+dev-e2e-proof: ## SPEC-042 dev E2E proof + screenshots (requires running stack; uses active PG profile)
+	@chmod +x specs/042-update-age-pgvector/e2e/run_dev_e2e_proof.sh
+	@./specs/042-update-age-pgvector/e2e/run_dev_e2e_proof.sh
+
+dev-e2e-proof-all: ## SPEC-042 dev E2E proof on pg16 + pg17 + pg18 (switch DB per profile)
+	@chmod +x specs/042-update-age-pgvector/e2e/run_dev_e2e_proof_all_profiles.sh
+	@SKIP_IMAGE_BUILD=1 ./specs/042-update-age-pgvector/e2e/run_dev_e2e_proof_all_profiles.sh
 
 db-stop: ## Stop PostgreSQL container
 	@echo "$(BLUE)Stopping PostgreSQL...$(RESET)"
@@ -2045,8 +2223,19 @@ status: ## Show status of all services
 	@curl -s "$(FRONTEND_URL)" >/dev/null 2>&1 && echo "  $(GREEN)Running on $(FRONTEND_URL)$(RESET)" || echo "  $(RED)Not running$(RESET)"
 	@echo ""
 	@echo "$(BOLD)Database:$(RESET)"
-	@if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
-		echo "  $(GREEN)Running on localhost:5432$(RESET)"; \
+	@_STATUS_DB_URL=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
+	_STATUS_DB_PORT=$$(printf '%s' "$$_STATUS_DB_URL" | sed -E 's|^[^:]+://[^@]+@[^:]+:([0-9]+)/.*|\1|'); \
+	_STATUS_DB_PORT=$${_STATUS_DB_PORT:-5432}; \
+	_STATUS_DB_PASS=$$(printf '%s' "$$_STATUS_DB_URL" | sed -E 's|^[^:]+://[^:]+:([^@]+)@.*|\1|'); \
+	_STATUS_DB_USER=$$(printf '%s' "$$_STATUS_DB_URL" | sed -E 's|^[^:]+://([^:]+):.*|\1|'); \
+	_STATUS_DB_NAME=$$(printf '%s' "$$_STATUS_DB_URL" | sed -E 's|^[^:]+://[^/]+/([^?]*).*|\1|'); \
+	if pg_isready -h localhost -p "$$_STATUS_DB_PORT" >/dev/null 2>&1 && \
+	   PGPASSWORD="$$_STATUS_DB_PASS" psql -h localhost -p "$$_STATUS_DB_PORT" -U "$$_STATUS_DB_USER" -d "$$_STATUS_DB_NAME" -c '\q' >/dev/null 2>&1; then \
+		_STATUS_PG_MAJOR=$$(PGPASSWORD="$$_STATUS_DB_PASS" psql -h localhost -p "$$_STATUS_DB_PORT" -U "$$_STATUS_DB_USER" -d "$$_STATUS_DB_NAME" -tAc "SELECT (current_setting('server_version_num')::int / 10000)" 2>/dev/null | tr -d '[:space:]' || true); \
+		_STATUS_PROFILE=$$(cat /tmp/edgequake-postgres-profile 2>/dev/null || echo "$(EQ_POSTGRES_PROFILE)"); \
+		echo "  $(GREEN)Running on localhost:$$_STATUS_DB_PORT — PostgreSQL $$_STATUS_PG_MAJOR ($$_STATUS_PROFILE)$(RESET)"; \
+	elif pg_isready -h localhost -p 5432 >/dev/null 2>&1; then \
+		echo "  $(YELLOW)Port 5432 reachable but not edgequake credentials — check /tmp/edgequake-db-url$(RESET)"; \
 	else \
 		echo "  $(RED)Not running$(RESET)"; \
 	fi
