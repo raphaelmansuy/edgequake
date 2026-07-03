@@ -10,11 +10,14 @@ impl PostgresAGEGraphStorage {
     /// Build the outer SQL for a parameterized Cypher call (AGE prepared-statement pattern).
     fn cypher_bound_sql(graph_name: &str, cypher: &str, columns: &[&str], execute: bool) -> String {
         let tag = Self::dollar_quote_tag(cypher);
-        // WHY ::text::ag_catalog.agtype: sqlx binds JSON as jsonb; AGE has no jsonb→agtype cast.
-        let bind_cast = "$1::text::ag_catalog.agtype";
+        // WHY bare $1: AGE requires the third argument to cypher() to be a Param
+        // node — any cast expression (e.g. $1::agtype) is rejected with "third
+        // argument of cypher function must be a parameter". We bind the agtype
+        // map as text (String) and let PostgreSQL's text→agtype input function
+        // handle the coercion via the declared parameter type.
         if execute {
             return format!(
-                "{} SELECT * FROM cypher('{}', {} {} {}, {bind_cast}) AS (a agtype);",
+                "{} SELECT * FROM cypher('{}', {} {} {}, $1) AS (a agtype);",
                 Self::age_session_setup_sql(),
                 graph_name,
                 tag,
@@ -33,7 +36,7 @@ impl PostgresAGEGraphStorage {
             .collect::<Vec<_>>()
             .join(", ");
         format!(
-            "SELECT {} FROM cypher('{}', {} {} {}, {bind_cast}) AS ({})",
+            "SELECT {} FROM cypher('{}', {} {} {}, $1) AS ({})",
             select_clause, graph_name, tag, cypher, tag, as_clause
         )
     }
