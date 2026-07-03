@@ -260,6 +260,8 @@ jobs:
           POSTGRES_PASSWORD: test_password_123
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
+          # Native SQL upsert avoids Cypher jsonb→agtype cast failures on AGE 1.7+.
+          EDGEQUAKE_NATIVE_GRAPH_WRITES: "1"
         run: |
           echo "Running SPEC-017 storage backend contract tests..."
           cargo test -p edgequake-storage --test storage_backend_contract --features postgres -- --test-threads=1

@@ -1,6 +1,6 @@
 //! Login lockout enforcement (SPEC-027 SEC-011).
 //!
-//! Tracks failed password attempts on [`UserRecord`] and locks accounts when
+//! Tracks failed password attempts per user record and locks accounts when
 //! [`edgequake_auth::AuthConfig::max_login_attempts`] is exceeded.
 
 use chrono::{DateTime, Utc};

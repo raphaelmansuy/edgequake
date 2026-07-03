@@ -23,7 +23,7 @@ import { skipUnlessLiveStack } from "./helpers/live-stack";
 import { reconvertScreenshotPath } from "./helpers/reconvert-artifacts";
 
 const SAMPLE_PDF = require.resolve(
-  "../../zz-explore/pymupdf4llm/examples/country-capitals/national-capitals.pdf",
+  "../../edgequake/crates/edgequake-api/tests/fixtures/spec038/guide_2606.24937v1-opt.pdf",
 );
 
 type DocSummary = {
