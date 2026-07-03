@@ -10,9 +10,11 @@ impl PostgresAGEGraphStorage {
     /// Build the outer SQL for a parameterized Cypher call (AGE prepared-statement pattern).
     fn cypher_bound_sql(graph_name: &str, cypher: &str, columns: &[&str], execute: bool) -> String {
         let tag = Self::dollar_quote_tag(cypher);
+        // WHY ::text::ag_catalog.agtype: sqlx binds JSON as jsonb; AGE has no jsonb→agtype cast.
+        let bind_cast = "$1::text::ag_catalog.agtype";
         if execute {
             return format!(
-                "{} SELECT * FROM cypher('{}', {} {} {}, $1::agtype) AS (a agtype);",
+                "{} SELECT * FROM cypher('{}', {} {} {}, {bind_cast}) AS (a agtype);",
                 Self::age_session_setup_sql(),
                 graph_name,
                 tag,
@@ -31,9 +33,13 @@ impl PostgresAGEGraphStorage {
             .collect::<Vec<_>>()
             .join(", ");
         format!(
-            "SELECT {} FROM cypher('{}', {} {} {}, $1::agtype) AS ({})",
+            "SELECT {} FROM cypher('{}', {} {} {}, {bind_cast}) AS ({})",
             select_clause, graph_name, tag, cypher, tag, as_clause
         )
+    }
+
+    fn cypher_params_text(params: &serde_json::Value) -> String {
+        serde_json::to_string(params).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Run read Cypher with bound agtype parameters (no string interpolation of user values).
@@ -51,8 +57,9 @@ impl PostgresAGEGraphStorage {
         Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let sql = Self::cypher_bound_sql(&self.graph_name, cypher, columns, false);
+        let params_text = Self::cypher_params_text(params);
         let rows = sqlx::query(&sql)
-            .bind(params)
+            .bind(params_text)
             .fetch_all(&mut *conn)
             .await
             .map_err(|e| {
@@ -70,8 +77,9 @@ impl PostgresAGEGraphStorage {
     ) -> Result<()> {
         let pool = self.pool.get().await?;
         let sql = Self::cypher_bound_sql(&self.graph_name, cypher, &[], true);
+        let params_text = Self::cypher_params_text(params);
         sqlx::query(&sql)
-            .bind(params)
+            .bind(params_text)
             .execute(&pool)
             .await
             .map_err(|e| {
