@@ -56,12 +56,9 @@ impl PostgresAGEGraphStorage {
             graph = self.graph_name,
         );
 
-        let rows = sqlx::query(&sql)
-            .fetch_all(&mut *conn)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Parameterized Cypher query failed: {e}"))
-            })?;
+        let rows = sqlx::query(&sql).fetch_all(&mut *conn).await.map_err(|e| {
+            StorageError::Database(format!("Parameterized Cypher query failed: {e}"))
+        })?;
 
         Ok(rows)
     }
