@@ -120,7 +120,10 @@ export function DocumentDropzone({
             onPdfParserBackendChange(value)
           }
         >
-          <SelectTrigger className="w-[190px] h-9 bg-background">
+          <SelectTrigger
+            className="w-[190px] h-9 bg-background"
+            data-testid="spec038-upload-parser-select"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

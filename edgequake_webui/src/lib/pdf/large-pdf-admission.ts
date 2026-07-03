@@ -3,6 +3,18 @@
  */
 
 import { extractPdfPageCount } from "./extract-page-count";
+import {
+  resolvePdfParserBackend,
+  resolvesToVisionParser,
+  type PdfParserResolutionContext,
+} from "./resolve-pdf-parser-backend";
+
+export type { PdfParserResolutionContext } from "./resolve-pdf-parser-backend";
+export {
+  getServerDefaultPdfParserBackend,
+  resolvePdfParserBackend,
+  resolvesToVisionParser,
+} from "./resolve-pdf-parser-backend";
 
 export const LARGE_PDF_PAGE_THRESHOLD = Number.parseInt(
   process.env.NEXT_PUBLIC_LARGE_PDF_PAGE_THRESHOLD ?? "100",
@@ -29,12 +41,27 @@ export function estimateIngestMinutes(pageCount: number, backend: "edgeparse" | 
   return Math.ceil((convertSecs + extractSecs + 600) / 60);
 }
 
+/**
+ * Whether the choice popup must appear before upload (REQ-038-04, REQ-038-12).
+ * Large PDF + resolved Vision parser only; EdgeParse proceeds silently.
+ */
+export function shouldPromptLargePdfParserChoice(
+  pageCount: number,
+  parserContext: PdfParserResolutionContext,
+): boolean {
+  if (pageCount < LARGE_PDF_PAGE_THRESHOLD) {
+    return false;
+  }
+  return resolvesToVisionParser(parserContext);
+}
+
 export async function buildLargePdfAdmissionPreview(
   file: File,
+  parserContext: PdfParserResolutionContext,
 ): Promise<LargePdfAdmissionPreview | null> {
   const buffer = await file.arrayBuffer();
   const pageCount = extractPdfPageCount(buffer);
-  if (pageCount === null || pageCount < LARGE_PDF_PAGE_THRESHOLD) {
+  if (pageCount === null || !shouldPromptLargePdfParserChoice(pageCount, parserContext)) {
     return null;
   }
   const recommendedBackend: "edgeparse" | "vision" = "edgeparse";
@@ -47,12 +74,21 @@ export async function buildLargePdfAdmissionPreview(
   };
 }
 
-export async function filterLargePdfFiles(files: File[]): Promise<LargePdfAdmissionPreview[]> {
+export async function filterLargePdfFiles(
+  files: File[],
+  parserContext: PdfParserResolutionContext,
+): Promise<LargePdfAdmissionPreview[]> {
   const previews: LargePdfAdmissionPreview[] = [];
   for (const file of files) {
     if (!file.name.toLowerCase().endsWith(".pdf")) continue;
-    const preview = await buildLargePdfAdmissionPreview(file);
+    const preview = await buildLargePdfAdmissionPreview(file, parserContext);
     if (preview) previews.push(preview);
   }
   return previews;
+}
+
+/** Resolved parser at admission time (for logging / tests). */
+export function describeResolvedParser(parserContext: PdfParserResolutionContext): string {
+  const { backend, source } = resolvePdfParserBackend(parserContext);
+  return `${backend} (${source})`;
 }

@@ -40,8 +40,63 @@ export const SPEC038_PDF_UPLOAD_RESPONSE = {
   duplicate_of: null,
 };
 
-/** Register routes required for documents page + fast PDF upload ack. */
-export async function mockSpec038AdmissionRoutes(page: Page): Promise<void> {
+/** Seed browser storage so Documents page uses SPEC-038 mock tenant/workspace. */
+export async function seedSpec038TenantContext(
+  page: Page,
+  options?: { workspacePdfParserBackend?: "vision" | "edgeparse" },
+): Promise<void> {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.evaluate(
+    ({ tenantId, workspaceId, pdfParserBackend }) => {
+      localStorage.clear();
+      sessionStorage.clear();
+      const userId = crypto.randomUUID();
+      localStorage.setItem("userId", userId);
+      localStorage.setItem("tenantId", tenantId);
+      localStorage.setItem("workspaceId", workspaceId);
+      const workspace: Record<string, unknown> = {
+        id: workspaceId,
+        tenant_id: tenantId,
+        name: "SPEC-038 Workspace",
+        slug: "spec038-workspace",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      };
+      if (pdfParserBackend) {
+        workspace.pdf_parser_backend = pdfParserBackend;
+      }
+      localStorage.setItem(
+        "edgequake-tenant",
+        JSON.stringify({
+          state: {
+            selectedTenantId: tenantId,
+            selectedWorkspaceId: workspaceId,
+            workspaces: [workspace],
+            tenants: [
+              {
+                id: tenantId,
+                name: "SPEC038Tenant",
+                slug: "spec038-tenant",
+                created_at: "2026-01-01T00:00:00Z",
+              },
+            ],
+          },
+          version: 1,
+        }),
+      );
+    },
+    {
+      tenantId: SPEC038_MOCK_TENANT_ID,
+      workspaceId: SPEC038_MOCK_WORKSPACE_ID,
+      pdfParserBackend: options?.workspacePdfParserBackend ?? null,
+    },
+  );
+}
+
+export async function mockSpec038AdmissionRoutes(
+  page: Page,
+  options?: { workspacePdfParserBackend?: "vision" | "edgeparse" | null },
+): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -101,20 +156,22 @@ export async function mockSpec038AdmissionRoutes(page: Page): Promise<void> {
   });
 
   await page.route(`**/api/v1/tenants/${SPEC038_MOCK_TENANT_ID}/workspaces**`, async (route) => {
+    const workspace: Record<string, unknown> = {
+      id: SPEC038_MOCK_WORKSPACE_ID,
+      tenant_id: SPEC038_MOCK_TENANT_ID,
+      name: "SPEC-038 Workspace",
+      slug: "spec038-workspace",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    if (options?.workspacePdfParserBackend) {
+      workspace.pdf_parser_backend = options.workspacePdfParserBackend;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        items: [
-          {
-            id: SPEC038_MOCK_WORKSPACE_ID,
-            tenant_id: SPEC038_MOCK_TENANT_ID,
-            name: "SPEC-038 Workspace",
-            slug: "spec038-workspace",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-          },
-        ],
+        items: [workspace],
         total: 1,
         offset: 0,
         limit: 50,
