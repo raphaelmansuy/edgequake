@@ -81,5 +81,6 @@ fn spec022_cypher_exec_exposes_bound_helpers() {
     let src = include_str!("../src/adapters/postgres/graph/helpers/cypher_exec.rs");
     assert!(src.contains("cypher_query_bound"));
     assert!(src.contains("cypher_execute_bound"));
-    assert!(src.contains("$1::agtype"));
+    assert!(src.contains("escape_agtype_literal"));
+    assert!(src.contains("::agtype"));
 }
