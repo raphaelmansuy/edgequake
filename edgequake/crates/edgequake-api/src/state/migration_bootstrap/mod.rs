@@ -116,6 +116,10 @@ pub(super) const SQL_064_APPLY: &str =
 pub(super) const SQL_065_APPLY: &str =
     include_str!("../../../../../migrations/support/065/apply.sql");
 
+/// AGE child Node workspace indexes — SSOT: `migrations/support/078/apply.sql`
+pub(super) const SQL_078_APPLY: &str =
+    include_str!("../../../../../migrations/support/078/apply.sql");
+
 /// sqlx migration version marker (no blocking DDL in sqlx file).
 pub const MIGRATION_038_VERSION: i64 = 38;
 
@@ -193,6 +197,12 @@ pub const MIGRATION_064_VERSION: i64 = 64;
 
 /// sqlx migration version marker for auth KV eliminated (phase 55).
 pub const MIGRATION_065_VERSION: i64 = 65;
+
+/// sqlx migration version for AGE child Node workspace indexes (SPEC-040 / #262).
+pub const MIGRATION_078_VERSION: i64 = 78;
+
+/// sqlx migration version for AGE child Node index reconcile (SPEC-041 / #273).
+pub const MIGRATION_079_VERSION: i64 = 79;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
@@ -643,6 +653,16 @@ pub async fn run_postgres_migrations(
         );
     }
 
+    if reconcile::repair_migration_078_checksum_if_needed(pool)
+        .await?
+    {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_078_checksum_repaired",
+            "v0.13.2 → v0.13.3 M078 checksum reconciled before sqlx run"
+        );
+    }
+
     if pending.is_empty() {
         info!(
             target: "edgequake.migration",
@@ -689,6 +709,16 @@ pub async fn run_postgres_migrations(
             target: "edgequake.migration",
             step = "migration_041_ok",
             "Migration 041 document stats columns reconciled"
+        );
+    }
+
+    if reconcile::reconcile_migration_078(pool, &applied_after)
+        .await?
+    {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_078_ok",
+            "Migration 078/079 child Node indexes reconciled"
         );
     }
 

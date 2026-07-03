@@ -16,8 +16,9 @@ Hotfix for migration 078 startup blocker ([#273](https://github.com/raphaelmansu
 
 ### Added
 
-- SPEC-041 spec pack under `specs/041-fix-migration/` with cross-reference docs, edge-case matrix, and battle-tested E2E proof (`e2e/run_all.sh` — 6/6 pass).
-- Checksum repair script for v0.13.2 installs that applied M078 without Node tables: `specs/041-fix-migration/e2e/repair_migration_078_checksum.sh`.
+- **Three-layer repair (SPEC-041)** — (L1) automatic M078 checksum repair at bootstrap for v0.13.2 skip-path upgrades; (L2) migration `079_age_child_node_index_reconcile.sql` safety net; (L3) post-bootstrap reconcile via `support/078/apply.sql`.
+- SPEC-041 spec pack under `specs/041-fix-migration/` with cross-reference docs, upgrade-path matrix, and battle-tested E2E proof (`e2e/run_all.sh` — 6/6 pass).
+- Checksum repair script for manual ops: `specs/041-fix-migration/e2e/repair_migration_078_checksum.sh` (automatic at startup since v0.13.3).
 
 ---
 
