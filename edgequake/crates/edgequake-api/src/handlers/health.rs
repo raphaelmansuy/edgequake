@@ -258,12 +258,41 @@ async fn build_operational_health(state: &AppState) -> Option<OperationalHealth>
             persist_ssot: "IngestionPersister".to_string(),
             duplicate_reingest_enabled: true,
         },
-        storage: StorageHealthSnapshot {
-            chunk_text_ssot: "kv".to_string(),
-            vector_metadata_ref: "content_ref".to_string(),
-            chunk_kv_in_persister: true,
-        },
+        storage: build_storage_health_snapshot(state),
     })
+}
+
+#[cfg(feature = "postgres")]
+fn build_storage_health_snapshot(state: &AppState) -> StorageHealthSnapshot {
+    let mut snap = StorageHealthSnapshot {
+        chunk_text_ssot: "kv".to_string(),
+        vector_metadata_ref: "content_ref".to_string(),
+        chunk_kv_in_persister: true,
+        vector_storage_mode: None,
+        document_id_generator: None,
+        age_rls_enabled: None,
+        age_copy_loader_enabled: None,
+    };
+    if let Some(caps) = state.postgres_capabilities.as_ref() {
+        snap.vector_storage_mode = Some(caps.vector_storage_mode.as_str().to_string());
+        snap.document_id_generator = Some(caps.document_id_generator.as_str().to_string());
+        snap.age_rls_enabled = Some(caps.age_rls_effective);
+        snap.age_copy_loader_enabled = Some(caps.age_copy_loader_effective);
+    }
+    snap
+}
+
+#[cfg(not(feature = "postgres"))]
+fn build_storage_health_snapshot(_state: &AppState) -> StorageHealthSnapshot {
+    StorageHealthSnapshot {
+        chunk_text_ssot: "kv".to_string(),
+        vector_metadata_ref: "content_ref".to_string(),
+        chunk_kv_in_persister: true,
+        vector_storage_mode: None,
+        document_id_generator: None,
+        age_rls_enabled: None,
+        age_copy_loader_enabled: None,
+    }
 }
 
 #[cfg(feature = "postgres")]
@@ -272,7 +301,11 @@ fn build_migration_health_snapshot(state: &AppState) -> Option<MigrationHealthSn
     Some(MigrationHealthSnapshot {
         latest_version: report.latest_version,
         source_ids_indexes_ready: report.migration_038.indexes_ready,
+        pgvector_extversion: report.migration_042.extversion_after.clone(),
+        pgvector_shipped_version: report.migration_042.shipped_extversion.clone(),
         pgvector_iterative_scan_capable: report.migration_042.iterative_scan_capable,
+        age_extversion: report.migration_043.extversion_after.clone(),
+        age_shipped_version: report.migration_043.shipped_extversion.clone(),
         ready_for_traffic: crate::state::migration_bootstrap::is_ready_for_traffic(
             &state.migration_bootstrap,
         ),

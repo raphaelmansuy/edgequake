@@ -30,10 +30,13 @@
 //! - [`BR0240`]: Tenant isolation via RLS policies
 //! - [`BR0350`]: Each workspace has isolated vector storage
 
+mod age_csv_loader;
+mod capabilities;
 mod config;
 mod connection;
 mod conversation;
 mod graph;
+mod id_allocation;
 mod kv;
 mod pdf_list_query;
 mod pdf_storage_impl;
@@ -43,10 +46,17 @@ mod schema;
 mod vector;
 mod workspace_vector;
 
+pub use age_csv_loader::{load_vertices_from_csv, should_use_copy_loader};
+pub use capabilities::{
+    age_copy_loader_min_rows, age_rls_requested, age_supports_copy_loader, age_supports_rls,
+    extension_version_at_least, AnnIndexPolicy, DocumentIdGenerator, PostgresCapabilities,
+    VectorStorageMode, HNSW_MAX_DIM_HALFVEC, HNSW_MAX_DIM_VECTOR,
+};
 pub use config::PostgresConfig;
 pub use connection::PostgresPool;
 pub use conversation::PostgresConversationStorage;
 pub use graph::PostgresAGEGraphStorage;
+pub use id_allocation::{allocate_document_id, is_uuidv7};
 pub use kv::PostgresKVStorage;
 pub use pdf_storage_impl::PostgresPdfStorage;
 #[allow(deprecated)]

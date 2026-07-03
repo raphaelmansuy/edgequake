@@ -37,6 +37,7 @@ pub async fn scan_directory(
     State(tasks): State<TaskRuntime>,
     State(path_config): State<PathValidationConfig>,
     State(config): State<AppConfig>,
+    #[cfg(feature = "postgres")] State(pg_runtime): State<crate::state::PostgresRuntime>,
     tenant_ctx: TenantContext,
     Json(request): Json<ScanDirectoryRequest>,
 ) -> ApiResult<Json<ScanDirectoryResponse>> {
@@ -141,6 +142,13 @@ pub async fn scan_directory(
         }
 
         // Generate document ID
+        #[cfg(feature = "postgres")]
+        let document_id = crate::services::ingest_admission::allocate_document_id_from_pool(
+            pg_runtime.pool.as_ref(),
+            pg_runtime.capabilities.as_ref(),
+        )
+        .await;
+        #[cfg(not(feature = "postgres"))]
         let document_id = Uuid::new_v4().to_string();
 
         // Generate content summary

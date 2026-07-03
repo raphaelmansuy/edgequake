@@ -47,6 +47,7 @@ fn degraded_bootstrap_report() -> MigrationBootstrapReport {
             age_available: true,
             extversion_before: Some("1.6.0".into()),
             extversion_after: Some("1.6.0".into()),
+            shipped_extversion: Some("1.6.0".into()),
             extension_updated: false,
         },
         migration_044: Migration044Report {

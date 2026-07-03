@@ -1,0 +1,113 @@
+{
+    "status": "healthy",
+    "version": "0.13.3",
+    "build_info": {
+        "git_hash": "ce08083b",
+        "git_branch": "edgequake-main",
+        "build_timestamp": "2026-07-03T13:16:00Z",
+        "build_number": "20260703.131600"
+    },
+    "storage_mode": "postgresql",
+    "workspace_id": "default",
+    "components": {
+        "kv_storage": true,
+        "vector_storage": true,
+        "graph_storage": true,
+        "llm_provider": true
+    },
+    "llm_provider_name": "mistral",
+    "schema": {
+        "latest_version": 81,
+        "migrations_applied": 80,
+        "last_applied_at": "2026-07-03T10:36:13.715841+00:00",
+        "source_ids_indexes": {
+            "ready": true,
+            "graphs_checked": 1,
+            "indexes_repaired_at_bootstrap": false
+        }
+    },
+    "providers": {
+        "llm": {
+            "name": "mistral",
+            "model": "mistral-small-latest"
+        },
+        "embedding": {
+            "name": "mistral",
+            "model": "mistral-embed",
+            "dimension": 1024
+        }
+    },
+    "pdf_storage_enabled": true,
+    "operational": {
+        "task_queue": {
+            "pending": 0,
+            "processing": 1,
+            "failed": 0,
+            "pressure": "normal",
+            "pending_warn_threshold": 100,
+            "pending_critical_threshold": 500
+        },
+        "query_engine": {
+            "default_mode": "mix",
+            "reranker_configured": true,
+            "community_refresh_debounce_secs": 300,
+            "hybrid_fusion": "round_robin",
+            "mix_fusion": "rrf",
+            "community_refresh_scheduled_workspaces": 0
+        },
+        "observability": {
+            "log_format": "plain",
+            "otel_enabled": true
+        },
+        "read_model": {
+            "merge_strategy": "max(postgresql, kv)",
+            "relational_backfill_enabled": true,
+            "entity_count_graph_reconcile": true
+        },
+        "migration": {
+            "latest_version": 81,
+            "source_ids_indexes_ready": true,
+            "pgvector_extversion": "0.8.3",
+            "pgvector_shipped_version": "0.8.3",
+            "pgvector_iterative_scan_capable": true,
+            "age_extversion": "1.7.0",
+            "age_shipped_version": "1.7.0",
+            "ready_for_traffic": true
+        },
+        "ingestion": {
+            "execution_model": "worker_queue",
+            "persist_ssot": "IngestionPersister",
+            "duplicate_reingest_enabled": true
+        },
+        "storage": {
+            "chunk_text_ssot": "kv",
+            "vector_metadata_ref": "content_ref",
+            "chunk_kv_in_persister": true,
+            "vector_storage_mode": "full",
+            "document_id_generator": "uuidv7",
+            "age_rls_enabled": false,
+            "age_copy_loader_enabled": true
+        }
+    },
+    "capabilities": {
+        "openapi_url": "/api-docs/openapi.json",
+        "asyncapi_url": "/api-docs/asyncapi.json",
+        "swagger_ui_url": "/swagger-ui",
+        "admin_api_prefix": "/api/v1/admin",
+        "shared_conversations_prefix": "/api/v1/shared",
+        "jobs_v2_prefix": "/api/v2/workspaces/{workspace_id}/jobs",
+        "jobs_v2_catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "auth_identity_ssot": "postgresql",
+        "auth_enabled": false,
+        "dev_mode": true,
+        "kv_identity_mirror_configured": false,
+        "kv_identity_mirror_effective": false,
+        "auth_mechanisms": [
+            "jwt_password",
+            "api_key"
+        ],
+        "oauth2_oidc_builtin": false,
+        "auth_kv_harness_active": false,
+        "external_sso_pattern": "oauth2-proxy"
+    }
+}

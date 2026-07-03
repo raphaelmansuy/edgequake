@@ -11,7 +11,7 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        Self::setup_age_session(&mut conn).await?;
+        Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let check_sql = format!(
             "SELECT 1 FROM ag_catalog.ag_graph WHERE name = '{}'",
@@ -134,7 +134,7 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        Self::setup_age_session(&mut conn).await?;
+        Self::setup_age_session_scoped(&mut conn, None).await?;
 
         let index_queries = [
             // ── "Node" label indexes (child table — contains all node rows) ──────────

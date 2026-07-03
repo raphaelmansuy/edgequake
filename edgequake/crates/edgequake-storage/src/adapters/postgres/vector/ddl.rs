@@ -1,5 +1,6 @@
 //! DDL and schema maintenance for [`super::PgVectorStorage`].
 
+use super::super::capabilities::{AnnIndexPolicy, HNSW_MAX_DIM_HALFVEC};
 use super::super::config::VectorIndexType;
 use super::super::row_count_stats::{self, RowCountStatsConfig};
 use super::super::schema;
@@ -18,16 +19,19 @@ impl PgVectorStorage {
                 StorageError::Database(format!("Failed to create vector extension: {}", e))
             })?;
 
+        let policy = AnnIndexPolicy::resolve(self.dimension, self.storage_mode);
+        let emb_type = self.embedding_pg_type();
+        let opclass = self.embedding_opclass();
         let sql = format!(
             r#"
             CREATE TABLE IF NOT EXISTS {} (
                 id TEXT PRIMARY KEY,
-                embedding vector({}) NOT NULL,
+                embedding {}({}) NOT NULL,
                 metadata JSONB DEFAULT '{{}}',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             "#,
-            self.table_name, self.dimension
+            self.table_name, emb_type, self.dimension
         );
 
         sqlx::query(&sql).execute(&pool).await.map_err(|e| {
@@ -35,14 +39,23 @@ impl PgVectorStorage {
         })?;
 
         let index_sql = match self.index_type {
-            VectorIndexType::IVFFlat => format!(
-                "CREATE INDEX IF NOT EXISTS eq_{}_vectors_embedding_idx ON {} USING ivfflat (embedding vector_cosine_ops) WITH (lists = {})",
-                self.prefix, self.table_name, self.ivfflat_lists
+            VectorIndexType::IVFFlat if policy.hnsw_viable => format!(
+                "CREATE INDEX IF NOT EXISTS eq_{}_vectors_embedding_idx ON {} USING ivfflat (embedding {}) WITH (lists = {})",
+                self.prefix, self.table_name, opclass, self.ivfflat_lists
             ),
-            VectorIndexType::HNSW => format!(
-                "CREATE INDEX IF NOT EXISTS eq_{}_vectors_embedding_idx ON {} USING hnsw (embedding vector_cosine_ops) WITH (m = {}, ef_construction = {})",
-                self.prefix, self.table_name, self.hnsw_m, self.hnsw_ef_construction
+            VectorIndexType::HNSW if policy.hnsw_viable => format!(
+                "CREATE INDEX IF NOT EXISTS eq_{}_vectors_embedding_idx ON {} USING hnsw (embedding {}) WITH (m = {}, ef_construction = {})",
+                self.prefix, self.table_name, opclass, self.hnsw_m, self.hnsw_ef_construction
             ),
+            VectorIndexType::IVFFlat | VectorIndexType::HNSW => {
+                tracing::warn!(
+                    table = %self.table_name,
+                    dimension = self.dimension,
+                    max_hnsw_dim = HNSW_MAX_DIM_HALFVEC,
+                    "Skipping ANN index — embedding dimension exceeds pgvector HNSW limits (issue #275)"
+                );
+                String::new()
+            }
             VectorIndexType::None => String::new(),
         };
 

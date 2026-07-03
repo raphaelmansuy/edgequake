@@ -217,6 +217,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
             4,
         )),
         pdf_vision: std::sync::Arc::new(edgequake_core::PdfVisionSemaphore::new(2)),
+        postgres_capabilities: None,
     }
 }
 

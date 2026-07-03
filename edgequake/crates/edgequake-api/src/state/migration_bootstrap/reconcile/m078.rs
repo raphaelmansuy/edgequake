@@ -30,6 +30,10 @@ pub(super) const M078_CHECKSUM_FIXED_V0133: &str =
 /// Before sqlx runs: repair v0.13.2 broken M078 checksum so upgrade does not fail
 /// with "migration 78 was previously applied but has been modified".
 pub async fn repair_migration_078_checksum_if_needed(pool: &PgPool) -> Result<bool, sqlx::Error> {
+    if !super::super::helpers::sqlx_migrations_table_exists(pool).await? {
+        return Ok(false);
+    }
+
     let current: Option<String> = sqlx::query_scalar(
         "SELECT encode(checksum, 'hex') FROM _sqlx_migrations \
          WHERE version = $1 AND success = true",

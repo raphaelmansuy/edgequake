@@ -1,8 +1,8 @@
 # EdgeQuake PostgreSQL — pgvector + Apache AGE + contrib FTS extensions
 #
-# SSOT extension pins (update here + migration_bootstrap on major bumps):
+# SSOT extension pins: edgequake/docker/extension-pins.sh (SPEC-042 / Issue #161)
 #   PostgreSQL 16 (bookworm)
-#   pgvector     v0.8.3  — https://github.com/pgvector/pgvector/releases
+#   pgvector     v0.8.3  — https://pgxn.org/dist/vector
 #   Apache AGE   1.6.0   — tag PG16/v1.6.0-rc0 (official PG16 release)
 #   contrib      pg_trgm, btree_gin, uuid-ossp (postgresql-contrib-16)
 

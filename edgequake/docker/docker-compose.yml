@@ -132,11 +132,12 @@ services:
       retries: 3
       start_period: 10s
 
-  # PostgreSQL with pgvector and Apache AGE extensions
+  # PostgreSQL with pgvector and Apache AGE extensions (SPEC-042 triple-track)
+  # Default profile: PG18 (EQ_POSTGRES_PROFILE=pg18). Legacy: EQ_POSTGRES_PROFILE=pg16|pg17
   postgres:
     build:
       context: .
-      dockerfile: Dockerfile.postgres
+      dockerfile: ${EQ_POSTGRES_DOCKERFILE:-Dockerfile.postgres.pg18}
     container_name: edgequake-postgres
     restart: unless-stopped
     ports:
@@ -146,7 +147,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edgequake_secret}
       - POSTGRES_DB=edgequake
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ${POSTGRES_VOLUME_NAME:-postgres-data-pg18}:${POSTGRES_DATA_DIR:-/var/lib/postgresql}
       - ./init-extensions.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - edgequake-network
@@ -173,7 +174,12 @@ services:
       - edgequake-network
 
 volumes:
-  postgres-data:
+  # Per-major volumes — PG18+ uses /var/lib/postgresql mount (official image PR #1259)
+  postgres-data-pg18:
+    driver: local
+  postgres-data-pg17:
+    driver: local
+  postgres-data-pg16:
     driver: local
 
 networks:

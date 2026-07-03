@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
+use super::capabilities::{AnnIndexPolicy, VectorStorageMode};
 use super::config::{
     qualified_kv_table_name, qualified_vectors_stats_table_name, qualified_vectors_table_name,
     PostgresConfig, VectorIndexType,
@@ -54,6 +55,7 @@ pub struct PgVectorStorage {
     pub(crate) hnsw_m: u32,
     pub(crate) hnsw_ef_construction: u32,
     pub(crate) prefix: String,
+    pub(crate) storage_mode: VectorStorageMode,
     /// KV table holding chunk text for FTS joins (SPEC-024 2.5 SSOT).
     ///
     /// Defaults to the namespace-local KV table; workspace-scoped vector storage
@@ -82,6 +84,7 @@ impl PgVectorStorage {
             hnsw_m: config.hnsw_m,
             hnsw_ef_construction: config.hnsw_ef_construction,
             prefix,
+            storage_mode: VectorStorageMode::from_env(),
             chunk_kv_table_name,
             chunk_kv_table_exists: Arc::new(OnceCell::new()),
             iterative_scan_supported: Arc::new(OnceCell::new()),
@@ -120,6 +123,16 @@ impl PgVectorStorage {
         dimension: usize,
     ) -> Self {
         Self::with_pool(pool, config, dimension)
+    }
+}
+
+impl PgVectorStorage {
+    pub(crate) fn embedding_pg_type(&self) -> &'static str {
+        AnnIndexPolicy::resolve(self.dimension, self.storage_mode).column_type
+    }
+
+    pub(crate) fn embedding_opclass(&self) -> &'static str {
+        AnnIndexPolicy::resolve(self.dimension, self.storage_mode).opclass
     }
 }
 

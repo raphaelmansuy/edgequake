@@ -618,6 +618,11 @@ async fn main() -> Result<()> {
         info!("📄 PDF storage attached to task processor");
     }
 
+    #[cfg(feature = "postgres")]
+    if let (Some(pool), Some(caps)) = (state.pg_pool.clone(), state.postgres_capabilities.clone()) {
+        processor = processor.with_postgres_id_allocation(pool, caps);
+    }
+
     let processor = Arc::new(processor);
 
     // Configure worker pool

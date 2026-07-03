@@ -70,7 +70,10 @@ pub(crate) async fn validate_stored_api_key(
     let pg_holder = state
         .pg_pool
         .clone()
-        .map(|pool| crate::state::PostgresRuntime { pool: Some(pool) });
+        .map(|pool| crate::state::PostgresRuntime {
+            pool: Some(pool),
+            capabilities: None,
+        });
     #[cfg(feature = "postgres")]
     let pg_runtime = pg_holder.as_ref();
     #[cfg(not(feature = "postgres"))]

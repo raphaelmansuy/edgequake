@@ -59,4 +59,34 @@ impl PostgresAGEGraphStorage {
             })?;
         Ok(())
     }
+
+    /// SPEC-042-E E-02: set session tenant for AGE graph RLS policies.
+    pub(in crate::adapters::postgres::graph) async fn apply_age_tenant_rls_context(
+        conn: &mut sqlx::PgConnection,
+        tenant_id: Option<&str>,
+    ) -> Result<()> {
+        use super::super::super::capabilities::age_rls_requested;
+        if !age_rls_requested() {
+            return Ok(());
+        }
+        if let Some(tid) = tenant_id.filter(|s| !s.is_empty()) {
+            sqlx::query("SELECT set_config('edgequake.tenant_id', $1, true)")
+                .bind(tid)
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("Failed to set AGE tenant context: {}", e))
+                })?;
+        }
+        Ok(())
+    }
+
+    /// Session setup with optional AGE RLS tenant context.
+    pub(in crate::adapters::postgres::graph) async fn setup_age_session_scoped(
+        conn: &mut sqlx::PgConnection,
+        tenant_id: Option<&str>,
+    ) -> Result<()> {
+        Self::setup_age_session(conn).await?;
+        Self::apply_age_tenant_rls_context(conn, tenant_id).await
+    }
 }

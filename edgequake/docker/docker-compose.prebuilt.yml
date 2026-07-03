@@ -95,9 +95,11 @@ services:
       retries: 3
       start_period: 20s
 
-  # ── PostgreSQL with pgvector + Apache AGE ─────────────────────────────────
+  # ── PostgreSQL with pgvector + Apache AGE (SPEC-042 triple-track) ───────────
+  # Default: PG18 via edgequake-postgres:latest (or EDGEQUAKE_VERSION).
+  # Legacy:  EDGEQUAKE_POSTGRES_TAG=latest-pg16 or EDGEQUAKE_VERSION-pg16
   postgres:
-    image: ghcr.io/raphaelmansuy/edgequake-postgres:${EDGEQUAKE_VERSION:-latest}
+    image: ghcr.io/raphaelmansuy/edgequake-postgres:${EDGEQUAKE_POSTGRES_TAG:-${EDGEQUAKE_VERSION:-latest}}
     container_name: edgequake-postgres
     restart: unless-stopped
     ports:
@@ -107,7 +109,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edgequake_secret}
       - POSTGRES_DB=edgequake
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ${POSTGRES_VOLUME_NAME:-postgres-data-pg18}:${POSTGRES_DATA_DIR:-/var/lib/postgresql}
       - ./init-extensions.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - edgequake-network
@@ -119,7 +121,11 @@ services:
       start_period: 10s
 
 volumes:
-  postgres-data:
+  postgres-data-pg18:
+    driver: local
+  postgres-data-pg17:
+    driver: local
+  postgres-data-pg16:
     driver: local
 
 networks:
