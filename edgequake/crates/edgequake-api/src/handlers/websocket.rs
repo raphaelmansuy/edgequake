@@ -28,7 +28,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Path, Query, State,
     },
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
 use edgequake_observability::ErrorEvent;
@@ -45,6 +45,22 @@ use crate::state::AppState;
 #[derive(Debug, Default, Deserialize)]
 pub struct WsAuthQuery {
     pub token: Option<String>,
+}
+
+/// Gate WebSocket upgrade: CORS origin allow-list + JWT/API-key (query or upgrade headers).
+async fn authorize_ws_upgrade(
+    state: &AppState,
+    headers: &HeaderMap,
+    query: &WsAuthQuery,
+) -> Result<(), StatusCode> {
+    crate::middleware::ws_validate_origin(state, headers)?;
+    let header_token = crate::middleware::extract_token_from_headers(headers);
+    let token = query.token.as_deref().or(header_token.as_deref());
+    if crate::middleware::ws_validate_token(state, token).await {
+        Ok(())
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
 }
 
 // Re-export DTOs from websocket_types for backwards compatibility
@@ -98,9 +114,10 @@ pub async fn ws_pipeline_progress(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     Query(query): Query<WsAuthQuery>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
-    if !crate::middleware::ws_validate_token(&state, query.token.as_deref()).await {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_ws_upgrade(&state, &headers, &query).await {
+        return status.into_response();
     }
     info!("WebSocket connection requested for pipeline progress");
     ws.on_upgrade(move |socket| handle_pipeline_socket(socket, state))
@@ -318,9 +335,10 @@ pub async fn ws_progress_by_track_id(
     State(state): State<AppState>,
     Path(track_id): Path<String>,
     Query(query): Query<WsAuthQuery>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
-    if !crate::middleware::ws_validate_token(&state, query.token.as_deref()).await {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_ws_upgrade(&state, &headers, &query).await {
+        return status.into_response();
     }
     info!("WebSocket connection requested for track_id={}", track_id);
     ws.on_upgrade(move |socket| handle_filtered_progress_socket(socket, state, track_id))

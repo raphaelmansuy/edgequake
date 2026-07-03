@@ -219,15 +219,19 @@ impl DocumentTaskProcessor {
         // references the same pdf_id whose markdown_content gets overwritten, causing
         // it to display wrong/hallucinated content from the new extraction.
         let early_doc_id = crate::services::resolve_worker_pdf_document_id(
-            &self.kv_storage,
-            pdf.document_id,
-            data.pdf_id,
-            task,
-            &data,
-            self.task_storage.as_ref(),
-            Some(&tenant_ctx),
-            self.pg_pool.as_ref(),
-            self.postgres_capabilities.as_ref(),
+            crate::services::WorkerPdfDocumentIdRequest {
+                kv_storage: &self.kv_storage,
+                pdf_document_id: pdf.document_id,
+                pdf_id: data.pdf_id,
+                task,
+                data: &data,
+                task_storage: self.task_storage.as_ref(),
+                tenant_ctx: Some(&tenant_ctx),
+                #[cfg(feature = "postgres")]
+                pg_pool: self.pg_pool.as_ref(),
+                #[cfg(feature = "postgres")]
+                postgres_capabilities: self.postgres_capabilities.as_ref(),
+            },
         )
         .await?;
 

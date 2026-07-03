@@ -23,6 +23,7 @@ pub mod entity_name_normalize;
 pub mod entity_neighborhood;
 pub mod graph_community;
 pub mod graph_materialization;
+#[cfg(feature = "postgres")]
 pub mod health_schema;
 pub mod identity_storage;
 pub mod ingest_admission;
@@ -100,7 +101,7 @@ pub use graph_materialization::{
 pub use ingest_admission::{
     admit_pdf_processing_enqueue, persist_pdf_task_document_id,
     provision_queued_pdf_document_shell, resolve_pdf_ingest_document_id,
-    resolve_worker_pdf_document_id, QueuedPdfDocumentShell,
+    resolve_worker_pdf_document_id, QueuedPdfDocumentShell, WorkerPdfDocumentIdRequest,
 };
 pub use ingestion_persist::{
     build_chunk_kv_records, persist_ingestion_result, persist_with_providers,

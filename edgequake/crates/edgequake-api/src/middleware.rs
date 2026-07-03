@@ -241,6 +241,11 @@ pub async fn protected_api_auth(
         return next.run(request).await;
     }
 
+    // GitHub #277: never block CORS preflight — auth must not return 401 before ACAO headers.
+    if method == Method::OPTIONS {
+        return next.run(request).await;
+    }
+
     if let Some(token) = extract_api_key(&request) {
         match crate::services::auth_validation::validate_presented_token(&state, &token).await {
             Ok(Some(authenticated)) => {
@@ -511,8 +516,12 @@ pub(crate) fn is_public_documentation_path(path: &str) -> bool {
 }
 
 pub(crate) fn extract_api_key(request: &Request) -> Option<String> {
-    // Try Authorization header first (Bearer token)
-    if let Some(auth_header) = request.headers().get("authorization") {
+    extract_token_from_headers(request.headers())
+}
+
+/// Extract bearer JWT or API key from HTTP headers (shared by REST + WebSocket upgrade).
+pub(crate) fn extract_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+    if let Some(auth_header) = headers.get("authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(key) = auth_str.strip_prefix("Bearer ") {
                 return Some(key.trim().to_string());
@@ -520,14 +529,39 @@ pub(crate) fn extract_api_key(request: &Request) -> Option<String> {
         }
     }
 
-    // Try X-API-Key header
-    if let Some(api_key_header) = request.headers().get("x-api-key") {
+    if let Some(api_key_header) = headers.get("x-api-key") {
         if let Ok(key) = api_key_header.to_str() {
             return Some(key.trim().to_string());
         }
     }
 
     None
+}
+
+/// Validate WebSocket `Origin` against `EDGEQUAKE_CORS_ORIGINS` when configured (GitHub #277).
+pub fn ws_validate_origin(
+    state: &crate::state::AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<(), StatusCode> {
+    let Some(allowed) = state.security.cors_origins.as_deref() else {
+        return Ok(());
+    };
+    if allowed.is_empty() {
+        return Ok(());
+    }
+
+    let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) else {
+        return Ok(());
+    };
+    if origin.is_empty() {
+        return Ok(());
+    }
+
+    if allowed.iter().any(|o| o == origin) {
+        Ok(())
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
 }
 
 /// Rate limiting configuration.
@@ -1027,5 +1061,33 @@ mod tests {
         let debug_str = format!("{:?}", error);
         assert!(debug_str.contains("test"));
         assert!(debug_str.contains("test message"));
+    }
+
+    #[test]
+    fn extract_token_from_bearer_header() {
+        use axum::http::HeaderValue;
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer jwt-token-123"),
+        );
+        assert_eq!(
+            super::extract_token_from_headers(&headers).as_deref(),
+            Some("jwt-token-123")
+        );
+    }
+
+    #[test]
+    fn ws_validate_origin_rejects_unknown_origin_when_allowlisted() {
+        let mut state = crate::state::AppState::test_state();
+        state.security.cors_origins = Some(vec!["https://app.example.com".to_string()]);
+
+        let mut denied = axum::http::HeaderMap::new();
+        denied.insert("origin", "https://evil.example.com".parse().unwrap());
+        assert_eq!(
+            super::ws_validate_origin(&state, &denied),
+            Err(StatusCode::FORBIDDEN)
+        );
     }
 }

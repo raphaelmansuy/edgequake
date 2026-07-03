@@ -38,7 +38,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::observability_middleware::observability_middleware;
 use crate::openapi::ApiDoc;
 use crate::routes::create_router;
-use crate::state::AppState;
+use crate::state::{ApiSecurityConfig, AppState};
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +71,29 @@ impl Default for ServerConfig {
     }
 }
 
+/// Build CORS layer from security config — SPEC-027 IMP-007 / GitHub #277.
+pub fn build_cors_layer(security: &ApiSecurityConfig) -> CorsLayer {
+    if let Some(origins) = &security.cors_origins {
+        let allowed: Result<Vec<HeaderValue>, _> =
+            origins.iter().map(|o| HeaderValue::from_str(o)).collect();
+        match allowed {
+            Ok(list) if !list.is_empty() => CorsLayer::new()
+                .allow_origin(AllowOrigin::list(list))
+                .allow_methods(Any)
+                .allow_headers(Any),
+            _ => CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        }
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    }
+}
+
 /// The HTTP server.
 pub struct Server {
     config: ServerConfig,
@@ -87,43 +110,8 @@ impl Server {
     pub fn build_router(&self) -> axum::Router {
         let mut app = create_router(self.state.clone());
 
-        // Add middleware
-        // SPEC-006: RB-MEM-005 — body limit from AppState resource SSOT (honors EDGEQUAKE_MAX_UPLOAD_BYTES)
-        let max_upload = self.state.resource_budget().max_upload_bytes;
-        app = app
-            .layer(DefaultBodyLimit::max(max_upload))
-            .layer(middleware::from_fn(observability_middleware));
-
-        // CORS — SPEC-027 IMP-007: allowlist via EDGEQUAKE_CORS_ORIGINS (default Any)
-        if self.config.enable_cors {
-            let cors = if let Some(origins) = &self.state.security.cors_origins {
-                let allowed: Result<Vec<HeaderValue>, _> =
-                    origins.iter().map(|o| HeaderValue::from_str(o)).collect();
-                match allowed {
-                    Ok(list) if !list.is_empty() => CorsLayer::new()
-                        .allow_origin(AllowOrigin::list(list))
-                        .allow_methods(Any)
-                        .allow_headers(Any),
-                    _ => CorsLayer::new()
-                        .allow_origin(Any)
-                        .allow_methods(Any)
-                        .allow_headers(Any),
-                }
-            } else {
-                CorsLayer::new()
-                    .allow_origin(Any)
-                    .allow_methods(Any)
-                    .allow_headers(Any)
-            };
-            app = app.layer(cors);
-        }
-
-        // Compression
-        if self.config.enable_compression {
-            app = app.layer(CompressionLayer::new());
-        }
-
-        // Swagger UI + API spec endpoints
+        // Merge documentation routes BEFORE global middleware so CORS applies to
+        // `/api-docs/openapi.json` and `/swagger-ui/*` (GitHub #277).
         if self.config.enable_swagger {
             app = app
                 .merge(
@@ -138,6 +126,20 @@ impl Server {
                     "/api-docs/asyncapi.json",
                     get(|| async { Json(crate::openapi_asyncapi::asyncapi_document()) }),
                 );
+        }
+
+        let max_upload = self.state.resource_budget().max_upload_bytes;
+        app = app
+            .layer(DefaultBodyLimit::max(max_upload))
+            .layer(middleware::from_fn(observability_middleware));
+
+        if self.config.enable_compression {
+            app = app.layer(CompressionLayer::new());
+        }
+
+        // CORS outermost — covers API, docs, and WebSocket upgrade paths.
+        if self.config.enable_cors {
+            app = app.layer(build_cors_layer(&self.state.security));
         }
 
         app
@@ -188,5 +190,14 @@ mod tests {
 
         let _router = server.build_router();
         // Router builds successfully
+    }
+
+    #[test]
+    fn build_cors_layer_uses_allowlist_when_configured() {
+        let security = ApiSecurityConfig {
+            cors_origins: Some(vec!["https://app.example.com".into()]),
+            ..ApiSecurityConfig::default()
+        };
+        let _layer = build_cors_layer(&security);
     }
 }

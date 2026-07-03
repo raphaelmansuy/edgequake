@@ -142,7 +142,7 @@ pub use middleware::{tenant_rate_limit, AuthConfig, AuthState, RateLimitConfig, 
 pub use postgres_entity_sink::PostgresEntitySink;
 pub use processor::DocumentTaskProcessor;
 pub use routes::create_router;
-pub use server::{Server, ServerConfig};
+pub use server::{build_cors_layer, Server, ServerConfig};
 pub use state::{AppState, AuthRuntime, QueryRuntime, StorageMode, StorageRuntime, TaskRuntime};
 
 // Re-export production services from edgequake-core when feature is enabled

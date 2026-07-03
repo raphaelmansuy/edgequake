@@ -36,8 +36,13 @@ pub fn json_extraction_prompt(text: &str, schema: &EntityExtractionSchema) -> St
 }
 
 /// Build the gleaning (re-extraction) JSON prompt for missed entities.
-pub fn json_gleaning_prompt(text: &str, previous_entities: &[String]) -> String {
+pub fn json_gleaning_prompt(
+    text: &str,
+    previous_entities: &[String],
+    schema: &EntityExtractionSchema,
+) -> String {
     let prev_entities_str = previous_entities.join(", ");
+    let types_section = json_entity_types_prompt_section(schema);
 
     format!(
         r#"MANY entities and relationships were missed in the last extraction.
@@ -52,6 +57,8 @@ Focus on:
 - Implicit entities (mentioned indirectly)
 - Additional relationships between known entities
 - Contextual entities (dates, locations, concepts)
+
+{types_section}
 
 {JSON_OUTPUT_FORMAT_SECTION}
 
@@ -79,9 +86,25 @@ mod tests {
 
     #[test]
     fn json_gleaning_prompt_lists_previous_entities() {
-        let prompt = json_gleaning_prompt("Some text.", &["ALICE".into(), "ACME".into()]);
+        let schema = EntityExtractionSchema::server_default();
+        let prompt = json_gleaning_prompt("Some text.", &["ALICE".into(), "ACME".into()], &schema);
         assert!(prompt.contains("ALICE, ACME"));
         assert!(prompt.contains("Text to Re-Analyze"));
         assert!(prompt.contains("\"relationships\""));
+    }
+
+    #[test]
+    fn json_gleaning_prompt_includes_strict_entity_types() {
+        let schema = EntityExtractionSchema {
+            types: vec![
+                "API_OR_INTERFACE".into(),
+                "CODE_ELEMENT".into(),
+                "OTHER".into(),
+            ],
+            strict: true,
+        };
+        let prompt = json_gleaning_prompt("Some text.", &[], &schema);
+        assert!(prompt.contains("STRICT"));
+        assert!(prompt.contains("API_OR_INTERFACE"));
     }
 }
