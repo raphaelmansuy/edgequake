@@ -175,6 +175,9 @@ RED := \033[31m
 BOLD := \033[1m
 RESET := \033[0m
 
+# GNU make defaults to /bin/sh (dash on Ubuntu CI); extension-pins.sh needs bash pipefail.
+SHELL := /bin/bash
+
 # Project directories
 ROOT_DIR := $(shell pwd)
 BACKEND_DIR := $(ROOT_DIR)/edgequake
