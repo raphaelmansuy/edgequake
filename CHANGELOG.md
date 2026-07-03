@@ -29,6 +29,8 @@ SPEC-042 PostgreSQL triple-track release — PG18 default, multi-tier CI/CD, HNS
 ### Fixed
 
 - **#275 HNSW startup failure on upgrade** — v0.13.3 M071 could create `vector_cosine_ops` HNSW on 3072-d embeddings; migration now dimension-aware with halfvec promotion.
+- **#276 Entity Types strict limit ignored during gleaning** — Gleaning (re-extraction) pass omitted workspace entity-type schema in prompt and JSON parser; unauthorized types (`Library`, `Concept`, etc.) leaked into the graph despite Strict limit on. E2E: `cargo test -p edgequake-pipeline --test e2e_issue276_gleaning_strict`.
+- **#277 CORS/WebSocket failures in production auth mode** — Swagger routes merged after CORS layer (no ACAO on `/api-docs/openapi.json`); auth middleware blocked `OPTIONS` preflight; WebSocket lacked `?token=` from frontend when `EDGEQUAKE_DEV_MODE=false`. E2E: `cargo test -p edgequake-api --test e2e_issue277_cors_production`.
 - **PG16 fresh-database bootstrap** — `repair_migration_078_checksum_if_needed()` no longer queries `_sqlx_migrations` before sqlx creates the table.
 - **`make dev` PG18 hang** — PG18+ Docker volume mount path (`/var/lib/postgresql` vs `/data`); crash-loop detection and per-major volumes.
 

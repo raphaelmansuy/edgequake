@@ -488,27 +488,30 @@ impl EdgeQuake {
         };
 
         // Create base extractor
-        let base_extractor: Arc<dyn edgequake_pipeline::EntityExtractor> = Arc::new(
-            LLMExtractor::new(llm.clone()).with_entity_types(self.config.entity_types.clone()),
+        let entity_schema = edgequake_pipeline::prompts::EntityExtractionSchema::with_types(
+            self.config.entity_types.clone(),
         );
+        let base_extractor: Arc<dyn edgequake_pipeline::EntityExtractor> =
+            Arc::new(LLMExtractor::new(llm.clone()).with_entity_schema(entity_schema.clone()));
 
         // Wrap with GleaningExtractor if enabled
-        let extractor: Arc<dyn edgequake_pipeline::EntityExtractor> = if self.config.enable_gleaning
-            && self.config.max_gleaning > 0
-        {
-            tracing::info!(
-                max_gleaning = self.config.max_gleaning,
-                "Enabling gleaning for multi-pass extraction"
-            );
-            Arc::new(
-                GleaningExtractor::new(llm.clone(), base_extractor).with_config(GleaningConfig {
-                    max_gleaning: self.config.max_gleaning,
-                    always_glean: false,
-                }),
-            )
-        } else {
-            base_extractor
-        };
+        let extractor: Arc<dyn edgequake_pipeline::EntityExtractor> =
+            if self.config.enable_gleaning && self.config.max_gleaning > 0 {
+                tracing::info!(
+                    max_gleaning = self.config.max_gleaning,
+                    "Enabling gleaning for multi-pass extraction"
+                );
+                Arc::new(
+                    GleaningExtractor::new(llm.clone(), base_extractor)
+                        .with_entity_schema(entity_schema)
+                        .with_config(GleaningConfig {
+                            max_gleaning: self.config.max_gleaning,
+                            always_glean: false,
+                        }),
+                )
+            } else {
+                base_extractor
+            };
 
         let pipeline = Pipeline::new(pipeline_config)
             .with_extractor(extractor)

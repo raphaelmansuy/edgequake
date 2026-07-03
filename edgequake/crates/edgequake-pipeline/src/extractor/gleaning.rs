@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use super::{EntityExtractor, ExtractedEntity, ExtractedRelationship, ExtractionResult};
 use crate::chunker::TextChunk;
 use crate::error::{PipelineError, Result};
-use crate::prompts::JsonExtractionParser;
+use crate::prompts::{
+    enforce_entity_type, EntityExtractionSchema, JsonExtractionParser, JsonParseOptions,
+};
 
 /// Configuration for gleaning (re-extraction).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +56,8 @@ pub struct GleaningExtractor {
     llm_provider: std::sync::Arc<dyn edgequake_llm::LLMProvider>,
     /// The base extractor to use.
     base_extractor: std::sync::Arc<dyn EntityExtractor>,
+    /// Workspace entity type allow-list (must match base extractor).
+    entity_schema: EntityExtractionSchema,
     /// Gleaning configuration.
     config: GleaningConfig,
 }
@@ -67,8 +71,15 @@ impl GleaningExtractor {
         Self {
             llm_provider,
             base_extractor,
+            entity_schema: EntityExtractionSchema::server_default(),
             config: GleaningConfig::default(),
         }
+    }
+
+    /// Set the entity type schema (strict/permissive allow-list).
+    pub fn with_entity_schema(mut self, schema: EntityExtractionSchema) -> Self {
+        self.entity_schema = schema;
+        self
     }
 
     /// Set the gleaning configuration.
@@ -87,7 +98,7 @@ impl GleaningExtractor {
     fn build_gleaning_prompt(&self, chunk: &TextChunk, previous_entities: &[String]) -> String {
         let text =
             crate::prompts::text_with_section_context(&chunk.content, chunk.section.as_ref());
-        crate::prompts::json_gleaning_prompt(&text, previous_entities)
+        crate::prompts::json_gleaning_prompt(&text, previous_entities, &self.entity_schema)
     }
 
     /// Parse gleaning response via shared JSON parser (normalization + BR0006 filters).
@@ -96,8 +107,22 @@ impl GleaningExtractor {
         response: &str,
         chunk_id: &str,
     ) -> Result<(Vec<ExtractedEntity>, Vec<ExtractedRelationship>)> {
-        let parsed = JsonExtractionParser::new().parse(response, chunk_id)?;
+        let parsed = JsonExtractionParser::new().parse_with_options(
+            response,
+            chunk_id,
+            JsonParseOptions {
+                entity_schema: Some(&self.entity_schema),
+                ..Default::default()
+            },
+        )?;
         Ok((parsed.entities, parsed.relationships))
+    }
+
+    fn apply_entity_schema_to_entities(&self, entities: &mut [ExtractedEntity]) {
+        for entity in entities.iter_mut() {
+            let (enforced, _) = enforce_entity_type(&entity.entity_type, &self.entity_schema);
+            entity.entity_type = enforced;
+        }
     }
 
     /// Merge gleaning results with original results.
@@ -213,6 +238,9 @@ impl EntityExtractor for GleaningExtractor {
             }
         }
 
+        // Defense in depth: re-apply schema after merge (base pass + gleaning).
+        self.apply_entity_schema_to_entities(&mut result.entities);
+
         // Record gleaning metadata
         result.metadata.insert(
             "gleaning_iterations".to_string(),
@@ -228,5 +256,66 @@ impl EntityExtractor for GleaningExtractor {
 
     fn model_name(&self) -> &str {
         self.llm_provider.model()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn api_strict_schema() -> EntityExtractionSchema {
+        EntityExtractionSchema {
+            types: vec![
+                "API_OR_INTERFACE".into(),
+                "CODE_ELEMENT".into(),
+                "SOFTWARE_COMPONENT".into(),
+                "OTHER".into(),
+            ],
+            strict: true,
+        }
+    }
+
+    #[test]
+    fn gleaning_parse_enforces_strict_types() {
+        let extractor = GleaningExtractor::new(
+            std::sync::Arc::new(edgequake_llm::MockProvider::new()),
+            std::sync::Arc::new(crate::extractor::LLMExtractor::new(std::sync::Arc::new(
+                edgequake_llm::MockProvider::new(),
+            ))),
+        )
+        .with_entity_schema(api_strict_schema());
+
+        let response = r#"{
+            "entities": [
+                {"name": "Redis Client", "type": "Library", "description": "x"},
+                {"name": "Vector DB", "type": "Concept", "description": "y"},
+                {"name": "REST API", "type": "API_OR_INTERFACE", "description": "z"}
+            ],
+            "relationships": []
+        }"#;
+
+        let (entities, _) = extractor
+            .parse_gleaning_response(response, "chunk-1")
+            .expect("parse");
+
+        assert_eq!(entities[0].entity_type, "OTHER");
+        assert_eq!(entities[1].entity_type, "OTHER");
+        assert_eq!(entities[2].entity_type, "API_OR_INTERFACE");
+    }
+
+    #[test]
+    fn gleaning_post_merge_reapplies_schema() {
+        let extractor = GleaningExtractor::new(
+            std::sync::Arc::new(edgequake_llm::MockProvider::new()),
+            std::sync::Arc::new(crate::extractor::LLMExtractor::new(std::sync::Arc::new(
+                edgequake_llm::MockProvider::new(),
+            ))),
+        )
+        .with_entity_schema(api_strict_schema());
+
+        let mut entities = vec![ExtractedEntity::new("FOO", "Unknown", "d")];
+
+        extractor.apply_entity_schema_to_entities(&mut entities);
+        assert_eq!(entities[0].entity_type, "OTHER");
     }
 }

@@ -1,5 +1,6 @@
 //! PostgreSQL pool runtime — document list relational backfill (API-SOLID-I-001).
 
+#[cfg(feature = "postgres")]
 use edgequake_storage::adapters::postgres::PostgresCapabilities;
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
