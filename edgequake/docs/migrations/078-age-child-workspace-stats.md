@@ -2,6 +2,8 @@
 
 Repairs Apache AGE graph read performance when workspace-scoped stats and popular-node queries hit **child label tables** (`"Node"` / `"EDGE"`) while legacy indexes were created on inheritance parents.
 
+**Version:** 1.0.1 — 2026-07-03 (SPEC-041 / [#273](https://github.com/raphaelmansuy/edgequake/issues/273): invalid JSON operator typo fixed)
+
 ## Automatic deployment (local & CI)
 
 Migration **078** is a standard sqlx migration — no manual step for normal dev/prod startup.

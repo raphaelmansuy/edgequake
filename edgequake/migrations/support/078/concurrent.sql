@@ -24,7 +24,7 @@ END $$;
 
 SELECT format(
     'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_node_workspace_id ON %I."Node"
-     ((ag_catalog.agtype_to_json(properties)->>>''workspace_id''));',
+     ((ag_catalog.agtype_to_json(properties)->>''workspace_id''));',
     g.name
 )
 FROM ag_catalog.ag_graph g
@@ -33,7 +33,7 @@ WHERE to_regclass(format('%I."Node"', g.name)) IS NOT NULL
 
 SELECT format(
     'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_node_tenant_id ON %I."Node"
-     ((ag_catalog.agtype_to_json(properties)->>>''tenant_id''));',
+     ((ag_catalog.agtype_to_json(properties)->>''tenant_id''));',
     g.name
 )
 FROM ag_catalog.ag_graph g

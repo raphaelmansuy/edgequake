@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Migration 078: AGE child-table workspace indexes + ANALYZE (SPEC-040 #262)
--- Version: 1.0.0 — 2026-07-02
+-- Version: 1.0.1 — 2026-07-03 (SPEC-041 #273: fix invalid JSON text-extraction operator typo)
 --
 -- PURPOSE:
 --   Repair legacy installs where migration 014 created indexes on inheritance
@@ -48,7 +48,7 @@ BEGIN
     ) THEN
       EXECUTE format(
         'CREATE INDEX idx_node_workspace_id ON %I."Node"
-         ((ag_catalog.agtype_to_json(properties)->>>''workspace_id''))',
+         ((ag_catalog.agtype_to_json(properties)->>''workspace_id''))',
         v_graph
       );
       RAISE NOTICE 'SPEC-040 M078: Created idx_node_workspace_id on %."Node"', v_graph;
@@ -60,7 +60,7 @@ BEGIN
     ) THEN
       EXECUTE format(
         'CREATE INDEX idx_node_tenant_id ON %I."Node"
-         ((ag_catalog.agtype_to_json(properties)->>>''tenant_id''))',
+         ((ag_catalog.agtype_to_json(properties)->>''tenant_id''))',
         v_graph
       );
       RAISE NOTICE 'SPEC-040 M078: Created idx_node_tenant_id on %."Node"', v_graph;

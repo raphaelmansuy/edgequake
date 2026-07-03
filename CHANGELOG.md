@@ -6,7 +6,20 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.13.2] — 2026-07-02
+## [0.13.3] — 2026-07-03
+
+Hotfix for migration 078 startup blocker ([#273](https://github.com/raphaelmansuy/edgequake/issues/273)).
+
+### Fixed
+
+- **#273 Migration 078 startup failure** — Replace invalid JSON operator `->>>` with `->>` in `078_age_child_workspace_stats.sql` and `migrations/support/078/concurrent.sql`. AGE installs with `"Node"` label tables were blocked at backend startup with `operator does not exist: json ->>> unknown`.
+
+### Added
+
+- SPEC-041 spec pack under `specs/041-fix-migration/` with cross-reference docs, edge-case matrix, and battle-tested E2E proof (`e2e/run_all.sh` — 6/6 pass).
+- Checksum repair script for v0.13.2 installs that applied M078 without Node tables: `specs/041-fix-migration/e2e/repair_migration_078_checksum.sh`.
+
+---
 
 Patch release closing SPEC-040 GitHub issues #250–#253, #259, and #262.
 

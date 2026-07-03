@@ -1,0 +1,9 @@
+SPEC-041 E2E Summary — 2026-07-03T06:56:48Z
+PASS=6 FAIL=0 SKIP=0
+
+PASS|G1 no ->>> in migrations
+PASS|G1b checksums.lock
+PASS|G2 indexdef audit
+PASS|G3 M078 apply on Node graph
+PASS|G4 concurrent.sql operators
+PASS|G5 M078 SSOT alignment
