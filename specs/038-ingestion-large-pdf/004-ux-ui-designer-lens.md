@@ -42,7 +42,16 @@ See [001-five-whys.md](./001-five-whys.md) Symptom D and [002-first-principles.m
 
 ## Pre-Upload Dialog (New: Large PDF Admission Card)
 
-Shown when `page_count ≥ 100` OR `file_size ≥ 10 MB`:
+Shown when `page_count ≥ 100` **and** resolved parser is **Vision** (REQ-038-12):
+
+Parser resolution at upload time:
+
+```text
+Upload selector  →  Workspace default  →  Server env  →  Vision fallback
+     (explicit)         (explicit)          (implicit)       (default)
+```
+
+If resolved parser is **EdgeParse** (at upload or workspace level), upload proceeds **silently** — no popup.
 
 ```text
 ┌─ Upload Preview ─────────────────────────────────────────────┐
@@ -64,11 +73,12 @@ Shown when `page_count ≥ 100` OR `file_size ≥ 10 MB`:
 
 **Rules:**
 
-| Condition | Default selection | User override |
-| --------- | ----------------- | ------------- |
-| Text layer detected | EdgeParse | Vision with warning |
-| No text / image-only | Vision | EdgeParse disabled with tooltip |
-| `page_count < 100` | Current behavior (no card) | — |
+| Condition | Default selection | User override | Popup shown? |
+| --------- | ----------------- | ------------- | ------------ |
+| Text layer detected + Vision resolved | EdgeParse | Vision with warning | Yes |
+| EdgeParse at upload or workspace | EdgeParse | — | **No** (silent) |
+| No text / image-only | Vision | EdgeParse disabled with tooltip | Yes (if large) |
+| `page_count < 100` | Current behavior (no card) | — | No |
 
 ---
 
@@ -192,6 +202,7 @@ Replace generic "Failed" with **failure_class** surfaced in UI:
 | UX-038-03 | Progress shows `N/total` for converting and extracting phases |
 | UX-038-04 | Failed state shows human message + one primary action |
 | UX-038-05 | Forced Vision on born-digital shows explicit slowdown warning |
+| UX-038-06 | EdgeParse at upload or workspace level skips admission popup (silent upload) |
 
 ---
 
@@ -202,4 +213,5 @@ Replace generic "Failed" with **failure_class** surfaced in UI:
 | Infinite spinner with no counts | User assumes crash; refreshes; duplicates upload |
 | "Processing" for 2 hours with no ETA | Support burden |
 | Silent fallback to EdgeParse | User can't audit which path ran |
-| Blocking modal for <50 page PDFs | Friction without value |
+| Blocking modal when EdgeParse already selected | Unnecessary friction |
+| Blocking modal for <100 page PDFs | Friction without value |

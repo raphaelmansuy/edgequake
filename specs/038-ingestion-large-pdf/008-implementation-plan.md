@@ -1,7 +1,7 @@
 # SPEC-038 — Implementation Plan
 
 **Lens:** Full Stack Implementation  
-**Status:** `IMPLEMENTED` (2026-07-01)  
+**Status:** `IMPLEMENTED` (2026-07-03) — Vision-gated admission popup + parser priority chain  
 **Deploy order:** SSOT + routing → timeout → limits → UI → gold tests  
 **Principle:** Code is law; real test is law
 
@@ -17,6 +17,7 @@
 | `handlers/pdf_upload/*` | Admission estimate on upload response, scaled task timeout in metadata |
 | `edgequake-tasks/worker.rs` | Per-task `processing_timeout_secs` from metadata |
 | `large-pdf-admission.ts` + `extract-page-count.ts` | Frontend mirror of backend thresholds |
+| `resolve-pdf-parser-backend.ts` | Frontend parser priority chain (Upload > Workspace > Server > Vision) |
 | `large-pdf-admission-dialog.tsx` | Pre-upload UX with `data-testid` hooks |
 | `lib/upload/upload-timeout.ts` | Scaled upload timeout + byte→progress mapping (SSOT) |
 | `lib/upload/multipart-upload-client.ts` | XHR multipart with `upload.onprogress` + 401 retry |
@@ -131,15 +132,17 @@ cargo test -p edgequake-tasks --lib worker
 
 ## Phase 6 — Frontend Admission UX (P1)
 
-**Goal:** REQ-038-04, REQ-038-05
+**Goal:** REQ-038-04, REQ-038-05, REQ-038-12
 
 | Step | File | Status |
 | ---- | ---- | ------ |
 | 6.1 | `extract-page-count.ts` — client `/Count` parser | ✅ |
 | 6.2 | `large-pdf-admission-dialog.tsx` — admission card + `data-testid`s | ✅ |
-| 6.3 | Document row — ETA + N/total progress | ⬜ (deferred; upload progress list exists) |
-| 6.4 | Failed banner — `failure_class` mapping | ⬜ (backend writes metadata; UI mapping follow-up) |
-| 6.5 | `e2e/spec038-large-pdf-admission.spec.ts` + mocks | ✅ |
+| 6.3 | `resolve-pdf-parser-backend.ts` — Upload > Workspace > Server > Vision chain | ✅ |
+| 6.4 | `large-pdf-admission.ts` — gate popup on large + Vision only | ✅ |
+| 6.5 | Document row — ETA + N/total progress | ⬜ (deferred; upload progress list exists) |
+| 6.6 | Failed banner — `failure_class` mapping | ⬜ (backend writes metadata; UI mapping follow-up) |
+| 6.7 | `e2e/spec038-large-pdf-admission.spec.ts` + mocks | ✅ (7 tests incl. silent EdgeParse paths) |
 
 **`data-testid` inventory:**
 
@@ -238,7 +241,7 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test e2e/spec038-
 - [x] `guide_2606.24937v1-opt.pdf` EdgeParse fast-path produces >500KB markdown
 - [x] `cargo test -p edgequake-api --features postgres --test spec038_large_pdf` green (7/7)
 - [ ] `cargo clippy -p edgequake-api --all-targets` clean (run before merge)
-- [x] Playwright SPEC-038 E2E green (5/5: admission 3 + upload progress 2)
+- [x] Playwright SPEC-038 E2E green (7 admission + 2 upload progress)
 - [ ] OpenAPI snapshot updated for `ingestion_estimate`
 - [ ] `AGENTS.md` documents `EDGEQUAKE_AUTO_PDF_ROUTING`, probe thresholds (follow-up)
 
@@ -268,6 +271,10 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test e2e/spec038-
 | EC-038-08 10→50 MB text | orchestrator accepts 15 MB fixture | ✅ |
 | EC-038-09 Concurrent 2×603 page uploads | admission semaphore | ⬜ |
 | EC-038-10 Env `PDF_PARSER_BACKEND=vision` | overrides probe | ✅ (`should_try_edgeparse` test) |
+| EC-038-11 Upload parser = EdgeParse | no admission popup | ✅ (E2E + unit) |
+| EC-038-12 Workspace parser = EdgeParse | no admission popup | ✅ (E2E + unit) |
+| EC-038-13 Upload Vision overrides workspace EdgeParse | popup shown | ✅ (unit) |
+| EC-038-14 Mixed batch: 1 large Vision + 1 small PDF | popup for batch | ✅ (popup uses first large preview) |
 
 ---
 

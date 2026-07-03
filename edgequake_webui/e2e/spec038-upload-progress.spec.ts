@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { GOTO_OPTS } from "./helpers/app-ready";
-import { mockSpec038AdmissionRoutes } from "./helpers/spec038-admission-mocks";
+import { mockSpec038AdmissionRoutes, seedSpec038TenantContext } from "./helpers/spec038-admission-mocks";
 import { spec038Screenshot } from "./helpers/screenshot-paths";
 
 function buildLargePageCountPdf(pageCount: number): Buffer {
@@ -35,6 +35,7 @@ test.describe("SPEC-038 Upload byte progress", () => {
 
   test.beforeEach(async ({ page }) => {
     await mockSpec038AdmissionRoutes(page);
+    await seedSpec038TenantContext(page);
     await page.goto("/documents", GOTO_OPTS);
     await page.getByRole("heading", { name: "Documents" }).waitFor({
       state: "visible",
@@ -81,13 +82,14 @@ test.describe("SPEC-038 Upload byte progress", () => {
   });
 
   test("admission confirm shows transfer then saving labels", async ({ page }) => {
-    let uploadBody = "";
+    let uploadHasEdgeparse = false;
     await page.route("**/api/v1/documents/pdf", async (route) => {
       if (route.request().method() !== "POST") {
         await route.fallback();
         return;
       }
-      uploadBody = route.request().postData() ?? "";
+      const body = route.request().postDataBuffer();
+      uploadHasEdgeparse = body?.toString().includes("edgeparse") ?? false;
       await new Promise((r) => setTimeout(r, 300));
       await route.fulfill({
         status: 200,
@@ -112,11 +114,17 @@ test.describe("SPEC-038 Upload byte progress", () => {
     await page.getByTestId("spec038-admission-confirm").click();
 
     await expect
-      .poll(() => uploadBody, { timeout: 20_000 })
-      .toContain("edgeparse");
+      .poll(() => uploadHasEdgeparse, { timeout: 20_000 })
+      .toBe(true);
 
     await expect(page.getByTestId("spec038-upload-bytes-sent")).toBeVisible({
       timeout: 10_000,
+    });
+
+    await page.screenshot({
+      path: spec038Screenshot("03-upload-progress-after-confirm.png"),
+      fullPage: false,
+      animations: "disabled",
     });
 
     await page.screenshot({

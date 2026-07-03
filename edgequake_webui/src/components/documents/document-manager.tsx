@@ -21,7 +21,7 @@
  */
 'use client';
 
-import { useTenantStore } from '@/stores/use-tenant-store';
+import { useSelectedWorkspace, useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 
 import { useRouter } from 'next/navigation';
@@ -55,7 +55,8 @@ import {
   type LargePdfAdmissionPreview,
   type PdfParserChoice,
 } from '@/lib/pdf/large-pdf-admission';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import type { PdfParserResolutionContext } from '@/lib/pdf/large-pdf-admission';
 
 export function DocumentManager() {
   const { t } = useTranslation();
@@ -63,6 +64,7 @@ export function DocumentManager() {
 
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
+  const selectedWorkspace = useSelectedWorkspace();
 
   // Selected document for preview panel
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -91,6 +93,14 @@ export function DocumentManager() {
   const [largePdfAdmissionOpen, setLargePdfAdmissionOpen] = useState(false);
   const [largePdfPreviews, setLargePdfPreviews] = useState<LargePdfAdmissionPreview[]>([]);
   const [pendingAdmissionFiles, setPendingAdmissionFiles] = useState<File[]>([]);
+
+  const pdfParserResolutionContext = useMemo<PdfParserResolutionContext>(
+    () => ({
+      uploadChoice: pdfParserBackend,
+      workspaceBackend: selectedWorkspace?.pdf_parser_backend,
+    }),
+    [pdfParserBackend, selectedWorkspace?.pdf_parser_backend],
+  );
 
   // VS-03: No pagination state — virtual scrolling handles windowing client-side.
   // We fetch all documents at once (up to VIRTUAL_PAGE_SIZE) and let the
@@ -126,7 +136,7 @@ export function DocumentManager() {
 
   const handleFilesAccepted = useCallback(
     async (files: File[]) => {
-      const largePreviews = await filterLargePdfFiles(files);
+      const largePreviews = await filterLargePdfFiles(files, pdfParserResolutionContext);
       if (largePreviews.length > 0) {
         setLargePdfPreviews(largePreviews);
         setPendingAdmissionFiles(files);
@@ -135,7 +145,7 @@ export function DocumentManager() {
       }
       await handleFilesUpload(files);
     },
-    [handleFilesUpload],
+    [handleFilesUpload, pdfParserResolutionContext],
   );
 
   const handleAdmissionConfirm = useCallback(

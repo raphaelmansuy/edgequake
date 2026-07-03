@@ -117,8 +117,26 @@
 | REQ-038-09 | Failure messages distinguish timeout vs size vs embedding vs circuit-breaker |
 | REQ-038-10 | No regression: scanned PDFs still route to Vision when text probe fails |
 | REQ-038-11 | Upload UX: real byte progress or fast-ack admit; no fake 40%; size-scaled client timeout |
+| REQ-038-12 | Large PDF + resolved Vision parser → choice popup before upload; EdgeParse at any level proceeds silently |
 
 ---
+
+## Parser Resolution Priority (Code Is Law)
+
+```
+Upload override (multipart `pdf_parser_backend`)
+    ↓ if unset
+Workspace default (`workspace.pdf_parser_backend`)
+    ↓ if unset
+Server env (`EDGEQUAKE_PDF_PARSER_BACKEND`)
+    ↓ if unset
+Fallback: Vision (`PdfParserBackend::default()`)
+```
+
+**Frontend SSOT:** `edgequake_webui/src/lib/pdf/resolve-pdf-parser-backend.ts`  
+**Backend SSOT:** `edgequake-api/src/handlers/pdf_upload/types.rs` → `resolved_backend()`
+
+**Admission gate (REQ-038-12):** Choice popup appears only when `page_count ≥ threshold` **and** resolved backend is `vision`. User may confirm EdgeParse or proceed with Vision (with slowdown warning).
 
 ## Decision Summary
 
