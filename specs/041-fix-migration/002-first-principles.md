@@ -43,16 +43,28 @@ M078 must **byte-match the operator** used in SSOT — not invent a variant.
 
 ---
 
-## 4. Immutability vs. never-applied fixes
+## 4. Immutability vs. never-applied fixes — three-layer repair
 
-sqlx records SHA-384 per applied migration. Two populations after v0.13.2:
+sqlx records SHA-384 per applied migration. **First-principles response:** do not rely on a single mechanism.
 
-| Population | `_sqlx_migrations` v78 | Action |
-| ---------- | ---------------------- | ------ |
-| **Blocked** (AGE + Node, CREATE failed) | Not recorded | Fixed M078 applies on retry ✅ |
-| **Passed** (no Node table / no AGE) | Recorded with old checksum | Need checksum repair before upgrade ⚠️ |
+| Layer | When | Mechanism |
+| ----- | ---- | --------- |
+| **L1 Pre-sqlx** | v0.13.2 skip-path (v78 old checksum) | `repair_migration_078_checksum_if_needed()` in bootstrap |
+| **L2 sqlx** | Pending migrations | Fixed M078 + M079 idempotent CREATE INDEX |
+| **L3 Post-bootstrap** | v78/v79 recorded, indexes missing | `reconcile_migration_078()` → `support/078/apply.sql` |
 
-Fixing M078 in place is correct for blocked installs. Checksum repair is required for passed installs — documented in [007-release-runbook.md](./007-release-runbook.md).
+**DRY SSOT:** `migrations/support/078/apply.sql` — single index-creation logic for L3; M078/M079 sqlx files stay aligned.
+
+### Population matrix
+
+| Population | `_sqlx_migrations` v78 | Fix path |
+| ---------- | ---------------------- | -------- |
+| **Blocked** (AGE + Node, CREATE failed) | Not recorded | L2 fixed M078 applies on retry |
+| **Skip-path** (no Node at upgrade) | Recorded, old checksum | L1 repair → L2 M079 → L3 if graphs added later |
+| **Fresh ≤ v0.13.1** | Not recorded | L2 M078 + M079 |
+| **Manual ops** | Any | `repair_migration_078_checksum.sh` (L1 equivalent) |
+
+Fixing M078 in place is required for blocked installs. L1 removes manual ops for skip-path upgrades.
 
 ---
 

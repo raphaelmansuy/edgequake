@@ -12,7 +12,7 @@
 
 Migration **078** (`078_age_child_workspace_stats.sql`) shipped in **v0.13.2** with a typo: `->>>` (triple `>`) instead of PostgreSQL's valid JSON text extraction operator `->>`. On any install with Apache AGE and a graph containing a `"Node"` label table, backend startup **hard-fails** at migration 78 — the entire stack is down.
 
-**Fix:** Change four occurrences (`->>>` → `->>`) in M078 + `support/078/concurrent.sql`. Update `checksums.lock`. Provide checksum-repair runbook for installs that applied M078 on AGE-less paths before the fix.
+**Fix:** Three-layer repair — (L1) automatic checksum repair at bootstrap; (L2) fixed M078 + M079 safety-net migration; (L3) post-bootstrap reconcile via `support/078/apply.sql`. See [008-upgrade-path-matrix.md](./008-upgrade-path-matrix.md).
 
 ---
 
@@ -36,6 +36,7 @@ Migration **078** (`078_age_child_workspace_stats.sql`) shipped in **v0.13.2** w
 | [005-implementation-plan.md](./005-implementation-plan.md) | Battle-tested fix plan |
 | [006-cross-reference-matrix.md](./006-cross-reference-matrix.md) | Cross-ref matrix |
 | [007-release-runbook.md](./007-release-runbook.md) | Release + checksum repair |
+| [008-upgrade-path-matrix.md](./008-upgrade-path-matrix.md) | All-version upgrade paths |
 
 ---
 
@@ -50,8 +51,11 @@ Migration **078** (`078_age_child_workspace_stats.sql`) shipped in **v0.13.2** w
 | REQ-041-05 | M078 applies idempotently on AGE + Node graph (E2E proof) |
 | REQ-041-06 | M078 no-ops gracefully when AGE extension absent (E2E proof) |
 | REQ-041-07 | Created indexes use expression containing `->>'workspace_id'` (pg_get_indexdef proof) |
-| REQ-041-08 | Checksum repair documented for v0.13.2 installs that applied M078 without graphs |
-| REQ-041-09 | `checksums.lock` updated atomically with M078 fix |
+| REQ-041-08 | Checksum repair for v0.13.2 skip-path (automatic L1 + manual script) |
+| REQ-041-09 | `checksums.lock` updated for M078 + M079 |
+| REQ-041-10 | Bootstrap L1: `repair_migration_078_checksum_if_needed()` before sqlx |
+| REQ-041-11 | M079 idempotent safety-net migration |
+| REQ-041-12 | Bootstrap L3: `reconcile_migration_078()` via `support/078/apply.sql` |
 
 ---
 
@@ -59,6 +63,7 @@ Migration **078** (`078_age_child_workspace_stats.sql`) shipped in **v0.13.2** w
 
 ```bash
 ./specs/041-fix-migration/e2e/run_all.sh
+./specs/041-fix-migration/e2e/simulate_upgrade_paths.sh
 ./scripts/check_migration_checksums.sh
 ```
 

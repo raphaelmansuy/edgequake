@@ -7,7 +7,9 @@ MIGRATIONS="${ROOT}/edgequake/migrations"
 
 echo "== SPEC-041 G1: scan for invalid ->>> operator =="
 
-HITS=$(grep -rFe '->>>' "${MIGRATIONS}" 2>/dev/null || true)
+HITS=$(grep -rFe '->>>' "${MIGRATIONS}" --include='*.sql' 2>/dev/null | grep -v '^[^:]*:--' || true)
+# Exclude SQL comment lines that mention the typo in documentation
+HITS=$(echo "${HITS}" | grep -vE ':--.*->>>' || true)
 
 if [[ -n "${HITS}" ]]; then
   echo "FAIL: found ->>> in migrations:"

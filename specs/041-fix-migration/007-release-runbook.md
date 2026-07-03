@@ -50,7 +50,7 @@ Manual alternative:
 ```sql
 -- New checksum from checksums.lock for 078_age_child_workspace_stats.sql
 UPDATE _sqlx_migrations
-SET checksum = decode('ae80e5a9566697893557b5dc16c8501a2d7bd43bf443208390ec017fa409eb8c120b0d1cb3b118ae02e806bdf88d1201', 'hex')
+SET checksum = decode('a043177271c82c65a7509855f1d64c02c46235343126a9bbb96c359f4c25aa35427c79bb50051d499b431d869eb8e930', 'hex')
 WHERE version = 78;
 ```
 

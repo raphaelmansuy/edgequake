@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 DB_URL="${1:-${DATABASE_URL:-postgresql://edgequake:edgequake_secret@localhost:5432/edgequake}}"
 
 # Canonical checksum from checksums.lock (post SPEC-041 fix)
-NEW_CHECKSUM="ae80e5a9566697893557b5dc16c8501a2d7bd43bf443208390ec017fa409eb8c120b0d1cb3b118ae02e806bdf88d1201"
+NEW_CHECKSUM="a043177271c82c65a7509855f1d64c02c46235343126a9bbb96c359f4c25aa35427c79bb50051d499b431d869eb8e930"
 
 psql_cmd() {
   if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'edgequake-postgres'; then
