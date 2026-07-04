@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.14.1] — 2026-07-04
+
+### Fixed
+
+- **PG18+ volume mount crash** ([#280](https://github.com/raphaelmansuy/edgequake/issues/280)) — `docker-compose.quickstart.yml` mounted at `/var/lib/postgresql/data` which is incompatible with PG18+ `pg_ctlcluster` layout ([docker-library/postgres#1259](https://github.com/docker-library/postgres/pull/1259)). Fixed to `/var/lib/postgresql` for PG18+ images. 5-Why analysis and E2E volume persistence proof in [SPEC-042/017](specs/042-update-age-pgvector/017-fix-pg18-volume-mount.md).
+- **README fact-check** — corrected 3 inaccuracies: `edgequake-llm` → `edgequake-observability` (local crate), "6 domain presets" → "5", removed dead doc link.
+- **README refocus** — reduced from 979 → 325 lines; Docker quick start as hero, collapsible deployment options, restored architecture diagram. Release & CD content extracted to `docs/operations/release-and-cd.md`.
+
+---
+
 ## [0.14.0] — 2026-07-03
 
 SPEC-042 PostgreSQL triple-track release — PG18 default, multi-tier CI/CD, HNSW dimension guard ([#275](https://github.com/raphaelmansuy/edgequake/issues/275)).
