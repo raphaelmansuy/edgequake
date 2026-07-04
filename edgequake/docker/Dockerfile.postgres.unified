@@ -1,0 +1,76 @@
+# EdgeQuake PostgreSQL — pgvector + Apache AGE (unified, multi-major)
+#
+# Single Dockerfile for PG16, PG17, PG18 — DRY (SPEC-042 / SOLID).
+# SSOT extension pins: edgequake/docker/extension-pins.sh
+#
+# Build:
+#   docker build \
+#     --build-arg PG_MAJOR=18 \
+#     --build-arg PGVECTOR_VERSION=v0.8.3 \
+#     --build-arg AGE_GIT_REF=PG18/v1.7.0-rc0 \
+#     --build-arg AGE_EXPECTED_VERSION=1.7.0 \
+#     -f Dockerfile.postgres.unified -t edgequake-postgres:pg18 .
+#
+# The Makefile `postgres-image-build-unified` target sources extension-pins.sh
+# and passes the correct args automatically.
+
+ARG PG_MAJOR=18
+FROM postgres:${PG_MAJOR}-bookworm
+
+ARG PG_MAJOR
+ARG PGVECTOR_VERSION=v0.8.3
+ARG AGE_GIT_REF=PG18/v1.7.0-rc0
+ARG AGE_EXPECTED_VERSION=1.7.0
+
+LABEL org.edgequake.postgres.version="${PG_MAJOR}-bookworm" \
+      org.edgequake.pgvector.version="${PGVECTOR_VERSION#v}" \
+      org.edgequake.age.version="${AGE_EXPECTED_VERSION}" \
+      org.edgequake.extensions="vector,age,pg_trgm,btree_gin,uuid-ossp"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    postgresql-server-dev-${PG_MAJOR} \
+    postgresql-contrib-${PG_MAJOR} \
+    ca-certificates \
+    curl \
+    git \
+    flex \
+    bison \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    cd /tmp; \
+    git clone --depth 1 --branch "${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git; \
+    cd pgvector; \
+    make OPTFLAGS=""; \
+    make install; \
+    rm -rf /tmp/pgvector
+
+RUN set -eux; \
+    cd /tmp; \
+    git clone --depth 1 --branch "${AGE_GIT_REF}" https://github.com/apache/age.git; \
+    cd age; \
+    make; \
+    make install; \
+    rm -rf /tmp/age
+
+RUN apt-get purge -y --auto-remove \
+    build-essential \
+    postgresql-server-dev-${PG_MAJOR} \
+    git \
+    curl \
+    flex \
+    bison \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    test -f /usr/share/postgresql/${PG_MAJOR}/extension/vector.control; \
+    test -f /usr/share/postgresql/${PG_MAJOR}/extension/age.control; \
+    test -f /usr/share/postgresql/${PG_MAJOR}/extension/pg_trgm.control; \
+    test -f /usr/share/postgresql/${PG_MAJOR}/extension/btree_gin.control; \
+    test -f /usr/share/postgresql/${PG_MAJOR}/extension/uuid-ossp.control; \
+    grep -q "default_version = '${PGVECTOR_VERSION#v}'" /usr/share/postgresql/${PG_MAJOR}/extension/vector.control; \
+    grep -q "default_version = '${AGE_EXPECTED_VERSION}'" /usr/share/postgresql/${PG_MAJOR}/extension/age.control
+
+EXPOSE 5432
+CMD ["postgres"]
