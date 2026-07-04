@@ -168,7 +168,7 @@ services:
       POSTGRES_PASSWORD: edgequake
       POSTGRES_DB: edgequake
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U edgequake"]
       interval: 5s

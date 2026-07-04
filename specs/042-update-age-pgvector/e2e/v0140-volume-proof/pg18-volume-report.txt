@@ -1,0 +1,11 @@
+# v0.14.0 Volume Mount Proof — pg18
+# Date: 2026-07-04T07:16:05Z
+# Image: ghcr.io/raphaelmansuy/edgequake-postgres:0.14.0-pg18
+# Mount: /var/lib/postgresql
+
+PASS [1/4] Fresh start OK (5s)
+PASS [2/4] Write: 3 rows + extensions (vector, age)
+PASS [3/4] Restart: 3 rows + 2 extensions persisted
+PASS [4/4] Healthy: container status = running (no crash loop)
+
+RESULT: ALL PASSED

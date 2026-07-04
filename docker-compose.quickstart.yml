@@ -44,7 +44,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edgequake_secret}
       POSTGRES_DB:       edgequake
     volumes:
-      - edgequake-pg-data:/var/lib/postgresql/data
+      - edgequake-pg-data:/var/lib/postgresql
     networks:
       - edgequake
     healthcheck:
