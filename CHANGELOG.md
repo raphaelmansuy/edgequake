@@ -20,6 +20,7 @@ SPEC-042 PostgreSQL triple-track release — PG18 default, multi-tier CI/CD, HNS
 - **Migration bootstrap hardening** — `sqlx_migrations_table_exists()` guard for fresh PG16 DBs; M043/M078 reconcile guards; `extension_version_at_least()` helper.
 - **Operator tooling** — `scripts/migrate_postgres_major.sh`, `scripts/check_extension_pins.sh`, `make check-extension-pins`, `make spec042-battle-test-all`, `make dev-e2e-proof-all`.
 - **Battle-tested E2E** — `specs/042-update-age-pgvector/e2e/` (version matrix, Phase E, BT-275, multi-profile dev proof with screenshots).
+- **Unified Dockerfile** — `edgequake/docker/Dockerfile.postgres.unified` — single parameterized Dockerfile for PG16/17/18 via `extension-pins.sh` build args (DRY consolidation).
 - **Migration guide** — [postgres-triple-track-spec042.md](edgequake/docs/migrations/postgres-triple-track-spec042.md).
 
 ### Changed
@@ -28,6 +29,7 @@ SPEC-042 PostgreSQL triple-track release — PG18 default, multi-tier CI/CD, HNS
 
 ### Fixed
 
+- **E2E UI Gate (12 tests)** — spec032 hardcoded `localhost:3000` (port mismatch in CI); spec037-query-{full-chunk,settings-scroll} `waitForAppReady` timeout in no-backend env; spec021 `seedTenantStoreOnPage` consumed timeout budget. Extracted shared `e2e/helpers/mock-backend.ts` (DRY).
 - **#275 HNSW startup failure on upgrade** — v0.13.3 M071 could create `vector_cosine_ops` HNSW on 3072-d embeddings; migration now dimension-aware with halfvec promotion.
 - **#276 Entity Types strict limit ignored during gleaning** — Gleaning (re-extraction) pass omitted workspace entity-type schema in prompt and JSON parser; unauthorized types (`Library`, `Concept`, etc.) leaked into the graph despite Strict limit on. E2E: `cargo test -p edgequake-pipeline --test e2e_issue276_gleaning_strict`.
 - **#277 CORS/WebSocket failures in production auth mode** — Swagger routes merged after CORS layer (no ACAO on `/api-docs/openapi.json`); auth middleware blocked `OPTIONS` preflight; WebSocket lacked `?token=` from frontend when `EDGEQUAKE_DEV_MODE=false`. E2E: `cargo test -p edgequake-api --test e2e_issue277_cors_production`.
