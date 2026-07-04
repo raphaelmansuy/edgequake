@@ -1,0 +1,15 @@
+# v0.14.0 Release E2E — pg16
+# Date: 2026-07-04T02:00:53Z
+# Image: ghcr.io/raphaelmansuy/edgequake-postgres:0.14.0-pg16
+
+PASS [1/8] Image pulled: ghcr.io/raphaelmansuy/edgequake-postgres:0.14.0-pg16
+PASS [2/8] Container ready (4s)
+PASS [3/8] Extensions: age=1.6.0 vector=0.8.3 
+PASS [4/8] PG major = 16
+PASS [5/8] Vector HNSW filtered ANN query (384-d, 50 rows)
+PASS [5b/8] Halfvec HNSW (SPEC-042 dimension guard)
+PASS [6/8] AGE graph: 2 nodes, 1 edges (MERGE+MATCH+DROP)
+PASS [7/8] Ingestion schema: kv_store + vector_store + indexes
+PASS [8/8] PG16: uuidv7() absent (expected, AGE 1.6.0)
+
+RESULT: ALL PASSED
