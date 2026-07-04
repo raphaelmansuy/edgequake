@@ -4,7 +4,7 @@
  * @implements FEAT0203 - Image document upload
  */
 import { test, expect } from "@playwright/test";
-
+import { mockBackendForUiOnly } from "./helpers/mock-backend";
 import { uploadFilesOnDocumentsPage } from "./helpers/upload";
 
 const TINY_PNG_BASE64 =
@@ -14,6 +14,8 @@ test.describe("Image upload routing", () => {
   test("PNG upload hits multipart /documents/upload, not JSON /documents", async ({
     page,
   }) => {
+    await mockBackendForUiOnly(page);
+
     let uploadEndpointHit = false;
     let jsonDocumentsHit = false;
 
@@ -44,7 +46,11 @@ test.describe("Image upload routing", () => {
       if (route.request().method() === "POST") {
         jsonDocumentsHit = true;
       }
-      await route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [], total: 0 }),
+      });
     });
 
     await uploadFilesOnDocumentsPage(page, {
