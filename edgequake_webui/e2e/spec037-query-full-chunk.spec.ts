@@ -4,7 +4,8 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { gotoApp } from "./helpers/navigation";
+import { GOTO_OPTS } from "./helpers/navigation";
+import { mockBackendForUiOnly } from "./helpers/mock-backend";
 import { spec037Screenshot } from "./helpers/screenshot-paths";
 
 function sseEvent(payload: Record<string, unknown>): string {
@@ -50,8 +51,10 @@ function mockStreamBody(snippet: string): string {
 
 test.describe("SPEC-037 Full Passage Text", () => {
   test.beforeEach(async ({ page }) => {
-    await gotoApp(page, "/query");
+    await mockBackendForUiOnly(page);
+    await page.goto("/query", GOTO_OPTS);
     await page.waitForLoadState("domcontentloaded");
+    await page.locator("main").first().waitFor({ state: "visible", timeout: 15_000 });
   });
 
   test("toggle ON sends content_granularity agent in stream request", async ({ page }) => {

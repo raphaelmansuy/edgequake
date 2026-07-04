@@ -4,13 +4,16 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { gotoApp } from "./helpers/navigation";
+import { GOTO_OPTS } from "./helpers/navigation";
+import { mockBackendForUiOnly } from "./helpers/mock-backend";
 import { spec037Screenshot } from "./helpers/screenshot-paths";
 
 test.describe("SPEC-037 Query Settings Scroll", () => {
   test.beforeEach(async ({ page }) => {
-    await gotoApp(page, "/query");
+    await mockBackendForUiOnly(page);
+    await page.goto("/query", GOTO_OPTS);
     await page.waitForLoadState("domcontentloaded");
+    await page.locator("main").first().waitFor({ state: "visible", timeout: 15_000 });
   });
 
   test("settings sheet scrolls to system prompt", async ({ page }) => {

@@ -48,6 +48,7 @@ Profile SSOT: `extension-pins.sh` (`EQ_POSTGRES_PROFILE=pg16|pg17|pg18`)
 
 | File | Lens |
 | ---- | ---- |
+| [016-dry-solid-improvements.md](./016-dry-solid-improvements.md) | **DRY/SOLID — unified Dockerfile, battle test results** |
 | [015-issue-275-hnsw-dimension-guard.md](./015-issue-275-hnsw-dimension-guard.md) | **#275 HNSW dimension guard** |
 | [014-feature-adoption-plan.md](./014-feature-adoption-plan.md) | **Phase E — halfvec, RLS, uuidv7, COPY** |
 | [013-version-feature-matrix-official-docs.md](./013-version-feature-matrix-official-docs.md) | Official docs battle test |
@@ -61,9 +62,17 @@ Profile SSOT: `extension-pins.sh` (`EQ_POSTGRES_PROFILE=pg16|pg17|pg18`)
 ## E2E proof (all tiers)
 
 ```bash
+# Per-profile builds (individual Dockerfiles)
 make postgres-image-build          # PG16
 make postgres-image-build-pg17     # PG17
 make postgres-image-build-pg18     # PG18
+
+# Unified build (DRY — single Dockerfile, ARGs from extension-pins.sh)
+EQ_POSTGRES_PROFILE=pg16 make postgres-image-build-unified
+EQ_POSTGRES_PROFILE=pg17 make postgres-image-build-unified
+EQ_POSTGRES_PROFILE=pg18 make postgres-image-build-unified
+
+# Verification + battle tests
 scripts/check_extension_pins.sh all
 ./specs/042-update-age-pgvector/e2e/run_version_feature_battle_test.sh all  # official-docs probes
 ./specs/042-update-age-pgvector/e2e/run_all_battle_tests.sh                 # full suite (#275 + Phase E)

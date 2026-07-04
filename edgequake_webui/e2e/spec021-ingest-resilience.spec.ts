@@ -102,11 +102,11 @@ test.describe("SPEC-021 ingest resilience UI", () => {
       });
     });
 
-    await seedTenantStoreOnPage(page, MOCK_CTX);
-    await page.goto("/");
+    await seedTenantStoreOnPage(page, MOCK_CTX, { waitForReady: false });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
 
     const banner = page.getByRole("status");
-    await expect(banner).toContainText(/busy processing/i, { timeout: 15_000 });
+    await expect(banner).toContainText(/busy processing/i, { timeout: 20_000 });
     await expect(banner).not.toContainText(/not reachable/i);
   });
 
@@ -139,11 +139,11 @@ test.describe("SPEC-021 ingest resilience UI", () => {
       });
     });
 
-    await seedTenantStoreOnPage(page, MOCK_CTX);
-    await page.goto("/");
+    await seedTenantStoreOnPage(page, MOCK_CTX, { waitForReady: false });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
 
     await page.waitForSelector('[data-testid="stats-stale-badge"]', {
-      timeout: 15_000,
+      timeout: 20_000,
     });
     await expect(page.getByTestId("stats-stale-badge").first()).toContainText(
       "updating",

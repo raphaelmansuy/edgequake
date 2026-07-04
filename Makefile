@@ -135,7 +135,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         backend-dev backend-db backend-memory backend-bg backend-build backend-build-online backend-sqlx-prepare backend-test backend-run \
         frontend-dev frontend-bg frontend-build frontend-test frontend-lint \
         openapi-snapshot codegen-openapi codegen-openapi-refresh codegen-openapi-live \
-        db-start db-start-pg16 db-start-pg17 db-start-pg18 db-stop db-wait db-logs db-shell postgres-image-build postgres-image-build-pg17 postgres-image-build-pg18 check-extension-pins postgres-battle-test hnsw-dimension-battle-test spec042-battle-test-all dev-e2e-proof dev-e2e-proof-all docker-network-diagnose stop-docker-services \
+        db-start db-start-pg16 db-start-pg17 db-start-pg18 db-stop db-wait db-logs db-shell postgres-image-build postgres-image-build-pg17 postgres-image-build-pg18 postgres-image-build-unified check-extension-pins postgres-battle-test hnsw-dimension-battle-test spec042-battle-test-all dev-e2e-proof dev-e2e-proof-all docker-network-diagnose stop-docker-services \
         docker-build docker-up docker-prebuilt docker-prebuilt-down docker-prebuilt-logs docker-ps-prebuilt docker-api-only docker-down docker-logs \
         stack stack-down stack-logs stack-status stack-restart stack-pull \
         check-deps status \
@@ -1309,6 +1309,21 @@ postgres-image-build-pg18: ## Build and verify edgequake-postgres PG18 image (pg
 	@chmod +x $(DOCKER_DIR)/verify-postgres-extensions.sh
 	@EQ_POSTGRES_PROFILE=pg18 bash $(DOCKER_DIR)/verify-postgres-extensions.sh edgequake-postgres:local
 	@echo "$(GREEN)✓ edgequake-postgres:local (PG18) ready$(RESET)"
+
+postgres-image-build-unified: ## Build any PG profile via unified Dockerfile (DRY — SPEC-042)
+	@_p="$${EQ_POSTGRES_PROFILE:-pg18}"; \
+	source $(DOCKER_DIR)/extension-pins.sh; \
+	echo "$(BLUE)Building edgequake-postgres ($$_p) via unified Dockerfile...$(RESET)"; \
+	cd $(DOCKER_DIR) && docker build \
+		--build-arg PG_MAJOR="$$EQ_POSTGRES_MAJOR" \
+		--build-arg PGVECTOR_VERSION="$$EQ_PGVECTOR_VERSION" \
+		--build-arg AGE_GIT_REF="$$EQ_AGE_GIT_REF" \
+		--build-arg AGE_EXPECTED_VERSION="$$EQ_AGE_MIN" \
+		-f Dockerfile.postgres.unified \
+		-t "edgequake-postgres:$$EQ_POSTGRES_GHCR_SUFFIX" .; \
+	chmod +x $(DOCKER_DIR)/verify-postgres-extensions.sh; \
+	EQ_POSTGRES_PROFILE="$$_p" bash $(DOCKER_DIR)/verify-postgres-extensions.sh "edgequake-postgres:$$EQ_POSTGRES_GHCR_SUFFIX"; \
+	echo "$(GREEN)✓ edgequake-postgres:$$EQ_POSTGRES_GHCR_SUFFIX ready (unified)$(RESET)"
 
 check-extension-pins: ## Verify Dockerfile pins match extension-pins.sh SSOT (SPEC-042 DRY gate)
 	@bash scripts/check_extension_pins.sh all
