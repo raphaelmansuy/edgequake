@@ -61,6 +61,19 @@ Profile SSOT: `extension-pins.sh` (`EQ_POSTGRES_PROFILE=pg16|pg17|pg18`)
 
 ## E2E proof (all tiers)
 
+### v0.14.0 Release Proof (published GHCR images)
+
+Full E2E verification against **published Docker images** — see [v0140-release-proof/](./e2e/v0140-release-proof/README.md).
+
+```bash
+# Run against published GHCR images (no local build)
+./specs/042-update-age-pgvector/e2e/run_v0140_release_e2e.sh all
+```
+
+All three tiers passed 8 checks: image pull, container startup, extension verification, PG version gate, 384-d HNSW ANN, halfvec HNSW, AGE Cypher lifecycle, and ingestion schema.
+
+### Local build + battle tests
+
 ```bash
 # Per-profile builds (individual Dockerfiles)
 make postgres-image-build          # PG16
