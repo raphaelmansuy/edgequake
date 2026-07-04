@@ -106,8 +106,8 @@ test.describe("SPEC-021 ingest resilience UI", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     const banner = page.getByRole("status");
-    await expect(banner).toContainText(/busy processing/i, { timeout: 20_000 });
-    await expect(banner).not.toContainText(/not reachable/i);
+    await expect(banner).toContainText(/processing documents/i, { timeout: 20_000 });
+    await expect(banner).not.toContainText(/not available/i);
   });
 
   test("stale workspace stats show updating badge on dashboard", async ({

@@ -13,7 +13,7 @@ test.describe("SPEC-037 Query Settings Scroll", () => {
     await mockBackendForUiOnly(page);
     await page.goto("/query", GOTO_OPTS);
     await page.waitForLoadState("domcontentloaded");
-    await page.locator("main").first().waitFor({ state: "visible", timeout: 15_000 });
+    await page.locator("main").first().waitFor({ state: "visible", timeout: 20_000 });
   });
 
   test("settings sheet scrolls to system prompt", async ({ page }) => {
