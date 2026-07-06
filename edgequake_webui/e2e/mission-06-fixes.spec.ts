@@ -181,21 +181,25 @@ async function installMissionMocks(page: Page, state: MockState) {
     await route.fallback();
   });
 
-  await page.route('**/api/v1/models/health**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          name: 'openai',
-          enabled: true,
-          health: { available: true, latency_ms: 50, checked_at: '2026-04-16T00:00:00Z' },
-        },
-      ]),
-    });
+  await page.route('**/api/v1/models/discover/**', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'ok', message: 'discovery refreshed' }),
+      });
+      return;
+    }
+    await route.fallback();
   });
 
   await page.route('**/api/v1/models**', async (route) => {
+    const url = route.request().url();
+    if (url.includes('/models/health') || url.includes('/models/discover')) {
+      await route.fallback();
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -205,6 +209,9 @@ async function installMissionMocks(page: Page, state: MockState) {
             name: 'openai',
             enabled: true,
             display_name: 'OpenAI',
+            provider_type: 'openai',
+            priority: 1,
+            description: 'OpenAI API',
             models: [
               {
                 name: 'gpt-4o-mini',
@@ -228,6 +235,38 @@ async function installMissionMocks(page: Page, state: MockState) {
         default_embedding_provider: 'openai',
         default_embedding_model: 'text-embedding-3-small',
       }),
+    });
+  });
+
+  // Must register after the catch-all `/models**` route so health wins precedence.
+  await page.route('**/api/v1/models/health**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          name: 'openai',
+          display_name: 'OpenAI',
+          provider_type: 'openai',
+          enabled: true,
+          priority: 1,
+          description: 'OpenAI API',
+          auth_kind: 'api_key',
+          models: [
+            {
+              name: 'gpt-4o-mini',
+              display_name: 'GPT-4o Mini',
+              model_type: 'llm',
+              capabilities: { supports_streaming: true },
+            },
+          ],
+          health: {
+            available: true,
+            latency_ms: 50,
+            checked_at: '2026-04-16T00:00:00Z',
+          },
+        },
+      ]),
     });
   });
 
@@ -277,12 +316,17 @@ test.describe('Mission 06 regression proof', () => {
       await route.fallback();
     });
 
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/workspace');
+
+    await expect(page.getByRole('heading', { name: WORKSPACE.name })).toBeVisible({
+      timeout: 15_000,
+    });
 
     const deleteWorkspaceButton = page.getByRole('button', {
       name: /delete( this)? workspace/i,
     });
+    await deleteWorkspaceButton.scrollIntoViewIfNeeded();
     await expect(deleteWorkspaceButton).toBeVisible();
 
     await deleteWorkspaceButton.click();
