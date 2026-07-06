@@ -48,6 +48,7 @@ impl Encode<'_, Postgres> for PgAgtype {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::TypeInfo;
 
     #[test]
     fn pg_agtype_uses_agtype_sql_type_name() {
