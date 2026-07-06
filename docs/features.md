@@ -36,11 +36,11 @@ This file maintains traceability between code features and business requirements
 
 **API Surface**:
 - `PUT /api/v1/workspaces/:id/injection` — create/replace text injection
-- `POST /api/v1/workspaces/:id/injection/upload` — upload file injection
-- `GET /api/v1/workspaces/:id/injection` — list all entries
-- `GET /api/v1/workspaces/:id/injection/:injection_id` — get detail
-- `PATCH /api/v1/workspaces/:id/injection/:injection_id` — update name/content
-- `DELETE /api/v1/workspaces/:id/injection/:injection_id` — delete + cascade cleanup
+- `PUT /api/v1/workspaces/:id/injection/file` — upload file injection
+- `GET /api/v1/workspaces/:id/injections` — list all entries
+- `GET /api/v1/workspaces/:id/injections/:injection_id` — get detail
+- `PATCH /api/v1/workspaces/:id/injections/:injection_id` — update name/content
+- `DELETE /api/v1/workspaces/:id/injections/:injection_id` — delete + cascade cleanup
 
 **UI**: `/knowledge` page with list, add dialog (text/file tabs), detail page, inline edit, delete confirmation.
 

@@ -87,7 +87,7 @@ To delete: click the trash icon → confirm in the dialog.
 ## File Upload
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/workspaces/default/injection/upload \
+curl -X PUT http://localhost:8080/api/v1/workspaces/default/injection/file \
   -H "X-Workspace-ID: default" \
   -F "name=Domain Glossary" \
   -F "file=@glossary.txt"
@@ -101,11 +101,11 @@ Accepted formats: `.txt`, `.md`, plain text.
 
 | Operation      | Method   | Path                                                            |
 | -------------- | -------- | --------------------------------------------------------------- |
-| List all       | `GET`    | `/api/v1/workspaces/:id/injection`                              |
+| List all       | `GET`    | `/api/v1/workspaces/:id/injections`                              |
 | Create (text)  | `PUT`    | `/api/v1/workspaces/:id/injection`                              |
-| Create (file)  | `POST`   | `/api/v1/workspaces/:id/injection/upload`                       |
+| Create (file)  | `PUT`    | `/api/v1/workspaces/:id/injection/file`                       |
 | Get detail     | `GET`    | `/api/v1/workspaces/:id/injection/:injection_id`                |
-| Update         | `PATCH`  | `/api/v1/workspaces/:id/injection/:injection_id`                |
+| Update         | `PATCH`  | `/api/v1/workspaces/:id/injections/:injection_id`                |
 | Delete         | `DELETE` | `/api/v1/workspaces/:id/injection/:injection_id`                |
 
 See [REST API Reference](../api-reference/rest-api.md#knowledge-injection-api) for full request/response schemas.

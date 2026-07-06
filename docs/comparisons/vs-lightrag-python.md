@@ -125,9 +125,9 @@ Both implementations support the same 6 query modes:
 
 | Type               | Options                            |
 | ------------------ | ---------------------------------- |
-| **KV Storage**     | PostgreSQL, In-Memory              |
-| **Vector Storage** | PostgreSQL (pgvector), In-Memory   |
-| **Graph Storage**  | PostgreSQL (Apache AGE), In-Memory |
+| **KV Storage**     | PostgreSQL                         |
+| **Vector Storage** | PostgreSQL (pgvector)              |
+| **Graph Storage**  | PostgreSQL (Apache AGE)              |
 
 **Key Difference**: EdgeQuake uses PostgreSQL as a unified backend, simplifying deployment. LightRAG offers more flexibility with multiple backend options.
 

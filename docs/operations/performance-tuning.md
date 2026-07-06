@@ -45,14 +45,14 @@ This guide covers performance tuning strategies for EdgeQuake deployments.
 | Model                | Latency (TTFT) | Cost | Quality   |
 | -------------------- | -------------- | ---- | --------- |
 | gpt-4o               | 500ms          | $$$$ | Excellent |
-| gpt-5-nano           | 200ms          | $    | Very Good |
-| gemma3:12b (Ollama)  | 100ms          | Free | Good      |
+| gpt-4.1-nano           | 200ms          | $    | Very Good |
+| gemma4:latest (Ollama)  | 100ms          | Free | Good      |
 | llama3.2:3b (Ollama) | 50ms           | Free | Moderate  |
 
-**Recommendation**: Use `gpt-5-nano` for production (best latency/quality ratio)
+**Recommendation**: Use `gpt-4.1-nano` for production (best latency/quality ratio)
 
 ```bash
-export EDGEQUAKE_LLM_MODEL=gpt-5-nano
+export EDGEQUAKE_LLM_MODEL=gpt-4.1-nano
 ```
 
 ### 2. Reduce Context Size
@@ -364,7 +364,7 @@ ollama serve
 
 ```bash
 # Download quantized model
-ollama pull gemma3:12b-q4_K_M
+ollama pull gemma4:latest-q4_K_M
 ```
 
 ### Local vs Cloud Latency
@@ -381,7 +381,7 @@ ollama pull gemma3:12b-q4_K_M
 │  │ Total (500 tokens): 5.05s                                │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  OpenAI gpt-5-nano:                                            │
+│  OpenAI gpt-4.1-nano:                                            │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Time to First Token: 200ms                               │   │
 │  │ Token Generation: 80 tokens/sec                          │   │
@@ -513,7 +513,7 @@ cargo bench
 
 ### Quick Wins
 
-- [ ] Using gpt-5-nano (or faster model)
+- [ ] Using gpt-4.1-nano (or faster model)
 - [ ] Context size reduced (max_chunks ≤ 10)
 - [ ] Appropriate query mode selected
 - [ ] Streaming enabled for chat

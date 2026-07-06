@@ -115,7 +115,7 @@ curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
     "name": "my-project",
     "slug": "my-project",
     "llm_provider": "openai",
-    "llm_model": "gpt-5-nano"
+    "llm_model": "gpt-4.1-nano"
   }'
 
 # Returns workspace_id to use in subsequent requests
@@ -266,7 +266,7 @@ lightrag = LightRAG(
 # Environment variables
 export OPENAI_API_KEY="sk-..."
 export EDGEQUAKE_LLM_PROVIDER="openai"
-export EDGEQUAKE_LLM_MODEL="gpt-5-nano"
+export EDGEQUAKE_LLM_MODEL="gpt-4.1-nano"
 export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
 
 # Or per-workspace via API
@@ -274,7 +274,7 @@ curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   -H "Content-Type: application/json" \
   -d '{
     "llm_provider": "openai",
-    "llm_model": "gpt-5-nano",
+    "llm_model": "gpt-4.1-nano",
     "embedding_model": "text-embedding-3-small"
   }'
 ```
@@ -283,7 +283,7 @@ Compatibility aliases are also supported if you want to reuse an existing env fi
 
 ```bash
 export MODEL_PROVIDER="openai"
-export CHAT_MODEL="gpt-5-nano"
+export CHAT_MODEL="gpt-4.1-nano"
 export EMBEDDING_MODEL="text-embedding-3-small"
 ```
 
@@ -309,13 +309,12 @@ lightrag = LightRAG(
 **EdgeQuake**:
 
 ```bash
-# PostgreSQL (recommended)
+# PostgreSQL (required since v0.4.0)
 export DATABASE_URL="postgresql://user:pass@localhost:5432/edgequake"
-
-# In-memory (development only)
-# Simply don't set DATABASE_URL
 edgequake
 ```
+
+> **Note:** In-memory server mode was removed in v0.4.0. `DATABASE_URL` is required for all server deployments.
 
 ---
 

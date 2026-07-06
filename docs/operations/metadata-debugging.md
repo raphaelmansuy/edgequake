@@ -117,7 +117,7 @@ grep -i "entity.*error\|extraction.*fail" /tmp/edgequake-backend.log
 1. Ensure LLM provider is running:
    ```bash
    ollama serve &
-   ollama pull gemma3:latest
+   ollama pull gemma4:latest
    ```
 2. Re-upload or re-process the document
 
@@ -283,7 +283,7 @@ echo $OPENAI_API_KEY | head -c 10
 docker ps | grep edgequake-postgres
 
 # Restart database if needed
-make postgres-stop && make postgres-start && sleep 5
+make postgres-stop && make db-start && sleep 5
 
 # Restart backend
 make stop && make dev-bg

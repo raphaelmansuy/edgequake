@@ -908,7 +908,7 @@ ollama serve
 curl http://localhost:11434/api/tags
 
 # Pull required model
-ollama pull gemma3:12b
+ollama pull gemma4:latest
 ollama pull nomic-embed-text
 ```
 
@@ -942,7 +942,7 @@ RUST_LOG="edgequake=debug" cargo run
 ```bash
 # Use faster model
 curl -X POST "http://localhost:8080/api/v1/query" \
-  -d '{"query": "test", "llm_model": "gpt-5-nano"}'
+  -d '{"query": "test", "llm_model": "gpt-4.1-nano"}'
 
 # Reduce context size
 curl -X POST "http://localhost:8080/api/v1/query" \
@@ -972,7 +972,7 @@ grep "Timeout after\|attempt.*/" /tmp/edgequake-backend.log | tail -20
 
 # Measure how long a single LLM call actually takes on your hardware
 time curl -s http://localhost:11434/api/chat \
-  -d '{"model":"gemma3:latest","messages":[{"role":"user","content":"extract entities from: Alice works at Acme"}]}'
+  -d '{"model":"gemma4:latest","messages":[{"role":"user","content":"extract entities from: Alice works at Acme"}]}'
 ```
 
 **Fix — raise both timeout layers to match your hardware:**

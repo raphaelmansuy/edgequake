@@ -112,7 +112,7 @@ Returns all stored metadata for a document as a flat JSON object. This data is f
   "status": "completed",
   "created_at": "2025-01-15T10:30:00Z",
   "processed_at": "2025-01-15T10:31:00Z",
-  "llm_model": "gpt-5-nano",
+  "llm_model": "gpt-4.1-nano",
   "embedding_model": "text-embedding-3-small",
   "chunk_count": 8
 }
@@ -199,7 +199,7 @@ Returns a chunk's complete lineage chain — parent document info, position data
   "end_line": 25,
   "start_offset": 0,
   "end_offset": 1024,
-  "llm_model": "gpt-5-nano",
+  "llm_model": "gpt-4.1-nano",
   "embedding_model": "text-embedding-3-small",
   "embedding_dimension": 1536,
   "entity_names": ["EDGEQUAKE", "RUST", "RAG"],

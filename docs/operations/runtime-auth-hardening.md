@@ -6,10 +6,20 @@ EdgeQuake supports both demo-friendly local development and fail-closed authenti
 
 ```bash
 export EDGEQUAKE_AUTH_ENABLED=true
+# Do NOT set EDGEQUAKE_DEV_MODE in production
 export EDGEQUAKE_MASTER_API_KEY="replace-with-a-strong-secret"
 export NEXT_PUBLIC_AUTH_ENABLED=true
 export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true
 export NEXT_PUBLIC_API_URL="https://your-api-host"
+```
+
+## Local development (open API)
+
+`make dev` sets `EDGEQUAKE_DEV_MODE=true` when `DEV_AUTH_ENABLED=false`, disabling auth for frictionless local testing. Do not use this in production.
+
+```bash
+# Explicit local open API (alternative to make dev defaults)
+export EDGEQUAKE_DEV_MODE=true
 ```
 
 ## What changed

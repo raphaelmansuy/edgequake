@@ -83,8 +83,8 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 | Variable                 | Type   | Default                  | Description                                                                                                      |
 | ------------------------ | ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `OLLAMA_HOST`            | String | `http://localhost:11434` | Ollama server URL (LLM and embeddings)                                                                           |
-| `OLLAMA_MODEL`           | String | `gemma3:latest`          | Default LLM model                                                                                                |
-| `OLLAMA_EMBEDDING_MODEL` | String | `nomic-embed-text`       | Default embedding model                                                                                          |
+| `OLLAMA_MODEL`           | String | `gemma4:latest`          | Default LLM model (`make dev` sets this when using Ollama)                                                       |
+| `OLLAMA_EMBEDDING_MODEL` | String | `embeddinggemma:latest`  | Default embedding model (`make dev` sets this when using Ollama)                                                 |
 | `OLLAMA_EMBEDDING_HOST`  | String | value of `OLLAMA_HOST`   | Dedicated Ollama host for embeddings only (closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140)) |
 
 #### LM Studio
@@ -182,14 +182,43 @@ Design reference: [SPEC-043 §011 — Vertex AI Authentication](../specs/043-upd
 
 ### Models Configuration
 
-| Variable                        | Type    | Default  | Description                                    |
-| ------------------------------- | ------- | -------- | ---------------------------------------------- |
-| `EDGEQUAKE_MODELS_CONFIG`       | String  | None     | Path to custom models.toml                     |
-| `EDGEQUAKE_LLM_PROVIDER`        | String  | `ollama` | Default LLM provider                           |
-| `EDGEQUAKE_LLM_MODEL`           | String  | None     | Override LLM model name                        |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | `ollama` | Override embedding provider type (hybrid mode) |
-| `EDGEQUAKE_EMBEDDING_MODEL`     | String  | None     | Override embedding model name                  |
-| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `768`    | Override embedding vector dimension            |
+> **Three layers of defaults** — docs and operators often conflate these:
+>
+> | Layer | When it applies | LLM provider / model | Embedding / dim |
+> | ----- | --------------- | -------------------- | --------------- |
+> | **Bundled catalog** (`models.toml` `[defaults]`, compiled constants) | No env overrides, direct `cargo run` | `openai` / `gpt-4.1-mini` | `text-embedding-3-small` / `1536` |
+> | **`make dev`** (no `OPENAI_API_KEY`) | Local stack via Makefile | `ollama` / `gemma4:latest` | `embeddinggemma:latest` / `768` |
+> | **`make dev`** (with `OPENAI_API_KEY`) | Local stack via Makefile | `openai` / `gpt-5-nano`¹ | `text-embedding-3-small` / `1536` |
+>
+> ¹ `gpt-5-nano` is set by the Makefile when an API key is present; the bundled catalog default LLM is `gpt-4.1-mini`. Override with `EDGEQUAKE_DEFAULT_LLM_MODEL` if needed.
+
+**Primary variables** (recommended — `make dev` sets these):
+
+| Variable                              | Type    | Default (bundled) | Description                         |
+| ------------------------------------- | ------- | ----------------- | ----------------------------------- |
+| `EDGEQUAKE_DEFAULT_LLM_PROVIDER`      | String  | `openai`          | Default LLM provider (priority 1)   |
+| `EDGEQUAKE_DEFAULT_LLM_MODEL`         | String  | `gpt-4.1-mini`    | Default LLM model (priority 1)      |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER`| String  | `openai`          | Default embedding provider          |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL`   | String  | `text-embedding-3-small` | Default embedding model      |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` | Integer | `1536`          | Default embedding vector dimension  |
+
+**Secondary / deployment variables** (single-env aliases, lower priority than `EDGEQUAKE_DEFAULT_*`):
+
+| Variable                        | Type    | Default (bundled) | Description                                    |
+| ------------------------------- | ------- | ----------------- | ---------------------------------------------- |
+| `EDGEQUAKE_MODELS_CONFIG`       | String  | None              | Path to custom models.toml                     |
+| `EDGEQUAKE_LLM_PROVIDER`        | String  | (see above)       | LLM provider alias                             |
+| `EDGEQUAKE_LLM_MODEL`           | String  | None              | LLM model alias                                |
+| `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | (see above)       | Embedding provider alias (hybrid mode)         |
+| `EDGEQUAKE_EMBEDDING_MODEL`     | String  | None              | Embedding model alias                          |
+| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `1536`            | Embedding vector dimension alias               |
+
+**Vision / PDF extraction** (inherits from LLM defaults when unset):
+
+| Variable                   | Type   | Default              | Description                          |
+| -------------------------- | ------ | -------------------- | ------------------------------------ |
+| `EDGEQUAKE_VISION_PROVIDER`| String | same as LLM provider | Vision LLM provider for PDF→Markdown |
+| `EDGEQUAKE_VISION_MODEL`   | String | same as LLM model    | Vision LLM model for PDF→Markdown    |
 
 ### Compatibility aliases
 
@@ -215,7 +244,7 @@ Run a different provider or Ollama instance for embeddings vs. LLM inference:
 | `OLLAMA_EMBEDDING_HOST`         | String  | value of `OLLAMA_HOST` | Dedicated Ollama host for embeddings                |
 | `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | (same as LLM)          | Explicit embedding provider (`ollama`, `openai`, …) |
 | `EDGEQUAKE_EMBEDDING_MODEL`     | String  | provider default       | Model for the embedding override                    |
-| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `768`                  | Vector dimension for the embedding override         |
+| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `1536` (OpenAI) / `768` (Ollama) | Vector dimension for the embedding override |
 
 **Priority:** `EDGEQUAKE_EMBEDDING_PROVIDER` → `OLLAMA_EMBEDDING_HOST` → default (from `from_env()`).
 
@@ -272,14 +301,24 @@ export EDGEQUAKE_LLM_TIMEOUT_SECS=3600        # 1-hour HTTP cap
 
 ---
 
+### Security / Authentication
+
+| Variable                    | Type    | Default | Description                                                                 |
+| --------------------------- | ------- | ------- | --------------------------------------------------------------------------- |
+| `EDGEQUAKE_AUTH_ENABLED`    | Boolean | `true`  | Enable API authentication (secure default)                                  |
+| `EDGEQUAKE_DEV_MODE`        | Boolean | `false` | Set `true` for local open API without keys (`make dev` sets this)           |
+| `EDGEQUAKE_MASTER_API_KEY`  | String  | None    | Master API key for authenticated requests                                   |
+| `EDGEQUAKE_API_KEYS`        | String  | None    | Comma-separated API keys (alternative to master key)                        |
+| `EDGEQUAKE_STRICT_STARTUP`  | Boolean | `false` | Exit on insecure production config when `1`                                 |
+| `EDGEQUAKE_CORS_ORIGINS`    | String  | None    | Comma-separated allowed CORS origins (`None` = allow any, legacy default)   |
+
 ### Security / Frontend
 
 | Variable                         | Type   | Default | Description                                                                                                                             |
 | -------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` | String | `false` | Set to `true` to hide the demo "skip login" button in production (closes [#139](https://github.com/raphaelmansuy/edgequake/issues/139)) |
 
-> **Production tip:** Always set `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` in
-> your frontend build when deploying EdgeQuake to a public-facing environment.
+> **Production tip:** Keep `EDGEQUAKE_AUTH_ENABLED=true`, unset `EDGEQUAKE_DEV_MODE`, configure `EDGEQUAKE_MASTER_API_KEY` or `EDGEQUAKE_API_KEYS`, and set `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` in your frontend build.
 
 ---
 
@@ -297,12 +336,14 @@ The `models.toml` file configures LLM providers and model cards.
 ### Structure
 
 ```toml
-# Default provider selection
+# Default provider selection (bundled models.toml)
 [defaults]
-llm_provider = "ollama"              # or "openai", "lm_studio"
-llm_model = "gemma3:12b"
-embedding_provider = "ollama"
-embedding_model = "embeddinggemma"
+llm_provider = "openai"
+llm_model = "gpt-4.1-mini"
+embedding_provider = "openai"
+embedding_model = "text-embedding-3-small"
+vision_provider = "openai"
+vision_model = "gpt-4o"
 
 # Provider definitions
 [[providers]]
@@ -317,10 +358,10 @@ description = "OpenAI GPT models"
 
 # Model definitions within provider
 [[providers.models]]
-name = "gpt-5-nano"
-display_name = "GPT-4o Mini"
+name = "gpt-4.1-mini"
+display_name = "GPT-4.1 Mini"
 model_type = "llm"                   # or "embedding"
-description = "Cost-effective model"
+description = "Cost-effective model with 1M context"
 deprecated = false
 tags = ["recommended", "fast"]
 
@@ -347,6 +388,7 @@ image_per_unit = 0.0
 | ------------ | ----------------------- | ---------------------- |
 | `openai`     | OpenAI API compatible   | `OPENAI_API_KEY`       |
 | `anthropic`  | Anthropic Claude models | `ANTHROPIC_API_KEY`    |
+| `mistral`    | Mistral AI models       | `MISTRAL_API_KEY`      |
 | `gemini`     | Google Gemini Developer API | `GEMINI_API_KEY` / `GOOGLE_API_KEY` |
 | `vertexai`   | Google Vertex AI (enterprise) | **Identity** — `GOOGLE_CLOUD_PROJECT` + ADC/SA (no static API key) |
 | `xai`        | xAI Grok models         | `XAI_API_KEY`          |
@@ -354,7 +396,7 @@ image_per_unit = 0.0
 | `minimax`    | MiniMax AI models       | `MINIMAX_API_KEY`      |
 | `azure`      | Azure OpenAI            | `AZURE_OPENAI_API_KEY` |
 | `ollama`     | Ollama local models     | None (local)           |
-| `lm_studio`  | LM Studio local         | None (local)           |
+| `lmstudio`   | LM Studio local         | None (local)           |
 | `mock`       | Testing without costs   | None                   |
 
 ### Model Types
@@ -381,8 +423,8 @@ enabled = true
 priority = 10
 
 [[providers.models]]
-name = "gpt-5-nano"
-display_name = "GPT-4o Mini"
+name = "gpt-4.1-mini"
+display_name = "GPT-4.1 Mini"
 model_type = "llm"
 tags = ["recommended"]
 
@@ -417,8 +459,8 @@ enabled = true
 priority = 20
 
 [[providers.models]]
-name = "gemma3:12b"
-display_name = "Gemma 3 12B"
+name = "gemma4:latest"
+display_name = "Gemma 4 Latest"
 model_type = "llm"
 tags = ["recommended", "local"]
 
@@ -429,8 +471,8 @@ supports_vision = true
 supports_streaming = true
 
 [[providers.models]]
-name = "nomic-embed-text"
-display_name = "Nomic Embed Text"
+name = "embeddinggemma:latest"
+display_name = "Embedding Gemma"
 model_type = "embedding"
 
 [providers.models.capabilities]
@@ -451,7 +493,7 @@ enabled = true
 priority = 5
 
 [[providers.models]]
-name = "gpt-5-nano"  # Your deployment name
+name = "gpt-4.1-mini"  # Your deployment name
 display_name = "Azure GPT-4o Mini"
 model_type = "llm"
 
@@ -615,7 +657,7 @@ enabled = true
 priority = 6
 
 [[providers.models]]
-name = "openai/gpt-5-nano"
+name = "openai/gpt-4o-mini"
 display_name = "OpenRouter GPT-4o Mini"
 model_type = "llm"
 tags = ["recommended"]
@@ -638,11 +680,17 @@ output_per_1k = 0.0006
 EdgeQuake supports switching providers at runtime via API:
 
 ```bash
-# Get current providers
-curl http://localhost:8080/api/v1/providers
+# Get current effective configuration (resolution chain)
+curl http://localhost:8080/api/v1/config/effective | jq .
 
-# Get available models for a provider
-curl http://localhost:8080/api/v1/providers/openai/models
+# List available providers (Settings UI source)
+curl http://localhost:8080/api/v1/settings/providers
+
+# List all models grouped by provider
+curl http://localhost:8080/api/v1/models
+
+# Get models for a specific provider
+curl http://localhost:8080/api/v1/models/openai
 
 # Query with specific provider (per-request)
 curl -X POST http://localhost:8080/api/v1/query \
@@ -651,7 +699,7 @@ curl -X POST http://localhost:8080/api/v1/query \
     "query": "What is quantum computing?",
     "mode": "hybrid",
     "llm_provider": "openai",
-    "llm_model": "gpt-5-nano"
+    "llm_model": "gpt-4.1-mini"
   }'
 ```
 
@@ -735,7 +783,7 @@ DATABASE_URL="postgresql://user:pass@pgbouncer:6432/edgequake?application_name=e
 | `max_chunks`   | Per query | 10      | Max chunks retrieved   |
 | `max_entities` | Per query | 20      | Max entities retrieved |
 | `temperature`  | Per query | 0.7     | LLM temperature        |
-| `max_tokens`   | Per query | 4096    | Max response tokens    |
+| `max_tokens`   | Per query | 16384   | Max response tokens (HTTP safety layer default) |
 
 ---
 
@@ -745,16 +793,20 @@ DATABASE_URL="postgresql://user:pass@pgbouncer:6432/edgequake?application_name=e
 
 ```bash
 # Requires DATABASE_URL — set via .env or environment
-# Mock LLM if no OPENAI_API_KEY is set
-cargo run
+# Bundled default: openai/gpt-4.1-mini (requires OPENAI_API_KEY)
+# make dev without API key uses ollama/gemma4:latest instead
+make dev
 ```
 
 ### Development with Ollama
 
 ```bash
 export OLLAMA_HOST="http://localhost:11434"
-export OLLAMA_MODEL="gemma3:12b"
-cargo run
+export EDGEQUAKE_DEFAULT_LLM_PROVIDER=ollama
+export EDGEQUAKE_DEFAULT_LLM_MODEL="gemma4:latest"
+export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=ollama
+export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="embeddinggemma:latest"
+make dev
 ```
 
 ### Development with PostgreSQL

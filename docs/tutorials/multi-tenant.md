@@ -113,7 +113,7 @@ curl -X POST http://localhost:8080/api/v1/tenants \
 
 ```bash
 # HR Documents workspace
-curl -X POST http://localhost:8080/api/v1/workspaces \
+curl -X POST http://localhost:8080/api/v1/tenants/tenant_abc123/workspaces \
   -H "Content-Type: application/json" \
   -d '{
     "name": "HR Knowledge Base",
@@ -122,7 +122,7 @@ curl -X POST http://localhost:8080/api/v1/workspaces \
   }'
 
 # Legal Documents workspace
-curl -X POST http://localhost:8080/api/v1/workspaces \
+curl -X POST http://localhost:8080/api/v1/tenants/tenant_abc123/workspaces \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Legal Documents",
@@ -139,7 +139,7 @@ Each workspace can have its own LLM configuration:
 
 ```bash
 # Create workspace with custom LLM settings
-curl -X POST http://localhost:8080/api/v1/workspaces \
+curl -X POST http://localhost:8080/api/v1/tenants/tenant_abc123/workspaces \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Premium Workspace",
@@ -170,7 +170,7 @@ Server Defaults (models.toml)
 
 | Scenario               | Configuration                              |
 | ---------------------- | ------------------------------------------ |
-| Cost-conscious tenant  | Use `ollama` or `gpt-5-nano`               |
+| Cost-conscious tenant  | Use `ollama` or `gpt-4.1-nano`               |
 | Premium tenant         | Use `gpt-4o` with `text-embedding-3-large` |
 | Compliance requirement | Use self-hosted Ollama                     |
 | Testing                | Use mock provider                          |
@@ -409,52 +409,32 @@ curl -X DELETE "http://localhost:8080/api/v1/workspaces/ws_hr"
 
 ## Step 7: Cross-Workspace Queries (Advanced)
 
-For some use cases, you may want to query across workspaces:
+Cross-workspace query in a single API call is **not currently exposed**. Query each workspace separately:
 
 ```bash
-# Query multiple workspaces (requires explicit permission)
-curl -X POST "http://localhost:8080/api/v1/query/multi" \
+# Query HR workspace
+curl -X POST "http://localhost:8080/api/v1/query?workspace_id=ws_hr" \
   -H "Content-Type: application/json" \
-  -d '{
-    "query": "Company policies overview",
-    "workspace_ids": ["ws_hr", "ws_legal"],
-    "mode": "global"
-  }'
-```
+  -d '{"query": "Company policies overview", "mode": "global"}'
 
-**Note**: Cross-workspace queries require tenant-level authentication.
+# Query Legal workspace
+curl -X POST "http://localhost:8080/api/v1/query?workspace_id=ws_legal" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Company policies overview", "mode": "global"}'
+```
 
 ---
 
 ## Step 8: Usage Tracking
 
-Track usage per tenant for billing:
+Track usage per workspace via stats and cost endpoints:
 
 ```bash
-curl "http://localhost:8080/api/v1/tenants/tenant_abc123/usage" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-```
+# Workspace statistics
+curl "http://localhost:8080/api/v1/workspaces/ws_hr/stats"
 
-**Response:**
-
-```json
-{
-  "tenant_id": "tenant_abc123",
-  "period": "2024-01",
-  "usage": {
-    "documents_uploaded": 165,
-    "queries_executed": 2340,
-    "llm_tokens_used": 1250000,
-    "embedding_tokens_used": 650000,
-    "storage_bytes": 52428800
-  },
-  "estimated_cost": {
-    "llm": 18.75,
-    "embedding": 1.3,
-    "storage": 0.5,
-    "total": 20.55
-  }
-}
+# Cost summary (tenant/workspace scoped when authenticated)
+curl "http://localhost:8080/api/v1/costs/summary"
 ```
 
 ---
@@ -477,7 +457,7 @@ Examples:
 | Tier    | LLM          | Embedding              | Cost |
 | ------- | ------------ | ---------------------- | ---- |
 | Free    | Ollama local | Ollama local           | $0   |
-| Basic   | gpt-5-nano   | text-embedding-3-small | $    |
+| Basic   | gpt-4.1-nano   | text-embedding-3-small | $    |
 | Premium | gpt-4o       | text-embedding-3-large | $$$  |
 
 ### 3. Quota Management
@@ -485,7 +465,7 @@ Examples:
 Set workspace-level quotas:
 
 ```bash
-curl -X PATCH "http://localhost:8080/api/v1/workspaces/ws_hr" \
+curl -X PUT "http://localhost:8080/api/v1/workspaces/ws_hr" \
   -H "Content-Type: application/json" \
   -d '{
     "quotas": {

@@ -47,7 +47,7 @@ Ensure EdgeQuake is running:
 
 ```bash
 curl http://localhost:8080/health
-# {"status":"healthy","database_connected":true}
+# {"status":"healthy","storage_mode":"postgresql"}
 ```
 
 ---
@@ -170,7 +170,7 @@ class EdgeQuakeStreamRetriever(BaseRetriever):
         documents = []
 
         with requests.post(
-            f"{self.base_url}/api/v1/chat/stream",
+            f"{self.base_url}/api/v1/chat/completions/stream",
             json={
                 "message": query,
                 "workspace_id": self.workspace_id,
@@ -267,7 +267,7 @@ retriever = EdgeQuakeRetriever(
     query_mode="hybrid",
 )
 
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
+llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
 
 # Prompt template
 template = """Answer the question based on the following context:
@@ -367,7 +367,7 @@ knowledge_tool = Tool(
 )
 
 # Create agent
-llm = ChatOpenAI(model="gpt-5-nano", temperature=0)
+llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant with access to a knowledge base."),
@@ -419,7 +419,7 @@ def generate(state: GraphState) -> GraphState:
     """Generate response using context."""
     from langchain_openai import ChatOpenAI
 
-    llm = ChatOpenAI(model="gpt-5-nano")
+    llm = ChatOpenAI(model="gpt-4.1-nano")
 
     prompt = f"""Based on the following context, answer the question.
 

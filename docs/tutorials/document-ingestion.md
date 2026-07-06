@@ -509,7 +509,7 @@ curl "http://localhost:8080/api/v1/documents/doc_xyz789/entities"
 Configure workspace-specific entity types:
 
 ```bash
-curl -X PATCH "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID" \
+curl -X PUT "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "entity_types": [
@@ -800,7 +800,7 @@ curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/metrics"
 **Solutions**:
 
 1. Increase worker threads: `WORKER_THREADS=8`
-2. Use faster LLM model (gpt-5-nano)
+2. Use faster LLM model (gpt-4.1-nano)
 3. Reduce gleaning iterations
 4. Batch documents instead of sequential
 

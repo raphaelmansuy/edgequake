@@ -276,7 +276,7 @@ Uses Tokio's concurrent task execution for parallel context retrieval, generally
 | Backend                     | Vector | Graph | Status   |
 | --------------------------- | ------ | ----- | -------- |
 | PostgreSQL + pgvector + AGE | ✅     | ✅    | Default  |
-| In-Memory                   | ✅     | ✅    | Dev only |
+| In-Memory (tests only)      | ✅     | ✅    | Unit/integration tests only |
 
 **EdgeQuake's unified PostgreSQL:**
 

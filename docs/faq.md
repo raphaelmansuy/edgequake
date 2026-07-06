@@ -74,7 +74,7 @@ in seconds and requires no configuration:
 make dev
 
 # Start PostgreSQL only, then run tests
-make postgres-start
+make db-start
 cargo test
 ```
 
@@ -115,15 +115,15 @@ EdgeQuake itself is **free and open source**. Costs come from:
 1. **Use cheaper models**:
 
    ```bash
-   # gpt-5-nano is 10x cheaper than gpt-4o
-   EDGEQUAKE_LLM_MODEL=gpt-5-nano
+   # gpt-4.1-nano is 10x cheaper than gpt-4o
+   EDGEQUAKE_LLM_MODEL=gpt-4.1-nano
    ```
 
 2. **Use local LLM** (Ollama):
 
    ```bash
    EDGEQUAKE_LLM_PROVIDER=ollama
-   EDGEQUAKE_LLM_MODEL=gemma3:12b
+   EDGEQUAKE_LLM_MODEL=gemma4:latest
    ```
 
 3. **Reduce chunk size** (fewer LLM calls):
@@ -133,7 +133,7 @@ EdgeQuake itself is **free and open source**. Costs come from:
 
 OpenAI offers free credits for new accounts ($5-$18 depending on promotion). After that:
 
-- gpt-5-nano: ~$0.00015/1K input tokens
+- gpt-4.1-nano: ~$0.00015/1K input tokens
 - text-embedding-3-small: ~$0.00002/1K tokens
 
 ---
@@ -163,7 +163,7 @@ EdgeQuake handles:
 
 1. **Use `naive` mode** for simple queries (vector-only, no graph)
 2. **Reduce `max_chunks`** from 20 to 5-10
-3. **Use faster LLM** (gpt-5-nano vs gpt-4o)
+3. **Use faster LLM** (gpt-4.1-nano vs gpt-4o)
 4. **Pre-warm embeddings** with test query
 5. **Use GPU** for Ollama embedding
 
@@ -244,13 +244,17 @@ EdgeQuake doesn't include built-in authentication. Secure with:
 
 ### What LLM providers are supported?
 
-| Provider     | Support   | Notes               |
-| ------------ | --------- | ------------------- |
-| OpenAI       | ✅ Full    | GPT-4o, GPT-4o-mini |
-| Ollama       | ✅ Full    | Any local model     |
-| LM Studio    | ✅ Full    | OpenAI-compatible   |
-| Azure OpenAI | ✅ Full    | Via base_url config |
-| Anthropic    | 🔄 Planned | Claude models       |
+| Provider     | Support   | Notes                                    |
+| ------------ | --------- | ---------------------------------------- |
+| OpenAI       | ✅ Full    | GPT-4.1 series, GPT-5.x series (catalog) |
+| Anthropic    | ✅ Full    | Claude models (`ANTHROPIC_API_KEY`)        |
+| Mistral      | ✅ Full    | Mistral models (`MISTRAL_API_KEY`)       |
+| Google Gemini| ✅ Full    | Developer API (`GEMINI_API_KEY`)         |
+| Vertex AI    | ✅ Full    | Enterprise GCP identity (ADC/SA)         |
+| Ollama       | ✅ Full    | Local models (default: `gemma4:latest`)  |
+| LM Studio    | ✅ Full    | OpenAI-compatible                        |
+| Azure OpenAI | ✅ Full    | Via `AZURE_OPENAI_*` env vars            |
+| OpenRouter   | ✅ Full    | Model aggregator                         |
 
 ### What query modes are available?
 
@@ -406,7 +410,9 @@ The resolution chain (highest priority first):
 3. **`EDGEQUAKE_VISION_LLM_PROVIDER`** / **`EDGEQUAKE_VISION_LLM_MODEL`** env vars
 4. **`EDGEQUAKE_DEFAULT_LLM_PROVIDER`** / **`EDGEQUAKE_DEFAULT_LLM_MODEL`** env vars
 5. **`EDGEQUAKE_LLM_PROVIDER`** / **`EDGEQUAKE_LLM_MODEL`** env vars
-6. **Built-in default**: `ollama` / `gemma4:latest`
+6. **Vision fallback** (when no env vars match): `ollama` / `gemma4:latest` (`vision_env.rs`)
+
+> **Note:** LLM compiled defaults (no env) are `openai` / `gpt-4.1-mini` per `models.toml`. Vision resolution falls back to Ollama when no `EDGEQUAKE_*` vars are set.
 
 At each step, the resolved model is checked for compatibility with the resolved
 provider. Incompatible combinations (e.g. `gpt-4.1-nano` on `ollama`) are

@@ -44,7 +44,7 @@ The result: documents that used to produce garbled or empty content now produce 
 
 If you're building knowledge systems on top of documents, the quality of your PDF extraction is the foundation everything else sits on. We've been obsessing over this for months and this release feels like the step-change we needed.
 
-EdgeQuake is fully open-source (Apache 2.0). The PDF pipeline works with any OpenAI-compatible provider — cloud or local (Ollama with gemma3 vision works well for air-gapped environments).
+EdgeQuake is fully open-source (Apache 2.0). The PDF pipeline works with any OpenAI-compatible provider — cloud or local (Ollama with gemma4 vision works well for air-gapped environments).
 
 🔗 github.com/raphaelmansuy/edgequake
 

@@ -325,7 +325,7 @@ Now that you've completed the quick start:
 
 ```bash
 # Check LLM provider is responding
-curl http://localhost:8080/api/v1/config | jq .llm_provider
+curl http://localhost:8080/api/v1/config/effective | jq '.llm'
 
 # If using Ollama, verify model is available
 ollama list

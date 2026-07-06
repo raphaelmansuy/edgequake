@@ -372,7 +372,7 @@ All filter fields are optional and AND-ed together. Omit `document_filter` entir
     "tokens_used": 256,
     "tokens_per_second": 287.6,
     "llm_provider": "ollama",
-    "llm_model": "gemma3:12b"
+    "llm_model": "gemma4:latest"
   },
   "reranked": true
 }
@@ -400,7 +400,7 @@ curl -X POST http://localhost:8080/api/v1/query/stream \
 | `system_prompt`   | string | no       | System prompt extension                                  |
 | `document_filter` | object | no       | Document filter to scope RAG context (SPEC-005)          |
 | `llm_provider`    | string | no       | LLM provider override (e.g., `openai`, `ollama`)         |
-| `llm_model`       | string | no       | LLM model override (e.g., `gpt-5-nano`)                  |
+| `llm_model`       | string | no       | LLM model override (e.g., `gpt-4.1-nano`)                  |
 | `stream_format`   | string | no       | `v1` for raw text (backward compat), `v2` for structured |
 
 **SSE Events (v2 format — default)**:
@@ -414,7 +414,7 @@ data: {"type":"token","content":" key"}
 
 data: {"type":"token","content":" findings"}
 
-data: {"type":"done","stats":{"retrieval_time_ms":120,"generation_time_ms":800,"total_time_ms":920,"sources_retrieved":8,"tokens_used":256,"tokens_per_second":320.0,"query_mode":"hybrid"},"llm_provider":"ollama","llm_model":"gemma3:latest"}
+data: {"type":"done","stats":{"retrieval_time_ms":120,"generation_time_ms":800,"total_time_ms":920,"sources_retrieved":8,"tokens_used":256,"tokens_per_second":320.0,"query_mode":"hybrid"},"llm_provider":"ollama","llm_model":"gemma4:latest"}
 ```
 
 **SSE Events (v1 format — `stream_format: "v1"`)**:
@@ -493,7 +493,7 @@ data: {"type":"token","content":"The"}
 
 data: {"type":"token","content":" relationship"}
 
-data: {"type":"done","assistant_message_id":"asst-uuid","tokens_used":128,"duration_ms":920,"llm_provider":"ollama","llm_model":"gemma3:latest"}
+data: {"type":"done","assistant_message_id":"asst-uuid","tokens_used":128,"duration_ms":920,"llm_provider":"ollama","llm_model":"gemma4:latest"}
 ```
 
 ---
@@ -636,7 +636,7 @@ curl -X POST http://localhost:8080/api/v1/workspaces \
     "description": "Workspace for research documents",
     "embedding_model": "text-embedding-3-small",
     "embedding_dimension": 1536,
-    "llm_model": "gpt-5-nano"
+    "llm_model": "gpt-4.1-nano"
   }'
 ```
 
@@ -648,7 +648,7 @@ List all workspaces.
 
 Get workspace details.
 
-### PATCH /api/v1/workspaces/:id
+### PUT /api/v1/workspaces/:id
 
 Update workspace settings.
 
@@ -694,36 +694,74 @@ List available LLM models.
 curl http://localhost:8080/api/v1/models
 ```
 
-**Response**:
+**Response** (`ModelsListResponse`):
 
 ```json
 {
-  "models": [
+  "providers": [
     {
-      "id": "gpt-5-nano",
-      "name": "GPT-4o Mini",
-      "provider": "openai",
-      "context_length": 128000,
-      "capabilities": ["chat", "embeddings"]
+      "name": "openai",
+      "display_name": "OpenAI",
+      "provider_type": "openai",
+      "enabled": true,
+      "priority": 10,
+      "description": "OpenAI GPT models",
+      "models": [
+        {
+          "name": "gpt-4.1-mini",
+          "display_name": "GPT-4.1 Mini",
+          "model_type": "llm",
+          "deprecated": false,
+          "capabilities": {
+            "context_length": 1047576,
+            "max_output_tokens": 32768,
+            "supports_vision": true,
+            "supports_streaming": true,
+            "embedding_dimension": 0
+          }
+        }
+      ],
+      "auth_kind": "api_key"
     },
     {
-      "id": "gemma3:12b",
-      "name": "Gemma 3 12B",
-      "provider": "ollama",
-      "context_length": 8192,
-      "capabilities": ["chat"]
+      "name": "ollama",
+      "display_name": "Ollama",
+      "provider_type": "ollama",
+      "enabled": true,
+      "models": [
+        {
+          "name": "gemma4:latest",
+          "display_name": "Gemma 4 Latest",
+          "model_type": "llm"
+        }
+      ],
+      "auth_kind": "local"
     }
-  ]
+  ],
+  "default_llm_provider": "openai",
+  "default_llm_model": "gpt-4.1-mini",
+  "default_embedding_provider": "openai",
+  "default_embedding_model": "text-embedding-3-small"
 }
 ```
 
-### GET /api/v1/settings
+> Runtime `default_llm_*` fields reflect the active provider from env/server config, not only `models.toml` static defaults.
 
-Get current settings.
+### GET /api/v1/models/{provider}
 
-### PATCH /api/v1/settings
+Get models for a specific provider (e.g. `/api/v1/models/openai`).
 
-Update settings.
+### GET /api/v1/settings/llm-defaults
+
+Get server-level LLM/embedding defaults (Settings UI).
+
+### GET /api/v1/settings/providers
+
+List available providers with credential requirements and default models.
+
+### GET /api/v1/config/effective
+
+Get the effective configuration resolution chain (env → server config → compiled defaults).
 
 ---
 
@@ -806,7 +844,7 @@ Chat completions (OpenAI format, Ollama compatible).
 curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemma3:12b",
+    "model": "gemma4:latest",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ],
@@ -907,7 +945,7 @@ X-Workspace-ID: {workspace_id}
 ### Upload Injection File
 
 ```http
-POST /api/v1/workspaces/{workspace_id}/injection/upload
+PUT /api/v1/workspaces/{workspace_id}/injection/file
 Content-Type: multipart/form-data
 X-Workspace-ID: {workspace_id}
 
@@ -944,7 +982,7 @@ X-Workspace-ID: {workspace_id}
 ### Update Injection
 
 ```http
-PATCH /api/v1/workspaces/{workspace_id}/injection/{injection_id}
+PATCH /api/v1/workspaces/{workspace_id}/injections/{injection_id}
 Content-Type: application/json
 X-Workspace-ID: {workspace_id}
 

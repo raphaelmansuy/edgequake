@@ -267,7 +267,7 @@ Returns chunk with parent document references and position info.
   "end_line": 25,
   "start_offset": 0,
   "end_offset": 1024,
-  "llm_model": "gpt-5-nano",
+  "llm_model": "gpt-4.1-nano",
   "embedding_model": "text-embedding-3-small",
   "embedding_dimension": 1536,
   "file_path": "/uploads/paper.pdf",
@@ -373,7 +373,7 @@ The lineage system tracks which LLM/embedding providers were used:
 
 ```
 extraction_provider: "openai"       # e.g., openai, ollama
-extraction_model: "gpt-5-nano"      # specific model version
+extraction_model: "gpt-4.1-nano"      # specific model version
 embedding_provider: "openai"        # may differ from extraction
 embedding_model: "text-embed-3-sm"  # embedding-specific model
 embedding_dimension: 1536           # vector dimensions

@@ -101,17 +101,24 @@ export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
 
 | Model                    | Dimensions | Max Tokens | Cost | Quality   |
 | ------------------------ | ---------- | ---------- | ---- | --------- |
+| `embeddinggemma:latest`  | 768        | 8192       | Free | Good (default for `make dev`) |
 | `nomic-embed-text`       | 768        | 8192       | Free | Good      |
 | `mxbai-embed-large`      | 1024       | 512        | Free | Very Good |
 | `all-minilm`             | 384        | 256        | Free | Moderate  |
 | `snowflake-arctic-embed` | 1024       | 512        | Free | Very Good |
 
-**Recommendation**: Use `nomic-embed-text` for local deployment (best quality/speed).
+### Mistral Models
+
+| Model           | Dimensions | Notes                          |
+| --------------- | ---------- | ------------------------------ |
+| `mistral-embed` | 1024       | Native Mistral embedding model |
+
+**Recommendation**: Use `embeddinggemma:latest` for local Ollama deployment (`make dev` default). Use `nomic-embed-text` as an alternative with similar 768-dimension vectors.
 
 ```bash
-ollama pull nomic-embed-text
-export EDGEQUAKE_EMBEDDING_PROVIDER="ollama"
-export EDGEQUAKE_EMBEDDING_MODEL="nomic-embed-text"
+ollama pull embeddinggemma:latest
+export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="ollama"
+export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="embeddinggemma:latest"
 ```
 
 ---

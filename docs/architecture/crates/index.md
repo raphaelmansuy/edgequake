@@ -15,8 +15,8 @@ EdgeQuake is organized into **11 focused Rust crates**, each with a single respo
 | `edgequake-core` | Orchestration and public API |
 | `edgequake-pipeline` | Document processing pipeline |
 | `edgequake-query` | Query engine for knowledge graph |
-| `edgequake-storage` | Storage adapters (Memory, PostgreSQL AGE) |
-| `edgequake-llm` | LLM provider implementations (OpenAI, Ollama, Mock) |
+| `edgequake-storage` | Storage adapters (PostgreSQL + pgvector + AGE; in-memory adapters for tests only) |
+| `edgequake-llm` | LLM providers (OpenAI, Anthropic, Mistral, Gemini, Vertex AI, Ollama, LM Studio, OpenRouter, xAI, mock, …) |
 | `edgequake-pdf` | PDF extraction and processing |
 | `edgequake-graph` | Graph data structures and algorithms |
 

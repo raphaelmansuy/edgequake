@@ -69,7 +69,7 @@ Expected response:
 Workspaces organize your documents and provide isolation:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/workspaces \
+curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My First RAG App",

@@ -173,7 +173,7 @@ import json
 
 def stream_chat(message, workspace_id="default"):
     response = requests.post(
-        "http://localhost:8080/api/v1/chat/stream",
+        "http://localhost:8080/api/v1/chat/completions/stream",
         json={
             "message": message,
             "workspace_id": workspace_id,
@@ -342,7 +342,7 @@ class EdgeQuakeClient:
         """Stream chat response."""
         import json
         response = requests.post(
-            f"{self.base_url}/api/v1/chat/stream",
+            f"{self.base_url}/api/v1/chat/completions/stream",
             json={"message": message},
             headers=self.headers,
             stream=True
@@ -404,7 +404,7 @@ API_STATUS=$(curl -s http://localhost:8080/health | jq -r '.status')
 echo "API: $API_STATUS"
 
 # Database connection
-DB_STATUS=$(curl -s http://localhost:8080/health | jq -r '.database_connected')
+DB_STATUS=$(curl -s http://localhost:8080/health | jq -r '.storage_mode')
 echo "Database: $DB_STATUS"
 
 # Document count
@@ -426,7 +426,7 @@ echo "=== Done ==="
 
 ```bash
 # Get cost tracking data
-curl -s http://localhost:8080/api/v1/costs \
+curl -s http://localhost:8080/api/v1/costs/summary \
   -H "X-Workspace-ID: default" | jq '{
     total_input_tokens: .total_input_tokens,
     total_output_tokens: .total_output_tokens,

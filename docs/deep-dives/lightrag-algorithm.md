@@ -709,7 +709,7 @@ EdgeQuake: 6 modes (+naive, mix, bypass)
 
 ```rust
 // Providers available
-- OpenAI (gpt-5-nano, gpt-4o)
+- OpenAI (gpt-4.1-nano, gpt-4o)
 - Ollama (local models)
 - LM Studio (local models)
 - Mock (testing)

@@ -71,12 +71,15 @@ title: 'EdgeQuake Architecture Overview'
 │                    ┌─────────────┴─────────────┐                                │
 │                    │                           │                                │
 │                    ▼                           ▼                                │
-│         ┌─────────────────────┐    ┌─────────────────────┐                      │
-│         │ Memory (Dev/Test)   │    │ PostgreSQL (Prod)   │                      │
-│         │                     │    │                     │                      │
-│         │ • Fast, ephemeral   │    │ • pgvector (vectors)│                      │
-│         │ • No persistence    │    │ • Apache AGE (graph)│                      │
-│         └─────────────────────┘    └─────────────────────┘                      │
+│         ┌─────────────────────┐                                                │
+│         │ PostgreSQL (required)│                                                │
+│         │                     │                                                │
+│         │ • pgvector (vectors)│                                                │
+│         │ • Apache AGE (graph)│                                                │
+│         │ • Required since    │                                                │
+│         │   v0.4.0 (no server │                                                │
+│         │   in-memory mode)   │                                                │
+│         └─────────────────────┘                                                │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -139,7 +142,7 @@ title: 'EdgeQuake Architecture Overview'
 // The CORE never knows about concrete implementations
 pub struct EdgeQuake {
     llm: Arc<dyn LLMProvider>,        // Could be OpenAI, Ollama, or Mock
-    storage: Arc<dyn GraphStorage>,    // Could be Memory or PostgreSQL
+    storage: Arc<dyn GraphStorage>,    // PostgreSQL (server mode; in-memory adapters for tests only)
 }
 ```
 

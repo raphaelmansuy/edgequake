@@ -208,7 +208,7 @@ Example response:
   "file_size_bytes": 2097152,
   "sha256_checksum": "e3b0c44298fc1c149...",
   "page_count": 24,
-  "llm_model": "gpt-5-nano",
+  "llm_model": "gpt-4.1-nano",
   "embedding_model": "text-embedding-3-small"
 }
 ```

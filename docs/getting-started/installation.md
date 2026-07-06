@@ -117,7 +117,7 @@ cargo build --release
 ls target/release/edgequake
 
 # Run directly (PostgreSQL is required)
-export DATABASE_URL="postgresql://postgres:edgequake@localhost:5432/edgequake"
+export DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake"
 ./target/release/edgequake
 ```
 
@@ -153,9 +153,9 @@ EdgeQuake supports multiple LLM providers:
 brew install ollama  # macOS
 # or: curl -fsSL https://ollama.com/install.sh | sh
 
-# Pull models
-ollama pull llama3.2
-ollama pull nomic-embed-text
+# Pull models (Makefile defaults when no OPENAI_API_KEY)
+ollama pull gemma4:latest
+ollama pull embeddinggemma:latest
 
 # Start Ollama (if not running)
 ollama serve
@@ -196,8 +196,8 @@ Verify in Settings → Provider Status Hub: Vertex AI should show **Identity (AD
 Once running, you can switch providers via API:
 
 ```bash
-# Check current provider
-curl http://localhost:8080/api/v1/config | jq .llm_provider
+# Check current effective LLM configuration
+curl http://localhost:8080/api/v1/config/effective | jq '.llm'
 
 # Provider is auto-selected based on OPENAI_API_KEY
 ```
@@ -240,7 +240,7 @@ docker run -d \
   ghcr.io/raphaelmansuy/edgequake-postgres:latest
 
 # Set connection string
-export DATABASE_URL="postgresql://postgres:edgequake@localhost:5432/edgequake"
+export DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake"
 
 # Run migrations
 cd edgequake && sqlx database setup

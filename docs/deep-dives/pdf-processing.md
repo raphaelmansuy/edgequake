@@ -8,6 +8,12 @@ title: 'PDF Processing Deep Dive'
 **Crate**: `edgequake-pdf`  
 **Source**: [`edgequake/crates/edgequake-pdf/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/)
 
+> **Current implementation (code as of v0.10+):** PDF ingestion uses `PdfConverter` with two backends:
+> - **`vision`** (default) — renders pages and converts via a vision LLM (`EDGEQUAKE_VISION_PROVIDER` / `EDGEQUAKE_VISION_MODEL`)
+> - **`edgeparse`** — CPU-based EdgeParse fallback when vision is unavailable
+>
+> Public API: `create_pdf_converter()`, `PdfConverter`, `PdfParserBackend`. The lopdf/processor-chain architecture described in sections below is **legacy documentation** from an earlier design iteration.
+
 ---
 
 ## Table of Contents
@@ -89,7 +95,7 @@ title: 'PDF Processing Deep Dive'
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │ STAGE 1: Backend Extraction                               │   │
 │  │                                                           │   │
-│  │ Backend: lopdf (default) or Mock (testing)                │   │
+│  │ Backend: Vision LLM (default) or EdgeParse (fallback)     │   │
 │  │ • Load PDF structure (pages, fonts, metadata)             │   │
 │  │ • Extract raw text blocks with bounding boxes             │   │
 │  │ • Parse content streams (Tj, TJ operators)                │   │

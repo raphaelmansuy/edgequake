@@ -58,8 +58,8 @@ curl http://localhost:8080/api/tags
 {
   "models": [
     {
-      "name": "gemma3:12b",
-      "model": "gemma3:12b",
+      "name": "gemma4:latest",
+      "model": "gemma4:latest",
       "modified_at": "2024-01-15T10:30:00Z",
       "size": 12000000000,
       "digest": "sha256:...",
@@ -88,8 +88,8 @@ curl http://localhost:8080/api/ps
 {
   "models": [
     {
-      "name": "gemma3:12b",
-      "model": "gemma3:12b",
+      "name": "gemma4:latest",
+      "model": "gemma4:latest",
       "size": 7200000000,
       "digest": "sha256:...",
       "expires_at": "2024-01-15T11:30:00Z"
@@ -106,7 +106,7 @@ Generate text completion (Ollama format).
 curl -X POST http://localhost:8080/api/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemma3:12b",
+    "model": "gemma4:latest",
     "prompt": "Why is the sky blue?",
     "stream": false
   }'
@@ -116,7 +116,7 @@ curl -X POST http://localhost:8080/api/generate \
 
 ```json
 {
-  "model": "gemma3:12b",
+  "model": "gemma4:latest",
   "created_at": "2024-01-15T10:30:00Z",
   "response": "The sky appears blue because...",
   "done": true,
@@ -138,7 +138,7 @@ Chat completion (Ollama format).
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemma3:12b",
+    "model": "gemma4:latest",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ],
@@ -150,7 +150,7 @@ curl -X POST http://localhost:8080/api/chat \
 
 ```json
 {
-  "model": "gemma3:12b",
+  "model": "gemma4:latest",
   "created_at": "2024-01-15T10:30:00Z",
   "message": {
     "role": "assistant",
@@ -394,7 +394,7 @@ curl http://localhost:8080/api/v1/pipeline/costs/pricing
 {
   "models": [
     {
-      "id": "gpt-5-nano",
+      "id": "gpt-4.1-nano",
       "provider": "openai",
       "input_cost_per_1k_tokens": 0.00015,
       "output_cost_per_1k_tokens": 0.0006
@@ -405,7 +405,7 @@ curl http://localhost:8080/api/v1/pipeline/costs/pricing
       "input_cost_per_1k_tokens": 0.00002
     },
     {
-      "id": "gemma3:12b",
+      "id": "gemma4:latest",
       "provider": "ollama",
       "input_cost_per_1k_tokens": 0,
       "output_cost_per_1k_tokens": 0
@@ -423,7 +423,7 @@ curl -X POST http://localhost:8080/api/v1/pipeline/costs/estimate \
   -H "Content-Type: application/json" \
   -d '{
     "content_length": 50000,
-    "llm_model": "gpt-5-nano",
+    "llm_model": "gpt-4.1-nano",
     "embedding_model": "text-embedding-3-small"
   }'
 ```
@@ -669,7 +669,7 @@ curl -X POST http://localhost:8080/api/v1/tenants/tenant-uuid/workspaces \
     "name": "Research Project",
     "slug": "research",
     "llm_provider": "openai",
-    "llm_model": "gpt-5-nano"
+    "llm_model": "gpt-4.1-nano"
   }'
 ```
 

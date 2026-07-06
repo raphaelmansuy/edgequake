@@ -202,8 +202,8 @@ OPENAI_API_KEY=sk-your-key
 # OR for Ollama:
 EDGEQUAKE_LLM_PROVIDER=ollama
 OLLAMA_HOST=http://host.docker.internal:11434
-OLLAMA_MODEL=gemma3:latest
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_MODEL=gemma4:latest
+OLLAMA_EMBEDDING_MODEL=embeddinggemma:latest
 
 # Server (optional)
 EDGEQUAKE_PORT=8080
@@ -398,8 +398,8 @@ spec:
 | `DATABASE_URL`           | For PostgreSQL | None                     | PostgreSQL connection string |
 | `OPENAI_API_KEY`         | For OpenAI     | None                     | OpenAI API key               |
 | `OLLAMA_HOST`            | For Ollama     | `http://localhost:11434` | Ollama server URL            |
-| `OLLAMA_MODEL`           | For Ollama     | `gemma3:latest`          | Ollama model for LLM         |
-| `OLLAMA_EMBEDDING_MODEL` | For Ollama     | `nomic-embed-text`       | Ollama model for embeddings  |
+| `OLLAMA_MODEL`           | For Ollama     | `gemma4:latest`          | Ollama model for LLM         |
+| `OLLAMA_EMBEDDING_MODEL` | For Ollama     | `embeddinggemma:latest`  | Ollama model for embeddings  |
 | `HOST`                   | No             | `0.0.0.0`                | Server bind address          |
 | `PORT`                   | No             | `8080`                   | Server port                  |
 | `RUST_LOG`               | No             | `edgequake=debug`        | Log level                    |
@@ -438,11 +438,11 @@ EdgeQuake automatically selects storage based on `DATABASE_URL`:
 
 EdgeQuake provides health endpoints for monitoring:
 
-| Endpoint      | Purpose         | Response                  |
-| ------------- | --------------- | ------------------------- |
-| `GET /health` | Basic health    | `{ "status": "healthy" }` |
-| `GET /ready`  | Readiness check | Storage + LLM status      |
-| `GET /live`   | Liveness check  | Process alive             |
+| Endpoint      | Purpose         | Response                                                  |
+| ------------- | --------------- | --------------------------------------------------------- |
+| `GET /health` | Basic health    | `status`, `version`, `storage_mode`, `components`, `llm_provider_name`, `capabilities` |
+| `GET /ready`  | Readiness check | Storage + LLM status                                      |
+| `GET /live`   | Liveness check  | Process alive                                             |
 
 ### Docker Healthcheck
 

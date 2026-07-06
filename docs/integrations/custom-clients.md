@@ -308,7 +308,7 @@ class EdgeQuakeClient:
             Response with answer and context.
         """
         response = self.session.post(
-            f"{self.base_url}/api/v1/chat",
+            f"{self.base_url}/api/v1/chat/completions",
             json={
                 "message": message,
                 "conversation_id": conversation_id,
@@ -336,7 +336,7 @@ class EdgeQuakeClient:
             Text chunks as they arrive.
         """
         response = self.session.post(
-            f"{self.base_url}/api/v1/chat/stream",
+            f"{self.base_url}/api/v1/chat/completions/stream",
             json={
                 "message": message,
                 "conversation_id": conversation_id,
@@ -526,7 +526,7 @@ export class EdgeQuakeClient {
 
   // Health
 
-  async health(): Promise<{ status: string; database_connected: boolean }> {
+  async health(): Promise<{ status: string; storage_mode: string }> {
     const response = await this.client.get("/health");
     return response.data;
   }
@@ -606,7 +606,7 @@ export class EdgeQuakeClient {
     conversationId?: string,
     mode: string = "hybrid",
   ): Promise<{ answer: string; context: any[] }> {
-    const response = await this.client.post("/api/v1/chat", {
+    const response = await this.client.post("/api/v1/chat/completions", {
       message,
       conversation_id: conversationId,
       mode,
@@ -624,7 +624,7 @@ export class EdgeQuakeClient {
   ): AbortController {
     const controller = new AbortController();
 
-    fetch(`${this.client.defaults.baseURL}/api/v1/chat/stream`, {
+    fetch(`${this.client.defaults.baseURL}/api/v1/chat/completions/stream`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -782,7 +782,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 ### Chat with Streaming
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/chat/stream \
+curl -X POST http://localhost:8080/api/v1/chat/completions/stream \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: default" \
   -N \

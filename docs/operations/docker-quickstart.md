@@ -86,7 +86,7 @@ Requires [Ollama](https://ollama.ai) running on your machine:
 # Install and run Ollama (once)
 curl -fsSL https://ollama.ai/install.sh | sh
 ollama serve &
-ollama pull gemma3:latest
+ollama pull gemma4:latest
 
 # Start EdgeQuake
 docker compose -f docker-compose.quickstart.yml up -d
@@ -113,10 +113,10 @@ OPENAI_BASE_URL=http://localhost:1234/v1 \
 
 | Variable                       | Default                             | Description                            |
 | ------------------------------ | ----------------------------------- | -------------------------------------- |
-| `EDGEQUAKE_LLM_PROVIDER`       | `ollama`                            | `ollama`, `openai`, `lmstudio`, `mock` |
-| `EDGEQUAKE_LLM_MODEL`          | provider-specific default           | Main chat / extraction model           |
-| `EDGEQUAKE_EMBEDDING_PROVIDER` | same as LLM                         | Override embedding provider            |
-| `EDGEQUAKE_EMBEDDING_MODEL`    | provider-specific default           | Embedding model override               |
+| `EDGEQUAKE_DEFAULT_LLM_PROVIDER` | `ollama` (no API key) / `openai` (with key) | Primary LLM provider (`make dev` sets this) |
+| `EDGEQUAKE_DEFAULT_LLM_MODEL`    | `gemma4:latest` / `gpt-5-nano`¹             | Primary LLM model                         |
+| `EDGEQUAKE_EMBEDDING_PROVIDER`   | same as LLM                                 | Override embedding provider               |
+| `EDGEQUAKE_EMBEDDING_MODEL`      | provider-specific default                   | Embedding model override                  |
 | `OPENAI_API_KEY`               | _(empty)_                           | Required when provider is `openai`     |
 | `OPENAI_BASE_URL`              | _(empty)_                           | Override OpenAI base URL               |
 | `OLLAMA_HOST`                  | `http://host.docker.internal:11434` | Ollama server address                  |
@@ -124,6 +124,10 @@ OPENAI_BASE_URL=http://localhost:1234/v1 \
 | `EDGEQUAKE_PORT`               | `8080`                              | API port                               |
 | `FRONTEND_PORT`                | `3000`                              | Web UI port                            |
 | `POSTGRES_PASSWORD`            | `edgequake_secret`                  | PostgreSQL password                    |
+
+¹ With `OPENAI_API_KEY`, Makefile sets `gpt-5-nano`; bundled catalog default is `gpt-4.1-mini`.
+
+Supported providers include `ollama`, `openai`, `lmstudio`, `anthropic`, `mistral`, `gemini`, `vertexai`, `openrouter`, `mock`, and others in `models.toml`.
 
 ### Migration aliases
 

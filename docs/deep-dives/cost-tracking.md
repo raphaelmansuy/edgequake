@@ -162,7 +162,7 @@ pub struct CostTracker {
 }
 
 impl CostTracker {
-    /// Create with gpt-5-nano pricing
+    /// Create with gpt-4.1-nano pricing
     pub fn new_gpt4o_mini(job_id: impl Into<String>) -> Self;
 
     /// Create with gpt-4o pricing
@@ -189,7 +189,7 @@ EdgeQuake includes built-in pricing for common models:
 
 | Model           | Input (per 1K) | Output (per 1K) | Use Case                        |
 | --------------- | -------------- | --------------- | ------------------------------- |
-| `gpt-5-nano`   | $0.00015       | $0.0006         | Entity extraction (recommended) |
+| `gpt-4.1-nano`   | $0.00015       | $0.0006         | Entity extraction (recommended) |
 | `gpt-4o`        | $0.005         | $0.015          | Complex reasoning               |
 | `gpt-4-turbo`   | $0.01          | $0.03           | Legacy applications             |
 | `gpt-3.5-turbo` | $0.0005        | $0.0015         | Budget option                   |
@@ -218,7 +218,7 @@ EdgeQuake includes built-in pricing for common models:
 ```rust
 use edgequake_pipeline::progress::{CostTracker, ModelPricing};
 
-// Create tracker with gpt-5-nano pricing
+// Create tracker with gpt-4.1-nano pricing
 let tracker = CostTracker::new_gpt4o_mini("job-123");
 
 // Record entity extraction
@@ -296,13 +296,13 @@ Costs are tracked by operation type:
 │   │                                                             │
 │   │          ● claude-3-sonnet                                  │
 │   │                                                             │
-│   │  ● gpt-5-nano (recommended)                                │
+│   │  ● gpt-4.1-nano (recommended)                                │
 │   │  ● claude-3-haiku                                           │
 │   │                                                             │
 │   └──────────────────────────────────────────────────────▶      │
 │                                                    Quality      │
 │                                                                 │
-│  Recommendation: gpt-5-nano offers best cost/quality ratio     │
+│  Recommendation: gpt-4.1-nano offers best cost/quality ratio     │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -316,7 +316,7 @@ Costs are tracked by operation type:
 
 ### Cost Per Document
 
-Typical costs with `gpt-5-nano`:
+Typical costs with `gpt-4.1-nano`:
 
 | Document Size | Chunks  | Entities | Cost    |
 | ------------- | ------- | -------- | ------- |
@@ -338,7 +338,7 @@ curl http://localhost:8080/api/v1/pipeline/costs/pricing
 # Response
 {
   "models": {
-    "gpt-5-nano": {
+    "gpt-4.1-nano": {
       "input_cost_per_1k": 0.00015,
       "output_cost_per_1k": 0.0006
     },
@@ -380,7 +380,7 @@ curl -X POST "http://localhost:8080/api/v1/rag/upload" \
 
 ```
 Documents: 100 (avg 5KB each)
-Model: gpt-5-nano
+Model: gpt-4.1-nano
 
 Extraction:   ~$0.10
 Gleaning:     ~$0.05
@@ -393,7 +393,7 @@ Total:        ~$0.17 (~$0.0017/doc)
 
 ```
 Documents: 1,000 (avg 20KB each)
-Model: gpt-5-nano
+Model: gpt-4.1-nano
 
 Extraction:   ~$2.50
 Gleaning:     ~$1.50
@@ -406,7 +406,7 @@ Total:        ~$4.30 (~$0.0043/doc)
 
 ```
 Documents: 10,000 (avg 50KB each)
-Model: gpt-5-nano
+Model: gpt-4.1-nano
 
 Extraction:   ~$75.00
 Gleaning:     ~$45.00
@@ -437,7 +437,7 @@ Each query also incurs LLM costs:
 
 ## Best Practices
 
-1. **Start with gpt-5-nano** - Best cost/quality ratio
+1. **Start with gpt-4.1-nano** - Best cost/quality ratio
 2. **Monitor Per-Workspace** - Track costs by tenant
 3. **Set Budget Alerts** - Implement spending limits
 4. **Review Cost Breakdown** - Identify optimization opportunities
