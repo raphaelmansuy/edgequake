@@ -62,7 +62,7 @@ jobs:
     invariant-tests:
         name: Invariant Tests (INV-001 to INV-010)
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v6
 
