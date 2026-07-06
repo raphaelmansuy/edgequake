@@ -1,4 +1,5 @@
 //! SPEC-022 P-H7 — parameterized AGE Cypher on hot-path node/edge CRUD.
+//! SPEC-044 — source + integration gates for bare `$1` bind contract.
 
 #[path = "support/postgres_test_config.rs"]
 #[cfg(feature = "postgres")]
@@ -15,7 +16,9 @@ mod postgres_integration {
     #[tokio::test]
     async fn spec022_postgres_cypher_prepared_node_crud_injection_safe() {
         let Some(config) = postgres_test_config::contract_postgres_config("spec022_cypher") else {
-            eprintln!("SKIP spec022_postgres_cypher_prepared: DATABASE_URL not set");
+            eprintln!(
+                "SKIP spec022_postgres_cypher_prepared: DATABASE_URL or POSTGRES_PASSWORD not set"
+            );
             return;
         };
 
@@ -79,8 +82,37 @@ fn spec022_edges_ops_use_parameterized_cypher() {
 #[test]
 fn spec022_cypher_exec_exposes_bound_helpers() {
     let src = include_str!("../src/adapters/postgres/graph/helpers/cypher_exec.rs");
+
     assert!(src.contains("cypher_query_bound"));
     assert!(src.contains("cypher_execute_bound"));
-    assert!(src.contains("escape_agtype_literal"));
-    assert!(src.contains("::agtype"));
+    assert!(src.contains("fn cypher_bound_sql"));
+    assert!(src.contains("PgAgtype::from_json"));
+
+    assert!(
+        !src.contains("params_lit}'::agtype"),
+        "SPEC-044: inline agtype literal third arg is forbidden (C-1)"
+    );
+    let bound_sql = src
+        .split("fn cypher_bound_sql")
+        .nth(1)
+        .and_then(|tail| tail.split("async fn cypher_query_bound").next())
+        .unwrap_or("");
+    assert!(
+        !bound_sql.contains("$1::agtype"),
+        "SPEC-044: $1::agtype cast is forbidden in bound SQL builder (C-2)"
+    );
+    assert!(
+        src.contains(", $1)"),
+        "SPEC-044: bound Cypher must use bare $1 third argument"
+    );
+
+    let execute_bound = src
+        .split("async fn cypher_execute_bound")
+        .nth(1)
+        .and_then(|tail| tail.split("// ── non-parameterized").next())
+        .expect("cypher_execute_bound block");
+    assert!(
+        !execute_bound.contains("raw_sql"),
+        "SPEC-044: cypher_execute_bound must use sqlx::query + bind (C-3)"
+    );
 }

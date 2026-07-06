@@ -265,7 +265,19 @@ jobs:
           cargo test -p edgequake-storage --test storage_backend_contract --features postgres -- --test-threads=1
           cargo test -p edgequake-storage --test backend_e2e_contract --features postgres -- --test-threads=1
           cargo test -p edgequake-storage --test graph_isp_contract --features postgres -- --test-threads=1
-        continue-on-error: true # graph_batch_upsert uses parameterized Cypher; AGE rejects inline agtype (tracked)
+        continue-on-error: false
+
+      - name: Run SPEC-044 Cypher parameter + compensation tests (postgres)
+        working-directory: edgequake
+        env:
+          POSTGRES_PASSWORD: test_password_123
+          POSTGRES_DB: edgequake_test
+          POSTGRES_USER: edgequake_test
+        run: |
+          echo "Running SPEC-044 parameterized Cypher + saga compensation tests..."
+          cargo test -p edgequake-storage --test spec022_cypher_prepared_postgres --features postgres -- --test-threads=1
+          cargo test -p edgequake-storage --test spec044_compensation_postgres --features postgres -- --test-threads=1
+        continue-on-error: false
 
       - name: Run SPEC-006 migration bootstrap postgres e2e
         working-directory: edgequake
@@ -280,10 +292,14 @@ jobs:
 
       - name: Run PostgreSQL AGE Graph Tests
         working-directory: edgequake
+        env:
+          POSTGRES_PASSWORD: test_password_123
+          POSTGRES_DB: edgequake_test
+          POSTGRES_USER: edgequake_test
         run: |
           echo "Running PostgreSQL AGE graph integration tests..."
           cargo test --package edgequake-storage --test postgres_integration --features postgres -- test_postgres_age --test-threads=1
-        continue-on-error: true # AGE tests may fail if extension setup differs
+        continue-on-error: false
 
   coverage-postgres:
     # WHY: Tarpaulin across the PostgreSQL feature set is significantly slower

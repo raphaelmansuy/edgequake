@@ -8,10 +8,44 @@ use std::env;
 use std::time::Duration;
 use uuid::Uuid;
 
-/// Build a postgres config when `POSTGRES_PASSWORD` is set; otherwise `None`.
+/// Build a postgres config when `DATABASE_URL` or `POSTGRES_PASSWORD` is set; otherwise `None`.
 pub fn contract_postgres_config(namespace_prefix: &str) -> Option<PostgresConfig> {
+    if let Ok(url) = env::var("DATABASE_URL") {
+        return postgres_config_from_database_url(&url, namespace_prefix);
+    }
+
     let password = env::var("POSTGRES_PASSWORD").ok()?;
+    Some(postgres_config_from_env(password, namespace_prefix))
+}
+
+fn postgres_config_from_database_url(url: &str, namespace_prefix: &str) -> Option<PostgresConfig> {
+    let without_scheme = url.split("://").nth(1)?;
+    let (auth, host_path) = without_scheme.split_once('@')?;
+    let (user, password) = auth.split_once(':')?;
+    let (host_port, db_path) = host_path.split_once('/')?;
+    let database = db_path.split('?').next()?.to_string();
+    let (host, port) = match host_port.split_once(':') {
+        Some((h, p)) => (h.to_string(), p.parse().ok()?),
+        None => (host_port.to_string(), 5432),
+    };
+
     Some(PostgresConfig {
+        host,
+        port,
+        database,
+        user: user.to_string(),
+        password: password.to_string(),
+        namespace: isolated_namespace(namespace_prefix),
+        max_connections: 5,
+        min_connections: 1,
+        connect_timeout: Duration::from_secs(10),
+        idle_timeout: Duration::from_secs(60),
+        ..Default::default()
+    })
+}
+
+fn postgres_config_from_env(password: String, namespace_prefix: &str) -> PostgresConfig {
+    PostgresConfig {
         host: env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
         port: env::var("POSTGRES_PORT")
             .ok()
@@ -20,17 +54,21 @@ pub fn contract_postgres_config(namespace_prefix: &str) -> Option<PostgresConfig
         database: env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string()),
         user: env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string()),
         password,
-        namespace: format!(
-            "{}_{}",
-            namespace_prefix,
-            &uuid::Uuid::new_v4().to_string().replace('-', "")[..8]
-        ),
+        namespace: isolated_namespace(namespace_prefix),
         max_connections: 5,
         min_connections: 1,
         connect_timeout: Duration::from_secs(10),
         idle_timeout: Duration::from_secs(60),
         ..Default::default()
-    })
+    }
+}
+
+fn isolated_namespace(namespace_prefix: &str) -> String {
+    format!(
+        "{}_{}",
+        namespace_prefix,
+        &Uuid::new_v4().to_string().replace('-', "")[..8]
+    )
 }
 
 /// Connection pool for contract tests (DRY URL builder).

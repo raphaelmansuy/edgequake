@@ -1,0 +1,131 @@
+SPEC-044 triple-track report — profile=pg16
+date=2026-07-06T10:32:01Z
+image=edgequake-postgres:pg16
+pg_major=16 age_min=1.6.0
+host_port=55456
+
+                                                              version                                                               
+------------------------------------------------------------------------------------------------------------------------------------
+ PostgreSQL 16.14 (Debian 16.14-1.pgdg12+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+(1 row)
+
+ extname | extversion 
+---------+------------
+ age     | 1.6.0
+ vector  | 0.8.3
+(2 rows)
+
+
+=== cypher_param_contract.sql ===
+=== BT-044-TT-01/02/03: Version gates ===
+DO
+=== BT-044-TT-12: Tier-specific PG feature gate ===
+psql:<stdin>:44: NOTICE:  BT-044-TT-01 PASS: PostgreSQL major 16
+psql:<stdin>:44: NOTICE:  BT-044-TT-02 PASS: age extversion 1.6.0
+psql:<stdin>:44: NOTICE:  BT-044-TT-03 PASS: vector extversion 0.8.3
+DO
+psql:<stdin>:64: NOTICE:  BT-044-TT-12 PASS: uuidv7() absent on PG16 (expected)
+=== Setup graph for Cypher param probes ===
+LOAD
+SET
+psql:<stdin>:71: NOTICE:  graph "spec044_cypher_contract" has been created
+ create_graph 
+--------------
+ 
+(1 row)
+
+psql:<stdin>:72: NOTICE:  VLabel "Node" has been created
+ create_vlabel 
+---------------
+ 
+(1 row)
+
+psql:<stdin>:73: NOTICE:  ELabel "EDGE" has been created
+ create_elabel 
+---------------
+ 
+(1 row)
+
+ r 
+---
+(0 rows)
+
+=== BT-044-TT-04: Negative — inline agtype literal MUST fail ===
+DO
+=== BT-044-TT-05/06/07: Positive — PREPARE/EXECUTE with bare $1 (AGE manual) ===
+PREPARE
+                                                        n                                                         
+------------------------------------------------------------------------------------------------------------------
+ {"id": 844424930131969, "label": "Node", "properties": {"node_id": "SPEC044_A", "entity_type": "PROBE"}}::vertex
+(1 row)
+
+BT-044-TT-06 PASS: prepared read node
+psql:<stdin>:95: NOTICE:  BT-044-TT-04 PASS: AGE rejects inline agtype third arg (third argument of cypher function must be a parameter)
+PREPARE
+PREPARE
+ a 
+---
+(0 rows)
+
+BT-044-TT-07 PASS: prepared delete edge
+ a 
+---
+(0 rows)
+
+ a 
+---
+(0 rows)
+
+BT-044-TT-05 PASS: prepared delete node
+DEALLOCATE
+DEALLOCATE
+DEALLOCATE
+psql:<stdin>:132: NOTICE:  drop cascades to 4 other objects
+DETAIL:  drop cascades to table spec044_cypher_contract._ag_label_vertex
+drop cascades to table spec044_cypher_contract._ag_label_edge
+drop cascades to table spec044_cypher_contract."Node"
+drop cascades to table spec044_cypher_contract."EDGE"
+psql:<stdin>:132: NOTICE:  graph "spec044_cypher_contract" has been dropped
+ drop_graph 
+------------
+ 
+(1 row)
+
+=== BT-044-TT-04/05/06/07 COMPLETE ===
+   Compiling edgequake-storage v0.14.1 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.50s
+     Running tests/spec022_cypher_prepared_postgres.rs (target/debug/deps/spec022_cypher_prepared_postgres-a3dd10ede3bf36d0)
+
+running 1 test
+test postgres_integration::spec022_postgres_cypher_prepared_node_crud_injection_safe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.20s
+
+   Compiling edgequake-storage v0.14.1 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running tests/spec044_compensation_postgres.rs (target/debug/deps/spec044_compensation_postgres-4c7929bcfdb79075)
+
+running 1 test
+test postgres_integration::spec044_compensation_deletes_orphan_node_via_bound_cypher ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+   Compiling edgequake-storage v0.14.1 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
+     Running tests/postgres_integration.rs (target/debug/deps/postgres_integration-3f5385ef6bc016ee)
+
+running 1 test
+test test_postgres_age_basic_operations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.50s
+
+   Compiling edgequake-storage v0.14.1 (/Users/raphaelmansuy/Github/03-working/edgequake/edgequake/crates/edgequake-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running tests/storage_backend_contract.rs (target/debug/deps/storage_backend_contract-fe40216151e39879)
+
+running 1 test
+test postgres_contract::postgres_backend_graph_batch_upsert_contract ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.24s
+
+✓ SPEC-044 TRIPLE-TRACK PASSED: pg16

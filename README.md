@@ -5,7 +5,7 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.14.1-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.15.0-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
@@ -66,7 +66,7 @@ EDGEQUAKE_LLM_PROVIDER=ollama \
 curl -s http://localhost:8080/health | python3 -m json.tool
 ```
 
-> Pin a version: `EDGEQUAKE_VERSION=0.14.0 sh quickstart.sh`
+> Pin a version: `EDGEQUAKE_VERSION=0.15.0 sh quickstart.sh`
 
 ---
 

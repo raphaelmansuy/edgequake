@@ -195,6 +195,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
             engine_impl,
             pipeline,
             models_config: Arc::new(ModelsConfig::builtin_defaults()),
+            model_catalog: Arc::new(edgequake_api::model_catalog::ModelCatalog::new()),
         },
         auth: edgequake_api::state::AuthRuntime::new(auth_config),
         tasks: edgequake_api::state::TaskRuntime::new(task_storage, task_queue),
@@ -218,6 +219,7 @@ async fn create_postgres_test_state(pool: &PgPool) -> AppState {
         )),
         pdf_vision: std::sync::Arc::new(edgequake_core::PdfVisionSemaphore::new(2)),
         postgres_capabilities: None,
+        server_config: edgequake_api::server_config_store::ServerConfigStore::new(),
     }
 }
 

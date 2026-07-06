@@ -8,6 +8,7 @@
 //! - `graph_lifecycle` — graph DDL and indexes
 
 mod age_parse;
+mod agtype_bind;
 mod cypher_exec;
 mod cypher_format;
 mod graph_lifecycle;

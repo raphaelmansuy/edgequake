@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-SPEC-043 unified LLM model picker, server config, provider attribution, and Vertex AI identity authentication.
+---
+
+## [0.15.0] — 2026-07-06
+
+SPEC-043 unified LLM model picker & provider attribution; SPEC-044 post-upgrade Cypher compensation fix (PG16/PG17/PG18 battle-tested).
 
 ### Added — SPEC-043 LLM model picker & server config
 
@@ -13,8 +17,19 @@ SPEC-043 unified LLM model picker, server config, provider attribution, and Vert
 - **Server LLM config overrides** — Persisted server defaults (provider/model) via settings API; config explainability panel for effective resolution chain.
 - **Application attribution API** — Runtime attribution headers and settings UI for downstream LLM request labeling (SPEC-043 §004).
 - **Expanded model catalog** — Bundled `models.toml` embedded at compile time; runtime override via `EDGEQUAKE_MODELS_CONFIG`, `./models.toml`, or `~/.edgequake/models.toml`.
-- **Vertex AI identity auth (§011)** — `vertexai` classified as `OAuth2Identity`, not API key. Auth ladder: `GOOGLE_ACCESS_TOKEN` → GCE metadata/ADC → service account JSON → gcloud ADC. Provider health and UI copy describe identity prerequisites; runtime uses `GeminiProvider::from_env_vertex_ai_adc()`.
-- **E2E** — `spec043-llm-model-picker.spec.ts` (model picker + Vertex identity badge); battle-tested screenshots under `specs/043-update-edgequake-llm/e2e/`.
+- **Vertex AI identity auth (§011)** — `vertexai` classified as `OAuth2Identity`, not API key. Auth ladder: `GOOGLE_ACCESS_TOKEN` → GCE metadata/ADC → service account JSON → gcloud ADC.
+- **E2E** — `spec043-llm-model-picker.spec.ts`; battle-tested screenshots under `specs/043-update-edgequake-llm/e2e/`.
+
+### Added — SPEC-044 Cypher parameter binding (post-upgrade ingest)
+
+- **`PgAgtype` sqlx bind** — Bare `$1` third argument per [AGE prepared statements](https://age.apache.org/age-manual/master/advanced/prepared_statements.html); binary wire format (version byte + JSON).
+- **Triple-track battle test** — `make spec044-battle-test-all` proves pg16 (AGE 1.6.0), pg17/pg18 (AGE 1.7.0): SQL probes + spec022 + spec044 compensation + graph CRUD.
+- **CI** — `postgres-integration.yml` SPEC-044 step; storage backend contracts no longer `continue-on-error`.
+
+### Fixed — SPEC-044 ([#ingest compensation](specs/044-upgrate-issue-study/000-index.md))
+
+- **v0.14.0 regression** — `cypher_execute_bound` inlined `'…'::agtype` and used `raw_sql`, breaking `delete_node` / `has_node` / `get_node` / edge ops; merge-failure compensation logged `third argument of cypher function must be a parameter` and left orphan graph nodes.
+- **Saga compensation** — `compensate_orphan_graph_writes` → `delete_node` works again on live PostgreSQL + AGE.
 
 ### Changed
 
@@ -23,7 +38,7 @@ SPEC-043 unified LLM model picker, server config, provider attribution, and Vert
 
 ### Documentation
 
-- README, `docs/operations/configuration.md`, and `edgequake/docs/configuration.md` — Vertex AI vs Gemini Developer API auth, env vars, and local ADC setup.
+- README, `docs/operations/configuration.md`, SPEC-044 study (`specs/044-upgrate-issue-study/`).
 
 ---
 

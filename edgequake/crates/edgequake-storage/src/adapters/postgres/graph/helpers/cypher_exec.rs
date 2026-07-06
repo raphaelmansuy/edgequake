@@ -1,27 +1,51 @@
-//! Cypher execution helpers (SPEC-017 P1-12, SPEC-022 P-H7 parameterized Cypher).
+//! Cypher execution helpers (SPEC-017 P1-12, SPEC-022 P-H7, SPEC-044).
 //!
-//! ## AGE parameter binding
+//! ## AGE parameter binding (SPEC-044)
 //!
-//! AGE's `cypher()` function requires the third (parameter-map) argument to be
-//! a bare `$1` inside a `PREPARE`d statement — any cast expression (e.g.
-//! `$1::agtype`) is rejected.  We therefore inline the agtype literal as
-//! `'<escaped-json>'::agtype` directly in the SQL.  Because the JSON is
-//! produced by `serde_json` (no user-controlled SQL fragments) and single
-//! quotes are escaped, this is safe against injection.
+//! AGE's `cypher()` third argument must be a bare Postgres parameter (`$1`) inside
+//! a prepared statement — inline literals and cast expressions on the third
+//! argument are rejected. See:
+//! <https://age.apache.org/age-manual/master/advanced/prepared_statements.html>
+//!
+//! Bind the parameter map as a JSON **string** wrapped in [`PgAgtype`] so sqlx
+//! sends PostgreSQL type `agtype` (bare `$1` third argument).
 
 use sqlx::Row;
 
 use crate::error::{Result, StorageError};
 
 use super::super::PostgresAGEGraphStorage;
+use super::agtype_bind::PgAgtype;
 
 impl PostgresAGEGraphStorage {
-    /// Escape a JSON string for use as an agtype literal in SQL.
-    fn escape_agtype_literal(json: &str) -> String {
-        json.replace('\'', "''")
+    /// Build SQL for parameterized Cypher (bare `$1` third arg — SPEC-044 SSOT).
+    fn cypher_bound_sql(graph_name: &str, cypher: &str, columns: &[&str], execute: bool) -> String {
+        let tag = Self::dollar_quote_tag(cypher);
+        if execute {
+            return format!(
+                "SELECT * FROM cypher('{graph}', {tag} {cypher} {tag}, $1) AS (a agtype)",
+                graph = graph_name,
+            );
+        }
+
+        let as_clause = columns
+            .iter()
+            .map(|c| format!("{c} agtype"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_clause = columns
+            .iter()
+            .map(|c| format!("agtype_to_json({c}) as {c}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        format!(
+            "SELECT {select_clause} FROM cypher('{graph}', {tag} {cypher} {tag}, $1) AS ({as_clause})",
+            graph = graph_name,
+        )
     }
 
-    /// Run read Cypher with agtype parameters (injection-safe via serde_json).
+    /// Run read Cypher with agtype parameters (injection-safe via serde_json + `$1`).
     pub(in crate::adapters::postgres::graph) async fn cypher_query_bound(
         &self,
         cypher: &str,
@@ -35,30 +59,16 @@ impl PostgresAGEGraphStorage {
 
         Self::setup_age_session_scoped(&mut conn, None).await?;
 
-        let params_json = serde_json::to_string(params).unwrap_or_else(|_| "{}".to_string());
-        let params_lit = Self::escape_agtype_literal(&params_json);
+        let sql = Self::cypher_bound_sql(&self.graph_name, cypher, columns, false);
+        let params_bind = PgAgtype::from_json(params)?;
 
-        let tag = Self::dollar_quote_tag(cypher);
-        let as_clause = columns
-            .iter()
-            .map(|c| format!("{c} agtype"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let select_clause = columns
-            .iter()
-            .map(|c| format!("agtype_to_json({c}) as {c}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let sql = format!(
-            "SELECT {select_clause} FROM cypher('{graph}', {tag} {cypher} {tag}, \
-             '{params_lit}'::agtype) AS ({as_clause})",
-            graph = self.graph_name,
-        );
-
-        let rows = sqlx::query(&sql).fetch_all(&mut *conn).await.map_err(|e| {
-            StorageError::Database(format!("Parameterized Cypher query failed: {e}"))
-        })?;
+        let rows = sqlx::query(&sql)
+            .bind(params_bind)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Parameterized Cypher query failed: {e}"))
+            })?;
 
         Ok(rows)
     }
@@ -70,21 +80,22 @@ impl PostgresAGEGraphStorage {
         params: &serde_json::Value,
     ) -> Result<()> {
         let pool = self.pool.get().await?;
-
-        let params_json = serde_json::to_string(params).unwrap_or_else(|_| "{}".to_string());
-        let params_lit = Self::escape_agtype_literal(&params_json);
-
-        let tag = Self::dollar_quote_tag(cypher);
-        let sql = format!(
-            "{setup} SELECT * FROM cypher('{graph}', {tag} {cypher} {tag}, \
-             '{params_lit}'::agtype) AS (a agtype);",
-            setup = Self::age_session_setup_sql(),
-            graph = self.graph_name,
-        );
-
-        sqlx::raw_sql(&sql).execute(&pool).await.map_err(|e| {
-            StorageError::Database(format!("Parameterized Cypher execute failed: {e}"))
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
+
+        Self::setup_age_session_scoped(&mut conn, None).await?;
+
+        let sql = Self::cypher_bound_sql(&self.graph_name, cypher, &[], true);
+        let params_bind = PgAgtype::from_json(params)?;
+
+        sqlx::query(&sql)
+            .bind(params_bind)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("Parameterized Cypher execute failed: {e}"))
+            })?;
 
         Ok(())
     }
