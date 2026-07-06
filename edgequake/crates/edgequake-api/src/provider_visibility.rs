@@ -55,7 +55,7 @@ mod tests {
     fn mock_is_hidden_from_ui() {
         assert!(is_mock_provider("mock"));
         assert!(is_mock_provider("MOCK"));
-        assert!(!is_ui_visible_provider_id("openai"));
+        assert!(is_ui_visible_provider_id("openai"));
         assert!(!is_ui_visible_provider_id("mock"));
     }
 

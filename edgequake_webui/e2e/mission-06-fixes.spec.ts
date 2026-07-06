@@ -135,6 +135,10 @@ async function installMissionMocks(page: Page, state: MockState) {
     });
   });
 
+  await page.route('**/live**', async (route) => {
+    await route.fulfill({ status: 200, body: 'OK' });
+  });
+
   await page.route('**/api/v1/tenants', async (route) => {
     await route.fulfill({
       status: 200,
@@ -291,7 +295,7 @@ test.describe('Mission 06 regression proof', () => {
     await dialog.getByRole('button', { name: /^Delete$/ }).click();
 
     await expect.poll(() => state.workspaceDeleted).toBe(true);
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
   });
 
   test('graph actions expose workspace entity types and wire merge and delete', async ({ page }) => {

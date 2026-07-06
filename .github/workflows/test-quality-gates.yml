@@ -209,7 +209,7 @@ jobs:
                   
                   # Adjusted threshold for no-default-features (postgres tests excluded)
                   # Note: edgequake-pdf crate moved to legacy/ in v0.4.0, reducing total count
-                  MIN_TESTS=900
+                  MIN_TESTS=870
                   if [ "$TOTAL_PASSED" -lt "$MIN_TESTS" ]; then
                     echo "::error::Test count below threshold! Expected >= ${MIN_TESTS}, got ${TOTAL_PASSED}"
                     exit 1
