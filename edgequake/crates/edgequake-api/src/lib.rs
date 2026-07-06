@@ -92,7 +92,9 @@
 //! - **validation**: Input validation helpers
 //! - **error**: API error types and HTTP status mapping
 
+pub mod attribution;
 pub mod cache_manager;
+pub mod config_resolution;
 pub mod document_metadata;
 pub mod document_read_model;
 pub mod error;
@@ -100,6 +102,7 @@ pub mod file_validation;
 pub mod handlers;
 pub mod mcp;
 pub mod middleware;
+pub mod model_catalog;
 pub mod observability_middleware;
 pub mod openapi;
 pub mod openapi_annotation_sync;
@@ -117,10 +120,12 @@ pub mod postgres_lineage_sink;
 pub mod processor;
 mod provider_catalog;
 pub mod provider_types;
+pub mod provider_visibility;
 pub mod providers;
 pub mod routes;
 pub mod safety_limits;
 pub mod server;
+pub mod server_config_store;
 pub mod services;
 pub mod startup_security;
 pub mod state;

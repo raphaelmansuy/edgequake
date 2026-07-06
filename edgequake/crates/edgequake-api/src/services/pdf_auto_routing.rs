@@ -27,7 +27,7 @@ pub async fn try_edgeparse_fast_path(
         vision: None,
     };
 
-    let converter = edgequake_pdf::create_pdf_converter(PdfParserBackend::EdgeParse, None);
+    let converter = edgequake_pdf::create_pdf_converter(PdfParserBackend::EdgeParse);
     let markdown = converter.convert(pdf_data, &config).await.ok()?;
     if LargeDocumentProfile::markdown_has_text_layer(&markdown, page_count) {
         Some(markdown)

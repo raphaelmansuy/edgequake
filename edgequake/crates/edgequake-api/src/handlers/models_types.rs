@@ -96,6 +96,14 @@ pub struct ModelResponse {
     /// Optional tags for categorization.
     #[serde(default)]
     pub tags: Vec<String>,
+
+    /// How this model was discovered (`dynamic_api`, `static_registry`, `hybrid`, `user_config`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discovery_source: Option<String>,
+
+    /// Whether the model is currently available from the provider (live discovery).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available: Option<bool>,
 }
 
 /// Model capabilities information.

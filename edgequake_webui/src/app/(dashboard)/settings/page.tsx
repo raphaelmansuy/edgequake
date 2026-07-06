@@ -1,5 +1,7 @@
 'use client';
 
+import { ServerLlmConfigCard } from '@/components/settings/server-llm-config-card';
+import { AppAttributionSettingsCard } from '@/components/settings/app-attribution-settings-card';
 import { AdminQuotaSection } from '@/components/settings/admin-quota-section';
 import { ConfigExplainabilityPanel } from '@/components/settings/config-explainability-panel';
 import { PdfParserSettingsCard } from '@/components/settings/pdf-parser-settings-card';
@@ -220,6 +222,12 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Application attribution (SPEC-043) — above provider status for discoverability */}
+      <AppAttributionSettingsCard />
+
+      {/* Server LLM defaults + priority mode (SPEC-043) */}
+      <ServerLlmConfigCard />
 
       {/* Provider Status */}
       <ProviderStatusCard />

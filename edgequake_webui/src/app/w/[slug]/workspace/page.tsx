@@ -19,12 +19,13 @@ import {
 } from '@/components/workspace/workspace-deeplink-states';
 import { WorkspaceEntityTypesCard } from '@/components/workspace/workspace-entity-types-card';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
-import { WorkspaceProviderHealthCard } from '@/components/workspace/workspace-provider-health-card';
+import { ProviderStatusHub } from '@/components/settings/provider-status-hub';
 import { WorkspaceActionsCard } from '@/components/workspace/workspace-actions-card';
 import { WorkspaceModelConfigGrid } from '@/components/workspace/workspace-model-config-grid';
 import { WorkspaceStatusFooter } from '@/components/workspace/workspace-status-footer';
 import { WorkspaceStatsCards } from '@/components/workspace/workspace-stats-cards';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
+import { refreshDynamicModels } from '@/hooks/use-providers';
 import { useWorkspaceDetailQueries } from '@/hooks/use-workspace-detail-queries';
 import { useWorkspaceSlugResolver } from '@/hooks/use-workspace-slug-resolver';
 import { Card, CardContent } from '@/components/ui/card';
@@ -332,9 +333,12 @@ export default function WorkspacePage() {
         onStrictLimitChange={setSelectedEntityTypesStrict}
       />
 
-      <WorkspaceProviderHealthCard
-        providerHealth={providerHealth}
-        isLoadingHealth={isLoadingHealth}
+      <ProviderStatusHub
+        providers={providerHealth}
+        isLoading={isLoadingHealth}
+        onRefresh={() => {
+          void refreshDynamicModels(queryClient);
+        }}
       />
 
       <WorkspaceActionsCard

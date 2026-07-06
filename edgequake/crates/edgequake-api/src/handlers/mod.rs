@@ -52,6 +52,8 @@
 //! ```
 
 pub mod admin;
+pub mod app_attribution;
+pub mod attribution;
 pub mod auth;
 pub mod auth_types;
 pub mod chat;
@@ -75,10 +77,12 @@ pub mod injection_types;
 pub mod isolation;
 pub mod lineage;
 pub mod lineage_types;
+pub mod llm_defaults;
 pub mod mcp;
 pub mod metrics;
 pub mod metrics_types;
 pub mod models;
+pub mod models_search;
 pub mod models_types;
 pub mod ollama;
 pub mod ollama_types;
@@ -104,6 +108,8 @@ pub mod workspaces_types;
 // Note: Each handler module already re-exports its *_types module contents,
 // so we only need to re-export the handler modules themselves.
 pub use admin::*;
+pub use app_attribution::*;
+pub use attribution::*;
 pub use auth::*;
 pub use chat::*;
 pub use context_types::*;
@@ -115,9 +121,11 @@ pub use graph::*;
 pub use health::*;
 pub use injection::*;
 pub use lineage::*;
+pub use llm_defaults::*;
 pub use mcp::*;
 pub use metrics::*;
 pub use models::*;
+pub use models_search::*;
 pub use ollama::*;
 pub use pdf_upload::*;
 pub use pipeline::*;

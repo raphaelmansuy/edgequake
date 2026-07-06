@@ -58,6 +58,11 @@ pub fn llm_provider_credentials_configured_by_name(provider_name: &str) -> bool 
                 && (std::env::var("GOOGLE_ACCESS_TOKEN").is_ok()
                     || std::env::var("GOOGLE_APPLICATION_CREDENTIALS").is_ok())
         }
+        "nvidia" => env_non_empty("NVIDIA_API_KEY"),
+        "cohere" => env_non_empty("COHERE_API_KEY"),
+        "jina" => env_non_empty("JINA_API_KEY"),
+        "huggingface" | "hf" => env_non_empty("HF_TOKEN") || env_non_empty("HUGGINGFACE_TOKEN"),
+        "vscode-copilot" | "copilot" => true,
         _ => true,
     }
 }

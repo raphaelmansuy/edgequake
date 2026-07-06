@@ -8,12 +8,15 @@
  */
 "use client";
 
+import { isUiVisibleProviderId } from "@/lib/provider-visibility";
+import { getProviderDisplayName as getCentralProviderDisplayName } from "@/lib/provider-display";
 import { getProviderIconColorClass } from "@/components/providers/provider-icon";
 import { apiClient } from "@/lib/api/client";
 import type {
     EmbeddingModelsResponse,
     LlmModelsResponse,
 } from "@/lib/api/models";
+import { refreshModelDiscovery } from "@/lib/api/models";
 import { getAutomationAwareRefetchInterval } from "@/lib/runtime/browser-detection";
 import type {
     AvailableProvidersResponse,
@@ -40,7 +43,11 @@ async function fetchAvailableProviders(): Promise<AvailableProvidersResponse> {
  * @implements SPEC-032: Multi-model support per provider (Focus 7)
  */
 async function fetchLlmModels(): Promise<LlmModelsResponse> {
-  return apiClient<LlmModelsResponse>("/models/llm");
+  const response = await apiClient<LlmModelsResponse>("/models/llm");
+  return {
+    ...response,
+    models: response.models.filter((m) => isUiVisibleProviderId(m.provider)),
+  };
 }
 
 /**
@@ -48,7 +55,11 @@ async function fetchLlmModels(): Promise<LlmModelsResponse> {
  * @implements SPEC-032: Multi-model support per provider (Focus 7)
  */
 async function fetchEmbeddingModels(): Promise<EmbeddingModelsResponse> {
-  return apiClient<EmbeddingModelsResponse>("/models/embedding");
+  const response = await apiClient<EmbeddingModelsResponse>("/models/embedding");
+  return {
+    ...response,
+    models: response.models.filter((m) => isUiVisibleProviderId(m.provider)),
+  };
 }
 
 /**
@@ -82,7 +93,7 @@ export function useLlmModels() {
   return useQuery({
     queryKey: ["llm-models"],
     queryFn: fetchLlmModels,
-    staleTime: 60000, // Cache for 1 minute
+    staleTime: 30_000,
   });
 }
 
@@ -94,27 +105,25 @@ export function useEmbeddingModels() {
   return useQuery({
     queryKey: ["embedding-models"],
     queryFn: fetchEmbeddingModels,
-    staleTime: 60000, // Cache for 1 minute
+    staleTime: 30_000,
   });
+}
+
+/** Invalidate discovery cache on backend and refetch model catalogs. */
+export async function refreshDynamicModels(queryClient: {
+  invalidateQueries: (opts: { queryKey: string[] }) => void;
+}) {
+  await refreshModelDiscovery();
+  queryClient.invalidateQueries({ queryKey: ["llm-models"] });
+  queryClient.invalidateQueries({ queryKey: ["embedding-models"] });
+  queryClient.invalidateQueries({ queryKey: ["provider-health"] });
 }
 
 /**
  * Get display name for a provider.
  */
 export function getProviderDisplayName(providerId: string): string {
-  const names: Record<string, string> = {
-    openai: "OpenAI",
-    ollama: "Ollama",
-    lmstudio: "LM Studio",
-    anthropic: "Anthropic",
-    gemini: "Google Gemini",
-    xai: "xAI",
-    openrouter: "OpenRouter",
-    azure: "Azure OpenAI",
-    minimax: "MiniMax",
-    mock: "Mock (Dev)",
-  };
-  return names[providerId.toLowerCase()] || providerId;
+  return getCentralProviderDisplayName(providerId);
 }
 
 /**

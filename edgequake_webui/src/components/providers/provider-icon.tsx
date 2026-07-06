@@ -35,6 +35,22 @@ export function getProviderIconColorClass(
       return "text-sky-600";
     case "minimax":
       return "text-teal-600";
+    case "nvidia":
+      return "text-lime-600";
+    case "cohere":
+      return "text-rose-600";
+    case "huggingface":
+      return "text-yellow-600";
+    case "jina":
+      return "text-cyan-600";
+    case "vscode-copilot":
+      return "text-violet-600";
+    case "bedrock":
+      return "text-orange-700";
+    case "vertexai":
+      return "text-blue-700";
+    case "mistral":
+      return "text-emerald-600";
     case "mock":
       return "text-gray-500";
     default:
@@ -67,7 +83,18 @@ export function ProviderIcon({ providerId, className }: ProviderIconProps) {
     case "anthropic":
     case "minimax":
     case "xai":
+    case "cohere":
+    case "nvidia":
       return <Sparkles className={iconClass} />;
+    case "huggingface":
+    case "jina":
+      return <Globe className={iconClass} />;
+    case "vscode-copilot":
+    case "bedrock":
+      return <Cloud className={iconClass} />;
+    case "mistral":
+    case "vertexai":
+      return <Zap className={iconClass} />;
     default:
       return <Brain className={iconClass} />;
   }

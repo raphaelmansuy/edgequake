@@ -47,6 +47,8 @@ impl PdfParserBackend {
 /// Per-task vision conversion options preserved from the existing processor.
 #[derive(Clone, Default)]
 pub struct VisionConversionConfig {
+    /// LLM provider id (e.g. `"ollama"`, `"openai"`). Passed to pdf2md factory.
+    pub provider_name: Option<String>,
     pub model: Option<String>,
     pub concurrency: Option<usize>,
     pub dpi: Option<u32>,
@@ -58,6 +60,7 @@ pub struct VisionConversionConfig {
 impl std::fmt::Debug for VisionConversionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VisionConversionConfig")
+            .field("provider_name", &self.provider_name)
             .field("model", &self.model)
             .field("concurrency", &self.concurrency)
             .field("dpi", &self.dpi)
@@ -91,12 +94,9 @@ pub trait PdfConverter: Send + Sync {
     fn backend_name(&self) -> &'static str;
 }
 
-pub fn create_pdf_converter(
-    backend: PdfParserBackend,
-    llm_provider: Option<Arc<dyn edgequake_llm::traits::LLMProvider>>,
-) -> Arc<dyn PdfConverter> {
+pub fn create_pdf_converter(backend: PdfParserBackend) -> Arc<dyn PdfConverter> {
     match backend {
-        PdfParserBackend::Vision => Arc::new(VisionPdfConverter::new(llm_provider)),
+        PdfParserBackend::Vision => Arc::new(VisionPdfConverter::new()),
         PdfParserBackend::EdgeParse => Arc::new(EdgeParsePdfConverter),
     }
 }

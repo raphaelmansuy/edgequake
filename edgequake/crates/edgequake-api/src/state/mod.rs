@@ -176,6 +176,9 @@ pub struct AppState {
 
     /// SPEC-027: runtime security flags (auth hardening, CORS, rate limits).
     pub security: ApiSecurityConfig,
+
+    /// SPEC-043: server-wide LLM defaults from `server_config` table.
+    pub server_config: crate::server_config_store::ServerConfigStore,
 }
 
 // ── Operational Methods ───────────────────────────────────────────────────

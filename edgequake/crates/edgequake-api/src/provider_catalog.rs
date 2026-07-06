@@ -6,6 +6,8 @@
 use edgequake_llm::model_config::{ModelType, ProviderConfig};
 use edgequake_llm::ModelsConfig;
 
+use crate::provider_visibility::is_ui_visible_provider_id;
+
 use crate::provider_types::{
     AvailableProvidersResponse, ConfigRequirement, DefaultModels, ProviderInfo,
 };
@@ -20,7 +22,7 @@ pub fn build_available_providers_response(
     let mut providers: Vec<ProviderConfig> = config
         .providers
         .iter()
-        .filter(|p| p.enabled)
+        .filter(|p| p.enabled && is_ui_visible_provider_id(&p.name))
         .cloned()
         .collect();
 
@@ -230,16 +232,13 @@ mod tests {
     }
 
     #[test]
-    fn mock_provider_always_available() {
+    fn mock_provider_excluded_from_ui_catalog() {
         let config = embedded_models_catalog();
         let response = build_available_providers_response(&config, "mock", "mock");
-        let mock = response
-            .llm_providers
-            .iter()
-            .find(|p| p.id == "mock")
-            .expect("mock");
-        assert!(mock.available);
-        assert_eq!(mock.default_models.embedding_dimension, 768);
+        assert!(
+            !response.llm_providers.iter().any(|p| p.id == "mock"),
+            "mock must not appear in UI provider catalog"
+        );
     }
 
     #[test]
@@ -251,14 +250,38 @@ mod tests {
             .iter()
             .position(|p| p.id == "openai")
             .unwrap();
-        let mock_idx = response
+        let ollama_idx = response
             .llm_providers
             .iter()
-            .position(|p| p.id == "mock")
+            .position(|p| p.id == "ollama")
             .unwrap();
         assert!(
-            openai_idx < mock_idx,
+            openai_idx < ollama_idx,
             "lower priority number should sort first"
         );
+    }
+
+    #[test]
+    fn bundled_catalog_covers_edgequake_llm_chat_providers() {
+        use crate::provider_visibility::expected_chat_provider_ids;
+        let config = embedded_models_catalog();
+        let configured: std::collections::HashSet<_> = config
+            .providers
+            .iter()
+            .filter(|p| p.enabled && is_ui_visible_provider_id(&p.name))
+            .map(|p| p.name.as_str())
+            .collect();
+
+        // Optional: disabled until credentials/deployment configured, or env-driven generic compat.
+        let optional_missing = ["openai-compatible", "bedrock", "azure"];
+        for id in expected_chat_provider_ids() {
+            if optional_missing.contains(&id) {
+                continue;
+            }
+            assert!(
+                configured.contains(id),
+                "models.toml missing enabled chat provider '{id}' from edgequake-llm catalog"
+            );
+        }
     }
 }

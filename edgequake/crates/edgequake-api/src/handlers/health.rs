@@ -184,6 +184,7 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
                 Some(edgequake_auth::EXTERNAL_SSO_PATTERN.to_string())
             },
         }),
+        attribution: Some(crate::attribution::health_attribution_summary()),
     };
 
     Ok(Json(response))

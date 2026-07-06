@@ -825,8 +825,17 @@ backend-memory: ## DEPRECATED - In-memory storage removed, use backend-dev with 
 
 backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTRAL_API_KEY, OPENAI_API_KEY if set)
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
-		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
-		exit 0; \
+		_llm_code=$$(curl -s -o /dev/null -w '%{http_code}' "$(BACKEND_URL)/api/v1/settings/llm-defaults" 2>/dev/null || echo 000); \
+		if [ "$$_llm_code" = "200" ] || [ "$$_llm_code" = "401" ]; then \
+			echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
+			exit 0; \
+		fi; \
+		echo "$(YELLOW)⚠ Backend on port $(BACKEND_PORT) is stale (llm-defaults HTTP $$_llm_code) — restarting...$(RESET)"; \
+		if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; fi; \
+		pkill -9 -f "target/debug/edgequake" 2>/dev/null || true; \
+		pkill -9 -f "target/release/edgequake" 2>/dev/null || true; \
+		rm -f /tmp/edgequake-backend.pid; \
+		sleep 1; \
 	fi
 	@echo "$(BLUE)Starting backend in background...$(RESET)"
 	@# Read the effective DATABASE_URL resolved by db-start (may differ in port
@@ -893,6 +902,15 @@ backend-bg: db-wait ## Run backend in background with PostgreSQL (respects MISTR
 		/bin/bash -lc 'nohup /tmp/edgequake-start.sh > /tmp/edgequake-backend.log 2>&1 < /dev/null & backend_pid=$$!; disown "$$backend_pid"; printf "%s\n" "$$backend_pid" > /tmp/edgequake-backend.pid'; \
 	fi
 	@echo "$(GREEN)✓ Backend starting in background. Log: /tmp/edgequake-backend.log$(RESET)"
+
+backend-restart: ## Stop and restart background backend (picks up newly built binary)
+	@echo "$(YELLOW)Restarting backend on port $(BACKEND_PORT)...$(RESET)"
+	@-if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; fi
+	@-pkill -9 -f "target/debug/edgequake" 2>/dev/null || true
+	@-pkill -9 -f "target/release/edgequake" 2>/dev/null || true
+	@-rm -f /tmp/edgequake-backend.pid /tmp/edgequake-start.sh
+	@sleep 1
+	@$(MAKE) backend-bg --no-print-directory BACKEND_PORT=$(BACKEND_PORT) DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)"
 
 backend-build: ## Build backend for release (offline mode)
 	@echo "$(BLUE)Building backend in offline mode...$(RESET)"
@@ -1056,7 +1074,7 @@ db-start: ## Start PostgreSQL container
 	@# Fix strategy:
 	@#   1. Parse credentials from DATABASE_URL.
 	@#   2. After pg_isready succeeds, run a psql auth probe.
-	@#   3. If auth fails → port conflict → auto-detect a free port (5433…5437).
+	@#   3. If auth fails → port conflict → auto-detect a free port (5433…5449).
 	@#   4. Start edgequake-postgres on that free port via POSTGRES_PORT env var.
 	@#   5. Write the effective DATABASE_URL (with correct port) to
 	@#      /tmp/edgequake-db-url for consumption by make dev / make dev-bg / etc.
@@ -1112,8 +1130,8 @@ db-start: ## Start PostgreSQL container
 			fi; \
 			echo "$(YELLOW)   Auto-detecting a free port for edgequake-postgres...$(RESET)"; \
 			_FREE_PORT=""; \
-			for _TRY in 5433 5434 5435 5436 5437 5438 5439; do \
-				if ! lsof -ti ":$$_TRY" >/dev/null 2>&1; then \
+			for _TRY in 5433 5434 5435 5436 5437 5438 5439 5440 5441 5442 5443 5444 5445 5446 5447 5448 5449; do \
+				if ! lsof -iTCP:"$$_TRY" -sTCP:LISTEN >/dev/null 2>&1; then \
 					if ! PGPASSWORD="$$_DB_PASS" psql -h localhost -p "$$_TRY" -U "$$_DB_USER" -d "$$_DB_NAME" -c '\q' >/dev/null 2>&1; then \
 						_FREE_PORT="$$_TRY"; \
 						break; \
@@ -1121,7 +1139,7 @@ db-start: ## Start PostgreSQL container
 				fi; \
 			done; \
 			if [ -z "$$_FREE_PORT" ]; then \
-				echo "$(RED)✗ No free PostgreSQL port found in range 5433-5439$(RESET)"; \
+				echo "$(RED)✗ No free PostgreSQL port found in range 5433-5449$(RESET)"; \
 				exit 1; \
 			fi; \
 			echo "$(YELLOW)→ Will start edgequake-postgres on port $$_FREE_PORT instead$(RESET)"; \
@@ -1723,6 +1741,22 @@ test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg 
 	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
+
+spec043-e2e: dev-bg ## SPEC-043 model picker + attribution E2E with screenshots
+	@echo "$(BLUE)SPEC-043 E2E → frontend $(FRONTEND_URL) backend $(BACKEND_URL)$(RESET)"
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		curl -sf "$(BACKEND_URL)/health" >/dev/null && curl -sf "$(FRONTEND_URL)/" >/dev/null && break; \
+		sleep 2; \
+	done
+	@curl -sf "$(BACKEND_URL)/health" >/dev/null || { \
+		echo "$(RED)✗ EdgeQuake backend not healthy at $(BACKEND_URL)$(RESET)"; exit 1; \
+	}
+	@curl -sf "$(FRONTEND_URL)/" >/dev/null || { \
+		echo "$(RED)✗ Frontend not reachable at $(FRONTEND_URL)$(RESET)"; exit 1; \
+	}
+	@cd $(FRONTEND_DIR) && EQ_BACKEND_URL="$(BACKEND_URL)" E2E_BACKEND_URL="$(BACKEND_URL)" \
+		E2E_LIVE_STACK=1 PLAYWRIGHT_SKIP_STACK_CHECK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
+		pnpm exec playwright test e2e/spec043-llm-model-picker.spec.ts --project=chromium --reporter=line
 
 # ============================================================================
 # SPEC-013 — GitHub issues #216–#233 (May 2026)

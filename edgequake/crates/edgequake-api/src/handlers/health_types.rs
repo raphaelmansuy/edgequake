@@ -67,6 +67,10 @@ pub struct HealthResponse {
     /// Discoverable API surface links (SPEC-027 REST-008).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<ApiCapabilities>,
+
+    /// Application attribution summary (SPEC-043).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<crate::attribution::HealthAttributionSummary>,
 }
 
 /// Operator-facing API discovery hints (additive JSON on `/health`).
@@ -367,6 +371,7 @@ mod tests {
             pdf_storage_enabled: None,
             operational: None,
             capabilities: None,
+            attribution: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"status\":\"healthy\""));
@@ -405,6 +410,7 @@ mod tests {
             pdf_storage_enabled: None,
             operational: None,
             capabilities: None,
+            attribution: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"schema\""));
@@ -462,6 +468,7 @@ mod tests {
             pdf_storage_enabled: None,
             operational: None,
             capabilities: None,
+            attribution: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         // llm_provider_name should be skipped when None
@@ -534,6 +541,7 @@ mod tests {
             pdf_storage_enabled: Some(true),
             operational: None,
             capabilities: None,
+            attribution: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"providers\""));

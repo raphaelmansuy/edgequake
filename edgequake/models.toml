@@ -2391,9 +2391,9 @@ display_name = "Mock Provider"
 type = "mock"
 api_base = ""
 api_key_env = ""
-enabled = true
+enabled = false
 priority = 100
-description = "Mock provider for testing - Fast, free, deterministic responses"
+description = "Mock provider for testing - Fast, free, deterministic responses (never shown in WebUI)"
 
 [[providers.models]]
 name = "mock-llm"
@@ -2442,6 +2442,222 @@ input_per_1k = 0.0
 output_per_1k = 0.0
 embedding_per_1k = 0.0
 image_per_unit = 0.0
+
+# =============================================================================
+# NVIDIA NIM (SPEC-043)
+# =============================================================================
+
+[[providers]]
+name = "nvidia"
+display_name = "NVIDIA NIM"
+type = "openaicompatible"
+api_base = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+enabled = true
+priority = 25
+description = "NVIDIA NIM — cloud and free-tier inference models"
+
+[[providers.models]]
+name = "meta/llama-3.1-8b-instruct"
+display_name = "Llama 3.1 8B Instruct"
+model_type = "llm"
+description = "Meta Llama 3.1 8B on NVIDIA NIM"
+deprecated = false
+tags = ["recommended", "fast"]
+
+[providers.models.capabilities]
+context_length = 131072
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# COHERE (SPEC-043)
+# =============================================================================
+
+[[providers]]
+name = "cohere"
+display_name = "Cohere"
+type = "openaicompatible"
+api_base = "https://api.cohere.com"
+api_key_env = "COHERE_API_KEY"
+enabled = true
+priority = 26
+description = "Cohere Command and Embed models"
+
+[[providers.models]]
+name = "command-r-plus-08-2024"
+display_name = "Command R+"
+model_type = "llm"
+description = "Cohere Command R+ for RAG and tool use"
+deprecated = false
+tags = ["recommended", "rag"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 4096
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[[providers.models]]
+name = "embed-v4.0"
+display_name = "Embed v4"
+model_type = "embedding"
+description = "Cohere Embed v4"
+deprecated = false
+tags = ["recommended"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+# =============================================================================
+# JINA (embeddings only, SPEC-043)
+# =============================================================================
+
+[[providers]]
+name = "jina"
+display_name = "Jina AI"
+type = "openaicompatible"
+api_base = "https://api.jina.ai/v1"
+api_key_env = "JINA_API_KEY"
+enabled = true
+priority = 27
+description = "Jina embeddings API"
+
+[[providers.models]]
+name = "jina-embeddings-v3"
+display_name = "Jina Embeddings v3"
+model_type = "embedding"
+description = "Jina Embeddings v3 — 1024 dimensions"
+deprecated = false
+tags = ["recommended"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+# =============================================================================
+# HUGGINGFACE (SPEC-043)
+# =============================================================================
+
+[[providers]]
+name = "huggingface"
+display_name = "HuggingFace"
+type = "openaicompatible"
+api_base = "https://api-inference.huggingface.co"
+api_key_env = "HF_TOKEN"
+enabled = true
+priority = 28
+description = "HuggingFace Inference API"
+
+[[providers.models]]
+name = "meta-llama/Meta-Llama-3-8B-Instruct"
+display_name = "Llama 3 8B Instruct"
+model_type = "llm"
+description = "Meta Llama 3 8B via HuggingFace Inference"
+deprecated = false
+tags = ["recommended"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 2048
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+# =============================================================================
+# VS CODE COPILOT (SPEC-043)
+# =============================================================================
+
+[[providers]]
+name = "vscode-copilot"
+display_name = "GitHub Copilot"
+type = "openaicompatible"
+api_base = ""
+api_key_env = ""
+enabled = true
+priority = 29
+description = "GitHub Copilot direct auth — use auto routing"
+
+[[providers.models]]
+name = "auto"
+display_name = "Copilot Auto"
+model_type = "llm"
+description = "GitHub Copilot Auto model routing"
+deprecated = false
+tags = ["recommended", "default"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+# =============================================================================
+# AWS BEDROCK (SPEC-043 — disabled by default, enable when AWS credentials configured)
+# =============================================================================
+
+[[providers]]
+name = "bedrock"
+display_name = "AWS Bedrock"
+type = "openaicompatible"
+api_base = ""
+api_key_env = ""
+enabled = false
+priority = 30
+description = "Amazon Bedrock foundation models (requires AWS credentials and bedrock feature)"
+
+[[providers.models]]
+name = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+display_name = "Claude 3.5 Sonnet (Bedrock)"
+model_type = "llm"
+description = "Anthropic Claude 3.5 Sonnet on AWS Bedrock"
+deprecated = false
+tags = ["recommended", "bedrock"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
 
 # =============================================================================
 # CUSTOM OPENAI-COMPATIBLE PROVIDERS

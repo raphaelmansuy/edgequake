@@ -58,6 +58,8 @@ interface EffectiveConfigResponse {
   embedding: ConfigAreaResponse;
   vision: ConfigAreaResponse;
   priority_rule: string;
+  priority_mode: string;
+  server_config_available: boolean;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,7 +87,8 @@ function levelBadgeVariant(level: string): 'default' | 'secondary' | 'outline' |
     case 'compiled_default': return 'outline';
     case 'env_alias': return 'secondary';
     case 'env_secondary': return 'secondary';
-    case 'env_primary': return 'default';
+    case 'env_primary': return 'secondary';
+    case 'server_config': return 'default';
     case 'env_llm_inherit': return 'secondary';
     case 'env_vision': return 'default';
     default: return 'outline';
@@ -279,6 +282,9 @@ export function ConfigExplainabilityPanel() {
 
   useEffect(() => {
     fetchConfig();
+    const onConfigChanged = () => fetchConfig();
+    window.addEventListener('edgequake:config-changed', onConfigChanged);
+    return () => window.removeEventListener('edgequake:config-changed', onConfigChanged);
   }, []);
 
   const anyMismatch = config && (
@@ -299,6 +305,16 @@ export function ConfigExplainabilityPanel() {
             </CardTitle>
             <CardDescription className="mt-1">
               Full priority chain for every config area — see exactly which value wins and where it comes from.
+              {config && (
+                <span className="block mt-2">
+                  <Badge variant={config.priority_mode === 'server' ? 'default' : 'secondary'} className="mr-2">
+                    Priority: {config.priority_mode === 'server' ? 'Server first' : 'Environment first'}
+                  </Badge>
+                  {config.server_config_available && (
+                    <Badge variant="outline">PostgreSQL server_config</Badge>
+                  )}
+                </span>
+              )}
             </CardDescription>
           </div>
           <Button

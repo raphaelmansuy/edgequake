@@ -575,6 +575,18 @@ fn api_v1_routes() -> Router<AppState> {
         )
         // Settings (Provider Status) (SPEC-032 Phase 5E)
         .route(
+            "/settings/attribution",
+            get(handlers::get_attribution_settings),
+        )
+        .route(
+            "/settings/app-attribution",
+            get(handlers::get_attribution_settings).patch(handlers::update_app_attribution),
+        )
+        .route(
+            "/settings/llm-defaults",
+            get(handlers::get_llm_defaults).patch(handlers::update_llm_defaults),
+        )
+        .route(
             "/settings/provider/status",
             get(handlers::get_provider_status),
         )
@@ -586,6 +598,11 @@ fn api_v1_routes() -> Router<AppState> {
         // Effective configuration with full resolution chain (explainability)
         .route("/config/effective", get(handlers::get_effective_config))
         // Models Configuration API (SPEC-032 OODA 66-70)
+        .route("/models/search", get(handlers::search_models))
+        .route(
+            "/models/discover/refresh",
+            post(handlers::refresh_model_discovery),
+        )
         .route("/models", get(handlers::list_models))
         .route("/models/llm", get(handlers::list_llm_models))
         .route("/models/embedding", get(handlers::list_embedding_models))

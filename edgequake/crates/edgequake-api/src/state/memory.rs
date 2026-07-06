@@ -89,6 +89,7 @@ impl AppState {
                 engine_impl,
                 pipeline,
                 models_config: super::bundled_models::bundled_models_config(),
+                model_catalog: Arc::new(crate::model_catalog::ModelCatalog::new()),
             },
             auth: AuthRuntime::from_env(),
             tasks: TaskRuntime::new(task_storage, task_queue),
@@ -110,6 +111,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             postgres_capabilities: None,
             security: ApiSecurityConfig::from_env(),
+            server_config: crate::server_config_store::ServerConfigStore::new(),
         }
     }
 
@@ -221,6 +223,7 @@ impl AppState {
                 engine_impl,
                 pipeline,
                 models_config: super::bundled_models::bundled_models_config(),
+                model_catalog: Arc::new(crate::model_catalog::ModelCatalog::new()),
             },
             auth,
             tasks: TaskRuntime::new(task_storage, task_queue),
@@ -245,6 +248,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             postgres_capabilities: None,
             security: ApiSecurityConfig::default(),
+            server_config: crate::server_config_store::ServerConfigStore::new(),
         }
     }
 
@@ -329,6 +333,7 @@ impl AppState {
                 engine_impl,
                 pipeline,
                 models_config: Arc::new(ModelsConfig::builtin_defaults()),
+                model_catalog: Arc::new(crate::model_catalog::ModelCatalog::new()),
             },
             auth,
             tasks: TaskRuntime::new(task_storage, task_queue),
@@ -353,6 +358,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             postgres_capabilities: None,
             security: ApiSecurityConfig::default(),
+            server_config: crate::server_config_store::ServerConfigStore::new(),
         }
     }
 

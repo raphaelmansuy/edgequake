@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use edgequake_llm::{
-    ChatMessage, CompletionOptions, EmbeddingProvider, LLMProvider, LLMResponse, LlmError,
-    ProviderFactory, Result,
+    ApplicationContext, ChatMessage, CompletionOptions, EmbeddingProvider, LLMProvider,
+    LLMResponse, LlmError, ProviderFactory, Result,
 };
 use futures::stream::BoxStream;
 
@@ -433,6 +433,10 @@ fn check_api_key(provider_name: &str) -> Result<()> {
         "mistral" => ("MISTRAL_API_KEY", "Mistral"),
         "xai" => ("XAI_API_KEY", "xAI"),
         "openrouter" => ("OPENROUTER_API_KEY", "OpenRouter"),
+        "nvidia" => ("NVIDIA_API_KEY", "NVIDIA NIM"),
+        "cohere" => ("COHERE_API_KEY", "Cohere"),
+        "jina" => ("JINA_API_KEY", "Jina AI"),
+        "huggingface" | "hf" => ("HF_TOKEN", "HuggingFace"),
         _ => return Ok(()), // Local / key-less providers (ollama, lmstudio, mock, etc.)
     };
     let key_present = std::env::var(env_var)
@@ -485,6 +489,38 @@ pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<
     Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
 }
 
+/// Create a safety-limited LLM provider with full application attribution context.
+pub fn create_safe_llm_provider_with_context(
+    provider_name: &str,
+    model: &str,
+    ctx: ApplicationContext,
+) -> Result<Arc<dyn LLMProvider>> {
+    if let Some((llm, _)) = test_provider_override() {
+        return Ok(llm);
+    }
+
+    check_api_key(provider_name)?;
+
+    let effective_model = if is_model_provider_mismatch(provider_name, model) {
+        let corrected = default_model_for_provider(provider_name);
+        tracing::warn!(
+            provider = provider_name,
+            requested_model = model,
+            corrected_model = corrected,
+            "COMPAT-GUARD: LLM model/provider mismatch — auto-correcting to provider default."
+        );
+        corrected
+    } else {
+        model
+    };
+
+    let inner =
+        ProviderFactory::create_llm_provider_with_context(provider_name, effective_model, ctx)?;
+    let config = SafetyLimitsConfig::from_env();
+
+    Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
+}
+
 /// Create a safety-limited LLM provider with optional caller-supplied HTTP headers.
 ///
 /// Headers are forwarded to the upstream LLM API call so that B2B / multi-tenant
@@ -516,8 +552,11 @@ pub fn create_safe_llm_provider_with_headers(
     let headers = extra_headers.unwrap_or_default();
     let header_count = headers.len();
 
+    let mut ctx = ApplicationContext::from_env();
+    ctx.extra_headers.extend(headers);
+
     let inner =
-        ProviderFactory::create_llm_provider_with_headers(provider_name, effective_model, headers)?;
+        ProviderFactory::create_llm_provider_with_context(provider_name, effective_model, ctx)?;
 
     let config = SafetyLimitsConfig::from_env();
 
@@ -698,6 +737,20 @@ pub fn vision_page_timeout_secs(provider_name: &str) -> u64 {
     } else {
         120
     }
+}
+
+/// Validate vision provider credentials before pdf2md factory resolution (SPEC-043).
+pub fn check_vision_provider_available(provider_name: &str, model: &str) -> Result<()> {
+    check_api_key(provider_name)?;
+    if is_model_provider_mismatch(provider_name, model) {
+        tracing::warn!(
+            provider = provider_name,
+            requested_model = model,
+            corrected_model = default_model_for_provider(provider_name),
+            "COMPAT-GUARD: Vision model/provider mismatch — pdf2md will use provider default."
+        );
+    }
+    Ok(())
 }
 
 /// Create a safety-limited LLM provider suitable for **vision/PDF OCR** calls.

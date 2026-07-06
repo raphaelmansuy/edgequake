@@ -1,32 +1,34 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use edgequake_llm::traits::LLMProvider;
 use edgequake_pdf2md::{convert_from_bytes, ConversionConfig, FileCheckpointStore};
 use tracing::info;
 
 use super::{PdfConversionConfig, PdfConverter};
 use crate::error::PdfConversionError;
 
-/// Existing vision-based PDF converter backed by `edgequake-pdf2md`.
-pub struct VisionPdfConverter {
-    llm_provider: Option<Arc<dyn LLMProvider>>,
-}
+/// Vision-based PDF converter backed by `edgequake-pdf2md`.
+///
+/// Uses `provider_name` + `model` factory resolution inside pdf2md instead of
+/// injecting `Arc<dyn LLMProvider>` — avoids dual edgequake-llm versions until
+/// pdf2md@0.9.3 aligns on 0.10.0 (SPEC-043 P0).
+pub struct VisionPdfConverter;
 
 impl std::fmt::Debug for VisionPdfConverter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VisionPdfConverter")
-            .field(
-                "llm_provider",
-                &self.llm_provider.as_ref().map(|_| "<provider>"),
-            )
-            .finish()
+        f.debug_struct("VisionPdfConverter").finish()
+    }
+}
+
+impl Default for VisionPdfConverter {
+    fn default() -> Self {
+        Self
     }
 }
 
 impl VisionPdfConverter {
-    pub fn new(llm_provider: Option<Arc<dyn LLMProvider>>) -> Self {
-        Self { llm_provider }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -37,21 +39,21 @@ impl PdfConverter for VisionPdfConverter {
         pdf_bytes: &[u8],
         config: &PdfConversionConfig,
     ) -> Result<String, PdfConversionError> {
-        let provider = self
-            .llm_provider
-            .clone()
-            .ok_or(PdfConversionError::BackendNotConfigured("vision provider"))?;
         let vision = config
             .vision
             .as_ref()
             .ok_or(PdfConversionError::BackendNotConfigured("vision config"))?;
+        let provider_name = vision
+            .provider_name
+            .clone()
+            .ok_or(PdfConversionError::BackendNotConfigured("vision provider"))?;
         let model = vision
             .model
             .clone()
             .ok_or(PdfConversionError::BackendNotConfigured("vision model"))?;
 
         let mut builder = ConversionConfig::builder()
-            .provider(provider)
+            .provider_name(provider_name)
             .model(model.clone());
 
         if let Some(concurrency) = vision.concurrency {
@@ -90,11 +92,7 @@ impl PdfConverter for VisionPdfConverter {
             "Vision conversion completed"
         );
 
-        // SPEC-032 W-09: inject <!-- edgequake-page:N --> markers so the
-        // PageAwareChunking strategy can enforce page-boundary chunk splits.
-        // `output.pages` is sorted by page_num and contains per-page markdown.
         let markdown = if output.pages.len() > 1 {
-            // Multi-page: rebuild with explicit page markers
             let mut parts: Vec<String> = Vec::with_capacity(output.pages.len());
             for page in &output.pages {
                 if !page.markdown.trim().is_empty() {
@@ -111,7 +109,6 @@ impl PdfConverter for VisionPdfConverter {
                 parts.join("\n\n")
             }
         } else {
-            // Single page: prepend page 1 marker
             format!("<!-- edgequake-page:1 -->\n{}", output.markdown.trim())
         };
 

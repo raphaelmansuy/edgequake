@@ -379,6 +379,7 @@ impl AppState {
                 engine_impl,
                 pipeline,
                 models_config: super::bundled_models::bundled_models_config(),
+                model_catalog: Arc::new(crate::model_catalog::ModelCatalog::new()),
             },
             auth,
             tasks: TaskRuntime::new(task_storage, task_queue),
@@ -397,7 +398,15 @@ impl AppState {
             migration_bootstrap: Some(migration_bootstrap),
             postgres_capabilities: Some(postgres_capabilities),
             security: ApiSecurityConfig::from_env(),
+            server_config: crate::server_config_store::ServerConfigStore::new(),
         };
+
+        // SPEC-043: load server_config LLM defaults into process-wide overrides
+        if let Err(e) = app_state.server_config.load_from_pool(&pool).await {
+            tracing::warn!(error = %e, "Failed to load server_config LLM defaults at startup");
+        } else {
+            tracing::info!("Loaded server_config LLM defaults (SPEC-043)");
+        }
 
         // SPEC-021 P4-02: Startup storage invariant check + auto-repair (SAFE tier)
         // SPEC-021 P3-01: Log the entity sync mode for observability

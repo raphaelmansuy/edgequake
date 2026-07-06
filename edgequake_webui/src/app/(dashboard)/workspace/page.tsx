@@ -37,9 +37,10 @@ import { WorkspaceModelConfigGrid } from '@/components/workspace/workspace-model
 import { WorkspaceStatusFooter } from '@/components/workspace/workspace-status-footer';
 import { WorkspaceEntityTypesCard } from '@/components/workspace/workspace-entity-types-card';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
-import { WorkspaceProviderHealthCard } from '@/components/workspace/workspace-provider-health-card';
+import { ProviderStatusHub } from '@/components/settings/provider-status-hub';
 import { WorkspaceStatsCards } from '@/components/workspace/workspace-stats-cards';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
+import { refreshDynamicModels } from '@/hooks/use-providers';
 import { useWorkspaceDetailQueries } from '@/hooks/use-workspace-detail-queries';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { deleteWorkspace, updateWorkspace } from '@/lib/api/edgequake';
@@ -429,9 +430,12 @@ export default function WorkspacePage() {
         onStrictLimitChange={setSelectedEntityTypesStrict}
       />
 
-      <WorkspaceProviderHealthCard
-        providerHealth={providerHealth}
-        isLoadingHealth={isLoadingHealth}
+      <ProviderStatusHub
+        providers={providerHealth}
+        isLoading={isLoadingHealth}
+        onRefresh={() => {
+          void refreshDynamicModels(queryClient);
+        }}
       />
 
       <WorkspaceActionsCard

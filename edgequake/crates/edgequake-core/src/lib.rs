@@ -46,6 +46,7 @@ pub mod llm_roles;
 #[cfg(feature = "pipeline")]
 pub mod orchestrator;
 pub mod resource;
+pub mod server_config_overrides;
 pub mod sota_bridge;
 #[cfg(feature = "pipeline")]
 pub mod tenant_manager;
@@ -81,6 +82,9 @@ pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 pub use llm_roles::{
     parse_llm_roles_map, resolve_role_llm, role_config_from_workspace, LlmRole, ResolvedRoleLlm,
     RoleLlmConfig,
+};
+pub use server_config_overrides::{
+    install_server_config, merge_config_field, ConfigPriorityMode, ServerLlmDefaults,
 };
 
 // Re-export tenant manager

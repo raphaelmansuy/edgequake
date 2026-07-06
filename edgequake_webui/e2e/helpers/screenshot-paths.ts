@@ -91,6 +91,14 @@ export function spec038Screenshot(fileName: string): string {
   );
 }
 
+/** `specs/043-update-edgequake-llm/e2e/screenshots/<fileName>` */
+export function spec043Screenshot(fileName: string): string {
+  return path.join(
+    ensureDir(path.join(REPO_ROOT, "specs/043-update-edgequake-llm/e2e/screenshots")),
+    fileName,
+  );
+}
+
 /** `specs/037-query-option-full-chunk/e2e/screenshots/<fileName>` */
 export function spec037Screenshot(fileName: string): string {
   return path.join(

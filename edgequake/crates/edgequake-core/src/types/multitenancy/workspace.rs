@@ -202,31 +202,41 @@ impl Workspace {
     /// with Docker / Portainer), the workspace is initialised with a sensible
     /// model for that provider instead of the hard-coded Ollama default.
     pub fn default_llm_config() -> (String, String) {
-        // Resolve provider first so the model default can depend on it.
-        // WHY: Docker compose may inject empty-string env vars (e.g.
-        // `${EDGEQUAKE_LLM_PROVIDER:-}`) even when the variable is not set on
-        // the host. `std::env::var` returns Ok("") for those, so we must
-        // explicitly filter out empty strings before falling back to the next
-        // candidate in the resolution chain.
-        let provider = non_empty_env_var("EDGEQUAKE_DEFAULT_LLM_PROVIDER")
-            .or_else(|| {
-                first_non_empty_env_var(&[
-                    "EDGEQUAKE_LLM_PROVIDER",
-                    LLM_PROVIDER_ALIASES[0],
-                    LLM_PROVIDER_ALIASES[1],
-                ])
-            })
-            .unwrap_or_else(|| DEFAULT_LLM_PROVIDER.to_string());
+        use crate::server_config_overrides::{
+            current_defaults, current_priority_mode, merge_config_field,
+        };
 
-        let model = non_empty_env_var("EDGEQUAKE_DEFAULT_LLM_MODEL")
-            .or_else(|| {
-                first_non_empty_env_var(&[
-                    "EDGEQUAKE_LLM_MODEL",
-                    LLM_MODEL_ALIASES[0],
-                    LLM_MODEL_ALIASES[1],
-                ])
-            })
-            .unwrap_or_else(|| Self::default_model_for_provider(&provider));
+        let env_provider = non_empty_env_var("EDGEQUAKE_DEFAULT_LLM_PROVIDER").or_else(|| {
+            first_non_empty_env_var(&[
+                "EDGEQUAKE_LLM_PROVIDER",
+                LLM_PROVIDER_ALIASES[0],
+                LLM_PROVIDER_ALIASES[1],
+            ])
+        });
+        let env_model = non_empty_env_var("EDGEQUAKE_DEFAULT_LLM_MODEL").or_else(|| {
+            first_non_empty_env_var(&[
+                "EDGEQUAKE_LLM_MODEL",
+                LLM_MODEL_ALIASES[0],
+                LLM_MODEL_ALIASES[1],
+            ])
+        });
+
+        let compiled_provider = DEFAULT_LLM_PROVIDER.to_string();
+        let priority = current_priority_mode();
+        let server = current_defaults();
+
+        let provider = merge_config_field(
+            env_provider.clone(),
+            server.llm_provider.clone(),
+            compiled_provider,
+            priority,
+        );
+        let model = merge_config_field(
+            env_model,
+            server.llm_model.clone(),
+            Self::default_model_for_provider(&provider),
+            priority,
+        );
 
         (model, provider)
     }
@@ -236,16 +246,33 @@ impl Workspace {
     /// Matches the running API server: active `EDGEQUAKE_LLM_PROVIDER` wins over
     /// static `EDGEQUAKE_DEFAULT_*` so health `providers.llm` and workspace reset agree.
     pub fn server_runtime_llm_config() -> (String, String) {
-        let provider = non_empty_env_var("EDGEQUAKE_LLM_PROVIDER").or_else(|| {
+        use crate::server_config_overrides::{
+            current_defaults, current_priority_mode, merge_config_field,
+        };
+
+        let env_provider = non_empty_env_var("EDGEQUAKE_LLM_PROVIDER").or_else(|| {
             first_non_empty_env_var(&[LLM_PROVIDER_ALIASES[0], LLM_PROVIDER_ALIASES[1]])
         });
-        if let Some(provider) = provider {
-            let model = non_empty_env_var("EDGEQUAKE_LLM_MODEL")
+        let env_model = if env_provider.is_some() {
+            non_empty_env_var("EDGEQUAKE_LLM_MODEL")
                 .or_else(|| first_non_empty_env_var(&[LLM_MODEL_ALIASES[0], LLM_MODEL_ALIASES[1]]))
-                .unwrap_or_else(|| Self::default_model_for_provider(&provider));
-            return (model, provider);
-        }
-        Self::default_llm_config()
+        } else {
+            None
+        };
+
+        let fallback = Self::default_llm_config();
+        let priority = current_priority_mode();
+        let server = current_defaults();
+
+        let provider = merge_config_field(
+            env_provider,
+            server.llm_provider.clone(),
+            fallback.1,
+            priority,
+        );
+        let model = merge_config_field(env_model, server.llm_model.clone(), fallback.0, priority);
+
+        (model, provider)
     }
 
     /// Embedding config for "server default" reset (mirrors [`Self::server_runtime_llm_config`]).
@@ -287,28 +314,38 @@ impl Workspace {
     /// [`Self::default_llm_config`]: explicit `DEFAULT_*` vars take priority,
     /// then `EDGEQUAKE_EMBEDDING_PROVIDER / MODEL` as a single-env fallback.
     pub fn default_embedding_config() -> (String, String, usize) {
-        // Resolve provider first so the model default can depend on it.
-        // WHY: Same empty-string guard as in default_llm_config — Docker
-        // compose expansion of `${VAR:-}` produces Ok("") not Err, so we
-        // must filter those out before falling back to the next candidate.
-        let provider = non_empty_env_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER")
-            .or_else(|| {
+        use crate::server_config_overrides::{
+            current_defaults, current_priority_mode, merge_config_field,
+        };
+
+        let env_provider =
+            non_empty_env_var("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER").or_else(|| {
                 first_non_empty_env_var(&[
                     "EDGEQUAKE_EMBEDDING_PROVIDER",
                     EMBEDDING_PROVIDER_ALIASES[0],
                 ])
-            })
-            .unwrap_or_else(|| DEFAULT_EMBEDDING_PROVIDER.to_string());
+            });
+        let env_model = non_empty_env_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL").or_else(|| {
+            first_non_empty_env_var(&["EDGEQUAKE_EMBEDDING_MODEL", EMBEDDING_MODEL_ALIASES[0]])
+        });
 
-        let model = non_empty_env_var("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL")
-            .or_else(|| {
-                first_non_empty_env_var(&["EDGEQUAKE_EMBEDDING_MODEL", EMBEDDING_MODEL_ALIASES[0]])
-            })
-            .unwrap_or_else(|| Self::default_embedding_model_for_provider(&provider));
+        let compiled_provider = DEFAULT_EMBEDDING_PROVIDER.to_string();
+        let priority = current_priority_mode();
+        let server = current_defaults();
 
-        // WHY: When the provider/model switches (for example from Ollama to OpenAI),
-        // a stale dimension env var like 768 must not override a known model-specific
-        // dimension such as 1536 for text-embedding-3-small.
+        let provider = merge_config_field(
+            env_provider.clone(),
+            server.embedding_provider.clone(),
+            compiled_provider,
+            priority,
+        );
+        let model = merge_config_field(
+            env_model.clone(),
+            server.embedding_model.clone(),
+            Self::default_embedding_model_for_provider(&provider),
+            priority,
+        );
+
         let detected_dimension = Self::detect_dimension_from_model(&model);
         let known_model_dimension = Self::known_embedding_dimension(&model);
 

@@ -538,7 +538,7 @@ impl DocumentTaskProcessor {
         }
 
         let converter = if precomputed_markdown.is_some() {
-            edgequake_pdf::create_pdf_converter(edgequake_pdf::PdfParserBackend::EdgeParse, None)
+            edgequake_pdf::create_pdf_converter(edgequake_pdf::PdfParserBackend::EdgeParse)
         } else {
             match backend {
                 edgequake_pdf::PdfParserBackend::Vision => {
@@ -560,20 +560,17 @@ impl DocumentTaskProcessor {
                         vision_model = None;
                         edgequake_pdf::create_pdf_converter(
                             edgequake_pdf::PdfParserBackend::EdgeParse,
-                            None,
                         )
                     } else {
                         #[cfg(feature = "vision")]
                         {
-                            use crate::safety_limits::create_safe_vision_provider;
+                            use crate::safety_limits::check_vision_provider_available;
 
-                            match create_safe_vision_provider(
+                            match check_vision_provider_available(
                                 &data.vision_provider,
                                 vision_model.as_deref().unwrap_or_default(),
                             ) {
-                                Ok(provider) => {
-                                    edgequake_pdf::create_pdf_converter(backend, Some(provider))
-                                }
+                                Ok(()) => edgequake_pdf::create_pdf_converter(backend),
                                 Err(e) => {
                                     let error = edgequake_tasks::TaskError::Processing(format!(
                                         "Failed to create vision provider '{}': {e}",
@@ -603,7 +600,6 @@ impl DocumentTaskProcessor {
                                     vision_model = None;
                                     edgequake_pdf::create_pdf_converter(
                                         edgequake_pdf::PdfParserBackend::EdgeParse,
-                                        None,
                                     )
                                 }
                             }
@@ -627,13 +623,12 @@ impl DocumentTaskProcessor {
                             vision_model = None;
                             edgequake_pdf::create_pdf_converter(
                                 edgequake_pdf::PdfParserBackend::EdgeParse,
-                                None,
                             )
                         }
                     }
                 }
                 edgequake_pdf::PdfParserBackend::EdgeParse => {
-                    edgequake_pdf::create_pdf_converter(backend, None)
+                    edgequake_pdf::create_pdf_converter(backend)
                 }
             }
         };
@@ -668,6 +663,7 @@ impl DocumentTaskProcessor {
             vision: vision_model
                 .clone()
                 .map(|model| edgequake_pdf::VisionConversionConfig {
+                    provider_name: Some(data.vision_provider.clone()),
                     model: Some(model),
                     concurrency: Some(concurrency),
                     dpi: Some(dpi),
@@ -762,7 +758,6 @@ impl DocumentTaskProcessor {
 
                             edgequake_pdf::create_pdf_converter(
                                 edgequake_pdf::PdfParserBackend::EdgeParse,
-                                None,
                             )
                             .convert(&pdf_data, &edgeparse_config)
                             .await
@@ -799,7 +794,6 @@ impl DocumentTaskProcessor {
 
                             edgequake_pdf::create_pdf_converter(
                                 edgequake_pdf::PdfParserBackend::EdgeParse,
-                                None,
                             )
                             .convert(&pdf_data, &edgeparse_config)
                             .await

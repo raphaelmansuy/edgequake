@@ -49,7 +49,7 @@ export function WorkspacePageHeader({
           {t("common.refresh", "Refresh")}
         </Button>
         {!isEditing ? (
-          <Button variant="default" size="sm" onClick={onEditStart}>
+          <Button variant="default" size="sm" onClick={onEditStart} data-testid="workspace-edit-config">
             <Settings className="h-4 w-4 mr-2" />
             {t("workspace.editConfig", "Edit Configuration")}
           </Button>

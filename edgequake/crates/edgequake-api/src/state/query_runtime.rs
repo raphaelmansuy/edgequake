@@ -6,6 +6,8 @@ use edgequake_llm::ModelsConfig;
 use edgequake_pipeline::Pipeline;
 use edgequake_query::QueryEngine;
 
+use crate::model_catalog::ModelCatalog;
+
 /// SOTA query engine, ingestion pipeline, and default providers.
 ///
 /// P-G6a (RC-11): the dead legacy `QueryEngine` field was removed. Production
@@ -20,6 +22,9 @@ pub struct QueryRuntime {
     pub engine_impl: Arc<QueryEngine>,
     pub pipeline: Arc<Pipeline>,
     pub models_config: Arc<ModelsConfig>,
+
+    /// Hybrid static + dynamic model catalog (edgequake-llm discovery).
+    pub model_catalog: Arc<ModelCatalog>,
 }
 
 #[cfg(test)]
@@ -51,6 +56,7 @@ mod tests {
             engine_impl,
             pipeline: Arc::new(Pipeline::default_pipeline()),
             models_config: Arc::new(ModelsConfig::builtin_defaults()),
+            model_catalog: Arc::new(ModelCatalog::new()),
         };
 
         assert_eq!(runtime.embedding_provider.dimension(), 1536);

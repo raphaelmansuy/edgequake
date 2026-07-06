@@ -62,269 +62,16 @@ pub struct EffectiveConfigResponse {
     pub vision: ConfigAreaResponse,
     /// Priority rule explanation shown to the user.
     pub priority_rule: String,
+    /// Active priority mode: `server` or `env`.
+    pub priority_mode: String,
+    /// Whether PostgreSQL server_config persistence is available.
+    pub server_config_available: bool,
 }
 
 // ── Resolution helpers ────────────────────────────────────────────────────
+// Chain building lives in `config_resolution.rs` (SPEC-043 server_config level).
 
-fn non_empty(key: &str) -> Option<String> {
-    std::env::var(key).ok().filter(|v| !v.is_empty())
-}
-
-/// Build the full LLM config resolution chain, returning the levels list
-/// (lowest → highest priority), the winning provider, and the winning model.
-fn resolve_llm_chain() -> (Vec<ConfigLevel>, String, String) {
-    use edgequake_core::Workspace;
-
-    // ── Level 0: compiled default ──
-    let compiled_provider = "ollama".to_string();
-    let compiled_model = Workspace::default_model_for_provider(&compiled_provider);
-
-    // ── Level 1: primary canonical env vars ──
-    let env_primary_provider = non_empty("EDGEQUAKE_DEFAULT_LLM_PROVIDER");
-    let env_primary_model = non_empty("EDGEQUAKE_DEFAULT_LLM_MODEL");
-
-    // ── Level 2: secondary canonical env vars ──
-    let env_secondary_provider = non_empty("EDGEQUAKE_LLM_PROVIDER");
-    let env_secondary_model = non_empty("EDGEQUAKE_LLM_MODEL");
-
-    // ── Level 3: legacy aliases ──
-    let env_alias_provider =
-        edgequake_core::env::first_non_empty_env_var(&["MODEL_PROVIDER", "CHAT_PROVIDER"]);
-    let env_alias_model =
-        edgequake_core::env::first_non_empty_env_var(&["CHAT_MODEL", "LLM_MODEL"]);
-
-    // ── Effective values (mirrors Workspace::default_llm_config) ──
-    let effective_provider = env_primary_provider
-        .clone()
-        .or_else(|| env_secondary_provider.clone())
-        .or_else(|| env_alias_provider.clone())
-        .unwrap_or_else(|| compiled_provider.clone());
-
-    let effective_model = env_primary_model
-        .clone()
-        .or_else(|| env_secondary_model.clone())
-        .or_else(|| env_alias_model.clone())
-        .unwrap_or_else(|| Workspace::default_model_for_provider(&effective_provider));
-
-    // Determine which level is active
-    let active_level = if env_primary_provider.is_some() || env_primary_model.is_some() {
-        "env_primary"
-    } else if env_secondary_provider.is_some() || env_secondary_model.is_some() {
-        "env_secondary"
-    } else if env_alias_provider.is_some() || env_alias_model.is_some() {
-        "env_alias"
-    } else {
-        "compiled_default"
-    };
-
-    let levels = vec![
-        ConfigLevel {
-            level: "compiled_default".to_string(),
-            label: "Compiled Default".to_string(),
-            provider: Some(compiled_provider.clone()),
-            model: Some(compiled_model.clone()),
-            active: active_level == "compiled_default",
-            note: Some("Built-in fallback when no env vars are set.".to_string()),
-            source: Some("binary constant".to_string()),
-        },
-        ConfigLevel {
-            level: "env_alias".to_string(),
-            label: "Env: Legacy Aliases".to_string(),
-            provider: env_alias_provider.clone(),
-            model: env_alias_model.clone(),
-            active: active_level == "env_alias",
-            note: Some(
-                "Compatibility aliases: MODEL_PROVIDER / CHAT_PROVIDER / CHAT_MODEL / LLM_MODEL"
-                    .to_string(),
-            ),
-            source: Some("MODEL_PROVIDER | CHAT_PROVIDER | CHAT_MODEL | LLM_MODEL".to_string()),
-        },
-        ConfigLevel {
-            level: "env_secondary".to_string(),
-            label: "Env: EDGEQUAKE_LLM_*".to_string(),
-            provider: env_secondary_provider.clone(),
-            model: env_secondary_model.clone(),
-            active: active_level == "env_secondary",
-            note: Some("Single-environment deployment variables.".to_string()),
-            source: Some("EDGEQUAKE_LLM_PROVIDER | EDGEQUAKE_LLM_MODEL".to_string()),
-        },
-        ConfigLevel {
-            level: "env_primary".to_string(),
-            label: "Env: EDGEQUAKE_DEFAULT_LLM_*".to_string(),
-            provider: env_primary_provider.clone(),
-            model: env_primary_model.clone(),
-            active: active_level == "env_primary",
-            note: Some("Recommended primary variables. Overrides all other env vars.".to_string()),
-            source: Some(
-                "EDGEQUAKE_DEFAULT_LLM_PROVIDER | EDGEQUAKE_DEFAULT_LLM_MODEL".to_string(),
-            ),
-        },
-    ];
-
-    (levels, effective_provider, effective_model)
-}
-
-/// Build the full embedding config resolution chain.
-fn resolve_embedding_chain() -> (Vec<ConfigLevel>, String, String) {
-    use edgequake_core::Workspace;
-
-    let compiled_provider = "ollama".to_string();
-    let compiled_model = Workspace::default_embedding_model_for_provider(&compiled_provider);
-
-    let env_primary_provider = non_empty("EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER");
-    let env_primary_model = non_empty("EDGEQUAKE_DEFAULT_EMBEDDING_MODEL");
-    let env_secondary_provider = non_empty("EDGEQUAKE_EMBEDDING_PROVIDER");
-    let env_secondary_model = non_empty("EDGEQUAKE_EMBEDDING_MODEL");
-
-    let effective_provider = env_primary_provider
-        .clone()
-        .or_else(|| env_secondary_provider.clone())
-        .unwrap_or_else(|| compiled_provider.clone());
-
-    let effective_model = env_primary_model
-        .clone()
-        .or_else(|| env_secondary_model.clone())
-        .unwrap_or_else(|| Workspace::default_embedding_model_for_provider(&effective_provider));
-
-    let active_level = if env_primary_provider.is_some() || env_primary_model.is_some() {
-        "env_primary"
-    } else if env_secondary_provider.is_some() || env_secondary_model.is_some() {
-        "env_secondary"
-    } else {
-        "compiled_default"
-    };
-
-    let levels = vec![
-        ConfigLevel {
-            level: "compiled_default".to_string(),
-            label: "Compiled Default".to_string(),
-            provider: Some(compiled_provider),
-            model: Some(compiled_model),
-            active: active_level == "compiled_default",
-            note: Some("Built-in embedding fallback.".to_string()),
-            source: Some("binary constant".to_string()),
-        },
-        ConfigLevel {
-            level: "env_secondary".to_string(),
-            label: "Env: EDGEQUAKE_EMBEDDING_*".to_string(),
-            provider: env_secondary_provider,
-            model: env_secondary_model,
-            active: active_level == "env_secondary",
-            note: None,
-            source: Some("EDGEQUAKE_EMBEDDING_PROVIDER | EDGEQUAKE_EMBEDDING_MODEL".to_string()),
-        },
-        ConfigLevel {
-            level: "env_primary".to_string(),
-            label: "Env: EDGEQUAKE_DEFAULT_EMBEDDING_*".to_string(),
-            provider: env_primary_provider,
-            model: env_primary_model,
-            active: active_level == "env_primary",
-            note: Some("Recommended primary variables. Overrides all other env vars.".to_string()),
-            source: Some(
-                "EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER | EDGEQUAKE_DEFAULT_EMBEDDING_MODEL"
-                    .to_string(),
-            ),
-        },
-    ];
-
-    (levels, effective_provider, effective_model)
-}
-
-/// Build the vision LLM config resolution chain.
-///
-/// Vision falls back to the LLM provider/model when no vision-specific vars
-/// are set, which mirrors the logic in `default_vision_model_for_provider`.
-fn resolve_vision_chain() -> (Vec<ConfigLevel>, String, String) {
-    use edgequake_core::Workspace;
-
-    let (llm_levels, llm_effective_provider, llm_effective_model) = resolve_llm_chain();
-    let compiled_provider = llm_effective_provider.clone();
-    let compiled_model = Workspace::default_model_for_provider(&compiled_provider);
-
-    // Read ALL vision-related env vars (matching types.rs resolution order)
-    let env_vision_provider = non_empty("EDGEQUAKE_VISION_PROVIDER")
-        .or_else(|| non_empty("EDGEQUAKE_VISION_LLM_PROVIDER"));
-    let env_vision_model =
-        non_empty("EDGEQUAKE_VISION_MODEL").or_else(|| non_empty("EDGEQUAKE_VISION_LLM_MODEL"));
-
-    // Track which specific env var was the source for accurate diagnostics
-    let vision_provider_source = if non_empty("EDGEQUAKE_VISION_PROVIDER").is_some() {
-        "EDGEQUAKE_VISION_PROVIDER"
-    } else if non_empty("EDGEQUAKE_VISION_LLM_PROVIDER").is_some() {
-        "EDGEQUAKE_VISION_LLM_PROVIDER"
-    } else {
-        "(inherited from LLM)"
-    };
-    let vision_model_source = if non_empty("EDGEQUAKE_VISION_MODEL").is_some() {
-        "EDGEQUAKE_VISION_MODEL"
-    } else if non_empty("EDGEQUAKE_VISION_LLM_MODEL").is_some() {
-        "EDGEQUAKE_VISION_LLM_MODEL"
-    } else {
-        "(inherited from LLM)"
-    };
-
-    let effective_provider = env_vision_provider
-        .clone()
-        .unwrap_or_else(|| llm_effective_provider.clone());
-
-    let effective_model = env_vision_model
-        .clone()
-        .unwrap_or_else(|| llm_effective_model.clone());
-
-    let active_level: String = if env_vision_provider.is_some() || env_vision_model.is_some() {
-        "env_vision".to_string()
-    } else {
-        llm_levels
-            .iter()
-            .find(|l| l.active)
-            .map(|l| l.level.clone())
-            .unwrap_or_else(|| "compiled_default".to_string())
-    };
-
-    let llm_fallback_note = format!(
-        "Inherited from LLM config (provider={}, model={}). Set EDGEQUAKE_VISION_PROVIDER / EDGEQUAKE_VISION_MODEL to override.",
-        llm_effective_provider, llm_effective_model
-    );
-
-    let levels = vec![
-        ConfigLevel {
-            level: "compiled_default".to_string(),
-            label: "Compiled Default (via LLM)".to_string(),
-            provider: Some(compiled_provider),
-            model: Some(compiled_model),
-            active: active_level == "compiled_default",
-            note: Some(llm_fallback_note.clone()),
-            source: Some("binary constant (LLM default)".to_string()),
-        },
-        ConfigLevel {
-            level: "env_llm_inherit".to_string(),
-            label: "Env: Inherited from LLM".to_string(),
-            provider: Some(llm_effective_provider.clone()),
-            model: Some(llm_effective_model.clone()),
-            active: active_level != "env_vision" && active_level != "compiled_default",
-            note: Some(llm_fallback_note),
-            source: Some("EDGEQUAKE_DEFAULT_LLM_* | EDGEQUAKE_LLM_*".to_string()),
-        },
-        ConfigLevel {
-            level: "env_vision".to_string(),
-            label: "Env: Vision Override".to_string(),
-            provider: env_vision_provider,
-            model: env_vision_model,
-            active: active_level == "env_vision",
-            note: Some(
-                "Dedicated vision override. Takes priority over all LLM settings.".to_string(),
-            ),
-            source: Some(format!(
-                "{} | {}",
-                vision_provider_source, vision_model_source
-            )),
-        },
-    ];
-
-    (levels, effective_provider, effective_model)
-}
-
-fn build_config_area(
+pub(crate) fn build_config_area(
     levels: Vec<ConfigLevel>,
     effective_provider: String,
     effective_model: String,
@@ -446,32 +193,31 @@ pub async fn list_available_providers(
     )
 )]
 pub async fn get_effective_config(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
 ) -> Result<Json<EffectiveConfigResponse>, ApiError> {
-    let (llm_levels, llm_provider, llm_model) = resolve_llm_chain();
-    let (emb_levels, emb_provider, emb_model) = resolve_embedding_chain();
-    let (vis_levels, vis_provider, vis_model) = resolve_vision_chain();
+    #[cfg(feature = "postgres")]
+    let snapshot = if let Some(pool) = app_state.pg_pool.as_ref() {
+        app_state
+            .server_config
+            .snapshot_with_postgres(Some(pool))
+            .await
+    } else {
+        app_state.server_config.snapshot().await
+    };
+
+    #[cfg(not(feature = "postgres"))]
+    let snapshot = app_state.server_config.snapshot().await;
+
+    let response = crate::config_resolution::build_effective_config(&snapshot);
 
     tracing::debug!(
-        llm_provider = %llm_provider,
-        llm_model = %llm_model,
-        emb_provider = %emb_provider,
-        emb_model = %emb_model,
-        vis_provider = %vis_provider,
-        vis_model = %vis_model,
+        llm_provider = %response.llm.effective_provider,
+        llm_model = %response.llm.effective_model,
+        priority_mode = %response.priority_mode,
         "Effective config requested"
     );
 
-    Ok(Json(EffectiveConfigResponse {
-        llm: build_config_area(llm_levels, llm_provider, llm_model),
-        embedding: build_config_area(emb_levels, emb_provider, emb_model),
-        vision: build_config_area(vis_levels, vis_provider, vis_model),
-        priority_rule:
-            "Higher-indexed levels override lower. \
-             compiled_default < env_alias < env_secondary < env_primary. \
-             Vision inherits from LLM when no EDGEQUAKE_VISION_PROVIDER / EDGEQUAKE_VISION_MODEL vars are set. \
-             The backend auto-corrects provider/model mismatches at runtime, but fixing the env var source is recommended.".to_string(),
-    }))
+    Ok(Json(response))
 }
 
 #[cfg(test)]
@@ -531,7 +277,10 @@ mod tests {
         assert!(ids.contains(&"openai"));
         assert!(ids.contains(&"ollama"));
         assert!(ids.contains(&"lmstudio"));
-        assert!(ids.contains(&"mock"));
+        assert!(
+            !ids.contains(&"mock"),
+            "mock must be hidden from UI provider list"
+        );
         assert!(
             ids.contains(&"mistral"),
             "mistral provider missing from llm_providers"
@@ -540,15 +289,6 @@ mod tests {
             ids.contains(&"vertexai"),
             "vertexai provider missing from llm_providers"
         );
-
-        // Assert: Mock is always available
-        let mock = response
-            .llm_providers
-            .iter()
-            .find(|p| p.id == "mock")
-            .unwrap();
-        assert!(mock.available);
-        assert_eq!(mock.default_models.embedding_dimension, 768);
 
         // Assert: LM Studio defaults (from bundled models.toml)
         let lmstudio = response
