@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+SPEC-043 unified LLM model picker, server config, provider attribution, and Vertex AI identity authentication.
+
+### Added — SPEC-043 LLM model picker & server config
+
+- **Unified model picker** — Shared `ModelPickerPanel` across workspace, query, and settings; server-side search (`/api/v1/models/search`), capability tags, keyboard scroll containment.
+- **Provider Status Hub** — Settings card shows per-provider health, `auth_kind` (`api_key` vs `oauth2_identity`), and structured `config_requirements` with remediation hints.
+- **Server LLM config overrides** — Persisted server defaults (provider/model) via settings API; config explainability panel for effective resolution chain.
+- **Application attribution API** — Runtime attribution headers and settings UI for downstream LLM request labeling (SPEC-043 §004).
+- **Expanded model catalog** — Bundled `models.toml` embedded at compile time; runtime override via `EDGEQUAKE_MODELS_CONFIG`, `./models.toml`, or `~/.edgequake/models.toml`.
+- **Vertex AI identity auth (§011)** — `vertexai` classified as `OAuth2Identity`, not API key. Auth ladder: `GOOGLE_ACCESS_TOKEN` → GCE metadata/ADC → service account JSON → gcloud ADC. Provider health and UI copy describe identity prerequisites; runtime uses `GeminiProvider::from_env_vertex_ai_adc()`.
+- **E2E** — `spec043-llm-model-picker.spec.ts` (model picker + Vertex identity badge); battle-tested screenshots under `specs/043-update-edgequake-llm/e2e/`.
+
+### Changed
+
+- **`/api/v1/providers`** — Responses include `auth_kind` and `config_requirements`; Vertex health probes live token when configured.
+- **Provider catalog DRY** — Config requirements delegated to `credentials::provider_config_requirements()`.
+
+### Documentation
+
+- README, `docs/operations/configuration.md`, and `edgequake/docs/configuration.md` — Vertex AI vs Gemini Developer API auth, env vars, and local ADC setup.
+
 ---
 
 ## [0.14.1] — 2026-07-04

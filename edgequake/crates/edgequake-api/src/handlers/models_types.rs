@@ -63,6 +63,14 @@ pub struct ProviderResponse {
     /// Runtime health status (None if not checked).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub health: Option<ProviderHealthResponse>,
+
+    /// Authentication model: `api_key`, `oauth2_identity`, `local`, …
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_kind: Option<String>,
+
+    /// Env / identity prerequisites for this provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_requirements: Option<Vec<crate::provider_types::ConfigRequirement>>,
 }
 
 /// Individual model information (model card).

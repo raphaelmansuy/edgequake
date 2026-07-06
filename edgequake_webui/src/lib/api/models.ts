@@ -75,6 +75,16 @@ export interface ProviderHealthResponse {
 /**
  * Provider configuration with models.
  */
+export interface ConfigRequirement {
+  env_var: string;
+  required: boolean;
+  description: string;
+  satisfied: boolean;
+}
+
+/**
+ * Provider configuration with models.
+ */
 export interface ProviderResponse {
   name: string;
   display_name: string;
@@ -84,6 +94,9 @@ export interface ProviderResponse {
   description: string;
   models: ModelResponse[];
   health?: ProviderHealthResponse;
+  /** Authentication model: api_key, oauth2_identity, local, … */
+  auth_kind?: string;
+  config_requirements?: ConfigRequirement[];
 }
 
 /**

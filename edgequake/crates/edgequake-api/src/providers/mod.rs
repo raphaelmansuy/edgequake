@@ -61,8 +61,9 @@ mod error;
 mod resolver;
 
 pub use credentials::{
-    llm_provider_credentials_configured, llm_provider_credentials_configured_by_name,
-    provider_credentials_configured,
+    credential_kind_for, llm_provider_credentials_configured,
+    llm_provider_credentials_configured_by_name, provider_config_requirements,
+    provider_credentials_configured, vertex_auth_configured_sync, CredentialKind,
 };
 pub use error::ProviderResolutionError;
 pub use resolver::{

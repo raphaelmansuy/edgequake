@@ -30,7 +30,7 @@
 | openai | ✅ | ✅ Full attribution | ✅ | keep |
 | anthropic | ✅ | ✅ Full | ✅ | keep |
 | gemini | ✅ | ✅ Full | ✅ | keep |
-| vertexai | ✅ | ✅ Full | ✅ | keep |
+| vertexai | ✅ | ✅ Full | ✅ | keep — **identity auth (ADC/SA), not API key** — see 011 |
 | mistral | ✅ | ✅ Full | ✅ | keep |
 | azure | ✅ | ✅ Full | ✅ | keep |
 | xai | ✅ | ✅ Passthrough | ✅ | keep |

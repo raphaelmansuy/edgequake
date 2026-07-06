@@ -7,6 +7,7 @@
 3. **Discovery over heuristics** — UI search delegates to `find_static_models` / `ModelSearchQuery`; live discovery is opt-in (`?live=true`).
 4. **Provider-before-model** — Humans choose provider first (availability, credentials), then model (capability, cost).
 5. **Runtime config without redeploy** — Server-wide LLM defaults live in `server_config` JSONB; env vars remain override for ops.
+6. **Identity ≠ API key** — Providers like `vertexai` and `bedrock` use OAuth2 / IAM credential ladders, not `api_key_env`. Health checks and UI copy must use `CredentialKind`, not a single key env var. See [011-vertexai-authentication.md](./011-vertexai-authentication.md).
 
 ---
 

@@ -100,12 +100,56 @@ DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
 | `ANTHROPIC_API_KEY`  | String | None                        | Anthropic API key (required) |
 | `ANTHROPIC_BASE_URL` | String | `https://api.anthropic.com` | API endpoint                 |
 
-#### Google Gemini
+#### Google Gemini (Developer API)
 
 | Variable          | Type   | Default                                     | Description       |
 | ----------------- | ------ | ------------------------------------------- | ----------------- |
 | `GEMINI_API_KEY`  | String | None                                        | Google AI API key |
+| `GOOGLE_API_KEY`  | String | None                                        | Alias for Gemini  |
 | `GEMINI_BASE_URL` | String | `https://generativelanguage.googleapis.com` | API endpoint      |
+
+> **Not Vertex AI.** Gemini Developer API uses a static API key. Enterprise Vertex AI uses OAuth2 identity — see below.
+
+#### Google Vertex AI (Enterprise)
+
+Vertex AI (`vertexai` provider) authenticates with **short-lived OAuth2 bearer tokens** minted from GCP identity — not a static API key. The Settings → Provider Status Hub shows **Identity (ADC)** and structured requirements.
+
+| Variable                         | Type   | Default        | Description                                                                 |
+| -------------------------------- | ------ | -------------- | --------------------------------------------------------------------------- |
+| `GOOGLE_CLOUD_PROJECT`           | String | None           | **Required.** GCP project ID                                                |
+| `GOOGLE_CLOUD_REGION`            | String | `us-central1`  | Regional endpoint (`{region}-aiplatform.googleapis.com`)                    |
+| `GOOGLE_CLOUD_LOCATION`          | String | —              | Alias for region (some Google SDKs)                                         |
+| `GOOGLE_ACCESS_TOKEN`            | String | None           | Explicit bearer token (~1 h TTL; CI/debug only)                             |
+| `GOOGLE_APPLICATION_CREDENTIALS` | String | None           | Path to service account JSON or WIF config                                  |
+
+**Auth resolution ladder** (first match wins at runtime):
+
+1. `GOOGLE_ACCESS_TOKEN` — use as-is
+2. GCE/GKE/Cloud Run metadata server (attached service account; auto-refresh)
+3. ADC file (`~/.config/gcloud/application_default_credentials.json`)
+4. Service account key via `GOOGLE_APPLICATION_CREDENTIALS`
+5. `gcloud auth application-default print-access-token` (local dev)
+
+**Local development:**
+
+```bash
+# Correct ADC login (common mistake: swapping the last two words)
+gcloud auth application-default login
+
+export GOOGLE_CLOUD_PROJECT=your-gcp-project
+export GOOGLE_CLOUD_REGION=europe-west1   # optional
+
+# If ~/.edgequake/models.toml lacks vertexai, use the bundled catalog:
+export EDGEQUAKE_MODELS_CONFIG=/path/to/edgequake/edgequake/models.toml
+
+make dev
+```
+
+**Production:** Prefer an attached workload service account (GCE/GKE/Cloud Run) with `roles/aiplatform.user`. Avoid long-lived SA key files when metadata-based auth is available.
+
+**Stale ADC:** An expired token file may show requirements as satisfied while health remains offline — re-run `gcloud auth application-default login`.
+
+Design reference: [SPEC-043 §011 — Vertex AI Authentication](../specs/043-update-edgequake-llm/011-vertexai-authentication.md).
 
 #### xAI (Grok)
 
@@ -303,7 +347,8 @@ image_per_unit = 0.0
 | ------------ | ----------------------- | ---------------------- |
 | `openai`     | OpenAI API compatible   | `OPENAI_API_KEY`       |
 | `anthropic`  | Anthropic Claude models | `ANTHROPIC_API_KEY`    |
-| `gemini`     | Google Gemini models    | `GEMINI_API_KEY`       |
+| `gemini`     | Google Gemini Developer API | `GEMINI_API_KEY` / `GOOGLE_API_KEY` |
+| `vertexai`   | Google Vertex AI (enterprise) | **Identity** — `GOOGLE_CLOUD_PROJECT` + ADC/SA (no static API key) |
 | `xai`        | xAI Grok models         | `XAI_API_KEY`          |
 | `openrouter` | OpenRouter aggregator   | `OPENROUTER_API_KEY`   |
 | `minimax`    | MiniMax AI models       | `MINIMAX_API_KEY`      |
@@ -488,6 +533,45 @@ embedding_dimension = 3072
 [providers.models.cost]
 input_per_1k = 0.00015
 ```
+
+### Google Vertex AI (Enterprise)
+
+Vertex uses IAM identity auth — leave `api_key_env` empty in `models.toml`:
+
+```toml
+[[providers]]
+name = "vertexai"
+display_name = "Google Vertex AI"
+type = "vertexai"
+api_base = "https://aiplatform.googleapis.com"
+api_key_env = ""   # OAuth2 identity — not a static key
+enabled = true
+priority = 7
+description = "Enterprise Gemini on Vertex AI; IAM / ADC authentication"
+
+[[providers.models]]
+name = "gemini-2.5-flash"
+display_name = "Gemini 2.5 Flash (Vertex)"
+model_type = "llm"
+tags = ["recommended", "enterprise"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 8192
+supports_vision = true
+supports_streaming = true
+
+[[providers.models]]
+name = "gemini-embedding-001"
+display_name = "Gemini Embedding (Vertex)"
+model_type = "embedding"
+
+[providers.models.capabilities]
+context_length = 10000
+embedding_dimension = 3072
+```
+
+Set `GOOGLE_CLOUD_PROJECT` and authenticate via ADC or an attached service account before selecting `vertexai` in the UI or `EDGEQUAKE_LLM_PROVIDER=vertexai`.
 
 ### xAI (Grok)
 

@@ -426,6 +426,16 @@ impl EmbeddingProvider for SafetyLimitedEmbeddingProviderWrapper {
 /// Validate that the required API key environment variable is set and non-empty for the
 /// given provider, returning a clear `ConfigError` before attempting to build the client.
 fn check_api_key(provider_name: &str) -> Result<()> {
+    let provider = provider_name.to_ascii_lowercase();
+    if provider == "vertexai" || provider == "vertex" {
+        if !crate::providers::credentials::vertex_auth_configured_sync() {
+            return Err(LlmError::ConfigError(
+                crate::providers::credentials::vertex_auth_health_error(),
+            ));
+        }
+        return Ok(());
+    }
+
     let (env_var, display_name) = match provider_name {
         "openai" => ("OPENAI_API_KEY", "OpenAI"),
         "anthropic" => ("ANTHROPIC_API_KEY", "Anthropic"),
@@ -452,6 +462,43 @@ fn check_api_key(provider_name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Create an LLM provider, using Vertex ADC path when applicable (SPEC-043 §011).
+fn create_inner_llm_provider(
+    provider_name: &str,
+    model: &str,
+    ctx: Option<ApplicationContext>,
+) -> Result<Arc<dyn LLMProvider>> {
+    let provider = provider_name.to_ascii_lowercase();
+    if provider == "vertexai" || provider == "vertex" {
+        return create_vertex_llm_via_adc(model, ctx);
+    }
+    match ctx {
+        Some(ctx) => ProviderFactory::create_llm_provider_with_context(provider_name, model, ctx),
+        None => ProviderFactory::create_llm_provider(provider_name, model),
+    }
+}
+
+fn create_vertex_llm_via_adc(
+    model: &str,
+    ctx: Option<ApplicationContext>,
+) -> Result<Arc<dyn LLMProvider>> {
+    use edgequake_llm::GeminiProvider;
+
+    let actual = model.strip_prefix("vertexai:").unwrap_or(model);
+    let handle = tokio::runtime::Handle::try_current().map_err(|_| {
+        LlmError::ConfigError(
+            "Vertex AI requires a Tokio runtime for Application Default Credentials".to_string(),
+        )
+    })?;
+    let mut provider =
+        tokio::task::block_in_place(|| handle.block_on(GeminiProvider::from_env_vertex_ai_adc()))?;
+    provider = provider.with_model(actual);
+    if let Some(ctx) = ctx {
+        provider = provider.with_application_context(ctx);
+    }
+    Ok(Arc::new(provider))
+}
+
 /// Create a safety-limited LLM provider from workspace configuration.
 pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<dyn LLMProvider>> {
     if let Some((llm, _)) = test_provider_override() {
@@ -475,7 +522,7 @@ pub fn create_safe_llm_provider(provider_name: &str, model: &str) -> Result<Arc<
         model
     };
 
-    let inner = ProviderFactory::create_llm_provider(provider_name, effective_model)?;
+    let inner = create_inner_llm_provider(provider_name, effective_model, None)?;
     let config = SafetyLimitsConfig::from_env();
 
     tracing::info!(
@@ -514,8 +561,7 @@ pub fn create_safe_llm_provider_with_context(
         model
     };
 
-    let inner =
-        ProviderFactory::create_llm_provider_with_context(provider_name, effective_model, ctx)?;
+    let inner = create_inner_llm_provider(provider_name, effective_model, Some(ctx))?;
     let config = SafetyLimitsConfig::from_env();
 
     Ok(Arc::new(SafetyLimitedProviderWrapper::new(inner, config)))
@@ -555,8 +601,7 @@ pub fn create_safe_llm_provider_with_headers(
     let mut ctx = ApplicationContext::from_env();
     ctx.extra_headers.extend(headers);
 
-    let inner =
-        ProviderFactory::create_llm_provider_with_context(provider_name, effective_model, ctx)?;
+    let inner = create_inner_llm_provider(provider_name, effective_model, Some(ctx))?;
 
     let config = SafetyLimitsConfig::from_env();
 
@@ -797,7 +842,7 @@ pub fn create_safe_vision_provider(
         model
     };
 
-    let inner = ProviderFactory::create_llm_provider(provider_name, effective_model)?;
+    let inner = create_inner_llm_provider(provider_name, effective_model, None)?;
 
     let timeout_secs = vision_page_timeout_secs(provider_name);
     let config = SafetyLimitsConfig {

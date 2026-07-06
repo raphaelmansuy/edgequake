@@ -47,6 +47,19 @@
 
 ---
 
+## Phase P3.1 — Vertex AI identity auth
+
+- [x] `vertex_auth_configured()` OR-ladder in `credentials.rs` (project + ADC/SA/token)
+- [x] Fix `check_provider_health` — no `"API key not configured"` for vertexai
+- [x] Resolver uses `from_env_vertex_ai_adc()` async path
+- [x] Provider Status Hub shows identity requirements
+
+**Battle test:** Vertex shows offline with actionable identity message, not API key; ADC login → online.
+
+See [011-vertexai-authentication.md](./011-vertexai-authentication.md).
+
+---
+
 ## Phase P4 — UX/UI
 
 - [x] `ModelPickerPanel` shared component (provider chips, search, capability filters, remote `/models/search`)
@@ -139,3 +152,4 @@ cargo clippy -p edgequake-api -- -D warnings
 | `08-model-picker-keyboard-focus.png` | Keyboard ↓ highlight in open dropdown |
 | `09-model-picker-wheel-scroll.png` | Wheel scroll inside list (page does not scroll) |
 | `10-lmstudio-live-discovery.png` | LM Studio chip + Live badge (edgequake-llm 0.10.1) |
+| `11-vertexai-identity-auth.png` | Vertex AI Identity (ADC) badge + requirements |

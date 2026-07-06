@@ -235,15 +235,29 @@ cd edgequake/docker && docker compose up -d
 |----------|---------|-------------|
 | `EDGEQUAKE_LLM_PROVIDER` | `ollama` | `openai`, `anthropic`, `gemini`, `mistral`, `ollama`, `azure`, `vertexai` |
 | `EDGEQUAKE_EMBEDDING_PROVIDER` | *(same as LLM)* | Separate embedding provider for hybrid mode |
+| `EDGEQUAKE_MODELS_CONFIG` | — | Path to custom `models.toml` (see bundled catalog in repo) |
 | `OPENAI_API_KEY` | — | Required for `openai` |
 | `ANTHROPIC_API_KEY` | — | Required for `anthropic` |
-| `GEMINI_API_KEY` | — | Required for `gemini` |
+| `GEMINI_API_KEY` | — | Required for **Gemini Developer API** (`gemini` provider) |
+| `GOOGLE_CLOUD_PROJECT` | — | Required for **Vertex AI** (`vertexai` provider) |
+| `GOOGLE_CLOUD_REGION` | `us-central1` | Vertex AI regional endpoint |
+| `GOOGLE_APPLICATION_CREDENTIALS` | — | Service account JSON path (Vertex identity auth) |
 | `MISTRAL_API_KEY` | — | Required for `mistral` |
 | `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama server URL |
 | `EDGEQUAKE_VERSION` | `latest` | GHCR image tag |
 | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | `180` | Per-chunk LLM timeout (seconds) |
 | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16` | Max parallel LLM calls |
 | `RUST_LOG` | `info` | Log level |
+
+**Vertex AI vs Gemini:** `gemini` uses a static API key (`GEMINI_API_KEY`). `vertexai` uses **OAuth2 identity** (ADC or service account) — not an API key. Local setup:
+
+```bash
+gcloud auth application-default login   # not: gcloud auth login application-default
+export GOOGLE_CLOUD_PROJECT=your-gcp-project
+export GOOGLE_CLOUD_REGION=europe-west1   # optional; default us-central1
+```
+
+If `~/.edgequake/models.toml` omits `vertexai`, point at the bundled catalog: `export EDGEQUAKE_MODELS_CONFIG=edgequake/models.toml`. See [Configuration — Vertex AI](docs/operations/configuration.md#google-vertex-ai-enterprise).
 
 </details>
 

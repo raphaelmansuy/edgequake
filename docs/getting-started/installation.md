@@ -174,6 +174,23 @@ export OPENAI_API_KEY="sk-your-key"
 make dev
 ```
 
+### Google Vertex AI (Enterprise)
+
+Vertex AI uses **IAM identity auth** (ADC or service account), not a static API key. Do not confuse with the Gemini Developer API (`GEMINI_API_KEY`).
+
+```bash
+gcloud auth application-default login
+export GOOGLE_CLOUD_PROJECT=your-gcp-project
+export GOOGLE_CLOUD_REGION=europe-west1   # optional
+
+# Use bundled catalog if ~/.edgequake/models.toml omits vertexai:
+export EDGEQUAKE_MODELS_CONFIG=edgequake/models.toml
+
+make dev
+```
+
+Verify in Settings → Provider Status Hub: Vertex AI should show **Identity (ADC)** when configured. See [Configuration — Vertex AI](/docs/operations/configuration#google-vertex-ai-enterprise).
+
 ### Provider Switching at Runtime
 
 Once running, you can switch providers via API:

@@ -39,6 +39,7 @@ Upstream [v0.10.1](https://github.com/raphaelmansuy/edgequake-llm/releases/tag/v
 | 08 | [008-implementation-plan.md](./008-implementation-plan.md) | Phased plan + battle tests |
 | 09 | [009-cross-reference-matrix.md](./009-cross-reference-matrix.md) | FEAT/BR/API traceability |
 | 10 | [010-model-picker-keyboard-scroll.md](./010-model-picker-keyboard-scroll.md) | List keyboard + wheel UX |
+| 11 | [011-vertexai-authentication.md](./011-vertexai-authentication.md) | Vertex ADC / SA / token auth model |
 
 ---
 

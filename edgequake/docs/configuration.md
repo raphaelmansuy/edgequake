@@ -99,11 +99,28 @@ Configuration for the language model and embedding providers.
 
 ### Supported Providers
 
-| Provider     | Value    | Notes                                                    |
-| ------------ | -------- | -------------------------------------------------------- |
-| OpenAI       | `openai` | Default, requires `OPENAI_API_KEY`                       |
-| Azure OpenAI | `azure`  | Set `base_url` to your Azure endpoint                    |
-| Ollama       | `ollama` | Local models, set `base_url` to `http://localhost:11434` |
+| Provider     | Value      | Auth model   | Notes                                                    |
+| ------------ | ---------- | ------------ | -------------------------------------------------------- |
+| OpenAI       | `openai`   | API key      | Requires `OPENAI_API_KEY`                                |
+| Anthropic    | `anthropic`| API key      | Requires `ANTHROPIC_API_KEY`                             |
+| Gemini       | `gemini`   | API key      | Developer API — `GEMINI_API_KEY` or `GOOGLE_API_KEY`     |
+| Vertex AI    | `vertexai` | **Identity** | Enterprise — `GOOGLE_CLOUD_PROJECT` + ADC/SA (see below) |
+| Mistral      | `mistral`  | API key      | Requires `MISTRAL_API_KEY`                               |
+| Azure OpenAI | `azure`    | API key      | Set `base_url` to your Azure endpoint                    |
+| Ollama       | `ollama`   | None (local) | Set `base_url` to `http://localhost:11434`               |
+
+### Google Vertex AI (identity auth)
+
+Vertex AI is **not** the Gemini Developer API. It uses OAuth2 bearer tokens from GCP identity:
+
+| Variable                         | Required | Description                          |
+| -------------------------------- | -------- | ------------------------------------ |
+| `GOOGLE_CLOUD_PROJECT`           | Yes      | GCP project ID                       |
+| `GOOGLE_CLOUD_REGION`            | No       | Default `us-central1`                |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No     | Service account JSON path            |
+| `GOOGLE_ACCESS_TOKEN`            | No       | Explicit token (debug/CI only)       |
+
+Local setup: `gcloud auth application-default login` then export `GOOGLE_CLOUD_PROJECT`. Provider health in Settings shows **Identity (ADC)** instead of “API key not configured”. Full reference: [Configuration — Vertex AI](../../docs/operations/configuration.md#google-vertex-ai-enterprise).
 
 ### Model Recommendations
 

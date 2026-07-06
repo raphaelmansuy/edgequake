@@ -23,6 +23,7 @@
 | FEAT04342 | ProviderStatusHub | 006 | — | `provider-status-hub.tsx` | visual |
 | FEAT04350 | Server LLM defaults save | 007 | `handlers/llm_defaults.rs` | `server-llm-config-card.tsx` | admin e2e |
 | FEAT04351 | App attribution save | 007 | server_config | settings card | admin e2e |
+| FEAT04360 | Vertex AI identity auth | 011 | `credentials.rs`, `models.rs`, resolver | provider-status-hub | health curl + e2e |
 
 ---
 

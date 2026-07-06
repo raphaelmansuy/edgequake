@@ -46,6 +46,8 @@ pub use crate::handlers::models_types::{
 
 /// Convert a ProviderConfig to a ProviderResponse DTO.
 fn provider_to_response(provider: &edgequake_llm::ProviderConfig) -> ProviderResponse {
+    use crate::providers::credentials::{credential_kind_for, provider_config_requirements};
+
     ProviderResponse {
         name: provider.name.clone(),
         display_name: provider.display_name.clone(),
@@ -54,7 +56,9 @@ fn provider_to_response(provider: &edgequake_llm::ProviderConfig) -> ProviderRes
         priority: provider.priority,
         description: provider.description.clone(),
         models: provider.models.iter().map(model_card_to_response).collect(),
-        health: None, // Set separately during health check
+        health: None,
+        auth_kind: Some(credential_kind_for(&provider.name).as_str().to_string()),
+        config_requirements: Some(provider_config_requirements(provider)),
     }
 }
 
@@ -390,14 +394,31 @@ async fn check_provider_health(
             }
         }
         _ => {
-            use crate::providers::credentials::provider_credentials_configured;
+            use crate::providers::credentials::{
+                probe_vertex_auth_live, provider_credentials_configured,
+                provider_credentials_health_error,
+            };
+
+            if provider.name == "vertexai" {
+                let start = Instant::now();
+                let configured = provider_credentials_configured(provider);
+                let (available, error) = if !configured {
+                    (false, Some(provider_credentials_health_error(provider)))
+                } else {
+                    match probe_vertex_auth_live().await {
+                        Ok(()) => (true, None),
+                        Err(msg) => (false, Some(msg)),
+                    }
+                };
+                return ProviderHealthResponse {
+                    available,
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    error,
+                    checked_at: checked_at.to_string(),
+                };
+            }
 
             let credentials_ok = provider_credentials_configured(provider);
-            let env_hint = provider
-                .api_key_env
-                .as_deref()
-                .filter(|s| !s.is_empty())
-                .unwrap_or("API key");
 
             ProviderHealthResponse {
                 available: credentials_ok,
@@ -405,7 +426,7 @@ async fn check_provider_health(
                 error: if credentials_ok {
                     None
                 } else {
-                    Some(format!("{} not configured", env_hint))
+                    Some(provider_credentials_health_error(provider))
                 },
                 checked_at: checked_at.to_string(),
             }
@@ -545,5 +566,52 @@ mod tests {
         let filtered = filter_ui_providers(&providers, &None);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "openai");
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn vertex_health_never_reports_api_key_error() {
+        let prev_project = std::env::var("GOOGLE_CLOUD_PROJECT").ok();
+        let prev_token = std::env::var("GOOGLE_ACCESS_TOKEN").ok();
+        std::env::remove_var("GOOGLE_CLOUD_PROJECT");
+        std::env::remove_var("GOOGLE_ACCESS_TOKEN");
+
+        let provider = edgequake_llm::ProviderConfig {
+            name: "vertexai".to_string(),
+            display_name: "Google Vertex AI".to_string(),
+            provider_type: ProviderType::OpenAICompatible,
+            enabled: true,
+            ..Default::default()
+        };
+
+        let health = check_provider_health(&provider, "2026-07-06T00:00:00Z").await;
+        assert!(!health.available);
+        let err = health.error.unwrap_or_default();
+        assert!(!err.to_ascii_lowercase().contains("api key"));
+        assert!(err.contains("GOOGLE_CLOUD_PROJECT"));
+
+        if let Some(v) = prev_project {
+            std::env::set_var("GOOGLE_CLOUD_PROJECT", v);
+        }
+        if let Some(v) = prev_token {
+            std::env::set_var("GOOGLE_ACCESS_TOKEN", v);
+        }
+    }
+
+    #[test]
+    fn vertex_provider_response_includes_oauth2_auth_kind() {
+        let provider = edgequake_llm::ProviderConfig {
+            name: "vertexai".to_string(),
+            display_name: "Google Vertex AI".to_string(),
+            provider_type: ProviderType::OpenAICompatible,
+            enabled: true,
+            ..Default::default()
+        };
+        let response = provider_to_response(&provider);
+        assert_eq!(response.auth_kind.as_deref(), Some("oauth2_identity"));
+        assert!(response
+            .config_requirements
+            .as_ref()
+            .is_some_and(|r| !r.is_empty()));
     }
 }

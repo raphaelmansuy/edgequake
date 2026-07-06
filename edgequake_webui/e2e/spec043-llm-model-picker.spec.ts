@@ -291,6 +291,45 @@ test.describe("SPEC-043 LLM model picker & attribution", () => {
         fullPage: true,
       });
     });
+
+    test("vertexai provider uses identity auth labels (not API key)", async ({
+      page,
+      request,
+    }) => {
+      const healthResponse = await request.get(`${API_V1_URL}/models/health`);
+      expect(healthResponse.ok()).toBeTruthy();
+      const healthBody = (await healthResponse.json()) as Array<{
+        name: string;
+        auth_kind?: string;
+        health?: { available: boolean; error?: string };
+      }>;
+      const vertex = healthBody.find((p) => p.name === "vertexai");
+      expect(vertex).toBeDefined();
+      expect(vertex!.auth_kind).toBe("oauth2_identity");
+      if (vertex!.health?.error) {
+        expect(vertex!.health.error.toLowerCase()).not.toContain("api key");
+      }
+
+      await gotoWorkspacePage(page, request);
+
+      const vertexRow = page.getByTestId("provider-status-row-vertexai");
+      await expect(vertexRow).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("provider-auth-badge-vertexai")).toHaveText(
+        "Identity (ADC)",
+      );
+
+      await vertexRow.click();
+      await expect(page.getByTestId("provider-config-requirements-vertexai")).toBeVisible();
+      const errorLine = page.getByTestId("provider-health-error-vertexai");
+      if (await errorLine.isVisible().catch(() => false)) {
+        const errText = (await errorLine.textContent()) ?? "";
+        expect(errText.toLowerCase()).not.toContain("api key");
+      }
+
+      await vertexRow.screenshot({
+        path: spec043Screenshot("11-vertexai-identity-auth.png"),
+      });
+    });
   });
 
   test.describe("Query model picker", () => {
@@ -433,6 +472,28 @@ test.describe("SPEC-043 LLM model picker & attribution", () => {
           sources.has("dynamic_api") ||
           sources.has("user_config"),
       ).toBe(true);
+    });
+
+    test("GET /models/health returns oauth2_identity for vertexai (not API key errors)", async ({
+      request,
+    }) => {
+      const response = await request.get(`${API_V1_URL}/models/health`);
+      expect(response.ok()).toBeTruthy();
+      const body = (await response.json()) as Array<{
+        name: string;
+        auth_kind?: string;
+        config_requirements?: Array<{ env_var: string; required: boolean }>;
+        health?: { available: boolean; error?: string };
+      }>;
+      const vertex = body.find((p) => p.name === "vertexai");
+      expect(vertex).toBeDefined();
+      expect(vertex!.auth_kind).toBe("oauth2_identity");
+      expect(vertex!.config_requirements?.some((r) => r.env_var === "GOOGLE_CLOUD_PROJECT")).toBe(
+        true,
+      );
+      if (vertex!.health?.error) {
+        expect(vertex!.health.error.toLowerCase()).not.toContain("api key");
+      }
     });
 
     test("GET /models/search returns live LM Studio models when server is up", async ({
