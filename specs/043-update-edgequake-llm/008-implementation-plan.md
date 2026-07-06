@@ -17,6 +17,8 @@
 - [x] `create_safe_llm_provider_with_context` in `safety_limits.rs`
 - [x] Wire resolver + query handlers
 - [x] `GET /settings/attribution`, extend `/health`
+- [x] OpenAPI/Swagger — attribution paths + schemas in `openapi.rs`
+- [x] REST + configuration docs (`rest-api.md`, `configuration.md`)
 - [x] Unit tests for context merge
 
 **Battle test:** curl `/settings/attribution` shows all providers; query with `x-edgequake-app-id` logged in spans.
@@ -79,8 +81,10 @@ See [011-vertexai-authentication.md](./011-vertexai-authentication.md).
 ## Phase P5 — Server config persistence
 
 - [x] PATCH `/settings/app-attribution` (admin, postgres)
+- [x] OpenAPI: `GET/PATCH /settings/app-attribution`, `GET /settings/attribution`
 - [ ] GET/PATCH `llm-defaults` server-wide defaults
-- [ ] Load `app_attribution` from `server_config` at startup (env still wins)
+- [x] Load `app_attribution` from `server_config` at startup (env still wins)
+- [x] PATCH applies attribution immediately via `install_app_attribution`
 - [ ] Resolution ladder reads server_config for defaults
 
 **Battle test:** PATCH defaults → new workspace inherits without env change.

@@ -598,7 +598,7 @@ pub fn create_safe_llm_provider_with_headers(
     let headers = extra_headers.unwrap_or_default();
     let header_count = headers.len();
 
-    let mut ctx = ApplicationContext::from_env();
+    let mut ctx = crate::attribution::baseline_application_context();
     ctx.extra_headers.extend(headers);
 
     let inner = create_inner_llm_provider(provider_name, effective_model, Some(ctx))?;

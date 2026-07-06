@@ -442,13 +442,11 @@ test.describe("SPEC-043 LLM model picker & attribution", () => {
       expect(response.ok()).toBeTruthy();
       const body = (await response.json()) as {
         status: string;
-        attribution?: { active: boolean };
+        attribution: { app_id: string | null; app_name: string | null; active: boolean };
       };
       expect(body.status).toMatch(/healthy|degraded/);
-      // attribution block is optional but should be present after SPEC-043
-      if (body.attribution) {
-        expect(typeof body.attribution.active).toBe("boolean");
-      }
+      expect(body.attribution).toBeDefined();
+      expect(typeof body.attribution.active).toBe("boolean");
     });
 
     test("GET /models/search returns vertexai models (edgequake-llm 0.10.1+)", async ({

@@ -405,7 +405,7 @@ impl AppState {
         if let Err(e) = app_state.server_config.load_from_pool(&pool).await {
             tracing::warn!(error = %e, "Failed to load server_config LLM defaults at startup");
         } else {
-            tracing::info!("Loaded server_config LLM defaults (SPEC-043)");
+            tracing::info!("Loaded server_config LLM defaults and app attribution (SPEC-043)");
         }
 
         // SPEC-021 P4-02: Startup storage invariant check + auto-repair (SAFE tier)

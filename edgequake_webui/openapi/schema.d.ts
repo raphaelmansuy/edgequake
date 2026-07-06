@@ -2203,6 +2203,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/app-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get application attribution (alias of `/settings/attribution` for settings save UI). */
+        get: operations["get_app_attribution_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Save application attribution to server_config (admin, PostgreSQL). */
+        patch: operations["update_app_attribution"];
+        trace?: never;
+    };
+    "/api/v1/settings/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get application attribution settings and provider header catalog.
+         * @description Returns the effective `ApplicationContext` (from env), per-provider upstream
+         *     header/body field catalog from edgequake-llm, and ingress header names clients
+         *     may send to override attribution per request.
+         */
+        get: operations["get_attribution_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/provider/status": {
         parameters: {
             query?: never;
@@ -3184,6 +3224,66 @@ export interface components {
             prefix: string;
             /** @description Scopes. */
             scopes: string[];
+        };
+        /**
+         * @example {
+         *       "effective_context": {
+         *         "app_id": "edgequake",
+         *         "app_name": "EdgeQuake",
+         *         "app_url": "http://localhost:3000",
+         *         "tenant_id": null,
+         *         "request_id": null,
+         *         "end_user_id": null,
+         *         "active": true,
+         *         "sources": [
+         *           "env:EDGEQUAKE_APP_ID",
+         *           "env:EDGEQUAKE_APP_NAME"
+         *         ]
+         *       },
+         *       "providers": [
+         *         {
+         *           "id": "openai",
+         *           "display_name": "OpenAI",
+         *           "attribution_support": "full",
+         *           "headers": [
+         *             "X-Client-Request-Id"
+         *           ],
+         *           "body_fields": [
+         *             "user"
+         *           ]
+         *         },
+         *         {
+         *           "id": "openrouter",
+         *           "display_name": "OpenRouter",
+         *           "attribution_support": "full",
+         *           "headers": [
+         *             "HTTP-Referer",
+         *             "X-OpenRouter-Title",
+         *             "X-Title"
+         *           ],
+         *           "body_fields": []
+         *         }
+         *       ],
+         *       "ingress_headers": [
+         *         "x-edgequake-app-id",
+         *         "x-edgequake-app-name",
+         *         "x-edgequake-app-url",
+         *         "x-edgequake-tenant-id",
+         *         "x-edgequake-request-id"
+         *       ],
+         *       "environment_variables": [
+         *         "EDGEQUAKE_APP_ID",
+         *         "EDGEQUAKE_APP_NAME",
+         *         "EDGEQUAKE_APP_URL",
+         *         "EDGEQUAKE_TENANT_ID"
+         *       ]
+         *     }
+         */
+        AttributionSettingsResponse: {
+            effective_context: components["schemas"]["EffectiveContextResponse"];
+            environment_variables: string[];
+            ingress_headers: string[];
+            providers: components["schemas"]["ProviderAttributionInfo"][];
         };
         /**
          * @description Available model pricing configurations.
@@ -5395,7 +5495,9 @@ export interface components {
          * @example {
          *       "embedding": {},
          *       "llm": {},
+         *       "priority_mode": {},
          *       "priority_rule": {},
+         *       "server_config_available": {},
          *       "vision": {}
          *     }
          */
@@ -5404,10 +5506,36 @@ export interface components {
             embedding: components["schemas"]["ConfigAreaResponse"];
             /** @description LLM chat/extraction configuration chain. */
             llm: components["schemas"]["ConfigAreaResponse"];
+            /** @description Active priority mode: `server` or `env`. */
+            priority_mode: string;
             /** @description Priority rule explanation shown to the user. */
             priority_rule: string;
+            /** @description Whether PostgreSQL server_config persistence is available. */
+            server_config_available: boolean;
             /** @description Vision/PDF configuration chain. */
             vision: components["schemas"]["ConfigAreaResponse"];
+        };
+        /**
+         * @example {
+         *       "active": {},
+         *       "app_id": {},
+         *       "app_name": {},
+         *       "app_url": {},
+         *       "end_user_id": {},
+         *       "request_id": {},
+         *       "sources": [],
+         *       "tenant_id": {}
+         *     }
+         */
+        EffectiveContextResponse: {
+            active: boolean;
+            app_id?: string | null;
+            app_name?: string | null;
+            app_url?: string | null;
+            end_user_id?: string | null;
+            request_id?: string | null;
+            sources: string[];
+            tenant_id?: string | null;
         };
         /** @description Embedding model item with provider info. */
         EmbeddingModelItem: components["schemas"]["ModelResponse"] & {
@@ -6220,6 +6348,18 @@ export interface components {
             start_node?: string | null;
         };
         /**
+         * @example {
+         *       "active": {},
+         *       "app_id": {},
+         *       "app_name": {}
+         *     }
+         */
+        HealthAttributionSummary: {
+            active: boolean;
+            app_id?: string | null;
+            app_name?: string | null;
+        };
+        /**
          * @description Health check response.
          * @example {
          *       "status": "healthy",
@@ -6232,10 +6372,16 @@ export interface components {
          *         "graph_storage": true,
          *         "llm_provider": true
          *       },
-         *       "llm_provider_name": "ollama"
+         *       "llm_provider_name": "ollama",
+         *       "attribution": {
+         *         "app_id": "edgequake",
+         *         "app_name": "EdgeQuake",
+         *         "active": true
+         *       }
          *     }
          */
         HealthResponse: {
+            attribution?: null | components["schemas"]["HealthAttributionSummary"];
             build_info?: null | components["schemas"]["BuildInfo"];
             capabilities?: null | components["schemas"]["ApiCapabilities"];
             /** @description Component health. */
@@ -6314,6 +6460,26 @@ export interface components {
             error: string;
             /** @description Conversation ID. */
             id: string;
+        };
+        /**
+         * @description Upload-time ingestion estimate (SPEC-038 REQ-038-04).
+         * @example {
+         *       "backend": {},
+         *       "convert_seconds": {},
+         *       "extract_seconds": {},
+         *       "recommended_backend": {},
+         *       "total_seconds_pessimistic": {}
+         *     }
+         */
+        IngestionEstimate: {
+            backend: string;
+            /** Format: int64 */
+            convert_seconds: number;
+            /** Format: int64 */
+            extract_seconds: number;
+            recommended_backend: string;
+            /** Format: int64 */
+            total_seconds_pessimistic: number;
         };
         /**
          * @example {
@@ -7298,16 +7464,24 @@ export interface components {
         };
         /**
          * @example {
+         *       "age_extversion": {},
+         *       "age_shipped_version": {},
          *       "latest_version": {},
+         *       "pgvector_extversion": {},
          *       "pgvector_iterative_scan_capable": {},
+         *       "pgvector_shipped_version": {},
          *       "ready_for_traffic": {},
          *       "source_ids_indexes_ready": {}
          *     }
          */
         MigrationHealthSnapshot: {
+            age_extversion?: string | null;
+            age_shipped_version?: string | null;
             /** Format: int64 */
             latest_version?: number | null;
+            pgvector_extversion?: string | null;
             pgvector_iterative_scan_capable: boolean;
+            pgvector_shipped_version?: string | null;
             ready_for_traffic: boolean;
             source_ids_indexes_ready: boolean;
         };
@@ -7428,10 +7602,12 @@ export interface components {
         /**
          * @description Individual model information (model card).
          * @example {
+         *       "available": {},
          *       "capabilities": {},
          *       "cost": {},
          *       "deprecated": {},
          *       "description": {},
+         *       "discovery_source": {},
          *       "display_name": {},
          *       "model_type": {},
          *       "name": {},
@@ -7440,6 +7616,8 @@ export interface components {
          *     }
          */
         ModelResponse: {
+            /** @description Whether the model is currently available from the provider (live discovery). */
+            available?: boolean | null;
             /** @description Model capabilities. */
             capabilities: components["schemas"]["ModelCapabilitiesResponse"];
             /** @description Cost information. */
@@ -7448,6 +7626,8 @@ export interface components {
             deprecated: boolean;
             /** @description Model description. */
             description: string;
+            /** @description How this model was discovered (`dynamic_api`, `static_registry`, `hybrid`, `user_config`). */
+            discovery_source?: string | null;
             /** @description Human-readable display name. */
             display_name: string;
             /** @description Model type: "llm", "embedding", or "multimodal". */
@@ -8363,6 +8543,7 @@ export interface components {
          *       "document_id": {},
          *       "duplicate_of": {},
          *       "estimated_time_seconds": {},
+         *       "ingestion_estimate": {},
          *       "message": {},
          *       "metadata": {},
          *       "pdf_id": {},
@@ -8385,6 +8566,7 @@ export interface components {
              * @description Estimated processing time in seconds.
              */
             estimated_time_seconds: number;
+            ingestion_estimate?: null | components["schemas"]["IngestionEstimate"];
             /** @description Human-readable message. */
             message: string;
             /** @description PDF metadata. */
@@ -8571,6 +8753,22 @@ export interface components {
             total_entities: number;
         };
         /**
+         * @example {
+         *       "attribution_support": {},
+         *       "body_fields": [],
+         *       "display_name": {},
+         *       "headers": [],
+         *       "id": {}
+         *     }
+         */
+        ProviderAttributionInfo: {
+            attribution_support: string;
+            body_fields: string[];
+            display_name: string;
+            headers: string[];
+            id: string;
+        };
+        /**
          * @description Provider health check response.
          * @example {
          *       "available": {},
@@ -8620,6 +8818,8 @@ export interface components {
         /**
          * @description Provider information with models.
          * @example {
+         *       "auth_kind": {},
+         *       "config_requirements": [],
          *       "description": {},
          *       "display_name": {},
          *       "enabled": {},
@@ -8631,6 +8831,10 @@ export interface components {
          *     }
          */
         ProviderResponse: {
+            /** @description Authentication model: `api_key`, `oauth2_identity`, `local`, … */
+            auth_kind?: string | null;
+            /** @description Env / identity prerequisites for this provider. */
+            config_requirements?: components["schemas"]["ConfigRequirement"][] | null;
             /** @description Provider description. */
             description: string;
             /** @description Human-readable display name. */
@@ -10198,18 +10402,30 @@ export interface components {
         };
         /**
          * @example {
+         *       "age_copy_loader_enabled": {},
+         *       "age_rls_enabled": {},
          *       "chunk_kv_in_persister": {},
          *       "chunk_text_ssot": {},
-         *       "vector_metadata_ref": {}
+         *       "document_id_generator": {},
+         *       "vector_metadata_ref": {},
+         *       "vector_storage_mode": {}
          *     }
          */
         StorageHealthSnapshot: {
+            /** @description SPEC-042-E: AGE COPY bulk loader available (AGE >= 1.7.0). */
+            age_copy_loader_enabled?: boolean | null;
+            /** @description SPEC-042-E: AGE 1.7 graph RLS active (`EDGEQUAKE_AGE_RLS=true` on PG17+). */
+            age_rls_enabled?: boolean | null;
             /** @description Chunk KV writes happen inside IngestionPersister (not a second path). */
             chunk_kv_in_persister: boolean;
             /** @description Authoritative chunk text location. */
             chunk_text_ssot: string;
+            /** @description SPEC-042-E: `uuidv4` or `uuidv7` document ID generator. */
+            document_id_generator?: string | null;
             /** @description Vector row metadata references chunk id instead of inline body. */
             vector_metadata_ref: string;
+            /** @description SPEC-042-E: `full` or `halfvec` (`EDGEQUAKE_VECTOR_STORAGE`). */
+            vector_storage_mode?: string | null;
         };
         /**
          * @description POST /api/v1/admin/storage/repair — trigger repairs (admin-only).
@@ -10591,6 +10807,28 @@ export interface components {
             is_truncated: boolean;
             token_budget: number;
             tokens_used: number;
+        };
+        /**
+         * @example {
+         *       "app_id": "edgequake",
+         *       "app_name": "EdgeQuake",
+         *       "app_url": "http://localhost:3000"
+         *     }
+         */
+        UpdateAppAttributionRequest: {
+            app_id?: string | null;
+            app_name?: string | null;
+            app_url?: string | null;
+        };
+        /**
+         * @example {
+         *       "saved": true,
+         *       "note": "Saved to server_config and applied immediately. Env vars (EDGEQUAKE_APP_*) still override on conflict."
+         *     }
+         */
+        UpdateAppAttributionResponse: {
+            note: string;
+            saved: boolean;
         };
         /**
          * @description Update conversation request DTO.
@@ -14902,6 +15140,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_app_attribution_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attribution settings and provider catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributionSettingsResponse"];
+                };
+            };
+        };
+    };
+    update_app_attribution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAppAttributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Attribution saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateAppAttributionResponse"];
+                };
+            };
+            /** @description PostgreSQL storage required for persistence */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_attribution_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attribution settings and provider catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributionSettingsResponse"];
+                };
             };
         };
     };

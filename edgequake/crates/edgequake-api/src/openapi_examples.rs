@@ -122,7 +122,71 @@ fn domain_examples() -> HashMap<&'static str, Value> {
                     "graph_storage": true,
                     "llm_provider": true
                 },
-                "llm_provider_name": "ollama"
+                "llm_provider_name": "ollama",
+                "attribution": {
+                    "app_id": "edgequake",
+                    "app_name": "EdgeQuake",
+                    "active": true
+                }
+            }),
+        ),
+        (
+            "AttributionSettingsResponse",
+            json!({
+                "effective_context": {
+                    "app_id": "edgequake",
+                    "app_name": "EdgeQuake",
+                    "app_url": "http://localhost:3000",
+                    "tenant_id": null,
+                    "request_id": null,
+                    "end_user_id": null,
+                    "active": true,
+                    "sources": ["env:EDGEQUAKE_APP_ID", "env:EDGEQUAKE_APP_NAME"]
+                },
+                "providers": [
+                    {
+                        "id": "openai",
+                        "display_name": "OpenAI",
+                        "attribution_support": "full",
+                        "headers": ["X-Client-Request-Id"],
+                        "body_fields": ["user"]
+                    },
+                    {
+                        "id": "openrouter",
+                        "display_name": "OpenRouter",
+                        "attribution_support": "full",
+                        "headers": ["HTTP-Referer", "X-OpenRouter-Title", "X-Title"],
+                        "body_fields": []
+                    }
+                ],
+                "ingress_headers": [
+                    "x-edgequake-app-id",
+                    "x-edgequake-app-name",
+                    "x-edgequake-app-url",
+                    "x-edgequake-tenant-id",
+                    "x-edgequake-request-id"
+                ],
+                "environment_variables": [
+                    "EDGEQUAKE_APP_ID",
+                    "EDGEQUAKE_APP_NAME",
+                    "EDGEQUAKE_APP_URL",
+                    "EDGEQUAKE_TENANT_ID"
+                ]
+            }),
+        ),
+        (
+            "UpdateAppAttributionRequest",
+            json!({
+                "app_id": "edgequake",
+                "app_name": "EdgeQuake",
+                "app_url": "http://localhost:3000"
+            }),
+        ),
+        (
+            "UpdateAppAttributionResponse",
+            json!({
+                "saved": true,
+                "note": "Saved to server_config and applied immediately. Env vars (EDGEQUAKE_APP_*) still override on conflict."
             }),
         ),
         (

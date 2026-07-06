@@ -98,6 +98,11 @@ Deep health check with component status for monitoring dashboards.
     "llm_provider": true
   },
   "llm_provider_name": "ollama",
+  "attribution": {
+    "app_id": "edgequake",
+    "app_name": "EdgeQuake",
+    "active": true
+  },
   "schema": {
     "latest_version": 20240115001,
     "migrations_applied": 12,
@@ -758,6 +763,109 @@ Get server-level LLM/embedding defaults (Settings UI).
 ### GET /api/v1/settings/providers
 
 List available providers with credential requirements and default models.
+
+### GET /api/v1/settings/attribution
+
+Returns the effective application attribution context and a **provider header catalog** describing what EdgeQuake sends upstream to each LLM provider (OpenRouter referer, OpenAI client ID, Anthropic application ID, etc.).
+
+**Auth:** Bearer token or API key (same as other `/api/v1/settings/*` routes).
+
+```bash
+curl http://localhost:8080/api/v1/settings/attribution \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response**:
+
+```json
+{
+  "effective_context": {
+    "app_id": "edgequake",
+    "app_name": "EdgeQuake",
+    "app_url": "http://localhost:3000",
+    "tenant_id": null,
+    "request_id": null,
+    "end_user_id": null,
+    "active": true,
+    "sources": ["env:EDGEQUAKE_APP_ID", "env:EDGEQUAKE_APP_NAME"]
+  },
+  "providers": [
+    {
+      "id": "openai",
+      "display_name": "OpenAI",
+      "attribution_support": "full",
+      "headers": ["X-Client-Request-Id"],
+      "body_fields": ["user"]
+    },
+    {
+      "id": "anthropic",
+      "display_name": "Anthropic",
+      "attribution_support": "full",
+      "headers": ["x-application-id", "x-request-id"],
+      "body_fields": []
+    },
+    {
+      "id": "openrouter",
+      "display_name": "OpenRouter",
+      "attribution_support": "full",
+      "headers": ["HTTP-Referer", "X-OpenRouter-Title", "X-Title"],
+      "body_fields": []
+    }
+  ],
+  "ingress_headers": [
+    "x-edgequake-app-id",
+    "x-edgequake-app-name",
+    "x-edgequake-app-url",
+    "x-edgequake-tenant-id",
+    "x-edgequake-request-id"
+  ],
+  "environment_variables": [
+    "EDGEQUAKE_APP_ID",
+    "EDGEQUAKE_APP_NAME",
+    "EDGEQUAKE_APP_URL",
+    "EDGEQUAKE_TENANT_ID"
+  ]
+}
+```
+
+| Field | Description |
+| ----- | ----------- |
+| `effective_context.active` | `true` when at least one of `app_id`, `app_name`, or `app_url` is set |
+| `providers[].attribution_support` | `full`, `passthrough`, `observability_only`, or `none` (from edgequake-llm catalog) |
+| `providers[].headers` | HTTP headers injected on upstream LLM requests for that provider |
+| `providers[].body_fields` | JSON body fields set for attribution (e.g. OpenAI `user`) |
+| `ingress_headers` | Request headers clients may send to override attribution per call |
+| `environment_variables` | Env vars that populate `ApplicationContext` at process start |
+
+### GET /api/v1/settings/app-attribution
+
+Same response as `GET /settings/attribution`. Used by the Settings UI **Application Attribution** card.
+
+### PATCH /api/v1/settings/app-attribution
+
+Persist application attribution to PostgreSQL `server_config` (admin role required). Does **not** store API keys — only `app_id`, `app_name`, and `app_url`.
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/settings/app-attribution \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "edgequake",
+    "app_name": "EdgeQuake",
+    "app_url": "http://localhost:3000"
+  }'
+```
+
+**Response**:
+
+```json
+{
+  "saved": true,
+  "note": "Saved to server_config and applied immediately. Env vars (EDGEQUAKE_APP_*) still override on conflict."
+}
+```
+
+> **Note:** Env vars (`EDGEQUAKE_APP_*`) override `server_config` values on conflict. PATCH applies immediately without restart.
 
 ### GET /api/v1/config/effective
 

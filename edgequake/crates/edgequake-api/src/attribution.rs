@@ -7,12 +7,64 @@ use edgequake_llm::{
     provider_catalog::{AttributionSupport, ProviderCatalog, ProviderDescriptor},
 };
 
-/// Merge env defaults, ingress `x-edgequake-*` headers, and propagation headers.
+use crate::server_config_store::{current_app_attribution, ServerAppAttribution};
+
+/// Baseline context: `server_config.app_attribution` with env vars winning on conflict.
+pub fn baseline_application_context() -> ApplicationContext {
+    merge_baseline_attribution(&current_app_attribution(), &ApplicationContext::from_env())
+}
+
+fn merge_baseline_attribution(
+    server: &ServerAppAttribution,
+    env: &ApplicationContext,
+) -> ApplicationContext {
+    let mut ctx = server_to_application_context(server);
+    ctx.merge(env.clone());
+    ctx
+}
+
+fn server_to_application_context(server: &ServerAppAttribution) -> ApplicationContext {
+    ApplicationContext {
+        app_id: server.app_id.clone(),
+        app_name: server.app_name.clone(),
+        app_url: server.app_url.clone(),
+        ..Default::default()
+    }
+}
+
+fn collect_attribution_sources() -> Vec<String> {
+    let server = current_app_attribution();
+    let mut sources = Vec::new();
+    if server.app_id.is_some() {
+        sources.push("server_config:app_id".into());
+    }
+    if server.app_name.is_some() {
+        sources.push("server_config:app_name".into());
+    }
+    if server.app_url.is_some() {
+        sources.push("server_config:app_url".into());
+    }
+    if std::env::var("EDGEQUAKE_APP_ID").is_ok() {
+        sources.push("env:EDGEQUAKE_APP_ID".into());
+    }
+    if std::env::var("EDGEQUAKE_APP_NAME").is_ok() {
+        sources.push("env:EDGEQUAKE_APP_NAME".into());
+    }
+    if std::env::var("EDGEQUAKE_APP_URL").is_ok() {
+        sources.push("env:EDGEQUAKE_APP_URL".into());
+    }
+    if std::env::var("EDGEQUAKE_TENANT_ID").is_ok() {
+        sources.push("env:EDGEQUAKE_TENANT_ID".into());
+    }
+    sources
+}
+
+/// Merge env + server_config defaults, ingress `x-edgequake-*` headers, and propagation headers.
 pub fn build_application_context(
     propagation_headers: Option<&HashMap<String, String>>,
     end_user_id: Option<String>,
 ) -> ApplicationContext {
-    let mut ctx = ApplicationContext::from_env();
+    let mut ctx = baseline_application_context();
 
     if let Some(headers) = propagation_headers {
         if let Ok(ingress) = ApplicationContext::from_ingress_headers(headers) {
@@ -83,7 +135,7 @@ pub struct HealthAttributionSummary {
 }
 
 pub fn health_attribution_summary() -> HealthAttributionSummary {
-    let ctx = ApplicationContext::from_env();
+    let ctx = baseline_application_context();
     HealthAttributionSummary {
         app_id: ctx.app_id.clone(),
         app_name: ctx.app_name.clone(),
@@ -92,20 +144,8 @@ pub fn health_attribution_summary() -> HealthAttributionSummary {
 }
 
 pub fn build_attribution_settings_response() -> AttributionSettingsResponse {
-    let ctx = ApplicationContext::from_env();
-    let mut sources = Vec::new();
-    if std::env::var("EDGEQUAKE_APP_ID").is_ok() {
-        sources.push("env:EDGEQUAKE_APP_ID".into());
-    }
-    if std::env::var("EDGEQUAKE_APP_NAME").is_ok() {
-        sources.push("env:EDGEQUAKE_APP_NAME".into());
-    }
-    if std::env::var("EDGEQUAKE_APP_URL").is_ok() {
-        sources.push("env:EDGEQUAKE_APP_URL".into());
-    }
-    if std::env::var("EDGEQUAKE_TENANT_ID").is_ok() {
-        sources.push("env:EDGEQUAKE_TENANT_ID".into());
-    }
+    let ctx = baseline_application_context();
+    let sources = collect_attribution_sources();
 
     AttributionSettingsResponse {
         effective_context: EffectiveContextResponse {
@@ -212,6 +252,39 @@ mod tests {
             ctx.extra_headers.get("traceparent").map(String::as_str),
             Some("00-abc")
         );
+    }
+
+    #[test]
+    fn merge_prefers_env_fields_over_server_baseline() {
+        use crate::server_config_store::ServerAppAttribution;
+
+        let server = ServerAppAttribution {
+            app_id: Some("server-id".into()),
+            app_name: Some("Server Name".into()),
+            app_url: None,
+        };
+        let env = ApplicationContext {
+            app_id: Some("env-id".into()),
+            ..Default::default()
+        };
+        let ctx = merge_baseline_attribution(&server, &env);
+        assert_eq!(ctx.app_id.as_deref(), Some("env-id"));
+        assert_eq!(ctx.app_name.as_deref(), Some("Server Name"));
+    }
+
+    #[test]
+    fn server_config_fills_gaps_when_env_empty() {
+        use crate::server_config_store::ServerAppAttribution;
+
+        let server = ServerAppAttribution {
+            app_id: Some("saved-id".into()),
+            app_name: Some("Saved App".into()),
+            app_url: Some("https://saved.example".into()),
+        };
+        let ctx = merge_baseline_attribution(&server, &ApplicationContext::default());
+        assert_eq!(ctx.app_id.as_deref(), Some("saved-id"));
+        assert_eq!(ctx.app_name.as_deref(), Some("Saved App"));
+        assert_eq!(ctx.app_url.as_deref(), Some("https://saved.example"));
     }
 
     #[test]

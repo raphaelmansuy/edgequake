@@ -929,6 +929,14 @@ List available providers.
 
 Get current provider status.
 
+### GET /api/v1/settings/attribution
+
+Effective application context + per-provider upstream header catalog (OpenRouter referer, OpenAI client ID, etc.). See [REST API — Application Attribution](/docs/api-reference/rest-api#application-attribution).
+
+### GET/PATCH /api/v1/settings/app-attribution
+
+Read/save `app_id`, `app_name`, `app_url` to PostgreSQL `server_config` (PATCH requires admin). Same GET response as `/settings/attribution`.
+
 ---
 
 ## See Also

@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.12.11"
+    "version": "0.14.1"
   },
   "servers": [
     {
@@ -2786,8 +2786,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_failed"
+        "x-edgequake-v2-job-type": "reprocess_failed",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/scan": {
@@ -5871,6 +5871,120 @@
         ]
       }
     },
+    "/api/v1/settings/app-attribution": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get application attribution (alias of `/settings/attribution` for settings save UI).",
+        "operationId": "get_app_attribution_settings",
+        "responses": {
+          "200": {
+            "description": "Attribution settings and provider catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionSettingsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Save application attribution to server_config (admin, PostgreSQL).",
+        "operationId": "update_app_attribution",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppAttributionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Attribution saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAppAttributionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "PostgreSQL storage required for persistence"
+          },
+          "403": {
+            "description": "Admin role required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings/attribution": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get application attribution settings and provider header catalog.",
+        "description": "Returns the effective `ApplicationContext` (from env), per-provider upstream\nheader/body field catalog from edgequake-llm, and ingress header names clients\nmay send to override attribution per request.",
+        "operationId": "get_attribution_settings",
+        "responses": {
+          "200": {
+            "description": "Attribution settings and provider catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionSettingsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/settings/provider/status": {
       "get": {
         "tags": [
@@ -7563,8 +7677,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -7637,8 +7751,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -8236,8 +8350,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     }
   },
@@ -8471,6 +8585,90 @@
           "name": {},
           "prefix": {},
           "scopes": []
+        }
+      },
+      "AttributionSettingsResponse": {
+        "type": "object",
+        "required": [
+          "effective_context",
+          "providers",
+          "ingress_headers",
+          "environment_variables"
+        ],
+        "properties": {
+          "effective_context": {
+            "$ref": "#/components/schemas/EffectiveContextResponse"
+          },
+          "environment_variables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ingress_headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderAttributionInfo"
+            }
+          }
+        },
+        "example": {
+          "effective_context": {
+            "app_id": "edgequake",
+            "app_name": "EdgeQuake",
+            "app_url": "http://localhost:3000",
+            "tenant_id": null,
+            "request_id": null,
+            "end_user_id": null,
+            "active": true,
+            "sources": [
+              "env:EDGEQUAKE_APP_ID",
+              "env:EDGEQUAKE_APP_NAME"
+            ]
+          },
+          "providers": [
+            {
+              "id": "openai",
+              "display_name": "OpenAI",
+              "attribution_support": "full",
+              "headers": [
+                "X-Client-Request-Id"
+              ],
+              "body_fields": [
+                "user"
+              ]
+            },
+            {
+              "id": "openrouter",
+              "display_name": "OpenRouter",
+              "attribution_support": "full",
+              "headers": [
+                "HTTP-Referer",
+                "X-OpenRouter-Title",
+                "X-Title"
+              ],
+              "body_fields": []
+            }
+          ],
+          "ingress_headers": [
+            "x-edgequake-app-id",
+            "x-edgequake-app-name",
+            "x-edgequake-app-url",
+            "x-edgequake-tenant-id",
+            "x-edgequake-request-id"
+          ],
+          "environment_variables": [
+            "EDGEQUAKE_APP_ID",
+            "EDGEQUAKE_APP_NAME",
+            "EDGEQUAKE_APP_URL",
+            "EDGEQUAKE_TENANT_ID"
+          ]
         }
       },
       "AvailablePricingResponse": {
@@ -12873,7 +13071,9 @@
           "llm",
           "embedding",
           "vision",
-          "priority_rule"
+          "priority_rule",
+          "priority_mode",
+          "server_config_available"
         ],
         "properties": {
           "embedding": {
@@ -12884,9 +13084,17 @@
             "$ref": "#/components/schemas/ConfigAreaResponse",
             "description": "LLM chat/extraction configuration chain."
           },
+          "priority_mode": {
+            "type": "string",
+            "description": "Active priority mode: `server` or `env`."
+          },
           "priority_rule": {
             "type": "string",
             "description": "Priority rule explanation shown to the user."
+          },
+          "server_config_available": {
+            "type": "boolean",
+            "description": "Whether PostgreSQL server_config persistence is available."
           },
           "vision": {
             "$ref": "#/components/schemas/ConfigAreaResponse",
@@ -12896,8 +13104,74 @@
         "example": {
           "embedding": {},
           "llm": {},
+          "priority_mode": {},
           "priority_rule": {},
+          "server_config_available": {},
           "vision": {}
+        }
+      },
+      "EffectiveContextResponse": {
+        "type": "object",
+        "required": [
+          "active",
+          "sources"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "app_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "app_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "app_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "active": {},
+          "app_id": {},
+          "app_name": {},
+          "app_url": {},
+          "end_user_id": {},
+          "request_id": {},
+          "sources": [],
+          "tenant_id": {}
         }
       },
       "EmbeddingModelItem": {
@@ -14470,6 +14744,34 @@
           "start_node": {}
         }
       },
+      "HealthAttributionSummary": {
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "app_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "app_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "active": {},
+          "app_id": {},
+          "app_name": {}
+        }
+      },
       "HealthResponse": {
         "type": "object",
         "description": "Health check response.",
@@ -14481,6 +14783,17 @@
           "components"
         ],
         "properties": {
+          "attribution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HealthAttributionSummary",
+                "description": "Application attribution summary (SPEC-043)."
+              }
+            ]
+          },
           "build_info": {
             "oneOf": [
               {
@@ -14582,7 +14895,12 @@
             "graph_storage": true,
             "llm_provider": true
           },
-          "llm_provider_name": "ollama"
+          "llm_provider_name": "ollama",
+          "attribution": {
+            "app_id": "edgequake",
+            "app_name": "EdgeQuake",
+            "active": true
+          }
         }
       },
       "ImageAttachment": {
@@ -14677,6 +14995,47 @@
         "example": {
           "error": {},
           "id": {}
+        }
+      },
+      "IngestionEstimate": {
+        "type": "object",
+        "description": "Upload-time ingestion estimate (SPEC-038 REQ-038-04).",
+        "required": [
+          "backend",
+          "convert_seconds",
+          "extract_seconds",
+          "total_seconds_pessimistic",
+          "recommended_backend"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "convert_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "extract_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "recommended_backend": {
+            "type": "string"
+          },
+          "total_seconds_pessimistic": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "backend": {},
+          "convert_seconds": {},
+          "extract_seconds": {},
+          "recommended_backend": {},
+          "total_seconds_pessimistic": {}
         }
       },
       "IngestionHealthSnapshot": {
@@ -16467,6 +16826,18 @@
           "ready_for_traffic"
         ],
         "properties": {
+          "age_extversion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "age_shipped_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "latest_version": {
             "type": [
               "integer",
@@ -16474,8 +16845,20 @@
             ],
             "format": "int64"
           },
+          "pgvector_extversion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "pgvector_iterative_scan_capable": {
             "type": "boolean"
+          },
+          "pgvector_shipped_version": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "ready_for_traffic": {
             "type": "boolean"
@@ -16485,8 +16868,12 @@
           }
         },
         "example": {
+          "age_extversion": {},
+          "age_shipped_version": {},
           "latest_version": {},
+          "pgvector_extversion": {},
           "pgvector_iterative_scan_capable": {},
+          "pgvector_shipped_version": {},
           "ready_for_traffic": {},
           "source_ids_indexes_ready": {}
         }
@@ -16696,6 +17083,13 @@
           "cost"
         ],
         "properties": {
+          "available": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the model is currently available from the provider (live discovery)."
+          },
           "capabilities": {
             "$ref": "#/components/schemas/ModelCapabilitiesResponse",
             "description": "Model capabilities."
@@ -16711,6 +17105,13 @@
           "description": {
             "type": "string",
             "description": "Model description."
+          },
+          "discovery_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How this model was discovered (`dynamic_api`, `static_registry`, `hybrid`, `user_config`)."
           },
           "display_name": {
             "type": "string",
@@ -16740,10 +17141,12 @@
           }
         },
         "example": {
+          "available": {},
           "capabilities": {},
           "cost": {},
           "deprecated": {},
           "description": {},
+          "discovery_source": {},
           "display_name": {},
           "model_type": {},
           "name": {},
@@ -18410,6 +18813,17 @@
             "description": "Estimated processing time in seconds.",
             "minimum": 0
           },
+          "ingestion_estimate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IngestionEstimate",
+                "description": "SPEC-038: Detailed ingestion time breakdown."
+              }
+            ]
+          },
           "message": {
             "type": "string",
             "description": "Human-readable message."
@@ -18442,6 +18856,7 @@
           "document_id": {},
           "duplicate_of": {},
           "estimated_time_seconds": {},
+          "ingestion_estimate": {},
           "message": {},
           "metadata": {},
           "pdf_id": {},
@@ -18726,6 +19141,46 @@
           "total_entities": {}
         }
       },
+      "ProviderAttributionInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "attribution_support",
+          "headers",
+          "body_fields"
+        ],
+        "properties": {
+          "attribution_support": {
+            "type": "string"
+          },
+          "body_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "attribution_support": {},
+          "body_fields": [],
+          "display_name": {},
+          "headers": [],
+          "id": {}
+        }
+      },
       "ProviderHealthResponse": {
         "type": "object",
         "description": "Provider health check response.",
@@ -18826,6 +19281,23 @@
           "models"
         ],
         "properties": {
+          "auth_kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Authentication model: `api_key`, `oauth2_identity`, `local`, …"
+          },
+          "config_requirements": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConfigRequirement"
+            },
+            "description": "Env / identity prerequisites for this provider."
+          },
           "description": {
             "type": "string",
             "description": "Provider description."
@@ -18872,6 +19344,8 @@
           }
         },
         "example": {
+          "auth_kind": {},
+          "config_requirements": [],
           "description": {},
           "display_name": {},
           "enabled": {},
@@ -21702,6 +22176,20 @@
           "chunk_kv_in_persister"
         ],
         "properties": {
+          "age_copy_loader_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "SPEC-042-E: AGE COPY bulk loader available (AGE >= 1.7.0)."
+          },
+          "age_rls_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "SPEC-042-E: AGE 1.7 graph RLS active (`EDGEQUAKE_AGE_RLS=true` on PG17+)."
+          },
           "chunk_kv_in_persister": {
             "type": "boolean",
             "description": "Chunk KV writes happen inside IngestionPersister (not a second path)."
@@ -21710,15 +22198,33 @@
             "type": "string",
             "description": "Authoritative chunk text location."
           },
+          "document_id_generator": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SPEC-042-E: `uuidv4` or `uuidv7` document ID generator."
+          },
           "vector_metadata_ref": {
             "type": "string",
             "description": "Vector row metadata references chunk id instead of inline body."
+          },
+          "vector_storage_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SPEC-042-E: `full` or `halfvec` (`EDGEQUAKE_VECTOR_STORAGE`)."
           }
         },
         "example": {
+          "age_copy_loader_enabled": {},
+          "age_rls_enabled": {},
           "chunk_kv_in_persister": {},
           "chunk_text_ssot": {},
-          "vector_metadata_ref": {}
+          "document_id_generator": {},
+          "vector_metadata_ref": {},
+          "vector_storage_mode": {}
         }
       },
       "StorageRepairRequest": {
@@ -22419,6 +22925,53 @@
           "is_truncated": {},
           "token_budget": {},
           "tokens_used": {}
+        }
+      },
+      "UpdateAppAttributionRequest": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "app_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "app_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "app_id": "edgequake",
+          "app_name": "EdgeQuake",
+          "app_url": "http://localhost:3000"
+        }
+      },
+      "UpdateAppAttributionResponse": {
+        "type": "object",
+        "required": [
+          "saved",
+          "note"
+        ],
+        "properties": {
+          "note": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "saved": true,
+          "note": "Saved to server_config and applied immediately. Env vars (EDGEQUAKE_APP_*) still override on conflict."
         }
       },
       "UpdateConversationApiRequest": {
@@ -23720,7 +24273,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.12.11",
+      "version": "0.14.1",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455)."
     },
     "defaultContentType": "application/json",

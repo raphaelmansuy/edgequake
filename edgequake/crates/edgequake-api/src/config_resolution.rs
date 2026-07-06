@@ -531,6 +531,7 @@ mod tests {
         let snapshot = ServerConfigSnapshot {
             llm_defaults: defaults,
             priority_mode: ConfigPriorityMode::ServerFirst,
+            app_attribution: Default::default(),
             postgres_available: true,
         };
         let (levels, provider, model) = resolve_llm_chain(&snapshot);

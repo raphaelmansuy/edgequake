@@ -7,6 +7,8 @@ use utoipa::ToSchema;
 use crate::attribution::build_attribution_settings_response;
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::auth::ApiRequireAdmin;
+#[cfg(feature = "postgres")]
+use crate::server_config_store::{save_app_attribution, ServerAppAttribution};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -22,44 +24,53 @@ pub struct UpdateAppAttributionResponse {
     pub note: String,
 }
 
-/// PATCH /api/v1/settings/app-attribution
+/// Save application attribution to server_config (admin, PostgreSQL).
+#[utoipa::path(
+    patch,
+    path = "/api/v1/settings/app-attribution",
+    tag = "Settings",
+    request_body = UpdateAppAttributionRequest,
+    responses(
+        (status = 200, description = "Attribution saved", body = UpdateAppAttributionResponse),
+        (status = 400, description = "PostgreSQL storage required for persistence"),
+        (status = 403, description = "Admin role required"),
+    )
+)]
 pub async fn update_app_attribution(
     State(state): State<AppState>,
     _admin: ApiRequireAdmin,
     Json(request): Json<UpdateAppAttributionRequest>,
 ) -> ApiResult<Json<UpdateAppAttributionResponse>> {
-    let value = serde_json::json!({
-        "app_id": request.app_id.filter(|s| !s.trim().is_empty()),
-        "app_name": request.app_name.filter(|s| !s.trim().is_empty()),
-        "app_url": request.app_url.filter(|s| !s.trim().is_empty()),
-    });
+    #[cfg(feature = "postgres")]
+    let saved = ServerAppAttribution {
+        app_id: request.app_id.filter(|s| !s.trim().is_empty()),
+        app_name: request.app_name.filter(|s| !s.trim().is_empty()),
+        app_url: request.app_url.filter(|s| !s.trim().is_empty()),
+    };
 
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.pg_pool.as_ref() {
-        sqlx::query(
-            r#"
-            INSERT INTO server_config (key, value, updated_at)
-            VALUES ('app_attribution', $1::jsonb, NOW())
-            ON CONFLICT (key) DO UPDATE
-              SET value = EXCLUDED.value,
-                  updated_at = NOW()
-            "#,
-        )
-        .bind(value)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to save app_attribution: {e}")))?;
+        save_app_attribution(pool, &saved)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to save app_attribution: {e}")))?;
+
+        state.server_config.apply_app_attribution(saved).await;
 
         return Ok(Json(UpdateAppAttributionResponse {
             saved: true,
-            note:
-                "Saved to server_config. Env vars (EDGEQUAKE_APP_*) still apply at process start."
-                    .into(),
+            note: "Saved to server_config and applied immediately. \
+                   Env vars (EDGEQUAKE_APP_*) still override on conflict."
+                .into(),
         }));
     }
 
     #[cfg(not(feature = "postgres"))]
-    let _ = (&state, value);
+    {
+        let _ = (&state, request);
+        return Err(ApiError::BadRequest(
+            "Application attribution persistence requires PostgreSQL storage.".into(),
+        ));
+    }
 
     Err(ApiError::BadRequest(
         "Application attribution persistence requires PostgreSQL storage.".into(),
@@ -81,7 +92,15 @@ mod tests {
     }
 }
 
-/// GET wrapper re-export for OpenAPI symmetry.
+/// Get application attribution (alias of `/settings/attribution` for settings save UI).
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/app-attribution",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Attribution settings and provider catalog", body = crate::attribution::AttributionSettingsResponse)
+    )
+)]
 pub async fn get_app_attribution_settings(
 ) -> ApiResult<Json<crate::attribution::AttributionSettingsResponse>> {
     Ok(Json(build_attribution_settings_response()))

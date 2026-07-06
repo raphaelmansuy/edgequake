@@ -174,6 +174,9 @@ use crate::handlers;
         handlers::get_provider_status,
         handlers::list_available_providers,
         handlers::get_effective_config,
+        handlers::get_attribution_settings,
+        handlers::get_app_attribution_settings,
+        handlers::update_app_attribution,
         handlers::ws_pipeline_progress,
         handlers::ws_progress_by_track_id,
         handlers::create_workspace_job,
@@ -425,6 +428,13 @@ use crate::handlers;
         handlers::ConfigLevel,
         crate::provider_types::ProviderStatusResponse,
         crate::provider_types::AvailableProvidersResponse,
+        // Application attribution (SPEC-043)
+        crate::attribution::AttributionSettingsResponse,
+        crate::attribution::EffectiveContextResponse,
+        crate::attribution::ProviderAttributionInfo,
+        crate::attribution::HealthAttributionSummary,
+        handlers::UpdateAppAttributionRequest,
+        handlers::UpdateAppAttributionResponse,
         // Ollama Emulation (SPEC-027 IMP-011 phase 2)
         handlers::OllamaVersionResponse,
         handlers::OllamaTagsResponse,

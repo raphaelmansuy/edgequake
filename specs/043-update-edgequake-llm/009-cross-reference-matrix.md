@@ -4,9 +4,9 @@
 | -- | ----------- | ---- | ------- | -------- | ---- |
 | BR04301 | Pin edgequake-llm 0.10.1 | 003 | `Cargo.toml` | — | build |
 | BR04302 | No dual LLMProvider trait | 008 P0 | `vision.rs` | — | pdf e2e |
-| FEAT04310 | Attribution catalog API | 004 | `handlers/attribution.rs` | — | unit |
+| FEAT04310 | Attribution catalog API | 004 | `handlers/attribution.rs`, `attribution.rs` | `app-attribution-settings-card.tsx` | unit + OpenAPI |
 | FEAT04311 | ApplicationContext on LLM calls | 004 | `attribution.rs`, `safety_limits.rs` | — | query e2e |
-| FEAT04312 | Health attribution block | 004 | `handlers/health.rs` | header badge | curl |
+| FEAT04312 | Health attribution block | 004 | `handlers/health.rs`, `health_types.rs` | header badge | curl + OpenAPI |
 | FEAT04320 | Model search API (live + static) | 002 | `handlers/models_search.rs`, `model_catalog.rs` | `model-picker-panel.tsx` | unit |
 | FEAT04322 | Dynamic model catalog merge | 002 | `model_catalog.rs`, `/models/llm`, `/models/embedding` | `use-providers.ts`, mappers | e2e |
 | FEAT04323 | Discovery cache refresh | 002 | `POST /models/discover/refresh` | `refreshDynamicModels()` | curl |
@@ -22,7 +22,7 @@
 | FEAT04344 | edgequake-llm 0.10.1 discovery (LM Studio + Vertex) | 008 P0 | — | `model_catalog.rs` (no shim) | API + playwright 10 |
 | FEAT04342 | ProviderStatusHub | 006 | — | `provider-status-hub.tsx` | visual |
 | FEAT04350 | Server LLM defaults save | 007 | `handlers/llm_defaults.rs` | `server-llm-config-card.tsx` | admin e2e |
-| FEAT04351 | App attribution save | 007 | server_config | settings card | admin e2e |
+| FEAT04351 | App attribution save | 007 | `handlers/app_attribution.rs`, `server_config` | `app-attribution-settings-card.tsx` | admin e2e + OpenAPI |
 | FEAT04360 | Vertex AI identity auth | 011 | `credentials.rs`, `models.rs`, resolver | provider-status-hub | health curl + e2e |
 
 ---

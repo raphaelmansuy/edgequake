@@ -220,6 +220,41 @@ Design reference: [SPEC-043 §011 — Vertex AI Authentication](../specs/043-upd
 | `EDGEQUAKE_VISION_PROVIDER`| String | same as LLM provider | Vision LLM provider for PDF→Markdown |
 | `EDGEQUAKE_VISION_MODEL`   | String | same as LLM model    | Vision LLM model for PDF→Markdown    |
 
+### Application Attribution (SPEC-043)
+
+Identifies EdgeQuake to upstream LLM providers (OpenRouter HTTP referer, OpenAI client request ID, Anthropic application ID, Google `x-goog-api-client`, etc.). Built once per request via `ApplicationContext` and passed to `create_llm_provider_with_context`.
+
+| Variable | Type | Default | Description |
+| -------- | ---- | ------- | ----------- |
+| `EDGEQUAKE_APP_ID` | String | None | Stable application identifier sent upstream |
+| `EDGEQUAKE_APP_NAME` | String | None | Human-readable application name (OpenRouter title) |
+| `EDGEQUAKE_APP_URL` | String | None | Application URL (OpenRouter HTTP-Referer) |
+| `EDGEQUAKE_TENANT_ID` | String | None | Optional tenant identifier for multi-tenant attribution |
+
+**Per-request overrides** (merged into `ApplicationContext` when present):
+
+| Header | Maps to |
+| ------ | ------- |
+| `x-edgequake-app-id` | `app_id` |
+| `x-edgequake-app-name` | `app_name` |
+| `x-edgequake-app-url` | `app_url` |
+| `x-edgequake-tenant-id` | `tenant_id` |
+| `x-edgequake-request-id` | `request_id` |
+
+**Example — identify EdgeQuake to OpenRouter:**
+
+```bash
+export EDGEQUAKE_APP_ID=edgequake
+export EDGEQUAKE_APP_NAME="EdgeQuake"
+export EDGEQUAKE_APP_URL=https://edgequake.example.com
+```
+
+**Resolution order for attribution fields:** `server_config.app_attribution` → overridden by env vars (`EDGEQUAKE_APP_*`) → overridden per-request by ingress headers.
+
+**WebUI persistence:** Settings → Application Attribution → PATCH `/api/v1/settings/app-attribution` (admin, PostgreSQL). Applied immediately without restart. See [REST API — Application Attribution](/docs/api-reference/rest-api#application-attribution).
+
+**Discovery:** `GET /api/v1/settings/attribution` returns the effective context plus per-provider header catalog. `/health` includes a compact `attribution` block (`app_id`, `app_name`, `active`).
+
 ### Compatibility aliases
 
 EdgeQuake also accepts the following migration aliases. They are normalized at startup so the rest
