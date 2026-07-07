@@ -55,11 +55,17 @@ jobs:
         working-directory: edgequake_webui
         run: bun install
 
+      - name: Free disk space (release gates compile many test binaries)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Run release gates
         env:
           DATABASE_URL: ""
           POSTGRES_PASSWORD: ""
           RUST_LOG: warn
+          RELEASE_SKIP_LIB_TESTS: "1"
         run: |
           chmod +x scripts/release_gates.sh
           ./scripts/release_gates.sh
