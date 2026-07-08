@@ -5,6 +5,8 @@
 
 pub mod artifact_retrieval;
 pub mod audit;
+#[cfg(feature = "postgres")]
+pub mod auth_bootstrap;
 pub mod auth_memory_store;
 pub mod auth_validation;
 pub mod content_granularity;

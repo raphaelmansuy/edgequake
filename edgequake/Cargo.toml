@@ -72,7 +72,7 @@ criterion = { workspace = true }
 tokio-test = { workspace = true }
 
 [workspace.package]
-version = "0.15.0"
+version = "0.15.1"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"

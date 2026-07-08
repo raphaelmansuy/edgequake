@@ -548,6 +548,18 @@ async fn main() -> Result<()> {
         );
     }
 
+    // GitHub #288: secure-by-default auth requires a login-capable user on first boot.
+    if let Err(e) =
+        edgequake_api::services::auth_bootstrap::bootstrap_auth_identity_if_needed(&state).await
+    {
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "auth_bootstrap",
+            &e.to_string(),
+            json!({ "non_fatal": true }),
+        );
+    }
+
     // SPEC-018: Sample DB pool gauges between Prometheus scrapes.
     if let Some(pool) = state.pg_pool.clone() {
         tokio::spawn(async move {

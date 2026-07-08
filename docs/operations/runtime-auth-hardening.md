@@ -31,6 +31,22 @@ export EDGEQUAKE_DEV_MODE=true
 
 ## Bootstrap an admin user
 
+When authentication is enabled (`EDGEQUAKE_AUTH_ENABLED=true`, the v0.15 default) and no
+login-capable users exist in PostgreSQL, set bootstrap credentials **before first API start**:
+
+```bash
+export EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME=admin
+export EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD='ChangeMe123!'
+export EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+export NEXT_PUBLIC_AUTH_ENABLED=true
+export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true
+```
+
+The API creates the admin automatically on startup (GitHub #288). Upgrades from pre-v0.15 KV
+identity also import legacy `auth:user:*` rows into PostgreSQL when present.
+
+Alternatively, bootstrap manually with the master API key:
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/users \
   -H "Content-Type: application/json" \

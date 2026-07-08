@@ -1,6 +1,6 @@
 [package]
 name = "edgequake-audit"
-version = "0.13.2"
+version = "0.15.1"
 edition = "2021"
 
 [dependencies]

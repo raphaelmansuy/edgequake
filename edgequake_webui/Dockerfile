@@ -21,7 +21,7 @@ FROM node:20-alpine AS builder
 
 # Build args for Next.js public environment variables
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
-ARG NEXT_PUBLIC_APP_VERSION=0.13.2
+ARG NEXT_PUBLIC_APP_VERSION=0.15.1
 
 WORKDIR /app
 

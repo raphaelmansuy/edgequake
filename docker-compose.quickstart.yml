@@ -123,6 +123,15 @@ services:
       OLLAMA_EMBEDDING_MODEL:       ${OLLAMA_EMBEDDING_MODEL:-}
       PDFIUM_AUTO_CACHE_DIR:        /tmp/edgequake-pdfium-cache
       RUST_LOG:                     ${RUST_LOG:-info}
+      # ── Authentication (GitHub #288 / SPEC-027 AC-4) ───────────────────────
+      # Quickstart defaults to open API (matches pre-v0.15 frictionless UX).
+      # Set EDGEQUAKE_AUTH_ENABLED=true + EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD for login.
+      EDGEQUAKE_DEV_MODE:           ${EDGEQUAKE_DEV_MODE:-true}
+      EDGEQUAKE_AUTH_ENABLED:       ${EDGEQUAKE_AUTH_ENABLED:-false}
+      EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME: ${EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD: ${EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD:-}
+      EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL:    ${EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL:-admin@localhost}
+      JWT_SECRET:                   ${JWT_SECRET:-change-me-in-production-256-bit-secret-key}
     extra_hosts:
       # Maps host.docker.internal → host machine IP on Linux.
       # On macOS/Windows, Docker Desktop provides this DNS name natively.
@@ -161,6 +170,8 @@ services:
       # Override for remote/non-localhost access:
       #   EDGEQUAKE_API_URL=http://192.168.1.10:8080 docker compose ... up -d
       EDGEQUAKE_API_URL:  ${EDGEQUAKE_API_URL:-http://localhost:${EDGEQUAKE_PORT:-8080}}
+      NEXT_PUBLIC_AUTH_ENABLED: ${EDGEQUAKE_AUTH_ENABLED:-false}
+      NEXT_PUBLIC_DISABLE_DEMO_LOGIN: ${NEXT_PUBLIC_DISABLE_DEMO_LOGIN:-false}
     depends_on:
       api:
         condition: service_healthy

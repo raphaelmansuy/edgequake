@@ -580,6 +580,21 @@ pub(crate) async fn persist_user_record(
     Ok(())
 }
 
+/// Count users that can authenticate with username/password (GitHub #288).
+#[cfg(feature = "postgres")]
+pub(crate) async fn count_login_capable_users_pg(
+    pool: &sqlx::PgPool,
+    security: &ApiSecurityConfig,
+) -> Result<u32, ApiError> {
+    let users = list_user_records_pg(pool, security).await?;
+    Ok(users
+        .iter()
+        .filter(|user| {
+            crate::services::auth_bootstrap::is_login_capable_password_hash(&user.password_hash)
+        })
+        .count() as u32)
+}
+
 /// List all user records — PG SSOT when pool; KV test harness otherwise.
 #[cfg(feature = "postgres")]
 pub(crate) async fn list_user_records(
@@ -646,8 +661,10 @@ mod tests {
 
     #[test]
     fn identity_policy_ignores_kv_mirror_when_pool_phase47() {
-        let mut security = ApiSecurityConfig::default();
-        security.kv_identity_mirror = true;
+        let security = ApiSecurityConfig {
+            kv_identity_mirror: true,
+            ..Default::default()
+        };
         let policy = IdentityPolicy::resolve(&security, true);
         assert!(policy.pg_primary);
         assert!(!policy.kv_mirror);
@@ -657,9 +674,11 @@ mod tests {
 
     #[test]
     fn identity_policy_pg_primary_when_pool_and_flag() {
-        let mut security = ApiSecurityConfig::default();
-        security.pg_identity_ssot = true;
-        security.kv_identity_mirror = false;
+        let security = ApiSecurityConfig {
+            pg_identity_ssot: true,
+            kv_identity_mirror: false,
+            ..Default::default()
+        };
         let policy = IdentityPolicy::resolve(&security, true);
         assert!(policy.pg_primary);
         assert!(!policy.kv_mirror);

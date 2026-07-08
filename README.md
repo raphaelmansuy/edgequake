@@ -5,7 +5,7 @@
 > **High-Performance Graph-RAG Framework in Rust**  
 > Transform documents into intelligent knowledge graphs for superior retrieval and generation
 
-[![Version](https://img.shields.io/badge/version-0.15.0-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.15.1-blue.svg?style=flat)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat)](https://github.com/raphaelmansuy/edgequake)
@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-m
 ```
 
 The wizard guides you through provider selection (OpenAI / Ollama), model choice, and starts the full stack.  
-**Open** http://localhost:3000 **and you're in.**
+**Open** http://localhost:3000 **and you're in** — no login required (quickstart runs with open API via `EDGEQUAKE_DEV_MODE=true`).
 
 <details>
 <summary><strong>Alternative: docker compose directly</strong></summary>
@@ -66,7 +66,36 @@ EDGEQUAKE_LLM_PROVIDER=ollama \
 curl -s http://localhost:8080/health | python3 -m json.tool
 ```
 
-> Pin a version: `EDGEQUAKE_VERSION=0.15.0 sh quickstart.sh`
+> Pin a version: `EDGEQUAKE_VERSION=0.15.1 sh quickstart.sh`
+
+### Authentication (v0.15+)
+
+From **v0.15**, the API enables authentication **secure by default** (SPEC-027). Identity lives in PostgreSQL; login requires at least one user with a real password hash.
+
+| Scenario | What to set |
+|----------|-------------|
+| **Quickstart / demo** | Nothing — compose defaults to `EDGEQUAKE_DEV_MODE=true` (open API, no login) |
+| **Production with login** | Bootstrap admin **before first API start** (see below) |
+| **Local dev from source** | `make dev` (auth off) or `make dev-auth` (auth on + demo login hidden) |
+
+**Enable login on Docker / production:**
+
+```bash
+export EDGEQUAKE_DEV_MODE=false
+export EDGEQUAKE_AUTH_ENABLED=true
+export EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME=admin
+export EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD='ChangeMe123!'   # min 8 chars, mixed complexity
+export EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL=admin@example.com   # optional
+export NEXT_PUBLIC_AUTH_ENABLED=true
+export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+The API creates the bootstrap admin on startup. Sign in at http://localhost:3000/login.
+
+Upgrades from pre-v0.15: legacy KV `auth:user:*` records are imported into PostgreSQL automatically when present.
+
+See [Runtime Auth Hardening](docs/operations/runtime-auth-hardening.md) for master API keys, OIDC, and troubleshooting ([GitHub #288](https://github.com/raphaelmansuy/edgequake/issues/288)).
 
 ---
 
@@ -245,6 +274,13 @@ cd edgequake/docker && docker compose up -d
 | `MISTRAL_API_KEY` | — | Required for `mistral` |
 | `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama server URL |
 | `EDGEQUAKE_VERSION` | `latest` | GHCR image tag |
+| `EDGEQUAKE_DEV_MODE` | `true` (quickstart) | Open API without login — **do not use in production** |
+| `EDGEQUAKE_AUTH_ENABLED` | `false` (quickstart) | Require JWT/API key on protected routes |
+| `EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME` | `admin` | First-run admin username when auth is on |
+| `EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD` | — | First-run admin password (required for login on fresh installs) |
+| `EDGEQUAKE_MASTER_API_KEY` | — | Bootstrap key for `POST /api/v1/users` without JWT |
+| `NEXT_PUBLIC_AUTH_ENABLED` | `false` (quickstart) | Web UI login gate + session handling |
+| `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` | `false` | Hide “Continue without login” on the login page |
 | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | `180` | Per-chunk LLM timeout (seconds) |
 | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16` | Max parallel LLM calls |
 | `RUST_LOG` | `info` | Log level |
@@ -304,7 +340,7 @@ See [AGENTS.md](AGENTS.md) for the full developer workflow and [Release & CD](do
 | Tutorials | [First RAG App](docs/tutorials/first-rag-app.md) · [PDF Ingestion](docs/tutorials/pdf-ingestion.md) · [Multi-Tenant](docs/tutorials/multi-tenant.md) |
 | Architecture | [Overview](docs/architecture/overview.md) · [Data Flow](docs/architecture/data-flow.md) · [Crate Reference](docs/architecture/crates/) |
 | Deep Dives | [LightRAG Algorithm](docs/deep-dives/lightrag-algorithm.md) · [Query Modes](docs/deep-dives/query-modes.md) · [PDF Processing](docs/deep-dives/pdf-processing.md) |
-| Operations | [Deployment](docs/operations/deployment.md) · [Configuration](docs/operations/configuration.md) · [Monitoring](docs/operations/monitoring.md) |
+| Operations | [Deployment](docs/operations/deployment.md) · [Configuration](docs/operations/configuration.md) · [Runtime Auth](docs/operations/runtime-auth-hardening.md) · [Monitoring](docs/operations/monitoring.md) |
 | API Reference | [REST API](docs/api-reference/rest-api.md) · [Extended API](docs/api-reference/extended-api.md) |
 | Integrations | [MCP Server](mcp/) · [OpenWebUI](docs/integrations/open-webui.md) · [LangChain](docs/integrations/langchain.md) |
 | Release & CD | [Release Cycle](docs/operations/release-and-cd.md) · [CHANGELOG](CHANGELOG.md) |
