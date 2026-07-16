@@ -413,13 +413,11 @@ pub fn merge_document_summaries(
 /// metadata scoped to a legacy workspace being dropped, leaving the relational
 /// backfill — whose `entity_count` column was never refreshed (P-A1 fixes the
 /// write side; this is the read-side safety net). AGE is the SSOT for entity
-/// counts, so we fall back to `node_count_by_source_prefix("{doc_id}-chunk-")`
-/// for any document whose current `entity_count` is 0. Completed documents
-/// with corrupted KV/PG stats still reconcile via AGE `source_chunk_ids`.
+/// counts, so we fall back to `node_counts_by_source_prefixes` (SPEC-054 L1-a:
+/// **one** AGE round-trip) for documents whose current `entity_count` is 0.
 ///
 /// Best-effort: AGE failures are swallowed (counts stay as-is) so the list
-/// request never fails due to a graph hiccup. Batches the per-doc Cypher calls
-/// to avoid N+1 where possible; falls back to per-doc calls otherwise.
+/// request never fails due to a graph hiccup.
 pub async fn reconcile_entity_counts_with_graph(
     storage: &crate::state::StorageRuntime,
     documents: &mut [DocumentSummary],
@@ -447,23 +445,31 @@ pub async fn reconcile_entity_counts_with_graph(
         return;
     }
 
-    for (idx, doc_id) in candidates {
-        let prefix = kv_keys::doc_chunk_prefix(&doc_id);
-        match storage
-            .graph_storage
-            .node_count_by_source_prefix(&prefix)
-            .await
-        {
-            Ok(age_count) if age_count > 0 => {
+    let prefixes: Vec<String> = candidates
+        .iter()
+        .map(|(_, doc_id)| kv_keys::doc_chunk_prefix(doc_id))
+        .collect();
+
+    let counts = match storage
+        .graph_storage
+        .node_counts_by_source_prefixes(&prefixes)
+        .await
+    {
+        Ok(map) => map,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                candidate_count = candidates.len(),
+                "P-A3: batched AGE entity_count fallback failed (non-fatal) — leaving counts as-is"
+            );
+            return;
+        }
+    };
+
+    for ((idx, _doc_id), prefix) in candidates.into_iter().zip(prefixes.into_iter()) {
+        if let Some(age_count) = counts.get(&prefix).copied() {
+            if age_count > 0 {
                 documents[idx].entity_count = Some(age_count);
-            }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::warn!(
-                    document_id = %doc_id,
-                    error = %e,
-                    "P-A3: AGE entity_count fallback failed (non-fatal) — leaving count as-is"
-                );
             }
         }
     }

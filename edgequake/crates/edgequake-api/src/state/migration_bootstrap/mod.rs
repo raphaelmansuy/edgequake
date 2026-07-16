@@ -665,6 +665,14 @@ pub fn readiness_blockers(report: &Option<MigrationBootstrapReport>) -> Vec<Stri
             blockers.push("missing_hnsw_index".to_string());
         }
     }
+    // CVE-2026-3172: pgvector 0.8.0/0.8.1 unsafe for parallel HNSW builds.
+    if r.migration_042.pgvector_available {
+        if let Some(ver) = r.migration_042.extversion_after.as_deref() {
+            if !helpers::pgvector_meets_cve_floor(ver) {
+                blockers.push("pgvector_cve_floor".to_string());
+            }
+        }
+    }
 
     // Remaining migrations: emit when degraded (most currently never degrade).
     macro_rules! push_if_degraded {
@@ -713,6 +721,16 @@ pub fn readiness_operator_action(report: &Option<MigrationBootstrapReport>) -> O
             .clone()
             .or_else(|| Some("apply_038.sh --concurrent for large graphs".to_string()));
     }
+    if r.migration_042.pgvector_available {
+        if let Some(ver) = r.migration_042.extversion_after.as_deref() {
+            if !helpers::pgvector_meets_cve_floor(ver) {
+                return Some(
+                    "Upgrade pgvector to >= 0.8.2 (prefer 0.8.5; CVE-2026-3172) then restart backend (make db-start)"
+                        .to_string(),
+                );
+            }
+        }
+    }
     if r.migration_042.is_degraded() {
         if r.migration_042.missing_ann_index_tables > 0 {
             return Some(format!(
@@ -720,7 +738,7 @@ pub fn readiness_operator_action(report: &Option<MigrationBootstrapReport>) -> O
                 r.migration_042.missing_ann_index_tables
             ));
         }
-        return Some("Upgrade pgvector to >= 0.8 and restart backend (make db-start)".to_string());
+        return Some("Upgrade pgvector to >= 0.8.2 and restart backend (make db-start)".to_string());
     }
     None
 }
@@ -1289,9 +1307,9 @@ mod tests {
     fn noop_migration_042() -> Migration042Report {
         Migration042Report {
             pgvector_available: true,
-            extversion_before: Some("0.8.0".into()),
-            extversion_after: Some("0.8.0".into()),
-            shipped_extversion: Some("0.8.3".into()),
+            extversion_before: Some("0.8.5".into()),
+            extversion_after: Some("0.8.5".into()),
+            shipped_extversion: Some("0.8.5".into()),
             iterative_scan_capable: true,
             indexes_rebuilt: false,
             vector_tables_checked: 0,
@@ -1591,6 +1609,109 @@ mod tests {
     fn pgvector_iterative_scan_version_gate() {
         assert!(helpers::pgvector_supports_iterative_scan("0.8.0"));
         assert!(!helpers::pgvector_supports_iterative_scan("0.7.4"));
+    }
+
+    #[test]
+    fn pgvector_cve_floor_blocks_081() {
+        assert!(!helpers::pgvector_meets_cve_floor("0.8.0"));
+        assert!(!helpers::pgvector_meets_cve_floor("0.8.1"));
+        assert!(helpers::pgvector_meets_cve_floor("0.8.2"));
+        let mut report = Migration042Report {
+            pgvector_available: true,
+            extversion_before: Some("0.8.1".into()),
+            extversion_after: Some("0.8.1".into()),
+            shipped_extversion: Some("0.8.5".into()),
+            iterative_scan_capable: true,
+            indexes_rebuilt: false,
+            vector_tables_checked: 0,
+            missing_ann_index_tables: 0,
+        };
+        let blockers = readiness_blockers(&Some(MigrationBootstrapReport {
+            pending_before: 0,
+            applied_versions: vec![],
+            latest_version: Some(42),
+            migration_038: Migration038Report {
+                age_available: true,
+                graphs_checked: 0,
+                indexes_ready: true,
+                indexes_repaired_inline: false,
+                deferred_large_graphs: vec![],
+                missing_indexes: vec![],
+                operator_action: None,
+            },
+            migration_042: report.clone(),
+            migration_043: noop_migration_043(),
+            migration_044: noop_migration_044(),
+            migration_045: noop_migration_045(),
+            migration_046: noop_migration_046(),
+            migration_047: noop_migration_047(),
+            migration_048: noop_migration_048(),
+            migration_049: noop_migration_049(),
+            migration_050: noop_migration_050(),
+            migration_051: noop_migration_051(),
+            migration_052: noop_migration_052(),
+            migration_053: noop_migration_053(),
+            migration_054: noop_migration_054(),
+            migration_055: noop_migration_055(),
+            migration_056: noop_migration_056(),
+            migration_057: noop_migration_057(),
+            migration_058: noop_migration_058(),
+            migration_059: noop_migration_059(),
+            migration_060: noop_migration_060(),
+            migration_061: noop_migration_061(),
+            migration_062: noop_migration_062(),
+            migration_063: noop_migration_063(),
+            migration_064: noop_migration_064(),
+            migration_065: noop_migration_065(),
+            migration_080: noop_migration_080(),
+            migration_081: noop_migration_081(),
+        }));
+        assert!(
+            blockers.iter().any(|b| b == "pgvector_cve_floor"),
+            "blockers={blockers:?}"
+        );
+        report.extversion_after = Some("0.8.5".into());
+        let blockers_ok = readiness_blockers(&Some(MigrationBootstrapReport {
+            pending_before: 0,
+            applied_versions: vec![],
+            latest_version: Some(42),
+            migration_038: Migration038Report {
+                age_available: true,
+                graphs_checked: 0,
+                indexes_ready: true,
+                indexes_repaired_inline: false,
+                deferred_large_graphs: vec![],
+                missing_indexes: vec![],
+                operator_action: None,
+            },
+            migration_042: report,
+            migration_043: noop_migration_043(),
+            migration_044: noop_migration_044(),
+            migration_045: noop_migration_045(),
+            migration_046: noop_migration_046(),
+            migration_047: noop_migration_047(),
+            migration_048: noop_migration_048(),
+            migration_049: noop_migration_049(),
+            migration_050: noop_migration_050(),
+            migration_051: noop_migration_051(),
+            migration_052: noop_migration_052(),
+            migration_053: noop_migration_053(),
+            migration_054: noop_migration_054(),
+            migration_055: noop_migration_055(),
+            migration_056: noop_migration_056(),
+            migration_057: noop_migration_057(),
+            migration_058: noop_migration_058(),
+            migration_059: noop_migration_059(),
+            migration_060: noop_migration_060(),
+            migration_061: noop_migration_061(),
+            migration_062: noop_migration_062(),
+            migration_063: noop_migration_063(),
+            migration_064: noop_migration_064(),
+            migration_065: noop_migration_065(),
+            migration_080: noop_migration_080(),
+            migration_081: noop_migration_081(),
+        }));
+        assert!(!blockers_ok.iter().any(|b| b == "pgvector_cve_floor"));
     }
 
     #[test]

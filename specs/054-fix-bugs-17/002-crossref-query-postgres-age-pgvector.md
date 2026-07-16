@@ -108,7 +108,7 @@ Treat QUERY_CATALOG as **leads**, not law — verify against `storage_impl.rs`.
 | #300 progress identity | No — upload progress IDs |
 | #298 orphan pending / resume | Boot task hydrate only (`EDGEQUAKE_STARTUP_AUTO_RESUME`) |
 | #297 orphan vector tables | Workspace vector DDL lifecycle — adjacent to VEC table naming |
-| This pack (`docs/054-…`) | **Yes** — query + AGE + pgvector performance SSOT |
+| This pack (`specs/054-…`) | **Yes** — query + AGE + pgvector performance SSOT |
 
 ## 8. External references (verified 2026-07)
 

@@ -1,21 +1,21 @@
 //! Cypher/SQL string formatting and property literals (SPEC-017 P1-12).
+//!
+//! Escaping SSOT: [`super::escape`]. Methods on [`PostgresAGEGraphStorage`]
+//! remain as thin wrappers for call-site ergonomics.
 
 use std::collections::HashMap;
 
 use super::super::PostgresAGEGraphStorage;
+use super::escape::{escape_cypher_string, escape_sql_literal};
 
 impl PostgresAGEGraphStorage {
     pub(in crate::adapters::postgres::graph) fn escape_cypher_string(s: &str) -> String {
-        s.replace('\\', "\\\\")
-            .replace('\'', "\\'")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r")
-            .replace('\t', "\\t")
+        escape_cypher_string(s)
     }
 
+    /// Alias for [`escape_sql_literal`] (historical name on the storage type).
     pub(in crate::adapters::postgres::graph) fn escape_sql_string(s: &str) -> String {
-        s.replace('\'', "''")
+        escape_sql_literal(s)
     }
 
     pub(in crate::adapters::postgres::graph) fn properties_to_cypher(

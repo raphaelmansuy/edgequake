@@ -25,8 +25,8 @@ case "$_profile" in
   pg18)
     export EQ_POSTGRES_MAJOR="18"
     export EQ_POSTGRES_IMAGE="postgres:18-bookworm"
-    export EQ_PGVECTOR_VERSION="v0.8.3"
-    export EQ_PGVECTOR_MIN="0.8.3"
+    export EQ_PGVECTOR_VERSION="v0.8.5"
+    export EQ_PGVECTOR_MIN="0.8.5"
     export EQ_AGE_GIT_REF="PG18/v1.7.0-rc0"
     export EQ_AGE_MIN="1.7.0"
     export EQ_POSTGRES_DOCKERFILE="Dockerfile.postgres.pg18"
@@ -36,8 +36,8 @@ case "$_profile" in
   pg17)
     export EQ_POSTGRES_MAJOR="17"
     export EQ_POSTGRES_IMAGE="postgres:17-bookworm"
-    export EQ_PGVECTOR_VERSION="v0.8.3"
-    export EQ_PGVECTOR_MIN="0.8.3"
+    export EQ_PGVECTOR_VERSION="v0.8.5"
+    export EQ_PGVECTOR_MIN="0.8.5"
     export EQ_AGE_GIT_REF="PG17/v1.7.0-rc0"
     export EQ_AGE_MIN="1.7.0"
     export EQ_POSTGRES_DOCKERFILE="Dockerfile.postgres.pg17"
@@ -47,8 +47,8 @@ case "$_profile" in
   pg16)
     export EQ_POSTGRES_MAJOR="16"
     export EQ_POSTGRES_IMAGE="postgres:16-bookworm"
-    export EQ_PGVECTOR_VERSION="v0.8.3"
-    export EQ_PGVECTOR_MIN="0.8.3"
+    export EQ_PGVECTOR_VERSION="v0.8.5"
+    export EQ_PGVECTOR_MIN="0.8.5"
     export EQ_AGE_GIT_REF="PG16/v1.6.0-rc0"
     export EQ_AGE_MIN="1.6.0"
     export EQ_POSTGRES_DOCKERFILE="Dockerfile.postgres"

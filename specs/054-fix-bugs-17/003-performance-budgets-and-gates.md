@@ -24,14 +24,15 @@ already present (typical local `eq_eq_default_graph`).
 | Q2-a | `get_nodes_batch` 100 ids | **&lt; 50 ms** | **~2 ms** | same e2e |
 | Q3-b | Native upsert 500 nodes | **&lt; 500 ms** | **~50 ms** | same e2e |
 | Q3-c | EXPLAIN node_id → Index Scan on UNIQUE | required | **Index Scan** | same e2e |
-| L1-a | `GET /api/v1/documents` list (scoped, warm AGE ~140k nodes) | **&lt; 200 ms** | **~17–35 ms** | curl + headers; was 7–17 s via AGE Seq Scan reconcile |
+| L1-a | AGE batched source-prefix counts (list reconcile) | **&lt; 200 ms** | **~14 ms** @20 prefixes | `e2e_spec054_age_pgvector_perf` |
+| L1-a-api | In-process `GET /api/v1/documents` (mock app) | **&lt; 500 ms** | warm samples | `e2e_spec054_documents_list_perf` (was 7–17 s Seq Scan) |
 | — | In-memory Criterion benches | informational | — | **not** a Postgres gate |
 
 ### Stretch (nightly)
 
 | ID | Metric | Suggested target | Note |
 | --- | --- | --- | --- |
-| Q1-d | Mix retrieval p95 on 50k+ chunk vectors | &lt; 500 ms ex-LLM | larger fixture |
+| Q1-d | Mix retrieval p95 on 50k+ chunk vectors | &lt; 500 ms ex-LLM | `e2e_spec054_mix_scale_perf` (nightly) |
 
 ## 3. Session GUCs (query)
 

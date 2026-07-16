@@ -155,41 +155,89 @@ impl PostgresAGEGraphStorage {
     /// Documents). Production nodes store exact chunk ids in `source_ids`;
     /// probing those with GIN `@>` uses `idx_*_source_ids_gin` (~ms).
     pub(super) async fn pg_node_count_by_source_prefix(&self, prefix: &str) -> Result<usize> {
+        let map = self
+            .pg_node_counts_by_source_prefixes(&[prefix.to_string()])
+            .await?;
+        Ok(map.get(prefix).copied().unwrap_or(0))
+    }
+
+    /// Batch GIN `@>` probes for D document chunk prefixes — **one** round-trip
+    /// (SPEC-054 L1-a). Same cap semantics as the single-prefix path.
+    pub(super) async fn pg_node_counts_by_source_prefixes(
+        &self,
+        prefixes: &[String],
+    ) -> Result<std::collections::HashMap<String, usize>> {
+        use std::collections::HashMap;
+
+        let mut out = HashMap::with_capacity(prefixes.len());
+        if prefixes.is_empty() {
+            return Ok(out);
+        }
+
+        // Normalize once so SQL `prefix || i` matches `source_chunk_id_candidates`.
+        let normalized: Vec<String> = prefixes
+            .iter()
+            .map(|p| super::helpers::normalize_doc_chunk_prefix(p))
+            .collect();
+
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        let candidates = super::helpers::source_chunk_id_candidates(
-            prefix,
-            super::helpers::SOURCE_CHUNK_PROBE_LIMIT,
-        );
+        let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
 
         // GIN-only on `source_ids` (indexed). Do NOT OR `source_chunk_ids`
         // here — that expression has no GIN and the planner falls back to a
         // Nested Loop Seq Scan over all vertices.
         let sql = format!(
-            "SELECT count(DISTINCT v.id)::BIGINT \
-             FROM {graph}.\"_ag_label_vertex\" v \
-             CROSS JOIN unnest($1::text[]) AS c(chunk_id) \
-             WHERE ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids') \
-                   @> to_jsonb(c.chunk_id)",
+            r#"
+            WITH prefixes AS (
+              SELECT prefix, ord
+              FROM unnest($1::text[]) WITH ORDINALITY AS t(prefix, ord)
+            ),
+            probes AS (
+              SELECT p.prefix, p.ord, (p.prefix || gs.i::text) AS chunk_id
+              FROM prefixes p
+              CROSS JOIN generate_series(0, $2::int - 1) AS gs(i)
+            ),
+            hits AS (
+              SELECT pr.prefix, pr.ord, v.id
+              FROM probes pr
+              JOIN {graph}."_ag_label_vertex" v
+                ON ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
+                   @> to_jsonb(pr.chunk_id)
+            )
+            SELECT p.prefix, count(DISTINCT h.id)::BIGINT AS cnt
+            FROM prefixes p
+            LEFT JOIN hits h ON h.prefix = p.prefix
+            GROUP BY p.prefix, p.ord
+            ORDER BY p.ord
+            "#,
             graph = self.graph_name,
         );
 
-        let gin_count: i64 = sqlx::query_scalar(&sql)
-            .bind(&candidates)
-            .fetch_one(&mut *conn)
+        let rows: Vec<(String, i64)> = sqlx::query_as(&sql)
+            .bind(&normalized)
+            .bind(probe_limit)
+            .fetch_all(&mut *conn)
             .await
             .map_err(|e| {
-                StorageError::Database(format!("source-prefix GIN node count failed: {e}"))
+                StorageError::Database(format!("batched source-prefix GIN node count failed: {e}"))
             })?;
-        // WHY: do not fall back to `source_id LIKE …` here. On this AGE build
-        // that predicate Seq-Scans ~140k vertices (~300ms+) even when zero rows
-        // have scalar `source_id` (production stores arrays in `source_ids`).
-        // Returning 0 after a negative GIN probe keeps the Documents list
-        // interactive; scan/filter ops still use the LIKE helper when needed.
-        Ok(gin_count as usize)
+
+        // Map normalized prefix → count, then re-key to caller prefixes.
+        let mut by_normalized: HashMap<String, usize> = HashMap::with_capacity(rows.len());
+        for (prefix, cnt) in rows {
+            by_normalized.insert(prefix, cnt as usize);
+        }
+        for (original, norm) in prefixes.iter().zip(normalized.iter()) {
+            out.insert(
+                original.clone(),
+                by_normalized.get(norm).copied().unwrap_or(0),
+            );
+        }
+        Ok(out)
     }
 
     pub(super) async fn pg_clear(&self) -> Result<()> {

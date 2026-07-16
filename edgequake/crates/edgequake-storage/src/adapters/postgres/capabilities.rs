@@ -15,6 +15,18 @@ pub enum VectorStorageMode {
 pub const HNSW_MAX_DIM_VECTOR: usize = 2000;
 pub const HNSW_MAX_DIM_HALFVEC: usize = 4000;
 
+/// Minimum pgvector for iterative index scans (0.8.0 feature).
+pub const PGVECTOR_MIN_ITERATIVE_SCAN: &str = "0.8.0";
+
+/// CVE-safe floor (CVE-2026-3172 affected 0.8.0/0.8.1 parallel HNSW builds).
+/// Prefer image pin ≥0.8.5; readiness warns below this floor.
+pub const PGVECTOR_MIN_CVE_SAFE: &str = "0.8.2";
+
+/// True when `extversion` meets the CVE-safe pgvector floor.
+pub fn pgvector_meets_cve_floor(version: &str) -> bool {
+    extension_version_at_least(version, PGVECTOR_MIN_CVE_SAFE)
+}
+
 /// Resolved ANN column type + index viability for a workspace embedding dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnnIndexPolicy {
@@ -208,6 +220,15 @@ impl PostgresCapabilities {
 #[cfg(test)]
 mod ann_index_policy_tests {
     use super::*;
+
+    #[test]
+    fn pgvector_cve_floor_rejects_081() {
+        assert!(!pgvector_meets_cve_floor("0.8.0"));
+        assert!(!pgvector_meets_cve_floor("0.8.1"));
+        assert!(pgvector_meets_cve_floor("0.8.2"));
+        assert!(pgvector_meets_cve_floor(PGVECTOR_MIN_CVE_SAFE));
+        assert!(extension_version_at_least("0.8.5", PGVECTOR_MIN_ITERATIVE_SCAN));
+    }
 
     #[test]
     fn resolve_vector_1536_full_mode() {

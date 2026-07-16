@@ -82,7 +82,7 @@ Do not conflate “quiet make-dev” with “fast hybrid query”.
 
 1. **Never edit** checksum-locked `migrations/0NN_*.sql` after apply. Change
    `migrations/support/NNN/apply.sql` for every-boot reconcile only.
-2. Prefer **native graph writes** (default ON since docs/054). Opt out only with
+2. Prefer **native graph writes** (default ON since specs/054). Opt out only with
    `EDGEQUAKE_NATIVE_GRAPH_WRITES=0` if debugging Cypher MERGE.
 3. For filtered RAG, keep `EDGEQUAKE_HNSW_ITERATIVE_SCAN` at default (`relaxed_order`)
    unless strict distance order is required (`strict_order`).

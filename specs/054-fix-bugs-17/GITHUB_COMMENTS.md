@@ -286,7 +286,7 @@ WebUI subscribed to client batch `track_id`; workers wrote progress under server
 - Client `track_id` remains batch correlation only
 
 ### Reproduced on published v0.17.0 + Mistral
-See `docs/056-issue-release-17/` — backend completes; UI spinner was identity mismatch.
+See `specs/056-issue-release-17/` — backend completes; UI spinner was identity mismatch.
 
 ### Tests
 - `e2e_spec054_pdf_progress_identity` — 4/4 on live PostgreSQL

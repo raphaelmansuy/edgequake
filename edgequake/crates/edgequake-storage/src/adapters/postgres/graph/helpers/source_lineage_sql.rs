@@ -12,10 +12,7 @@
 /// path (P-A1) remains the primary count source.
 pub(in crate::adapters::postgres::graph) const SOURCE_CHUNK_PROBE_LIMIT: usize = 256;
 
-/// Escape a string for safe inclusion in SQL single-quoted literals.
-pub(in crate::adapters::postgres::graph) fn escape_sql_literal(value: &str) -> String {
-    value.replace('\'', "''")
-}
+use super::escape::escape_sql_literal;
 
 /// Normalize a document / chunk prefix to the `{doc_id}-chunk-` form.
 ///
@@ -30,6 +27,10 @@ pub(in crate::adapters::postgres::graph) fn normalize_doc_chunk_prefix(prefix: &
 }
 
 /// Build concrete chunk-id candidates for GIN `@>` probes (`{prefix}0`..`N-1`).
+///
+/// Batched list counts use SQL `generate_series` instead; this helper remains
+/// for single-prefix probes, scan predicates, and tests.
+#[allow(dead_code)]
 pub(in crate::adapters::postgres::graph) fn source_chunk_id_candidates(
     prefix: &str,
     limit: usize,

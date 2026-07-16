@@ -12,8 +12,8 @@ Analyst: GitHub Copilot (First Principles analysis)
 Do not treat rows below as “shipped” unless that assessment says so.
 
 **Query · Postgres · AGE · pgvector (performance SSOT):**  
-[`docs/054-fix-bugs-17/`](../../docs/054-fix-bugs-17/README.md) — First Principles,
-cross-ref, budgets, test matrix (orthogonal to #300/#298 ingest UX).
+[`README.md`](./README.md) (001–006) — First Principles, cross-ref, budgets,
+test matrix (orthogonal to #300/#298 ingest UX).
 
 | # | Title | Status (lawful) | Action |
 | --- | --- | --- | --- |
@@ -110,7 +110,7 @@ GET /documents
 ```
 
 Full artifacts and Docker/Mistral steps:
-`docs/056-issue-release-17/`.
+`specs/056-issue-release-17/`.
 
 ### Root cause boundaries
 

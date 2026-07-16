@@ -93,8 +93,58 @@ impl Default for PostgresConfig {
             ssl_mode: SslMode::Prefer,
             vector_index_type: VectorIndexType::HNSW,
             hnsw_m: 16,
-            hnsw_ef_construction: 32, // SPEC-034 IMP-04: reduced from 64 → ~35% smaller index, <2% recall loss
+            // Default 32 = SPEC-034 local/dev size tradeoff. Production: set
+            // EDGEQUAKE_HNSW_EF_CONSTRUCTION=128 (specs/054-fix-bugs-17/006).
+            // Never REINDEX on boot — operator-driven only.
+            hnsw_ef_construction: hnsw_ef_construction_from_env(),
             ivfflat_lists: 100,
+        }
+    }
+}
+
+/// HNSW `ef_construction` from env (default **32** for local/smoke).
+///
+/// Production recommendation (July 2026): **128**. Changing this only affects
+/// **new** index builds — existing HNSW requires operator `REINDEX CONCURRENTLY`.
+pub fn hnsw_ef_construction_from_env() -> u32 {
+    std::env::var("EDGEQUAKE_HNSW_EF_CONSTRUCTION")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .map(|v| v.clamp(4, 1000))
+        .unwrap_or(32)
+}
+
+#[cfg(test)]
+mod hnsw_ef_construction_tests {
+    use super::hnsw_ef_construction_from_env;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[test]
+    fn default_is_32_when_unset() {
+        let _g = env_lock().lock().unwrap();
+        let prev = std::env::var("EDGEQUAKE_HNSW_EF_CONSTRUCTION").ok();
+        std::env::remove_var("EDGEQUAKE_HNSW_EF_CONSTRUCTION");
+        assert_eq!(hnsw_ef_construction_from_env(), 32);
+        match prev {
+            Some(v) => std::env::set_var("EDGEQUAKE_HNSW_EF_CONSTRUCTION", v),
+            None => std::env::remove_var("EDGEQUAKE_HNSW_EF_CONSTRUCTION"),
+        }
+    }
+
+    #[test]
+    fn production_profile_128() {
+        let _g = env_lock().lock().unwrap();
+        let prev = std::env::var("EDGEQUAKE_HNSW_EF_CONSTRUCTION").ok();
+        std::env::set_var("EDGEQUAKE_HNSW_EF_CONSTRUCTION", "128");
+        assert_eq!(hnsw_ef_construction_from_env(), 128);
+        match prev {
+            Some(v) => std::env::set_var("EDGEQUAKE_HNSW_EF_CONSTRUCTION", v),
+            None => std::env::remove_var("EDGEQUAKE_HNSW_EF_CONSTRUCTION"),
         }
     }
 }

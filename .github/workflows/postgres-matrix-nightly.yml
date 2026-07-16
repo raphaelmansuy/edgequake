@@ -27,6 +27,65 @@ jobs:
       - name: OPS-17 pin smoke (pg16/pg17/pg18)
         run: bash specs/046-graphrag-study/e2e/run_ops17_perf_smoke.sh
 
+  # SPEC-054 wiring contracts (no Docker DB) — always on nightly.
+  spec054-contracts:
+    runs-on: ubuntu-latest
+    needs: pin-smoke
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+      - name: Spec 054 query/postgres contracts
+        working-directory: edgequake
+        run: |
+          cargo test -p edgequake-storage --test contract_spec054_query_postgres_perf -- --nocapture
+          cargo test -p edgequake-storage --lib adapters::postgres::vector::search_tuning -- --nocapture
+
+  # Live AGE/pgvector budgets when battle=true or schedule (needs built image).
+  spec054-postgres-perf:
+    if: ${{ github.event_name == 'schedule' || inputs.battle == true }}
+    runs-on: ubuntu-latest
+    needs: [pin-smoke, spec054-contracts]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+      - name: Start EdgeQuake Postgres (pg18 pin)
+        run: |
+          set -euo pipefail
+          make postgres-start || make db-start || true
+          for i in $(seq 1 60); do
+            if docker exec edgequake-postgres pg_isready -U edgequake >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          echo "postgres://edgequake:edgequake_secret@localhost:5432/edgequake" > /tmp/edgequake-db-url
+          export DATABASE_URL="$(cat /tmp/edgequake-db-url)"
+          echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
+      - name: Spec 054 AGE/pgvector + boot + list budgets
+        working-directory: edgequake
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-storage --features postgres --test e2e_spec054_age_pgvector_perf -- --nocapture
+          cargo test -p edgequake-api --test e2e_spec054_query_perf_smoke -- --nocapture
+          cargo test -p edgequake-api --features postgres --test e2e_spec054_documents_list_perf -- --nocapture
+          cargo test -p edgequake-storage --features postgres --test e2e_spec054_mix_scale_perf -- --nocapture
+
   battle-matrix:
     if: ${{ github.event_name == 'schedule' || inputs.battle == true }}
     runs-on: ubuntu-latest

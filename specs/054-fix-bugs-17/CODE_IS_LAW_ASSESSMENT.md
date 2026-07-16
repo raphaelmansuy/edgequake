@@ -60,7 +60,7 @@ make dev
 [x] Full local e2e matrix green
 [ ] Commit
 [ ] Patch release
-[ ] docs/056 on published digests
+[ ] specs/056 on published digests
 [ ] Post GITHUB_COMMENTS; CLOSE issues
 ```
 

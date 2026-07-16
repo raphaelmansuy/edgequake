@@ -229,12 +229,18 @@ fn configure_postgres_e2e_auth_env() {
     }
 }
 
+/// Opt in to mock LLM for postgres e2e harness (forbidden as server default).
+fn configure_postgres_e2e_mock_provider_env() {
+    env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
+    env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
+    env::set_var("EDGEQUAKE_ALLOW_MOCK_PROVIDER", "1");
+}
+
 /// Build an Axum app backed by PostgreSQL with mock LLM (deterministic, no API keys).
 pub async fn create_postgres_mock_app() -> axum::Router {
     super::clear_provider_detection_env();
     configure_postgres_e2e_auth_env();
-    env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
-    env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
+    configure_postgres_e2e_mock_provider_env();
 
     let url = require_database_url();
     let state = AppState::new_postgres(url, "")
@@ -249,8 +255,7 @@ pub async fn create_postgres_mock_app() -> axum::Router {
 pub async fn create_postgres_mock_app_or_skip() -> Option<axum::Router> {
     super::clear_provider_detection_env();
     configure_postgres_e2e_auth_env();
-    env::set_var("EDGEQUAKE_LLM_PROVIDER", "mock");
-    env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
+    configure_postgres_e2e_mock_provider_env();
 
     let url = try_database_url()?;
     let state = AppState::new_postgres(url, "")

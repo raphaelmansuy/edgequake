@@ -33,7 +33,7 @@
 //!
 //! # Requirements
 //!
-//! - PostgreSQL 11-17
+//! - PostgreSQL 11–18 (AGE release branches per major)
 //! - Apache AGE extension installed and loaded
 //!
 //! # Example
@@ -186,10 +186,10 @@ mod scan_ops;
 /// changing write complexity from O(G) (GIN scan) to O(log G) (btree) — ~69×
 /// faster at 50K nodes.
 ///
-/// **Default ON** (docs/054): M083 UNIQUE indexes are reconciled every boot, so
+/// **Default ON** (specs/054): M083 UNIQUE indexes are reconciled every boot, so
 /// the ON CONFLICT arbiter is available. Opt out with
 /// `EDGEQUAKE_NATIVE_GRAPH_WRITES=0` (or `false`/`off`) to force Cypher MERGE.
-pub(super) fn native_graph_writes_enabled() -> bool {
+pub(in crate::adapters::postgres::graph) fn native_graph_writes_enabled() -> bool {
     match std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES") {
         Ok(v) => {
             let v = v.trim().to_ascii_lowercase();
@@ -292,7 +292,7 @@ mod tests {
     // SPEC-034 IMP-01: Feature flag tests
     // -------------------------------------------------------------------------
 
-    /// Test: feature flag defaults to enabled when env var is unset (docs/054).
+    /// Test: feature flag defaults to enabled when env var is unset (specs/054).
     #[test]
     fn test_native_graph_writes_enabled_by_default() {
         let _guard = native_writes_env_lock().lock().unwrap();

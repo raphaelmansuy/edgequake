@@ -283,6 +283,13 @@ impl GraphStorageAnalyticsOps for PostgresAGEGraphStorage {
     async fn node_count_by_source_prefix(&self, prefix: &str) -> Result<usize> {
         self.pg_node_count_by_source_prefix(prefix).await
     }
+
+    async fn node_counts_by_source_prefixes(
+        &self,
+        prefixes: &[String],
+    ) -> Result<std::collections::HashMap<String, usize>> {
+        self.pg_node_counts_by_source_prefixes(prefixes).await
+    }
 }
 
 #[async_trait]

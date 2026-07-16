@@ -1,4 +1,4 @@
-//! SPEC-054 / docs/054 — Postgres performance smoke (B1-a).
+//! SPEC-054 / specs/054 — Postgres performance smoke (B1-a).
 //!
 //! Requires `DATABASE_URL`. Skips cleanly when unset.
 //! Budget: M083 support apply when UNIQUE indexes already exist must finish
@@ -65,7 +65,7 @@ async fn e2e_m083_fast_path_under_two_seconds_when_unique_exists() {
     assert!(
         elapsed < Duration::from_secs(2),
         "B1-a FAIL: M083 fast-path took {elapsed:?} (budget 2s). \
-         Dedup/ANALYZE may have run despite UNIQUE existing — see docs/054-fix-bugs-17/003."
+         Dedup/ANALYZE may have run despite UNIQUE existing — see specs/054-fix-bugs-17/003."
     );
     eprintln!("OK B1-a: M083 apply fast-path in {elapsed:?} (unique_graphs≈{unique_count})");
 }

@@ -66,3 +66,8 @@ pub fn extension_version_at_least(version: &str, minimum: &str) -> bool {
 pub fn pgvector_supports_iterative_scan(version: &str) -> bool {
     extension_version_at_least(version, "0.8.0")
 }
+
+/// CVE-2026-3172 floor — prefer ≥0.8.5 in images; block readiness below 0.8.2.
+pub fn pgvector_meets_cve_floor(version: &str) -> bool {
+    extension_version_at_least(version, "0.8.2")
+}

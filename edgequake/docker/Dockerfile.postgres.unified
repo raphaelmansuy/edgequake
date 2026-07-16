@@ -6,7 +6,7 @@
 # Build:
 #   docker build \
 #     --build-arg PG_MAJOR=18 \
-#     --build-arg PGVECTOR_VERSION=v0.8.3 \
+#     --build-arg PGVECTOR_VERSION=v0.8.5 \
 #     --build-arg AGE_GIT_REF=PG18/v1.7.0-rc0 \
 #     --build-arg AGE_EXPECTED_VERSION=1.7.0 \
 #     -f Dockerfile.postgres.unified -t edgequake-postgres:pg18 .
@@ -18,7 +18,7 @@ ARG PG_MAJOR=18
 FROM postgres:${PG_MAJOR}-bookworm
 
 ARG PG_MAJOR
-ARG PGVECTOR_VERSION=v0.8.3
+ARG PGVECTOR_VERSION=v0.8.5
 ARG AGE_GIT_REF=PG18/v1.7.0-rc0
 ARG AGE_EXPECTED_VERSION=1.7.0
 

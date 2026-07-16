@@ -1,5 +1,7 @@
 //! Graph analytics and statistics operations (SPEC-017 ISP Phase 2b).
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 
 use crate::error::Result;
@@ -67,20 +69,44 @@ pub trait GraphStorageAnalyticsOps: GraphStorageReadOps + GraphScanOps {
     /// adapters SHOULD override with a single aggregate Cypher/SQL for O(log N)
     /// instead of materializing the nodes.
     async fn node_count_by_source_prefix(&self, prefix: &str) -> Result<usize> {
-        use super::graph_scan_ops::{collect_source_references, NodeListFilter};
-        let filter = NodeListFilter::default();
-        let prefixes = vec![prefix.to_string()];
-        let nodes = self
-            .find_nodes_by_source_prefixes(&filter, &prefixes)
+        let map = self
+            .node_counts_by_source_prefixes(&[prefix.to_string()])
             .await?;
-        let count = nodes
-            .iter()
-            .filter(|n| {
-                collect_source_references(&n.properties)
-                    .iter()
-                    .any(|s| s.starts_with(prefix))
-            })
-            .count();
-        Ok(count)
+        Ok(map.get(prefix).copied().unwrap_or(0))
+    }
+
+    /// Batch variant of [`node_count_by_source_prefix`] — **one** storage
+    /// round-trip for D document prefixes (SPEC-054 L1-a).
+    ///
+    /// Keys in the returned map match the input prefix strings exactly.
+    /// Missing keys mean count 0.
+    ///
+    /// Default: one `find_nodes_by_source_prefixes` scan + in-memory bucketing.
+    /// Postgres AGE overrides with a single GIN `@>` SQL query (no materialize).
+    async fn node_counts_by_source_prefixes(
+        &self,
+        prefixes: &[String],
+    ) -> Result<HashMap<String, usize>> {
+        use super::graph_scan_ops::{collect_source_references, NodeListFilter};
+        let mut out = HashMap::with_capacity(prefixes.len());
+        if prefixes.is_empty() {
+            return Ok(out);
+        }
+        let filter = NodeListFilter::default();
+        let nodes = self
+            .find_nodes_by_source_prefixes(&filter, prefixes)
+            .await?;
+        for prefix in prefixes {
+            let count = nodes
+                .iter()
+                .filter(|n| {
+                    collect_source_references(&n.properties)
+                        .iter()
+                        .any(|s| s.starts_with(prefix.as_str()))
+                })
+                .count();
+            out.insert(prefix.clone(), count);
+        }
+        Ok(out)
     }
 }

@@ -51,10 +51,11 @@ mod workspace_vector;
 pub use age_csv_loader::{load_vertices_from_csv, should_use_copy_loader};
 pub use capabilities::{
     age_copy_loader_min_rows, age_rls_requested, age_supports_copy_loader, age_supports_rls,
-    extension_version_at_least, AnnIndexPolicy, DocumentIdGenerator, PostgresCapabilities,
-    VectorStorageMode, HNSW_MAX_DIM_HALFVEC, HNSW_MAX_DIM_VECTOR,
+    extension_version_at_least, pgvector_meets_cve_floor, AnnIndexPolicy, DocumentIdGenerator,
+    PostgresCapabilities, VectorStorageMode, HNSW_MAX_DIM_HALFVEC, HNSW_MAX_DIM_VECTOR,
+    PGVECTOR_MIN_CVE_SAFE, PGVECTOR_MIN_ITERATIVE_SCAN,
 };
-pub use config::PostgresConfig;
+pub use config::{hnsw_ef_construction_from_env, PostgresConfig};
 pub use connection::PostgresPool;
 pub use conversation::PostgresConversationStorage;
 pub use graph::PostgresAGEGraphStorage;

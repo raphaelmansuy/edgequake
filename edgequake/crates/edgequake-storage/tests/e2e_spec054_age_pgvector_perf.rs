@@ -1,4 +1,4 @@
-//! SPEC-054 / docs/054 — verified AGE + pgvector performance e2e.
+//! SPEC-054 / specs/054 — verified AGE + pgvector performance e2e.
 //!
 //! Run:
 //! ```bash
@@ -19,7 +19,8 @@
 mod postgres_test_config;
 
 use edgequake_storage::traits::{
-    GraphStorage, GraphStorageMutateOps, GraphStorageReadOps, MetadataFilter, VectorStorage,
+    GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps,
+    MetadataFilter, VectorStorage,
 };
 use edgequake_storage::{PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig};
 use std::collections::HashMap;
@@ -183,6 +184,97 @@ async fn e2e_native_upsert_batch_get_and_unique_index_plan() {
         None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
     }
 
+    let _ = storage.clear().await;
+}
+
+/// L1-a AGE portion: batched source-prefix counts must beat N sequential
+/// round-trips and finish under 200ms for ~20 prefixes on a warm graph.
+#[tokio::test]
+async fn e2e_batched_source_prefix_counts_under_budget() {
+    let Some(config) = postgres_test_config::contract_postgres_config("perf054_lineage") else {
+        eprintln!("SKIP: no DATABASE_URL / POSTGRES_PASSWORD");
+        return;
+    };
+
+    let prev = std::env::var("EDGEQUAKE_NATIVE_GRAPH_WRITES").ok();
+    std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", "1");
+
+    let storage = PostgresAGEGraphStorage::new(config);
+    storage.initialize().await.expect("graph init");
+
+    let doc_count = 20usize;
+    let mut nodes = Vec::with_capacity(doc_count * 3);
+    let mut prefixes = Vec::with_capacity(doc_count);
+    for d in 0..doc_count {
+        let doc_id = format!("l1a-doc-{d}");
+        let prefix = format!("{doc_id}-chunk-");
+        prefixes.push(prefix.clone());
+        for c in 0..3 {
+            let mut props = HashMap::new();
+            props.insert("entity_type".to_string(), serde_json::json!("CONCEPT"));
+            props.insert(
+                "source_ids".to_string(),
+                serde_json::json!([format!("{prefix}{c}")]),
+            );
+            props.insert(
+                "workspace_id".to_string(),
+                serde_json::json!("ws-l1a-lineage"),
+            );
+            nodes.push((format!("L1A_NODE_{d}_{c}"), props));
+        }
+    }
+    storage
+        .upsert_nodes_batch(&nodes)
+        .await
+        .expect("seed lineage nodes");
+
+    // Warm
+    let _ = storage
+        .node_counts_by_source_prefixes(&prefixes)
+        .await
+        .expect("warm batch");
+
+    let start = Instant::now();
+    let batch = storage
+        .node_counts_by_source_prefixes(&prefixes)
+        .await
+        .expect("batched counts");
+    let batch_elapsed = start.elapsed();
+
+    assert_eq!(batch.len(), doc_count);
+    for p in &prefixes {
+        assert_eq!(
+            batch.get(p).copied().unwrap_or(0),
+            3,
+            "prefix {p} should count 3 nodes"
+        );
+    }
+    assert!(
+        batch_elapsed < Duration::from_millis(200),
+        "L1-a FAIL: batched prefix counts took {batch_elapsed:?} (budget 200ms)"
+    );
+
+    // Sequential path should be slower or equal — assert batch is not a
+    // disguised N+1 (wall time roughly comparable to one prefix × small factor).
+    let start = Instant::now();
+    let one = storage
+        .node_count_by_source_prefix(&prefixes[0])
+        .await
+        .expect("single");
+    let one_elapsed = start.elapsed();
+    assert_eq!(one, 3);
+    assert!(
+        batch_elapsed < one_elapsed * 10 + Duration::from_millis(50),
+        "L1-a FAIL: batch {batch_elapsed:?} looks like N+1 vs single {one_elapsed:?}"
+    );
+    eprintln!(
+        "OK L1-a AGE: batched {doc_count} prefixes in {batch_elapsed:?} (single={one_elapsed:?})"
+    );
+
+    match prev {
+        Some(v) => std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v),
+        None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
+    }
     let _ = storage.clear().await;
 }
 
