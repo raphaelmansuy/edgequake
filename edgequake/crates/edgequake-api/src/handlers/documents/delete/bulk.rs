@@ -228,12 +228,14 @@ pub async fn delete_all_documents(
             }
         }
 
-        // SPEC-006 P1: per-document bounded graph cascade (no post-hoc full scan)
+        // SPEC-006 P1: per-document bounded graph cascade (no post-hoc full scan).
+        // WHY tenant_ctx = None (#305): ownership already checked; source-prefix
+        // cascade must not miss nodes with legacy `"default"` / missing tenant props.
         let scope = DocumentSourceScope::from_document_id(document_id.clone());
         match cascade_remove_document_sources(
             &state.storage.graph_storage,
             None,
-            Some(&tenant_ctx),
+            None,
             &scope,
         )
         .await

@@ -92,9 +92,14 @@ pub async fn has_active_task_for_document(
 }
 
 fn parse_uuid_field(meta: &Value, key: &str) -> Option<Uuid> {
-    meta.get(key)
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
+    let raw = meta.get(key).and_then(|v| v.as_str())?;
+    match key {
+        // WHY (#304): document metadata often stores the legacy `"default"` alias.
+        // Uuid::parse_str("default") fails → recovery enqueue is skipped forever.
+        "workspace_id" => crate::middleware::resolve_workspace_uuid(Some(raw)),
+        "tenant_id" => crate::middleware::resolve_tenant_uuid(Some(raw)),
+        _ => Uuid::parse_str(raw).ok(),
+    }
 }
 
 fn meta_str<'a>(meta: &'a Value, key: &str) -> Option<&'a str> {
@@ -222,16 +227,10 @@ pub async fn ensure_task_for_pending_document(
         }
     }
 
-    let tenant_id = parse_uuid_field(metadata, "tenant_id").ok_or_else(|| {
-        ApiError::ValidationError(format!(
-            "document {document_id} missing tenant_id for recovery enqueue"
-        ))
-    })?;
-    let workspace_id = workspace_id.ok_or_else(|| {
-        ApiError::ValidationError(format!(
-            "document {document_id} missing workspace_id for recovery enqueue"
-        ))
-    })?;
+    let tenant_id = parse_uuid_field(metadata, "tenant_id")
+        .unwrap_or_else(crate::middleware::default_tenant_uuid);
+    let workspace_id =
+        workspace_id.unwrap_or_else(crate::middleware::default_workspace_uuid);
 
     let title = meta_str(metadata, "title")
         .or_else(|| meta_str(metadata, "file_name"))
@@ -556,6 +555,44 @@ mod tests {
         assert!(!is_orphan_waiting_status("processing"));
         assert!(!is_orphan_waiting_status("failed"));
         assert!(!is_orphan_waiting_status("completed"));
+    }
+
+    #[test]
+    fn parse_uuid_field_resolves_default_alias() {
+        let meta = json!({
+            "tenant_id": "default",
+            "workspace_id": "default",
+        });
+        assert_eq!(
+            parse_uuid_field(&meta, "workspace_id"),
+            Some(crate::middleware::default_workspace_uuid())
+        );
+        assert_eq!(
+            parse_uuid_field(&meta, "tenant_id"),
+            Some(crate::middleware::default_tenant_uuid())
+        );
+    }
+
+    #[test]
+    fn build_pdf_recovery_accepts_default_workspace_alias() {
+        let meta = json!({
+            "id": "doc-1",
+            "tenant_id": "default",
+            "workspace_id": "default",
+            "source_type": "pdf",
+            "pdf_id": "33333333-3333-3333-3333-333333333333",
+            "title": "paper.pdf",
+            "status": "pending"
+        });
+        let built = build_recovery_task_from_metadata("doc-1", &meta, "batch", "test");
+        assert!(
+            built.is_some(),
+            "recovery must accept legacy default alias (#304)"
+        );
+        let (ty, _, tenant, workspace) = built.unwrap();
+        assert_eq!(ty, TaskType::PdfProcessing);
+        assert_eq!(tenant, crate::middleware::default_tenant_uuid());
+        assert_eq!(workspace, crate::middleware::default_workspace_uuid());
     }
 
     #[test]

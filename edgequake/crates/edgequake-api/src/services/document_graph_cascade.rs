@@ -60,11 +60,25 @@ pub struct CascadeStats {
     pub embeddings_deleted: usize,
 }
 
+/// Normalize tenant/workspace filter IDs to canonical UUIDs.
+///
+/// WHY (#305): request headers and stored graph properties often disagree on the
+/// legacy `"default"` alias vs the built-in UUID. Strict AGE property equality
+/// then finds **zero** nodes during cascade delete, leaving the Knowledge Graph
+/// intact after the document KV row is gone.
+fn canonical_tenant_filter_id(raw: Option<&str>) -> Option<String> {
+    crate::middleware::resolve_tenant_uuid(raw).map(|u| u.to_string())
+}
+
+fn canonical_workspace_filter_id(raw: Option<&str>) -> Option<String> {
+    crate::middleware::resolve_workspace_uuid(raw).map(|u| u.to_string())
+}
+
 pub fn node_list_filter(tenant_ctx: Option<&TenantContext>) -> NodeListFilter {
     match tenant_ctx {
         Some(ctx) => NodeListFilter {
-            tenant_id: ctx.tenant_id.clone(),
-            workspace_id: ctx.workspace_id.clone(),
+            tenant_id: canonical_tenant_filter_id(ctx.tenant_id.as_deref()),
+            workspace_id: canonical_workspace_filter_id(ctx.workspace_id.as_deref()),
             entity_type: None,
             search: None,
             community_ids: None,
@@ -76,8 +90,8 @@ pub fn node_list_filter(tenant_ctx: Option<&TenantContext>) -> NodeListFilter {
 pub fn edge_list_filter(tenant_ctx: Option<&TenantContext>) -> EdgeListFilter {
     match tenant_ctx {
         Some(ctx) => EdgeListFilter {
-            tenant_id: ctx.tenant_id.clone(),
-            workspace_id: ctx.workspace_id.clone(),
+            tenant_id: canonical_tenant_filter_id(ctx.tenant_id.as_deref()),
+            workspace_id: canonical_workspace_filter_id(ctx.workspace_id.as_deref()),
             relationship_type: None,
         },
         None => EdgeListFilter::default(),
@@ -143,6 +157,18 @@ fn edge_key(edge: &GraphEdge) -> (String, String) {
 }
 
 /// Cascade remove document sources from graph entities and relationships.
+///
+/// # Isolation (#305)
+/// Prefer calling with `tenant_ctx = None` after the document has already been
+/// authorization-checked: source-prefix scope is document-unique and must not
+/// miss graph rows whose `tenant_id`/`workspace_id` properties are absent or
+/// still use the legacy `"default"` alias. When a tenant filter is supplied,
+/// IDs are canonicalized to UUIDs first.
+///
+/// # Resilience
+/// Per-node/edge mutation failures are logged and skipped so one AGE hiccup
+/// cannot abort the whole cascade (which previously left the full KG intact
+/// while KV delete still succeeded).
 pub async fn cascade_remove_document_sources(
     graph: &Arc<dyn GraphStorage>,
     vector_storage: Option<&Arc<dyn VectorStorage>>,
@@ -150,7 +176,20 @@ pub async fn cascade_remove_document_sources(
     scope: &DocumentSourceScope,
 ) -> ApiResult<CascadeStats> {
     let mut stats = CascadeStats::default();
-    let affected_nodes = find_document_nodes(graph, tenant_ctx, scope).await?;
+    // First try with the caller's filter; if it finds nothing, fall back to an
+    // unscoped source-prefix scan. Document IDs are globally unique, so this
+    // cannot leak another tenant's nodes — it only repairs filter mismatches.
+    let mut affected_nodes = find_document_nodes(graph, tenant_ctx, scope).await?;
+    if affected_nodes.is_empty() && tenant_ctx.is_some() {
+        affected_nodes = find_document_nodes(graph, None, scope).await?;
+        if !affected_nodes.is_empty() {
+            tracing::warn!(
+                document_id = %scope.document_id,
+                found = affected_nodes.len(),
+                "Graph cascade: tenant/workspace filter missed nodes; using source-prefix fallback (#305)"
+            );
+        }
+    }
 
     let mut deleted_node_ids = HashSet::new();
 
@@ -161,7 +200,15 @@ pub async fn cascade_remove_document_sources(
         }
         let remaining = remaining_sources_after_removal(&node.properties, scope);
         if remaining.is_empty() {
-            graph.delete_node(&node.id).await.map_err(ApiError::from)?;
+            if let Err(e) = graph.delete_node(&node.id).await {
+                tracing::warn!(
+                    node_id = %node.id,
+                    document_id = %scope.document_id,
+                    error = %e,
+                    "Cascade delete_node failed (continuing)"
+                );
+                continue;
+            }
             if let Some(vs) = vector_storage {
                 let _ = vs.delete_entity(&node.id).await;
                 stats.embeddings_deleted += 1;
@@ -175,52 +222,102 @@ pub async fn cascade_remove_document_sources(
                 &mut updated_props,
                 &remaining,
             );
-            graph
-                .upsert_node(&node.id, updated_props)
-                .await
-                .map_err(ApiError::from)?;
+            if let Err(e) = graph.upsert_node(&node.id, updated_props).await {
+                tracing::warn!(
+                    node_id = %node.id,
+                    document_id = %scope.document_id,
+                    error = %e,
+                    "Cascade upsert_node failed (continuing)"
+                );
+                continue;
+            }
             stats.entities_updated += 1;
         }
     }
 
     let mut edges_to_process: HashMap<(String, String), GraphEdge> = HashMap::new();
-    for edge in find_document_edges(graph, tenant_ctx, scope).await? {
+    let mut doc_edges = find_document_edges(graph, tenant_ctx, scope).await?;
+    if doc_edges.is_empty() && tenant_ctx.is_some() {
+        doc_edges = find_document_edges(graph, None, scope).await?;
+    }
+    for edge in doc_edges {
         edges_to_process.insert(edge_key(&edge), edge);
     }
 
     if !deleted_node_ids.is_empty() {
         let ids: Vec<String> = deleted_node_ids.iter().cloned().collect();
-        for edge in graph
-            .get_edges_for_nodes_batch(&ids)
-            .await
-            .map_err(ApiError::from)?
-        {
-            edges_to_process.insert(edge_key(&edge), edge);
+        match graph.get_edges_for_nodes_batch(&ids).await {
+            Ok(edges) => {
+                for edge in edges {
+                    edges_to_process.insert(edge_key(&edge), edge);
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    document_id = %scope.document_id,
+                    error = %e,
+                    "Cascade get_edges_for_nodes_batch failed (continuing)"
+                );
+            }
         }
     }
 
     for edge in edges_to_process.into_values() {
-        let source_exists = graph.has_node(&edge.source).await.map_err(ApiError::from)?;
-        let target_exists = graph.has_node(&edge.target).await.map_err(ApiError::from)?;
+        let source_exists = match graph.has_node(&edge.source).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    edge_source = %edge.source,
+                    error = %e,
+                    "Cascade has_node(source) failed (continuing)"
+                );
+                continue;
+            }
+        };
+        let target_exists = match graph.has_node(&edge.target).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    edge_target = %edge.target,
+                    error = %e,
+                    "Cascade has_node(target) failed (continuing)"
+                );
+                continue;
+            }
+        };
         if !source_exists || !target_exists {
-            graph
-                .delete_edge(&edge.source, &edge.target)
-                .await
-                .map_err(ApiError::from)?;
+            if let Err(e) = graph.delete_edge(&edge.source, &edge.target).await {
+                tracing::warn!(
+                    edge_source = %edge.source,
+                    edge_target = %edge.target,
+                    error = %e,
+                    "Cascade delete_edge (orphan endpoints) failed (continuing)"
+                );
+                continue;
+            }
             stats.relationships_removed += 1;
             continue;
         }
 
         let sources = collect_source_references(&edge.properties);
+        // Edges often lack source_ids after merge (lineage UI). If both endpoints
+        // were exclusive to this document and deleted above, the orphan-endpoint
+        // branch already removed the edge. If only one endpoint remains (shared
+        // entity), keep the edge unless provenance says this doc owned it alone.
         if sources.is_empty() {
             continue;
         }
         let remaining = remaining_sources_after_removal(&edge.properties, scope);
         if remaining.is_empty() {
-            graph
-                .delete_edge(&edge.source, &edge.target)
-                .await
-                .map_err(ApiError::from)?;
+            if let Err(e) = graph.delete_edge(&edge.source, &edge.target).await {
+                tracing::warn!(
+                    edge_source = %edge.source,
+                    edge_target = %edge.target,
+                    error = %e,
+                    "Cascade delete_edge failed (continuing)"
+                );
+                continue;
+            }
             stats.relationships_removed += 1;
         } else if remaining.len() < sources.len() {
             let mut updated_props = edge.properties.clone();
@@ -228,10 +325,18 @@ pub async fn cascade_remove_document_sources(
                 &mut updated_props,
                 &remaining,
             );
-            graph
+            if let Err(e) = graph
                 .upsert_edge(&edge.source, &edge.target, updated_props)
                 .await
-                .map_err(ApiError::from)?;
+            {
+                tracing::warn!(
+                    edge_source = %edge.source,
+                    edge_target = %edge.target,
+                    error = %e,
+                    "Cascade upsert_edge failed (continuing)"
+                );
+                continue;
+            }
             stats.relationships_updated += 1;
         }
     }
@@ -447,5 +552,88 @@ mod tests {
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].source, "LIGHTRAG");
         assert_eq!(edges[0].target, "RETRIEVAL");
+    }
+
+    #[test]
+    fn node_list_filter_canonicalizes_default_alias() {
+        let ctx = TenantContext {
+            tenant_id: Some("default".to_string()),
+            workspace_id: Some("default".to_string()),
+            user_id: None,
+        };
+        let filter = node_list_filter(Some(&ctx));
+        // Strict equality must never leave the literal "default" alias.
+        assert_ne!(filter.workspace_id.as_deref(), Some("default"));
+        assert_ne!(filter.tenant_id.as_deref(), Some("default"));
+        let expected_ws = crate::middleware::default_workspace_uuid().to_string();
+        let expected_tenant = crate::middleware::default_tenant_uuid().to_string();
+        assert_eq!(filter.workspace_id.as_deref(), Some(expected_ws.as_str()));
+        assert_eq!(filter.tenant_id.as_deref(), Some(expected_tenant.as_str()));
+    }
+
+    /// #305: cascade must remove exclusive entities even when the request
+    /// tenant filter says `"default"` while nodes store the canonical UUID
+    /// (or omit tenant props entirely).
+    #[tokio::test]
+    async fn cascade_removes_exclusive_nodes_despite_default_alias_filter() {
+        use edgequake_storage::traits::GraphStorageMutateOps;
+        use edgequake_storage::MemoryGraphStorage;
+
+        let graph: Arc<dyn GraphStorage> = Arc::new(MemoryGraphStorage::new("cascade-305"));
+        let doc_id = "doc-305-orphan";
+        let scope = DocumentSourceScope::from_document_id(doc_id);
+        let ws_uuid = crate::middleware::default_workspace_uuid().to_string();
+
+        let mut props = HashMap::new();
+        props.insert(
+            "source_ids".to_string(),
+            serde_json::json!([format!("{doc_id}-chunk-0")]),
+        );
+        props.insert("workspace_id".to_string(), serde_json::json!(ws_uuid));
+        props.insert("entity_type".to_string(), serde_json::json!("PERSON"));
+        graph
+            .upsert_node("ORPHAN_ENTITY", props)
+            .await
+            .expect("node");
+
+        // Mismatched filter: literal "default" would miss UUID-scoped nodes on
+        // Postgres AGE. Memory backend ignores filters, so we also assert the
+        // None path used by delete handlers.
+        let stats = cascade_remove_document_sources(&graph, None, None, &scope)
+            .await
+            .expect("cascade");
+        assert_eq!(stats.entities_removed, 1);
+        assert!(!graph.has_node("ORPHAN_ENTITY").await.expect("has"));
+    }
+
+    /// Shared entities keep remaining sources after cascade.
+    #[tokio::test]
+    async fn cascade_preserves_shared_entity_sources() {
+        use edgequake_storage::traits::GraphStorageMutateOps;
+        use edgequake_storage::MemoryGraphStorage;
+
+        let graph: Arc<dyn GraphStorage> = Arc::new(MemoryGraphStorage::new("cascade-shared"));
+        let doc_a = "doc-a";
+        let doc_b = "doc-b";
+        let scope = DocumentSourceScope::from_document_id(doc_a);
+
+        let mut props = HashMap::new();
+        props.insert(
+            "source_ids".to_string(),
+            serde_json::json!([format!("{doc_a}-chunk-0"), format!("{doc_b}-chunk-0")]),
+        );
+        graph
+            .upsert_node("SHARED", props)
+            .await
+            .expect("node");
+
+        let stats = cascade_remove_document_sources(&graph, None, None, &scope)
+            .await
+            .expect("cascade");
+        assert_eq!(stats.entities_removed, 0);
+        assert_eq!(stats.entities_updated, 1);
+        let node = graph.get_node("SHARED").await.expect("get").expect("exists");
+        let remaining = collect_source_references(&node.properties);
+        assert_eq!(remaining, vec![format!("{doc_b}-chunk-0")]);
     }
 }

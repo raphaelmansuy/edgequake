@@ -522,3 +522,78 @@ async fn spec054_298_pdf_reconcile_preserves_metadata_vision_provider() {
     );
     assert_eq!(built.vision_provider, "mistral");
 }
+
+/// #304: Reprocess must enqueue work for docs marked "Interrupted by server restart"
+/// even when metadata uses the legacy `"default"` workspace/tenant alias.
+#[tokio::test]
+async fn issue_304_reprocess_interrupted_doc_with_default_alias() {
+    let state = AppState::test_state();
+    let app = Server::new(test_config(), state.clone()).build_router();
+    let doc_id = "issue-304-interrupted-default";
+
+    let metadata = json!({
+        "id": doc_id,
+        "title": "interrupted.md",
+        "status": "failed",
+        "current_stage": "failed",
+        "error_message": "Interrupted by server restart — use Reprocess to resume",
+        "stage_message": "Interrupted during 'extracting' stage by server restart. Use Reprocess to resume from checkpoint.",
+        "tenant_id": "default",
+        "workspace_id": "default",
+        "source_type": "text",
+        "updated_at": "2020-01-01T00:00:00Z",
+    });
+    state
+        .storage
+        .kv_storage
+        .upsert(&[
+            (format!("{doc_id}-metadata"), metadata),
+            (
+                format!("{doc_id}-content"),
+                json!({ "content": "Resume me after restart" }),
+            ),
+        ])
+        .await
+        .expect("seed interrupted doc");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/reprocess")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", "default")
+                .header("X-Workspace-ID", "default")
+                .body(Body::from(
+                    json!({
+                        "document_id": doc_id,
+                        "force": true,
+                        "max_documents": 1,
+                        "mode": "entities"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_success(),
+        "reprocess must not 400 on default alias, got {}",
+        response.status()
+    );
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let requeued = parsed["requeued"].as_u64().unwrap_or(0);
+    assert!(
+        requeued >= 1,
+        "falsifiable (#304): interrupted doc with default alias must requeue, body={parsed}"
+    );
+    assert!(
+        parsed["task_id"].as_str().is_some(),
+        "must return a task_id so UI can track progress"
+    );
+}

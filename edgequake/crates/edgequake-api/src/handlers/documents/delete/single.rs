@@ -399,10 +399,16 @@ pub async fn delete_document(
     // cleanup below is the authoritative data removal; graph rows are best-effort
     // and can be reconciled later. This fixes the "delete returns 500 even though
     // the document is gone" symptom seen on large ingestions.
+    //
+    // WHY tenant_ctx = None (#305): document ownership was already verified via
+    // metadata_matches_tenant_context / relational_scope above. Passing the raw
+    // request tenant filter made cascade miss AGE nodes whose workspace_id is
+    // the canonical UUID while the header still says `"default"` (or nodes that
+    // lack tenant properties entirely). Source-prefix scope is document-unique.
     let cascade_stats = match cascade_remove_document_sources(
         &state.storage.graph_storage,
         Some(&workspace_vector_storage),
-        Some(&tenant_ctx),
+        None,
         &scope,
     )
     .await
@@ -902,6 +908,83 @@ mod tests {
         assert!(
             !keys_after.contains(&alt_lineage_key),
             "lineage under json id prefix"
+        );
+    }
+
+    /// #305: DELETE must cascade-remove exclusive Knowledge Graph entities.
+    #[tokio::test]
+    async fn test_delete_document_removes_exclusive_graph_entities() {
+        use edgequake_storage::traits::GraphStorageMutateOps;
+        use std::collections::HashMap;
+
+        let state = AppState::test_state();
+        let doc_id = "doc-305-delete-cascade";
+        let metadata_key = metadata_key_for_document(doc_id);
+        let chunk_key = format!("{}-chunk-0", doc_id);
+
+        state
+            .storage
+            .kv_storage
+            .upsert(&[
+                (
+                    metadata_key.clone(),
+                    json!({
+                        "id": doc_id,
+                        "status": "completed",
+                        "workspace_id": "default",
+                        "tenant_id": "default",
+                    }),
+                ),
+                (chunk_key.clone(), json!({"content": "chunk"})),
+            ])
+            .await
+            .unwrap();
+
+        let mut props = HashMap::new();
+        props.insert(
+            "source_ids".to_string(),
+            json!([format!("{}-chunk-0", doc_id)]),
+        );
+        props.insert("entity_type".to_string(), json!("PERSON"));
+        // Store canonical UUID while request may use `"default"` — cascade must
+        // still find and remove the node.
+        props.insert(
+            "workspace_id".to_string(),
+            json!(crate::middleware::default_workspace_uuid().to_string()),
+        );
+        state
+            .storage
+            .graph_storage
+            .upsert_node("EXCLUSIVE_ENTITY_305", props)
+            .await
+            .unwrap();
+
+        let result = delete_document(
+            State(state.clone()),
+            axum::extract::Path(doc_id.to_string()),
+            TenantContext {
+                tenant_id: Some("default".to_string()),
+                workspace_id: Some("default".to_string()),
+                user_id: None,
+            },
+        )
+        .await
+        .expect("delete should succeed");
+
+        assert!(result.deleted);
+        assert!(
+            result.entities_affected >= 1,
+            "exclusive entity must be cascade-removed, got entities_affected={}",
+            result.entities_affected
+        );
+        assert!(
+            !state
+                .storage
+                .graph_storage
+                .has_node("EXCLUSIVE_ENTITY_305")
+                .await
+                .unwrap(),
+            "Knowledge Graph must not retain entities from deleted documents (#305)"
         );
     }
 }

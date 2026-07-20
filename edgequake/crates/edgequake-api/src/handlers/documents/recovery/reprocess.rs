@@ -180,11 +180,11 @@ pub(crate) async fn run_reprocess_failed(
 
     // Requeue documents for processing
     for (doc_id, _doc_key) in &docs_to_reprocess {
-        let workspace_id_for_tasks = tenant_ctx
-            .workspace_id
-            .as_deref()
-            .unwrap_or("default")
-            .to_string();
+        // WHY (#304): never pass the literal `"default"` alias into Uuid::parse_str —
+        // that returns ValidationError after early-admit already wrote status=processing,
+        // leaving the document stuck with "Reprocess has no effect".
+        let workspace_id_for_tasks = tenant_ctx.workspace_id_or_default();
+        let tenant_id_for_tasks = tenant_ctx.tenant_id_or_default();
 
         // Read metadata early so soft single-flight can see pdf_id before any purge.
         let metadata_key =
@@ -416,18 +416,28 @@ pub(crate) async fn run_reprocess_failed(
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        // Use tenant context for workspace_id, fallback to "default"
-        let workspace_id = tenant_ctx
-            .workspace_id
-            .clone()
-            .unwrap_or_else(|| "default".to_string());
-        let tenant_id = tenant_ctx
-            .tenant_id
-            .clone()
-            .unwrap_or_else(|| "default".to_string());
+        // Prefer document metadata workspace/tenant when present (canonical UUIDs),
+        // otherwise fall back to the request context helpers that resolve `"default"`.
+        let workspace_id = metadata_opt
+            .as_ref()
+            .and_then(|m| m.get("workspace_id"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| crate::middleware::resolve_workspace_uuid(Some(s)))
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| workspace_id_for_tasks.clone());
+        let tenant_id = metadata_opt
+            .as_ref()
+            .and_then(|m| m.get("tenant_id"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| crate::middleware::resolve_tenant_uuid(Some(s)))
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| tenant_id_for_tasks.clone());
 
-        // FIX-REBUILD: Route PDF documents through PdfProcessing for full re-extraction
-        let task_created = if source_type.as_deref() == Some("pdf") {
+        // FIX-REBUILD: Route PDF documents through PdfProcessing for full re-extraction.
+        // WHY (#304): interrupted uploads may have `pdf_id` but missing/empty
+        // `source_type` or KV content — still treat as PDF so Reprocess enqueues work.
+        let is_pdf_document = source_type.as_deref() == Some("pdf") || pdf_id_str.is_some();
+        let task_created = if is_pdf_document {
             if let Some(ref pid_str) = pdf_id_str {
                 if let Ok(pdf_id_uuid) = uuid::Uuid::parse_str(pid_str) {
                     // Edge case: empty-markdown fallback.
@@ -437,10 +447,30 @@ pub(crate) async fn run_reprocess_failed(
                     // to Full so the PDF is re-converted from scratch. This is a
                     // safe, idempotent promotion: Full is a strict superset of
                     // EntitiesOnly's work.
+                    //
+                    // Also upgrade when the doc was interrupted by server restart
+                    // (#304): checkpoints/markdown are often incomplete after a kill.
                     #[allow(unused_mut)]
                     let mut reprocess_mode = reprocess_mode;
                     #[allow(unused_mut)]
                     let mut restart_from_scratch = restart_from_scratch;
+                    let interrupted_by_restart = metadata_opt
+                        .as_ref()
+                        .and_then(|m| m.get("error_message"))
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|msg| {
+                            msg.contains("Interrupted by server restart")
+                                || msg.contains("Server restarted")
+                        });
+                    if !restart_from_scratch && interrupted_by_restart {
+                        tracing::info!(
+                            document_id = %doc_id,
+                            pdf_id = %pid_str,
+                            "Reprocess after server-restart interrupt — upgrading to full re-conversion (#304)"
+                        );
+                        reprocess_mode = edgequake_tasks::ReprocessMode::Full;
+                        restart_from_scratch = true;
+                    }
                     if !restart_from_scratch {
                         // `pdf_storage` is only present under the `postgres` feature
                         // (StorageRuntime::pdf_storage is `#[cfg(feature = "postgres")]`).
@@ -472,6 +502,26 @@ pub(crate) async fn run_reprocess_failed(
                                     pdf_id = %pid_str,
                                     "Reprocess entities requested but cached markdown is empty — upgrading to full re-conversion"
                                 );
+                                reprocess_mode = edgequake_tasks::ReprocessMode::Full;
+                                restart_from_scratch = true;
+                            }
+                        }
+                        // Without postgres / when KV content is also missing, promote
+                        // so soft reprocess does not no-op after interrupt (#304).
+                        #[cfg(not(feature = "postgres"))]
+                        {
+                            let content_missing = state
+                                .storage
+                                .kv_storage
+                                .get_by_id(&content_key)
+                                .await?
+                                .and_then(|v| {
+                                    v.get("content")
+                                        .and_then(|c| c.as_str())
+                                        .map(|s| s.trim().is_empty())
+                                })
+                                .unwrap_or(true);
+                            if content_missing {
                                 reprocess_mode = edgequake_tasks::ReprocessMode::Full;
                                 restart_from_scratch = true;
                             }
