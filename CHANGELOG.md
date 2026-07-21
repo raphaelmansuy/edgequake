@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Bulk delete scalability
+
+- **Bulk "Delete All Documents" no longer scans the full graph per document (#309)** — `DELETE /api/v1/documents` ran the per-document graph cascade (`cascade_remove_document_sources`) once for every document, each issuing full `_ag_label_vertex` / `_ag_label_edge` scans with `agtype_to_json(...)` and wildcard `LIKE` predicates. On large workspaces this became O(documents × graph_size), producing slow queries, statement timeouts, connection-pool exhaustion, and PostgreSQL/AGE OOM kills. The per-document cascade is now skipped whenever the authoritative workspace-scoped clear runs afterward — a single bounded `DETACH DELETE` (`clear_workspace`) that is both far cheaper and strictly more complete (it also removes orphaned rows the cascade missed). Document deleted-count, KV/vector cleanup, PDF/mm-asset cleanup, and cross-workspace isolation are unchanged.
+
 ---
 
 ## [0.19.0] — 2026-07-17

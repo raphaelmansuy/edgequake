@@ -89,6 +89,24 @@ pub async fn delete_all_documents(
     // Define stuck threshold: documents processing for > 1 hour are considered stuck
     let stuck_threshold_secs = 3600; // 1 hour
 
+    // Issue #309: Resolve the workspace UUID up front so we know whether the
+    // authoritative workspace-scoped graph clear will run after the loop.
+    //
+    // WHY: The per-document graph cascade (`cascade_remove_document_sources`) issues
+    // full `_ag_label_vertex` / `_ag_label_edge` scans with `agtype_to_json(...)` and
+    // wildcard `LIKE` predicates on every call. Running it once per document makes bulk
+    // delete O(documents × graph_size) — hundreds of repeated full-graph scans — which
+    // is what produces the slow queries, statement timeouts, connection-pool exhaustion,
+    // and PostgreSQL/AGE OOM reported on large workspaces.
+    //
+    // When a workspace clear will run, `clear_workspace` performs a single bounded
+    // `DETACH DELETE` that is both far cheaper and strictly more complete than the
+    // per-document cascade (it also removes orphaned rows the cascade misses — see the
+    // "First principle" note below). So we skip the redundant per-document cascade in
+    // that path and let the one bounded clear do the graph work.
+    let workspace_uuid = resolve_workspace_uuid(tenant_ctx.workspace_id.as_deref());
+    let skip_per_document_graph_cascade = workspace_uuid.is_some();
+
     for (metadata_key, metadata) in scoped_entries {
         let document_id = document_id_from_metadata_key(&metadata_key).unwrap_or_else(|| {
             metadata
@@ -228,26 +246,32 @@ pub async fn delete_all_documents(
             }
         }
 
-        // SPEC-006 P1: per-document bounded graph cascade (no post-hoc full scan)
-        let scope = DocumentSourceScope::from_document_id(document_id.clone());
-        match cascade_remove_document_sources(
-            &state.storage.graph_storage,
-            None,
-            Some(&tenant_ctx),
-            &scope,
-        )
-        .await
-        {
-            Ok(stats) => {
-                total_entities_removed += stats.entities_removed;
-                total_relationships_removed += stats.relationships_removed;
-            }
-            Err(e) => {
-                tracing::warn!(
-                    document_id = %document_id,
-                    error = %e,
-                    "Failed graph cascade during bulk delete"
-                );
+        // SPEC-006 P1: per-document bounded graph cascade (no post-hoc full scan).
+        //
+        // Issue #309: Skipped when the workspace-scoped graph clear will run after the
+        // loop — repeating this per-document full-graph scan is what times out / OOMs
+        // Postgres/AGE at scale, and the single `clear_workspace` below supersedes it.
+        if !skip_per_document_graph_cascade {
+            let scope = DocumentSourceScope::from_document_id(document_id.clone());
+            match cascade_remove_document_sources(
+                &state.storage.graph_storage,
+                None,
+                Some(&tenant_ctx),
+                &scope,
+            )
+            .await
+            {
+                Ok(stats) => {
+                    total_entities_removed += stats.entities_removed;
+                    total_relationships_removed += stats.relationships_removed;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        document_id = %document_id,
+                        error = %e,
+                        "Failed graph cascade during bulk delete"
+                    );
+                }
             }
         }
 
@@ -318,7 +342,7 @@ pub async fn delete_all_documents(
 
     // First principle: zero documents in workspace ⇒ zero workspace-scoped graph entities.
     // Per-document source-prefix cascade misses orphans (no source_ids, PG-only rows, etc.).
-    if let Some(workspace_uuid) = resolve_workspace_uuid(tenant_ctx.workspace_id.as_deref()) {
+    if let Some(workspace_uuid) = workspace_uuid {
         #[cfg(feature = "postgres")]
         {
             let relational_deleted =

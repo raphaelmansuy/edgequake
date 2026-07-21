@@ -4314,6 +4314,32 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
     task.status = TaskStatus::Processing;
     state.tasks.storage.create_task(&task).await.unwrap();
 
+    // Issue #309: seed graph entities in both workspaces. Bulk delete must clear
+    // workspace_a's graph via the single workspace-scoped clear (the per-document
+    // cascade is skipped when that clear runs) while leaving workspace_b untouched.
+    let seed_node = |id: &str, ws: &str| {
+        let mut props = std::collections::HashMap::new();
+        props.insert("entity_type".to_string(), json!("CONCEPT"));
+        props.insert("workspace_id".to_string(), json!(ws));
+        props.insert("tenant_id".to_string(), json!(TEST_TENANT_ID));
+        props.insert("source_ids".to_string(), json!([format!("{}-chunk-0", doc_a)]));
+        (id.to_string(), props)
+    };
+    let (id_a, props_a) = seed_node("BULK_SCOPE_ENTITY_A", &workspace_a.to_string());
+    state
+        .storage
+        .graph_storage
+        .upsert_node(&id_a, props_a)
+        .await
+        .unwrap();
+    let (id_b, props_b) = seed_node("BULK_SCOPE_ENTITY_B", workspace_b);
+    state
+        .storage
+        .graph_storage
+        .upsert_node(&id_b, props_b)
+        .await
+        .unwrap();
+
     let (status, body) = delete_all_documents_http_scoped(&app, &workspace_a.to_string()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["deleted_count"].as_u64(), Some(1));
@@ -4338,6 +4364,29 @@ async fn test_bulk_delete_only_clears_current_workspace_and_purges_tasks() {
         .await
         .unwrap()
         .is_some());
+
+    // Issue #309: workspace_a graph entity is gone (cleared by the bounded
+    // workspace clear), workspace_b entity survives (cross-workspace isolation).
+    assert!(
+        state
+            .storage
+            .graph_storage
+            .get_node("BULK_SCOPE_ENTITY_A")
+            .await
+            .unwrap()
+            .is_none(),
+        "workspace_a graph entity should be cleared by bulk delete"
+    );
+    assert!(
+        state
+            .storage
+            .graph_storage
+            .get_node("BULK_SCOPE_ENTITY_B")
+            .await
+            .unwrap()
+            .is_some(),
+        "workspace_b graph entity must survive bulk delete scoped to workspace_a"
+    );
 
     println!("✅ OODA-37 TEST PASSED: Bulk delete stays in-scope and purges stale tasks");
 }
