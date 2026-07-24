@@ -66,9 +66,8 @@ pub(crate) async fn run_recover_stuck(
     );
 
     // SPEC-086: fail orphan staging shells (list-visible) before final-metadata recover.
-    let staging_age = std::time::Duration::from_secs(
-        (request.stuck_threshold_minutes as u64).saturating_mul(60),
-    );
+    let staging_age =
+        std::time::Duration::from_secs(request.stuck_threshold_minutes.saturating_mul(60));
     if let Err(e) = crate::services::recover_orphaned_staging_admissions(
         std::sync::Arc::clone(&state.storage.kv_storage),
         std::sync::Arc::clone(&state.tasks.storage),
@@ -91,11 +90,12 @@ pub(crate) async fn run_recover_stuck(
 
     // P-G7 + SPEC-027: batch scoped metadata (suffix index + tenant filter).
     // Prefer progress loader so aged staging shells (post 086 merge) are visible.
-    let scoped_metadata = crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress(
-        state.storage.kv_storage.as_ref(),
-        &tenant_ctx,
-    )
-    .await?;
+    let scoped_metadata =
+        crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress(
+            state.storage.kv_storage.as_ref(),
+            &tenant_ctx,
+        )
+        .await?;
 
     let mut stuck_docs = Vec::new();
     let mut requeued_ids = Vec::new();

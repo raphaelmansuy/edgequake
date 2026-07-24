@@ -10,8 +10,8 @@ use axum::{
 };
 use edgequake_api::middleware::{default_tenant_uuid, default_workspace_uuid, TenantContext};
 use edgequake_api::services::{
-    admit_document_for_processing, ContentHasher, DocumentAdmissionAccepted, DocumentAdmissionInput,
-    DocumentAdmissionOutcome, GleaningAdmissionOptions,
+    admit_document_for_processing, ContentHasher, DocumentAdmissionAccepted,
+    DocumentAdmissionInput, DocumentAdmissionOutcome, GleaningAdmissionOptions,
 };
 use edgequake_api::{create_router, AppState};
 use serde_json::{json, Value};
@@ -120,9 +120,7 @@ async fn list_documents_includes_staging_inflight_md() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
-    let docs = body["documents"]
-        .as_array()
-        .expect("documents array");
+    let docs = body["documents"].as_array().expect("documents array");
     // SSOT: list id must be bare admit document_id (not staging:{id}).
     let found = docs
         .iter()
@@ -130,8 +128,7 @@ async fn list_documents_includes_staging_inflight_md() {
     assert!(
         found,
         "staging MD must appear in GET /documents with bare id={}; body={}",
-        accepted.document_id,
-        body
+        accepted.document_id, body
     );
     assert!(
         !docs.iter().any(|d| {
@@ -176,7 +173,11 @@ async fn track_status_includes_staging_insert_track() {
     let found = docs
         .iter()
         .any(|d| d["id"].as_str() == Some(accepted.document_id.as_str()));
-    assert!(found, "expected document_id in track response; body={}", body);
+    assert!(
+        found,
+        "expected document_id in track response; body={}",
+        body
+    );
 }
 
 /// ux086_v_staging_list — pipeline activity sees staging MD as queued/working.
@@ -204,14 +205,11 @@ async fn pipeline_activity_includes_staging_md() {
     let body = json_body(response).await;
     let queued = body["queued"].as_array().cloned().unwrap_or_default();
     let working = body["working"].as_array().cloned().unwrap_or_default();
-    let found = queued
-        .iter()
-        .chain(working.iter())
-        .any(|d| {
-            d["document_id"].as_str() == Some(accepted.document_id.as_str())
-                || d["id"].as_str() == Some(accepted.document_id.as_str())
-                || d["track_id"].as_str() == Some(accepted.track_id.as_str())
-        });
+    let found = queued.iter().chain(working.iter()).any(|d| {
+        d["document_id"].as_str() == Some(accepted.document_id.as_str())
+            || d["id"].as_str() == Some(accepted.document_id.as_str())
+            || d["track_id"].as_str() == Some(accepted.track_id.as_str())
+    });
     assert!(
         found,
         "staging MD must appear in pipeline activity queued/working; body={}",
@@ -224,8 +222,7 @@ async fn pipeline_activity_includes_staging_md() {
 fn contract_reingest_delete_err_fail_closed() {
     let src = include_str!("../src/services/document_reingest.rs");
     assert!(
-        src.contains("blocking re-ingestion")
-            && src.contains("Failed to delete old document data"),
+        src.contains("blocking re-ingestion") && src.contains("Failed to delete old document data"),
         "ux086_reingest_fail_closed: delete Err must log and block re-ingestion"
     );
     let err_idx = src

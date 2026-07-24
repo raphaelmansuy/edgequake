@@ -33,6 +33,8 @@ export interface UseUsersReturn {
   page: number;
   totalPages: number;
   isLoading: boolean;
+  includeAnonymous: boolean;
+  setIncludeAnonymous: (value: boolean) => void;
   load: (p?: number) => Promise<void>;
   handleCreate: (data: CreateUserRequest) => Promise<boolean>;
   handleRoleChange: (userId: string, role: string) => Promise<void>;
@@ -46,23 +48,27 @@ export function useUsers(): UseUsersReturn {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [includeAnonymous, setIncludeAnonymous] = useState(false);
 
   // ----- Load ---------------------------------------------------------------
 
-  const load = useCallback(async (p = 1) => {
-    setIsLoading(true);
-    try {
-      const res = await listUsers(p, 20);
-      setUsers(res.users);
-      setTotal(res.total);
-      setTotalPages(res.total_pages ?? 1);
-      setPage(res.page);
-    } catch (e) {
-      toast.error(`Failed to load users: ${errMsg(e)}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (p = 1) => {
+      setIsLoading(true);
+      try {
+        const res = await listUsers(p, 20, undefined, includeAnonymous);
+        setUsers(res.users);
+        setTotal(res.total);
+        setTotalPages(res.total_pages ?? 1);
+        setPage(res.page);
+      } catch (e) {
+        toast.error(`Failed to load users: ${errMsg(e)}`);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [includeAnonymous],
+  );
 
   useEffect(() => {
     load(1);
@@ -127,6 +133,8 @@ export function useUsers(): UseUsersReturn {
     page,
     totalPages,
     isLoading,
+    includeAnonymous,
+    setIncludeAnonymous,
     load,
     handleCreate,
     handleRoleChange,

@@ -360,10 +360,9 @@ mod tests {
             .await
             .unwrap();
 
-        let report =
-            recover_orphaned_staging_admissions(kv, tasks, Some(Duration::from_secs(600)))
-                .await
-                .unwrap();
+        let report = recover_orphaned_staging_admissions(kv, tasks, Some(Duration::from_secs(600)))
+            .await
+            .unwrap();
         assert_eq!(report.failed_count, 0);
         assert_eq!(report.skipped_young, 1);
     }

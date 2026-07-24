@@ -73,10 +73,7 @@ async fn get_document_inner(
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
     let staging_key = edgequake_storage::kv_keys::staging_doc_metadata(&document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
-    let mut metadata = storage
-        .kv_storage
-        .get_by_id(&metadata_key)
-        .await?;
+    let mut metadata = storage.kv_storage.get_by_id(&metadata_key).await?;
     if metadata.is_none() {
         metadata = storage.kv_storage.get_by_id(&staging_key).await?;
     }

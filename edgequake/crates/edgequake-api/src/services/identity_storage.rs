@@ -315,13 +315,42 @@ pub async fn verify_membership_active(
     .await
 }
 
-/// Ensure anonymous user row exists for chat/conversation FK safety (SPEC-027 phase 43).
+/// DNS namespace UUID for deterministic per-tenant guest ids (SPEC-087 / Issue #335).
+///
+/// Fixed bytes — do not change; existing guest rows depend on this constant.
+pub const EDGEQUAKE_GUEST_NAMESPACE: Uuid = Uuid::from_bytes([
+    0x6b, 0xa7, 0xb8, 0x10, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
+]);
+
+/// Stable shared guest markers (admin filter + login rejection).
+pub const SHARED_GUEST_USERNAME: &str = "guest";
+pub const SHARED_GUEST_EMAIL: &str = "guest@anonymous.local";
+pub const ANONYMOUS_PASSWORD_HASH: &str = "anonymous";
+
+/// Deterministic per-tenant guest user id (one row per tenant when auth is off).
+pub fn shared_guest_user_id(tenant_id: Uuid) -> Uuid {
+    Uuid::new_v5(&EDGEQUAKE_GUEST_NAMESPACE, tenant_id.as_bytes())
+}
+
+/// True when a stored user is an anonymous/guest system account (SPEC-087).
+pub fn is_anonymous_identity(username: &str, email: &str, password_hash: &str) -> bool {
+    let hash = password_hash.trim();
+    hash == ANONYMOUS_PASSWORD_HASH
+        || hash == "not_a_real_hash"
+        || email.ends_with("@anonymous.local")
+        || username == SHARED_GUEST_USERNAME
+        || username.starts_with("anon_")
+}
+
+/// Ensure the shared per-tenant guest user exists (SPEC-087 / Issue #335).
+///
+/// Replaces per-browser `anon_*` minting. FK-safe: conversations reference this single row.
 #[cfg(feature = "postgres")]
-pub async fn ensure_anonymous_user_in_postgres(
+pub async fn ensure_shared_guest_user_in_postgres(
     pool: &sqlx::PgPool,
     security: &ApiSecurityConfig,
     tenant_id: Uuid,
-    user_id: Uuid,
+    guest_user_id: Uuid,
 ) -> Result<(), ApiError> {
     use crate::services::tenant_isolation::{with_optional_pg_rls, PgIsolationScope};
     use edgequake_storage::StorageError;
@@ -330,10 +359,10 @@ pub async fn ensure_anonymous_user_in_postgres(
     let scope = Some(PgIsolationScope::for_membership(
         tenant_id,
         workspace_id,
-        user_id,
+        guest_user_id,
     ));
-    let username = format!("anon_{}", &user_id.to_string()[..8]);
-    let email = format!("{}@anonymous.local", &user_id.to_string()[..8]);
+    let username = SHARED_GUEST_USERNAME.to_string();
+    let email = SHARED_GUEST_EMAIL.to_string();
 
     with_optional_pg_rls(pool, security, scope, move |conn| {
         Box::pin(async move {
@@ -344,17 +373,33 @@ pub async fn ensure_anonymous_user_in_postgres(
                 ON CONFLICT (user_id) DO NOTHING
                 "#,
             )
-            .bind(user_id)
+            .bind(guest_user_id)
             .bind(tenant_id)
             .bind(username)
             .bind(email)
             .execute(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("anonymous user ensure failed: {e}")))?;
+            .map_err(|e| StorageError::Database(format!("shared guest user ensure failed: {e}")))?;
             Ok(())
         })
     })
     .await
+}
+
+/// Legacy name retained for grep/docs; delegates to [`ensure_shared_guest_user_in_postgres`].
+///
+/// Prefer calling the shared-guest helper directly. The `user_id` argument is ignored in
+/// favor of [`shared_guest_user_id`].
+#[cfg(feature = "postgres")]
+#[deprecated(note = "SPEC-087: use ensure_shared_guest_user_in_postgres + shared_guest_user_id")]
+pub async fn ensure_anonymous_user_in_postgres(
+    pool: &sqlx::PgPool,
+    security: &ApiSecurityConfig,
+    tenant_id: Uuid,
+    _user_id: Uuid,
+) -> Result<(), ApiError> {
+    let guest_id = shared_guest_user_id(tenant_id);
+    ensure_shared_guest_user_in_postgres(pool, security, tenant_id, guest_id).await
 }
 
 #[cfg(feature = "postgres")]

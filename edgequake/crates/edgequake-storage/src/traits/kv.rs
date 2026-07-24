@@ -242,6 +242,26 @@ pub trait KVStorage: Send + Sync {
         self.keys_like(&pattern).await
     }
 
+    /// Count chunk KV entries for the given document ids (SPEC-087 / Issue #334).
+    ///
+    /// Used by workspace stats for `embedding_count` without an N+1 payload fetch.
+    /// Default: per-document prefix scan counting `{doc_id}-chunk-%` keys (correctness
+    /// fallback for Memory / non-Postgres). Postgres overrides with a single aggregate.
+    ///
+    /// Empty `doc_ids` returns `0`. Embeddings are not required to live in chunk JSON
+    /// (SPEC-024); this counts chunk keys as the KV-side metric.
+    async fn count_embedded_chunks_for_docs(&self, doc_ids: &[String]) -> Result<usize> {
+        if doc_ids.is_empty() {
+            return Ok(0);
+        }
+        let mut count = 0usize;
+        for doc_id in doc_ids {
+            let keys = self.keys_with_prefix(&format!("{doc_id}-chunk-")).await?;
+            count += keys.len();
+        }
+        Ok(count)
+    }
+
     /// Get all keys in storage.
     async fn keys(&self) -> Result<Vec<String>>;
 

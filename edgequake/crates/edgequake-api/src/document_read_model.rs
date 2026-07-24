@@ -53,14 +53,17 @@ pub fn merge_storage_bytes(postgres_bytes: u64, kv_bytes: u64) -> u64 {
     postgres_bytes.max(kv_bytes)
 }
 
-/// Fetch `(document_count, storage_bytes)` from the relational `documents` table.
+/// Relational workspace metrics overlay (SPEC-021 / SPEC-087).
+///
+/// `(document_count, storage_bytes, chunk_count, embedding_count)` from
+/// `WorkspaceService::get_workspace_stats` (Postgres `documents` / `chunks`).
 ///
 /// Returns `None` when running in memory mode (no `pg_pool`).
 #[cfg(feature = "postgres")]
-pub async fn postgres_document_metrics(
+pub async fn postgres_workspace_metrics(
     state: &AppState,
     workspace_id: Uuid,
-) -> Option<(usize, u64)> {
+) -> Option<(usize, u64, usize, usize)> {
     state.pg_pool.as_ref()?;
 
     let stats = state
@@ -69,7 +72,33 @@ pub async fn postgres_document_metrics(
         .await
         .ok()?;
 
-    Some((stats.document_count, stats.storage_bytes as u64))
+    Some((
+        stats.document_count,
+        stats.storage_bytes as u64,
+        stats.chunk_count,
+        stats.embedding_count,
+    ))
+}
+
+/// Fetch `(document_count, storage_bytes)` from the relational `documents` table.
+///
+/// Returns `None` when running in memory mode (no `pg_pool`).
+#[cfg(feature = "postgres")]
+pub async fn postgres_document_metrics(
+    state: &AppState,
+    workspace_id: Uuid,
+) -> Option<(usize, u64)> {
+    postgres_workspace_metrics(state, workspace_id)
+        .await
+        .map(|(docs, bytes, _, _)| (docs, bytes))
+}
+
+#[cfg(not(feature = "postgres"))]
+pub async fn postgres_workspace_metrics(
+    _state: &AppState,
+    _workspace_id: Uuid,
+) -> Option<(usize, u64, usize, usize)> {
+    None
 }
 
 #[cfg(not(feature = "postgres"))]

@@ -418,6 +418,35 @@ impl KVStorage for PostgresKVStorage {
         Ok(())
     }
 
+    /// SPEC-087 / Issue #334: O(1) round-trip chunk-key count (no payload fetch).
+    async fn count_embedded_chunks_for_docs(&self, doc_ids: &[String]) -> Result<usize> {
+        if doc_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let pool = self.pool.get().await?;
+        // Escape LIKE meta in each doc id so `%`/`_` in ids cannot widen the match.
+        let patterns: Vec<String> = doc_ids
+            .iter()
+            .map(|id| format!("{}-chunk-%", escape_like_meta(id)))
+            .collect();
+
+        let sql = format!(
+            "SELECT COUNT(*)::bigint FROM {} WHERE key LIKE ANY($1::text[])",
+            self.table_name
+        );
+
+        let row: (i64,) = sqlx::query_as(&sql)
+            .bind(&patterns)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("KV count_embedded_chunks_for_docs failed: {e}"))
+            })?;
+
+        Ok(row.0 as usize)
+    }
+
     async fn keys_like(&self, pattern: &str) -> Result<Vec<String>> {
         // SPEC-070: never unbounded fetch_all — safety LIMIT on the wire.
         const SAFETY_CAP: usize = 100_000;

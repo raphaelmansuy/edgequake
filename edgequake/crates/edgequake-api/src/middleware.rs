@@ -331,6 +331,10 @@ pub(crate) fn apply_authenticated_context(
         }
     }
 
+    // SPEC-087 / Issue #335: authenticated principal owns TenantContext.user_id.
+    // Never keep a random X-User-ID / localStorage UUID when JWT/API-key auth succeeded.
+    tenant_ctx.user_id = Some(authenticated.auth.user_id.clone());
+
     crate::services::tenant_isolation::attach_pg_isolation_scope(
         request,
         &tenant_ctx,

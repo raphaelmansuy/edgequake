@@ -17,6 +17,7 @@
 "use client";
 
 import { clearTokens, getTokens, setTokens } from "@/lib/api/client";
+import { clearUserId, setUserId } from "@/lib/api/client-context";
 import { STORE_VERSIONS, ZUSTAND_STORAGE_KEYS } from "@/lib/storage-keys";
 import type { AuthState, LoginResponse } from "@/types";
 import { create } from "zustand";
@@ -58,6 +59,14 @@ export const useAuthStore = create<AuthStore>()(
         // Store tokens in localStorage via client
         setTokens(response.access_token, response.refresh_token);
 
+        // SPEC-087: sync X-User-ID with JWT principal (avoid anon_* mint drift)
+        const authUserId =
+          response.user?.user_id ??
+          (response.user as { id?: string } | undefined)?.id;
+        if (authUserId) {
+          setUserId(authUserId);
+        }
+
         set({
           isAuthenticated: true,
           user: response.user,
@@ -69,6 +78,7 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         clearTokens();
+        clearUserId();
         set(initialState);
       },
 

@@ -96,11 +96,18 @@ pub async fn chat_completion_stream(
         .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid tenant ID".to_string()))?;
-    let user_id = tenant_ctx
+    let client_user_id = tenant_ctx
         .user_id
         .ok_or(ApiError::unauthorized())?
         .parse::<Uuid>()
         .map_err(|_| ApiError::BadRequest("Invalid user ID".to_string()))?;
+
+    let user_id = super::super::postgres_user_bootstrap::ensure_postgres_user_exists(
+        &state,
+        tenant_id,
+        client_user_id,
+    )
+    .await?;
 
     debug!(
         tenant_id = %tenant_id,
@@ -108,9 +115,6 @@ pub async fn chat_completion_stream(
         conversation_id = ?request.conversation_id,
         "Processing streaming chat completion"
     );
-
-    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
-        .await?;
 
     // Fail closed when an explicit workspace header is invalid (same as /query).
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;

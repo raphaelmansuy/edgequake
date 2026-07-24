@@ -373,4 +373,40 @@ mod tests {
         // Assert: transition failed (key doesn't exist)
         assert!(!result, "Transition should fail for non-existent key");
     }
+
+    /// SPEC-087: default count_embedded_chunks_for_docs (empty + chunk keys).
+    #[tokio::test]
+    async fn test_count_embedded_chunks_for_docs() {
+        let storage = MemoryKVStorage::new("test");
+        storage.initialize().await.unwrap();
+
+        assert_eq!(
+            storage.count_embedded_chunks_for_docs(&[]).await.unwrap(),
+            0
+        );
+
+        let doc = "doc-a".to_string();
+        storage
+            .upsert(&[
+                (
+                    format!("{doc}-chunk-0"),
+                    json!({"content": "a", "index": 0}),
+                ),
+                (
+                    format!("{doc}-chunk-1"),
+                    json!({"content": "b", "index": 1}),
+                ),
+                ("other-chunk-0".into(), json!({"content": "x"})),
+            ])
+            .await
+            .unwrap();
+
+        assert_eq!(
+            storage
+                .count_embedded_chunks_for_docs(&[doc])
+                .await
+                .unwrap(),
+            2
+        );
+    }
 }

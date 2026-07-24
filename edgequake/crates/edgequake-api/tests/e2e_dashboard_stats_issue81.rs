@@ -617,3 +617,81 @@ async fn test_entity_isolation_across_workspaces() {
     assert_eq!(ja["document_count"], 1);
     assert_eq!(jb["document_count"], 1);
 }
+
+// ============================================================================
+// SPEC-087 / Issue #334 — O(1) embedding count (no N+1 payload fetch)
+// ============================================================================
+
+/// embedding_count follows chunk keys (SPEC-024: embeddings not in KV JSON).
+#[tokio::test]
+async fn test_spec087_embedding_count_matches_chunk_keys() {
+    let (state, app, ws_id) = app_with_workspace().await;
+    let ws_str = ws_id.to_string();
+    let doc_id = uuid::Uuid::new_v4().to_string();
+
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(
+            format!("{doc_id}-metadata"),
+            json!({"id": doc_id,"title":"e.md","status":"completed","workspace_id": ws_str}),
+        )])
+        .await
+        .unwrap();
+
+    let chunks: Vec<_> = (0..7)
+        .map(|i| {
+            (
+                format!("{doc_id}-chunk-{i}"),
+                json!({"content": format!("c{i}"), "document_id": doc_id, "index": i}),
+            )
+        })
+        .collect();
+    state.storage.kv_storage.upsert(&chunks).await.unwrap();
+
+    let (status, json) = get_stats(&app, ws_id).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["chunk_count"], 7);
+    assert_eq!(json["embedding_count"], 7);
+}
+
+/// Scale smoke: ≥500 docs with chunk keys must finish under STATS_FETCH_TIMEOUT (4s).
+#[tokio::test]
+async fn test_spec087_stats_scale_under_timeout() {
+    let (state, app, ws_id) = app_with_workspace().await;
+    let ws_str = ws_id.to_string();
+    let n: usize = 500;
+
+    let mut entries = Vec::with_capacity(n * 2);
+    for i in 0..n {
+        let did = uuid::Uuid::new_v4().to_string();
+        entries.push((
+            format!("{did}-metadata"),
+            json!({
+                "id": did,
+                "title": format!("d{i}"),
+                "status": "completed",
+                "workspace_id": ws_str,
+                "chunk_count": 1,
+            }),
+        ));
+        entries.push((
+            format!("{did}-chunk-0"),
+            json!({"content": "c", "document_id": did, "index": 0}),
+        ));
+    }
+    state.storage.kv_storage.upsert(&entries).await.unwrap();
+
+    let started = std::time::Instant::now();
+    let (status, json) = get_stats(&app, ws_id).await;
+    let elapsed = started.elapsed();
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["document_count"], n as i64);
+    assert_eq!(json["embedding_count"], n as i64);
+    assert!(
+        elapsed < std::time::Duration::from_secs(4),
+        "stats took {:?}, exceeded 4s STATS_FETCH_TIMEOUT budget (SPEC-087)",
+        elapsed
+    );
+}

@@ -80,6 +80,8 @@ export function UserManagementCard() {
     page,
     totalPages,
     isLoading,
+    includeAnonymous,
+    setIncludeAnonymous,
     load,
     handleCreate,
     handleRoleChange,
@@ -126,6 +128,17 @@ export function UserManagementCard() {
         <CardDescription className="text-xs">
           {total} user{total !== 1 ? 's' : ''}
         </CardDescription>
+        <div className="flex items-center gap-2 pt-2">
+          <Switch
+            id="include-anonymous"
+            checked={includeAnonymous}
+            onCheckedChange={setIncludeAnonymous}
+            aria-label="Show guest and anonymous system accounts"
+          />
+          <Label htmlFor="include-anonymous" className="text-xs text-muted-foreground font-normal">
+            Show guest / anonymous system accounts
+          </Label>
+        </div>
       </CardHeader>
 
       <CardContent className="px-0 pb-0">
@@ -212,6 +225,11 @@ function UsersTable({ users, onRoleChange, onToggleActive, onDelete }: UsersTabl
                 <span className="flex items-center gap-1.5 text-sm">
                   <UserCog className="h-3 w-3 text-muted-foreground shrink-0" aria-hidden="true" />
                   {u.username}
+                  {u.is_anonymous ? (
+                    <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0">
+                      Guest
+                    </Badge>
+                  ) : null}
                 </span>
               </TableCell>
               <TableCell className="text-xs text-muted-foreground truncate max-w-[180px]">

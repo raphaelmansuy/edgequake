@@ -1074,12 +1074,17 @@ fn spec027_identity_pg_rls_envelope_phase43() {
     let identity = read_crate_src("src/services/identity_storage.rs");
     assert!(identity.contains("with_optional_pg_rls"));
     assert!(!identity.contains("acquire_optional_pg_connection"));
-    assert!(identity.contains("ensure_anonymous_user_in_postgres"));
+    // SPEC-087: shared per-tenant guest replaces per-browser anon_* mint
+    assert!(identity.contains("ensure_shared_guest_user_in_postgres"));
+    assert!(identity.contains("shared_guest_user_id"));
+    assert!(identity.contains("guest@anonymous.local"));
     let session = read_crate_src("src/services/session_storage.rs");
     assert!(session.contains("with_optional_pg_rls"));
     assert!(!session.contains("acquire_optional_pg_connection"));
     let bootstrap = read_crate_src("src/handlers/postgres_user_bootstrap.rs");
-    assert!(bootstrap.contains("ensure_anonymous_user_in_postgres"));
+    assert!(bootstrap.contains("ensure_shared_guest_user_in_postgres"));
+    assert!(bootstrap.contains("resolve_identity_bootstrap_policy"));
+    assert!(bootstrap.contains("EDGEQUAKE_ALLOW_ANONYMOUS"));
 }
 
 #[test]

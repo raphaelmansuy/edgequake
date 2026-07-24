@@ -140,7 +140,8 @@ pub async fn get_workspace_stats(
 /// - **document_count / storage_bytes**: `max(postgresql, kv)` — relational primary,
 ///   KV fallback for legacy uploads that never dual-wrote.
 /// - **entity_count / relationship_count / entity_type_count**: AGE graph (always).
-/// - **chunk_count / embedding_count**: KV chunk keys for workspace documents.
+/// - **chunk_count / embedding_count**: relational `chunks` COUNT when PG available
+///   (SPEC-087 C-087-02); else one `KVStorage::count_embedded_chunks_for_docs` call.
 async fn fetch_workspace_stats_uncached(
     state: &AppState,
     workspace_id: Uuid,
@@ -149,16 +150,21 @@ async fn fetch_workspace_stats_uncached(
     let mut stats = try_kv_storage_stats(state, workspace_id).await?;
     let kv_document_count = stats.document_count;
     let kv_storage_bytes = stats.storage_bytes;
+    let kv_chunk_count = stats.chunk_count;
+    let kv_embedding_count = stats.embedding_count;
 
     let mut method = "kv_storage";
 
-    if let Some((pg_docs, pg_bytes)) =
-        crate::document_read_model::postgres_document_metrics(state, workspace_id).await
+    if let Some((pg_docs, pg_bytes, pg_chunks, pg_embeddings)) =
+        crate::document_read_model::postgres_workspace_metrics(state, workspace_id).await
     {
         stats.document_count =
             crate::document_read_model::merge_document_count(pg_docs, kv_document_count);
         stats.storage_bytes =
             crate::document_read_model::merge_storage_bytes(pg_bytes, kv_storage_bytes);
+        // SPEC-087: relational chunks COUNT is the product SSOT when PG is up.
+        stats.chunk_count = pg_chunks.max(kv_chunk_count);
+        stats.embedding_count = pg_embeddings.max(kv_embedding_count);
         method = if pg_docs >= kv_document_count {
             "postgresql+kv"
         } else {
@@ -250,36 +256,15 @@ async fn try_kv_storage_stats(
         .await
         .unwrap_or(0);
 
-    // Embedding count requires chunk payloads; use per-doc prefix scan (no global keys_like).
-    let chunk_count = chunk_count_from_metadata;
-    let mut embedding_count = 0;
-
-    for doc_id in &workspace_doc_ids {
-        let prefix = format!("{doc_id}-chunk-");
-        let doc_chunk_keys = state
-            .storage
-            .kv_storage
-            .keys_with_prefix(&prefix)
-            .await
-            .map_err(|e| ApiError::Internal(format!("Failed to list chunk keys: {}", e)))?;
-
-        if !doc_chunk_keys.is_empty() {
-            let chunk_values = state
-                .storage
-                .kv_storage
-                .get_by_ids(&doc_chunk_keys)
-                .await
-                .map_err(|e| ApiError::Internal(format!("Failed to get chunk data: {}", e)))?;
-
-            for chunk_value in chunk_values {
-                if let Some(obj) = chunk_value.as_object() {
-                    if obj.get("embedding").is_some() {
-                        embedding_count += 1;
-                    }
-                }
-            }
-        }
-    }
+    // SPEC-087 / Issue #334: one trait call (Postgres = single COUNT; Memory = prefix scan).
+    // Do not fetch chunk JSON payloads just to test for an `embedding` field.
+    let embedding_count = state
+        .storage
+        .kv_storage
+        .count_embedded_chunks_for_docs(&workspace_doc_ids)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to count embedded chunks: {}", e)))?;
+    let chunk_count = chunk_count_from_metadata.max(embedding_count);
 
     // Get distinct entity type count from graph storage.
     // WHY: Dashboard EntityTypes KPI was extremely slow — it fetched ALL graph

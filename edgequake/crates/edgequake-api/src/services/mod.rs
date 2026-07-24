@@ -231,8 +231,7 @@ pub use orphan_index_retract::{
     retract_indexes_for_orphan_docs,
 };
 pub use orphan_staging_recovery::{
-    task_is_live,
-    recover_orphaned_staging_admissions, OrphanStagingRecoveryReport,
+    recover_orphaned_staging_admissions, task_is_live, OrphanStagingRecoveryReport,
 };
 pub use orphan_task_recovery::{recover_orphaned_tasks, OrphanTaskRecoveryReport};
 pub use pdf_admission_registry::PdfAdmissionRegistry;

@@ -90,13 +90,12 @@ async fn list_documents_inner(
             MAX_LIST_METADATA_ENTRIES,
         )
         .await?;
-    let metadata_entries =
-        crate::services::document_metadata_scan::merge_staging_metadata_entries(
-            storage.kv_storage.as_ref(),
-            &tenant_ctx,
-            scoped.entries,
-        )
-        .await?;
+    let metadata_entries = crate::services::document_metadata_scan::merge_staging_metadata_entries(
+        storage.kv_storage.as_ref(),
+        &tenant_ctx,
+        scoped.entries,
+    )
+    .await?;
     let truncated = scoped.truncated;
     if truncated {
         tracing::warn!(

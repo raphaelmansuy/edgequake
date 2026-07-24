@@ -112,12 +112,16 @@ pub async fn create_conversation(
         .tenant_id_uuid()
         .ok_or_else(|| ApiError::BadRequest("Missing X-Tenant-ID header".into()))?;
 
-    let user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
+    let client_user_id = tenant_ctx.user_id_uuid().ok_or(ApiError::unauthorized())?;
 
     let workspace_id = tenant_ctx.workspace_id_uuid();
 
-    super::super::postgres_user_bootstrap::ensure_postgres_user_exists(&state, tenant_id, user_id)
-        .await?;
+    let user_id = super::super::postgres_user_bootstrap::ensure_postgres_user_exists(
+        &state,
+        tenant_id,
+        client_user_id,
+    )
+    .await?;
 
     let mode = request
         .mode

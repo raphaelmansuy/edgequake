@@ -92,9 +92,31 @@ export function getOrCreateUserId(): string {
       userId = generateUUID();
       localStorage.setItem("userId", userId);
     }
+    currentUserId = userId;
     return userId;
   }
   return generateUUID();
+}
+
+/**
+ * SPEC-087: bind localStorage userId to the authenticated principal (JWT subject).
+ * Prevents dual identity (random X-User-ID vs real login user).
+ */
+export function setUserId(userId: string): void {
+  const trimmed = userId.trim();
+  if (!trimmed) return;
+  currentUserId = trimmed;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("userId", trimmed);
+  }
+}
+
+/** Clear persisted user id on logout when auth is required. */
+export function clearUserId(): void {
+  currentUserId = null;
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("userId");
+  }
 }
 
 export function setTenantContext(tenantId: string, workspaceId?: string): void {

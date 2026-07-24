@@ -52,11 +52,7 @@ async fn load_kv_document_body(
         format!("{document_id}-content"),
         edgequake_storage::kv_keys::staging_doc_content(document_id),
     ];
-    let values = storage
-        .kv_storage
-        .get_by_ids_ordered(&keys)
-        .await
-        .ok()?;
+    let values = storage.kv_storage.get_by_ids_ordered(&keys).await.ok()?;
     let markdown = values.into_iter().find_map(|maybe| {
         maybe.and_then(|val| {
             val.get("content")

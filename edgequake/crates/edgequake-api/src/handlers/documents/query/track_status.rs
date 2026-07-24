@@ -40,7 +40,8 @@ pub async fn get_track_status(
 
     // SPEC-027 + SPEC-086: include staging in-flight docs (same SSOT as progress).
     let metadata_values =
-        load_scoped_document_metadata_for_progress(storage.kv_storage.as_ref(), &tenant_ctx).await?;
+        load_scoped_document_metadata_for_progress(storage.kv_storage.as_ref(), &tenant_ctx)
+            .await?;
 
     let mut track_docs: Vec<DocumentSummary> = Vec::new();
     let mut created_times: Vec<String> = Vec::new();

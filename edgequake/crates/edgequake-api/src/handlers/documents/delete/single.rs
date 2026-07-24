@@ -628,7 +628,10 @@ mod tests {
             .unwrap();
 
         let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &state).await;
-        assert_eq!(prefix, doc_id, "must not use staging:{{id}} as cascade prefix");
+        assert_eq!(
+            prefix, doc_id,
+            "must not use staging:{{id}} as cascade prefix"
+        );
         assert_eq!(key, staging_key);
         assert!(has_metadata);
     }
@@ -664,10 +667,13 @@ mod tests {
             workspace_id: Some("default".into()),
             user_id: None,
         };
-        let (status, Json(resp)) =
-            delete_document(State(state.clone()), axum::extract::Path(doc_id.to_string()), tenant)
-                .await
-                .unwrap();
+        let (status, Json(resp)) = delete_document(
+            State(state.clone()),
+            axum::extract::Path(doc_id.to_string()),
+            tenant,
+        )
+        .await
+        .unwrap();
         assert_eq!(status, StatusCode::OK);
         assert!(resp.deleted);
         assert!(!resp.accepted);
