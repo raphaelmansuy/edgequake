@@ -26,6 +26,15 @@ impl DocumentTaskProcessor {
             );
         }
 
+        // ── CANCELLATION GATE: before promote + terminal stats ──
+        // WHY: Sync staging dismiss cancels the track then wipes staging. If we
+        // promote first, dismiss can return deleted:true while a ghost final
+        // row remains (SPEC-086 delete/promote race).
+        // Also: must run before update_document_status_with_stats so a reprocess
+        // race does not write "completed" stats then overwrite with "cancelled".
+        self.check_cancelled(&cancel_token, "pre-promote", &document_id)
+            .await?;
+
         // SPEC-026 P-11: promote staging KV → final keys on successful processing
         if let (Some(hash), Some(ws)) = (
             persisted
@@ -52,12 +61,6 @@ impl DocumentTaskProcessor {
                 );
             }
         }
-
-        // ── CANCELLATION GATE: before terminal stats / lineage ──
-        // WHY: Must run before update_document_status_with_stats so a reprocess
-        // race does not write "completed" stats then overwrite with "cancelled".
-        self.check_cancelled(&cancel_token, "pre-lineage", &document_id)
-            .await?;
 
         // FIX-ISSUE-81 / reliability: ensure the relational row exists BEFORE
         // update_document_status_with_stats → refresh_relational_document_stats,

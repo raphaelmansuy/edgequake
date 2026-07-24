@@ -135,4 +135,32 @@ describe("ingestion-run-view", () => {
     const primary = selectPrimaryRun(map);
     expect(primary?.documentId).toBe("a1");
   });
+
+  it("dedupes bare uuid pin + staging: list row into one ActiveRun", () => {
+    const bare = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const track = "insert-same";
+    const map = buildIngestionRunViews([
+      doc({
+        id: bare,
+        status: "pending",
+        current_stage: "uploading",
+        file_name: "wiki.md",
+        stage_message: "Queued for processing…",
+        track_id: track,
+      }),
+      doc({
+        id: `staging:${bare}`,
+        status: "processing",
+        current_stage: "extracting",
+        file_name: "wiki.md",
+        stage_message: "Extracting entities…",
+        track_id: track,
+      }),
+    ]);
+    expect(map.size).toBe(1);
+    const run = [...map.values()][0];
+    expect(run.documentId).toBe(bare);
+    expect(run.stage).toBe("extracting");
+    expect(run.message).not.toMatch(/\{\{/);
+  });
 });

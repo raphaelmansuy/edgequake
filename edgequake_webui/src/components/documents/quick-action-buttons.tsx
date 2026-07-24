@@ -15,6 +15,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { needsReuploadNotReprocess } from '@/lib/pipeline/pipeline-document-state';
 import type { Document } from '@/types';
 import { ExternalLink, Eye, RefreshCw, Sparkles } from 'lucide-react';
 import * as React from 'react';
@@ -99,7 +100,9 @@ export function QuickActionButtons({
 }: QuickActionButtonsProps) {
   const status = doc.status ?? '';
   const canViewInGraph = GRAPH_VIEWABLE_STATUSES.includes(status);
-  const canRetry = RETRYABLE_STATUSES.includes(status);
+  // Orphan staging shells need dismiss + re-upload, not Retry/reprocess.
+  const canRetry =
+    RETRYABLE_STATUSES.includes(status) && !needsReuploadNotReprocess(doc);
 
   return (
     <div className="flex items-center gap-1 justify-end">

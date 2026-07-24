@@ -65,6 +65,7 @@ pub mod multimodal_markdown;
 pub mod oidc_flow;
 pub mod oidc_pending;
 pub mod orphan_index_retract;
+pub mod orphan_staging_recovery;
 pub mod orphan_task_recovery;
 pub mod pdf_admission_registry;
 pub mod pdf_auto_routing;
@@ -229,6 +230,10 @@ pub use orphan_index_retract::{
     is_post_graph_incomplete_stage, orphan_retract_on_recover_enabled,
     retract_indexes_for_orphan_docs,
 };
+pub use orphan_staging_recovery::{
+    task_is_live,
+    recover_orphaned_staging_admissions, OrphanStagingRecoveryReport,
+};
 pub use orphan_task_recovery::{recover_orphaned_tasks, OrphanTaskRecoveryReport};
 pub use pdf_admission_registry::PdfAdmissionRegistry;
 pub use pdf_auto_routing::{should_try_edgeparse_before_vision, try_edgeparse_fast_path};
@@ -259,7 +264,9 @@ pub use reprocess_admission::{
 pub use retract_document_indexes::{retract_document_indexes, retract_on_cancel_total};
 pub use retrieval_id_cache::{global_retrieval_cache, new_retrieval_id, RetrievalIdCache};
 pub use source_reference_builder::{build_sources_from_context, is_injection_source};
-pub use staging_admission::{promote_staging_to_final, rollback_staging};
+pub use staging_admission::{
+    promote_staging_to_final, release_staging_reservation, rollback_staging,
+};
 pub use summary_role::resolve_summary_llm_or_fallback;
 pub use task_cancel::{
     apply_cancel_all_active, apply_cancel_pdf_pipeline_tasks, apply_task_row_cancel,

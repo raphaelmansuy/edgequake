@@ -97,6 +97,19 @@ pub fn pipeline_event_to_progress(event: &PipelineEvent) -> Option<ProgressEvent
             success: *success,
             error: error.clone(),
         }),
+        PipelineEvent::StageTransition {
+            document_id,
+            task_id,
+            stage,
+            stage_message,
+            stage_progress,
+        } => Some(ProgressEvent::StageTransition {
+            document_id: document_id.clone(),
+            task_id: task_id.clone(),
+            stage: stage.clone(),
+            stage_message: stage_message.clone(),
+            stage_progress: *stage_progress,
+        }),
         _ => None,
     }
 }
@@ -151,6 +164,33 @@ mod tests {
                 assert_eq!(total_chunks, 10);
             }
             _ => panic!("expected ChunkProgress"),
+        }
+    }
+
+    #[test]
+    fn maps_stage_transition() {
+        let ev = PipelineEvent::StageTransition {
+            document_id: "d".into(),
+            task_id: "insert-1".into(),
+            stage: "chunking".into(),
+            stage_message: "Chunking document".into(),
+            stage_progress: Some(0.0),
+        };
+        let mapped = pipeline_event_to_progress(&ev).expect("mapped");
+        match mapped {
+            ProgressEvent::StageTransition {
+                task_id,
+                stage,
+                stage_message,
+                stage_progress,
+                ..
+            } => {
+                assert_eq!(task_id, "insert-1");
+                assert_eq!(stage, "chunking");
+                assert_eq!(stage_message, "Chunking document");
+                assert_eq!(stage_progress, Some(0.0));
+            }
+            _ => panic!("expected StageTransition"),
         }
     }
 }

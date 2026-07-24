@@ -318,6 +318,7 @@ fn event_visible_to_session(event: &ProgressEvent, session: &WsSession) -> bool 
         // Track-scoped events without workspace claim — do not fan out on global bus.
         ProgressEvent::ChunkFailure { .. }
         | ProgressEvent::ChunkProgress { .. }
+        | ProgressEvent::StageTransition { .. }
         | ProgressEvent::PdfPageProgress { .. }
         | ProgressEvent::GraphStorageProgress { .. }
         | ProgressEvent::DeletionStarted { .. }
@@ -545,6 +546,7 @@ fn matches_track_id(event: &ProgressEvent, track_id: &str) -> bool {
         ProgressEvent::PdfPageProgress { task_id, .. } => task_id == track_id,
         ProgressEvent::ChunkFailure { task_id, .. } => task_id == track_id,
         ProgressEvent::ChunkProgress { task_id, .. } => task_id == track_id,
+        ProgressEvent::StageTransition { task_id, .. } => task_id == track_id,
         ProgressEvent::GraphStorageProgress { track_id: tid, .. } => tid == track_id,
         ProgressEvent::DeletionStarted { track_id: tid, .. }
         | ProgressEvent::DeletionPhase { track_id: tid, .. }

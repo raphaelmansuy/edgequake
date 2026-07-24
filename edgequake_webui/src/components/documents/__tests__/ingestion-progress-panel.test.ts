@@ -41,7 +41,7 @@ function createDefaultStages(currentStage?: IngestionStage) {
 
 /**
  * Build stages from progress data
- * Replicates the stages useMemo logic from IngestionProgressPanel
+ * Historical stage-list helper tests (pre–IngestionRunCard presenter).
  */
 function buildStagesFromProgress(
   progress: Partial<IngestionProgress> | null,

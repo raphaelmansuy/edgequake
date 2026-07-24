@@ -7,11 +7,11 @@ describe("shouldUsePdfReprocessPanel", () => {
     expect(shouldUsePdfReprocessPanel(true, "full")).toBe(true);
   });
 
-  it("uses IngestionProgressPanel for entities-only PDF", () => {
+  it("uses IngestionRunCard (no PDF nest) for entities-only PDF", () => {
     expect(shouldUsePdfReprocessPanel(true, "entities")).toBe(false);
   });
 
-  it("uses IngestionProgressPanel for non-PDF full mode", () => {
+  it("uses IngestionRunCard (no PDF nest) for non-PDF full mode", () => {
     expect(shouldUsePdfReprocessPanel(false, "full")).toBe(false);
   });
 

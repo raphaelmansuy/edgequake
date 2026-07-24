@@ -143,12 +143,12 @@ describe("performFileUpload", () => {
     expect(uploadDocument).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "notes.md",
-        source_type: "text",
+        source_type: "markdown",
         track_id: "batch-1",
       }),
     );
     expect(uploadFile).not.toHaveBeenCalled();
-    expect(result.source_type).toBe("text");
+    expect(result.source_type).toBe("markdown");
     expect(result.track_id).toBe("insert-task-md");
   });
 

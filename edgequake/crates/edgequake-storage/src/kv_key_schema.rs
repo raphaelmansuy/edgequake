@@ -211,9 +211,13 @@ pub mod kv_keys {
 
     /// Check if a KV key is a document metadata key.
     ///
-    /// Returns the doc_id if it is, None otherwise.
+    /// Returns the bare document id if it is, None otherwise.
+    /// Staging admit keys (`staging:{doc_id}-metadata`) resolve to `{doc_id}`
+    /// so list/ActiveRuns identity matches admit `document_id` (SPEC-086).
     pub fn parse_doc_metadata(key: &str) -> Option<&str> {
-        key.strip_suffix("-metadata")
+        let id = key.strip_suffix("-metadata")?;
+        // `staging:hash:…` never ends with `-metadata`.
+        Some(id.strip_prefix("staging:").unwrap_or(id))
     }
 
     /// Check if a KV key is a document chunk key.
@@ -273,6 +277,18 @@ mod tests {
         assert_eq!(kv_keys::parse_doc_metadata(&key), Some(doc_id));
         assert_eq!(kv_keys::parse_doc_metadata("not-a-metadata-key"), None);
         assert_eq!(kv_keys::parse_doc_metadata("foo-chunk-0"), None);
+    }
+
+    #[test]
+    fn parse_doc_metadata_strips_staging_prefix() {
+        let doc_id = "my-doc-uuid-1234";
+        let key = kv_keys::staging_doc_metadata(doc_id);
+        assert_eq!(kv_keys::parse_doc_metadata(&key), Some(doc_id));
+        // Final key unchanged.
+        assert_eq!(
+            kv_keys::parse_doc_metadata(&kv_keys::doc_metadata(doc_id)),
+            Some(doc_id)
+        );
     }
 
     #[test]

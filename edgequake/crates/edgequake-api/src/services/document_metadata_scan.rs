@@ -196,17 +196,14 @@ pub async fn load_scoped_document_metadata(
     )
 }
 
-/// Progress facade load (068): final workspace docs **plus** in-flight staging metadata.
+/// Fetch tenant-scoped in-flight staging metadata keys/values (SPEC-086 / 068 SSOT).
 ///
 /// Text/MD admits write `staging:{doc}-metadata` only until promote. The wsdoc index
-/// skips staging keys, so a non-empty workspace would otherwise 404
-/// `GET /ingestion/{insert-*}/progress` for active inserts.
-pub async fn load_scoped_document_metadata_for_progress(
+/// skips staging keys, so interactive list/track/progress must merge these explicitly.
+async fn load_staging_metadata_entries(
     kv_storage: &(dyn KVStorage + Send + Sync),
     tenant_ctx: &TenantContext,
-) -> ApiResult<Vec<serde_json::Value>> {
-    let mut values = load_scoped_document_metadata(kv_storage, tenant_ctx).await?;
-
+) -> ApiResult<Vec<(String, serde_json::Value)>> {
     let staging_keys: Vec<String> = kv_storage
         .keys_with_prefix("staging:")
         .await?
@@ -214,30 +211,96 @@ pub async fn load_scoped_document_metadata_for_progress(
         .filter(|k| k.ends_with(DOCUMENT_METADATA_SUFFIX) && !k.contains(":hash:"))
         .collect();
     if staging_keys.is_empty() {
-        return Ok(values);
+        return Ok(Vec::new());
     }
 
     let staging_values = kv_storage.get_by_ids_ordered(&staging_keys).await?;
-    let mut seen_ids: std::collections::HashSet<String> = values
-        .iter()
-        .filter_map(|v| v.get("id").and_then(|i| i.as_str()).map(str::to_string))
-        .collect();
-
-    for value in staging_values.into_iter().flatten() {
+    let mut out = Vec::new();
+    for (key, maybe_value) in staging_keys.into_iter().zip(staging_values) {
+        let Some(value) = maybe_value else {
+            continue;
+        };
         if !metadata_matches_tenant_context(&value, tenant_ctx) {
             continue;
         }
         let Some(id) = value.get("id").and_then(|i| i.as_str()) else {
             continue;
         };
-        if id.is_empty() || seen_ids.contains(id) {
+        if id.is_empty() {
+            continue;
+        }
+        out.push((key, value));
+    }
+    Ok(out)
+}
+
+/// Merge staging metadata into final `(key, value)` entries (prefer final on id collision).
+///
+/// Used by documents list (after limited final load) so in-flight MD appears in ActiveRuns.
+pub async fn merge_staging_metadata_entries(
+    kv_storage: &(dyn KVStorage + Send + Sync),
+    tenant_ctx: &TenantContext,
+    mut entries: Vec<(String, serde_json::Value)>,
+) -> ApiResult<Vec<(String, serde_json::Value)>> {
+    let staging = load_staging_metadata_entries(kv_storage, tenant_ctx).await?;
+    if staging.is_empty() {
+        return Ok(entries);
+    }
+
+    let mut seen_ids: std::collections::HashSet<String> = entries
+        .iter()
+        .filter_map(|(_, v)| v.get("id").and_then(|i| i.as_str()).map(str::to_string))
+        .collect();
+
+    for (key, value) in staging {
+        let Some(id) = value.get("id").and_then(|i| i.as_str()) else {
+            continue;
+        };
+        if seen_ids.contains(id) {
             // Prefer final `{doc}-metadata` over staging when both exist.
             continue;
         }
         seen_ids.insert(id.to_string());
-        values.push(value);
+        entries.push((key, value));
     }
-    Ok(values)
+    Ok(entries)
+}
+
+/// Merge staging metadata into final value list (prefer final on id collision).
+pub async fn merge_staging_metadata_values(
+    kv_storage: &(dyn KVStorage + Send + Sync),
+    tenant_ctx: &TenantContext,
+    values: Vec<serde_json::Value>,
+) -> ApiResult<Vec<serde_json::Value>> {
+    let entries: Vec<(String, serde_json::Value)> = values
+        .into_iter()
+        .map(|v| {
+            let key = v
+                .get("id")
+                .and_then(|i| i.as_str())
+                .map(metadata_key_for_document)
+                .unwrap_or_default();
+            (key, v)
+        })
+        .collect();
+    Ok(
+        merge_staging_metadata_entries(kv_storage, tenant_ctx, entries)
+            .await?
+            .into_iter()
+            .map(|(_, v)| v)
+            .collect(),
+    )
+}
+
+/// Progress / in-flight load (068 + 086): final workspace docs **plus** staging metadata.
+///
+/// Thin wrapper over [`merge_staging_metadata_values`] — one merge implementation (no third loader).
+pub async fn load_scoped_document_metadata_for_progress(
+    kv_storage: &(dyn KVStorage + Send + Sync),
+    tenant_ctx: &TenantContext,
+) -> ApiResult<Vec<serde_json::Value>> {
+    let values = load_scoped_document_metadata(kv_storage, tenant_ctx).await?;
+    merge_staging_metadata_values(kv_storage, tenant_ctx, values).await
 }
 
 /// KV keys to remove when cascade-deleting a workspace's documents.

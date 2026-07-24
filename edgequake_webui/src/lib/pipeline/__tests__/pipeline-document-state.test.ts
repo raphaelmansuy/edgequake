@@ -8,7 +8,9 @@ import {
   detectStuckDocuments,
   hasQueueCoverage,
   isActiveProcessingStatus,
+  isOrphanAdmissionShell,
   isWaitingStatus,
+  needsReuploadNotReprocess,
   orphanQueuedTaskCount,
   resolvePipelineUiState,
   summarizePipelineDocuments,
@@ -281,6 +283,145 @@ describe('pipeline-document-state', () => {
     ]);
     expect(detectStuckDocuments(summary, false).map((d) => d.id)).toEqual(['w']);
     expect(detectStuckDocuments(summary, true)).toEqual([]);
+  });
+
+  it('aged uploading admission seed is orphan — not Working', () => {
+    const now = Date.now();
+    const orphan = doc({
+      id: 'invarian',
+      file_name: 'invarian_2607.11875v2.md',
+      current_stage: 'uploading',
+      stage_message: 'Document received, starting processing',
+      stage_progress: 0,
+      track_id: 'insert-dead',
+      admission_staging: true,
+      updated_at: new Date(now - 120_000).toISOString(),
+      created_at: new Date(now - 120_000).toISOString(),
+    });
+    expect(isOrphanAdmissionShell(orphan, now)).toBe(true);
+    // Queued behind busy workers: not Needs attention.
+    expect(
+      isOrphanAdmissionShell(orphan, now, { hasQueueCoverage: true }),
+    ).toBe(false);
+    const summary = summarizePipelineDocuments([orphan]);
+    expect(summary.activeCount).toBe(0);
+    expect(summary.waitingCount).toBe(1);
+    expect(detectStuckDocuments(summary, false, now).map((d) => d.id)).toEqual([
+      'invarian',
+    ]);
+    expect(detectStuckDocuments(summary, true, now)).toEqual([]);
+    const state = resolvePipelineUiState([orphan], {
+      pending_tasks: 0,
+      processing_tasks: 0,
+    });
+    expect(state.isActivelyProcessing).toBe(false);
+    expect(state.isStuck).toBe(true);
+    expect(state.alertMode).toBe('stuck');
+    const queuedBehind = resolvePipelineUiState([orphan], {
+      pending_tasks: 1,
+      processing_tasks: 1,
+      is_busy: true,
+    });
+    expect(queuedBehind.isStuck).toBe(false);
+    expect(queuedBehind.isActivelyProcessing).toBe(true);
+  });
+
+  it('slow client upload without admission_staging is not orphan after grace', () => {
+    const now = Date.now();
+    const slowClient = doc({
+      id: 'slow-client',
+      file_name: 'notes.md',
+      current_stage: 'uploading',
+      stage_message: 'Queued for processing…',
+      stage_progress: 0,
+      // No admission_staging — optimistic client shell only
+      updated_at: new Date(now - 120_000).toISOString(),
+    });
+    expect(isOrphanAdmissionShell(slowClient, now)).toBe(false);
+  });
+
+  it('needsReuploadNotReprocess detects recovered staging shells', () => {
+    expect(
+      needsReuploadNotReprocess(
+        doc({
+          id: 'r',
+          status: 'failed',
+          failure_code: 'server_restart_interrupted',
+          error_message: 'Orphaned staging admission — please re-upload',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('fresh uploading admission is not orphan within grace', () => {
+    const now = Date.now();
+    const fresh = doc({
+      id: 'fresh-up',
+      current_stage: 'uploading',
+      stage_message: 'Document received, starting processing',
+      admission_staging: true,
+      track_id: 'insert-live',
+      updated_at: new Date(now - 5_000).toISOString(),
+      created_at: new Date(now - 5_000).toISOString(),
+    });
+    expect(isOrphanAdmissionShell(fresh, now)).toBe(false);
+    const summary = summarizePipelineDocuments([fresh]);
+    expect(summary.activeCount).toBe(1);
+  });
+
+  it('aged uploading seed with busy queue is Working, not Needs attention', () => {
+    // SPEC-086 ops: global queue coverage suppresses false-orphan while PDF extracts.
+    const now = Date.now();
+    const queuedSeed = doc({
+      id: 'invarian',
+      file_name: 'invarian.md',
+      current_stage: 'uploading',
+      stage_message: 'Document received, starting processing',
+      admission_staging: true,
+      track_id: 'insert-queued',
+      updated_at: new Date(now - 120_000).toISOString(),
+    });
+    const live = doc({
+      id: 'live',
+      current_stage: 'extracting',
+      stage_message: 'Extracting — 4/98',
+      track_id: 'insert-live',
+      updated_at: new Date(now).toISOString(),
+    });
+    const state = resolvePipelineUiState([queuedSeed, live], {
+      pending_tasks: 1,
+      processing_tasks: 1,
+      is_busy: true,
+    });
+    expect(state.isActivelyProcessing).toBe(true);
+    expect(state.stuckDocs).toEqual([]);
+    expect(state.isStuck).toBe(false);
+    expect(state.activeDocCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('aged pending with track_id stays Queued (SPEC-048); orphan uploading does not', () => {
+    const now = Date.now();
+    const pendingWithTrack = doc({
+      id: 'stale-track',
+      current_stage: 'pending',
+      track_id: 'insert-gone',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const summaryPending = summarizePipelineDocuments([pendingWithTrack]);
+    expect(detectStuckDocuments(summaryPending, false)).toEqual([]);
+
+    const orphan = doc({
+      id: 'orphan-up',
+      current_stage: 'uploading',
+      stage_message: 'Document received, starting processing',
+      admission_staging: true,
+      track_id: 'insert-dead',
+      updated_at: new Date(now - 120_000).toISOString(),
+    });
+    const summaryOrphan = summarizePipelineDocuments([orphan]);
+    expect(detectStuckDocuments(summaryOrphan, false, now).map((d) => d.id)).toEqual([
+      'orphan-up',
+    ]);
   });
 });
 

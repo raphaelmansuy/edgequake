@@ -8,6 +8,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { DocumentDownloadMenu } from './document-download-menu';
+import { needsReuploadNotReprocess } from '@/lib/pipeline/pipeline-document-state';
 import type { Document } from '@/types';
 import { Copy, Eye, MoreVertical, RefreshCw, StopCircle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -127,11 +128,13 @@ export function DocumentActionsMenu({
             </DropdownMenuItem>
           )}
 
-          {/* Reprocess */}
-          <DropdownMenuItem onClick={() => onReprocess(doc.id)}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {t('documents.actions.reprocess')}
-          </DropdownMenuItem>
+          {/* Reprocess — hide for orphan staging shells (dismiss + re-upload). */}
+          {!needsReuploadNotReprocess(doc) && (
+            <DropdownMenuItem onClick={() => onReprocess(doc.id)}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {t('documents.actions.reprocess')}
+            </DropdownMenuItem>
+          )}
 
           {/* SPEC-050: Delete now opens a confirm dialog with impact preview */}
           <DropdownMenuItem

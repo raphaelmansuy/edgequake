@@ -190,6 +190,11 @@ export class ProgressWebSocket {
         this.emit("progress", message);
         this.options.onMessage?.(message);
         break;
+      case "StageTransition":
+        // SPEC-086: unified-stage enter for MD/text Insert tracks
+        this.emit("progress", message);
+        this.options.onMessage?.(message);
+        break;
       case "ChunkFailure":
         // SPEC-003: Chunk failure events for resilient extraction visibility
         this.emit("progress", message);

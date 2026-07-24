@@ -48,7 +48,11 @@ import {
   buildIngestionRunViews,
   stageDisplayName,
 } from '@/lib/pipeline/ingestion-run-view';
-import { resolvePipelineUiState } from '@/lib/pipeline/pipeline-document-state';
+import {
+  hasQueueCoverage,
+  needsReuploadNotReprocess,
+  resolvePipelineUiState,
+} from '@/lib/pipeline/pipeline-document-state';
 
 import { useBulkSelection } from '@/hooks/use-bulk-selection';
 import { useDeletionSessions } from '@/hooks/use-deletion-progress';
@@ -225,7 +229,7 @@ export function DocumentManager() {
     setLargePdfPreviews([]);
   }, []);
 
-  // SPEC-050-REPROCESS: Track reprocess operations to show IngestionProgressPanel
+  // SPEC-050-REPROCESS: Track reprocess operations to show ProgressPanelRow / IngestionRunCard
   // — identical feedback to a fresh upload (stage list, cost, ETA, cancel).
   // WHY SRP: This hook owns only state; the rendering and the mutation callback
   // are wired below, keeping each concern in the right layer.
@@ -350,21 +354,37 @@ export function DocumentManager() {
     [documents, pipelineStatus],
   );
 
+  const runViewOpts = useMemo(() => {
+    const pending =
+      pipelineStatus?.pending_tasks ?? pipelineStatus?.queued_tasks ?? 0;
+    const processing =
+      pipelineStatus?.processing_tasks ?? pipelineStatus?.running_tasks ?? 0;
+    return {
+      hasQueueCoverage: hasQueueCoverage(pipelineStatus, pending, processing),
+    };
+  }, [pipelineStatus]);
+
+  // Orphan staging shells need re-upload — exclude from Retry Failed count.
+  const reprocessableFailedCount = useMemo(() => {
+    const orphanReupload = (documents ?? []).filter(needsReuploadNotReprocess).length;
+    return Math.max(0, (statusCounts.failed ?? 0) - orphanReupload);
+  }, [documents, statusCounts.failed]);
+
   // Only mute siblings while a run is actively working (not merely queued)
   const workingRunDocumentIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const run of buildIngestionRunViews(documents).values()) {
+    for (const run of buildIngestionRunViews(documents, runViewOpts).values()) {
       if (run.stageStatus === 'active') ids.add(run.documentId);
     }
     return ids;
-  }, [documents]);
+  }, [documents, runViewOpts]);
 
   // All active / pending runs — used for the unified feedback zone.
   // WHY compute once: buildIngestionRunViews was called separately for
   // workingRunDocumentIds and activeRunViews; this avoids the duplication.
   const allRuns = useMemo(
-    () => [...buildIngestionRunViews(documents).values()],
-    [documents],
+    () => [...buildIngestionRunViews(documents, runViewOpts).values()],
+    [documents, runViewOpts],
   );
 
   // While a session panel is still provisional Queuing (not cleaning), hide the
@@ -494,8 +514,8 @@ export function DocumentManager() {
   // WHY the auto-seed useEffect was removed:
   //
   // The previous implementation called addReprocessEntry for every active run so
-  // IngestionProgressPanel would render after a page refresh. However, each
-  // IngestionProgressPanel polls GET /ingestion/{trackId}/progress every 5s.
+  // ProgressPanelRow would render after a page refresh. However, each
+  // row polls GET /ingestion/{trackId}/progress every 5s.
   // That handler calls load_scoped_document_metadata — a full PostgreSQL scan of
   // ALL document metadata in the workspace. With N active documents, N scans fire
   // every 5s in addition to all other processing queries. Result: connection pool
@@ -505,7 +525,7 @@ export function DocumentManager() {
   // zero extra DB queries beyond the existing 2s document-list poll. That is
   // sufficient feedback for background/post-refresh processing.
   //
-  // IngestionProgressPanel is now reserved for documents explicitly reprocessed in
+  // ProgressPanelRow is now reserved for documents explicitly reprocessed in
   // the current session (addReprocessEntry is called from reprocessMutation and
   // bulk reprocess — typically 1–3 docs, dismissed by the user on completion).
 
@@ -532,7 +552,7 @@ export function DocumentManager() {
   } = useBulkSelection({
     documents,
     onDeleteRequested: handleBulkDeleteRequested,
-    // SPEC-051 GAP-051-02: wire bulk reprocess through IngestionProgressPanel.
+    // SPEC-051 GAP-051-02: wire bulk reprocess through ProgressPanelRow.
     // WHY: Previously bulk reprocess called reprocessDocument() directly and
     // discarded the track_id — no progress panel appeared. Now each reprocessed
     // document gets the same ProgressPanelRow as a single-doc reprocess.
@@ -636,7 +656,7 @@ export function DocumentManager() {
         <div className="shrink-0 px-4 pt-4 space-y-3 bg-background">
           <DocumentHeader
             totalCount={totalCount}
-            failedCount={statusCounts.failed}
+            failedCount={reprocessableFailedCount}
             showPipelineIndicator={pipelineUi.showPipelineIndicator}
             pipelineAlertMode={pipelineUi.alertMode}
             activeDocCount={pipelineUi.activeDocCount}
@@ -665,6 +685,8 @@ export function DocumentManager() {
             onOpenPipelineDetails={() => setPipelineDialogOpen(true)}
             onReprocessStuckDocuments={(stuckDocs) => {
               for (const doc of stuckDocs) {
+                // Staging orphans must be dismissed + re-uploaded, not reprocessed.
+                if (needsReuploadNotReprocess(doc)) continue;
                 const name =
                   doc.file_name?.trim() ||
                   doc.title?.trim() ||
@@ -740,7 +762,12 @@ export function DocumentManager() {
           <FeedbackZoneLiveRegion announcement={feedbackAnnouncement} />
           <div className="px-4 py-2 space-y-2">
             {/* Server-stage stepper — includes stuck docs (per-doc cards stay visible) */}
-            {showActiveRuns && <ActiveRunsPanel runs={activeRunsDisplayed} />}
+            {showActiveRuns && (
+              <ActiveRunsPanel
+                runs={activeRunsDisplayed}
+                onDismissFailed={handleDeleteDocument}
+              />
+            )}
 
             {/* Upload progress: client-only rows always; tracked rows when
                 ActiveRunsPanel is hidden (it handles them when visible). */}
@@ -834,7 +861,13 @@ export function DocumentManager() {
                         <AdmissionPhaseRow
                           phase="deleting"
                           documentName={entry.documentName}
-                          stageMessage={formatDeleteStageMessage(entry, deleteNow)}
+                          stageMessage={
+                            entry.status === 'failed'
+                              ? entry.error ||
+                                entry.phaseLabel ||
+                                'Deletion failed — dismiss this panel'
+                              : formatDeleteStageMessage(entry, deleteNow)
+                          }
                           countsLabel={formatDeleteCountsLabel(entry)}
                           variant="row"
                           data-testid="delete-progress-row"
@@ -886,6 +919,7 @@ export function DocumentManager() {
         onRetry={(id) => {
           // Pass document name + isPdf for ProgressPanelRow display
           const doc = documents.find((d) => d.id === id);
+          if (doc && needsReuploadNotReprocess(doc)) return;
           const name = doc?.file_name || doc?.title || id.slice(0, 8);
           reprocessMutation.mutate({ id, name, isPdf: doc?.source_type === 'pdf' });
         }}
@@ -893,6 +927,7 @@ export function DocumentManager() {
           // WHY: Open the choice dialog for the target document so the user can
           // pick between full PDF re-conversion and entity-only re-extraction.
           const target = documents.find((d) => d.id === id) ?? null;
+          if (target && needsReuploadNotReprocess(target)) return;
           setReprocessTarget(target ?? ({ id } as Document));
         }}
         onCancel={(trackId) => cancelMutation.mutate(trackId)}
@@ -966,7 +1001,7 @@ export function DocumentManager() {
         document={reprocessTarget}
         onConfirm={(choice: ReprocessChoice) => {
           if (!reprocessTarget?.id) return;
-          // SPEC-050-REPROCESS: Pass document name so IngestionProgressPanel shows
+          // SPEC-050-REPROCESS: Pass document name so ProgressPanelRow shows
           // a meaningful filename instead of a truncated ID.
           const docName =
             reprocessTarget.file_name ||

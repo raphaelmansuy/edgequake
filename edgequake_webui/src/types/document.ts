@@ -35,6 +35,11 @@ export interface Document {
   content_hash?: string;
   /** Track ID for batch grouping. */
   track_id?: string;
+  /**
+   * True while document lives in `staging:{id}-metadata` (pre-promote).
+   * SPEC-086: list-visible; orphan recovery fails shells with no live task.
+   */
+  admission_staging?: boolean;
   /** Tenant ID for multi-tenancy. */
   tenant_id?: string;
   /** Workspace ID for multi-tenancy. */

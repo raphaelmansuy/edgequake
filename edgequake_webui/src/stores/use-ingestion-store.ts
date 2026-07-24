@@ -24,6 +24,7 @@
  * @see useBackendStore for WebSocket connection management
  */
 
+import { mergeIngestionProgress } from "@/lib/pipeline/merge-ingestion-progress";
 import type { CostUpdateEvent } from "@/types/cost";
 import type {
     ChunkFailureEvent,
@@ -40,6 +41,7 @@ import type {
     StageProgress,
     StageProgressEvent,
     StageStartedEvent,
+    StageTransitionEvent,
     WebSocketProgressMessage,
 } from "@/types/ingestion";
 import { create } from "zustand";
@@ -72,6 +74,8 @@ interface IngestionActions {
     documentId: string,
     documentName: string,
   ) => void;
+  /** SPEC-086: merge polled progress into store (immutable). */
+  applyPolledProgress: (mapped: IngestionProgress) => void;
   updateFromMessage: (
     message: WebSocketProgressMessage | CostUpdateEvent,
   ) => void;
@@ -542,6 +546,79 @@ function handleChunkFailure(
   return tracks;
 }
 
+/**
+ * SPEC-086: apply StageTransition WS (immutable track replace).
+ */
+function handleStageTransition(
+  state: IngestionState,
+  event: StageTransitionEvent,
+): Map<string, IngestionProgress> {
+  const tracks = new Map(state.tracks);
+  const trackId = event.data.task_id;
+  const prev =
+    tracks.get(trackId) ??
+    createInitialProgress(
+      trackId,
+      event.data.document_id,
+      event.data.document_id,
+    );
+
+  const stage = (event.data.stage || "uploading") as IngestionStage;
+  const pct =
+    event.data.stage_progress != null
+      ? Math.round(event.data.stage_progress * 100)
+      : prev.progress.completion_percentage;
+
+  const stages = prev.progress.stages.map((s) => {
+    if (s.stage === stage) {
+      return {
+        ...s,
+        status: "running" as const,
+        progress: pct,
+        message: event.data.stage_message,
+      };
+    }
+    const order = [
+      "uploading",
+      "converting",
+      "preprocessing",
+      "chunking",
+      "extracting",
+      "gleaning",
+      "merging",
+      "summarizing",
+      "embedding",
+      "storing",
+      "indexing",
+    ];
+    const curIdx = order.indexOf(stage);
+    const sIdx = order.indexOf(s.stage);
+    if (curIdx >= 0 && sIdx >= 0 && sIdx < curIdx && s.status !== "failed") {
+      return { ...s, status: "completed" as const, progress: 100 };
+    }
+    return s;
+  });
+
+  const next: IngestionProgress = {
+    ...prev,
+    document_id: event.data.document_id || prev.document_id,
+    status: stage === "completed" || stage === "failed" ? stage : stage,
+    overall_progress: pct,
+    updated_at: new Date().toISOString(),
+    completed_at:
+      stage === "completed" ? new Date().toISOString() : prev.completed_at,
+    progress: {
+      ...prev.progress,
+      current_stage: stage,
+      completion_percentage: pct,
+      latest_message: event.data.stage_message || prev.progress.latest_message,
+      stages,
+    },
+  };
+  tracks.set(trackId, next);
+  return tracks;
+}
+
 // ============================================================================
 // Store Definition
 // ============================================================================
@@ -567,6 +644,16 @@ export const useIngestionStore = create<IngestionStore>()(
               createInitialProgress(trackId, documentId, documentName),
             );
           }
+          return { tracks };
+        });
+      },
+
+      applyPolledProgress: (mapped) => {
+        set((state) => {
+          const prev = state.tracks.get(mapped.track_id);
+          const next = mergeIngestionProgress(prev, mapped) ?? mapped;
+          const tracks = new Map(state.tracks);
+          tracks.set(mapped.track_id, { ...next });
           return { tracks };
         });
       },
@@ -654,6 +741,14 @@ export const useIngestionStore = create<IngestionStore>()(
                 tracks: handleChunkProgress(
                   state,
                   message as ChunkProgressEvent,
+                ),
+              };
+
+            case "StageTransition":
+              return {
+                tracks: handleStageTransition(
+                  state,
+                  message as StageTransitionEvent,
                 ),
               };
 

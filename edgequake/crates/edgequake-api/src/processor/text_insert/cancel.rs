@@ -71,6 +71,23 @@ impl DocumentTaskProcessor {
             self.update_document_status(document_id, "cancelled", Some(&msg))
                 .await
                 .ok();
+            // Free staging hash so cancelled shells do not block same-bytes re-upload.
+            let meta_key =
+                crate::services::resolve_document_metadata_key(document_id, &self.kv_storage).await;
+            if let Ok(Some(meta)) = self.kv_storage.get_by_id(&meta_key).await {
+                if let (Some(hash), Some(ws)) = (
+                    meta.get("content_hash").and_then(|v| v.as_str()),
+                    meta.get("workspace_id").and_then(|v| v.as_str()),
+                ) {
+                    let _ = crate::services::release_staging_reservation(
+                        &self.kv_storage,
+                        document_id,
+                        ws,
+                        hash,
+                    )
+                    .await;
+                }
+            }
             return Err(TaskError::Cancelled(msg));
         }
         Ok(())

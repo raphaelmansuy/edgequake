@@ -848,6 +848,23 @@ async fn async_main() -> Result<()> {
         }
     };
 
+    // SPEC-086: staging admit shells are list-visible — fail orphans with no live task
+    // (previously skipped forever → ActiveRuns stuck on "Document received…").
+    if let Err(e) = edgequake_api::services::recover_orphaned_staging_admissions(
+        Arc::clone(&state.storage.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+        Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>,
+        None, // startup: no workers yet → staging without Pending/Processing is orphan
+    )
+    .await
+    {
+        ErrorEvent::log_domain_warn(
+            "startup",
+            "recover_orphaned_staging_admissions",
+            &e,
+            json!({ "non_fatal": true }),
+        );
+    }
+
     // SPEC-059: unindex failed mid-saga docs so orphaned content is not searchable.
     let mut all_retract = orphan_retract_ids;
     all_retract.extend(orphan_task_retract_ids);
@@ -1119,6 +1136,22 @@ async fn async_main() -> Result<()> {
                         Vec::new()
                     }
                 };
+                // SPEC-086: age out orphan staging shells (no live task).
+                let staging_age = std::time::Duration::from_secs(interval_mins * 60);
+                if let Err(e) = edgequake_api::services::recover_orphaned_staging_admissions(
+                    Arc::clone(&kv),
+                    Arc::clone(&reconcile_state.tasks.storage) as Arc<dyn TaskStorage>,
+                    Some(staging_age),
+                )
+                .await
+                {
+                    ErrorEvent::log_domain_warn(
+                        "startup",
+                        "periodic_recover_orphaned_staging",
+                        &e,
+                        json!({ "non_fatal": true }),
+                    );
+                }
                 if !periodic_auto_resume {
                     continue;
                 }

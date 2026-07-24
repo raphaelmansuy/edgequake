@@ -1,0 +1,23 @@
+{
+  "id": "density-golden-pair-v1",
+  "recorded_at": "2026-07-24",
+  "kind": "synthetic_baseline",
+  "note": "Pinned SPEC-086 LAW-27 floor. Absolute entity equality is NOT required; gate uses entities/1k chars ratio + optional MD section%. Replace with production corpus numbers when available.",
+  "md": {
+    "label": "human-draft-markdown",
+    "chars": 12000,
+    "entities": 48,
+    "relationships": 22,
+    "section_pct": 72.0
+  },
+  "pdf": {
+    "label": "full-paper-pdf",
+    "chars": 180000,
+    "entities": 1100,
+    "relationships": 640
+  },
+  "thresholds": {
+    "min_ratio": 0.25,
+    "min_section_pct": 50.0
+  }
+}

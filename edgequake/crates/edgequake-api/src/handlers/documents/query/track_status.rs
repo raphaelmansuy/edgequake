@@ -4,7 +4,7 @@ use axum::{extract::State, Json};
 
 use crate::error::ApiResult;
 use crate::middleware::TenantContext;
-use crate::services::document_metadata_scan::load_scoped_document_metadata;
+use crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress;
 use crate::services::tenant_guard::{
     empty_track_status, has_full_tenant_context, warn_missing_tenant_context,
 };
@@ -38,9 +38,9 @@ pub async fn get_track_status(
         return Ok(Json(empty_track_status(track_id)));
     }
 
-    // SPEC-027: scoped metadata scan SSOT (no global keys_like; chunk_count from metadata).
+    // SPEC-027 + SPEC-086: include staging in-flight docs (same SSOT as progress).
     let metadata_values =
-        load_scoped_document_metadata(storage.kv_storage.as_ref(), &tenant_ctx).await?;
+        load_scoped_document_metadata_for_progress(storage.kv_storage.as_ref(), &tenant_ctx).await?;
 
     let mut track_docs: Vec<DocumentSummary> = Vec::new();
     let mut created_times: Vec<String> = Vec::new();

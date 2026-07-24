@@ -236,6 +236,8 @@ impl DocumentTaskProcessor {
                         self.update_document_status(&document_id, "failed", Some(&error_msg))
                             .await?;
 
+                        // Keep failed staging metadata for list/ActiveRuns; only
+                        // free content + hash so re-upload is not blocked (SPEC-086).
                         if let (Some(hash), Some(ws)) = (
                             data.metadata
                                 .as_ref()
@@ -246,7 +248,7 @@ impl DocumentTaskProcessor {
                                 .and_then(|m| m.get("workspace_id"))
                                 .and_then(|v| v.as_str()),
                         ) {
-                            let _ = crate::services::rollback_staging(
+                            let _ = crate::services::release_staging_reservation(
                                 &self.kv_storage,
                                 &document_id,
                                 ws,

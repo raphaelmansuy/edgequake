@@ -318,6 +318,40 @@ describe("provisional + pin (immediate feedback)", () => {
       protectedData.items?.find((d) => d.id === "upload-1")?.track_id,
     ).toBe("pdf_processing-up");
   });
+
+  it("does not reinject pin when list has staging: alias or same track_id", () => {
+    const bareId = "doc-md-1";
+    const track = "insert-md-1";
+    pinDocumentShell(
+      makeDoc(bareId, {
+        status: "pending",
+        current_stage: "uploading",
+        stage_message: "Queued for processing…",
+        track_id: track,
+        file_name: "wiki.md",
+        source_type: "markdown",
+      }),
+    );
+
+    // Legacy list id drift: staging:{uuid} with same track.
+    const protectedData = protectPinnedDocumentsInQueryData({
+      items: [
+        makeDoc(`staging:${bareId}`, {
+          status: "processing",
+          current_stage: "extracting",
+          stage_message: "Extracting…",
+          track_id: track,
+          file_name: "wiki.md",
+          source_type: "markdown",
+        }),
+      ],
+    });
+
+    const ids = (protectedData.items ?? []).map((d) => d.id);
+    expect(ids).toEqual([`staging:${bareId}`]);
+    expect(ids).not.toContain(bareId);
+    expect(isReprocessPinned(bareId)).toBe(false);
+  });
 });
 
 describe("applyReprocessSuccessToCache", () => {

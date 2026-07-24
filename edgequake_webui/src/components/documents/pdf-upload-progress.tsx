@@ -57,6 +57,11 @@ interface PdfUploadProgressProps {
   filename?: string;
   /** Compact mode (single line) */
   compact?: boolean;
+  /**
+   * SPEC-086: nest under IngestionRunCard — page N/M only (no filename chrome).
+   * Parent card owns filename / stepper; this slot is converting detail only.
+   */
+  nested?: boolean;
   /** Callback when completed */
   onComplete?: () => void;
   /** Callback when failed */
@@ -454,6 +459,7 @@ export function PdfUploadProgress({
   trackId,
   filename,
   compact = false,
+  nested = false,
   onComplete,
   onFailed,
   className,
@@ -532,6 +538,36 @@ export function PdfUploadProgress({
   // Compact mode: progress bar + visible fail/retry (parity with ingestion compact).
   if (compact) {
     const failMessage = progress?.error?.trim() || "Processing failed";
+    const pageLabel =
+      totalPages != null && totalPages > 0
+        ? `Page ${currentPage ?? 0}/${totalPages}`
+        : "Converting pages…";
+
+    // Nested under IngestionRunCard: no second filename / cancel chrome.
+    if (nested) {
+      return (
+        <div
+          className={cn("space-y-0.5 w-full", className)}
+          data-testid="spec086-pdf-page-detail"
+        >
+          <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+            <span data-testid="spec086-pdf-page-label">{pageLabel}</span>
+            <span className="tabular-nums">{overallPercent}%</span>
+          </div>
+          <Progress value={overallPercent} className="h-1.5" />
+          {isFailed ? (
+            <p
+              className="text-xs text-red-600 dark:text-red-400 truncate"
+              data-testid="pdf-progress-compact-error"
+              role="alert"
+            >
+              {failMessage}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div className={cn("flex flex-col gap-1 w-full pr-8", className)}>
         <div className="flex items-center gap-3">

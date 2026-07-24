@@ -128,8 +128,7 @@ export function UploadProgressList({
         <div className="space-y-1">
           {uploadingFiles.map((uploadFile, index) => (
             uploadFile.trackId ? (
-              // WHY ProgressPanelRow: DRY component shared with reprocess panels.
-              // Renders PdfUploadProgress (isPdf=true) or IngestionProgressPanel.
+              // WHY ProgressPanelRow: DRY adapter → IngestionRunCard (+ nested PDF pages).
               <ProgressPanelRow
                 key={`${uploadFile.file.name}-${index}`}
                 trackId={uploadFile.trackId}

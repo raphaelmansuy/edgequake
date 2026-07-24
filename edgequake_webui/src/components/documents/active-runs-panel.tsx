@@ -1,174 +1,204 @@
 /**
- * SPEC-048: Active runs panel — morph target after track_id (DEF-10).
+ * SPEC-048 / SPEC-086: Active runs panel — shared IngestionRunCard presenter.
+ * PDF converting page detail nests under the card (not a second upload product).
  *
- * Progress UX (first principles):
- * - Prefer stage N/M when countable (FP-03)
- * - Indeterminate when unknown / queued (FP-04)
- * - Overall bar is a weighted estimate, capped <100% until completed
+ * SPEC-086 dual-run UX: never mix orphan failed shells under "Active runs"
+ * beside a live PDF — partition Working/Queued vs Needs attention.
  */
 
 "use client";
 
-import { ServerStageStepper } from "@/components/documents/server-stage-stepper";
-import {
-  stageDisplayName,
-  type IngestionRunView,
-} from "@/lib/pipeline/ingestion-run-view";
-import { buildStageTimeline } from "@/lib/pipeline/stage-timeline";
-import { Progress } from "@/components/ui/progress";
+import { useQueryClient } from "@tanstack/react-query";
+import { IngestionRunCard } from "@/components/documents/ingestion-run-card";
+import { PdfUploadProgress } from "@/components/documents/pdf-upload-progress";
+import { Button } from "@/components/ui/button";
+import { cancelTask } from "@/lib/api/edgequake";
+import type { IngestionRunView } from "@/lib/pipeline/ingestion-run-view";
 
 interface ActiveRunsPanelProps {
   runs: IngestionRunView[];
+  /** Delete/remove a failed attention shell (orphan staging re-upload class). */
+  onDismissFailed?: (documentId: string) => void;
 }
 
-export function ActiveRunsPanel({ runs }: ActiveRunsPanelProps) {
-  const active = runs.filter(
-    (r) =>
-      r.stageStatus === "active" ||
-      r.stageStatus === "pending" ||
-      (Boolean(r.trackId) &&
-        r.stage !== "completed" &&
-        r.stage !== "failed" &&
-        r.stageStatus !== "failed"),
+export function isOrphanFailedAttention(run: IngestionRunView): boolean {
+  return (
+    run.stageStatus === "failed" &&
+    /re-upload|interrupted|orphaned staging|document received,\s*starting processing|prior interrupted/i.test(
+      run.message,
+    )
   );
-  if (active.length === 0) return null;
+}
 
-  const anyWorking = active.some((r) => r.stageStatus === "active");
-  const title = anyWorking
-    ? active.length > 1
-      ? "Active runs"
-      : "Active run"
-    : active.length > 1
-      ? "Queued runs"
-      : "Queued run";
+function isLiveWorkingOrQueued(run: IngestionRunView): boolean {
+  if (isOrphanFailedAttention(run)) return false;
+  // LAW-28: keep Stopping… / Cancelled on ActiveRuns until list drops them.
+  if (run.stage === "stopping" || run.stage === "cancelled") return true;
+  return (
+    run.stageStatus === "active" ||
+    run.stageStatus === "pending" ||
+    (Boolean(run.trackId) &&
+      run.stage !== "completed" &&
+      run.stage !== "failed" &&
+      run.stageStatus !== "failed")
+  );
+}
+
+/** Split live work from orphan attention shells (testable SSOT). */
+export function partitionActiveRuns(runs: IngestionRunView[]): {
+  working: IngestionRunView[];
+  attention: IngestionRunView[];
+} {
+  const working: IngestionRunView[] = [];
+  const attention: IngestionRunView[] = [];
+  for (const run of runs) {
+    if (isOrphanFailedAttention(run)) {
+      attention.push(run);
+    } else if (isLiveWorkingOrQueued(run)) {
+      working.push(run);
+    }
+  }
+  return { working, attention };
+}
+
+function workingSectionTitle(working: IngestionRunView[]): string {
+  const anyWorking = working.some((r) => r.stageStatus === "active");
+  if (anyWorking) {
+    return working.length > 1 ? "Active runs" : "Active run";
+  }
+  return working.length > 1 ? "Queued runs" : "Queued run";
+}
+
+function renderRunCard(
+  run: IngestionRunView,
+  onDismissFailed: ((documentId: string) => void) | undefined,
+  onCancelTrack: ((trackId: string) => void) | undefined,
+) {
+  return (
+    <IngestionRunCard
+      key={run.documentId}
+      run={run}
+      data-testid="spec048-active-run-card"
+      onCancel={
+        run.trackId &&
+        run.stageStatus !== "failed" &&
+        run.stage !== "stopping" &&
+        run.stage !== "cancelled" &&
+        onCancelTrack
+          ? () => onCancelTrack(run.trackId!)
+          : undefined
+      }
+      onDismiss={
+        isOrphanFailedAttention(run) && onDismissFailed
+          ? () => onDismissFailed(run.documentId)
+          : undefined
+      }
+      nestedDetail={
+        run.sourceType === "pdf" &&
+        run.stage === "converting" &&
+        run.trackId ? (
+          <PdfUploadProgress
+            trackId={run.trackId}
+            filename={run.filename}
+            compact
+            nested
+          />
+        ) : undefined
+      }
+    />
+  );
+}
+
+export function ActiveRunsPanel({
+  runs,
+  onDismissFailed,
+}: ActiveRunsPanelProps) {
+  const queryClient = useQueryClient();
+  const onCancelTrack = (trackId: string) => {
+    void cancelTask(trackId)
+      .catch(() => {
+        /* terminal cancelled may still be on KV */
+      })
+      .finally(() => {
+        // SPEC-086 ops: surface ui_phase=stopping / cancelled without waiting
+        // for the next slow list poll.
+        void queryClient.invalidateQueries({ queryKey: ["documents"] });
+        void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        void queryClient.invalidateQueries({ queryKey: ["pipeline-status"] });
+      });
+  };
+  const { working, attention } = partitionActiveRuns(runs);
+  if (working.length === 0 && attention.length === 0) return null;
+
+  const dismissAll = () => {
+    if (!onDismissFailed) return;
+    for (const run of attention) {
+      onDismissFailed(run.documentId);
+    }
+  };
 
   return (
     <div
-      className="space-y-3 rounded-lg border border-sky-200/80 bg-sky-50/40 p-3 dark:border-sky-900 dark:bg-sky-950/20"
+      className="space-y-4 rounded-lg border border-sky-200/80 bg-sky-50/40 p-3 dark:border-sky-900 dark:bg-sky-950/20"
       data-testid="spec048-active-runs-panel"
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="text-sm font-medium tracking-tight">{title}</div>
-        <div className="text-xs tabular-nums text-muted-foreground">
-          {active.length}
-        </div>
-      </div>
-      {active.map((run) => {
-        const timeline = buildStageTimeline(run);
-        const admission = timeline.admissionPhase;
-        const isAdmission = Boolean(admission);
-        const overallPct = Math.round(timeline.overallProgress01 * 100);
-        const stagePct =
-          typeof timeline.stageProgress01 === "number"
-            ? Math.round(timeline.stageProgress01 * 100)
-            : undefined;
-        const hasStageCounts = Boolean(
-          run.counts && run.counts.total > 0,
-        );
-
-        return (
-          <div
-            key={run.documentId}
-            className="space-y-2 rounded-md border border-border/80 bg-background p-2.5 shadow-sm"
-            data-testid="spec048-active-run-card"
-            data-document-id={run.documentId}
-            data-stage={run.stage}
-            data-mode={run.mode ?? "full"}
-            data-admission={admission ?? "running"}
-          >
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="truncate font-medium text-foreground">
-                {run.filename}
-              </span>
-              <span
-                className="shrink-0 text-xs tabular-nums text-sky-700 dark:text-sky-300"
-                data-testid="spec048-run-headline"
-              >
-                {run.counts
-                  ? `${stageDisplayName(run.stage)} · ${run.counts.current}/${run.counts.total}`
-                  : stageDisplayName(run.stage)}
-              </span>
+      {working.length > 0 && (
+        <section
+          className="space-y-3"
+          data-testid="spec048-active-runs-working"
+        >
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-sm font-medium tracking-tight">
+              {workingSectionTitle(working)}
             </div>
-            <ServerStageStepper run={run} />
-
-            {isAdmission ? (
-              <div
-                className="h-1.5 w-full overflow-hidden rounded bg-muted"
-                data-testid="spec048-run-progress-indeterminate"
-                data-admission={admission ?? undefined}
-              >
-                <div
-                  className={
-                    admission === "cleaning"
-                      ? "h-full w-1/3 animate-pulse rounded bg-rose-400/70"
-                      : "h-full w-1/3 animate-pulse rounded bg-amber-400/70"
-                  }
-                />
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {/* FP-03: stage bar from real counts when known */}
-                {hasStageCounts && typeof stagePct === "number" ? (
-                  <div
-                    className="space-y-0.5"
-                    data-testid="spec048-stage-progress"
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-                      <span>
-                        This stage
-                        {timeline.stageCountsLabel
-                          ? ` · ${timeline.stageCountsLabel}`
-                          : ""}
-                      </span>
-                      <span className="tabular-nums">{stagePct}%</span>
-                    </div>
-                    <Progress
-                      value={stagePct}
-                      className="h-1.5 [&_[data-slot=progress-indicator]]:bg-sky-500"
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="h-1.5 w-full overflow-hidden rounded bg-muted"
-                    data-testid="spec048-run-progress-indeterminate"
-                  >
-                    <div className="h-full w-1/3 animate-pulse rounded bg-sky-400/70" />
-                  </div>
-                )}
-
-                {/* FP-10: weighted overall estimate — never 100% mid-flight */}
-                <div
-                  className="space-y-0.5"
-                  data-testid="spec048-overall-progress"
-                >
-                  <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-                    <span>Overall (est.)</span>
-                    <span
-                      className="tabular-nums"
-                      data-testid="spec048-run-overall-pct"
-                    >
-                      {overallPct}%
-                    </span>
-                  </div>
-                  <Progress
-                    value={overallPct}
-                    className="h-1 [&_[data-slot=progress-indicator]]:bg-sky-400/80"
-                  />
-                </div>
-              </div>
-            )}
-
-            {run.mode && run.mode !== "full" ? (
-              <div
-                className="text-[11px] text-muted-foreground"
-                data-testid="spec048-run-mode"
-              >
-                Reprocess mode: {run.mode}
-              </div>
-            ) : null}
+            <div className="text-xs tabular-nums text-muted-foreground">
+              {working.length}
+            </div>
           </div>
-        );
-      })}
+          {working.map((run) =>
+            renderRunCard(run, onDismissFailed, onCancelTrack),
+          )}
+        </section>
+      )}
+
+      {attention.length > 0 && (
+        <section
+          className="space-y-3 rounded-md border border-amber-200/80 bg-amber-50/50 p-2.5 dark:border-amber-900/60 dark:bg-amber-950/30"
+          data-testid="spec086-needs-attention"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-medium tracking-tight">
+                Needs attention
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Prior interrupted upload(s) — dismiss and re-upload. Not part of
+                the current active run.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {attention.length}
+              </span>
+              {onDismissFailed && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  data-testid="spec086-dismiss-all-attention"
+                  onClick={dismissAll}
+                >
+                  Dismiss all
+                </Button>
+              )}
+            </div>
+          </div>
+          {attention.map((run) =>
+            renderRunCard(run, onDismissFailed, onCancelTrack),
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -32,12 +32,12 @@ function doc(partial: Partial<Document> & { id: string }): Document {
 }
 
 describe("stage-timeline", () => {
-  it("marks converting skipped for markdown", () => {
+  it("omits converting for markdown (no Converting PDF label)", () => {
     const tl = buildStageTimeline(
       run({ sourceType: "markdown", stage: "chunking" }),
     );
     const converting = tl.steps.find((s) => s.id === "converting");
-    expect(converting?.status).toBe("skipped");
+    expect(converting).toBeUndefined();
     expect(tl.steps.find((s) => s.id === "chunking")?.status).toBe("active");
   });
 
@@ -150,6 +150,7 @@ describe("stage-timeline", () => {
   });
 
   it("entities mode skips uploading and converting", () => {
+    // Default sourceType pdf: converting stays in timeline but skipped for entities mode.
     const tl = buildStageTimeline(
       run({
         stage: "extracting",
@@ -160,6 +161,17 @@ describe("stage-timeline", () => {
     expect(tl.steps.find((s) => s.id === "uploading")?.status).toBe("skipped");
     expect(tl.steps.find((s) => s.id === "converting")?.status).toBe("skipped");
     expect(tl.steps.find((s) => s.id === "extracting")?.status).toBe("active");
+
+    const mdEntities = buildStageTimeline(
+      run({
+        stage: "extracting",
+        mode: "entities",
+        sourceType: "markdown",
+        filename: "notes.md",
+        counts: { current: 1, total: 10, unit: "chunks" },
+      }),
+    );
+    expect(mdEntities.steps.find((s) => s.id === "converting")).toBeUndefined();
   });
 
   it("gleaning is a first-class active step after extracting done", () => {
@@ -197,7 +209,7 @@ describe("stage-timeline", () => {
         sourceType: "text",
       }),
     );
-    expect(tl.steps.find((s) => s.id === "converting")?.status).toBe("skipped");
+    expect(tl.steps.find((s) => s.id === "converting")).toBeUndefined();
     expect(
       tl.steps
         .filter((s) => s.status !== "skipped")

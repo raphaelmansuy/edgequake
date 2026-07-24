@@ -55,7 +55,7 @@ test.describe("068 text ingest progress parity", () => {
       await route.fallback();
     });
 
-    // Optional richness: if IngestionProgressPanel polls, return extracting.
+    // Optional richness: if ProgressPanelRow / IngestionRunCard polls, return extracting.
     await page.route("**/api/v1/ingestion/**/progress", async (route) => {
       const url = route.request().url();
       const trackFromUrl =

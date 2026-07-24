@@ -82,6 +82,7 @@ async fn list_documents_inner(
 
     // SPEC-027: scoped metadata scan SSOT — cap keys *before* value fetch so
     // large workspaces never pay unbounded get_by_ids under ingest load.
+    // SPEC-086: merge staging in-flight rows (O(L+S)) so MD ActiveRuns is visible.
     let scoped =
         crate::services::document_metadata_scan::load_scoped_document_metadata_entries_limited(
             storage.kv_storage.as_ref(),
@@ -89,7 +90,13 @@ async fn list_documents_inner(
             MAX_LIST_METADATA_ENTRIES,
         )
         .await?;
-    let metadata_entries = scoped.entries;
+    let metadata_entries =
+        crate::services::document_metadata_scan::merge_staging_metadata_entries(
+            storage.kv_storage.as_ref(),
+            &tenant_ctx,
+            scoped.entries,
+        )
+        .await?;
     let truncated = scoped.truncated;
     if truncated {
         tracing::warn!(

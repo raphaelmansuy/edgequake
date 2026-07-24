@@ -68,20 +68,18 @@ async fn get_document_inner(
         "Getting document by ID with tenant context"
     );
 
-    // Fetch document metadata
+    // Fetch document metadata (final, then staging — SPEC-086 list-visible shells).
     let metadata_key =
         crate::services::document_metadata_scan::metadata_key_for_document(&document_id);
+    let staging_key = edgequake_storage::kv_keys::staging_doc_metadata(&document_id);
     debug!(metadata_key = %metadata_key, "Looking up metadata key");
-    let metadata_values = storage
+    let mut metadata = storage
         .kv_storage
-        .get_by_ids(std::slice::from_ref(&metadata_key))
+        .get_by_id(&metadata_key)
         .await?;
-    debug!(
-        metadata_count = metadata_values.len(),
-        "Metadata values retrieved"
-    );
-
-    let metadata = metadata_values.into_iter().next();
+    if metadata.is_none() {
+        metadata = storage.kv_storage.get_by_id(&staging_key).await?;
+    }
     debug!(has_metadata = metadata.is_some(), "Metadata value present");
 
     // SPEC-011: prefix scan — no full keys() table scan

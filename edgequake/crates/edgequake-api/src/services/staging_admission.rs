@@ -44,7 +44,7 @@ pub async fn promote_staging_to_final(
     rollback_staging(kv, document_id, workspace_id, content_hash).await
 }
 
-/// Delete staging keys on failure or after promote.
+/// Delete staging keys on dismiss / after promote (full wipe).
 pub async fn rollback_staging(
     kv: &Arc<dyn KVStorage>,
     document_id: &str,
@@ -53,6 +53,25 @@ pub async fn rollback_staging(
 ) -> Result<(), String> {
     let keys = [
         kv_keys::staging_doc_metadata(document_id),
+        kv_keys::staging_doc_content(document_id),
+        kv_keys::staging_workspace_hash(workspace_id, content_hash),
+    ];
+    for key in keys {
+        let _ = kv.delete(&[key]).await;
+    }
+    Ok(())
+}
+
+/// On pipeline failure: free duplicate-hash reservation + content, but keep
+/// staging metadata so list/ActiveRuns show a failed shell (SPEC-086 UX).
+/// Full wipe (`rollback_staging`) is reserved for dismiss / post-promote cleanup.
+pub async fn release_staging_reservation(
+    kv: &Arc<dyn KVStorage>,
+    document_id: &str,
+    workspace_id: &str,
+    content_hash: &str,
+) -> Result<(), String> {
+    let keys = [
         kv_keys::staging_doc_content(document_id),
         kv_keys::staging_workspace_hash(workspace_id, content_hash),
     ];
@@ -137,6 +156,47 @@ mod tests {
             .is_none());
         assert!(kv
             .get_by_id(&kv_keys::doc_content(doc_id))
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn release_keeps_failed_metadata_clears_hash() {
+        let kv: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("test-release"));
+        let doc_id = "doc-3";
+        let ws = "ws";
+        let hash = "h3";
+        kv.upsert(&[
+            (
+                kv_keys::staging_doc_metadata(doc_id),
+                json!({"status": "failed", "admission_staging": true}),
+            ),
+            (
+                kv_keys::staging_doc_content(doc_id),
+                json!({"content": "x"}),
+            ),
+            (kv_keys::staging_workspace_hash(ws, hash), json!(doc_id)),
+        ])
+        .await
+        .unwrap();
+
+        release_staging_reservation(&kv, doc_id, ws, hash)
+            .await
+            .unwrap();
+
+        assert!(kv
+            .get_by_id(&kv_keys::staging_doc_metadata(doc_id))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(kv
+            .get_by_id(&kv_keys::staging_doc_content(doc_id))
+            .await
+            .unwrap()
+            .is_none());
+        assert!(kv
+            .get_by_id(&kv_keys::staging_workspace_hash(ws, hash))
             .await
             .unwrap()
             .is_none());

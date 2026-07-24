@@ -577,8 +577,10 @@ export function usePdfProgress(
       }));
     }
 
+    // SPEC-086: tolerate incomplete poll payloads (missing phases) — never throw.
+    const rawPhases = Array.isArray(progress.phases) ? progress.phases : [];
     return PHASE_ORDER.map((phase, index) => {
-      const phaseData = progress.phases[index];
+      const phaseData = rawPhases[index];
       return {
         phase,
         label: PHASE_LABELS[phase].label,

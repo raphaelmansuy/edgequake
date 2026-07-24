@@ -278,7 +278,27 @@ impl DocumentTaskProcessor {
             json!(new_metadata)
         };
 
-        upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, updated_json).await?;
+        upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, updated_json.clone())
+            .await?;
+
+        // SPEC-086: stage-transition WS for all Insert tracks (not only every-3rd chunk).
+        let task_id = updated_json
+            .get("track_id")
+            .or_else(|| updated_json.get("task_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or(document_id)
+            .to_string();
+        let stage_progress = updated_json
+            .get("stage_progress")
+            .and_then(|v| v.as_f64())
+            .map(|p| p as f32);
+        self.pipeline_state.emit_stage_transition(
+            document_id.to_string(),
+            task_id,
+            unified_stage.to_string(),
+            stage_message.to_string(),
+            stage_progress,
+        );
 
         // SPEC-047 P1: mirror non-terminal status into relational documents so
         // soft-resume / indexing is visible (do not wait for finalize stats).
@@ -564,8 +584,28 @@ impl DocumentTaskProcessor {
                     updated.remove("warning_message");
                 }
 
-                upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, json!(updated))
-                    .await?;
+                let updated_json = json!(updated);
+                upsert_metadata_with_wsdoc_index(
+                    &self.kv_storage,
+                    &metadata_key,
+                    updated_json.clone(),
+                )
+                .await?;
+
+                // SPEC-086: terminal / stats stage transition for Insert tracks.
+                let task_id = updated_json
+                    .get("track_id")
+                    .or_else(|| updated_json.get("task_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(document_id)
+                    .to_string();
+                self.pipeline_state.emit_stage_transition(
+                    document_id.to_string(),
+                    task_id,
+                    unified_stage.to_string(),
+                    stage_message.clone(),
+                    Some(1.0),
+                );
 
                 // SPEC-021 P-A1: mirror the stats into the relational
                 // `documents` table so the P5-01 relational read-model

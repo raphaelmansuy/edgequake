@@ -12,7 +12,7 @@
  *   - After 2s the worker OVERWRITES `document.track_id` with the actual task UUID
  *   - Old code keyed off the batch ID → pruneTerminalReprocessEntries never found the
  *     document (wrong track_id) → panels never dismissed
- *   - Old code passed the batch ID to IngestionProgressPanel → no WS events → blank panel
+ *   - Old code passed the batch ID to progress UI → no WS events → blank panel
  *
  *   Fix: store `documentId` (stable, never changes) and use it for:
  *     1. Document lookup in pruneTerminalReprocessEntries
@@ -56,12 +56,12 @@ export interface ReprocessEntry {
    * callers must derive the live track_id from the documents cache instead.
    */
   trackId: string;
-  /** True when source_type is "pdf". Drives PdfUploadProgress vs IngestionProgressPanel. */
+  /** True when source_type is "pdf". Drives nested PDF converting detail on IngestionRunCard. */
   isPdf: boolean;
   /**
    * Reprocess mode: "full" | "entities" | "merge".
-   * "full" + isPdf → PdfUploadProgress (shows PDF conversion phases).
-   * All others → IngestionProgressPanel.
+   * "full" + isPdf → nest PdfUploadProgress under IngestionRunCard while converting.
+   * All others → IngestionRunCard only.
    */
   mode: string;
 }
@@ -79,8 +79,8 @@ export interface AddReprocessEntryOptions {
 }
 
 /**
- * Whether a reprocess entry should mount PdfUploadProgress (conversion phases).
- * Entities-only and non-PDF always use IngestionProgressPanel.
+ * Whether a reprocess entry should nest PDF converting page detail.
+ * Entities-only and non-PDF use IngestionRunCard without PDF page slot.
  */
 export function shouldUsePdfReprocessPanel(
   isPdf: boolean,

@@ -106,6 +106,24 @@ pub enum PipelineEvent {
         error: Option<String>,
     },
 
+    /// Unified-stage transition for Insert / PDF-after-convert (SPEC-086).
+    ///
+    /// WHY: Markdown/text docs skip PDF page SSE and may have fewer than 3 chunks,
+    /// so ChunkProgress alone leaves the UI idle. Emit once per stage enter so
+    /// clients advance steppers without inventing a second progress product.
+    StageTransition {
+        /// Document being processed.
+        document_id: String,
+        /// Task / progress track id (`insert-*` / `pdf-*`).
+        task_id: String,
+        /// Unified stage name (chunking, extracting, …).
+        stage: String,
+        /// Human-readable stage message.
+        stage_message: String,
+        /// Optional 0.0–1.0 stage progress.
+        stage_progress: Option<f32>,
+    },
+
     /// Knowledge-graph merge sub-phase progress (SPEC-032 W-04).
     ///
     /// WHY: The GraphStorage pipeline phase previously emitted only start/complete.

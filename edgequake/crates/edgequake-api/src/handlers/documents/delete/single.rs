@@ -42,6 +42,10 @@ pub(crate) async fn resolve_kv_key_prefix_for_batch(
 /// Resolve the actual KV key prefix for a document.
 ///
 /// Returns `(actual_key_prefix, metadata_key, has_metadata)`.
+///
+/// SPEC-086: staging shells live at `staging:{id}-metadata`. Never treat
+/// `staging:{id}` as the cascade key prefix (breaks content/hash cleanup and
+/// can leave delete sessions hanging while a worker runs a useless graph scan).
 async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, String, bool) {
     let direct_metadata_key = metadata_key_for_document(document_id);
     if state
@@ -56,20 +60,152 @@ async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, 
         return (document_id.to_string(), direct_metadata_key, true);
     }
 
+    let staging_metadata_key = edgequake_storage::kv_keys::staging_doc_metadata(document_id);
+    if state
+        .storage
+        .kv_storage
+        .get_by_id(&staging_metadata_key)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+    {
+        return (document_id.to_string(), staging_metadata_key, true);
+    }
+
     if let Ok(entries) = load_all_document_metadata_entries(state.storage.kv_storage.as_ref()).await
     {
         for (key, val) in entries {
             let canonical = canonical_document_id(&key, &val);
             let legacy_json_id = val.get("id").and_then(|v| v.as_str());
+            let staging_match = key.starts_with("staging:")
+                && (legacy_json_id == Some(document_id)
+                    || key == staging_metadata_key
+                    || canonical.strip_prefix("staging:") == Some(document_id));
+            if staging_match {
+                return (document_id.to_string(), key, true);
+            }
             if canonical == document_id || legacy_json_id == Some(document_id) {
                 let prefix =
                     document_id_from_metadata_key(&key).unwrap_or_else(|| document_id.to_string());
+                // Never use `staging:{id}` as cascade prefix.
+                let prefix = prefix
+                    .strip_prefix("staging:")
+                    .unwrap_or(prefix.as_str())
+                    .to_string();
                 return (prefix, key, true);
             }
         }
     }
 
     (document_id.to_string(), direct_metadata_key, false)
+}
+
+/// Sync-dismiss a staging-only admission shell (no graph/vector cascade needed).
+async fn delete_staging_shell_sync(
+    state: &AppState,
+    document_id: &str,
+    metadata_key: &str,
+    tenant_ctx: &TenantContext,
+) -> ApiResult<(StatusCode, Json<DeleteDocumentResponse>)> {
+    let meta = state
+        .storage
+        .kv_storage
+        .get_by_id(metadata_key)
+        .await
+        .ok()
+        .flatten();
+    if let Some(ref metadata) = meta {
+        if !metadata_matches_tenant_context(metadata, tenant_ctx) {
+            return Err(ApiError::NotFound(format!(
+                "Document {} not found",
+                document_id
+            )));
+        }
+    }
+    let workspace_id = meta
+        .as_ref()
+        .and_then(|m| m.get("workspace_id").and_then(|v| v.as_str()))
+        .unwrap_or("default")
+        .to_string();
+    let content_hash = meta
+        .as_ref()
+        .and_then(|m| m.get("content_hash").and_then(|v| v.as_str()))
+        .unwrap_or("")
+        .to_string();
+    let ingest_track_id = meta
+        .as_ref()
+        .and_then(|m| {
+            m.get("track_id")
+                .or_else(|| m.get("task_id"))
+                .and_then(|v| v.as_str())
+        })
+        .map(|s| s.to_string());
+
+    // Cancel any still-queued Insert so the worker cannot recreate final metadata
+    // after we wipe the staging shell (delete-during-early-upload race).
+    if let Some(ref track) = ingest_track_id {
+        let cancelled = state.tasks.cancellation_registry.cancel(track).await;
+        tracing::info!(
+            document_id = %document_id,
+            track_id = %track,
+            cancelled,
+            "Cancelled ingest task before sync staging dismiss"
+        );
+    }
+
+    crate::services::rollback_staging(
+        &state.storage.kv_storage,
+        document_id,
+        &workspace_id,
+        &content_hash,
+    )
+    .await
+    .map_err(ApiError::Internal)?;
+
+    // Belt-and-suspenders: drop any leftover staging keys for this id.
+    let leftover = [
+        edgequake_storage::kv_keys::staging_doc_metadata(document_id),
+        edgequake_storage::kv_keys::staging_doc_content(document_id),
+    ];
+    let _ = state.storage.kv_storage.delete(&leftover).await;
+
+    let track_id = format!("delete-staging-{document_id}");
+    state
+        .tasks
+        .progress_broadcaster
+        .deletion_started(document_id, &track_id);
+    state.tasks.progress_broadcaster.deletion_completed(
+        document_id,
+        &track_id,
+        0,
+        0,
+        0,
+        0,
+        false,
+        None,
+    );
+
+    tracing::info!(
+        document_id = %document_id,
+        "Staging admission shell deleted synchronously (no cascade)"
+    );
+
+    Ok((
+        StatusCode::OK,
+        Json(DeleteDocumentResponse {
+            document_id: document_id.to_string(),
+            deleted: true,
+            accepted: false,
+            track_id: Some(track_id),
+            chunks_deleted: 0,
+            entities_affected: 0,
+            relationships_affected: 0,
+            embeddings_deleted: 0,
+            partial_failure: false,
+            partial_failure_reason: None,
+        }),
+    ))
 }
 
 /// Delete a document by ID (async job — 202 Accepted).
@@ -100,6 +236,23 @@ pub async fn delete_document(
             actual_key_prefix = %actual_key_prefix,
             "KV key/id mismatch detected — using resolved key prefix for cascade delete"
         );
+    }
+
+    // SPEC-086: orphan/failed staging shells have no graph — sync dismiss.
+    // Avoids queueing Deletion behind ingest and leave UI stuck on "Deleting".
+    if has_metadata && metadata_key.starts_with("staging:") {
+        let final_also_present = state
+            .storage
+            .kv_storage
+            .get_by_id(&metadata_key_for_document(&document_id))
+            .await
+            .ok()
+            .flatten()
+            .is_some();
+        if !final_also_present {
+            return delete_staging_shell_sync(&state, &document_id, &metadata_key, &tenant_ctx)
+                .await;
+        }
     }
 
     let chunk_prefix = format!("{}-chunk-", actual_key_prefix);
@@ -451,6 +604,87 @@ mod tests {
         assert_eq!(prefix, doc_id);
         assert_eq!(key, metadata_key_for_document(doc_id));
         assert!(!has_metadata);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_staging_prefix_uses_document_id() {
+        let state = AppState::test_state();
+        let doc_id = "staging-shell-doc-001";
+        let staging_key = edgequake_storage::kv_keys::staging_doc_metadata(doc_id);
+        state
+            .storage
+            .kv_storage
+            .upsert(&[(
+                staging_key.clone(),
+                json!({
+                    "id": doc_id,
+                    "status": "failed",
+                    "admission_staging": true,
+                    "workspace_id": "default",
+                    "error_message": "Orphaned staging admission — please re-upload"
+                }),
+            )])
+            .await
+            .unwrap();
+
+        let (prefix, key, has_metadata) = resolve_kv_key_prefix(doc_id, &state).await;
+        assert_eq!(prefix, doc_id, "must not use staging:{{id}} as cascade prefix");
+        assert_eq!(key, staging_key);
+        assert!(has_metadata);
+    }
+
+    #[tokio::test]
+    async fn test_delete_staging_shell_sync_removes_keys() {
+        let state = AppState::test_state();
+        let doc_id = "staging-shell-doc-002";
+        let staging_meta = edgequake_storage::kv_keys::staging_doc_metadata(doc_id);
+        let staging_content = edgequake_storage::kv_keys::staging_doc_content(doc_id);
+        state
+            .storage
+            .kv_storage
+            .upsert(&[
+                (
+                    staging_meta.clone(),
+                    json!({
+                        "id": doc_id,
+                        "status": "failed",
+                        "admission_staging": true,
+                        "workspace_id": "default",
+                        "content_hash": "abc123",
+                        "error_message": "Orphaned staging admission — please re-upload"
+                    }),
+                ),
+                (staging_content.clone(), json!({"text": "hello"})),
+            ])
+            .await
+            .unwrap();
+
+        let tenant = TenantContext {
+            tenant_id: Some("default".into()),
+            workspace_id: Some("default".into()),
+            user_id: None,
+        };
+        let (status, Json(resp)) =
+            delete_document(State(state.clone()), axum::extract::Path(doc_id.to_string()), tenant)
+                .await
+                .unwrap();
+        assert_eq!(status, StatusCode::OK);
+        assert!(resp.deleted);
+        assert!(!resp.accepted);
+        assert!(state
+            .storage
+            .kv_storage
+            .get_by_id(&staging_meta)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(state
+            .storage
+            .kv_storage
+            .get_by_id(&staging_content)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

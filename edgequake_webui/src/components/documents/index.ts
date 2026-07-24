@@ -6,7 +6,7 @@
  *
  * Components are organized by function:
  * - Core: DocumentManager (main entry point)
- * - Progress: PdfUploadProgress, BatchProgressCard, IngestionProgressPanel
+ * - Progress: PdfUploadProgress, BatchProgressCard, IngestionRunCard, ProgressPanelRow
  * - History: UploadHistory
  * - Status: ConnectionStatus, StatusBadge, ErrorBanner
  * - Dialogs: PipelineStatusDialog, ClearDocumentsDialog, DocumentDetailDialog
@@ -17,9 +17,9 @@
 // Core component
 export { DocumentManager } from "./document-manager";
 
-// Progress tracking components
+// Progress tracking components (SPEC-086: IngestionRunCard is the one presenter)
 export { BatchProgressCard } from "./batch-progress-card";
-export { IngestionProgressPanel } from "./ingestion-progress-panel";
+export { IngestionRunCard } from "./ingestion-run-card";
 export { PdfUploadProgress } from "./pdf-upload-progress";
 export { ProgressPanelRow } from "./progress-panel-row";
 

@@ -43,14 +43,16 @@ pub async fn resolve_workspace_duplicate_for_reingestion(
             existing_document_id: doc_id_str.to_string(),
         }),
         Err(e) => {
+            // SPEC-086 ops: fail closed — never allocate a second admit while the
+            // prior document may still be visible (duplicate completed rows).
             tracing::warn!(
                 old_doc_id = %doc_id_str,
                 workspace_id = %workspace_id,
                 error = %e,
-                "Failed to delete old document data — proceeding with re-ingestion"
+                "Failed to delete old document data — blocking re-ingestion"
             );
-            Ok(DuplicateReingestAction::ClearedForReingestion {
-                old_document_id: doc_id_str.to_string(),
+            Ok(DuplicateReingestAction::StillProcessing {
+                existing_document_id: doc_id_str.to_string(),
             })
         }
     }

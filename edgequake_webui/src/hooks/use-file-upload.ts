@@ -30,6 +30,7 @@ import {
 } from "@/lib/upload/upload-timeout";
 import type { MultipartUploadProgress } from "@/lib/upload/multipart-upload-client";
 import { isImageUploadFile, isPdfUploadFile } from "@/lib/upload/file-kind";
+import { waitForDocumentAbsent } from "@/lib/upload/wait-for-document-absent";
 import type { Document } from "@/types";
 import {
   getDocumentDisplayStatus,
@@ -237,7 +238,7 @@ export function useFileUpload(
             task_id?: string;
             track_id?: string;
             isPdf?: boolean;
-            source_type?: "pdf" | "image" | "text";
+            source_type?: "pdf" | "image" | "text" | "markdown";
           };
 
           const uploadResult = await performFileUpload(file, {
@@ -322,9 +323,14 @@ export function useFileUpload(
               file_name: file.name,
               file_size: file.size,
               source_type: uploadResult.source_type ?? "text",
-              status: "processing",
-              current_stage: "chunking",
-              stage_message: t("documents.upload.extracting", "Processing..."),
+              // SPEC-086: align with admit (uploading/queued) — do not hard-code chunking.
+              status: "pending",
+              current_stage: "uploading",
+              // No {{taskId}} — documents.upload.queued requires interpolation.
+              stage_message: t(
+                "documents.upload.queuedPending",
+                "Queued for processing…",
+              ),
               mime_type: file.type || "text/plain",
               created_at: new Date().toISOString(),
               track_id: uploadResult.track_id,
@@ -630,14 +636,21 @@ export function useFileUpload(
               failReplace(err);
             }
           } else {
+            // Text/MD Replace: wait until old row is gone before re-admit
+            // (202 async delete race created duplicate completed rows).
             try {
-              await deleteDocument(entry.existingDocId);
-            } catch {
-              // Non-fatal — backend may recycle orphan hash keys.
+              const del = await deleteDocument(entry.existingDocId);
+              await queryClient.invalidateQueries({ queryKey: ["documents"] });
+              if (!del.deleted) {
+                await waitForDocumentAbsent(queryClient, entry.existingDocId);
+              }
+            } catch (err) {
+              failReplace(err);
+              continue;
             }
             try {
               await handleFilesUpload([entry.file]);
-              queryClient.invalidateQueries({ queryKey: ["documents"] });
+              await queryClient.invalidateQueries({ queryKey: ["documents"] });
             } catch (err) {
               failReplace(err);
             }

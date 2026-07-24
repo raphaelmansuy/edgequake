@@ -114,6 +114,7 @@
       "saving": "Saving to workspace...",
       "extracting": "Step 3: Processing pipeline...",
       "queued": "Queued for extraction (Task: {{taskId}})",
+      "queuedPending": "Queued for processing…",
       "success": "{{count}} file(s) uploaded successfully",
       "error": "{{count}} file(s) failed to upload",
       "allFailed": "All {{count}} file(s) failed to upload",

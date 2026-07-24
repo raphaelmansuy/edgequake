@@ -231,8 +231,9 @@ function shouldSkipForMode(
 
 function applicableSteps(run: IngestionRunView): IngestionRunStage[] {
   return PROCESSING_STAGES.filter((step) => {
+    // SPEC-086 ops: omit converting entirely for non-PDF (no "Converting PDF").
     if (step === "converting" && shouldSkipConverting(run.sourceType)) {
-      return true; // still list as skipped (muted), not omit — contract: show skip
+      return false;
     }
     return true;
   }).concat(["completed"]);
@@ -241,10 +242,11 @@ function applicableSteps(run: IngestionRunView): IngestionRunStage[] {
 function formatDetail(run: IngestionRunView): StageStepDetail | undefined {
   const hasCounts = Boolean(run.counts);
   const hasProgress = typeof run.progress01 === "number";
+  const stageLabel = stageDisplayName(run.stage, run.sourceType);
   const hasMessage =
     Boolean(run.message) &&
-    run.message !== stageDisplayName(run.stage) &&
-    !run.message.toLowerCase().startsWith(stageDisplayName(run.stage).toLowerCase());
+    run.message !== stageLabel &&
+    !run.message.toLowerCase().startsWith(stageLabel.toLowerCase());
 
   if (!hasCounts && !hasProgress && !hasMessage) {
     // Still expose expected unit so UI can show "… chunks" indeterminate hint
@@ -318,7 +320,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
     if (skipped) {
       return {
         id: step,
-        label: stageDisplayName(step),
+        label: stageDisplayName(step, run.sourceType),
         status: "skipped" as const,
       };
     }
@@ -326,7 +328,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
     if (isComplete) {
       return {
         id: step,
-        label: stageDisplayName(step),
+        label: stageDisplayName(step, run.sourceType),
         status: "done" as const,
       };
     }
@@ -334,7 +336,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
     if (isAdmission) {
       return {
         id: step,
-        label: stageDisplayName(step),
+        label: stageDisplayName(step, run.sourceType),
         status: "pending" as const,
       };
     }
@@ -349,7 +351,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
       if (failedId && step === failedId) {
         return {
           id: step,
-          label: stageDisplayName(step),
+          label: stageDisplayName(step, run.sourceType),
           status: "failed" as const,
           detail,
         };
@@ -358,7 +360,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
       if (failedId && stepRank < rank(failedId)) {
         return {
           id: step,
-          label: stageDisplayName(step),
+          label: stageDisplayName(step, run.sourceType),
           status: "done" as const,
         };
       }
@@ -372,7 +374,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
       }
       return {
         id: step,
-        label: stageDisplayName(step),
+        label: stageDisplayName(step, run.sourceType),
         status: "pending" as const,
       };
     }
@@ -381,7 +383,7 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
     if (step === current) {
       return {
         id: step,
-        label: stageDisplayName(step),
+        label: stageDisplayName(step, run.sourceType),
         status: "active" as const,
         detail,
       };
@@ -391,14 +393,14 @@ export function buildStageTimeline(run: IngestionRunView): StageTimeline {
     if (currentRank >= 0 && stepRank >= 0 && stepRank < currentRank) {
       return {
         id: step,
-        label: stageDisplayName(step),
+        label: stageDisplayName(step, run.sourceType),
         status: "done" as const,
       };
     }
 
     return {
       id: step,
-      label: stageDisplayName(step),
+      label: stageDisplayName(step, run.sourceType),
       status: "pending" as const,
     };
   });

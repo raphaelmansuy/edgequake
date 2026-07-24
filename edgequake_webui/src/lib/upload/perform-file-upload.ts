@@ -10,7 +10,7 @@ import {
 import type { PdfUploadOptions } from "@/types";
 import type { MultipartUploadProgress } from "@/lib/upload/multipart-upload-client";
 
-import { classifyUploadFile } from "./file-kind";
+import { classifyUploadFile, isMarkdownUploadFile } from "./file-kind";
 import { resolveProgressTrackId } from "./progress-track-id";
 
 export interface PerformFileUploadOptions {
@@ -33,7 +33,7 @@ export interface NormalizedUploadResult {
   track_id?: string;
   status?: string;
   isPdf: boolean;
-  source_type: "pdf" | "image" | "text";
+  source_type: "pdf" | "image" | "text" | "markdown";
 }
 
 function duplicateFromFileUpload(response: {
@@ -109,9 +109,11 @@ export async function performFileUpload(
   }
 
   const text = await file.text();
+  // SPEC-086: pin .md as markdown (not generic text) for stage skip + chunk strategy.
+  const sourceType = isMarkdownUploadFile(file) ? "markdown" : "text";
   const textResponse = await uploadDocument({
     content: text,
-    source_type: "text",
+    source_type: sourceType,
     title: file.name,
     async_processing: true,
     track_id: options.batchTrackId,
@@ -127,6 +129,6 @@ export async function performFileUpload(
     track_id: resolveProgressTrackId(textResponse),
     status: textResponse.status,
     isPdf: false,
-    source_type: "text",
+    source_type: sourceType,
   };
 }

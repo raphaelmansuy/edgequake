@@ -155,7 +155,9 @@ export function useDeletionSessions(): DeletionSessionEntry[] {
         const doc = await getDocument(entry.documentId);
         if (cancelled) return;
         const status = (doc.status || '').toLowerCase();
-        if (status === 'delete_failed' || status === 'failed') {
+        // Only terminal delete_failed — generic `failed` is often an orphan
+        // staging shell (SPEC-086) and must not abort an in-flight dismiss.
+        if (status === 'delete_failed') {
           applyDeletionFailed(
             entry.documentId,
             doc.error_message ||

@@ -168,6 +168,15 @@ pub enum ProgressEvent {
         tokens_out: u64,
         cost_usd: f64,
     },
+    /// Unified-stage transition for all Insert tracks (SPEC-086).
+    StageTransition {
+        document_id: String,
+        task_id: String,
+        stage: String,
+        stage_message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stage_progress: Option<f32>,
+    },
     /// Graph storage / merge progress (SPEC-048 DEF-02).
     GraphStorageProgress {
         track_id: String,

@@ -105,7 +105,7 @@ pub async fn get_pipeline_activity(
     tenant_ctx: TenantContext,
 ) -> ApiResult<Json<PipelineActivityResponse>> {
     use crate::handlers::ingestion_types::PipelineActivityTask;
-    use crate::services::document_metadata_scan::load_scoped_document_metadata;
+    use crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress;
     use crate::services::progress_facade::{assemble_pipeline_activity, classify_activity_doc};
     use crate::services::tenant_guard::has_full_tenant_context;
     use edgequake_tasks::storage::{Pagination, TaskFilter};
@@ -113,8 +113,12 @@ pub async fn get_pipeline_activity(
 
     let mut classified = Vec::new();
     if has_full_tenant_context(&tenant_ctx) {
-        let metadata_values =
-            load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
+        // SPEC-086: staging-aware so in-flight MD counts in queued/working.
+        let metadata_values = load_scoped_document_metadata_for_progress(
+            state.storage.kv_storage.as_ref(),
+            &tenant_ctx,
+        )
+        .await?;
         for value in metadata_values {
             if let Some(obj) = value.as_object() {
                 if let Some(pair) = classify_activity_doc(obj) {

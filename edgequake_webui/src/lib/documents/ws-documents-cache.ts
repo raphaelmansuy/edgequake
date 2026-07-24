@@ -35,6 +35,7 @@ const CACHE_PATCH_TYPES = new Set([
   "stage_started",
   "stage_progress",
   "stage_completed",
+  "StageTransition",
   "ingestion_completed",
   "ingestion_failed",
   "PdfPageProgress",
@@ -57,6 +58,9 @@ export interface ProgressCacheMessage {
     phase?: string;
     chunk_index?: number;
     total_chunks?: number;
+    stage?: string;
+    stage_message?: string;
+    stage_progress?: number | null;
   };
 }
 
@@ -113,6 +117,23 @@ function patchFieldsFromMessage(
 
   const trackId = resolveTrackId(message);
   if (trackId) fields.track_id = trackId;
+
+  if (type === "StageTransition" && message.data) {
+    fields.status = "processing";
+    fields.track_id = message.data.task_id ?? fields.track_id;
+    if (message.data.stage) fields.current_stage = message.data.stage;
+    if (message.data.stage_message) {
+      fields.stage_message = message.data.stage_message;
+    }
+    if (typeof message.data.stage_progress === "number") {
+      fields.stage_progress = Math.round(
+        message.data.stage_progress <= 1
+          ? message.data.stage_progress * 100
+          : message.data.stage_progress,
+      );
+    }
+    return fields;
+  }
 
   if (type === "ingestion_started") {
     fields.status = "processing";

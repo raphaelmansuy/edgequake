@@ -45,10 +45,9 @@ export function EnhancedStatusBadge({
   compact = false,
   disableTooltip = false,
 }: EnhancedStatusBadgeProps) {
-  const getTrack = useIngestionStore((state) => state.getTrack);
-  const track = useMemo(
-    () => (document.track_id ? getTrack(document.track_id) : undefined),
-    [document.track_id, getTrack],
+  // SPEC-086: subscribe to track slice so poll/WS immutable updates re-render.
+  const track = useIngestionStore((state) =>
+    document.track_id ? state.tracks.get(document.track_id) : undefined,
   );
 
   const displayStatus = useMemo(
@@ -88,13 +87,12 @@ export function EnhancedStatusBadge({
  * Useful when you need just the message text without the badge component.
  */
 export function useEnhancedProgressMessage(document: Document): string | undefined {
-  const getTrack = useIngestionStore((state) => state.getTrack);
+  const track = useIngestionStore((state) =>
+    document.track_id ? state.tracks.get(document.track_id) : undefined,
+  );
 
   return useMemo(() => {
-    const trackMessage =
-      document.track_id && getTrack(document.track_id)
-        ? formatOverallProgress(getTrack(document.track_id)!)
-        : undefined;
+    const trackMessage = track ? formatOverallProgress(track) : undefined;
     return resolveDocumentProgressMessage(document, trackMessage);
-  }, [document, getTrack]);
+  }, [document, track]);
 }

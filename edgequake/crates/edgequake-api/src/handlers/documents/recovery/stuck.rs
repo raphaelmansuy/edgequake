@@ -13,7 +13,6 @@ use crate::document_metadata::is_active_processing_status;
 use crate::error::ApiResult;
 use crate::handlers::documents_types::*;
 use crate::middleware::TenantContext;
-use crate::services::document_metadata_scan::load_scoped_document_metadata;
 use crate::state::AppState;
 
 use super::super::storage_helpers::cleanup_document_graph_data;
@@ -66,6 +65,20 @@ pub(crate) async fn run_recover_stuck(
         tenant_ctx.tenant_id, tenant_ctx.workspace_id, request.stuck_threshold_minutes
     );
 
+    // SPEC-086: fail orphan staging shells (list-visible) before final-metadata recover.
+    let staging_age = std::time::Duration::from_secs(
+        (request.stuck_threshold_minutes as u64).saturating_mul(60),
+    );
+    if let Err(e) = crate::services::recover_orphaned_staging_admissions(
+        std::sync::Arc::clone(&state.storage.kv_storage),
+        std::sync::Arc::clone(&state.tasks.storage),
+        Some(staging_age),
+    )
+    .await
+    {
+        tracing::warn!(error = %e, "recover_orphaned_staging_admissions during recover-stuck");
+    }
+
     // Generate new track ID for recovery batch
     let new_track_id = format!(
         "recover_{}_{}",
@@ -77,8 +90,12 @@ pub(crate) async fn run_recover_stuck(
     let cutoff_time = Utc::now() - threshold;
 
     // P-G7 + SPEC-027: batch scoped metadata (suffix index + tenant filter).
-    let scoped_metadata =
-        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
+    // Prefer progress loader so aged staging shells (post 086 merge) are visible.
+    let scoped_metadata = crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress(
+        state.storage.kv_storage.as_ref(),
+        &tenant_ctx,
+    )
+    .await?;
 
     let mut stuck_docs = Vec::new();
     let mut requeued_ids = Vec::new();
@@ -125,6 +142,15 @@ pub(crate) async fn run_recover_stuck(
                 };
 
                 if is_stuck {
+                    // Staging shells need re-upload after orphan fail — never
+                    // requeue onto final `{id}-metadata` (empty content → ghost pending).
+                    if obj
+                        .get("admission_staging")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        continue;
+                    }
                     if let Some(id) = doc_id {
                         stuck_docs.push((id.to_string(), title.unwrap_or(id).to_string()));
                     }
