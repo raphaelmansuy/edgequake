@@ -10,6 +10,12 @@ sdks/swift/.swiftpm/
 sdks/**/.build/
 sdks/**/.swiftpm/
 
+# Java SDK — Maven target/ is covered by root target/; Eclipse/m2e often
+# materializes a mirrored `bin/` tree with .class + copied sources (do not commit).
+sdks/java/bin/
+sdks/**/bin/
+*.class
+
 **/*.rs.bk
 *.pdb
 
