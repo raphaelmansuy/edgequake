@@ -116,7 +116,7 @@ thiserror = "2.0"
 anyhow = "1.0"
 
 # Hashing
-md5 = "0.7"
+md5 = "0.8"
 
 # Logging and tracing
 tracing = "0.1"
