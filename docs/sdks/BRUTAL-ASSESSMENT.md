@@ -1,3 +1,7 @@
+---
+title: "Brutal honest SDK assessment"
+---
+
 # Brutal honest SDK assessment
 
 > **Product: v0.19.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

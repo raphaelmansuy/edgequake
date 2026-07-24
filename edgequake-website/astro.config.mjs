@@ -71,50 +71,50 @@ export default defineConfig({
       sidebar: [
         {
           label: "Getting Started",
-          autogenerate: { directory: "docs/getting-started" },
+          items: [{ autogenerate: { directory: "docs/getting-started" } }],
         },
         {
           label: "Concepts",
-          autogenerate: { directory: "docs/concepts" },
+          items: [{ autogenerate: { directory: "docs/concepts" } }],
         },
         {
           label: "Architecture",
-          autogenerate: { directory: "docs/architecture" },
+          items: [{ autogenerate: { directory: "docs/architecture" } }],
         },
         {
           label: "Tutorials",
-          autogenerate: { directory: "docs/tutorials" },
+          items: [{ autogenerate: { directory: "docs/tutorials" } }],
         },
         {
           label: "API Reference",
-          autogenerate: { directory: "docs/api-reference" },
+          items: [{ autogenerate: { directory: "docs/api-reference" } }],
         },
         {
           label: "Deep Dives",
           collapsed: true,
-          autogenerate: { directory: "docs/deep-dives" },
+          items: [{ autogenerate: { directory: "docs/deep-dives" } }],
         },
         {
           label: "Operations",
           collapsed: true,
-          autogenerate: { directory: "docs/operations" },
+          items: [{ autogenerate: { directory: "docs/operations" } }],
         },
         {
           label: "Integrations",
-          autogenerate: { directory: "docs/integrations" },
+          items: [{ autogenerate: { directory: "docs/integrations" } }],
         },
         {
           label: "Comparisons",
           collapsed: true,
-          autogenerate: { directory: "docs/comparisons" },
+          items: [{ autogenerate: { directory: "docs/comparisons" } }],
         },
         {
           label: "Security",
-          autogenerate: { directory: "docs/security" },
+          items: [{ autogenerate: { directory: "docs/security" } }],
         },
         {
           label: "Troubleshooting",
-          autogenerate: { directory: "docs/troubleshooting" },
+          items: [{ autogenerate: { directory: "docs/troubleshooting" } }],
         },
         {
           label: "Resources",

@@ -1,3 +1,7 @@
+---
+title: "Rust SDK"
+---
+
 # Rust SDK
 
 > **Product: v0.19.0** · Crate **~0.4.0** (decoupled from server)

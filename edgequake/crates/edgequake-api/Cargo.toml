@@ -91,4 +91,4 @@ sqlx = { workspace = true, features = [
 serial_test = "3.2"
 urlencoding = "2.1"
 wiremock = "0.6"
-jsonwebtoken = "9.3"
+jsonwebtoken = { workspace = true }

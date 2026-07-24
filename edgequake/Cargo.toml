@@ -165,17 +165,16 @@ edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
-# Workspace pin. Transitive diamond: edgequake-pdf2md@0.9.7 still pulls edgequake-llm 0.6.x
-# (X-09). Contract allows that documented pair until pdf2md upgrades; no third version.
-edgequake-llm = "0.10.1"
+# SSOT with published pdf2md 0.9.8 (llm ≥0.10.2 / OTEL 0.32 — no 0.6.x diamond).
+edgequake-llm = "0.10.2"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 edgequake-observability = { path = "crates/edgequake-observability" }
 edgeparse-core = "0.2.5"
-# Published to crates.io as v0.9.7 — use registry version now.
-edgequake-pdf2md = { version = "0.9.7", default-features = false, features = [
+# Published to crates.io as v0.9.8 — registry version (bundled pdfium).
+edgequake-pdf2md = { version = "0.9.8", default-features = false, features = [
     "bundled",
 ] }
 
@@ -185,7 +184,7 @@ num_cpus = "1.16"
 # Authentication
 argon2 = "0.5"
 password-hash = "0.5"
-jsonwebtoken = "9.3"
+jsonwebtoken = { version = "10.3", features = ["aws_lc_rs"] }
 rand = "0.9"
 
 [profile.release]

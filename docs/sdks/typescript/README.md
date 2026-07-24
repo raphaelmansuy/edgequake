@@ -1,3 +1,7 @@
+---
+title: "TypeScript / Node SDK"
+---
+
 # TypeScript / Node SDK
 
 > **Product: v0.19.0** · Package **~0.4.0** (decoupled from server)

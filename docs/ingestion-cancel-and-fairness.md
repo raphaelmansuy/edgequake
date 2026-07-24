@@ -1,3 +1,7 @@
+---
+title: "Ingestion cancel, fairness, and restart semantics"
+---
+
 # Ingestion cancel, fairness, and restart semantics
 
 > **Product: v0.19.0** · Contract: [OpenAPI snapshot](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: this document (SPEC-057 SSOT)

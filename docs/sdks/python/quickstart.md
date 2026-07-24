@@ -1,3 +1,7 @@
+---
+title: "Python SDK — quickstart"
+---
+
 # Python SDK — quickstart
 
 > **Product: v0.19.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md)

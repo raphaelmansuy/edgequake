@@ -91,11 +91,13 @@ run_build() {
     export NODE_OPTIONS="--max-old-space-size=4096"
     
     # Run with nice (low priority) and timeout
-    if nice -n 10 timeout $MAX_BUILD_TIME npx next build 2>&1 | tee "$LOG_FILE"; then
+    if nice -n 10 timeout $MAX_BUILD_TIME npx next build --webpack 2>&1 | tee "$LOG_FILE"; then
         success "Build completed successfully!"
         return 0
     else
-        EXIT_CODE=$?
+        EXIT_CODE=${PIPESTATUS[0]}
+        # tee may mask exit; prefer next's code when available
+        if [ $EXIT_CODE -eq 0 ]; then EXIT_CODE=1; fi
         if [ $EXIT_CODE -eq 124 ]; then
             error "Build timed out after ${MAX_BUILD_TIME}s"
         else

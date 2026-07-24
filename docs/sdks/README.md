@@ -1,3 +1,7 @@
+---
+title: "EdgeQuake SDKs"
+---
+
 # EdgeQuake SDKs
 
 > **Product: v0.19.0** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

@@ -1,3 +1,7 @@
+---
+title: "EdgeQuake product limits"
+---
+
 # EdgeQuake product limits
 
 **Who this is for:** operators sizing a deployment  

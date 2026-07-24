@@ -1839,7 +1839,7 @@ class UnitTest {
     // ── Document Extended Tests ──────────────────────────────────────
 
     @Test
-    void documentsTrack() {
+    void documentsTrackExtended() {
         fake.respondWith("{\"track_id\":\"tk1\",\"status\":\"processing\",\"progress\":0.5}");
         var svc = new DocumentService(http);
         var result = svc.track("tk1");

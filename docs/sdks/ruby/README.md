@@ -1,3 +1,7 @@
+---
+title: "Ruby SDK"
+---
+
 # Ruby SDK
 
 > **Product: v0.19.0** · SDK package: **~0.4.0** (decoupled from server version)

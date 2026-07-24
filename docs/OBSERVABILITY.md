@@ -1,3 +1,7 @@
+---
+title: EdgeQuake Observability
+---
+
 # EdgeQuake Observability
 
 > **Product: v0.19.0** · Spec: [SPEC-018](../specs/018-observability/README.md) · Ingestion ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)

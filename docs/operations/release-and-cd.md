@@ -1,3 +1,7 @@
+---
+title: "Release & CD Cycle"
+---
+
 # Release & CD Cycle
 
 > **Product: v0.21.1** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

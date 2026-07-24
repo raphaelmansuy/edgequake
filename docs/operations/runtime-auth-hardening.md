@@ -1,3 +1,7 @@
+---
+title: "Runtime Config and Authentication Hardening"
+---
+
 # Runtime Config and Authentication Hardening
 
 > **Product: v0.19.0** · See also: [Docker Quickstart](/docs/operations/docker-quickstart/) (`EDGEQUAKE_DEV_MODE=true` for frictionless demos).

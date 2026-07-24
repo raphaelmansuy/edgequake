@@ -1,3 +1,7 @@
+---
+title: "PHP SDK"
+---
+
 # PHP SDK
 
 > **Product: v0.19.0** · SDK package maturity: **experimental** (~0.4.x track)
