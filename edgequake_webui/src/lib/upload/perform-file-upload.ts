@@ -16,6 +16,8 @@ import { resolveProgressTrackId } from "./progress-track-id";
 export interface PerformFileUploadOptions {
   /** Client batch correlation id (multipart); not the progress-store key. */
   batchTrackId: string;
+  /** SPEC-084 / GH-318: total files in this client batch (track completeness). */
+  expectedBatchCount?: number;
   pdfParserBackend?: PdfUploadOptions["pdf_parser_backend"];
   /** Enable inline image VLM analysis on PDF markdown (LightRAG `process_options=i`). */
   analyzeInlineImages?: boolean;
@@ -64,6 +66,9 @@ export async function performFileUpload(
       pdf_parser_backend: options.pdfParserBackend,
       analyze_inline_images: options.analyzeInlineImages ?? true,
       onUploadProgress: options.onUploadProgress,
+      metadata: options.expectedBatchCount
+        ? { expected_batch_count: options.expectedBatchCount }
+        : undefined,
     });
     return {
       document_id: pdfResponse.document_id,
@@ -110,6 +115,9 @@ export async function performFileUpload(
     title: file.name,
     async_processing: true,
     track_id: options.batchTrackId,
+    metadata: options.expectedBatchCount
+      ? { expected_batch_count: options.expectedBatchCount }
+      : undefined,
   });
 
   return {

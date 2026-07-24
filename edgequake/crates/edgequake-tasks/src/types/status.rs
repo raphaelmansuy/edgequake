@@ -41,6 +41,9 @@ pub enum TaskType {
     KnowledgeInjection,
     /// Async document cascade delete (vectors → graph → KV → relational).
     Deletion,
+    /// Selected multi-document delete (SPEC-084 / GH-317) — one task, many IDs.
+    #[serde(rename = "batch_deletion")]
+    BatchDeletion,
     /// Durable workspace wipe-all (cancel inflight → clear graph/vectors → purge docs).
     #[serde(rename = "workspace_wipe")]
     WorkspaceWipe,
@@ -60,7 +63,7 @@ impl TaskType {
     /// Map task type → fairness lane (single mapping; workers must not re-derive).
     pub fn fairness_class(self) -> FairnessClass {
         match self {
-            Self::Deletion | Self::WorkspaceWipe => FairnessClass::Lifecycle,
+            Self::Deletion | Self::BatchDeletion | Self::WorkspaceWipe => FairnessClass::Lifecycle,
             Self::Upload
             | Self::Insert
             | Self::Scan
@@ -81,6 +84,7 @@ impl fmt::Display for TaskType {
             Self::PdfProcessing => write!(f, "pdf_processing"),
             Self::KnowledgeInjection => write!(f, "knowledge_injection"),
             Self::Deletion => write!(f, "deletion"),
+            Self::BatchDeletion => write!(f, "batch_deletion"),
             Self::WorkspaceWipe => write!(f, "workspace_wipe"),
         }
     }
@@ -94,6 +98,10 @@ mod fairness_class_tests {
     fn deletion_and_wipe_are_lifecycle() {
         assert_eq!(
             TaskType::Deletion.fairness_class(),
+            FairnessClass::Lifecycle
+        );
+        assert_eq!(
+            TaskType::BatchDeletion.fairness_class(),
             FairnessClass::Lifecycle
         );
         assert_eq!(

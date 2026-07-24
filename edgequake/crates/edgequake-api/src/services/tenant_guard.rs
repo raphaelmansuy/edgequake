@@ -51,6 +51,8 @@ pub fn empty_track_status(track_id: String) -> TrackStatusResponse {
             unknown: 0,
         },
         is_complete: true,
+        expected_count: None,
+        registered_count: 0,
         latest_message: None,
     }
 }

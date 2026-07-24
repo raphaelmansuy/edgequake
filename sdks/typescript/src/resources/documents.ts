@@ -184,6 +184,7 @@ export class DocumentsResource extends Resource {
     if (query?.date_to) params.set("date_to", query.date_to);
     if (query?.document_pattern)
       params.set("document_pattern", query.document_pattern);
+    if (query?.status) params.set("status", query.status);
     const qs = params.toString();
     return this._get(`/api/v1/documents${qs ? `?${qs}` : ""}`);
   }

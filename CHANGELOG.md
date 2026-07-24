@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.21.1] — 2026-07-24
+
+Patch: SPEC-084 reliability fixes (#331, #319, #317, #255, #318, #316) — pool-safe Node counts, honest list filters, batch delete, gateway slash models, upload readiness, workspace-fair scheduling.
+
+### Added
+
+- **`POST /api/v1/documents/batch-delete`** — one durable `TaskType::BatchDeletion` for selected multi-delete (SPEC-084 / #317); wipe-all `#309` unchanged.
+- **List documents `status` query param** — filter before pagination; `status_counts` stay global (SPEC-084 / #319).
+- **Track `expected_count` / `registered_count`** — `is_complete` waits for expected registration; Query UI soft-gate + “Query anyway” (SPEC-084 / #318).
+- **SPEC-084 study pack** — [`specs/084-reliability-fix/`](specs/084-reliability-fix/README.md).
+- **M098** — `batch_deletion` task type + `idx_tasks_claim_workspace_created` claim index.
+- **`EDGEQUAKE_ALLOW_GATEWAY_MODEL_IDS`** — explicit allow for slash model IDs on pure OpenAI cloud (see `.env.example`).
+
+### Fixed
+
+- **#331** — `node_counts_by_source_prefixes` JOINs child `"Node"` so `idx_node_source_ids_gin` applies (parent GIN rejected).
+- **#319** — Failed (and other status) filters return rows beyond the first page window.
+- **#255** — COMPAT-GUARD allows slash models with custom OpenAI-compatible base / allow flag; `llm_full_id` / `embedding_full_id` no longer double-prefix.
+- **#316** — Workspace-fair `claim_next` (least-loaded then oldest) + nested per-workspace ingest lane under tenant cap.
+
+### Docs
+
+- SPEC-084 register / roadmap / issue studies under [`specs/084-reliability-fix/`](specs/084-reliability-fix/README.md) (6 FIXED; Playwright/opcount deferred).
+
+---
+
 ## [0.21.0] — 2026-07-23
 
 Minor: LightRAG query-API parity (074–085), D-30 `eq_rel_type` multigraph arbiter, and SPEC-083 defect closure.

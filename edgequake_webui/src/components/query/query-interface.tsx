@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useQueryInterface } from "@/hooks/use-query-interface";
+import { getDocuments } from "@/lib/api/edgequake/documents";
 import { ImagePlus, Plus, Send, StopCircle, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChatMessage } from "./chat-message";
 import { ConversationHistoryPanelV2 } from "./conversation-history-panel-v2";
@@ -28,6 +30,31 @@ import { QuerySettingsSheet } from "./query-settings-sheet";
 
 export function QueryInterface() {
   const { t } = useTranslation();
+  // SPEC-084 / GH-318: soft-gate when workspace still has active ingest.
+  const [ingestActive, setIngestActive] = useState(false);
+  const [queryAnyway, setQueryAnyway] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await getDocuments({ page: 1, page_size: 1 });
+        const c = res.status_counts;
+        const active = (c?.pending ?? 0) + (c?.processing ?? 0) > 0;
+        if (!cancelled) {
+          setIngestActive(active);
+          if (!active) setQueryAnyway(false);
+        }
+      } catch {
+        /* ignore poll errors */
+      }
+    };
+    void poll();
+    const id = setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
   const {
     input,
     streamingState,
@@ -273,7 +300,9 @@ export function QueryInterface() {
                   <Button
                     type="submit"
                     size="sm"
-                    disabled={!input.trim()}
+                    disabled={
+                      !input.trim() || (ingestActive && !queryAnyway)
+                    }
                     className="h-8"
                     aria-label={t("query.submit", "Send message")}
                   >
@@ -282,6 +311,28 @@ export function QueryInterface() {
                 )}
               </div>
             </div>
+            {ingestActive && !queryAnyway ? (
+              <div
+                className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100 flex items-center justify-between gap-2"
+                role="status"
+              >
+                <span>
+                  {t(
+                    "query.ingestInProgress",
+                    "Documents are still uploading or processing. Answers may be incomplete.",
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0"
+                  onClick={() => setQueryAnyway(true)}
+                >
+                  {t("query.queryAnyway", "Query anyway")}
+                </Button>
+              </div>
+            ) : null}
             <p
               className="text-xs text-muted-foreground mt-2 text-center"
               aria-hidden="true"

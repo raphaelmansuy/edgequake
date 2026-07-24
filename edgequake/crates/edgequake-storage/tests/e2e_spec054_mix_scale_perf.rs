@@ -254,10 +254,11 @@ async fn assert_unique_node_id_plan(config: &PostgresConfig, graph: &str, node_i
 
 async fn assert_source_ids_gin_plan(config: &PostgresConfig, graph: &str) {
     let pool = postgres_test_config::contract_pg_pool(config).await;
+    // SPEC-084 / GH-331: same child "Node" locality as production count SQL + SPEC-071.
     let sql = format!(
         r#"EXPLAIN (FORMAT TEXT)
            SELECT count(DISTINCT v.id)::BIGINT
-           FROM {graph}."_ag_label_vertex" v
+           FROM {graph}."Node" v
            CROSS JOIN unnest($1::text[]) AS c(chunk_id)
            WHERE ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
                  @> to_jsonb(c.chunk_id)"#
@@ -273,13 +274,18 @@ async fn assert_source_ids_gin_plan(config: &PostgresConfig, graph: &str) {
         .map(|r| r.0)
         .collect::<Vec<_>>()
         .join("\n");
+    let plan_lc = plan.to_lowercase();
     assert!(
-        plan.to_lowercase().contains("bitmap")
+        plan_lc.contains("idx_node_source_ids_gin")
+            || plan_lc.contains("bitmap")
             || plan.contains("Index Scan")
             || plan.contains("Index Only Scan")
-            || plan.to_lowercase().contains("gin")
-            || !plan.contains("Seq Scan on"),
-        "source_ids GIN EXPLAIN should avoid plain Seq Scan; plan was:\n{plan}"
+            || plan_lc.contains("gin"),
+        "source_ids GIN EXPLAIN must use child Node index; plan was:\n{plan}"
+    );
+    assert!(
+        !plan.contains("_ag_label_vertex"),
+        "GH-331: count/EXPLAIN must not scan parent _ag_label_vertex; plan was:\n{plan}"
     );
     eprintln!("OK EXPLAIN source_ids GIN:\n{plan}");
 }

@@ -74,6 +74,7 @@ pub async fn upload_document(
             content_hash,
             custom_metadata: request.metadata,
             track_id: request.track_id,
+            expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::new(request.enable_gleaning, request.max_gleaning),
             document_type: Some("markdown"),
             chunk_strategy,

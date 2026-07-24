@@ -136,6 +136,7 @@ use crate::handlers;
         handlers::entity_reconcile_plan,
         handlers::entity_reconcile_execute,
         handlers::delete_all_documents,
+        handlers::batch_delete_documents,
         handlers::get_track_status,
         handlers::get_document,
         handlers::delete_document,

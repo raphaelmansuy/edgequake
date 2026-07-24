@@ -501,18 +501,47 @@ impl TaskStorage for PostgresTaskStorage {
         let lease_token = Uuid::new_v4();
         let lease_expires_at = crate::lease_expires_at(Utc::now(), lease_ttl);
 
+        // SPEC-084 / GH-316 / LAW-13: workspace-fair claim (least-loaded, then oldest).
+        // Prefer workspaces with fewer active leases so a backlog in WS-A cannot
+        // starve WS-B; still SKIP LOCKED safe for concurrent workers.
         let sql = format!(
             r#"
-            WITH candidate AS (
-                SELECT track_id
+            WITH claimable AS (
+                SELECT track_id, workspace_id, created_at
                 FROM tasks
                 WHERE status = 'pending'
                    OR (
                         status = 'processing'
                         AND (lease_expires_at IS NULL OR lease_expires_at < NOW())
                    )
-                ORDER BY created_at ASC
-                FOR UPDATE SKIP LOCKED
+            ),
+            ws_load AS (
+                SELECT workspace_id, COUNT(*)::bigint AS active_count
+                FROM tasks
+                WHERE status = 'processing'
+                  AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at >= NOW()
+                GROUP BY workspace_id
+            ),
+            fair_workspace AS (
+                SELECT c.workspace_id
+                FROM claimable c
+                LEFT JOIN ws_load w ON w.workspace_id = c.workspace_id
+                GROUP BY c.workspace_id
+                ORDER BY COALESCE(MAX(w.active_count), 0) ASC, MIN(c.created_at) ASC
+                LIMIT 1
+            ),
+            candidate AS (
+                SELECT t.track_id
+                FROM tasks t
+                INNER JOIN fair_workspace fw ON t.workspace_id = fw.workspace_id
+                WHERE t.status = 'pending'
+                   OR (
+                        t.status = 'processing'
+                        AND (t.lease_expires_at IS NULL OR t.lease_expires_at < NOW())
+                   )
+                ORDER BY t.created_at ASC
+                FOR UPDATE OF t SKIP LOCKED
                 LIMIT 1
             )
             UPDATE tasks t
@@ -745,6 +774,7 @@ impl std::str::FromStr for crate::types::TaskType {
             "pdf_processing" => Ok(crate::types::TaskType::PdfProcessing),
             "knowledge_injection" => Ok(crate::types::TaskType::KnowledgeInjection),
             "deletion" => Ok(crate::types::TaskType::Deletion),
+            "batch_deletion" => Ok(crate::types::TaskType::BatchDeletion),
             "workspace_wipe" => Ok(crate::types::TaskType::WorkspaceWipe),
             _ => Err(format!("Invalid task type: {}", s)),
         }

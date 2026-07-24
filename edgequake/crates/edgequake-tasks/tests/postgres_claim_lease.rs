@@ -362,3 +362,115 @@ async fn edgequake_tasks_view_exposes_lease_columns() {
         .await
         .expect("SELECT lease_* via edgequake.tasks must succeed");
 }
+
+/// SPEC-084 / GH-316: after WS-A holds an active lease, WS-B interleaves.
+#[tokio::test]
+async fn issue316_two_workspaces_interleaved_progress() {
+    let pool = require_postgres!();
+    let storage = PostgresTaskStorage::new(pool.clone());
+
+    let tenant = Uuid::new_v4();
+    let ws_a = Uuid::new_v4();
+    let ws_b = Uuid::new_v4();
+
+    let mut tasks_a = Vec::new();
+    for i in 0..4 {
+        let mut t = Task::new(
+            tenant,
+            ws_a,
+            TaskType::Insert,
+            serde_json::json!({ "document_id": format!("issue316-a-{i}") }),
+        );
+        t.status = TaskStatus::Pending;
+        ensure_tenant_workspace(&pool, &t).await.expect("seed tw");
+        storage.create_task(&t).await.expect("create a");
+        // Shared-DB: pin far in the past so our rows win claim ordering.
+        let ts = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, i as u32).unwrap();
+        sqlx::query("UPDATE tasks SET created_at = $2 WHERE track_id = $1")
+            .bind(&t.track_id)
+            .bind(ts)
+            .execute(&pool)
+            .await
+            .expect("pin a");
+        tasks_a.push(t);
+    }
+
+    let mut task_b = Task::new(
+        tenant,
+        ws_b,
+        TaskType::Insert,
+        serde_json::json!({ "document_id": "issue316-b-0" }),
+    );
+    task_b.status = TaskStatus::Pending;
+    ensure_tenant_workspace(&pool, &task_b)
+        .await
+        .expect("seed b tw");
+    storage.create_task(&task_b).await.expect("create b");
+    let ts_b = Utc.with_ymd_and_hms(1970, 1, 1, 0, 1, 0).unwrap();
+    sqlx::query("UPDATE tasks SET created_at = $2 WHERE track_id = $1")
+        .bind(&task_b.track_id)
+        .bind(ts_b)
+        .execute(&pool)
+        .await
+        .expect("pin b");
+
+    let first = storage
+        .claim_next("issue316-w1", Duration::from_secs(120))
+        .await
+        .expect("claim1")
+        .expect("must claim");
+    assert_eq!(first.workspace_id, ws_a, "oldest backlog workspace first");
+
+    let second = storage
+        .claim_next("issue316-w2", Duration::from_secs(120))
+        .await
+        .expect("claim2")
+        .expect("must claim");
+    assert_eq!(
+        second.workspace_id, ws_b,
+        "zero-active workspace must interleave before A backlog drains"
+    );
+
+    release_if_held(&storage, &first, "issue316-w1").await;
+    release_if_held(&storage, &second, "issue316-w2").await;
+    for t in &tasks_a {
+        cleanup(&pool, t).await;
+    }
+    cleanup(&pool, &task_b).await;
+}
+
+/// SPEC-084 / GH-316: tenant ingest cap still binds across workspaces.
+#[tokio::test]
+async fn issue316_tenant_cap_still_holds() {
+    use edgequake_tasks::{FairnessClass, TenantConcurrencyLimiter, TryAcquireOutcome};
+
+    let limiter = TenantConcurrencyLimiter::new(2, 2);
+    let tenant = Uuid::new_v4();
+    let ws_a = Uuid::new_v4();
+    let ws_b = Uuid::new_v4();
+    let ws_c = Uuid::new_v4();
+
+    let _a = match limiter
+        .try_acquire(tenant, ws_a, FairnessClass::Ingest)
+        .await
+    {
+        TryAcquireOutcome::Acquired(p) => p,
+        other => panic!("expected Acquired, got {other:?}"),
+    };
+    let _b = match limiter
+        .try_acquire(tenant, ws_b, FairnessClass::Ingest)
+        .await
+    {
+        TryAcquireOutcome::Acquired(p) => p,
+        other => panic!("expected Acquired, got {other:?}"),
+    };
+    assert!(
+        matches!(
+            limiter
+                .try_acquire(tenant, ws_c, FairnessClass::Ingest)
+                .await,
+            TryAcquireOutcome::AtCapacity
+        ),
+        "tenant ingest cap must still hold with workspace lanes"
+    );
+}

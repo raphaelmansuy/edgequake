@@ -5857,3 +5857,111 @@ async fn test_complete_add_delete_cycle() {
     println!("✅ OODA-50 TEST PASSED: Complete add/delete cycle verified");
     println!("🎉 50 OODA ITERATIONS COMPLETE!");
 }
+
+/// SPEC-084 / GH-317: selected multi-delete admits one BatchDeletion task.
+#[tokio::test]
+async fn issue317_batch_delete_unselected_remain() {
+    let workers = create_worker_app().await;
+    let app = workers.app();
+    let kv = &workers.kv_storage;
+
+    let mut keep_ids = Vec::new();
+    let mut delete_ids = Vec::new();
+    for i in 0..5 {
+        let id = format!("issue317-keep-{i}");
+        kv.upsert(&[(
+            format!("{id}-metadata"),
+            with_tenant_scope(json!({
+                "id": id,
+                "title": format!("Keep {i}"),
+                "status": "completed",
+                "created_at": "2026-01-01T00:00:00Z",
+            })),
+        )])
+        .await
+        .expect("seed keep");
+        keep_ids.push(id);
+    }
+    for i in 0..3 {
+        let id = format!("issue317-del-{i}");
+        kv.upsert(&[(
+            format!("{id}-metadata"),
+            with_tenant_scope(json!({
+                "id": id,
+                "title": format!("Del {i}"),
+                "status": "completed",
+                "created_at": "2026-01-02T00:00:00Z",
+            })),
+        )])
+        .await
+        .expect("seed del");
+        delete_ids.push(id);
+    }
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/batch-delete")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "document_ids": delete_ids })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let body = extract_json(response).await;
+    assert_eq!(body["accepted"], true);
+    assert_eq!(body["planned_delete_count"], 3);
+    let track = body["batch_track_id"].as_str().expect("batch_track_id");
+    assert!(!track.is_empty());
+
+    // Drain batch task via worker loop
+    for _ in 0..40 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut all_gone = true;
+        for id in &delete_ids {
+            if kv
+                .get_by_id(&format!("{id}-metadata"))
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+            {
+                all_gone = false;
+                break;
+            }
+        }
+        if all_gone {
+            break;
+        }
+    }
+
+    for id in &delete_ids {
+        assert!(
+            kv.get_by_id(&format!("{id}-metadata"))
+                .await
+                .ok()
+                .flatten()
+                .is_none(),
+            "selected {id} must be deleted"
+        );
+    }
+
+    for id in &keep_ids {
+        assert!(
+            kv.get_by_id(&format!("{id}-metadata"))
+                .await
+                .ok()
+                .flatten()
+                .is_some(),
+            "unselected {id} must remain"
+        );
+    }
+}

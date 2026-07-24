@@ -253,46 +253,35 @@ export function useBulkSelection({
     );
 
     try {
-      for (let i = 0; i < idsToDelete.length; i++) {
-        const id = idsToDelete[i];
-        toast.loading(
-          t("documents.bulk.deleteProgress", "Deleting {{current}} of {{total}}…", {
-            current: i + 1,
-            total: idsToDelete.length,
-          }),
-          { id: toastId },
-        );
-        try {
-          await deleteDocument(id);
-          successCount++;
-        } catch (err) {
-          errorCount++;
-          lastError =
-            err instanceof Error
-              ? err.message
-              : t("common.unknownError", "Unknown error");
-        }
-      }
-
+      // SPEC-084 / GH-317: single batch admit instead of N× DELETE /{id}.
+      const { batchDeleteDocuments } = await import(
+        "@/lib/api/edgequake/documents"
+      );
+      const result = await batchDeleteDocuments(idsToDelete);
+      successCount = result.planned_delete_count;
       toast.dismiss(toastId);
-
-      if (successCount > 0) {
-        toast.success(
-          t("documents.bulk.deleteSuccess", { count: successCount }) ||
-            `Deleted ${successCount} document(s)`,
-        );
-        queryClient.invalidateQueries({ queryKey: ["documents"] });
-        invalidateKnowledgeGraph(queryClient);
-      }
-      if (errorCount > 0) {
-        toast.error(
-          t("documents.bulk.deleteFailed", { count: errorCount }) ||
-            `Failed to delete ${errorCount} document(s)`,
-          {
-            description: lastError,
-          },
-        );
-      }
+      // SPEC-084 / GH-317: 202 Accepted — deletion is async; do not claim "Deleted".
+      toast.success(
+        t(
+          "documents.bulk.deleteQueued",
+          "Queued deletion of {{count}} document(s)",
+          { count: successCount },
+        ),
+      );
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      invalidateKnowledgeGraph(queryClient);
+    } catch (err) {
+      toast.dismiss(toastId);
+      errorCount = idsToDelete.length;
+      lastError =
+        err instanceof Error
+          ? err.message
+          : t("common.unknownError", "Unknown error");
+      toast.error(
+        t("documents.bulk.deleteFailed", { count: errorCount }) ||
+          `Failed to delete ${errorCount} document(s)`,
+        { description: lastError },
+      );
     } finally {
       setIsBulkDeleting(false);
       setSelectedIds(new Set());

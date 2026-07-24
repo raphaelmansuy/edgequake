@@ -233,6 +233,22 @@ pub struct DeletionTaskData {
     pub document_status: Option<String>,
 }
 
+/// Selected multi-document deletion (SPEC-084 / GH-317).
+///
+/// One durable lifecycle task processes `document_ids` serially so the UI does
+/// not storm N× `TaskType::Deletion` admits (pool / fairness park).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchDeletionTaskData {
+    pub document_ids: Vec<String>,
+    pub tenant_id: String,
+    pub workspace_id: String,
+    pub batch_track_id: String,
+    #[serde(default)]
+    pub deleted_count: usize,
+    #[serde(default)]
+    pub failed_ids: Vec<String>,
+}
+
 /// Checkpoint phase for durable workspace wipe-all (issue #309).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

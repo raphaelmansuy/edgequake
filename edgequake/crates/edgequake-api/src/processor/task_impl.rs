@@ -82,6 +82,17 @@ impl TaskProcessor for DocumentTaskProcessor {
                 self.process_document_deletion(task, data, cancel_token)
                     .await
             }
+            TaskType::BatchDeletion => {
+                let data: edgequake_tasks::BatchDeletionTaskData =
+                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                        edgequake_tasks::TaskError::InvalidPayload(format!(
+                            "Invalid BatchDeletionTaskData: {}",
+                            e
+                        ))
+                    })?;
+
+                self.process_batch_deletion(task, data, cancel_token).await
+            }
             TaskType::WorkspaceWipe => {
                 let data: edgequake_tasks::WorkspaceWipeTaskData =
                     serde_json::from_value(task.task_data.clone()).map_err(|e| {

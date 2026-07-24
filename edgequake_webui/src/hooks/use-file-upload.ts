@@ -241,6 +241,7 @@ export function useFileUpload(
           };
 
           const uploadResult = await performFileUpload(file, {
+            expectedBatchCount: files.length,
             batchTrackId,
             pdfParserBackend: uploadOptions?.pdfParserBackend ?? pdfParserBackend,
             onUploadProgress: applyUploadProgress,

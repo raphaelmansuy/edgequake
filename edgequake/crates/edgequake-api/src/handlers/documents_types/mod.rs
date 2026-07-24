@@ -317,6 +317,8 @@ mod tests {
                 unknown: 0,
             },
             is_complete: true,
+            expected_count: None,
+            registered_count: 1,
             latest_message: Some("All documents processed successfully".to_string()),
         };
 

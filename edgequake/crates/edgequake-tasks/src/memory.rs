@@ -230,13 +230,42 @@ impl TaskStorage for MemoryTaskStorage {
         let mut tasks = self.tasks.write().unwrap();
         let now = Utc::now();
 
-        let mut candidates: Vec<(chrono::DateTime<Utc>, String)> = tasks
+        // SPEC-084 / GH-316: mirror postgres least-loaded workspace-fair claim.
+        let eligible: Vec<&Task> = tasks
             .values()
             .filter(|t| match t.status {
                 TaskStatus::Pending => true,
                 TaskStatus::Processing => t.lease_is_expired(now),
                 _ => false,
             })
+            .collect();
+        let active_count = |ws: uuid::Uuid| -> usize {
+            tasks
+                .values()
+                .filter(|t| {
+                    t.workspace_id == ws
+                        && t.status == TaskStatus::Processing
+                        && !t.lease_is_expired(now)
+                })
+                .count()
+        };
+        let fair_workspace = eligible
+            .iter()
+            .map(|t| t.workspace_id)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .min_by_key(|ws| {
+                let oldest = eligible
+                    .iter()
+                    .filter(|t| t.workspace_id == *ws)
+                    .map(|t| t.created_at)
+                    .min()
+                    .unwrap_or(now);
+                (active_count(*ws), oldest)
+            });
+        let mut candidates: Vec<(chrono::DateTime<Utc>, String)> = eligible
+            .into_iter()
+            .filter(|t| Some(t.workspace_id) == fair_workspace)
             .map(|t| (t.created_at, t.track_id.clone()))
             .collect();
         candidates.sort_by_key(|(created_at, _)| *created_at);

@@ -27,6 +27,7 @@ import type { Document } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 import { nextDocumentSortState } from '@/lib/documents/document-sort';
 import {
@@ -274,7 +275,9 @@ export function DocumentManager() {
 
   // OODA-29: Document queries extracted to useDocumentQueries hook
   // VS-03: page=1 with large pageSize fetches everything at once for virtual scroll
-  const VIRTUAL_PAGE_SIZE = 500;
+  // SPEC-084 / GH-319: match API MAX_PAGE_SIZE (budget clamp). Larger values
+  // were silently truncated to 100 while the UI assumed a full fetch.
+  const VIRTUAL_PAGE_SIZE = 100;
   const { data, isLoading, isError, error, refetch, pipelineStatus, queryClient } = useDocumentQueries({
     tenantId: selectedTenantId,
     workspaceId: selectedWorkspaceId,
@@ -539,17 +542,45 @@ export function DocumentManager() {
       removeReprocessEntryByDocumentId(documentId),
   });
 
-  // SPEC-050 GAP-FIX: Confirmed bulk delete — delete each document through
-  // handleDeleteDocument so the per-row dimming state also applies.
-  // Defined AFTER useBulkSelection because it uses handleClearSelection.
-  const handleBulkDeleteConfirmed = useCallback(() => {
-    for (const doc of bulkDeleteTargets) {
-      handleDeleteDocument(doc.id);
-    }
+  // SPEC-084 / GH-317: one durable batch-delete admit (not N× single deletes).
+  const handleBulkDeleteConfirmed = useCallback(async () => {
+    const targets = [...bulkDeleteTargets];
     setBulkDeleteTargets([]);
     setBulkDeleteDialogOpen(false);
     handleClearSelection();
-  }, [bulkDeleteTargets, handleDeleteDocument, handleClearSelection]);
+    if (targets.length === 0) return;
+    try {
+      const { batchDeleteDocuments } = await import(
+        "@/lib/api/edgequake/documents"
+      );
+      const result = await batchDeleteDocuments(targets.map((d) => d.id));
+      for (const doc of targets) {
+        beginDeleteSession({
+          documentId: doc.id,
+          documentName: doc.title || doc.file_name || doc.id,
+          trackId: result.batch_track_id,
+        });
+      }
+      patchDocumentsDeletingOptimistic(
+        queryClient,
+        targets.map((d) => d.id),
+      );
+      toast.success(
+        t(
+          "documents.bulk.deleteQueued",
+          "Queued deletion of {{count}} document(s)",
+          { count: result.planned_delete_count },
+        ),
+      );
+    } catch (err) {
+      const description =
+        err instanceof Error ? err.message : t("common.unknownError", "Unknown error");
+      toast.error(
+        t("documents.bulk.deleteFailed", "Failed to queue bulk deletion"),
+        { description },
+      );
+    }
+  }, [bulkDeleteTargets, handleClearSelection, queryClient, t]);
 
   // OODA-28: Document handlers extracted to useDocumentHandlers hook
   const {

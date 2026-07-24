@@ -29,6 +29,14 @@ use crate::handlers::documents_types::*;
     get,
     path = "/api/v1/documents",
     tag = "Documents",
+    params(
+        ("page" = Option<usize>, Query, description = "Page number (default 1)"),
+        ("page_size" = Option<usize>, Query, description = "Page size (default 20, max 100)"),
+        ("date_from" = Option<String>, Query, description = "Inclusive start date (ISO 8601)"),
+        ("date_to" = Option<String>, Query, description = "Inclusive end date (ISO 8601)"),
+        ("document_pattern" = Option<String>, Query, description = "Case-insensitive title substring (comma = OR)"),
+        ("status" = Option<String>, Query, description = "Filter by status before pagination (e.g. failed, completed). status_counts remain global (SPEC-084 / GH-319)"),
+    ),
     responses(
         (status = 200, description = "Documents retrieved", body = ListDocumentsResponse),
         (status = 503, description = "Read path busy under ingest load")
@@ -442,7 +450,8 @@ async fn list_documents_inner(
         );
     }
 
-    // Calculate status counts for all documents
+    // Calculate status counts for all documents (after date/pattern, before status filter).
+    // SPEC-084 / GH-319 LAW-10: counts stay global; list items honor optional status.
     let status_counts = StatusCounts {
         pending: documents
             .iter()
@@ -514,6 +523,61 @@ async fn list_documents_inner(
             .count(),
     };
 
+    // SPEC-084 / GH-319: filter by status before pagination so Failed chip rows match counts.
+    if let Some(ref status_raw) = params.status {
+        let status_filter = status_raw.trim().to_lowercase();
+        if !status_filter.is_empty() && status_filter != "all" {
+            documents.retain(|doc| {
+                let doc_status = doc.status.as_deref().unwrap_or("").to_lowercase();
+                match status_filter.as_str() {
+                    "pending" => {
+                        matches!(doc_status.as_str(), "pending" | "queued")
+                            || doc.current_stage.as_deref() == Some("queued")
+                    }
+                    "processing" => {
+                        doc_status == "processing"
+                            || matches!(
+                                doc.current_stage.as_deref(),
+                                Some(
+                                    "converting"
+                                        | "preprocessing"
+                                        | "chunking"
+                                        | "extracting"
+                                        | "gleaning"
+                                        | "merging"
+                                        | "summarizing"
+                                        | "embedding"
+                                        | "storing"
+                                        | "indexing"
+                                )
+                            )
+                    }
+                    "completed" => matches!(doc_status.as_str(), "completed" | "indexed"),
+                    "unknown" => {
+                        doc.status.is_none()
+                            || !matches!(
+                                doc_status.as_str(),
+                                "pending"
+                                    | "queued"
+                                    | "processing"
+                                    | "completed"
+                                    | "indexed"
+                                    | "partial_failure"
+                                    | "failed"
+                                    | "cancelled"
+                            )
+                    }
+                    other => doc_status == other,
+                }
+            });
+            debug!(
+                status = %status_filter,
+                filtered_count = documents.len(),
+                "Applied SPEC-084 document status filter before pagination"
+            );
+        }
+    }
+
     // SPEC-057 P4: project display_status / ui_phase SSOT before pagination.
     crate::services::ingestion_status_mapper::enrich_document_summaries_with_cancel(
         &mut documents,
@@ -521,7 +585,7 @@ async fn list_documents_inner(
     )
     .await;
 
-    // SPEC-027 IMP-020: honor query pagination (status_counts remain over full filtered set).
+    // SPEC-027 IMP-020: honor query pagination (status_counts remain over full pre-status set).
     let page_size = budget.clamp_page_size(params.page_size.min(u32::MAX as usize) as u32) as usize;
     let page = params.page.max(1);
     let (documents, pagination) = paginate_vec(documents, page, page_size);

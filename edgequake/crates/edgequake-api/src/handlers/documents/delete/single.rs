@@ -32,6 +32,16 @@ use super::super::storage_helpers::metadata_matches_tenant_context;
 /// Resolve the actual KV key prefix for a document.
 ///
 /// Returns `(actual_key_prefix, metadata_key, has_metadata)`.
+pub(crate) async fn resolve_kv_key_prefix_for_batch(
+    document_id: &str,
+    state: &AppState,
+) -> (String, String, bool) {
+    resolve_kv_key_prefix(document_id, state).await
+}
+
+/// Resolve the actual KV key prefix for a document.
+///
+/// Returns `(actual_key_prefix, metadata_key, has_metadata)`.
 async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, String, bool) {
     let direct_metadata_key = metadata_key_for_document(document_id);
     if state

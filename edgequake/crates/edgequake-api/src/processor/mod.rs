@@ -76,6 +76,7 @@
 //! - [`BR0472`]: Documents processed with workspace-specific providers
 
 // Sub-modules organized by responsibility (SRP)
+mod batch_deletion;
 mod document_deletion;
 mod injection_processing;
 mod pdf_processing;

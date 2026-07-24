@@ -1,6 +1,6 @@
 # Release & CD Cycle
 
-> **Product: v0.21.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.21.1** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 This document describes how to cut a release, run quality gates, and verify the published Docker images.
 
@@ -62,8 +62,8 @@ done
 
 ```bash
 # Example (current cut)
-git tag v0.21.0
-git push origin v0.21.0
+git tag v0.21.1
+git push origin v0.21.1
 ```
 
 This triggers `.github/workflows/release-docker.yml`, which:
@@ -73,12 +73,12 @@ This triggers `.github/workflows/release-docker.yml`, which:
 ## 4) Post-Publish Verification
 
 ```bash
-gh release view v0.21.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.21.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.21.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.21.0
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.21.0-pg16
-docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.21.0-pg17
+gh release view v0.21.1
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake:0.21.1
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-frontend:0.21.1
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.21.1
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.21.1-pg16
+docker buildx imagetools inspect ghcr.io/raphaelmansuy/edgequake-postgres:0.21.1-pg17
 ```
 
 ## SPEC-042 Verification (before tag)
@@ -95,10 +95,10 @@ Docker images are built and published automatically via GitHub Actions (`.github
 
 ```bash
 # Tag a release — triggers multi-arch docker build + publish to ghcr.io
-git tag v0.21.0 && git push origin v0.21.0
+git tag v0.21.1 && git push origin v0.21.1
 ```
 
-Both `linux/amd64` (ubuntu-latest runner) and `linux/arm64` (native ARM64 runner — no QEMU) are built in parallel and merged into a single multi-arch manifest. The same image tag (`ghcr.io/raphaelmansuy/edgequake:0.21.0`) works on x86 servers, Apple Silicon Macs, and AWS Graviton instances.
+Both `linux/amd64` (ubuntu-latest runner) and `linux/arm64` (native ARM64 runner — no QEMU) are built in parallel and merged into a single multi-arch manifest. The same image tag (`ghcr.io/raphaelmansuy/edgequake:0.21.1`) works on x86 servers, Apple Silicon Macs, and AWS Graviton instances.
 
 You can also trigger a manual Docker build + publish without a tag via the `workflow_dispatch` input on GitHub Actions (`Actions -> Release -- Docker (GHCR) -> Run workflow`).
 

@@ -48,8 +48,13 @@ pub async fn get_track_status(
     for value in metadata_values {
         if let Some(obj) = value.as_object() {
             let doc_track_id = obj.get("track_id").and_then(|v| v.as_str()).unwrap_or("");
+            let client_track_id = obj
+                .get("client_track_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
 
-            if doc_track_id == track_id {
+            // SPEC-084 / GH-318: match insert task id OR client batch correlation id.
+            if doc_track_id == track_id || client_track_id == track_id {
                 let id = obj
                     .get("id")
                     .and_then(|v| v.as_str())
@@ -207,15 +212,30 @@ pub async fn get_track_status(
     created_times.sort();
     let created_at = created_times.first().cloned();
 
-    // Check if complete (no pending or processing)
-    let is_complete = status_summary.pending == 0 && status_summary.processing == 0;
+    let registered_count = track_docs.len();
+    // SPEC-084 / GH-318: expected batch size from KV meta (client-declared).
+    let expected_count = storage
+        .kv_storage
+        .get_by_id(&format!("track_expected:{track_id}"))
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| v.get("expected_count").and_then(|n| n.as_u64()))
+        .map(|n| n as usize);
+
+    let no_active = status_summary.pending == 0 && status_summary.processing == 0;
+    let registered_enough = expected_count
+        .map(|exp| registered_count >= exp)
+        .unwrap_or(true);
+    let is_complete = no_active && registered_enough;
 
     // Build latest message
+    let denom = expected_count.unwrap_or(registered_count).max(1);
     let latest_message = if !is_complete {
         Some(format!(
             "Processing {}/{} documents...",
-            status_summary.completed + status_summary.failed,
-            track_docs.len()
+            status_summary.completed + status_summary.failed + status_summary.partial_failure,
+            denom
         ))
     } else if status_summary.failed > 0 {
         Some(format!("Completed with {} errors", status_summary.failed))
@@ -230,6 +250,8 @@ pub async fn get_track_status(
         total_count: track_docs.len(),
         status_summary,
         is_complete,
+        expected_count,
+        registered_count,
         latest_message,
     }))
 }

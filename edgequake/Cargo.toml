@@ -88,7 +88,7 @@ name = "graphrag_bench"
 harness = false
 
 [workspace.package]
-version = "0.21.0"
+version = "0.21.1"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"

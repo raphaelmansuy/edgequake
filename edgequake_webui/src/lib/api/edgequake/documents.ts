@@ -552,6 +552,21 @@ export async function deleteAllDocuments(): Promise<DeleteAllDocumentsResponse> 
   return api.delete<DeleteAllDocumentsResponse>("/documents");
 }
 
+/** SPEC-084 / GH-317: selected multi-delete (one durable batch task). */
+export interface BatchDeleteDocumentsResponse {
+  accepted: boolean;
+  batch_track_id: string;
+  planned_delete_count: number;
+}
+
+export async function batchDeleteDocuments(
+  documentIds: string[],
+): Promise<BatchDeleteDocumentsResponse> {
+  return api.post<BatchDeleteDocumentsResponse>("/documents/batch-delete", {
+    document_ids: documentIds,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Deletion Impact Analysis (SPEC-050)
 // ---------------------------------------------------------------------------

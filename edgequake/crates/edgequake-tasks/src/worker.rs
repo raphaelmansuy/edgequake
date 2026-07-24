@@ -426,7 +426,7 @@ impl WorkerPool {
                     let mut claimed: Option<(
                         Task,
                         uuid::Uuid,
-                        Option<tokio::sync::OwnedSemaphorePermit>,
+                        Option<crate::tenant_limiter::FairnessPermit>,
                         AdmissionPermit,
                     )> = None;
                     for _reclaim in 0..=MAX_PARK_SKIP_RECLAIMS {
@@ -512,7 +512,10 @@ impl WorkerPool {
                         // FEAT-TENANT-FAIRNESS: release claim before park (no double-process).
                         let fairness_class = task.task_type.fairness_class();
                         let tenant_permit = if let Some(ref limiter) = tenant_limiter {
-                            match limiter.try_acquire(task.tenant_id, fairness_class).await {
+                            match limiter
+                                .try_acquire(task.tenant_id, task.workspace_id, fairness_class)
+                                .await
+                            {
                                 TryAcquireOutcome::Unlimited => None,
                                 TryAcquireOutcome::Acquired(permit) => Some(permit),
                                 TryAcquireOutcome::AtCapacity => {
@@ -1001,6 +1004,7 @@ fn spawn_fairness_park(
     tokio::spawn(async move {
         let track_id = task.track_id.clone();
         let tenant_id = task.tenant_id;
+        let workspace_id = task.workspace_id;
         // Clears park membership on abort/skip. Success path ends park *before*
         // requeue so claim_next is not treated as a duplicate park.
         let mut park_guard = Some(FairnessParkGuard {
@@ -1009,7 +1013,7 @@ fn spawn_fairness_park(
         });
 
         let permit = tokio::select! {
-            result = limiter.acquire(tenant_id, fairness_class) => {
+            result = limiter.acquire(tenant_id, workspace_id, fairness_class) => {
                 match result {
                     Ok(permit) => permit,
                     Err(_) => {
@@ -1251,15 +1255,16 @@ mod tests {
         // Ingest lane=1: only one ingest task per tenant at a time.
         let limiter = crate::tenant_limiter::TenantConcurrencyLimiter::new(1, 2);
         let tenant = test_tenant_id();
+        let ws = test_workspace_id();
 
-        let p1 = match limiter.try_acquire(tenant, FairnessClass::Ingest).await {
+        let p1 = match limiter.try_acquire(tenant, ws, FairnessClass::Ingest).await {
             TryAcquireOutcome::Acquired(p) => p,
             other => panic!("First ingest acquire should succeed, got {other:?}"),
         };
 
         assert!(
             matches!(
-                limiter.try_acquire(tenant, FairnessClass::Ingest).await,
+                limiter.try_acquire(tenant, ws, FairnessClass::Ingest).await,
                 TryAcquireOutcome::AtCapacity
             ),
             "Second ingest acquire should be denied"
@@ -1268,7 +1273,9 @@ mod tests {
         // Lifecycle lane stays independent under local-style clamps.
         assert!(
             matches!(
-                limiter.try_acquire(tenant, FairnessClass::Lifecycle).await,
+                limiter
+                    .try_acquire(tenant, ws, FairnessClass::Lifecycle)
+                    .await,
                 TryAcquireOutcome::Acquired(_)
             ),
             "Lifecycle lane must remain available while ingest is saturated"
@@ -1277,14 +1284,14 @@ mod tests {
         let other_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000099").unwrap();
         assert!(matches!(
             limiter
-                .try_acquire(other_tenant, FairnessClass::Ingest)
+                .try_acquire(other_tenant, ws, FairnessClass::Ingest)
                 .await,
             TryAcquireOutcome::Acquired(_)
         ));
 
         drop(p1);
         assert!(matches!(
-            limiter.try_acquire(tenant, FairnessClass::Ingest).await,
+            limiter.try_acquire(tenant, ws, FairnessClass::Ingest).await,
             TryAcquireOutcome::Acquired(_)
         ));
     }

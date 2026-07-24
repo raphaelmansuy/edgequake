@@ -187,6 +187,9 @@ impl PostgresAGEGraphStorage {
 
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
 
+        // SPEC-084 / LAW-9 / GH-331: query child "Node" (owns idx_node_source_ids_gin),
+        // not parent `_ag_label_vertex` (≈0 rows; GIN dropped by M070). Same locality
+        // as SPEC-071 discovery in scan_ops.rs.
         // GIN-only on `source_ids` (indexed). Do NOT OR `source_chunk_ids`
         // here — that expression has no GIN and the planner falls back to a
         // Nested Loop Seq Scan over all vertices.
@@ -204,7 +207,7 @@ impl PostgresAGEGraphStorage {
             hits AS (
               SELECT pr.prefix, pr.ord, v.id
               FROM probes pr
-              JOIN {graph}."_ag_label_vertex" v
+              JOIN {graph}."Node" v
                 ON ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
                    @> to_jsonb(pr.chunk_id)
             )

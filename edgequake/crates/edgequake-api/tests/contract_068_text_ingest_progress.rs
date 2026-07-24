@@ -50,6 +50,7 @@ fn sample_md_input(
         content_hash: hash.to_string(),
         custom_metadata: None,
         track_id: client_track.map(|s| s.to_string()),
+        expected_batch_count: None,
         gleaning: GleaningAdmissionOptions::default(),
         document_type: Some("markdown"),
         chunk_strategy: None,

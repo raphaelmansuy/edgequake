@@ -392,6 +392,11 @@ fn api_v1_routes() -> Router<AppState> {
         .route("/documents/search", get(handlers::search_documents))
         // Reprocess Failed Documents (GAP-039) - MUST come before /documents/{document_id}
         .route("/documents/reprocess", post(handlers::reprocess_failed))
+        // Selected multi-delete (SPEC-084 / GH-317) — before /documents/{document_id}
+        .route(
+            "/documents/batch-delete",
+            post(handlers::batch_delete_documents),
+        )
         // Recover Stuck Processing Documents - MUST come before /documents/{document_id}
         .route("/documents/recover-stuck", post(handlers::recover_stuck))
         // Document deletion impact analysis - MUST come before /documents/{document_id}

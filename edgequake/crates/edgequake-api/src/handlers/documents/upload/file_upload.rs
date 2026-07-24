@@ -104,6 +104,7 @@ pub async fn upload_file(
             content_hash: content_hash.clone(),
             custom_metadata: metadata,
             track_id: None,
+            expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),
             document_type: None,
             chunk_strategy,

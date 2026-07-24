@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.21.0"
+    "version": "0.21.1"
   },
   "servers": [
     {
@@ -1974,6 +1974,64 @@
         ],
         "summary": "List all documents.",
         "operationId": "list_documents",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (default 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Page size (default 20, max 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "description": "Inclusive start date (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "description": "Inclusive end date (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_pattern",
+            "in": "query",
+            "description": "Case-insensitive title substring (comma = OR)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status before pagination (e.g. failed, completed). status_counts remain global (SPEC-084 / GH-319)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Documents retrieved",
@@ -2101,6 +2159,55 @@
           },
           "500": {
             "description": "Internal error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/batch-delete": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Delete a selected set of documents (async job — 202 Accepted).",
+        "operationId": "batch_delete_documents",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchDeleteDocumentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Batch deletion accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDeleteDocumentsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized document_ids"
+          },
+          "409": {
+            "description": "Workspace wipe already in flight"
           }
         },
         "security": [
@@ -2780,8 +2887,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "recover_stuck",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "recover_stuck"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -2838,8 +2945,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_failed",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_failed"
       }
     },
     "/api/v1/documents/scan": {
@@ -3817,8 +3924,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reanalyze_multimodal",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reanalyze_multimodal"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -8387,8 +8494,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_embeddings",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_embeddings"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -9059,8 +9166,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     }
   },
@@ -9553,6 +9660,49 @@
         "example": {
           "count": {},
           "degrees": []
+        }
+      },
+      "BatchDeleteDocumentsRequest": {
+        "type": "object",
+        "required": [
+          "document_ids"
+        ],
+        "properties": {
+          "document_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Document IDs to delete (selected subset)."
+          }
+        },
+        "example": {
+          "document_ids": []
+        }
+      },
+      "BatchDeleteDocumentsResponse": {
+        "type": "object",
+        "required": [
+          "accepted",
+          "batch_track_id",
+          "planned_delete_count"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "batch_track_id": {
+            "type": "string"
+          },
+          "planned_delete_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "accepted": {},
+          "batch_track_id": {},
+          "planned_delete_count": {}
         }
       },
       "BatchFileResult": {
@@ -25093,6 +25243,14 @@
             },
             "description": "Documents in this batch."
           },
+          "expected_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "SPEC-084 / GH-318: expected documents in this client batch (when declared).",
+            "minimum": 0
+          },
           "is_complete": {
             "type": "boolean",
             "description": "Whether processing is complete (all docs completed or failed)."
@@ -25103,6 +25261,11 @@
               "null"
             ],
             "description": "Latest processing message."
+          },
+          "registered_count": {
+            "type": "integer",
+            "description": "SPEC-084 / GH-318: documents currently registered for this track.",
+            "minimum": 0
           },
           "status_summary": {
             "$ref": "#/components/schemas/StatusCounts",
@@ -25121,8 +25284,10 @@
         "example": {
           "created_at": {},
           "documents": [],
+          "expected_count": {},
           "is_complete": {},
           "latest_message": {},
+          "registered_count": {},
           "status_summary": {},
           "total_count": {},
           "track_id": {}
@@ -26581,7 +26746,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.21.0",
+      "version": "0.21.1",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455)."
     },
     "defaultContentType": "application/json",

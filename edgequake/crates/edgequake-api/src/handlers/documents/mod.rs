@@ -49,7 +49,7 @@
 pub use crate::handlers::documents_types::*;
 
 // Sub-modules: each owns a single responsibility
-mod delete;
+pub(crate) mod delete;
 mod query;
 mod recovery;
 pub(crate) mod storage_helpers;
@@ -361,6 +361,8 @@ mod tests {
                 unknown: 0,
             },
             is_complete: true,
+            expected_count: None,
+            registered_count: 1,
             latest_message: Some("All documents processed successfully".to_string()),
         };
 

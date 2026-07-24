@@ -35,6 +35,12 @@ pub struct ListDocumentsRequest {
     /// @implements SPEC-005
     #[serde(default)]
     pub document_pattern: Option<String>,
+
+    /// Filter by document status (e.g. `failed`, `completed`, `processing`).
+    /// Applied after date/pattern filters and **before** pagination.
+    /// `status_counts` remain global over the pre-status set (SPEC-084 / GH-319).
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 /// Status counts for document filtering.

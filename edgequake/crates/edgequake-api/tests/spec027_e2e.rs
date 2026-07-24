@@ -1163,6 +1163,91 @@ async fn spec027_document_list_pagination_respects_page_params() {
     assert_eq!(status_counts["completed"], 3);
 }
 
+/// SPEC-084 / GH-319: Failed filter must return rows outside the newest page window.
+///
+/// Seeds 120 completed (newest) + 5 older failed. Without server-side status
+/// filter, page_size=100 would hide all failures while status_counts.failed=5.
+#[tokio::test]
+async fn issue319_failed_filter_beyond_page_size() {
+    let state = AppState::test_state();
+
+    for i in 0..120 {
+        let id = format!("doc-issue319-ok-{i:03}");
+        state
+            .storage
+            .kv_storage
+            .upsert(&[(
+                format!("{id}-metadata"),
+                json!({
+                    "id": id,
+                    "title": format!("Ok {i}"),
+                    "status": "completed",
+                    "tenant_id": "default",
+                    "workspace_id": "default",
+                    // Newest first sort — high created_at for completed docs.
+                    "created_at": format!("2026-06-{:02}T12:00:00Z", (i % 28) + 1),
+                }),
+            )])
+            .await
+            .expect("seed completed");
+    }
+    for i in 0..5 {
+        let id = format!("doc-issue319-fail-{i}");
+        state
+            .storage
+            .kv_storage
+            .upsert(&[(
+                format!("{id}-metadata"),
+                json!({
+                    "id": id,
+                    "title": format!("Fail {i}"),
+                    "status": "failed",
+                    "tenant_id": "default",
+                    "workspace_id": "default",
+                    // Older than completed page — would fall off page 1 without status filter.
+                    "created_at": format!("2025-01-0{}T00:00:00Z", i + 1),
+                }),
+            )])
+            .await
+            .expect("seed failed");
+    }
+
+    let app = build_app(state);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/documents?page=1&page_size=100&status=failed")
+                .header("X-Tenant-ID", "default")
+                .header("X-Workspace-ID", "default")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_json(response).await;
+    assert_eq!(
+        body["status_counts"]["failed"], 5,
+        "global failed count must remain 5"
+    );
+    assert_eq!(
+        body["status_counts"]["completed"], 120,
+        "global completed count must remain 120"
+    );
+    let documents = body["documents"].as_array().expect("documents");
+    assert_eq!(
+        documents.len(),
+        5,
+        "status=failed must return all 5 failed docs, not a truncated newest page"
+    );
+    assert!(documents
+        .iter()
+        .all(|d| d["status"].as_str() == Some("failed")));
+    assert_eq!(body["total"], 5);
+}
+
 #[tokio::test]
 async fn spec027_track_status_scopes_by_tenant_workspace() {
     use edgequake_api::middleware::default_tenant_uuid;
@@ -1587,5 +1672,65 @@ async fn spec027_login_lockout_returns_423_after_max_failed_attempts() {
         correct.status(),
         StatusCode::LOCKED,
         "correct password must still be rejected while locked"
+    );
+}
+
+/// SPEC-084 / GH-318: track is_complete waits for expected_count registration.
+#[tokio::test]
+async fn issue318_track_not_complete_until_expected() {
+    let state = AppState::test_state();
+    let track_id = "upload_issue318_batch";
+
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(
+            format!("track_expected:{track_id}"),
+            json!({ "expected_count": 3 }),
+        )])
+        .await
+        .expect("expected meta");
+
+    // Only one of three registered + completed.
+    state
+        .storage
+        .kv_storage
+        .upsert(&[(
+            "doc-issue318-1-metadata".to_string(),
+            json!({
+                "id": "doc-issue318-1",
+                "title": "One",
+                "status": "completed",
+                "tenant_id": "default",
+                "workspace_id": "default",
+                "client_track_id": track_id,
+                "track_id": "insert-issue318-1",
+                "created_at": "2026-01-01T00:00:00Z",
+            }),
+        )])
+        .await
+        .expect("seed doc");
+
+    let app = build_app(state);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/api/v1/documents/track/{track_id}"))
+                .header("X-Tenant-ID", "default")
+                .header("X-Workspace-ID", "default")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_json(response).await;
+    assert_eq!(body["expected_count"], 3);
+    assert_eq!(body["registered_count"], 1);
+    assert_eq!(
+        body["is_complete"], false,
+        "must not complete until expected_count registered"
     );
 }

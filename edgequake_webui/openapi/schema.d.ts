@@ -741,6 +741,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/batch-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete a selected set of documents (async job — 202 Accepted). */
+        post: operations["batch_delete_documents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/pdf": {
         parameters: {
             query?: never;
@@ -3523,6 +3540,27 @@ export interface components {
             count: number;
             /** @description Degrees for each requested node. */
             degrees: components["schemas"]["NodeDegree"][];
+        };
+        /**
+         * @example {
+         *       "document_ids": []
+         *     }
+         */
+        BatchDeleteDocumentsRequest: {
+            /** @description Document IDs to delete (selected subset). */
+            document_ids: string[];
+        };
+        /**
+         * @example {
+         *       "accepted": {},
+         *       "batch_track_id": {},
+         *       "planned_delete_count": {}
+         *     }
+         */
+        BatchDeleteDocumentsResponse: {
+            accepted: boolean;
+            batch_track_id: string;
+            planned_delete_count: number;
         };
         /**
          * @description Result for a single file in batch upload.
@@ -11701,8 +11739,10 @@ export interface components {
          * @example {
          *       "created_at": {},
          *       "documents": [],
+         *       "expected_count": {},
          *       "is_complete": {},
          *       "latest_message": {},
+         *       "registered_count": {},
          *       "status_summary": {},
          *       "total_count": {},
          *       "track_id": {}
@@ -11713,10 +11753,14 @@ export interface components {
             created_at?: string | null;
             /** @description Documents in this batch. */
             documents: components["schemas"]["DocumentSummary"][];
+            /** @description SPEC-084 / GH-318: expected documents in this client batch (when declared). */
+            expected_count?: number | null;
             /** @description Whether processing is complete (all docs completed or failed). */
             is_complete: boolean;
             /** @description Latest processing message. */
             latest_message?: string | null;
+            /** @description SPEC-084 / GH-318: documents currently registered for this track. */
+            registered_count?: number;
             /** @description Status summary for the batch. */
             status_summary: components["schemas"]["StatusCounts"];
             /** @description Total number of documents. */
@@ -13730,7 +13774,20 @@ export interface operations {
     };
     list_documents: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Page number (default 1) */
+                page?: number;
+                /** @description Page size (default 20, max 100) */
+                page_size?: number;
+                /** @description Inclusive start date (ISO 8601) */
+                date_from?: string;
+                /** @description Inclusive end date (ISO 8601) */
+                date_to?: string;
+                /** @description Case-insensitive title substring (comma = OR) */
+                document_pattern?: string;
+                /** @description Filter by status before pagination (e.g. failed, completed). status_counts remain global (SPEC-084 / GH-319) */
+                status?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -13832,6 +13889,44 @@ export interface operations {
             };
             /** @description Internal error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    batch_delete_documents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchDeleteDocumentsRequest"];
+            };
+        };
+        responses: {
+            /** @description Batch deletion accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDeleteDocumentsResponse"];
+                };
+            };
+            /** @description Empty or oversized document_ids */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace wipe already in flight */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

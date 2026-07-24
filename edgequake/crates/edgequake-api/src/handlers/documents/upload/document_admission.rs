@@ -67,6 +67,8 @@ pub struct DocumentAdmissionInput {
     pub content_hash: String,
     pub custom_metadata: Option<Value>,
     pub track_id: Option<String>,
+    /// SPEC-084 / GH-318: client-declared batch size for track completeness.
+    pub expected_batch_count: Option<usize>,
     pub gleaning: GleaningAdmissionOptions,
     pub document_type: Option<&'static str>,
     /// Explicit chunk strategy; auto-selects markdown for `.md` when None.
@@ -261,6 +263,25 @@ pub async fn admit_document_for_processing(
         "stage_message": "Document received, starting processing",
         "admission_staging": true,
     });
+
+    // SPEC-084 / GH-318: persist expected batch size under the client track key.
+    let expected_from_meta = input.custom_metadata.as_ref().and_then(|m| {
+        m.get("expected_batch_count")
+            .and_then(|v| v.as_u64())
+            .map(|n| n as usize)
+    });
+    if let Some(expected) = input.expected_batch_count.or(expected_from_meta) {
+        if expected > 0 {
+            let _ = state
+                .storage
+                .kv_storage
+                .upsert(&[(
+                    format!("track_expected:{client_track_id}"),
+                    json!({ "expected_count": expected }),
+                )])
+                .await;
+        }
+    }
 
     if let Some(mime) = &input.mime_type {
         doc_metadata["mime_type"] = json!(mime);
@@ -550,6 +571,7 @@ mod tests {
             content_hash: "abc".into(),
             custom_metadata: None,
             track_id: None,
+            expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),
             document_type: Some("markdown"),
             chunk_strategy: None,
@@ -575,6 +597,7 @@ mod tests {
             content_hash: "abc".into(),
             custom_metadata: None,
             track_id: None,
+            expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),
             document_type: Some("markdown"),
             chunk_strategy: Some(ChunkStrategy::Recursive),

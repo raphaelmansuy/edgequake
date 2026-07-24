@@ -109,6 +109,8 @@ class DocumentListParams(BaseModel):
     date_from: str | None = None
     date_to: str | None = None
     document_pattern: str | None = None
+    # SPEC-084 / GH-319: filter by status before pagination.
+    status: str | None = None
 
     def to_query_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {}
@@ -122,6 +124,8 @@ class DocumentListParams(BaseModel):
             d["date_to"] = self.date_to
         if self.document_pattern is not None:
             d["document_pattern"] = self.document_pattern
+        if self.status is not None:
+            d["status"] = self.status
         return d
 
 
