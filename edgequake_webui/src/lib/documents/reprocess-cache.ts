@@ -334,13 +334,13 @@ export function protectPinnedDocumentsInQueryData<T extends DocumentsQueryData>(
     changed = true;
     return {
       ...doc,
-      status: pin.status,
+      status: pin.status as Document["status"],
       current_stage: pin.current_stage,
       stage_message: pin.stage_message,
       stage_progress: pin.stage_progress,
       track_id: pin.track_id,
       error_message: pin.error_message,
-    };
+    } satisfies Document;
   });
 
   // Re-inject upload/reprocess shells dropped by a stale poll.

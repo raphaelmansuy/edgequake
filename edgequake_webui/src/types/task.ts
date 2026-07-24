@@ -60,6 +60,10 @@ export interface PipelineStatus {
   failed_tasks: number;
   tasks: TaskResponse[];
   statistics?: TaskListResponse["statistics"];
+  /** Alias used by EnhancedPipelineStatus / SPEC-086 queue helpers. */
+  pending_tasks?: number;
+  /** Alias used by EnhancedPipelineStatus / SPEC-086 queue helpers. */
+  processing_tasks?: number;
 }
 
 // Health types

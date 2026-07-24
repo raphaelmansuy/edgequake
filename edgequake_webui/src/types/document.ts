@@ -304,7 +304,8 @@ export interface DocumentChunk {
 export interface UploadDocumentRequest {
   content: string;
   title?: string;
-  source_type?: "text" | "file" | "url";
+  /** SPEC-086: include markdown (and file kinds) for text-path admission. */
+  source_type?: "text" | "file" | "url" | "markdown" | "image" | "pdf";
   metadata?: Record<string, unknown>;
   async_processing?: boolean;
   /** Optional track ID for batch grouping. If not provided, one will be generated. */
