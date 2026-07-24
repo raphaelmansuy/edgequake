@@ -675,17 +675,15 @@ test.describe("SPEC-048 ingestion progress screenshots", () => {
   test("S10 markdown skips converting", async ({ page }) => {
     await mockDocs(page, [TEXT_CHUNKING_DOC], { pending: 0, processing: 1 });
     await gotoDocuments(page);
-    await expect(page.getByTestId("spec048-stage-converting")).toHaveAttribute(
-      "data-state",
-      "skipped",
-    );
+    // SPEC-086: non-PDF timelines omit converting entirely (not muted/skipped).
+    await expect(page.getByTestId("spec048-stage-converting")).toHaveCount(0);
     await expect(page.getByTestId("spec048-stage-chunking")).toHaveAttribute(
       "data-state",
       "active",
     );
     await expect(page.getByTestId("spec048-step-detail")).toContainText(/3\/10/);
     await capture(page, "S10-markdown-skip-convert", [
-      "Non-PDF: converting skipped (muted)",
+      "Non-PDF: converting omitted from timeline",
       "Chunking active with 3/10 detail",
     ]);
   });
