@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.21.2] — 2026-07-24
+
+Patch: SPEC-087 — dashboard stats N+1 timeout (#334) and shared guest identity (#335).
+
+### Fixed
+
+- **#334** — `count_embedded_chunks_for_docs` (Postgres `COUNT`/`LIKE ANY` + relational overlay) replaces per-document KV fan-out in dashboard stats.
+- **#335** — Auth-off shared per-tenant guest (`shared_guest_user_id`); JWT/API-key bind `TenantContext.user_id`; `EDGEQUAKE_ALLOW_ANONYMOUS`; admin `include_anonymous` + FE Guest toggle.
+
+### Added
+
+- **SPEC-087 study pack** — [`specs/087-fix-issues/`](specs/087-fix-issues/README.md).
+- **`e2e_spec087_anonymous_guest`** — shared guest / deny / JWT principal coverage.
+
+### Docs
+
+- Issue studies and e2e notes under [`specs/087-fix-issues/`](specs/087-fix-issues/README.md).
+
+---
+
 ## [0.21.1] — 2026-07-24
 
 Patch: SPEC-084 reliability fixes (#331, #319, #317, #255, #318, #316) — pool-safe Node counts, honest list filters, batch delete, gateway slash models, upload readiness, workspace-fair scheduling.

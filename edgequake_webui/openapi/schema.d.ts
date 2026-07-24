@@ -12250,6 +12250,8 @@ export interface components {
             email: string;
             /** @description Whether the account is active. */
             is_active: boolean;
+            /** @description True for shared guest / legacy anon_* system accounts (SPEC-087). */
+            is_anonymous?: boolean;
             /** @description Last login timestamp (RFC 3339), if any. */
             last_login_at?: string | null;
             /** @description User role. */
@@ -17193,6 +17195,8 @@ export interface operations {
                 page_size?: number;
                 /** @description Filter by role. */
                 role?: string | null;
+                /** @description Include anonymous/guest system accounts (SPEC-087). Default `false`. */
+                include_anonymous?: boolean;
             };
             header?: never;
             path?: never;
