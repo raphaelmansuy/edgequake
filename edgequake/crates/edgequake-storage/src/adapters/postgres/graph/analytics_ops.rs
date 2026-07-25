@@ -187,27 +187,17 @@ impl PostgresAGEGraphStorage {
 
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
 
-        // SPEC-084 / LAW-9 / GH-331: query child "Node" (owns idx_node_source_ids_gin),
-        // not parent `_ag_label_vertex` (≈0 rows; GIN dropped by M070). Same locality
-        // as SPEC-071 discovery in scan_ops.rs.
-        // GIN-only on `source_ids` (indexed). Do NOT OR `source_chunk_ids`
-        // here — that expression has no GIN and the planner falls back to a
-        // Nested Loop Seq Scan over all vertices.
+        // SPEC-084 / LAW-9 / GH-331 + IMP-031-08: child "Node" + MATERIALIZED
+        // probe-first GIN (same planner law as cascade discovery).
+        // GIN-only on `source_ids` — never OR unindexed source_chunk_ids.
+        let probes_cte = super::helpers::source_ids_count_probes_cte_sql();
         let sql = format!(
             r#"
-            WITH prefixes AS (
-              SELECT prefix, ord
-              FROM unnest($1::text[]) WITH ORDINALITY AS t(prefix, ord)
-            ),
-            probes AS (
-              SELECT p.prefix, p.ord, (p.prefix || gs.i::text) AS chunk_id
-              FROM prefixes p
-              CROSS JOIN generate_series(0, $2::int - 1) AS gs(i)
-            ),
-            hits AS (
+            WITH {probes_cte},
+            hits AS MATERIALIZED (
               SELECT pr.prefix, pr.ord, v.id
               FROM probes pr
-              JOIN {graph}."Node" v
+              INNER JOIN {graph}."Node" v
                 ON ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
                    @> to_jsonb(pr.chunk_id)
             )
@@ -217,6 +207,7 @@ impl PostgresAGEGraphStorage {
             GROUP BY p.prefix, p.ord
             ORDER BY p.ord
             "#,
+            probes_cte = probes_cte.trim(),
             graph = self.graph_name,
         );
 
@@ -243,17 +234,30 @@ impl PostgresAGEGraphStorage {
         Ok(out)
     }
 
+    /// ADMIN: wipe entire graph (IMP-031-06 native TRUNCATE-equivalent DELETE).
+    ///
+    /// Complexity: O(N+E) unavoidable; avoids AGE Cypher planner overhead.
     pub(super) async fn pg_clear(&self) -> Result<()> {
-        // Delete all nodes (edges will be deleted automatically with DETACH)
-        let cypher = "MATCH (n:Node) DETACH DELETE n";
-        self.cypher_execute(cypher).await
+        let pool = self.pool.get().await?;
+        let graph = &self.graph_name;
+        // Edges first (no FK, but keeps AGE label tables consistent), then nodes.
+        let del_e = format!(r#"/* DATA-AGE-GRAPH-CLEAR */ DELETE FROM {graph}."EDGE""#);
+        let del_n = format!(r#"/* DATA-AGE-GRAPH-CLEAR */ DELETE FROM {graph}."Node""#);
+        sqlx::query(&del_e)
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("native clear edges failed: {e}")))?;
+        sqlx::query(&del_n)
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("native clear nodes failed: {e}")))?;
+        Ok(())
     }
 
-    /// Clear nodes and edges for a specific workspace.
+    /// Clear nodes and edges for a specific workspace (IMP-031-06 native).
     ///
-    /// Uses workspace_id property filtering to delete only data
-    /// belonging to the specified workspace. Edges connected to
-    /// deleted nodes are automatically removed via DETACH DELETE.
+    /// 1. Count nodes with workspace_id (native COUNT)
+    /// 2. Collect node_ids, detach incident edges, delete nodes (reuse batch delete)
     ///
     /// Returns (nodes_deleted, edges_deleted).
     pub(super) async fn pg_clear_workspace(
@@ -261,69 +265,74 @@ impl PostgresAGEGraphStorage {
         workspace_id: &uuid::Uuid,
     ) -> Result<(usize, usize)> {
         let pool = self.pool.get().await?;
-
-        // Acquire a dedicated connection so AGE session state persists
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
+        let graph = &self.graph_name;
+        let wid = workspace_id.to_string();
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let node_key = if eq_present {
+            super::helpers::coalesce_endpoint("n", "node")
+        } else {
+            super::helpers::prop_only_endpoint("n", "node")
+        };
+        let ws_expr =
+            "COALESCE(ag_catalog.agtype_to_json(n.properties)->>'workspace_id', '')".to_string();
 
-        // OODA-224: CRITICAL - Must load AGE extension and set search path before
-        // using any AGE functions like ag_catalog.cypher or agtype
-        sqlx::query("LOAD 'age'")
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| StorageError::Database(format!("Failed to load AGE: {}", e)))?;
-
-        sqlx::query("SET search_path = ag_catalog, \"$user\", public")
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
-
-        // First, count nodes/edges that will be deleted
-        let workspace_id_str = workspace_id.to_string();
-        let escaped_wid = Self::escape_sql_string(&workspace_id_str);
-
-        // Count nodes before deletion
-        let count_cypher = format!(
-            "MATCH (n:Node) WHERE n.workspace_id = '{}' RETURN count(n)",
-            escaped_wid
+        // Collect node_ids in workspace (one RT).
+        let list_sql = format!(
+            r#"/* DATA-AGE-GRAPH-CLEAR-WORKSPACE list */
+               SELECT {node_key} AS node_id
+               FROM {graph}."Node" n
+               WHERE {ws_expr} = $1"#
         );
-        let node_count = self.cypher_query_count(&count_cypher).await.unwrap_or(0) as usize;
-
-        // Count edges before deletion (edges where either endpoint belongs to workspace)
-        let edge_count_cypher = format!(
-            "MATCH (n:Node)-[r:EDGE]->(m:Node) WHERE n.workspace_id = '{}' OR m.workspace_id = '{}' RETURN count(r)",
-            escaped_wid, escaped_wid
-        );
-        let edge_count = self
-            .cypher_query_count(&edge_count_cypher)
+        let rows = sqlx::query(&list_sql)
+            .bind(&wid)
+            .fetch_all(&mut *conn)
             .await
-            .unwrap_or(0) as usize;
+            .map_err(|e| StorageError::Database(format!("clear_workspace list failed: {e}")))?;
+        let node_ids: Vec<String> = rows
+            .iter()
+            .filter_map(|r| r.try_get::<String, _>("node_id").ok())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let node_count = node_ids.len();
+        if node_ids.is_empty() {
+            return Ok((0, 0));
+        }
 
-        // Delete nodes with DETACH (automatically removes connected edges)
-        let delete_cypher = format!(
-            "MATCH (n:Node) WHERE n.workspace_id = '{}' DETACH DELETE n",
-            escaped_wid
+        // Count incident edges before detach (optional metric).
+        let src = if eq_present {
+            super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt = if eq_present {
+            super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::helpers::prop_only_endpoint("e", "target")
+        };
+        let edge_cnt_sql = format!(
+            r#"SELECT COUNT(*)::bigint FROM {graph}."EDGE" e
+               WHERE {src} = ANY($1::text[]) OR {tgt} = ANY($1::text[])"#
         );
-
-        // Execute deletion using the AGE-enabled connection
-        let cypher_query = format!(
-            "SELECT * FROM cypher('{}', $$ {} $$) AS (result agtype)",
-            self.graph_name, delete_cypher
-        );
-
-        sqlx::query(&cypher_query)
-            .execute(&mut *conn)
+        let edge_count: i64 = sqlx::query_scalar(&edge_cnt_sql)
+            .bind(&node_ids)
+            .fetch_one(&mut *conn)
             .await
-            .map_err(|e| StorageError::Database(format!("Failed to clear workspace: {}", e)))?;
+            .unwrap_or(0);
+
+        // Reuse native batch detach+delete (DRY with delete_nodes_batch).
+        drop(conn);
+        self.pg_delete_nodes_batch(&node_ids).await?;
 
         tracing::info!(
             workspace_id = %workspace_id,
             nodes_deleted = node_count,
             edges_deleted = edge_count,
-            "Cleared workspace from graph storage"
+            "Cleared workspace from graph storage (native)"
         );
 
-        Ok((node_count, edge_count))
+        Ok((node_count, edge_count as usize))
     }
 }

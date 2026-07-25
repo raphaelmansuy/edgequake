@@ -164,6 +164,26 @@ pub async fn delete_document_for_reingestion(
 
     state.storage.kv_storage.delete(&keys_to_delete).await?;
 
+    // SSOT: list surfaces (wsdoc + SQL documents) must leave with the KV wipe,
+    // otherwise re-ingest admits a second row while the UI still shows the old one.
+    let tenant_ctx = TenantContext {
+        tenant_id: None,
+        workspace_id: Some(workspace_id.to_string()),
+        user_id: None,
+    };
+    crate::services::purge_document_list_surfaces(
+        state,
+        document_id,
+        workspace_id,
+        &tenant_ctx,
+        crate::services::ListSurfacePurgeOpts {
+            key_prefix: Some(document_id),
+            content_hash: None,
+            pdf_id: None,
+        },
+    )
+    .await?;
+
     tracing::info!(
         document_id = %document_id,
         chunks_deleted = keys_to_delete.len(),

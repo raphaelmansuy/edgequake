@@ -15,8 +15,8 @@ use tracing::{debug, info, warn};
 
 use crate::document_metadata::is_terminal_success_status;
 use crate::services::extract_document_id_from_task;
-use crate::services::resolve_document_metadata_key;
 use crate::services::sync_document_failed_on_orphan_heartbeat;
+use edgequake_storage::kv_keys;
 
 /// Counters from a boot orphan recovery pass.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -77,13 +77,45 @@ pub async fn recover_orphaned_tasks(
             .map_err(|e| format!("list_tasks failed: {e}"))?;
         let batch_len = task_list.tasks.len();
 
+        // IMP-075-05: batch staging+final metadata for the page (O(1) RT), not
+        // 2×N resolve_document_metadata_key + get_by_id per task.
+        let mut page_meta_keys: Vec<String> = Vec::with_capacity(batch_len * 2);
+        let mut doc_ids_for_tasks: Vec<Option<String>> = Vec::with_capacity(batch_len);
+        for task in &task_list.tasks {
+            let doc_id = extract_document_id_from_task(task);
+            if let Some(ref id) = doc_id {
+                page_meta_keys.push(kv_keys::staging_doc_metadata(id));
+                page_meta_keys.push(kv_keys::doc_metadata(id));
+            }
+            doc_ids_for_tasks.push(doc_id);
+        }
+        let page_meta_vals = if page_meta_keys.is_empty() {
+            Vec::new()
+        } else {
+            kv_storage
+                .get_by_ids_ordered(&page_meta_keys)
+                .await
+                .unwrap_or_default()
+        };
+        // doc_id → staging-first metadata value (if any)
+        let mut meta_by_doc: std::collections::HashMap<String, serde_json::Value> =
+            std::collections::HashMap::with_capacity(batch_len);
+        let mut key_idx = 0usize;
+        for doc_id in doc_ids_for_tasks.iter().flatten() {
+            let staging = page_meta_vals.get(key_idx).and_then(|v| v.clone());
+            let final_m = page_meta_vals.get(key_idx + 1).and_then(|v| v.clone());
+            key_idx += 2;
+            if let Some(m) = staging.or(final_m) {
+                meta_by_doc.insert(doc_id.clone(), m);
+            }
+        }
+
         for mut task in task_list.tasks {
             let age = now.signed_duration_since(task.updated_at);
             let age_mins = age.num_minutes();
 
             if let Some(doc_id) = extract_document_id_from_task(&task) {
-                let meta_key = resolve_document_metadata_key(&doc_id, &kv_storage).await;
-                if let Ok(Some(meta)) = kv_storage.get_by_id(&meta_key).await {
+                if let Some(meta) = meta_by_doc.get(&doc_id) {
                     let doc_status = meta.get("status").and_then(|v| v.as_str()).unwrap_or("");
                     if is_terminal_success_status(doc_status) {
                         task.status = TaskStatus::Indexed;

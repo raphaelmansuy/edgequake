@@ -21,21 +21,32 @@ pub async fn promote_staging_to_final(
     let final_content = kv_keys::doc_content(document_id);
     let final_hash = super::ContentHasher::workspace_hash_key(workspace_id, content_hash);
 
+    // IMP-075-01: one RT for staging keys (not 3× get_by_id) — O(K log N) with K=3.
+    let staging_keys = vec![
+        staging_meta.clone(),
+        staging_content.clone(),
+        staging_hash.clone(),
+    ];
+    let staging_vals = kv.get_by_ids_ordered(&staging_keys).await.map_err(kv_err)?;
     let mut batch: Vec<(String, Value)> = Vec::new();
-
-    if let Some(v) = kv.get_by_id(&staging_meta).await.map_err(kv_err)? {
+    if let Some(v) = staging_vals.first().and_then(|o| o.clone()) {
         batch.push((final_meta.clone(), v));
     }
-    if let Some(v) = kv.get_by_id(&staging_content).await.map_err(kv_err)? {
+    if let Some(v) = staging_vals.get(1).and_then(|o| o.clone()) {
         batch.push((final_content, v));
     }
-    if let Some(v) = kv.get_by_id(&staging_hash).await.map_err(kv_err)? {
+    if let Some(v) = staging_vals.get(2).and_then(|o| o.clone()) {
         batch.push((final_hash, v));
     }
 
     if !batch.is_empty() {
         kv.upsert(&batch).await.map_err(kv_err)?;
-        if let Some(meta) = kv.get_by_id(&final_meta).await.map_err(kv_err)? {
+        // Prefer value already in batch for final_meta (avoid extra RT when we just wrote it).
+        let meta_opt = batch
+            .iter()
+            .find(|(k, _)| k == &final_meta)
+            .map(|(_, v)| v.clone());
+        if let Some(meta) = meta_opt {
             let _ =
                 crate::services::sync_after_metadata_upsert(kv.as_ref(), &final_meta, &meta).await;
         }

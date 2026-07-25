@@ -16,6 +16,46 @@ pub(in crate::adapters::postgres::graph) const SOURCE_CHUNK_PROBE_LIMIT: usize =
 
 use super::escape::escape_sql_literal;
 
+/// SSOT probe CTE for cascade discovery (IMP-031-08).
+///
+/// # Planner law (2026-07-25 incident)
+///
+/// Putting tenant/workspace predicates on the same join as
+/// `source_ids @> probe` lets Postgres prefer `idx_node_tenant_id` (~30k
+/// rows) then recheck `@>` as a **Join Filter** (~4s @ 200k nodes → 15s
+/// `statement_timeout` on batch delete).
+///
+/// **Probe-first** + **`MATERIALIZED`** forces Nested Loop from probes →
+/// `Bitmap Index Scan on idx_*_source_ids_gin` (~100ms).
+///
+/// `$1` = exact ids, `$2` = chunk prefixes, `$3` = probe series upper bound.
+pub(in crate::adapters::postgres::graph) fn source_ids_probes_cte_sql() -> &'static str {
+    r#"
+            probes AS MATERIALIZED (
+              SELECT probe_id FROM unnest($1::text[]) AS t(probe_id)
+              UNION
+              SELECT (p.prefix || gs.i::text) AS probe_id
+              FROM unnest($2::text[]) AS p(prefix)
+              CROSS JOIN generate_series(0, $3::int - 1) AS gs(i)
+            )
+    "#
+}
+
+/// Count-path prefixes CTE: `$1` = prefixes, `$2` = series upper (chunk only).
+pub(in crate::adapters::postgres::graph) fn source_ids_count_probes_cte_sql() -> &'static str {
+    r#"
+            prefixes AS MATERIALIZED (
+              SELECT prefix, ord
+              FROM unnest($1::text[]) WITH ORDINALITY AS t(prefix, ord)
+            ),
+            probes AS MATERIALIZED (
+              SELECT p.prefix, p.ord, (p.prefix || gs.i::text) AS chunk_id
+              FROM prefixes p
+              CROSS JOIN generate_series(0, $2::int - 1) AS gs(i)
+            )
+    "#
+}
+
 /// Normalize a document / chunk prefix to the `{doc_id}-chunk-` form.
 ///
 /// Accepts either a bare document id or an already-suffixed
@@ -176,5 +216,16 @@ mod tests {
                 "doc-abc-chunk-2".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn probe_cte_helpers_are_materialized_and_probe_first() {
+        let p = source_ids_probes_cte_sql();
+        assert!(p.contains("probes AS MATERIALIZED"));
+        assert!(p.contains("unnest($1::text[])"));
+        assert!(p.contains("generate_series"));
+        let c = source_ids_count_probes_cte_sql();
+        assert!(c.contains("prefixes AS MATERIALIZED"));
+        assert!(c.contains("probes AS MATERIALIZED"));
     }
 }

@@ -23,7 +23,8 @@ pub(in crate::adapters::postgres::graph) use eq_id_sql::{
 };
 
 pub(in crate::adapters::postgres::graph) use source_lineage_sql::{
-    jsonb_matches_doc_source_prefix_legacy, normalize_doc_chunk_prefix, SOURCE_CHUNK_PROBE_LIMIT,
+    jsonb_matches_doc_source_prefix_legacy, normalize_doc_chunk_prefix,
+    source_ids_count_probes_cte_sql, source_ids_probes_cte_sql, SOURCE_CHUNK_PROBE_LIMIT,
 };
 
 #[cfg(test)]

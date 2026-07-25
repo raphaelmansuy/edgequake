@@ -46,6 +46,8 @@ impl PostgresAGEGraphStorage {
     }
 
     /// Run read Cypher with agtype parameters (injection-safe via serde_json + `$1`).
+    /// Bound Cypher helper retained for debug / AGE fallbacks (request path prefers native SQL — IMP-031).
+    #[allow(dead_code)]
     pub(in crate::adapters::postgres::graph) async fn cypher_query_bound(
         &self,
         cypher: &str,
@@ -162,6 +164,8 @@ impl PostgresAGEGraphStorage {
         Ok(())
     }
 
+    /// Kept for rare debug/admin Cypher aggregates (request path uses native COUNT — IMP-031-06).
+    #[allow(dead_code)]
     pub(in crate::adapters::postgres::graph) async fn cypher_query_count(
         &self,
         cypher: &str,

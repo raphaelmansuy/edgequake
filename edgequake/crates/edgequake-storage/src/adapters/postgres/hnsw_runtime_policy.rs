@@ -30,7 +30,9 @@ impl Default for HnswRuntimePolicy {
             ef_search_override: None,
             max_scan_tuples: 20_000,
             scan_mem_multiplier: None,
-            partial_by_workspace: false,
+            // IMP-001-01 / July 2026 multitenancy: auto partial HNSW for hot workspaces
+            // (still gated by partial_min_rows in ensure_hot_workspace_ann).
+            partial_by_workspace: true,
             columns_only_filters: false,
             partial_min_rows: 1_000,
         }
@@ -39,8 +41,14 @@ impl Default for HnswRuntimePolicy {
 
 impl HnswRuntimePolicy {
     /// Load all knobs from environment (SPEC-065 SSOT).
+    ///
+    /// `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE`:
+    /// - unset / `auto` / `1` / `true` → **on** (IMP-001-01 default for optimal multi-tenant ANN)
+    /// - `0` / `false` / `off` → off
     pub fn from_env() -> Self {
-        let partial_by_workspace = env_flag_true("EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE");
+        let partial_by_workspace = parse_partial_by_workspace_env(
+            &std::env::var("EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE").unwrap_or_default(),
+        );
         let p = Self {
             storage_mode: VectorStorageMode::from_env(),
             iterative_scan_mode: parse_hnsw_iterative_scan_mode(
@@ -66,7 +74,7 @@ impl HnswRuntimePolicy {
                 .and_then(|v| v.parse::<u64>().ok())
                 .unwrap_or(1_000),
         };
-        // SPEC-066: discoverability — log once when Wave-2 partial policy is opted in.
+        // SPEC-066 / IMP-001-01: discoverability — log once when Wave-2 partial policy is active.
         if p.partial_by_workspace {
             static LOG_ONCE: Once = Once::new();
             LOG_ONCE.call_once(|| {
@@ -74,7 +82,7 @@ impl HnswRuntimePolicy {
                     target: "edgequake_storage::hnsw",
                     partial_min_rows = p.partial_min_rows,
                     storage_mode = ?p.storage_mode,
-                    "Wave-2 HNSW partial-by-workspace enabled (EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=1)"
+                    "Wave-2 HNSW partial-by-workspace active (default auto; set EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=0 to disable)"
                 );
             });
         }
@@ -88,6 +96,8 @@ impl HnswRuntimePolicy {
 }
 
 /// Resolve HNSW iterative_scan mode from a raw env value.
+///
+/// IMP-002-01 product contract: default **relaxed_order** (pgvector 0.8.x filtered ANN).
 pub fn parse_hnsw_iterative_scan_mode(raw: &str) -> &'static str {
     match raw.trim().to_ascii_lowercase().as_str() {
         "strict" | "strict_order" => "strict_order",
@@ -96,9 +106,35 @@ pub fn parse_hnsw_iterative_scan_mode(raw: &str) -> &'static str {
     }
 }
 
-/// Opt-in workspace partial HNSW (`EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=1`).
+/// Parse partial-by-workspace flag (IMP-001-01: default on / auto).
+pub fn parse_partial_by_workspace_env(raw: &str) -> bool {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "0" | "false" | "off" | "no" => false,
+        // unset, auto, 1, true, on, empty → enable (threshold still applies)
+        _ => true,
+    }
+}
+
+/// Workspace partial HNSW enabled (default **on** as of IMP-001-01; opt out with `=0`).
 pub fn hnsw_partial_by_workspace_enabled() -> bool {
     HnswRuntimePolicy::from_env().partial_by_workspace
+}
+
+/// IMP-002-01: product contract for filtered ANN GUC set.
+/// Returns true when statements include iterative_scan (or iterative unsupported / off intentionally).
+pub fn filtered_ann_gucs_satisfy_contract(
+    stmts: &[String],
+    iterative_scan_supported: bool,
+) -> bool {
+    if !iterative_scan_supported {
+        return true; // pre-0.8 floor — capabilities gate should block elsewhere
+    }
+    let joined = stmts.join("; ").to_ascii_lowercase();
+    // If operator forced off, contract is "explicit off" (documented recall risk).
+    if joined.contains("iterative_scan = off") || joined.contains("iterative_scan=off") {
+        return true;
+    }
+    joined.contains("iterative_scan") && joined.contains("max_scan_tuples")
 }
 
 #[cfg(test)]
@@ -111,6 +147,29 @@ mod tests {
         assert_eq!(parse_hnsw_iterative_scan_mode("STRICT"), "strict_order");
         assert_eq!(parse_hnsw_iterative_scan_mode("false"), "off");
         assert_eq!(parse_hnsw_iterative_scan_mode("garbage"), "relaxed_order");
+    }
+
+    #[test]
+    fn parse_partial_default_auto_on() {
+        assert!(parse_partial_by_workspace_env(""));
+        assert!(parse_partial_by_workspace_env("auto"));
+        assert!(parse_partial_by_workspace_env("1"));
+        assert!(!parse_partial_by_workspace_env("0"));
+        assert!(!parse_partial_by_workspace_env("off"));
+    }
+
+    #[test]
+    fn filtered_ann_contract_requires_iterative_and_max_tuples() {
+        let ok = vec![
+            "SET LOCAL hnsw.ef_search = 40".into(),
+            "SET LOCAL hnsw.iterative_scan = relaxed_order".into(),
+            "SET LOCAL hnsw.max_scan_tuples = 20000".into(),
+        ];
+        assert!(filtered_ann_gucs_satisfy_contract(&ok, true));
+        assert!(!filtered_ann_gucs_satisfy_contract(
+            &["SET LOCAL hnsw.ef_search = 40".into()],
+            true
+        ));
     }
 
     #[test]

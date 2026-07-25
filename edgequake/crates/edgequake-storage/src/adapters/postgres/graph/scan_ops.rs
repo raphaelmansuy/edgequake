@@ -228,30 +228,39 @@ impl PostgresAGEGraphStorage {
         })?;
 
         // Discovery uses legacy-null workspace match; never require tenant props.
-        let tenant_where = Self::build_node_where_clause_for_discovery(filter);
+        // Apply tenant filter on the *hits* CTE (alias h), never on the GIN join —
+        // otherwise the planner starts from idx_node_tenant_id (~30k rows) and
+        // rechecks @> as a Join Filter (4s+ on 200k nodes → statement_timeout).
+        let tenant_where_hits = Self::build_vertex_property_where_mode(
+            "h",
+            filter,
+            VertexTenantFilterMode::LegacyNullAsWildcard,
+        );
+        let tenant_where_v = Self::build_node_where_clause_for_discovery(filter);
         let props_expr = "ag_catalog.agtype_to_json(v.properties)";
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
 
-        // SPEC-071: query child "Node" (owns idx_node_source_ids_gin), not parent.
+        // SPEC-071 / IMP-031-08: probe-first MATERIALIZED CTEs force
+        // idx_node_source_ids_gin Bitmap Index Scan per probe (~100ms @ 200k nodes).
+        let probes_cte = super::helpers::source_ids_probes_cte_sql();
         let modern_sql = format!(
             r#"
-            WITH probes AS (
-              SELECT probe_id FROM unnest($1::text[]) AS t(probe_id)
-              UNION
-              SELECT (p.prefix || gs.i::text) AS probe_id
-              FROM unnest($2::text[]) AS p(prefix)
-              CROSS JOIN generate_series(0, $3::int - 1) AS gs(i)
+            WITH {probes_cte},
+            hits AS MATERIALIZED (
+              SELECT v.properties
+              FROM probes pr
+              INNER JOIN {graph}."Node" v
+                ON (({props})::jsonb -> 'source_ids') @> to_jsonb(pr.probe_id)
             )
-            SELECT {props} AS props
-            FROM {graph}."Node" v
-            JOIN probes pr
-              ON (({props})::jsonb -> 'source_ids') @> to_jsonb(pr.probe_id)
+            SELECT ag_catalog.agtype_to_json(h.properties) AS props
+            FROM hits h
             WHERE {tenant_where}
             LIMIT 5000
             "#,
+            probes_cte = probes_cte.trim(),
             props = props_expr,
             graph = self.graph_name,
-            tenant_where = tenant_where,
+            tenant_where = tenant_where_hits,
         );
 
         let mut by_id: HashMap<String, GraphNode> = HashMap::new();
@@ -289,7 +298,7 @@ impl PostgresAGEGraphStorage {
                  LIMIT 5000",
                 props = props_expr,
                 graph = self.graph_name,
-                tenant_where = tenant_where,
+                tenant_where = tenant_where_v,
                 legacy_where = legacy_where
             );
             let legacy_rows = sqlx::query(&legacy_sql)
@@ -337,7 +346,13 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        let tenant_where = Self::build_edge_where_clause_for_discovery(filter);
+        // Tenant post-filter on hits CTE (alias h) — same probe-first plan fix as nodes.
+        let tenant_where_hits = Self::build_edge_property_where(
+            "h",
+            filter,
+            EdgeTenantFilterMode::LegacyNullAsWildcard,
+        );
+        let tenant_where_e = Self::build_edge_where_clause_for_discovery(filter);
         let props_expr = "ag_catalog.agtype_to_json(e.properties)";
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
 
@@ -356,31 +371,33 @@ impl PostgresAGEGraphStorage {
             super::helpers::prop_only_endpoint("e", "target")
         };
 
-        // SPEC-071: child "EDGE" + eq_* endpoints (GIN on child; no parent text-cast JOINs).
+        // SPEC-071 / IMP-031-08: MATERIALIZED probe-first → GIN on source_ids.
+        let probes_cte = super::helpers::source_ids_probes_cte_sql();
         let modern_sql = format!(
             r#"
-            WITH probes AS (
-              SELECT probe_id FROM unnest($1::text[]) AS t(probe_id)
-              UNION
-              SELECT (p.prefix || gs.i::text) AS probe_id
-              FROM unnest($2::text[]) AS p(prefix)
-              CROSS JOIN generate_series(0, $3::int - 1) AS gs(i)
+            WITH {probes_cte},
+            hits AS MATERIALIZED (
+              SELECT e.properties,
+                     {src} AS source_id,
+                     {tgt} AS target_id
+              FROM probes pr
+              INNER JOIN {graph}."EDGE" e
+                ON (({props})::jsonb -> 'source_ids') @> to_jsonb(pr.probe_id)
+              WHERE {src} IS NOT NULL
+                AND {tgt} IS NOT NULL
             )
             SELECT
-                {props} AS props,
-                {src} AS source_id,
-                {tgt} AS target_id
-            FROM {graph}."EDGE" e
-            JOIN probes pr
-              ON (({props})::jsonb -> 'source_ids') @> to_jsonb(pr.probe_id)
+                ag_catalog.agtype_to_json(h.properties) AS props,
+                h.source_id,
+                h.target_id
+            FROM hits h
             WHERE {tenant_where}
-              AND {src} IS NOT NULL
-              AND {tgt} IS NOT NULL
             LIMIT 5000
             "#,
+            probes_cte = probes_cte.trim(),
             props = props_expr,
             graph = self.graph_name,
-            tenant_where = tenant_where,
+            tenant_where = tenant_where_hits,
             src = src_expr,
             tgt = tgt_expr,
         );
@@ -428,7 +445,7 @@ impl PostgresAGEGraphStorage {
                  LIMIT 5000",
                 props = props_expr,
                 graph = self.graph_name,
-                tenant_where = tenant_where,
+                tenant_where = tenant_where_e,
                 legacy_where = legacy_where,
                 src = src_expr,
                 tgt = tgt_expr,
@@ -578,5 +595,22 @@ mod source_prefix_clause_tests {
         ]);
         assert_eq!(exact, vec!["doc-a".to_string(), "doc-a-chunk-".to_string()]);
         assert_eq!(chunks, vec!["doc-a-chunk-".to_string()]);
+    }
+
+    /// IMP-031-08: source contracts force MATERIALIZED probe-first GIN plan.
+    #[test]
+    fn source_prefix_discovery_sql_is_probe_first_materialized() {
+        let src = include_str!("scan_ops.rs");
+        assert!(
+            src.contains("probes AS MATERIALIZED")
+                && src.contains("hits AS MATERIALIZED")
+                && src.contains("IMP-031-08"),
+            "source-prefix discovery must use MATERIALIZED probe-first CTEs"
+        );
+        // Tenant filter must not sit on the GIN join outer scan of Node.
+        assert!(
+            src.contains("FROM hits h") && src.contains("INNER JOIN {graph}.\"Node\" v"),
+            "tenant filter on hits; GIN join on Node from probes"
+        );
     }
 }

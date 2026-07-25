@@ -309,6 +309,69 @@ pub async fn relational_document_scope<P>(
     Ok(None)
 }
 
+/// Delete a single relational `documents` row under tenant/workspace scope.
+///
+/// First principles: list = merge(KV, relational). A successful document delete
+/// must remove the SQL row or the UI re-injects a "ghost" on refresh.
+/// Returns rows affected (0 = already absent — success for idempotent purge).
+#[cfg(feature = "postgres")]
+pub async fn delete_relational_document(
+    pool: Option<&sqlx::PgPool>,
+    document_id: &str,
+    tenant_ctx: &TenantContext,
+) -> Result<u64, crate::error::ApiError> {
+    use crate::error::ApiError;
+
+    let Some(pool) = pool else {
+        return Ok(0);
+    };
+
+    let Ok(doc_uuid) = Uuid::parse_str(document_id) else {
+        return Ok(0);
+    };
+
+    let workspace_id = tenant_ctx
+        .workspace_id
+        .as_ref()
+        .and_then(|w| Uuid::parse_str(w).ok())
+        .ok_or_else(|| ApiError::BadRequest("workspace_id required".into()))?;
+
+    let tenant_uuid = tenant_ctx
+        .tenant_id
+        .as_ref()
+        .and_then(|t| Uuid::parse_str(t).ok());
+
+    let result = sqlx::query(
+        r#"
+        DELETE FROM documents
+        WHERE id = $1
+          AND workspace_id = $2
+          AND ($3::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $3)
+        "#,
+    )
+    .bind(doc_uuid)
+    .bind(workspace_id)
+    .bind(tenant_uuid)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        ApiError::Internal(format!(
+            "Failed to delete relational document {document_id}: {e}"
+        ))
+    })?;
+
+    Ok(result.rows_affected())
+}
+
+#[cfg(not(feature = "postgres"))]
+pub async fn delete_relational_document<P>(
+    _pool: Option<&P>,
+    _document_id: &str,
+    _tenant_ctx: &TenantContext,
+) -> Result<u64, crate::error::ApiError> {
+    Ok(0)
+}
+
 /// Delete all relational `documents` rows for the request workspace (bulk delete SSOT).
 #[cfg(feature = "postgres")]
 pub async fn delete_relational_documents_for_workspace(

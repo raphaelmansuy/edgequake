@@ -1,0 +1,108 @@
+name: SPEC-088 Data Layer Matrix
+
+# Lint + registry always. Full per-Ref-ID ops matrix + scaling on schedule / battle.
+
+on:
+  pull_request:
+    paths:
+      - "docs/data-layer/**"
+      - "specs/088-data-layer/**"
+      - "edgequake/crates/edgequake-storage/**"
+      - "edgequake/crates/edgequake-tasks/src/postgres.rs"
+      - ".github/workflows/data-layer-matrix.yml"
+  push:
+    branches: [main, edgequake-main]
+    paths:
+      - "docs/data-layer/**"
+      - "specs/088-data-layer/**"
+      - "edgequake/crates/edgequake-storage/**"
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+    inputs:
+      battle:
+        description: "Run full PG16/17/18 Docker ops matrix + scaling"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: spec088-data-layer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cross-ref lint (inventory ↔ code ↔ docs ↔ tests)
+        run: python3 specs/088-data-layer/scripts/lint_dataop_xref.py
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+      - name: Registry + annotation unit tests
+        working-directory: edgequake
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-storage --lib dataop -- --nocapture
+          cargo test -p edgequake-storage --test data_layer_registry -- --nocapture
+          # DDL catalog + soft-skip without DB (no EDGEQUAKE_REQUIRE_POSTGRES_TESTS)
+          cargo test -p edgequake-storage --features postgres --test data_layer_ops_matrix \
+            data_pg_schema_ -- --test-threads=2 --nocapture
+
+  ops-matrix:
+    if: ${{ github.event_name == 'schedule' || inputs.battle == true }}
+    needs: lint-inventory
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [pg16, pg17, pg18]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+      - name: Build Postgres ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          case "${{ matrix.profile }}" in
+            pg16) make postgres-image-build ;;
+            pg17) make postgres-image-build-pg17 ;;
+            pg18) make postgres-image-build-pg18 ;;
+          esac
+      - name: Start Postgres ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          export EQ_POSTGRES_PROFILE=${{ matrix.profile }}
+          make postgres-start || true
+          sleep 8
+      - name: Run SPEC-088 full ops matrix + scaling + limits
+        working-directory: edgequake
+        env:
+          DATABASE_URL: postgres://edgequake:edgequake_secret@localhost:5432/edgequake
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          EDGEQUAKE_DATA_LAYER_CAPTURE_EXPLAIN: "1"
+          EQ_POSTGRES_PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-storage --features postgres --test data_layer_ops_matrix -- --test-threads=4 --nocapture
+          cargo test -p edgequake-storage --features postgres --test data_layer_scaling -- --nocapture
+          cargo test -p edgequake-storage --features postgres --test data_layer_limits -- --nocapture
+      - name: Publish results table row
+        if: always()
+        run: |
+          {
+            echo "### SPEC-088 ${{ matrix.profile }}"
+            echo "| profile | status |"
+            echo "|---|---|"
+            echo "| ${{ matrix.profile }} | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

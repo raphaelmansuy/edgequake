@@ -65,6 +65,29 @@ async fn make_oldest(pool: &PgPool, track_id: &str) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+/// IMP-140-03: isolate fair-claim e2e from residual claimable rows.
+/// Cancels only **stale** claimable tasks (older than 1h or epoch make_oldest leftovers)
+/// so multi-task fair-claim suites can still seed several fresh pending rows.
+async fn isolate_claimable(pool: &PgPool, track_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE tasks
+        SET status = 'cancelled', updated_at = NOW(), completed_at = NOW()
+        WHERE status IN ('pending', 'processing')
+          AND track_id <> $1
+          AND (
+                created_at < NOW() - interval '1 hour'
+             OR created_at < TIMESTAMPTZ '1971-01-01'
+          )
+        "#,
+    )
+    .bind(track_id)
+    .execute(pool)
+    .await?;
+    make_oldest(pool, track_id).await?;
+    Ok(())
+}
+
 macro_rules! require_postgres {
     () => {
         match create_test_pool().await {
@@ -166,7 +189,7 @@ async fn seed_create_oldest(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     ensure_tenant_workspace(pool, task).await?;
     storage.create_task(task).await?;
-    make_oldest(pool, &task.track_id).await?;
+    isolate_claimable(pool, &task.track_id).await?;
     Ok(())
 }
 

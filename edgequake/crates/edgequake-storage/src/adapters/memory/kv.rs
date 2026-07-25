@@ -83,6 +83,16 @@ impl KVStorage for MemoryKVStorage {
         Ok(results)
     }
 
+    /// IMP-075-06: single lock + O(K) lookups (not default trait N× get_by_id).
+    /// Order-preserving with `None` gaps — parity with Postgres UNNEST batch.
+    async fn get_by_ids_ordered(&self, ids: &[String]) -> Result<Vec<Option<serde_json::Value>>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let data = self.data.read().map_err(super::lock::map_lock_err)?;
+        Ok(ids.iter().map(|id| data.get(id).cloned()).collect())
+    }
+
     async fn filter_keys(&self, keys: HashSet<String>) -> Result<HashSet<String>> {
         let data = self.data.read().map_err(super::lock::map_lock_err)?;
 

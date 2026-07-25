@@ -497,23 +497,50 @@ impl TaskStorage for PostgresTaskStorage {
         }
     }
 
+    /**
+     * @dataop      DATA-PG-TASKS-CLAIM-NEXT-140
+     * @engine      postgres
+     * @intent      Workspace-fair task claim with lease (SKIP LOCKED).
+     * @tables      tasks
+     * @indexes     claim index on (status, workspace_id, created_at, lease_expires_at)
+     * @complexity  time: O(W + log N) fair pick + row lock; space: O(1)
+     * @limits      - Concurrent workers safe via FOR UPDATE SKIP LOCKED
+     *              - Lease TTL required; expired processing rows reclaimable
+     *              - Deadlock risk if other paths lock tasks by track_id inconsistently
+     * @scaling     Contention rises with pending queue depth; fair WS ordering protects multi-tenant
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/postgres.md#data-pg-tasks-claim-next-140
+     */
     async fn claim_next(&self, worker_id: &str, lease_ttl: Duration) -> TaskResult<Option<Task>> {
         let lease_token = Uuid::new_v4();
         let lease_expires_at = crate::lease_expires_at(Utc::now(), lease_ttl);
 
-        // SPEC-084 / GH-316 / LAW-13: workspace-fair claim (least-loaded, then oldest).
-        // Prefer workspaces with fewer active leases so a backlog in WS-A cannot
-        // starve WS-B; still SKIP LOCKED safe for concurrent workers.
+        // SPEC-084 / GH-316 / LAW-13 + IMP-140-02:
+        // Workspace-fair claim (least-loaded, then oldest) with SKIP LOCKED.
+        // Split status predicates (UNION ALL) so planner can use:
+        //   idx_tasks_claim_workspace_created (status, workspace_id, created_at)
+        //   idx_tasks_claimable_pending / idx_tasks_stale_processing_lease
+        // instead of a non-sargable OR across statuses.
+        // SPEC-088: DATA-PG-TASKS-CLAIM-NEXT-140
         let sql = format!(
             r#"
-            WITH claimable AS (
+            /* DATA-PG-TASKS-CLAIM-NEXT-140 */
+            WITH pending AS (
                 SELECT track_id, workspace_id, created_at
                 FROM tasks
                 WHERE status = 'pending'
-                   OR (
-                        status = 'processing'
-                        AND (lease_expires_at IS NULL OR lease_expires_at < NOW())
-                   )
+            ),
+            stale AS (
+                SELECT track_id, workspace_id, created_at
+                FROM tasks
+                WHERE status = 'processing'
+                  AND (lease_expires_at IS NULL OR lease_expires_at < NOW())
+            ),
+            claimable AS (
+                SELECT * FROM pending
+                UNION ALL
+                SELECT * FROM stale
             ),
             ws_load AS (
                 SELECT workspace_id, COUNT(*)::bigint AS active_count
@@ -531,6 +558,8 @@ impl TaskStorage for PostgresTaskStorage {
                 ORDER BY COALESCE(MAX(w.active_count), 0) ASC, MIN(c.created_at) ASC
                 LIMIT 1
             ),
+            -- Single FOR UPDATE branch (PG forbids FOR UPDATE on UNION result).
+            -- Predicate order: workspace equality (from fair pick) + status sargable arms.
             candidate AS (
                 SELECT t.track_id
                 FROM tasks t

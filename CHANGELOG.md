@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ghost documents after multi-delete** — completed MD/PDF rows reappeared on refresh after batch delete when KV metadata was wiped but `wsdoc:` index and/or SQL `documents` remained; list merge re-injected them as Completed.
+- **Batch `Ok(None)` orphan path** — already-absent KV no longer counts as success without purging list surfaces (SQL / wsdoc / content / hash).
+- **Cascade SQL delete** — relational row removal is fail-closed via scoped `delete_relational_document` (no warn-and-leave-ghosts).
+- **IMP-031-08 cascade timeout** — probe-first `MATERIALIZED` GIN discovery for source-prefix node/edge scans (avoids tenant-first Join Filter `@>` plan cliff under statement_timeout).
+
+### Added
+
+- **`purge_document_list_surfaces` SSOT** — single list-identity cleanup used by cascade completion, batch orphan, re-ingest wipe, and workspace wipe per-doc path.
+- **SPEC-088 data-layer pack** — inventory, complexity matrix, improvements RCA, version matrix workflow, dataop registry/tests under [`docs/data-layer/`](docs/data-layer/) and [`specs/088-data-layer/`](specs/088-data-layer/).
+- **Data-layer e2e / matrix tests** — `e2e_spec088_improvements`, ops matrix/registry/limits/scaling harness; CI workflow `data-layer-matrix.yml`.
+
+### Changed
+
+- **RT-collapsed KV / staging paths** — ordered batch reads and staging-final SSOT across text insert, status updates, and related API services (IMP-075 family).
+- **Graph scan / expand / claim paths** — index-first and fair-claim hardening aligned with SPEC-088 Phase 6 (native graph, HNSW policy, task claim lease).
+
+### Docs
+
+- Proven improvements and incident RCAs (cascade timeout + ghost list surfaces) in [`docs/data-layer/improvements.md`](docs/data-layer/improvements.md).
+
 ---
 
 ## [0.21.2] — 2026-07-24

@@ -5,7 +5,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::handlers::documents::delete::resolve_kv_key_prefix_for_batch;
 use crate::middleware::TenantContext;
-use crate::services::perform_document_deletion;
+use crate::services::{
+    perform_document_deletion, purge_document_list_surfaces, ListSurfacePurgeOpts,
+};
 
 use super::DocumentTaskProcessor;
 
@@ -45,8 +47,32 @@ impl DocumentTaskProcessor {
             match build_deletion_task_data(state, document_id, &tenant_ctx, &data.batch_track_id)
                 .await
             {
+                // Already-absent KV: still purge list surfaces (SQL/wsdoc ghosts
+                // from historical incomplete cascades). Never count success without this.
                 Ok(None) => {
-                    deleted += 1;
+                    match purge_document_list_surfaces(
+                        state,
+                        document_id,
+                        &data.workspace_id,
+                        &tenant_ctx,
+                        ListSurfacePurgeOpts {
+                            key_prefix: Some(document_id),
+                            content_hash: None,
+                            pdf_id: None,
+                        },
+                    )
+                    .await
+                    {
+                        Ok(_) => deleted += 1,
+                        Err(e) => {
+                            tracing::warn!(
+                                document_id = %document_id,
+                                error = %e,
+                                "batch deletion: orphan list-surface purge failed"
+                            );
+                            failed_ids.push(document_id.clone());
+                        }
+                    }
                 }
                 Ok(Some(del_data)) => {
                     match perform_document_deletion(state, &del_data, &tenant_ctx).await {
@@ -100,15 +126,17 @@ async fn build_deletion_task_data(
         .await
         .unwrap_or_default();
 
+    // IMP-075-12: content + metadata in one RT (not sequential get_by_id).
     let content_key = format!("{actual_key_prefix}-content");
-    let has_content = state
+    let keys = [content_key, metadata_key.clone()];
+    let vals = state
         .storage
         .kv_storage
-        .get_by_id(&content_key)
+        .get_by_ids_ordered(&keys)
         .await
-        .ok()
-        .flatten()
-        .is_some();
+        .unwrap_or_default();
+    let has_content = vals.first().and_then(|v| v.as_ref()).is_some();
+    let metadata_val = vals.get(1).and_then(|v| v.clone());
 
     if !has_metadata && chunk_ids.is_empty() && !has_content {
         return Ok(None);
@@ -116,7 +144,7 @@ async fn build_deletion_task_data(
 
     let default_ws = tenant_ctx.workspace_id_or_default();
     let (workspace_id, document_status, content_hash, pdf_id, ingest_track_id) = if has_metadata {
-        if let Ok(Some(metadata)) = state.storage.kv_storage.get_by_id(&metadata_key).await {
+        if let Some(metadata) = metadata_val {
             (
                 metadata
                     .get("workspace_id")

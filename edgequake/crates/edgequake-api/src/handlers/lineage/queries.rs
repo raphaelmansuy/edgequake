@@ -58,25 +58,25 @@ async fn enrich_lineage_page_data(
         return None; // already complete — O(1) early exit
     }
 
-    // Collect all chunk IDs in one pass.
-    let chunk_ids: Vec<&str> = chunks_arr
+    // Collect all chunk IDs in one pass (owned for get_by_ids_ordered).
+    let chunk_ids: Vec<String> = chunks_arr
         .iter()
-        .filter_map(|c| c.get("chunk_id")?.as_str())
+        .filter_map(|c| c.get("chunk_id")?.as_str().map(str::to_owned))
         .collect();
 
     if chunk_ids.is_empty() {
         return None;
     }
 
-    // Batch-fetch chunk KV records to read page attribution.
-    // We build a map: chunk_id → page_start (u32).
+    // IMP-075-03: one RT UNNEST batch (O(K log N)), never O(K) get_by_id RTs.
+    // Map: chunk_id → page_start (u32) from authoritative chunk KV SSOT.
+    let values = kv.get_by_ids_ordered(&chunk_ids).await.ok()?;
     let mut page_map: std::collections::HashMap<String, u32> =
         std::collections::HashMap::with_capacity(chunk_ids.len());
-
-    for id in &chunk_ids {
-        if let Ok(Some(record)) = kv.get_by_id(id).await {
+    for (id, record) in chunk_ids.iter().zip(values) {
+        if let Some(record) = record {
             if let Some(page) = record.get("page_start").and_then(|v| v.as_u64()) {
-                page_map.insert((*id).to_string(), page as u32);
+                page_map.insert(id.clone(), page as u32);
             }
         }
     }

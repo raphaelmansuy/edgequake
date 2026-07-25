@@ -1,0 +1,1055 @@
+//! Data-layer operation reference IDs (SPEC-088).
+//!
+//! SSOT for inventory: `docs/data-layer/00-inventory.md` / `00-inventory.json`.
+//! Ref ID format: `DATA-<ENGINE>-<DOMAIN>-<OPERATION>-<NNN>`
+//!
+//! Rules:
+//! - IDs are immutable: never renumber, reuse, or delete (mark deprecated instead).
+//! - Emit as SQL comment prefix via [`sql_comment`] so refs appear in `pg_stat_statements`.
+//! - Prefer [`TimedStorageOp::start`] with the same ref string for metrics.
+
+/// Prefix a SQL statement with a data-op ref for `pg_stat_statements` / slow-query logs.
+///
+/// ```ignore
+/// let sql = dataop::sql_comment(dataop::DATA_PG_KV_GET_BY_ID_075, "SELECT value FROM t WHERE key = $1");
+/// ```
+#[inline]
+pub fn sql_comment(ref_id: &str, sql: &str) -> String {
+    format!("/* {} */ {}", ref_id, sql.trim_start())
+}
+
+/// Validate a ref-id string matches the canonical scheme.
+pub fn is_valid_ref_id(ref_id: &str) -> bool {
+    regex_lite_is_valid(ref_id)
+}
+
+fn regex_lite_is_valid(ref_id: &str) -> bool {
+    // DATA-<ENGINE>-<DOMAIN>-<OPERATION...>-<NNN>
+    let parts: Vec<&str> = ref_id.split('-').collect();
+    if parts.len() < 5 {
+        return false;
+    }
+    if parts[0] != "DATA" {
+        return false;
+    }
+    if !matches!(parts[1], "PG" | "PGVEC" | "AGE") {
+        return false;
+    }
+    let nnn = parts[parts.len() - 1];
+    nnn.len() == 3 && nnn.chars().all(|c| c.is_ascii_digit())
+}
+
+/// All registered Ref IDs (inventory order).
+pub fn all_ref_ids() -> &'static [&'static str] {
+    ALL_REF_IDS
+}
+
+/// Look up a Ref ID by exact match; returns None if unknown.
+pub fn lookup(ref_id: &str) -> Option<&'static str> {
+    ALL_REF_IDS.iter().copied().find(|&id| id == ref_id)
+}
+
+// ── Individual constants ──────────────────────────────────────────────────
+/// ANN-QUERY — VectorStorage::query
+pub const DATA_PGVEC_VECTORS_ANN_QUERY_001: &str = "DATA-PGVEC-VECTORS-ANN-QUERY-001";
+
+/// ANN-QUERY-FILTERED — VectorStorage::query_filtered
+pub const DATA_PGVEC_VECTORS_ANN_QUERY_FILTERED_002: &str =
+    "DATA-PGVEC-VECTORS-ANN-QUERY-FILTERED-002";
+
+/// TEXT-SEARCH-FILTERED — VectorStorage::text_search_filtered
+pub const DATA_PG_VECTORS_TEXT_SEARCH_FILTERED_003: &str =
+    "DATA-PG-VECTORS-TEXT-SEARCH-FILTERED-003";
+
+/// UPSERT-BATCH — VectorStorage::upsert_report_created
+pub const DATA_PGVEC_VECTORS_UPSERT_BATCH_004: &str = "DATA-PGVEC-VECTORS-UPSERT-BATCH-004";
+
+/// DELETE-BY-ID — VectorStorage::delete
+pub const DATA_PG_VECTORS_DELETE_BY_ID_005: &str = "DATA-PG-VECTORS-DELETE-BY-ID-005";
+
+/// DELETE-ENTITY — VectorStorage::delete_entity
+pub const DATA_PG_VECTORS_DELETE_ENTITY_006: &str = "DATA-PG-VECTORS-DELETE-ENTITY-006";
+
+/// DELETE-ENTITIES-BATCH — VectorStorage::delete_entities_batch
+pub const DATA_PG_VECTORS_DELETE_ENTITIES_BATCH_007: &str =
+    "DATA-PG-VECTORS-DELETE-ENTITIES-BATCH-007";
+
+/// DELETE-ENTITY-RELATIONS — VectorStorage::delete_entity_relations
+pub const DATA_PG_VECTORS_DELETE_ENTITY_RELATIONS_008: &str =
+    "DATA-PG-VECTORS-DELETE-ENTITY-RELATIONS-008";
+
+/// GET-BY-ID — VectorStorage::get_by_id
+pub const DATA_PG_VECTORS_GET_BY_ID_009: &str = "DATA-PG-VECTORS-GET-BY-ID-009";
+
+/// GET-BY-IDS — VectorStorage::get_by_ids
+pub const DATA_PG_VECTORS_GET_BY_IDS_010: &str = "DATA-PG-VECTORS-GET-BY-IDS-010";
+
+/// COUNT — VectorStorage::count
+pub const DATA_PG_VECTORS_COUNT_011: &str = "DATA-PG-VECTORS-COUNT-011";
+
+/// IS-EMPTY — VectorStorage::is_empty
+pub const DATA_PG_VECTORS_IS_EMPTY_012: &str = "DATA-PG-VECTORS-IS-EMPTY-012";
+
+/// PING — VectorStorage::ping
+pub const DATA_PG_VECTORS_PING_013: &str = "DATA-PG-VECTORS-PING-013";
+
+/// CLEAR — VectorStorage::clear
+pub const DATA_PG_VECTORS_CLEAR_014: &str = "DATA-PG-VECTORS-CLEAR-014";
+
+/// CLEAR-WORKSPACE — VectorStorage::clear_workspace
+pub const DATA_PG_VECTORS_CLEAR_WORKSPACE_015: &str = "DATA-PG-VECTORS-CLEAR-WORKSPACE-015";
+
+/// DELETE-BY-DOCUMENT — VectorStorage::delete_by_document
+pub const DATA_PG_VECTORS_DELETE_BY_DOCUMENT_016: &str = "DATA-PG-VECTORS-DELETE-BY-DOCUMENT-016";
+
+/// WARMUP-ANN — VectorStorage::warmup_workspace_ann
+pub const DATA_PGVEC_VECTORS_WARMUP_ANN_017: &str = "DATA-PGVEC-VECTORS-WARMUP-ANN-017";
+
+/// DDL-CREATE-TABLE — create_table
+pub const DATA_PGVEC_VECTORS_DDL_CREATE_TABLE_018: &str = "DATA-PGVEC-VECTORS-DDL-CREATE-TABLE-018";
+
+/// DDL-ENSURE-ANN-INDEX — ensure_ann_index
+pub const DATA_PGVEC_VECTORS_DDL_ENSURE_ANN_INDEX_019: &str =
+    "DATA-PGVEC-VECTORS-DDL-ENSURE-ANN-INDEX-019";
+
+/// DDL-PARTIAL-HNSW — ensure_partial_hnsw_for_workspace
+pub const DATA_PGVEC_VECTORS_DDL_PARTIAL_HNSW_020: &str = "DATA-PGVEC-VECTORS-DDL-PARTIAL-HNSW-020";
+
+/// DDL-ENSURE-FTS — ensure_content_fts
+pub const DATA_PG_VECTORS_DDL_ENSURE_FTS_021: &str = "DATA-PG-VECTORS-DDL-ENSURE-FTS-021";
+
+/// SESSION-SEARCH-TUNING — search_tuning_statements
+pub const DATA_PGVEC_VECTORS_SESSION_SEARCH_TUNING_022: &str =
+    "DATA-PGVEC-VECTORS-SESSION-SEARCH-TUNING-022";
+
+/// WS-DROP-TABLE — PgWorkspaceVectorRegistry::drop_workspace_table
+pub const DATA_PG_VECTORS_WS_DROP_TABLE_023: &str = "DATA-PG-VECTORS-WS-DROP-TABLE-023";
+
+/// DIM-RECONCILE — reconcile_dimension
+pub const DATA_PGVEC_VECTORS_DIM_RECONCILE_024: &str = "DATA-PGVEC-VECTORS-DIM-RECONCILE-024";
+
+/// HAS-NODE — GraphStorage::has_node
+pub const DATA_AGE_GRAPH_HAS_NODE_025: &str = "DATA-AGE-GRAPH-HAS-NODE-025";
+
+/// GET-NODE — GraphStorage::get_node
+pub const DATA_AGE_GRAPH_GET_NODE_026: &str = "DATA-AGE-GRAPH-GET-NODE-026";
+
+/// NODE-DEGREE — GraphStorage::node_degree
+pub const DATA_AGE_GRAPH_NODE_DEGREE_027: &str = "DATA-AGE-GRAPH-NODE-DEGREE-027";
+
+/// NODE-DEGREES-BATCH — GraphStorage::node_degrees_batch
+pub const DATA_AGE_GRAPH_NODE_DEGREES_BATCH_028: &str = "DATA-AGE-GRAPH-NODE-DEGREES-BATCH-028";
+
+/// GET-ALL-NODES — GraphStorage::get_all_nodes
+pub const DATA_AGE_GRAPH_GET_ALL_NODES_029: &str = "DATA-AGE-GRAPH-GET-ALL-NODES-029";
+
+/// GET-NODES-BY-IDS — GraphStorage::get_nodes_by_ids
+pub const DATA_AGE_GRAPH_GET_NODES_BY_IDS_030: &str = "DATA-AGE-GRAPH-GET-NODES-BY-IDS-030";
+
+/// GET-NODES-BATCH — GraphStorage::get_nodes_batch
+pub const DATA_AGE_GRAPH_GET_NODES_BATCH_031: &str = "DATA-AGE-GRAPH-GET-NODES-BATCH-031";
+
+/// GET-EDGES-FOR-NODES-BATCH — GraphStorage::get_edges_for_nodes_batch
+pub const DATA_AGE_GRAPH_GET_EDGES_FOR_NODES_BATCH_032: &str =
+    "DATA-AGE-GRAPH-GET-EDGES-FOR-NODES-BATCH-032";
+
+/// HAS-EDGE — GraphStorage::has_edge
+pub const DATA_AGE_GRAPH_HAS_EDGE_033: &str = "DATA-AGE-GRAPH-HAS-EDGE-033";
+
+/// GET-EDGE — GraphStorage::get_edge
+pub const DATA_AGE_GRAPH_GET_EDGE_034: &str = "DATA-AGE-GRAPH-GET-EDGE-034";
+
+/// GET-NODE-EDGES — GraphStorage::get_node_edges
+pub const DATA_AGE_GRAPH_GET_NODE_EDGES_035: &str = "DATA-AGE-GRAPH-GET-NODE-EDGES-035";
+
+/// GET-INCIDENT-EDGES-BATCH — GraphStorage::get_incident_edges_batch
+pub const DATA_AGE_GRAPH_GET_INCIDENT_EDGES_BATCH_036: &str =
+    "DATA-AGE-GRAPH-GET-INCIDENT-EDGES-BATCH-036";
+
+/// GET-ALL-EDGES — GraphStorage::get_all_edges
+pub const DATA_AGE_GRAPH_GET_ALL_EDGES_037: &str = "DATA-AGE-GRAPH-GET-ALL-EDGES-037";
+
+/// GET-KNOWLEDGE-GRAPH — GraphStorage::get_knowledge_graph
+pub const DATA_AGE_GRAPH_GET_KNOWLEDGE_GRAPH_038: &str = "DATA-AGE-GRAPH-GET-KNOWLEDGE-GRAPH-038";
+
+/// GET-POPULAR-LABELS — GraphStorage::get_popular_labels
+pub const DATA_AGE_GRAPH_GET_POPULAR_LABELS_039: &str = "DATA-AGE-GRAPH-GET-POPULAR-LABELS-039";
+
+/// SEARCH-LABELS — GraphStorage::search_labels
+pub const DATA_AGE_GRAPH_SEARCH_LABELS_040: &str = "DATA-AGE-GRAPH-SEARCH-LABELS-040";
+
+/// SEARCH-NODES — GraphStorage::search_nodes
+pub const DATA_AGE_GRAPH_SEARCH_NODES_041: &str = "DATA-AGE-GRAPH-SEARCH-NODES-041";
+
+/// GET-NEIGHBORS — GraphStorage::get_neighbors
+pub const DATA_AGE_GRAPH_GET_NEIGHBORS_042: &str = "DATA-AGE-GRAPH-GET-NEIGHBORS-042";
+
+/// GET-POPULAR-NODES-DEGREE — GraphStorage::get_popular_nodes_with_degree
+pub const DATA_AGE_GRAPH_GET_POPULAR_NODES_DEGREE_043: &str =
+    "DATA-AGE-GRAPH-GET-POPULAR-NODES-DEGREE-043";
+
+/// GET-EDGES-FOR-NODE-SET — GraphStorage::get_edges_for_node_set
+pub const DATA_AGE_GRAPH_GET_EDGES_FOR_NODE_SET_044: &str =
+    "DATA-AGE-GRAPH-GET-EDGES-FOR-NODE-SET-044";
+
+/// UPSERT-NODE — GraphStorage::upsert_node
+pub const DATA_AGE_GRAPH_UPSERT_NODE_045: &str = "DATA-AGE-GRAPH-UPSERT-NODE-045";
+
+/// UPSERT-NODES-BATCH — GraphStorage::upsert_nodes_batch
+pub const DATA_AGE_GRAPH_UPSERT_NODES_BATCH_046: &str = "DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046";
+
+/// DELETE-NODE — GraphStorage::delete_node
+pub const DATA_AGE_GRAPH_DELETE_NODE_047: &str = "DATA-AGE-GRAPH-DELETE-NODE-047";
+
+/// DELETE-NODES-BATCH — GraphStorage::delete_nodes_batch
+pub const DATA_AGE_GRAPH_DELETE_NODES_BATCH_048: &str = "DATA-AGE-GRAPH-DELETE-NODES-BATCH-048";
+
+/// DELETE-NODE-SCOPED — GraphStorage::delete_node_scoped
+pub const DATA_AGE_GRAPH_DELETE_NODE_SCOPED_049: &str = "DATA-AGE-GRAPH-DELETE-NODE-SCOPED-049";
+
+/// UPSERT-EDGE — GraphStorage::upsert_edge
+pub const DATA_AGE_GRAPH_UPSERT_EDGE_050: &str = "DATA-AGE-GRAPH-UPSERT-EDGE-050";
+
+/// UPSERT-EDGES-BATCH — GraphStorage::upsert_edges_batch
+pub const DATA_AGE_GRAPH_UPSERT_EDGES_BATCH_051: &str = "DATA-AGE-GRAPH-UPSERT-EDGES-BATCH-051";
+
+/// DELETE-EDGE — GraphStorage::delete_edge
+pub const DATA_AGE_GRAPH_DELETE_EDGE_052: &str = "DATA-AGE-GRAPH-DELETE-EDGE-052";
+
+/// DELETE-EDGES-BATCH — GraphStorage::delete_edges_batch
+pub const DATA_AGE_GRAPH_DELETE_EDGES_BATCH_053: &str = "DATA-AGE-GRAPH-DELETE-EDGES-BATCH-053";
+
+/// DELETE-EDGE-SCOPED — GraphStorage::delete_edge_scoped
+pub const DATA_AGE_GRAPH_DELETE_EDGE_SCOPED_054: &str = "DATA-AGE-GRAPH-DELETE-EDGE-SCOPED-054";
+
+/// CLEAR — GraphStorage::clear
+pub const DATA_AGE_GRAPH_CLEAR_055: &str = "DATA-AGE-GRAPH-CLEAR-055";
+
+/// CLEAR-WORKSPACE — GraphStorage::clear_workspace
+pub const DATA_AGE_GRAPH_CLEAR_WORKSPACE_056: &str = "DATA-AGE-GRAPH-CLEAR-WORKSPACE-056";
+
+/// NODE-COUNT — GraphStorage::node_count
+pub const DATA_AGE_GRAPH_NODE_COUNT_057: &str = "DATA-AGE-GRAPH-NODE-COUNT-057";
+
+/// EDGE-COUNT — GraphStorage::edge_count
+pub const DATA_AGE_GRAPH_EDGE_COUNT_058: &str = "DATA-AGE-GRAPH-EDGE-COUNT-058";
+
+/// NODE-COUNT-FAST — GraphStorage::node_count_fast
+pub const DATA_AGE_GRAPH_NODE_COUNT_FAST_059: &str = "DATA-AGE-GRAPH-NODE-COUNT-FAST-059";
+
+/// EDGE-COUNT-FAST — GraphStorage::edge_count_fast
+pub const DATA_AGE_GRAPH_EDGE_COUNT_FAST_060: &str = "DATA-AGE-GRAPH-EDGE-COUNT-FAST-060";
+
+/// NODE-COUNT-BY-WORKSPACE — GraphStorage::node_count_by_workspace
+pub const DATA_AGE_GRAPH_NODE_COUNT_BY_WORKSPACE_061: &str =
+    "DATA-AGE-GRAPH-NODE-COUNT-BY-WORKSPACE-061";
+
+/// EDGE-COUNT-BY-WORKSPACE — GraphStorage::edge_count_by_workspace
+pub const DATA_AGE_GRAPH_EDGE_COUNT_BY_WORKSPACE_062: &str =
+    "DATA-AGE-GRAPH-EDGE-COUNT-BY-WORKSPACE-062";
+
+/// DISTINCT-NODE-TYPE-COUNT — GraphStorage::distinct_node_type_count_by_workspace
+pub const DATA_AGE_GRAPH_DISTINCT_NODE_TYPE_COUNT_063: &str =
+    "DATA-AGE-GRAPH-DISTINCT-NODE-TYPE-COUNT-063";
+
+/// NODE-COUNT-BY-SOURCE-PREFIX — GraphStorage::node_count_by_source_prefix
+pub const DATA_AGE_GRAPH_NODE_COUNT_BY_SOURCE_PREFIX_064: &str =
+    "DATA-AGE-GRAPH-NODE-COUNT-BY-SOURCE-PREFIX-064";
+
+/// NODE-COUNTS-BY-SOURCE-PREFIXES — GraphStorage::node_counts_by_source_prefixes
+pub const DATA_AGE_GRAPH_NODE_COUNTS_BY_SOURCE_PREFIXES_065: &str =
+    "DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES-065";
+
+/// LIST-NODES-FILTERED — GraphStorage::list_nodes_filtered
+pub const DATA_AGE_GRAPH_LIST_NODES_FILTERED_066: &str = "DATA-AGE-GRAPH-LIST-NODES-FILTERED-066";
+
+/// LIST-EDGES-FILTERED — GraphStorage::list_edges_filtered
+pub const DATA_AGE_GRAPH_LIST_EDGES_FILTERED_067: &str = "DATA-AGE-GRAPH-LIST-EDGES-FILTERED-067";
+
+/// FIND-NODES-BY-SOURCE-PREFIXES — GraphStorage::find_nodes_by_source_prefixes
+pub const DATA_AGE_GRAPH_FIND_NODES_BY_SOURCE_PREFIXES_068: &str =
+    "DATA-AGE-GRAPH-FIND-NODES-BY-SOURCE-PREFIXES-068";
+
+/// FIND-EDGES-BY-SOURCE-PREFIXES — GraphStorage::find_edges_by_source_prefixes
+pub const DATA_AGE_GRAPH_FIND_EDGES_BY_SOURCE_PREFIXES_069: &str =
+    "DATA-AGE-GRAPH-FIND-EDGES-BY-SOURCE-PREFIXES-069";
+
+/// FIND-EDGE-BY-RELATIONSHIP-ID — GraphStorage::find_edge_by_relationship_id
+pub const DATA_AGE_GRAPH_FIND_EDGE_BY_RELATIONSHIP_ID_070: &str =
+    "DATA-AGE-GRAPH-FIND-EDGE-BY-RELATIONSHIP-ID-070";
+
+/// CYPHER-EXEC — execute_cypher / cypher_query
+pub const DATA_AGE_GRAPH_CYPHER_EXEC_071: &str = "DATA-AGE-GRAPH-CYPHER-EXEC-071";
+
+/// LIFECYCLE-ENSURE-INDEXES — ensure_indexes
+pub const DATA_AGE_GRAPH_LIFECYCLE_ENSURE_INDEXES_072: &str =
+    "DATA-AGE-GRAPH-LIFECYCLE-ENSURE-INDEXES-072";
+
+/// COPY-LOAD-VERTICES — load_vertices_from_csv
+pub const DATA_AGE_GRAPH_COPY_LOAD_VERTICES_073: &str = "DATA-AGE-GRAPH-COPY-LOAD-VERTICES-073";
+
+/// SESSION-LOAD-AGE — set_age_session / search_path
+pub const DATA_AGE_GRAPH_SESSION_LOAD_AGE_074: &str = "DATA-AGE-GRAPH-SESSION-LOAD-AGE-074";
+
+/// GET-BY-ID — KVStorage::get_by_id
+pub const DATA_PG_KV_GET_BY_ID_075: &str = "DATA-PG-KV-GET-BY-ID-075";
+
+/// GET-BY-IDS — KVStorage::get_by_ids
+pub const DATA_PG_KV_GET_BY_IDS_076: &str = "DATA-PG-KV-GET-BY-IDS-076";
+
+/// GET-BY-IDS-ORDERED — KVStorage::get_by_ids_ordered
+pub const DATA_PG_KV_GET_BY_IDS_ORDERED_077: &str = "DATA-PG-KV-GET-BY-IDS-ORDERED-077";
+
+/// FILTER-KEYS — KVStorage::filter_keys
+pub const DATA_PG_KV_FILTER_KEYS_078: &str = "DATA-PG-KV-FILTER-KEYS-078";
+
+/// UPSERT — KVStorage::upsert
+pub const DATA_PG_KV_UPSERT_079: &str = "DATA-PG-KV-UPSERT-079";
+
+/// DELETE — KVStorage::delete
+pub const DATA_PG_KV_DELETE_080: &str = "DATA-PG-KV-DELETE-080";
+
+/// COUNT — KVStorage::count
+pub const DATA_PG_KV_COUNT_081: &str = "DATA-PG-KV-COUNT-081";
+
+/// IS-EMPTY — KVStorage::is_empty
+pub const DATA_PG_KV_IS_EMPTY_082: &str = "DATA-PG-KV-IS-EMPTY-082";
+
+/// PING — KVStorage::ping
+pub const DATA_PG_KV_PING_083: &str = "DATA-PG-KV-PING-083";
+
+/// COUNT-EMBEDDED-CHUNKS — KVStorage::count_embedded_chunks_for_docs
+pub const DATA_PG_KV_COUNT_EMBEDDED_CHUNKS_084: &str = "DATA-PG-KV-COUNT-EMBEDDED-CHUNKS-084";
+
+/// KEYS-WITH-PREFIX — KVStorage::keys_with_prefix
+pub const DATA_PG_KV_KEYS_WITH_PREFIX_085: &str = "DATA-PG-KV-KEYS-WITH-PREFIX-085";
+
+/// KEYS-WITH-PREFIX-LIMITED — KVStorage::keys_with_prefix_limited
+pub const DATA_PG_KV_KEYS_WITH_PREFIX_LIMITED_086: &str = "DATA-PG-KV-KEYS-WITH-PREFIX-LIMITED-086";
+
+/// KEYS-WITH-SUFFIX — KVStorage::keys_with_suffix
+pub const DATA_PG_KV_KEYS_WITH_SUFFIX_087: &str = "DATA-PG-KV-KEYS-WITH-SUFFIX-087";
+
+/// KEYS-WITH-SUFFIX-LIMITED — KVStorage::keys_with_suffix_limited
+pub const DATA_PG_KV_KEYS_WITH_SUFFIX_LIMITED_088: &str = "DATA-PG-KV-KEYS-WITH-SUFFIX-LIMITED-088";
+
+/// KEYS — KVStorage::keys
+pub const DATA_PG_KV_KEYS_089: &str = "DATA-PG-KV-KEYS-089";
+
+/// CLEAR — KVStorage::clear
+pub const DATA_PG_KV_CLEAR_090: &str = "DATA-PG-KV-CLEAR-090";
+
+/// TRANSITION-IF-STATUS — KVStorage::transition_if_status
+pub const DATA_PG_KV_TRANSITION_IF_STATUS_091: &str = "DATA-PG-KV-TRANSITION-IF-STATUS-091";
+
+/// DDL-CREATE-TABLE — PostgresKVStorage::create_table
+pub const DATA_PG_KV_DDL_CREATE_TABLE_092: &str = "DATA-PG-KV-DDL-CREATE-TABLE-092";
+
+/// STORE — PdfStorage::store_pdf
+pub const DATA_PG_PDF_STORE_093: &str = "DATA-PG-PDF-STORE-093";
+
+/// GET — PdfStorage::get_pdf
+pub const DATA_PG_PDF_GET_094: &str = "DATA-PG-PDF-GET-094";
+
+/// UPDATE-MARKDOWN — PdfStorage::update_markdown
+pub const DATA_PG_PDF_UPDATE_MARKDOWN_095: &str = "DATA-PG-PDF-UPDATE-MARKDOWN-095";
+
+/// UPDATE-STATUS — PdfStorage::update_pdf_processing
+pub const DATA_PG_PDF_UPDATE_STATUS_096: &str = "DATA-PG-PDF-UPDATE-STATUS-096";
+
+/// LINK-TO-DOCUMENT — PdfStorage::link_pdf_to_document
+pub const DATA_PG_PDF_LINK_TO_DOCUMENT_097: &str = "DATA-PG-PDF-LINK-TO-DOCUMENT-097";
+
+/// LIST — PdfStorage::list_pdfs
+pub const DATA_PG_PDF_LIST_098: &str = "DATA-PG-PDF-LIST-098";
+
+/// DELETE — PdfStorage::delete_pdf
+pub const DATA_PG_PDF_DELETE_099: &str = "DATA-PG-PDF-DELETE-099";
+
+/// CLEAR-MARKDOWN — PdfStorage::clear_markdown
+pub const DATA_PG_PDF_CLEAR_MARKDOWN_100: &str = "DATA-PG-PDF-CLEAR-MARKDOWN-100";
+
+/// ENSURE-RECORD — ensure_document_record
+pub const DATA_PG_DOCS_ENSURE_RECORD_101: &str = "DATA-PG-DOCS-ENSURE-RECORD-101";
+
+/// UPDATE-STATS — update_document_stats
+pub const DATA_PG_DOCS_UPDATE_STATS_102: &str = "DATA-PG-DOCS-UPDATE-STATS-102";
+
+/// TOUCH-STATUS — touch_document_status
+pub const DATA_PG_DOCS_TOUCH_STATUS_103: &str = "DATA-PG-DOCS-TOUCH-STATUS-103";
+
+/// DELETE-RECORD — delete_document_record
+pub const DATA_PG_DOCS_DELETE_RECORD_104: &str = "DATA-PG-DOCS-DELETE-RECORD-104";
+
+/// COUNT — count_pdfs
+pub const DATA_PG_PDF_COUNT_105: &str = "DATA-PG-PDF-COUNT-105";
+
+/// LIST-SUMMARIES — list_relational_document_summaries
+pub const DATA_PG_DOCS_LIST_SUMMARIES_106: &str = "DATA-PG-DOCS-LIST-SUMMARIES-106";
+
+/// DELETE-WORKSPACE — delete_relational_documents_for_workspace
+pub const DATA_PG_DOCS_DELETE_WORKSPACE_107: &str = "DATA-PG-DOCS-DELETE-WORKSPACE-107";
+
+/// STORE — OriginalStorage store/get/delete
+pub const DATA_PG_ORIGINAL_STORE_108: &str = "DATA-PG-ORIGINAL-STORE-108";
+
+/// STORE — MmAssetStorage CRUD
+pub const DATA_PG_MM_ASSET_STORE_109: &str = "DATA-PG-MM-ASSET-STORE-109";
+
+/// CREATE — ConversationStorage::create_conversation
+pub const DATA_PG_CONV_CREATE_110: &str = "DATA-PG-CONV-CREATE-110";
+
+/// GET — ConversationStorage::get_conversation
+pub const DATA_PG_CONV_GET_111: &str = "DATA-PG-CONV-GET-111";
+
+/// UPDATE — ConversationStorage::update_conversation
+pub const DATA_PG_CONV_UPDATE_112: &str = "DATA-PG-CONV-UPDATE-112";
+
+/// DELETE — ConversationStorage::delete_conversation
+pub const DATA_PG_CONV_DELETE_113: &str = "DATA-PG-CONV-DELETE-113";
+
+/// LIST — ConversationStorage::list_conversations
+pub const DATA_PG_CONV_LIST_114: &str = "DATA-PG-CONV-LIST-114";
+
+/// SHARE — ConversationStorage::share_conversation
+pub const DATA_PG_CONV_SHARE_115: &str = "DATA-PG-CONV-SHARE-115";
+
+/// UNSHARE — ConversationStorage::unshare_conversation
+pub const DATA_PG_CONV_UNSHARE_116: &str = "DATA-PG-CONV-UNSHARE-116";
+
+/// GET-SHARED — ConversationStorage::get_shared_conversation
+pub const DATA_PG_CONV_GET_SHARED_117: &str = "DATA-PG-CONV-GET-SHARED-117";
+
+/// MSG-CREATE — ConversationStorage::create_message
+pub const DATA_PG_CONV_MSG_CREATE_118: &str = "DATA-PG-CONV-MSG-CREATE-118";
+
+/// MSG-UPDATE — ConversationStorage::update_message
+pub const DATA_PG_CONV_MSG_UPDATE_119: &str = "DATA-PG-CONV-MSG-UPDATE-119";
+
+/// MSG-GET — ConversationStorage::get_message
+pub const DATA_PG_CONV_MSG_GET_120: &str = "DATA-PG-CONV-MSG-GET-120";
+
+/// MSG-DELETE — ConversationStorage::delete_message
+pub const DATA_PG_CONV_MSG_DELETE_121: &str = "DATA-PG-CONV-MSG-DELETE-121";
+
+/// MSG-LIST — ConversationStorage::list_messages
+pub const DATA_PG_CONV_MSG_LIST_122: &str = "DATA-PG-CONV-MSG-LIST-122";
+
+/// FOLDER-CREATE — ConversationStorage::create_folder
+pub const DATA_PG_CONV_FOLDER_CREATE_123: &str = "DATA-PG-CONV-FOLDER-CREATE-123";
+
+/// FOLDER-LIST — ConversationStorage::list_folders
+pub const DATA_PG_CONV_FOLDER_LIST_124: &str = "DATA-PG-CONV-FOLDER-LIST-124";
+
+/// FOLDER-UPDATE — ConversationStorage::update_folder
+pub const DATA_PG_CONV_FOLDER_UPDATE_125: &str = "DATA-PG-CONV-FOLDER-UPDATE-125";
+
+/// FOLDER-GET — ConversationStorage::get_folder
+pub const DATA_PG_CONV_FOLDER_GET_126: &str = "DATA-PG-CONV-FOLDER-GET-126";
+
+/// FOLDER-DELETE — ConversationStorage::delete_folder
+pub const DATA_PG_CONV_FOLDER_DELETE_127: &str = "DATA-PG-CONV-FOLDER-DELETE-127";
+
+/// BULK-DELETE — ConversationStorage::bulk_delete
+pub const DATA_PG_CONV_BULK_DELETE_128: &str = "DATA-PG-CONV-BULK-DELETE-128";
+
+/// BULK-ARCHIVE — ConversationStorage::bulk_archive
+pub const DATA_PG_CONV_BULK_ARCHIVE_129: &str = "DATA-PG-CONV-BULK-ARCHIVE-129";
+
+/// BULK-MOVE — ConversationStorage::bulk_move_to_folder
+pub const DATA_PG_CONV_BULK_MOVE_130: &str = "DATA-PG-CONV-BULK-MOVE-130";
+
+/// CREATE — PostgresTaskStorage::create_task
+pub const DATA_PG_TASKS_CREATE_131: &str = "DATA-PG-TASKS-CREATE-131";
+
+/// GET — PostgresTaskStorage::get_task
+pub const DATA_PG_TASKS_GET_132: &str = "DATA-PG-TASKS-GET-132";
+
+/// TOUCH — PostgresTaskStorage::touch_task
+pub const DATA_PG_TASKS_TOUCH_133: &str = "DATA-PG-TASKS-TOUCH-133";
+
+/// UPDATE — PostgresTaskStorage::update_task
+pub const DATA_PG_TASKS_UPDATE_134: &str = "DATA-PG-TASKS-UPDATE-134";
+
+/// DELETE — PostgresTaskStorage::delete_task
+pub const DATA_PG_TASKS_DELETE_135: &str = "DATA-PG-TASKS-DELETE-135";
+
+/// LIST — PostgresTaskStorage::list_tasks
+pub const DATA_PG_TASKS_LIST_136: &str = "DATA-PG-TASKS-LIST-136";
+
+/// STATS — PostgresTaskStorage::get_statistics
+pub const DATA_PG_TASKS_STATS_137: &str = "DATA-PG-TASKS-STATS-137";
+
+/// FIND-ACTIVE-PDF — PostgresTaskStorage::find_active_pdf_processing_task
+pub const DATA_PG_TASKS_FIND_ACTIVE_PDF_138: &str = "DATA-PG-TASKS-FIND-ACTIVE-PDF-138";
+
+/// FIND-ACTIVE-INGEST — PostgresTaskStorage::find_active_pdf_ingest_task
+pub const DATA_PG_TASKS_FIND_ACTIVE_INGEST_139: &str = "DATA-PG-TASKS-FIND-ACTIVE-INGEST-139";
+
+/// CLAIM-NEXT — PostgresTaskStorage::claim_next
+pub const DATA_PG_TASKS_CLAIM_NEXT_140: &str = "DATA-PG-TASKS-CLAIM-NEXT-140";
+
+/// REFRESH-LEASE — PostgresTaskStorage::refresh_lease
+pub const DATA_PG_TASKS_REFRESH_LEASE_141: &str = "DATA-PG-TASKS-REFRESH-LEASE-141";
+
+/// RELEASE-CLAIM — PostgresTaskStorage::release_claim
+pub const DATA_PG_TASKS_RELEASE_CLAIM_142: &str = "DATA-PG-TASKS-RELEASE-CLAIM-142";
+
+/// QUEUE-METRICS — PostgresTaskStorage::get_queue_metrics_filtered
+pub const DATA_PG_TASKS_QUEUE_METRICS_143: &str = "DATA-PG-TASKS-QUEUE-METRICS-143";
+
+/// TOTAL-COUNT — PostgresTaskStorage::get_total_count
+pub const DATA_PG_TASKS_TOTAL_COUNT_144: &str = "DATA-PG-TASKS-TOTAL-COUNT-144";
+
+/// CREATE — pg_create_tenant
+pub const DATA_PG_TENANT_CREATE_145: &str = "DATA-PG-TENANT-CREATE-145";
+
+/// GET — pg_get_tenant
+pub const DATA_PG_TENANT_GET_146: &str = "DATA-PG-TENANT-GET-146";
+
+/// GET-BY-SLUG — pg_get_tenant_by_slug
+pub const DATA_PG_TENANT_GET_BY_SLUG_147: &str = "DATA-PG-TENANT-GET-BY-SLUG-147";
+
+/// UPDATE — pg_update_tenant
+pub const DATA_PG_TENANT_UPDATE_148: &str = "DATA-PG-TENANT-UPDATE-148";
+
+/// DELETE — pg_delete_tenant
+pub const DATA_PG_TENANT_DELETE_149: &str = "DATA-PG-TENANT-DELETE-149";
+
+/// LIST — pg_list_tenants
+pub const DATA_PG_TENANT_LIST_150: &str = "DATA-PG-TENANT-LIST-150";
+
+/// CREATE — pg_create_workspace
+pub const DATA_PG_WORKSPACE_CREATE_151: &str = "DATA-PG-WORKSPACE-CREATE-151";
+
+/// GET — pg_get_workspace
+pub const DATA_PG_WORKSPACE_GET_152: &str = "DATA-PG-WORKSPACE-GET-152";
+
+/// GET-BY-SLUG — pg_get_workspace_by_slug
+pub const DATA_PG_WORKSPACE_GET_BY_SLUG_153: &str = "DATA-PG-WORKSPACE-GET-BY-SLUG-153";
+
+/// UPDATE — pg_update_workspace
+pub const DATA_PG_WORKSPACE_UPDATE_154: &str = "DATA-PG-WORKSPACE-UPDATE-154";
+
+/// DELETE — pg_delete_workspace
+pub const DATA_PG_WORKSPACE_DELETE_155: &str = "DATA-PG-WORKSPACE-DELETE-155";
+
+/// LIST — pg_list_workspaces
+pub const DATA_PG_WORKSPACE_LIST_156: &str = "DATA-PG-WORKSPACE-LIST-156";
+
+/// GET-STATS — pg_get_workspace_stats
+pub const DATA_AGE_WORKSPACE_GET_STATS_157: &str = "DATA-AGE-WORKSPACE-GET-STATS-157";
+
+/// ADD — pg_add_membership
+pub const DATA_PG_MEMBERSHIP_ADD_158: &str = "DATA-PG-MEMBERSHIP-ADD-158";
+
+/// GET-USER — pg_get_user_memberships
+pub const DATA_PG_MEMBERSHIP_GET_USER_159: &str = "DATA-PG-MEMBERSHIP-GET-USER-159";
+
+/// GET-TENANT — pg_get_tenant_memberships
+pub const DATA_PG_MEMBERSHIP_GET_TENANT_160: &str = "DATA-PG-MEMBERSHIP-GET-TENANT-160";
+
+/// UPDATE-ROLE — pg_update_membership_role
+pub const DATA_PG_MEMBERSHIP_UPDATE_ROLE_161: &str = "DATA-PG-MEMBERSHIP-UPDATE-ROLE-161";
+
+/// REMOVE — pg_remove_membership
+pub const DATA_PG_MEMBERSHIP_REMOVE_162: &str = "DATA-PG-MEMBERSHIP-REMOVE-162";
+
+/// CHECK-TENANT — pg_check_tenant_access
+pub const DATA_PG_MEMBERSHIP_CHECK_TENANT_163: &str = "DATA-PG-MEMBERSHIP-CHECK-TENANT-163";
+
+/// CHECK-WORKSPACE — pg_check_workspace_access
+pub const DATA_PG_MEMBERSHIP_CHECK_WORKSPACE_164: &str = "DATA-PG-MEMBERSHIP-CHECK-WORKSPACE-164";
+
+/// GET-ROLE — pg_get_user_role
+pub const DATA_PG_MEMBERSHIP_GET_ROLE_165: &str = "DATA-PG-MEMBERSHIP-GET-ROLE-165";
+
+/// UPDATE-TENANT — pg_update_tenant_quota
+pub const DATA_PG_QUOTA_UPDATE_TENANT_166: &str = "DATA-PG-QUOTA-UPDATE-TENANT-166";
+
+/// RECORD-SNAPSHOT — pg_record_metrics_snapshot
+pub const DATA_PG_METRICS_RECORD_SNAPSHOT_167: &str = "DATA-PG-METRICS-RECORD-SNAPSHOT-167";
+
+/// GET-HISTORY — pg_get_metrics_history
+pub const DATA_PG_METRICS_GET_HISTORY_168: &str = "DATA-PG-METRICS-GET-HISTORY-168";
+
+/// SYNC-USER — sync_auth_user_to_postgres
+pub const DATA_PG_AUTH_SYNC_USER_169: &str = "DATA-PG-AUTH-SYNC-USER-169";
+
+/// ENSURE-DEFAULT-TENANT-WS — ensure_default_tenant_workspace
+pub const DATA_PG_AUTH_ENSURE_DEFAULT_TENANT_WS_170: &str =
+    "DATA-PG-AUTH-ENSURE-DEFAULT-TENANT-WS-170";
+
+/// SYNC-MEMBERSHIP — sync_default_membership_to_postgres
+pub const DATA_PG_AUTH_SYNC_MEMBERSHIP_171: &str = "DATA-PG-AUTH-SYNC-MEMBERSHIP-171";
+
+/// VERIFY-MEMBERSHIP — verify_membership_active
+pub const DATA_PG_AUTH_VERIFY_MEMBERSHIP_172: &str = "DATA-PG-AUTH-VERIFY-MEMBERSHIP-172";
+
+/// LOAD-USER — load_user_record_pg
+pub const DATA_PG_AUTH_LOAD_USER_173: &str = "DATA-PG-AUTH-LOAD-USER-173";
+
+/// FIND-USER-BY-LOGIN — find_user_record_by_login_pg
+pub const DATA_PG_AUTH_FIND_USER_BY_LOGIN_174: &str = "DATA-PG-AUTH-FIND-USER-BY-LOGIN-174";
+
+/// LIST-USERS — list_user_records_pg
+pub const DATA_PG_AUTH_LIST_USERS_175: &str = "DATA-PG-AUTH-LIST-USERS-175";
+
+/// DELETE-USER — delete_user_pg
+pub const DATA_PG_AUTH_DELETE_USER_176: &str = "DATA-PG-AUTH-DELETE-USER-176";
+
+/// PERSIST-REFRESH — persist_refresh_token_pg
+pub const DATA_PG_SESSION_PERSIST_REFRESH_177: &str = "DATA-PG-SESSION-PERSIST-REFRESH-177";
+
+/// LOAD-REFRESH — load_refresh_token_pg
+pub const DATA_PG_SESSION_LOAD_REFRESH_178: &str = "DATA-PG-SESSION-LOAD-REFRESH-178";
+
+/// REVOKE-REFRESH — revoke_refresh_token_pg
+pub const DATA_PG_SESSION_REVOKE_REFRESH_179: &str = "DATA-PG-SESSION-REVOKE-REFRESH-179";
+
+/// PERSIST-API-KEY — persist_api_key_pg
+pub const DATA_PG_SESSION_PERSIST_API_KEY_180: &str = "DATA-PG-SESSION-PERSIST-API-KEY-180";
+
+/// LIST-API-KEYS — list_api_keys_pg
+pub const DATA_PG_SESSION_LIST_API_KEYS_181: &str = "DATA-PG-SESSION-LIST-API-KEYS-181";
+
+/// FIND-API-KEY-PREFIX — find_api_keys_by_prefix_pg
+pub const DATA_PG_SESSION_FIND_API_KEY_PREFIX_182: &str = "DATA-PG-SESSION-FIND-API-KEY-PREFIX-182";
+
+/// REVOKE-API-KEY — revoke_api_key_pg
+pub const DATA_PG_SESSION_REVOKE_API_KEY_183: &str = "DATA-PG-SESSION-REVOKE-API-KEY-183";
+
+/// UPSERT — PostgresEntitySink::upsert_entity
+pub const DATA_PG_ENTITY_UPSERT_184: &str = "DATA-PG-ENTITY-UPSERT-184";
+
+/// REMOVE-SOURCES — remove_entity_sources
+pub const DATA_PG_ENTITY_REMOVE_SOURCES_185: &str = "DATA-PG-ENTITY-REMOVE-SOURCES-185";
+
+/// RECORD-ENTITY-LINK — record_entity_link
+pub const DATA_PG_LINEAGE_RECORD_ENTITY_LINK_186: &str = "DATA-PG-LINEAGE-RECORD-ENTITY-LINK-186";
+
+/// RECORD-RELATION-LINK — record_relation_link
+pub const DATA_PG_LINEAGE_RECORD_RELATION_LINK_187: &str =
+    "DATA-PG-LINEAGE-RECORD-RELATION-LINK-187";
+
+/// RECORD-RELATION-LINKS-BATCH — record_relation_links_batch
+pub const DATA_PG_LINEAGE_RECORD_RELATION_LINKS_BATCH_188: &str =
+    "DATA-PG-LINEAGE-RECORD-RELATION-LINKS-BATCH-188";
+
+/// RECORD-ENTITY-LINKS-BATCH — record_entity_links_batch
+pub const DATA_PG_LINEAGE_RECORD_ENTITY_LINKS_BATCH_189: &str =
+    "DATA-PG-LINEAGE-RECORD-ENTITY-LINKS-BATCH-189";
+
+/// APPEND-DESC-HISTORY — append_description_history
+pub const DATA_PG_LINEAGE_APPEND_DESC_HISTORY_190: &str = "DATA-PG-LINEAGE-APPEND-DESC-HISTORY-190";
+
+/// LOAD-DOC-FROM-CHUNKS — load_document_lineage_from_chunk_links
+pub const DATA_PG_LINEAGE_LOAD_DOC_FROM_CHUNKS_191: &str =
+    "DATA-PG-LINEAGE-LOAD-DOC-FROM-CHUNKS-191";
+
+/// INSERT — insert_failed_chunks
+pub const DATA_PG_FAILED_CHUNKS_INSERT_192: &str = "DATA-PG-FAILED-CHUNKS-INSERT-192";
+
+/// LIST — list_failed_chunks
+pub const DATA_PG_FAILED_CHUNKS_LIST_193: &str = "DATA-PG-FAILED-CHUNKS-LIST-193";
+
+/// MARK-STATUS — mark_chunk_status
+pub const DATA_PG_FAILED_CHUNKS_MARK_STATUS_194: &str = "DATA-PG-FAILED-CHUNKS-MARK-STATUS-194";
+
+/// SET-TENANT-CONTEXT — set_tenant_context_on_conn
+pub const DATA_PG_RLS_SET_TENANT_CONTEXT_195: &str = "DATA-PG-RLS-SET-TENANT-CONTEXT-195";
+
+/// CLEAR-TENANT-CONTEXT — clear_tenant_context_on_conn
+pub const DATA_PG_RLS_CLEAR_TENANT_CONTEXT_196: &str = "DATA-PG-RLS-CLEAR-TENANT-CONTEXT-196";
+
+/// ACQUIRE-CONNECT — PostgresPool connect/acquire
+pub const DATA_PG_POOL_ACQUIRE_CONNECT_197: &str = "DATA-PG-POOL-ACQUIRE-CONNECT-197";
+
+/// WRITE-EVENT — write_audit_event
+pub const DATA_PG_AUDIT_WRITE_EVENT_198: &str = "DATA-PG-AUDIT-WRITE-EVENT-198";
+
+/// QUERY-LOGS — query_audit_logs
+pub const DATA_PG_AUDIT_QUERY_LOGS_199: &str = "DATA-PG-AUDIT-QUERY-LOGS-199";
+
+/// LOAD-LLM-DEFAULTS — load_llm_defaults
+pub const DATA_PG_CONFIG_LOAD_LLM_DEFAULTS_200: &str = "DATA-PG-CONFIG-LOAD-LLM-DEFAULTS-200";
+
+/// SAVE-LLM-DEFAULTS — save_llm_defaults
+pub const DATA_PG_CONFIG_SAVE_LLM_DEFAULTS_201: &str = "DATA-PG-CONFIG-SAVE-LLM-DEFAULTS-201";
+
+/// LOAD-PRIORITY-MODE — load_priority_mode
+pub const DATA_PG_CONFIG_LOAD_PRIORITY_MODE_202: &str = "DATA-PG-CONFIG-LOAD-PRIORITY-MODE-202";
+
+/// SAVE-PRIORITY-MODE — save_priority_mode
+pub const DATA_PG_CONFIG_SAVE_PRIORITY_MODE_203: &str = "DATA-PG-CONFIG-SAVE-PRIORITY-MODE-203";
+
+/// CACHE-GET — KeywordCache::get
+pub const DATA_PG_KEYWORDS_CACHE_GET_204: &str = "DATA-PG-KEYWORDS-CACHE-GET-204";
+
+/// CACHE-SET — KeywordCache::set
+pub const DATA_PG_KEYWORDS_CACHE_SET_205: &str = "DATA-PG-KEYWORDS-CACHE-SET-205";
+
+/// CACHE-DELETE — KeywordCache::delete
+pub const DATA_PG_KEYWORDS_CACHE_DELETE_206: &str = "DATA-PG-KEYWORDS-CACHE-DELETE-206";
+
+/// CACHE-INIT — KeywordCache::initialize
+pub const DATA_PG_KEYWORDS_CACHE_INIT_207: &str = "DATA-PG-KEYWORDS-CACHE-INIT-207";
+
+/// ENSURE-ROW-COUNT — ensure_row_count_stats
+pub const DATA_PG_STATS_ENSURE_ROW_COUNT_208: &str = "DATA-PG-STATS-ENSURE-ROW-COUNT-208";
+
+/// ALLOCATE-DOCUMENT — allocate_document_id
+pub const DATA_PG_ID_ALLOCATE_DOCUMENT_209: &str = "DATA-PG-ID-ALLOCATE-DOCUMENT-209";
+
+/// CHECK-EXTENSIONS — check_extensions
+pub const DATA_PG_INSPECT_CHECK_EXTENSIONS_210: &str = "DATA-PG-INSPECT-CHECK-EXTENSIONS-210";
+
+/// CHECK-TABLES — check_required_tables
+pub const DATA_PG_INSPECT_CHECK_TABLES_211: &str = "DATA-PG-INSPECT-CHECK-TABLES-211";
+
+/// CHECK-INVARIANTS — check_inv* family
+pub const DATA_PG_INSPECT_CHECK_INVARIANTS_212: &str = "DATA-PG-INSPECT-CHECK-INVARIANTS-212";
+
+/// APPLY-REPAIR — apply_repair
+pub const DATA_PG_INSPECT_APPLY_REPAIR_213: &str = "DATA-PG-INSPECT-APPLY-REPAIR-213";
+
+/// MIGRATE-RUNNER — sqlx migrate + reconcile hooks
+pub const DATA_PG_SCHEMA_MIGRATE_RUNNER_214: &str = "DATA-PG-SCHEMA-MIGRATE-RUNNER-214";
+
+/// MIG-INIT-BASE — migration 001
+pub const DATA_PG_SCHEMA_MIG_INIT_BASE_215: &str = "DATA-PG-SCHEMA-MIG-INIT-BASE-215";
+
+/// MIG-TASKS-TABLE — migration 002
+pub const DATA_PG_SCHEMA_MIG_TASKS_TABLE_216: &str = "DATA-PG-SCHEMA-MIG-TASKS-TABLE-216";
+
+/// MIG-CONVERSATION-TABLE — migration 004
+pub const DATA_PG_SCHEMA_MIG_CONVERSATION_TABLE_217: &str =
+    "DATA-PG-SCHEMA-MIG-CONVERSATION-TABLE-217";
+
+/// MIG-AUDIT-LOG — migration 005
+pub const DATA_PG_SCHEMA_MIG_AUDIT_LOG_218: &str = "DATA-PG-SCHEMA-MIG-AUDIT-LOG-218";
+
+/// MIG-RLS-POLICIES — migration 009
+pub const DATA_PG_SCHEMA_MIG_RLS_POLICIES_219: &str = "DATA-PG-SCHEMA-MIG-RLS-POLICIES-219";
+
+/// MIG-AGE-GRAPH — migration 013
+pub const DATA_PG_SCHEMA_MIG_AGE_GRAPH_220: &str = "DATA-PG-SCHEMA-MIG-AGE-GRAPH-220";
+
+/// MIG-FULLTEXT-SEARCH — migration 015
+pub const DATA_PG_SCHEMA_MIG_FULLTEXT_SEARCH_221: &str = "DATA-PG-SCHEMA-MIG-FULLTEXT-SEARCH-221";
+
+/// MIG-FAILED-CHUNKS — migration 021
+pub const DATA_PG_SCHEMA_MIG_FAILED_CHUNKS_222: &str = "DATA-PG-SCHEMA-MIG-FAILED-CHUNKS-222";
+
+/// MIG-PDF-DOCUMENTS — migration 022
+pub const DATA_PG_SCHEMA_MIG_PDF_DOCUMENTS_223: &str = "DATA-PG-SCHEMA-MIG-PDF-DOCUMENTS-223";
+
+/// MIG-VECTOR-BTREE-INDEXES — migration 029
+pub const DATA_PG_SCHEMA_MIG_VECTOR_BTREE_INDEXES_224: &str =
+    "DATA-PG-SCHEMA-MIG-VECTOR-BTREE-INDEXES-224";
+
+/// MIG-SOURCE-IDS-GIN — migration 038
+pub const DATA_PG_SCHEMA_MIG_SOURCE_IDS_GIN_225: &str = "DATA-PG-SCHEMA-MIG-SOURCE-IDS-GIN-225";
+
+/// MIG-CQRS-ENTITIES — migration 039
+pub const DATA_PG_SCHEMA_MIG_CQRS_ENTITIES_226: &str = "DATA-PG-SCHEMA-MIG-CQRS-ENTITIES-226";
+
+/// MIG-CHUNK-LINEAGE — migration 066
+pub const DATA_PG_SCHEMA_MIG_CHUNK_LINEAGE_227: &str = "DATA-PG-SCHEMA-MIG-CHUNK-LINEAGE-227";
+
+/// MIG-AGE-INDEXES-CONSOLIDATE — migration 070
+pub const DATA_PG_SCHEMA_MIG_AGE_INDEXES_CONSOLIDATE_228: &str =
+    "DATA-PG-SCHEMA-MIG-AGE-INDEXES-CONSOLIDATE-228";
+
+/// MIG-HNSW-OPTIMIZE — migration 071
+pub const DATA_PG_SCHEMA_MIG_HNSW_OPTIMIZE_229: &str = "DATA-PG-SCHEMA-MIG-HNSW-OPTIMIZE-229";
+
+/// MIG-HALFVEC-EMBEDDINGS — migration 080
+pub const DATA_PG_SCHEMA_MIG_HALFVEC_EMBEDDINGS_230: &str =
+    "DATA-PG-SCHEMA-MIG-HALFVEC-EMBEDDINGS-230";
+
+/// MIG-DOCUMENT-ORIGINALS — migration 082
+pub const DATA_PG_SCHEMA_MIG_DOCUMENT_ORIGINALS_231: &str =
+    "DATA-PG-SCHEMA-MIG-DOCUMENT-ORIGINALS-231";
+
+/// MIG-MM-ASSETS — migration 084
+pub const DATA_PG_SCHEMA_MIG_MM_ASSETS_232: &str = "DATA-PG-SCHEMA-MIG-MM-ASSETS-232";
+
+/// MIG-TASK-LEASE — migration 088
+pub const DATA_PG_SCHEMA_MIG_TASK_LEASE_233: &str = "DATA-PG-SCHEMA-MIG-TASK-LEASE-233";
+
+/// MIG-MERGE-GRAPH-PROPS — migration 090
+pub const DATA_PG_SCHEMA_MIG_MERGE_GRAPH_PROPS_234: &str =
+    "DATA-PG-SCHEMA-MIG-MERGE-GRAPH-PROPS-234";
+
+/// MIG-EQ-ID-DENORM — migration 092
+pub const DATA_PG_SCHEMA_MIG_EQ_ID_DENORM_235: &str = "DATA-PG-SCHEMA-MIG-EQ-ID-DENORM-235";
+
+const ALL_REF_IDS: &[&str] = &[
+    "DATA-PGVEC-VECTORS-ANN-QUERY-001",
+    "DATA-PGVEC-VECTORS-ANN-QUERY-FILTERED-002",
+    "DATA-PG-VECTORS-TEXT-SEARCH-FILTERED-003",
+    "DATA-PGVEC-VECTORS-UPSERT-BATCH-004",
+    "DATA-PG-VECTORS-DELETE-BY-ID-005",
+    "DATA-PG-VECTORS-DELETE-ENTITY-006",
+    "DATA-PG-VECTORS-DELETE-ENTITIES-BATCH-007",
+    "DATA-PG-VECTORS-DELETE-ENTITY-RELATIONS-008",
+    "DATA-PG-VECTORS-GET-BY-ID-009",
+    "DATA-PG-VECTORS-GET-BY-IDS-010",
+    "DATA-PG-VECTORS-COUNT-011",
+    "DATA-PG-VECTORS-IS-EMPTY-012",
+    "DATA-PG-VECTORS-PING-013",
+    "DATA-PG-VECTORS-CLEAR-014",
+    "DATA-PG-VECTORS-CLEAR-WORKSPACE-015",
+    "DATA-PG-VECTORS-DELETE-BY-DOCUMENT-016",
+    "DATA-PGVEC-VECTORS-WARMUP-ANN-017",
+    "DATA-PGVEC-VECTORS-DDL-CREATE-TABLE-018",
+    "DATA-PGVEC-VECTORS-DDL-ENSURE-ANN-INDEX-019",
+    "DATA-PGVEC-VECTORS-DDL-PARTIAL-HNSW-020",
+    "DATA-PG-VECTORS-DDL-ENSURE-FTS-021",
+    "DATA-PGVEC-VECTORS-SESSION-SEARCH-TUNING-022",
+    "DATA-PG-VECTORS-WS-DROP-TABLE-023",
+    "DATA-PGVEC-VECTORS-DIM-RECONCILE-024",
+    "DATA-AGE-GRAPH-HAS-NODE-025",
+    "DATA-AGE-GRAPH-GET-NODE-026",
+    "DATA-AGE-GRAPH-NODE-DEGREE-027",
+    "DATA-AGE-GRAPH-NODE-DEGREES-BATCH-028",
+    "DATA-AGE-GRAPH-GET-ALL-NODES-029",
+    "DATA-AGE-GRAPH-GET-NODES-BY-IDS-030",
+    "DATA-AGE-GRAPH-GET-NODES-BATCH-031",
+    "DATA-AGE-GRAPH-GET-EDGES-FOR-NODES-BATCH-032",
+    "DATA-AGE-GRAPH-HAS-EDGE-033",
+    "DATA-AGE-GRAPH-GET-EDGE-034",
+    "DATA-AGE-GRAPH-GET-NODE-EDGES-035",
+    "DATA-AGE-GRAPH-GET-INCIDENT-EDGES-BATCH-036",
+    "DATA-AGE-GRAPH-GET-ALL-EDGES-037",
+    "DATA-AGE-GRAPH-GET-KNOWLEDGE-GRAPH-038",
+    "DATA-AGE-GRAPH-GET-POPULAR-LABELS-039",
+    "DATA-AGE-GRAPH-SEARCH-LABELS-040",
+    "DATA-AGE-GRAPH-SEARCH-NODES-041",
+    "DATA-AGE-GRAPH-GET-NEIGHBORS-042",
+    "DATA-AGE-GRAPH-GET-POPULAR-NODES-DEGREE-043",
+    "DATA-AGE-GRAPH-GET-EDGES-FOR-NODE-SET-044",
+    "DATA-AGE-GRAPH-UPSERT-NODE-045",
+    "DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046",
+    "DATA-AGE-GRAPH-DELETE-NODE-047",
+    "DATA-AGE-GRAPH-DELETE-NODES-BATCH-048",
+    "DATA-AGE-GRAPH-DELETE-NODE-SCOPED-049",
+    "DATA-AGE-GRAPH-UPSERT-EDGE-050",
+    "DATA-AGE-GRAPH-UPSERT-EDGES-BATCH-051",
+    "DATA-AGE-GRAPH-DELETE-EDGE-052",
+    "DATA-AGE-GRAPH-DELETE-EDGES-BATCH-053",
+    "DATA-AGE-GRAPH-DELETE-EDGE-SCOPED-054",
+    "DATA-AGE-GRAPH-CLEAR-055",
+    "DATA-AGE-GRAPH-CLEAR-WORKSPACE-056",
+    "DATA-AGE-GRAPH-NODE-COUNT-057",
+    "DATA-AGE-GRAPH-EDGE-COUNT-058",
+    "DATA-AGE-GRAPH-NODE-COUNT-FAST-059",
+    "DATA-AGE-GRAPH-EDGE-COUNT-FAST-060",
+    "DATA-AGE-GRAPH-NODE-COUNT-BY-WORKSPACE-061",
+    "DATA-AGE-GRAPH-EDGE-COUNT-BY-WORKSPACE-062",
+    "DATA-AGE-GRAPH-DISTINCT-NODE-TYPE-COUNT-063",
+    "DATA-AGE-GRAPH-NODE-COUNT-BY-SOURCE-PREFIX-064",
+    "DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES-065",
+    "DATA-AGE-GRAPH-LIST-NODES-FILTERED-066",
+    "DATA-AGE-GRAPH-LIST-EDGES-FILTERED-067",
+    "DATA-AGE-GRAPH-FIND-NODES-BY-SOURCE-PREFIXES-068",
+    "DATA-AGE-GRAPH-FIND-EDGES-BY-SOURCE-PREFIXES-069",
+    "DATA-AGE-GRAPH-FIND-EDGE-BY-RELATIONSHIP-ID-070",
+    "DATA-AGE-GRAPH-CYPHER-EXEC-071",
+    "DATA-AGE-GRAPH-LIFECYCLE-ENSURE-INDEXES-072",
+    "DATA-AGE-GRAPH-COPY-LOAD-VERTICES-073",
+    "DATA-AGE-GRAPH-SESSION-LOAD-AGE-074",
+    "DATA-PG-KV-GET-BY-ID-075",
+    "DATA-PG-KV-GET-BY-IDS-076",
+    "DATA-PG-KV-GET-BY-IDS-ORDERED-077",
+    "DATA-PG-KV-FILTER-KEYS-078",
+    "DATA-PG-KV-UPSERT-079",
+    "DATA-PG-KV-DELETE-080",
+    "DATA-PG-KV-COUNT-081",
+    "DATA-PG-KV-IS-EMPTY-082",
+    "DATA-PG-KV-PING-083",
+    "DATA-PG-KV-COUNT-EMBEDDED-CHUNKS-084",
+    "DATA-PG-KV-KEYS-WITH-PREFIX-085",
+    "DATA-PG-KV-KEYS-WITH-PREFIX-LIMITED-086",
+    "DATA-PG-KV-KEYS-WITH-SUFFIX-087",
+    "DATA-PG-KV-KEYS-WITH-SUFFIX-LIMITED-088",
+    "DATA-PG-KV-KEYS-089",
+    "DATA-PG-KV-CLEAR-090",
+    "DATA-PG-KV-TRANSITION-IF-STATUS-091",
+    "DATA-PG-KV-DDL-CREATE-TABLE-092",
+    "DATA-PG-PDF-STORE-093",
+    "DATA-PG-PDF-GET-094",
+    "DATA-PG-PDF-UPDATE-MARKDOWN-095",
+    "DATA-PG-PDF-UPDATE-STATUS-096",
+    "DATA-PG-PDF-LINK-TO-DOCUMENT-097",
+    "DATA-PG-PDF-LIST-098",
+    "DATA-PG-PDF-DELETE-099",
+    "DATA-PG-PDF-CLEAR-MARKDOWN-100",
+    "DATA-PG-DOCS-ENSURE-RECORD-101",
+    "DATA-PG-DOCS-UPDATE-STATS-102",
+    "DATA-PG-DOCS-TOUCH-STATUS-103",
+    "DATA-PG-DOCS-DELETE-RECORD-104",
+    "DATA-PG-PDF-COUNT-105",
+    "DATA-PG-DOCS-LIST-SUMMARIES-106",
+    "DATA-PG-DOCS-DELETE-WORKSPACE-107",
+    "DATA-PG-ORIGINAL-STORE-108",
+    "DATA-PG-MM-ASSET-STORE-109",
+    "DATA-PG-CONV-CREATE-110",
+    "DATA-PG-CONV-GET-111",
+    "DATA-PG-CONV-UPDATE-112",
+    "DATA-PG-CONV-DELETE-113",
+    "DATA-PG-CONV-LIST-114",
+    "DATA-PG-CONV-SHARE-115",
+    "DATA-PG-CONV-UNSHARE-116",
+    "DATA-PG-CONV-GET-SHARED-117",
+    "DATA-PG-CONV-MSG-CREATE-118",
+    "DATA-PG-CONV-MSG-UPDATE-119",
+    "DATA-PG-CONV-MSG-GET-120",
+    "DATA-PG-CONV-MSG-DELETE-121",
+    "DATA-PG-CONV-MSG-LIST-122",
+    "DATA-PG-CONV-FOLDER-CREATE-123",
+    "DATA-PG-CONV-FOLDER-LIST-124",
+    "DATA-PG-CONV-FOLDER-UPDATE-125",
+    "DATA-PG-CONV-FOLDER-GET-126",
+    "DATA-PG-CONV-FOLDER-DELETE-127",
+    "DATA-PG-CONV-BULK-DELETE-128",
+    "DATA-PG-CONV-BULK-ARCHIVE-129",
+    "DATA-PG-CONV-BULK-MOVE-130",
+    "DATA-PG-TASKS-CREATE-131",
+    "DATA-PG-TASKS-GET-132",
+    "DATA-PG-TASKS-TOUCH-133",
+    "DATA-PG-TASKS-UPDATE-134",
+    "DATA-PG-TASKS-DELETE-135",
+    "DATA-PG-TASKS-LIST-136",
+    "DATA-PG-TASKS-STATS-137",
+    "DATA-PG-TASKS-FIND-ACTIVE-PDF-138",
+    "DATA-PG-TASKS-FIND-ACTIVE-INGEST-139",
+    "DATA-PG-TASKS-CLAIM-NEXT-140",
+    "DATA-PG-TASKS-REFRESH-LEASE-141",
+    "DATA-PG-TASKS-RELEASE-CLAIM-142",
+    "DATA-PG-TASKS-QUEUE-METRICS-143",
+    "DATA-PG-TASKS-TOTAL-COUNT-144",
+    "DATA-PG-TENANT-CREATE-145",
+    "DATA-PG-TENANT-GET-146",
+    "DATA-PG-TENANT-GET-BY-SLUG-147",
+    "DATA-PG-TENANT-UPDATE-148",
+    "DATA-PG-TENANT-DELETE-149",
+    "DATA-PG-TENANT-LIST-150",
+    "DATA-PG-WORKSPACE-CREATE-151",
+    "DATA-PG-WORKSPACE-GET-152",
+    "DATA-PG-WORKSPACE-GET-BY-SLUG-153",
+    "DATA-PG-WORKSPACE-UPDATE-154",
+    "DATA-PG-WORKSPACE-DELETE-155",
+    "DATA-PG-WORKSPACE-LIST-156",
+    "DATA-AGE-WORKSPACE-GET-STATS-157",
+    "DATA-PG-MEMBERSHIP-ADD-158",
+    "DATA-PG-MEMBERSHIP-GET-USER-159",
+    "DATA-PG-MEMBERSHIP-GET-TENANT-160",
+    "DATA-PG-MEMBERSHIP-UPDATE-ROLE-161",
+    "DATA-PG-MEMBERSHIP-REMOVE-162",
+    "DATA-PG-MEMBERSHIP-CHECK-TENANT-163",
+    "DATA-PG-MEMBERSHIP-CHECK-WORKSPACE-164",
+    "DATA-PG-MEMBERSHIP-GET-ROLE-165",
+    "DATA-PG-QUOTA-UPDATE-TENANT-166",
+    "DATA-PG-METRICS-RECORD-SNAPSHOT-167",
+    "DATA-PG-METRICS-GET-HISTORY-168",
+    "DATA-PG-AUTH-SYNC-USER-169",
+    "DATA-PG-AUTH-ENSURE-DEFAULT-TENANT-WS-170",
+    "DATA-PG-AUTH-SYNC-MEMBERSHIP-171",
+    "DATA-PG-AUTH-VERIFY-MEMBERSHIP-172",
+    "DATA-PG-AUTH-LOAD-USER-173",
+    "DATA-PG-AUTH-FIND-USER-BY-LOGIN-174",
+    "DATA-PG-AUTH-LIST-USERS-175",
+    "DATA-PG-AUTH-DELETE-USER-176",
+    "DATA-PG-SESSION-PERSIST-REFRESH-177",
+    "DATA-PG-SESSION-LOAD-REFRESH-178",
+    "DATA-PG-SESSION-REVOKE-REFRESH-179",
+    "DATA-PG-SESSION-PERSIST-API-KEY-180",
+    "DATA-PG-SESSION-LIST-API-KEYS-181",
+    "DATA-PG-SESSION-FIND-API-KEY-PREFIX-182",
+    "DATA-PG-SESSION-REVOKE-API-KEY-183",
+    "DATA-PG-ENTITY-UPSERT-184",
+    "DATA-PG-ENTITY-REMOVE-SOURCES-185",
+    "DATA-PG-LINEAGE-RECORD-ENTITY-LINK-186",
+    "DATA-PG-LINEAGE-RECORD-RELATION-LINK-187",
+    "DATA-PG-LINEAGE-RECORD-RELATION-LINKS-BATCH-188",
+    "DATA-PG-LINEAGE-RECORD-ENTITY-LINKS-BATCH-189",
+    "DATA-PG-LINEAGE-APPEND-DESC-HISTORY-190",
+    "DATA-PG-LINEAGE-LOAD-DOC-FROM-CHUNKS-191",
+    "DATA-PG-FAILED-CHUNKS-INSERT-192",
+    "DATA-PG-FAILED-CHUNKS-LIST-193",
+    "DATA-PG-FAILED-CHUNKS-MARK-STATUS-194",
+    "DATA-PG-RLS-SET-TENANT-CONTEXT-195",
+    "DATA-PG-RLS-CLEAR-TENANT-CONTEXT-196",
+    "DATA-PG-POOL-ACQUIRE-CONNECT-197",
+    "DATA-PG-AUDIT-WRITE-EVENT-198",
+    "DATA-PG-AUDIT-QUERY-LOGS-199",
+    "DATA-PG-CONFIG-LOAD-LLM-DEFAULTS-200",
+    "DATA-PG-CONFIG-SAVE-LLM-DEFAULTS-201",
+    "DATA-PG-CONFIG-LOAD-PRIORITY-MODE-202",
+    "DATA-PG-CONFIG-SAVE-PRIORITY-MODE-203",
+    "DATA-PG-KEYWORDS-CACHE-GET-204",
+    "DATA-PG-KEYWORDS-CACHE-SET-205",
+    "DATA-PG-KEYWORDS-CACHE-DELETE-206",
+    "DATA-PG-KEYWORDS-CACHE-INIT-207",
+    "DATA-PG-STATS-ENSURE-ROW-COUNT-208",
+    "DATA-PG-ID-ALLOCATE-DOCUMENT-209",
+    "DATA-PG-INSPECT-CHECK-EXTENSIONS-210",
+    "DATA-PG-INSPECT-CHECK-TABLES-211",
+    "DATA-PG-INSPECT-CHECK-INVARIANTS-212",
+    "DATA-PG-INSPECT-APPLY-REPAIR-213",
+    "DATA-PG-SCHEMA-MIGRATE-RUNNER-214",
+    "DATA-PG-SCHEMA-MIG-INIT-BASE-215",
+    "DATA-PG-SCHEMA-MIG-TASKS-TABLE-216",
+    "DATA-PG-SCHEMA-MIG-CONVERSATION-TABLE-217",
+    "DATA-PG-SCHEMA-MIG-AUDIT-LOG-218",
+    "DATA-PG-SCHEMA-MIG-RLS-POLICIES-219",
+    "DATA-PG-SCHEMA-MIG-AGE-GRAPH-220",
+    "DATA-PG-SCHEMA-MIG-FULLTEXT-SEARCH-221",
+    "DATA-PG-SCHEMA-MIG-FAILED-CHUNKS-222",
+    "DATA-PG-SCHEMA-MIG-PDF-DOCUMENTS-223",
+    "DATA-PG-SCHEMA-MIG-VECTOR-BTREE-INDEXES-224",
+    "DATA-PG-SCHEMA-MIG-SOURCE-IDS-GIN-225",
+    "DATA-PG-SCHEMA-MIG-CQRS-ENTITIES-226",
+    "DATA-PG-SCHEMA-MIG-CHUNK-LINEAGE-227",
+    "DATA-PG-SCHEMA-MIG-AGE-INDEXES-CONSOLIDATE-228",
+    "DATA-PG-SCHEMA-MIG-HNSW-OPTIMIZE-229",
+    "DATA-PG-SCHEMA-MIG-HALFVEC-EMBEDDINGS-230",
+    "DATA-PG-SCHEMA-MIG-DOCUMENT-ORIGINALS-231",
+    "DATA-PG-SCHEMA-MIG-MM-ASSETS-232",
+    "DATA-PG-SCHEMA-MIG-TASK-LEASE-233",
+    "DATA-PG-SCHEMA-MIG-MERGE-GRAPH-PROPS-234",
+    "DATA-PG-SCHEMA-MIG-EQ-ID-DENORM-235",
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_ref_ids_unique_and_valid() {
+        let mut seen = std::collections::HashSet::new();
+        for id in all_ref_ids() {
+            assert!(is_valid_ref_id(id), "invalid ref: {id}");
+            assert!(seen.insert(*id), "duplicate ref: {id}");
+        }
+        assert_eq!(all_ref_ids().len(), 235);
+    }
+
+    #[test]
+    fn sql_comment_prefixes() {
+        let s = sql_comment(DATA_PGVEC_VECTORS_ANN_QUERY_001, "SELECT 1");
+        assert!(s.starts_with("/* DATA-PGVEC-VECTORS-ANN-QUERY-001 */"));
+        assert!(s.ends_with("SELECT 1"));
+    }
+
+    #[test]
+    fn lookup_known_and_unknown() {
+        assert_eq!(
+            lookup(DATA_PGVEC_VECTORS_ANN_QUERY_001),
+            Some(DATA_PGVEC_VECTORS_ANN_QUERY_001)
+        );
+        assert!(lookup("DATA-PG-NOPE-000").is_none());
+    }
+}

@@ -5965,3 +5965,143 @@ async fn issue317_batch_delete_unselected_remain() {
         );
     }
 }
+
+/// Ghost documents: incomplete cascade left wsdoc/content after metadata wipe.
+/// Batch already-absent path must still purge list surfaces (not count bare success).
+#[tokio::test]
+async fn batch_delete_purges_orphan_list_surfaces_after_incomplete_cascade() {
+    use edgequake_storage::kv_keys;
+
+    let workers = create_worker_app().await;
+    let app = workers.app();
+    let kv = &workers.kv_storage;
+
+    let doc_id = "ghost-areal-md-001";
+    let meta_key = format!("{doc_id}-metadata");
+    let content_key = format!("{doc_id}-content");
+    let wsdoc = kv_keys::workspace_doc_index(TEST_WORKSPACE_ID, doc_id);
+
+    // Seed list surfaces as a completed MD doc, then wipe only metadata
+    // (historical incomplete cascade that left UI ghosts on refresh).
+    kv.upsert(&[
+        (
+            meta_key.clone(),
+            with_tenant_scope(json!({
+                "id": doc_id,
+                "title": "areal ghost.md",
+                "status": "completed",
+                "created_at": "2026-07-01T00:00:00Z",
+            })),
+        ),
+        (content_key.clone(), json!("# areal body")),
+        (
+            wsdoc.clone(),
+            json!({
+                "metadata_key": meta_key,
+                "document_id": doc_id,
+                "workspace_id": TEST_WORKSPACE_ID,
+            }),
+        ),
+    ])
+    .await
+    .expect("seed ghost surfaces");
+
+    kv.delete(std::slice::from_ref(&meta_key))
+        .await
+        .expect("wipe meta only");
+    assert!(
+        kv.get_by_id(&wsdoc).await.ok().flatten().is_some(),
+        "precondition: orphan wsdoc remains (ghost list source)"
+    );
+    assert!(
+        kv.get_by_id(&content_key).await.ok().flatten().is_some(),
+        "precondition: orphan content remains"
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/batch-delete")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "document_ids": [doc_id] })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let body = extract_json(response).await;
+    let track = body["batch_track_id"].as_str().expect("batch_track_id");
+
+    // has_content true ⇒ full cascade path; either way list surfaces must clear.
+    let mut purged = false;
+    for _ in 0..60 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let wsdoc_gone = kv.get_by_id(&wsdoc).await.ok().flatten().is_none();
+        let content_gone = kv.get_by_id(&content_key).await.ok().flatten().is_none();
+        let meta_gone = kv.get_by_id(&meta_key).await.ok().flatten().is_none();
+        if wsdoc_gone && content_gone && meta_gone {
+            purged = true;
+            break;
+        }
+    }
+
+    assert!(
+        purged,
+        "list surfaces must be empty after batch delete; track={track} \
+         wsdoc_present={} content_present={}",
+        kv.get_by_id(&wsdoc).await.ok().flatten().is_some(),
+        kv.get_by_id(&content_key).await.ok().flatten().is_some(),
+    );
+
+    // Pure orphan path: only wsdoc remains (metadata+content already gone).
+    let doc_orphan = "ghost-wsdoc-only-002";
+    let wsdoc_orphan = kv_keys::workspace_doc_index(TEST_WORKSPACE_ID, doc_orphan);
+    kv.upsert(&[(
+        wsdoc_orphan.clone(),
+        json!({
+            "metadata_key": format!("{doc_orphan}-metadata"),
+            "document_id": doc_orphan,
+            "workspace_id": TEST_WORKSPACE_ID,
+        }),
+    )])
+    .await
+    .expect("seed wsdoc-only orphan");
+
+    let response2 = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/documents/batch-delete")
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", TEST_TENANT_ID)
+                .header("X-Workspace-ID", TEST_WORKSPACE_ID)
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "document_ids": [doc_orphan] })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response2.status(), StatusCode::ACCEPTED);
+
+    let mut orphan_purged = false;
+    for _ in 0..60 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if kv.get_by_id(&wsdoc_orphan).await.ok().flatten().is_none() {
+            orphan_purged = true;
+            break;
+        }
+    }
+    assert!(
+        orphan_purged,
+        "wsdoc-only orphan must be purged on Ok(None) list-surface path"
+    );
+}

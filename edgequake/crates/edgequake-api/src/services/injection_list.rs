@@ -48,12 +48,13 @@ pub async fn list_injections_paged(
         .collect();
     let total = meta_keys.len();
 
-    let mut items = Vec::with_capacity(meta_keys.len().min(limit));
-    for key in &meta_keys {
-        if let Some(val) = kv_storage.get_by_id(key).await? {
-            items.push(summary_from_meta(&val));
-        }
-    }
+    // IMP-075-02: one RT for all metadata keys (not N× get_by_id) — O(K log N).
+    let values = kv_storage.get_by_ids_ordered(&meta_keys).await?;
+    let mut items: Vec<InjectionSummary> = values
+        .into_iter()
+        .flatten()
+        .map(|val| summary_from_meta(&val))
+        .collect();
 
     items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
     let page_items: Vec<InjectionSummary> = items.into_iter().skip(offset).take(limit).collect();

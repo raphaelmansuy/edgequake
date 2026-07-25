@@ -7,30 +7,55 @@ use crate::error::{Result, StorageError};
 use crate::traits::GraphEdge;
 
 impl PostgresAGEGraphStorage {
+    /// IMP-031-03: native edge endpoint lookup — O(log E) via source/target indexes.
     pub(super) async fn pg_has_edge(&self, source: &str, target: &str) -> Result<bool> {
-        let cypher = "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) RETURN r LIMIT 1";
-        let params = serde_json::json!({ "source_id": source, "target_id": target });
-        let rows = self.cypher_query_bound(cypher, &["r"], &params).await?;
-        Ok(!rows.is_empty())
+        Ok(self.pg_get_edge(source, target).await?.is_some())
     }
 
+    /**
+     * @dataop      DATA-AGE-GRAPH-GET-EDGE-034
+     * @engine      apache_age (native SQL primary; IMP-031-03)
+     * @intent      Fetch single directed edge by (source_id, target_id) — O(log E).
+     * @indexes     EDGE eq_source/target or expression btree on properties
+     * @complexity  time: O(log E); space: O(1)
+     */
     pub(super) async fn pg_get_edge(
         &self,
         source: &str,
         target: &str,
     ) -> Result<Option<GraphEdge>> {
-        let cypher =
-            "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) RETURN r";
-        let params = serde_json::json!({ "source_id": source, "target_id": target });
-        let rows = self.cypher_query_bound(cypher, &["r"], &params).await?;
-
-        if rows.is_empty() {
-            return Ok(None);
-        }
-
-        let json_value: serde_json::Value = rows[0].get("r");
-        let agtype_str = json_value.to_string();
-        Ok(Self::parse_edge(&agtype_str))
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let src = if eq_present {
+            super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt = if eq_present {
+            super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::helpers::prop_only_endpoint("e", "target")
+        };
+        let sql = format!(
+            "/* DATA-AGE-GRAPH-GET-EDGE-034 */ \
+             SELECT ag_catalog.agtype_to_json(e.properties) AS props \
+             FROM {graph}.\"EDGE\" e \
+             WHERE {src} = $1 AND {tgt} = $2 \
+             LIMIT 1",
+            graph = self.graph_name,
+            src = src,
+            tgt = tgt,
+        );
+        let rows = sqlx::query(&sql)
+            .bind(source)
+            .bind(target)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("get_edge native failed: {e}")))?;
+        Ok(Self::edges_from_props_rows(&rows).into_iter().next())
     }
 
     pub(super) async fn pg_upsert_edge(
@@ -39,6 +64,16 @@ impl PostgresAGEGraphStorage {
         target: &str,
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()> {
+        // IMP-046 / IMP-031: single-edge write uses native batch-of-1 when enabled.
+        if super::native_graph_writes_enabled() {
+            return self
+                .pg_upsert_edges_batch(&[(source.to_string(), target.to_string(), properties)])
+                .await;
+        }
+        tracing::warn!(
+            target: "edgequake_storage::graph",
+            "native graph writes disabled — single edge Cypher MERGE (debug path)"
+        );
         let escaped_source = Self::escape_cypher_string(source);
         let escaped_target = Self::escape_cypher_string(target);
 
@@ -191,7 +226,21 @@ impl PostgresAGEGraphStorage {
         crate::graph_batch_dedupe::resolve_graph_upsert_chunk(MAX_CHUNK)
     }
 
+    /**
+     * @dataop      DATA-AGE-GRAPH-DELETE-EDGE-052
+     * @engine      apache_age (native SQL primary; IMP-031-05)
+     * @intent      Delete directed edge by (source, target) — O(log E).
+     */
     pub(super) async fn pg_delete_edge(&self, source: &str, target: &str) -> Result<()> {
+        if super::native_graph_writes_enabled() {
+            return self
+                .pg_delete_edges_batch(&[(source.to_string(), target.to_string())])
+                .await;
+        }
+        tracing::warn!(
+            target: "edgequake_storage::graph",
+            "native graph writes disabled — Cypher edge DELETE (debug path)"
+        );
         let cypher =
             "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) DELETE r";
         let params = serde_json::json!({ "source_id": source, "target_id": target });
@@ -200,9 +249,8 @@ impl PostgresAGEGraphStorage {
 
     /// Batch-delete edges by `(source, target)` pairs.
     ///
-    /// Native path: one SQL DELETE with `= ANY($1)` / `= ANY($2)` on EDGE
-    /// property indexes (SPEC-060). Cypher fallback loops when native writes
-    /// are disabled.
+    /// Native path: one SQL DELETE with unnested pairs on EDGE endpoint indexes
+    /// (SPEC-060 / IMP-031-05). Cypher fallback loops when native writes disabled.
     pub(super) async fn pg_delete_edges_batch(&self, edges: &[(String, String)]) -> Result<()> {
         if edges.is_empty() {
             return Ok(());
@@ -214,7 +262,11 @@ impl PostgresAGEGraphStorage {
 
         if !super::native_graph_writes_enabled() {
             for (source, target) in &unique {
-                self.pg_delete_edge(source, target).await?;
+                // Avoid re-entering batch (would recurse when flag off).
+                let cypher =
+                    "MATCH (a:Node {node_id: $source_id})-[r:EDGE]->(b:Node {node_id: $target_id}) DELETE r";
+                let params = serde_json::json!({ "source_id": source, "target_id": target });
+                self.cypher_execute_bound(cypher, &params).await?;
             }
             return Ok(());
         }
@@ -223,27 +275,41 @@ impl PostgresAGEGraphStorage {
         let targets: Vec<String> = unique.iter().map(|(_, t)| t.clone()).collect();
 
         let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
         let graph = &self.graph_name;
-        // Pairwise match: delete rows whose (source_id, target_id) is in the
-        // unnested pair list (avoids cartesian ANY×ANY false positives).
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let src = if eq_present {
+            super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt = if eq_present {
+            super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::helpers::prop_only_endpoint("e", "target")
+        };
+        // Pairwise match via UNNEST — avoids cartesian ANY×ANY false positives.
         let del_edges = format!(
-            r#"DELETE FROM {graph}."EDGE" e
+            r#"/* DATA-AGE-GRAPH-DELETE-EDGES-BATCH */
+               DELETE FROM {graph}."EDGE" e
                USING (
                  SELECT * FROM unnest($1::text[], $2::text[]) AS t(source_id, target_id)
                ) pairs
-               WHERE ag_catalog.agtype_to_json(e.properties)->>'source_id' = pairs.source_id
-                 AND ag_catalog.agtype_to_json(e.properties)->>'target_id' = pairs.target_id"#
+               WHERE {src} = pairs.source_id
+                 AND {tgt} = pairs.target_id"#
         );
         sqlx::query(&del_edges)
             .bind(&sources)
             .bind(&targets)
-            .execute(&pool)
+            .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("native batch edge delete failed: {e}")))?;
         Ok(())
     }
 
-    /// Tenant-scoped edge delete — strict property match on the relationship.
+    /// Tenant-scoped edge delete — strict match (IMP-031-05 native).
     pub(super) async fn pg_delete_edge_scoped(
         &self,
         source: &str,
@@ -251,17 +317,55 @@ impl PostgresAGEGraphStorage {
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<bool> {
-        let src = Self::escape_cypher_string(source);
-        let tgt = Self::escape_cypher_string(target);
-        let tid = Self::escape_cypher_string(tenant_id);
-        let wid = Self::escape_cypher_string(workspace_id);
-        let cypher = format!(
-            "MATCH (a:Node {{node_id: '{src}'}})-[r:EDGE]->(b:Node {{node_id: '{tgt}'}}) \
-             WHERE r.tenant_id = '{tid}' AND r.workspace_id = '{wid}' \
-             DELETE r \
-             RETURN r"
+        if !super::native_graph_writes_enabled() {
+            let src = Self::escape_cypher_string(source);
+            let tgt = Self::escape_cypher_string(target);
+            let tid = Self::escape_cypher_string(tenant_id);
+            let wid = Self::escape_cypher_string(workspace_id);
+            let cypher = format!(
+                "MATCH (a:Node {{node_id: '{src}'}})-[r:EDGE]->(b:Node {{node_id: '{tgt}'}}) \
+                 WHERE r.tenant_id = '{tid}' AND r.workspace_id = '{wid}' \
+                 DELETE r \
+                 RETURN r"
+            );
+            let rows = self.cypher_query(&cypher, &["r"]).await?;
+            return Ok(!rows.is_empty());
+        }
+
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+        let graph = &self.graph_name;
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let src_e = if eq_present {
+            super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt_e = if eq_present {
+            super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::helpers::prop_only_endpoint("e", "target")
+        };
+        let del = format!(
+            r#"/* DATA-AGE-GRAPH-DELETE-EDGE-SCOPED */
+               DELETE FROM {graph}."EDGE" e
+               WHERE {src_e} = $1 AND {tgt_e} = $2
+                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'tenant_id', '') = $3
+                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'workspace_id', '') = $4
+               RETURNING 1"#
         );
-        let rows = self.cypher_query(&cypher, &["r"]).await?;
+        let rows = sqlx::query(&del)
+            .bind(source)
+            .bind(target)
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("native scoped edge delete failed: {e}"))
+            })?;
         Ok(!rows.is_empty())
     }
 
@@ -420,20 +524,21 @@ impl PostgresAGEGraphStorage {
             .collect()
     }
 
+    /// ADMIN / dump path (FORBIDDEN on hot HTTP) — native scan (IMP-031-07).
+    /// Complexity: O(E) unavoidable; skips AGE Cypher traversal overhead.
     pub(super) async fn pg_get_all_edges(&self) -> Result<Vec<GraphEdge>> {
-        let cypher = "MATCH ()-[r:EDGE]->() RETURN r";
-        let rows = self.cypher_query(cypher, &["r"]).await?;
-
-        let edges: Vec<GraphEdge> = rows
-            .iter()
-            .filter_map(|row| {
-                let json_value: serde_json::Value = row.get("r");
-                let agtype_str = json_value.to_string();
-                Self::parse_edge(&agtype_str)
-            })
-            .collect();
-
-        Ok(edges)
+        let pool = self.pool.get().await?;
+        let sql = format!(
+            r#"/* DATA-AGE-GRAPH-GET-ALL-EDGES */
+               SELECT ag_catalog.agtype_to_json(e.properties) AS props
+               FROM {}."EDGE" e"#,
+            self.graph_name
+        );
+        let rows = sqlx::query(&sql)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("get_all_edges native failed: {e}")))?;
+        Ok(Self::edges_from_props_rows(&rows))
     }
 
     /// SPEC-034 IMP-01: Native SQL batch edge upsert — O(log G) per edge.

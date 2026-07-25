@@ -136,11 +136,16 @@ async fn patch_document_indexing_progress_with_fraction(
     // Prefer the key that already exists; never recreate staging after promote.
     // A late spawn that resolved staging before promote can otherwise resurrect
     // `staging:…-metadata` and leave final metadata stuck at `indexing`.
-    let final_key = edgequake_storage::kv_keys::doc_metadata(document_id);
-    let staging_key = edgequake_storage::kv_keys::staging_doc_metadata(document_id);
-    let metadata_key = if kv.get_by_id(&staging_key).await.ok().flatten().is_some() {
+    //
+    // IMP-075-04/10: SSOT dual-key batch via load_staging_and_final_metadata.
+    let Ok(pair) = crate::services::load_staging_and_final_metadata(kv.as_ref(), document_id).await
+    else {
+        return;
+    };
+
+    let (metadata_key, existing) = if pair.staging.is_some() {
         // If final is already terminal, ignore staging (stale race) and skip.
-        if let Ok(Some(final_meta)) = kv.get_by_id(&final_key).await {
+        if let Some(final_meta) = pair.final_meta.as_ref() {
             if final_meta
                 .get("status")
                 .and_then(|v| v.as_str())
@@ -153,13 +158,15 @@ async fn patch_document_indexing_progress_with_fraction(
                 return;
             }
         }
-        staging_key
+        match pair.staging {
+            Some(m) => (pair.staging_key, m),
+            None => return,
+        }
     } else {
-        final_key
-    };
-
-    let Ok(Some(existing)) = kv.get_by_id(&metadata_key).await else {
-        return;
+        match pair.final_meta {
+            Some(m) => (pair.final_key, m),
+            None => return,
+        }
     };
     let Some(obj) = existing.as_object() else {
         return;
@@ -206,22 +213,19 @@ impl DocumentTaskProcessor {
         status: &str,
         error_message: Option<&str>,
     ) -> TaskResult<()> {
-        let metadata_key =
-            crate::services::resolve_document_metadata_key(document_id, &self.kv_storage).await;
+        // IMP-075-10: one RT for staging+final (not resolve key then re-get).
+        let pair =
+            crate::services::load_staging_and_final_metadata(self.kv_storage.as_ref(), document_id)
+                .await
+                .map_err(edgequake_tasks::TaskError::StorageError)?;
+        let metadata_key = pair.preferred_key_or_final();
+        let existing = pair.preferred().map(|(_, v)| v);
 
         // SPEC-057 P4: SSOT for legacy→unified stage + default messages.
         let unified_stage =
             crate::services::ingestion_status_mapper::legacy_status_to_unified_stage(status);
         let stage_message =
             crate::services::ingestion_status_mapper::default_stage_message_for_status(status);
-
-        // Get existing metadata or create new
-        let existing = self
-            .kv_storage
-            .get_by_id(&metadata_key)
-            .await
-            .ok()
-            .flatten();
 
         let updated_json = if let Some(existing_val) = existing {
             if let Some(obj) = existing_val.as_object() {
@@ -332,16 +336,13 @@ impl DocumentTaskProcessor {
         pdf_id: Option<&str>,
         track_id: Option<&str>,
     ) -> TaskResult<()> {
-        let metadata_key =
-            crate::services::resolve_document_metadata_key(document_id, &self.kv_storage).await;
-
-        // Get existing metadata or create new
-        let existing = self
-            .kv_storage
-            .get_by_id(&metadata_key)
-            .await
-            .ok()
-            .flatten();
+        // IMP-075-10: one RT for staging+final (not resolve key then re-get).
+        let pair =
+            crate::services::load_staging_and_final_metadata(self.kv_storage.as_ref(), document_id)
+                .await
+                .map_err(edgequake_tasks::TaskError::StorageError)?;
+        let metadata_key = pair.preferred_key_or_final();
+        let existing = pair.preferred().map(|(_, v)| v);
 
         let updated_json = if let Some(existing_val) = existing {
             if let Some(obj) = existing_val.as_object() {
@@ -467,157 +468,155 @@ impl DocumentTaskProcessor {
         status: &str,
         stats: &edgequake_pipeline::pipeline::ProcessingStats,
     ) -> TaskResult<()> {
-        let metadata_key =
-            crate::services::resolve_document_metadata_key(document_id, &self.kv_storage).await;
+        // IMP-075-10: one RT for staging+final (not resolve key then re-get).
+        let Ok(pair) =
+            crate::services::load_staging_and_final_metadata(self.kv_storage.as_ref(), document_id)
+                .await
+        else {
+            return Ok(());
+        };
+        let Some((metadata_key, existing)) = pair.preferred() else {
+            return Ok(());
+        };
 
-        // Get existing metadata
-        if let Ok(Some(existing)) = self.kv_storage.get_by_id(&metadata_key).await {
-            if let Some(obj) = existing.as_object() {
-                // Never downgrade terminal-success with a non-terminal stats write
-                // (edge case #6 — late finalize race / double-call).
-                let existing_status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                if is_terminal_success_status(existing_status)
-                    && !is_terminal_document_status(status)
-                {
-                    tracing::debug!(
-                        document_id = %document_id,
-                        existing_status,
-                        requested_status = status,
-                        "Skipping stats status update — document already terminal-success"
-                    );
-                    return Ok(());
-                }
-                let mut updated = obj.clone();
-                updated.insert("status".to_string(), json!(status));
+        if let Some(obj) = existing.as_object() {
+            // Never downgrade terminal-success with a non-terminal stats write
+            // (edge case #6 — late finalize race / double-call).
+            let existing_status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
+            if is_terminal_success_status(existing_status) && !is_terminal_document_status(status) {
+                tracing::debug!(
+                    document_id = %document_id,
+                    existing_status,
+                    requested_status = status,
+                    "Skipping stats status update — document already terminal-success"
+                );
+                return Ok(());
+            }
+            let mut updated = obj.clone();
+            updated.insert("status".to_string(), json!(status));
+            updated.insert(
+                "updated_at".to_string(),
+                json!(chrono::Utc::now().to_rfc3339()),
+            );
+            updated.insert(
+                "processed_at".to_string(),
+                json!(chrono::Utc::now().to_rfc3339()),
+            );
+
+            // SPEC-002: Set unified current_stage and stage_message for completion
+            let unified_stage = if status == "completed" || status == "indexed" {
+                "completed"
+            } else {
+                status
+            };
+            updated.insert("current_stage".to_string(), json!(unified_stage));
+            updated.insert("stage_progress".to_string(), json!(1.0)); // 100% complete
+
+            // SPEC-002: Informative completion message with stats
+            let stage_message = format!(
+                "Processed {} chunks, extracted {} entities and {} relationships",
+                stats.chunk_count, stats.entity_count, stats.relationship_count
+            );
+            updated.insert("stage_message".to_string(), json!(stage_message));
+
+            // Basic stats
+            updated.insert("chunk_count".to_string(), json!(stats.chunk_count));
+            updated.insert("entity_count".to_string(), json!(stats.entity_count));
+            updated.insert(
+                "relationship_count".to_string(),
+                json!(stats.relationship_count),
+            );
+            updated.insert(
+                "processing_duration_ms".to_string(),
+                json!(stats.processing_time_ms),
+            );
+
+            // Cost tracking fields
+            updated.insert("cost_usd".to_string(), json!(stats.cost_usd));
+            updated.insert("input_tokens".to_string(), json!(stats.input_tokens));
+            updated.insert("output_tokens".to_string(), json!(stats.output_tokens));
+            updated.insert("total_tokens".to_string(), json!(stats.total_tokens));
+
+            // Lineage information
+            if let Some(ref llm_model) = stats.llm_model {
+                updated.insert("llm_model".to_string(), json!(llm_model));
+            }
+            // SPEC-032/OODA-198: Store LLM provider for lineage tracking
+            if let Some(ref llm_provider) = stats.llm_provider {
+                updated.insert("llm_provider".to_string(), json!(llm_provider));
+            }
+            if let Some(ref embedding_model) = stats.embedding_model {
+                updated.insert("embedding_model".to_string(), json!(embedding_model));
+            }
+            // SPEC-032/OODA-198: Store embedding provider for lineage tracking
+            if let Some(ref embedding_provider) = stats.embedding_provider {
+                updated.insert("embedding_provider".to_string(), json!(embedding_provider));
+            }
+            if let Some(ref embedding_dimensions) = stats.embedding_dimensions {
                 updated.insert(
-                    "updated_at".to_string(),
-                    json!(chrono::Utc::now().to_rfc3339()),
+                    "embedding_dimensions".to_string(),
+                    json!(embedding_dimensions),
                 );
-                updated.insert(
-                    "processed_at".to_string(),
-                    json!(chrono::Utc::now().to_rfc3339()),
-                );
+            }
+            if let Some(ref entity_types) = stats.entity_types {
+                updated.insert("entity_types".to_string(), json!(entity_types));
+            }
+            if let Some(ref relationship_types) = stats.relationship_types {
+                updated.insert("relationship_types".to_string(), json!(relationship_types));
+            }
+            if let Some(ref keywords) = stats.keywords {
+                updated.insert("keywords".to_string(), json!(keywords));
+            }
+            if let Some(ref chunking_strategy) = stats.chunking_strategy {
+                updated.insert("chunking_strategy".to_string(), json!(chunking_strategy));
+            }
+            if let Some(ref avg_chunk_size) = stats.avg_chunk_size {
+                updated.insert("avg_chunk_size".to_string(), json!(avg_chunk_size));
+            }
 
-                // SPEC-002: Set unified current_stage and stage_message for completion
-                let unified_stage = if status == "completed" || status == "indexed" {
-                    "completed"
-                } else {
-                    status
-                };
-                updated.insert("current_stage".to_string(), json!(unified_stage));
-                updated.insert("stage_progress".to_string(), json!(1.0)); // 100% complete
+            if status == "completed" || status == "indexed" {
+                updated.remove("error_message");
+                updated.remove("warning_message");
+            } else if status == "failed" || status == "partial_failure" {
+                if let Some(ref details) = stats.error_details {
+                    updated.insert("error_message".to_string(), json!(details));
+                } else if status == "partial_failure" || !updated.contains_key("error_message") {
+                    updated.insert("error_message".to_string(), json!(stage_message));
+                }
+                updated.remove("warning_message");
+            } else if status == "cancelled" {
+                updated.remove("warning_message");
+            }
 
-                // SPEC-002: Informative completion message with stats
-                let stage_message = format!(
-                    "Processed {} chunks, extracted {} entities and {} relationships",
-                    stats.chunk_count, stats.entity_count, stats.relationship_count
-                );
-                updated.insert("stage_message".to_string(), json!(stage_message));
-
-                // Basic stats
-                updated.insert("chunk_count".to_string(), json!(stats.chunk_count));
-                updated.insert("entity_count".to_string(), json!(stats.entity_count));
-                updated.insert(
-                    "relationship_count".to_string(),
-                    json!(stats.relationship_count),
-                );
-                updated.insert(
-                    "processing_duration_ms".to_string(),
-                    json!(stats.processing_time_ms),
-                );
-
-                // Cost tracking fields
-                updated.insert("cost_usd".to_string(), json!(stats.cost_usd));
-                updated.insert("input_tokens".to_string(), json!(stats.input_tokens));
-                updated.insert("output_tokens".to_string(), json!(stats.output_tokens));
-                updated.insert("total_tokens".to_string(), json!(stats.total_tokens));
-
-                // Lineage information
-                if let Some(ref llm_model) = stats.llm_model {
-                    updated.insert("llm_model".to_string(), json!(llm_model));
-                }
-                // SPEC-032/OODA-198: Store LLM provider for lineage tracking
-                if let Some(ref llm_provider) = stats.llm_provider {
-                    updated.insert("llm_provider".to_string(), json!(llm_provider));
-                }
-                if let Some(ref embedding_model) = stats.embedding_model {
-                    updated.insert("embedding_model".to_string(), json!(embedding_model));
-                }
-                // SPEC-032/OODA-198: Store embedding provider for lineage tracking
-                if let Some(ref embedding_provider) = stats.embedding_provider {
-                    updated.insert("embedding_provider".to_string(), json!(embedding_provider));
-                }
-                if let Some(ref embedding_dimensions) = stats.embedding_dimensions {
-                    updated.insert(
-                        "embedding_dimensions".to_string(),
-                        json!(embedding_dimensions),
-                    );
-                }
-                if let Some(ref entity_types) = stats.entity_types {
-                    updated.insert("entity_types".to_string(), json!(entity_types));
-                }
-                if let Some(ref relationship_types) = stats.relationship_types {
-                    updated.insert("relationship_types".to_string(), json!(relationship_types));
-                }
-                if let Some(ref keywords) = stats.keywords {
-                    updated.insert("keywords".to_string(), json!(keywords));
-                }
-                if let Some(ref chunking_strategy) = stats.chunking_strategy {
-                    updated.insert("chunking_strategy".to_string(), json!(chunking_strategy));
-                }
-                if let Some(ref avg_chunk_size) = stats.avg_chunk_size {
-                    updated.insert("avg_chunk_size".to_string(), json!(avg_chunk_size));
-                }
-
-                if status == "completed" || status == "indexed" {
-                    updated.remove("error_message");
-                    updated.remove("warning_message");
-                } else if status == "failed" || status == "partial_failure" {
-                    if let Some(ref details) = stats.error_details {
-                        updated.insert("error_message".to_string(), json!(details));
-                    } else if status == "partial_failure" || !updated.contains_key("error_message")
-                    {
-                        updated.insert("error_message".to_string(), json!(stage_message));
-                    }
-                    updated.remove("warning_message");
-                } else if status == "cancelled" {
-                    updated.remove("warning_message");
-                }
-
-                let updated_json = json!(updated);
-                upsert_metadata_with_wsdoc_index(
-                    &self.kv_storage,
-                    &metadata_key,
-                    updated_json.clone(),
-                )
+            let updated_json = json!(updated);
+            upsert_metadata_with_wsdoc_index(&self.kv_storage, &metadata_key, updated_json.clone())
                 .await?;
 
-                // SPEC-086: terminal / stats stage transition for Insert tracks.
-                let task_id = updated_json
-                    .get("track_id")
-                    .or_else(|| updated_json.get("task_id"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(document_id)
-                    .to_string();
-                self.pipeline_state.emit_stage_transition(
-                    document_id.to_string(),
-                    task_id,
-                    unified_stage.to_string(),
-                    stage_message.clone(),
-                    Some(1.0),
-                );
+            // SPEC-086: terminal / stats stage transition for Insert tracks.
+            let task_id = updated_json
+                .get("track_id")
+                .or_else(|| updated_json.get("task_id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(document_id)
+                .to_string();
+            self.pipeline_state.emit_stage_transition(
+                document_id.to_string(),
+                task_id,
+                unified_stage.to_string(),
+                stage_message.clone(),
+                Some(1.0),
+            );
 
-                // SPEC-021 P-A1: mirror the stats into the relational
-                // `documents` table so the P5-01 relational read-model
-                // fallback returns accurate per-doc counts (fixes the
-                // "Completed / 0 entities" screenshot, file 16 §3).
-                //
-                // Best-effort: a failure here MUST NOT fail ingestion — the
-                // KV metadata write above is the authoritative stats carrier.
-                // The relational write only needs to converge eventually.
-                self.refresh_relational_document_stats(document_id, status, stats)
-                    .await;
-            }
+            // SPEC-021 P-A1: mirror the stats into the relational
+            // `documents` table so the P5-01 relational read-model
+            // fallback returns accurate per-doc counts (fixes the
+            // "Completed / 0 entities" screenshot, file 16 §3).
+            //
+            // Best-effort: a failure here MUST NOT fail ingestion — the
+            // KV metadata write above is the authoritative stats carrier.
+            // The relational write only needs to converge eventually.
+            self.refresh_relational_document_stats(document_id, status, stats)
+                .await;
         }
 
         Ok(())

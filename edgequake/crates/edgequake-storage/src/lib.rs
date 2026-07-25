@@ -84,6 +84,8 @@ pub mod filter_column_policy;
 pub use filter_column_policy::{
     ann_exact_max_rows, prefer_denorm_filter_columns, DEFAULT_ANN_EXACT_MAX_ROWS,
 };
+pub mod dataop;
+pub mod dataop_annotations;
 pub mod graph_batch_dedupe;
 pub mod graph_metrics;
 pub mod kv_key_schema;
@@ -95,6 +97,7 @@ pub mod storage_op_metrics;
 pub mod traits;
 pub mod vector_id;
 
+pub use dataop::{all_ref_ids, is_valid_ref_id, sql_comment};
 pub use storage_op_metrics::TimedStorageOp;
 
 // Re-export entity identity (RC-6 / P-G1): single normalization entry point.

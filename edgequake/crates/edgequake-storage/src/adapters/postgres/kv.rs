@@ -198,10 +198,27 @@ impl KVStorage for PostgresKVStorage {
         Ok(())
     }
 
+    /**
+     * @dataop      DATA-PG-KV-GET-BY-ID-075
+     * @engine      postgres
+     * @intent      Single-key JSONB lookup by primary key.
+     * @tables      eq_{ns}_kv(key, value jsonb)
+     * @indexes     PRIMARY KEY (key)
+     * @complexity  time: O(log N); space: O(1); io: 1 index + heap
+     * @limits      - Prefer get_by_ids for batches (avoid N+1)
+     * @scaling     Log N to full table
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/postgres.md#data-pg-kv-get-by-id-075
+     */
     async fn get_by_id(&self, id: &str) -> Result<Option<serde_json::Value>> {
+        let _timer = crate::TimedStorageOp::start_dataop(crate::dataop::DATA_PG_KV_GET_BY_ID_075);
         let pool = self.pool.get().await?;
 
-        let sql = format!("SELECT value FROM {} WHERE key = $1", self.table_name);
+        let sql = crate::dataop::sql_comment(
+            crate::dataop::DATA_PG_KV_GET_BY_ID_075,
+            &format!("SELECT value FROM {} WHERE key = $1", self.table_name),
+        );
 
         let row: Option<(serde_json::Value,)> = sqlx::query_as(&sql)
             .bind(id)
@@ -212,7 +229,21 @@ impl KVStorage for PostgresKVStorage {
         Ok(row.map(|(v,)| v))
     }
 
+    /**
+     * @dataop      DATA-PG-KV-GET-BY-IDS-076
+     * @engine      postgres
+     * @intent      Ordered multi-key fetch via UNNEST + PK join (one RT).
+     * @tables      eq_{ns}_kv
+     * @indexes     PRIMARY KEY (key)
+     * @complexity  time: O(K log N); space: O(K)
+     * @limits      - K bounded by app; Postgres bind param ceiling 65535
+     * @scaling     Linear in K
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/postgres.md#data-pg-kv-get-by-ids-076
+     */
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<serde_json::Value>> {
+        let _timer = crate::TimedStorageOp::start_dataop(crate::dataop::DATA_PG_KV_GET_BY_IDS_076);
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -220,12 +251,15 @@ impl KVStorage for PostgresKVStorage {
         let pool = self.pool.get().await?;
 
         // Preserve input order (SPEC-045) — never rely on unordered ANY() scans.
-        let sql = format!(
-            "SELECT kv.value \
+        let sql = crate::dataop::sql_comment(
+            crate::dataop::DATA_PG_KV_GET_BY_IDS_076,
+            &format!(
+                "SELECT kv.value \
              FROM unnest($1::text[]) WITH ORDINALITY AS u(key, ord) \
              INNER JOIN {table} kv ON kv.key = u.key \
              ORDER BY u.ord",
-            table = self.table_name
+                table = self.table_name
+            ),
         );
 
         let rows: Vec<(serde_json::Value,)> = sqlx::query_as(&sql)
@@ -283,7 +317,22 @@ impl KVStorage for PostgresKVStorage {
         Ok(keys.difference(&existing).cloned().collect())
     }
 
+    /**
+     * @dataop      DATA-PG-KV-UPSERT-079
+     * @engine      postgres
+     * @intent      Atomic batch upsert of JSONB values (UNNEST + ON CONFLICT).
+     * @tables      eq_{ns}_kv
+     * @indexes     PRIMARY KEY (key)
+     * @complexity  time: O(B log N) per chunk B≤1000; space: O(B)
+     * @limits      - Chunk size 1000; multi-workspace keys rejected (fail-closed)
+     *              - Single transaction for full batch
+     * @scaling     Linear in total keys
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/postgres.md#data-pg-kv-upsert-079
+     */
     async fn upsert(&self, data: &[(String, serde_json::Value)]) -> Result<()> {
+        let _timer = crate::TimedStorageOp::start_dataop(crate::dataop::DATA_PG_KV_UPSERT_079);
         if data.is_empty() {
             return Ok(());
         }
@@ -305,8 +354,10 @@ impl KVStorage for PostgresKVStorage {
             let keys: Vec<String> = chunk.iter().map(|(k, _)| k.clone()).collect();
             let values: Vec<serde_json::Value> = chunk.iter().map(|(_, v)| v.clone()).collect();
 
-            let sql = format!(
-                r#"
+            let sql = crate::dataop::sql_comment(
+                crate::dataop::DATA_PG_KV_UPSERT_079,
+                &format!(
+                    r#"
                 INSERT INTO {} (key, value, updated_at)
                 SELECT k, v, NOW()
                 FROM unnest($1::text[], $2::jsonb[]) AS batch(k, v)
@@ -314,7 +365,8 @@ impl KVStorage for PostgresKVStorage {
                     value = EXCLUDED.value,
                     updated_at = NOW()
                 "#,
-                self.table_name
+                    self.table_name
+                ),
             );
 
             sqlx::query(&sql)

@@ -134,8 +134,9 @@ pub use document_assets::{
     multimodal_images_requested, page_drawing_assets_config, page_drawing_assets_config_for_vision,
 };
 pub use document_deletion::{
-    find_active_deletion_track_id, perform_document_deletion, reconcile_stuck_deleting_documents,
-    reset_deleting_status, DocumentDeletionResult,
+    find_active_deletion_track_id, perform_document_deletion, purge_document_list_surfaces,
+    reconcile_stuck_deleting_documents, reset_deleting_status, DocumentDeletionResult,
+    ListSurfacePurgeOpts, ListSurfacePurgeResult,
 };
 pub use document_graph_cascade::{
     analyze_deletion_impact_stats, cascade_remove_document_sources,
@@ -276,7 +277,8 @@ pub use task_document_sync::{
     sync_document_failed_on_orphan_heartbeat,
 };
 pub use text_insert_content::{
-    patch_document_metadata, resolve_document_metadata_key, resolve_text_insert_content,
+    load_staging_and_final_metadata, load_staging_first_metadata, patch_document_metadata,
+    resolve_document_metadata_key, resolve_text_insert_content, StagingFinalMeta,
 };
 pub use vision_content::{
     describe_image, describe_image_as_markdown, image_analysis_to_markdown,

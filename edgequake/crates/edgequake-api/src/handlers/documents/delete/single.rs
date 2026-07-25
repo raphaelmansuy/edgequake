@@ -21,6 +21,7 @@ use crate::services::find_active_deletion_track_id;
 use crate::services::perform_document_deletion;
 use crate::state::AppState;
 
+#[cfg(feature = "postgres")]
 use crate::document_read_model::relational_document_scope;
 use crate::services::document_metadata_scan::{
     canonical_document_id, document_id_from_metadata_key, load_all_document_metadata_entries,
@@ -47,30 +48,23 @@ pub(crate) async fn resolve_kv_key_prefix_for_batch(
 /// `staging:{id}` as the cascade key prefix (breaks content/hash cleanup and
 /// can leave delete sessions hanging while a worker runs a useless graph scan).
 async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, String, bool) {
+    // IMP-075-13: final + staging existence in one RT (final-first for delete).
+    // Distinct from staging-first ingest SSOT — promoted final wins when both exist.
     let direct_metadata_key = metadata_key_for_document(document_id);
-    if state
-        .storage
-        .kv_storage
-        .get_by_id(&direct_metadata_key)
-        .await
-        .ok()
-        .flatten()
-        .is_some()
-    {
-        return (document_id.to_string(), direct_metadata_key, true);
-    }
-
     let staging_metadata_key = edgequake_storage::kv_keys::staging_doc_metadata(document_id);
-    if state
+    let probe_keys = [direct_metadata_key.clone(), staging_metadata_key.clone()];
+    if let Ok(vals) = state
         .storage
         .kv_storage
-        .get_by_id(&staging_metadata_key)
+        .get_by_ids_ordered(&probe_keys)
         .await
-        .ok()
-        .flatten()
-        .is_some()
     {
-        return (document_id.to_string(), staging_metadata_key, true);
+        if vals.first().and_then(|v| v.as_ref()).is_some() {
+            return (document_id.to_string(), direct_metadata_key, true);
+        }
+        if vals.get(1).and_then(|v| v.as_ref()).is_some() {
+            return (document_id.to_string(), staging_metadata_key, true);
+        }
     }
 
     if let Ok(entries) = load_all_document_metadata_entries(state.storage.kv_storage.as_ref()).await

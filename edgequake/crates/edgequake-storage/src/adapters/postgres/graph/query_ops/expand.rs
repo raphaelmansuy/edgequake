@@ -1,13 +1,27 @@
-//! Graph expand / neighbors — variable-length Cypher (SPEC-054).
+//! Graph expand / neighbors — native BFS (SPEC-054 / IMP-031-04).
+//!
+//! First principles: request-path expand must be **O(depth × F log E + K log N)**
+//! via indexed incident-edge batches + node batch fetch — never variable-length Cypher.
 
 use sqlx::Row;
 
 use super::super::helpers::EdgeTenantFilterMode;
 use super::super::PostgresAGEGraphStorage;
 use crate::error::{Result, StorageError};
-use crate::traits::{EdgeListFilter, GraphEdge, GraphNode, KnowledgeGraph, NodeListFilter};
+use crate::traits::{
+    edge_matches_list_filter, node_matches_list_filter, EdgeListFilter, GraphEdge, GraphNode,
+    KnowledgeGraph, NodeListFilter,
+};
+use std::collections::{HashSet, VecDeque};
 
 impl PostgresAGEGraphStorage {
+    /**
+     * @dataop      DATA-AGE-GRAPH-GET-KNOWLEDGE-GRAPH-038
+     * @engine      apache_age (native BFS; IMP-031-04)
+     * @intent      Bounded k-hop subgraph from start node; tenant/ws optional.
+     * @complexity  time: O(depth × F × log E + K log N); space: O(K + E′)
+     * @limits      max_depth / max_nodes hard caps; no unbounded MATCH
+     */
     pub(in crate::adapters::postgres::graph) async fn pg_get_knowledge_graph(
         &self,
         start_node: &str,
@@ -16,96 +30,74 @@ impl PostgresAGEGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
-        if let (Some(tenant), Some(workspace)) = (tenant_id, workspace_id) {
-            return self
-                .pg_get_knowledge_graph_scoped(start_node, max_depth, max_nodes, tenant, workspace)
-                .await;
-        }
-
-        let escaped_id = Self::escape_cypher_string(start_node);
-
-        // Use AGE's variable-length path traversal
-        let cypher = format!(
-            "MATCH p = (start:Node {{node_id: '{}'}})-[*0..{}]-(connected) \
-             RETURN DISTINCT connected LIMIT {}",
-            escaped_id, max_depth, max_nodes
-        );
-
-        let rows = self.cypher_query(&cypher, &["connected"]).await?;
-
-        let mut kg = KnowledgeGraph::new();
-        let mut node_ids: Vec<String> = Vec::new();
-
-        for row in &rows {
-            let json_value: serde_json::Value = row.get("connected");
-            let agtype_str = json_value.to_string();
-            if let Some(node) = Self::parse_vertex(&agtype_str) {
-                node_ids.push(node.id.clone());
-                kg.add_node(node);
-            }
-        }
-
-        // Get edges between discovered nodes
-        if !node_ids.is_empty() {
-            let ids_list: Vec<String> = node_ids
-                .iter()
-                .map(|id| format!("'{}'", Self::escape_cypher_string(id)))
-                .collect();
-
-            let edges_cypher = format!(
-                "MATCH (a:Node)-[r:EDGE]->(b:Node) \
-                 WHERE a.node_id IN [{}] AND b.node_id IN [{}] \
-                 RETURN r",
-                ids_list.join(", "),
-                ids_list.join(", ")
-            );
-
-            let edge_rows = self.cypher_query(&edges_cypher, &["r"]).await?;
-
-            for row in &edge_rows {
-                let json_value: serde_json::Value = row.get("r");
-                let agtype_str = json_value.to_string();
-                if let Some(edge) = Self::parse_edge(&agtype_str) {
-                    kg.add_edge(edge);
-                }
-            }
-        }
-
-        kg.is_truncated = kg.node_count() >= max_nodes;
-
-        Ok(kg)
+        // DRY: single native BFS path for scoped and unscoped (filters optional).
+        self.pg_bfs_expand(start_node, max_depth, max_nodes, tenant_id, workspace_id)
+            .await
     }
 
-    /// Tenant-scoped BFS using native SQL edge batch lookups (SPEC-027 IMP-022).
+    /**
+     * @dataop      DATA-AGE-GRAPH-GET-NEIGHBORS-042
+     * @engine      apache_age (native BFS; IMP-031-04)
+     * @intent      Distinct neighbors within depth 1..3 (excludes start).
+     * @complexity  time: O(depth × F log E + K log N); space: O(K)
+     * @limits      depth clamped to 3; max 500 neighbors
+     */
+    pub(in crate::adapters::postgres::graph) async fn pg_get_neighbors(
+        &self,
+        node_id: &str,
+        depth: usize,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphNode>> {
+        let safe_depth = depth.clamp(1, 3);
+        const MAX_NEIGHBORS: usize = 500;
+        let kg = self
+            .pg_bfs_expand(
+                node_id,
+                safe_depth,
+                MAX_NEIGHBORS.saturating_add(1),
+                tenant_id,
+                workspace_id,
+            )
+            .await?;
+        Ok(kg
+            .nodes
+            .into_iter()
+            .filter(|n| n.id != node_id)
+            .take(MAX_NEIGHBORS)
+            .collect())
+    }
+
+    /// Native multi-hop BFS (SSOT for expand + neighbors).
     ///
-    /// Requires migration 046 expression indexes for production-scale graphs.
-    async fn pg_get_knowledge_graph_scoped(
+    /// Per hop:
+    /// 1. `pg_get_incident_edges_batch(frontier)` — O(F log E)
+    /// 2. Collect neighbor IDs, `pg_get_nodes_batch` once — O(K log N) one RT
+    async fn pg_bfs_expand(
         &self,
         start_node: &str,
         max_depth: usize,
         max_nodes: usize,
-        tenant_id: &str,
-        workspace_id: &str,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<KnowledgeGraph> {
-        use std::collections::{HashSet, VecDeque};
-
-        use crate::traits::{edge_matches_list_filter, node_matches_list_filter};
-
         let node_filter = NodeListFilter {
-            tenant_id: Some(tenant_id.to_string()),
-            workspace_id: Some(workspace_id.to_string()),
+            tenant_id: tenant_id.map(str::to_string),
+            workspace_id: workspace_id.map(str::to_string),
             ..Default::default()
         };
         let edge_filter = EdgeListFilter {
-            tenant_id: Some(tenant_id.to_string()),
-            workspace_id: Some(workspace_id.to_string()),
+            tenant_id: tenant_id.map(str::to_string),
+            workspace_id: workspace_id.map(str::to_string),
             relationship_type: None,
         };
+        let filter_nodes = tenant_id.is_some() || workspace_id.is_some();
+        let filter_edges = filter_nodes;
 
         let Some(start) = self.pg_get_node(start_node).await? else {
             return Ok(KnowledgeGraph::new());
         };
-        if !node_matches_list_filter(&start, &node_filter) {
+        if filter_nodes && !node_matches_list_filter(&start, &node_filter) {
             return Ok(KnowledgeGraph::new());
         }
 
@@ -131,27 +123,45 @@ impl PostgresAGEGraphStorage {
                 )
                 .await?;
 
-            for edge in edges {
-                if !edge_matches_list_filter(&edge, &edge_filter) {
+            let mut candidate_ids: Vec<String> = Vec::new();
+            let mut candidate_seen: HashSet<String> = HashSet::new();
+            for edge in &edges {
+                if filter_edges && !edge_matches_list_filter(edge, &edge_filter) {
                     continue;
                 }
-
                 for (endpoint, other) in
                     [(&edge.source, &edge.target), (&edge.target, &edge.source)]
                 {
                     if !frontier_set.contains(endpoint.as_str()) || visited.contains(other) {
                         continue;
                     }
-                    if let Some(node) = self.pg_get_node(other).await? {
-                        if node_matches_list_filter(&node, &node_filter)
-                            && visited.insert(other.clone())
-                        {
-                            kg.add_node(node);
-                            if kg.node_count() < max_nodes {
-                                frontier.push_back(other.clone());
-                            }
-                        }
+                    if candidate_seen.insert(other.clone()) {
+                        candidate_ids.push(other.clone());
                     }
+                }
+            }
+
+            if candidate_ids.is_empty() {
+                continue;
+            }
+
+            let batch = self.pg_get_nodes_batch(&candidate_ids).await?;
+            for id in candidate_ids {
+                let Some(node) = batch.get(&id) else {
+                    continue;
+                };
+                if filter_nodes && !node_matches_list_filter(node, &node_filter) {
+                    continue;
+                }
+                if !visited.insert(id.clone()) {
+                    continue;
+                }
+                kg.add_node(node.clone());
+                if kg.node_count() < max_nodes {
+                    frontier.push_back(id);
+                }
+                if kg.node_count() >= max_nodes {
+                    break;
                 }
             }
         }
@@ -159,62 +169,17 @@ impl PostgresAGEGraphStorage {
         let node_ids: Vec<String> = kg.nodes.iter().map(|n| n.id.clone()).collect();
         if !node_ids.is_empty() {
             let edges = self
-                .pg_get_edges_for_node_set(&node_ids, Some(tenant_id), Some(workspace_id))
+                .pg_get_edges_for_node_set(&node_ids, tenant_id, workspace_id)
                 .await?;
             for edge in edges {
-                kg.add_edge(edge);
+                if !filter_edges || edge_matches_list_filter(&edge, &edge_filter) {
+                    kg.add_edge(edge);
+                }
             }
         }
 
         kg.is_truncated = kg.node_count() >= max_nodes;
         Ok(kg)
-    }
-
-    pub(in crate::adapters::postgres::graph) async fn pg_get_neighbors(
-        &self,
-        node_id: &str,
-        depth: usize,
-        tenant_id: Option<&str>,
-        workspace_id: Option<&str>,
-    ) -> Result<Vec<GraphNode>> {
-        let escaped_id = Self::escape_cypher_string(node_id);
-
-        let safe_depth = depth.clamp(1, 3);
-        const MAX_NEIGHBORS: usize = 500;
-
-        let mut tenant_where = String::new();
-        if let Some(tid) = tenant_id {
-            tenant_where.push_str(&format!(
-                " AND neighbor.tenant_id = '{}'",
-                Self::escape_cypher_string(tid)
-            ));
-        }
-        if let Some(wid) = workspace_id {
-            tenant_where.push_str(&format!(
-                " AND neighbor.workspace_id = '{}'",
-                Self::escape_cypher_string(wid)
-            ));
-        }
-
-        let cypher = format!(
-            "MATCH (start:Node {{node_id: '{escaped_id}'}})-[*1..{safe_depth}]-(neighbor:Node) \
-             WHERE neighbor.node_id <> '{escaped_id}'{tenant_where} \
-             RETURN DISTINCT neighbor \
-             LIMIT {MAX_NEIGHBORS}"
-        );
-
-        let rows = self.cypher_query(&cypher, &["neighbor"]).await?;
-
-        let neighbors: Vec<GraphNode> = rows
-            .iter()
-            .filter_map(|row| {
-                let json_value: serde_json::Value = row.get("neighbor");
-                let agtype_str = json_value.to_string();
-                Self::parse_vertex(&agtype_str)
-            })
-            .collect();
-
-        Ok(neighbors)
     }
 
     /// FAST OPTIMIZED: Get edges between nodes in a specified set using native SQL.

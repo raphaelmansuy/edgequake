@@ -26,12 +26,29 @@ impl VectorStorage for PgVectorStorage {
         Ok(())
     }
 
+    /**
+     * @dataop      DATA-PGVEC-VECTORS-ANN-QUERY-001
+     * @engine      pgvector 0.8.x
+     * @intent      Top-K approximate nearest-neighbour search (unfiltered), optional id prefilter.
+     * @tables      eq_{ns}_vectors(embedding vector|halfvec, id, metadata)
+     * @indexes     HNSW/IVFFlat on embedding (vector_cosine_ops); PK(id)
+     * @complexity  time: O(ef_search * log N) expected ANN; space: O(K + ef_search); io: ~ef_search pages
+     * @limits      - K clamped by caller; ef_search = clamp(4*K, 40, 1000)
+     *              - Unfiltered: iterative_scan not set (post-filter N/A)
+     *              - Index must fit shared_buffers for stated latency; seq-scan cliff if ANN missing
+     * @scaling     See docs/data-layer/benchmarks/001.md
+     * @tests       tests/data_layer/data_layer_limits.rs (PG16/17/18)
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/pgvector.md#data-pgvec-vectors-ann-query-001
+     */
     async fn query(
         &self,
         query_embedding: &[f32],
         top_k: usize,
         filter_ids: Option<&[String]>,
     ) -> Result<Vec<VectorSearchResult>> {
+        let _timer =
+            crate::TimedStorageOp::start_dataop(crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_001);
         let pool = self.pool.get().await?;
         let embedding_str = Self::format_embedding(query_embedding);
         let emb_type = self.embedding_pg_type();
@@ -43,16 +60,22 @@ impl VectorStorage for PgVectorStorage {
             if ids.is_empty() {
                 return Ok(Vec::new());
             }
-            build_ann_select_sql(
-                &self.table_name,
-                emb_type,
-                "WHERE id = ANY($2)",
-                3,
-                top_k,
-                &reorder,
+            crate::dataop::sql_comment(
+                crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_001,
+                &build_ann_select_sql(
+                    &self.table_name,
+                    emb_type,
+                    "WHERE id = ANY($2)",
+                    3,
+                    top_k,
+                    &reorder,
+                ),
             )
         } else {
-            build_ann_select_sql(&self.table_name, emb_type, "", 2, top_k, &reorder)
+            crate::dataop::sql_comment(
+                crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_001,
+                &build_ann_select_sql(&self.table_name, emb_type, "", 2, top_k, &reorder),
+            )
         };
 
         // QW3: run inside a short transaction so we can raise recall via
@@ -116,11 +139,27 @@ impl VectorStorage for PgVectorStorage {
         self.upsert_report_created(data).await.map(|_| ())
     }
 
+    /**
+     * @dataop      DATA-PGVEC-VECTORS-UPSERT-BATCH-004
+     * @engine      pgvector 0.8.x (secondary: postgres)
+     * @intent      Batch upsert embeddings via UNNEST + ON CONFLICT; report newly inserted IDs.
+     * @tables      eq_{ns}_vectors
+     * @indexes     PK(id); HNSW graph insert cost on new rows
+     * @complexity  time: O(B log N) per batch B≤1000; space: O(B * D)
+     * @limits      - Batch chunk ≤1000; dim must match table; duplicate IDs last-write-wins
+     *              - HNSW insert under concurrent load may bloat; no long txn across network
+     * @scaling     Linear in B; index build separate (DDL)
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/pgvector.md#data-pgvec-vectors-upsert-batch-004
+     */
     /// SPEC-059: `RETURNING (xmax = 0) AS inserted` — atomic insert detection.
     async fn upsert_report_created(
         &self,
         data: &[(String, Vec<f32>, serde_json::Value)],
     ) -> Result<Vec<String>> {
+        let _timer =
+            crate::TimedStorageOp::start_dataop(crate::dataop::DATA_PGVEC_VECTORS_UPSERT_BATCH_004);
         if data.is_empty() {
             return Ok(Vec::new());
         }
@@ -525,6 +564,21 @@ impl VectorStorage for PgVectorStorage {
     /// Tier 2 (JSONB extraction) as fallback.
     ///
     /// @implements SPEC-007 R-T2-01, R-T3-01
+    /**
+     * @dataop      DATA-PGVEC-VECTORS-ANN-QUERY-FILTERED-002
+     * @engine      pgvector 0.8.x (secondary: postgres)
+     * @intent      Tenant/workspace/document-scoped ANN with iterative_scan for post-filter recall.
+     * @tables      eq_{ns}_vectors(embedding, tenant_id, workspace_id, document_id, metadata)
+     * @indexes     HNSW/IVF + btree tenant/ws/doc; optional partial HNSW by workspace
+     * @complexity  time: O(ef_search * log N) + iterative re-scan; space: O(K + max_scan_tuples)
+     * @limits      - iterative_scan=relaxed_order; hnsw.max_scan_tuples=20000 default
+     *              - Filter selectivity <<1 ⇒ over-fetch / recall risk without iterative_scan
+     *              - Hard fail if ANN index missing (fail-closed DDL policy)
+     * @scaling     Verified in e2e_spec061 / Q1 filtered paths
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/pgvector.md#data-pgvec-vectors-ann-query-filtered-002
+     */
     async fn query_filtered(
         &self,
         query_embedding: &[f32],
@@ -533,7 +587,9 @@ impl VectorStorage for PgVectorStorage {
         metadata_filter: Option<&MetadataFilter>,
     ) -> Result<Vec<VectorSearchResult>> {
         // SPEC-060: storage op histogram (op label only)
-        let _timed = crate::TimedStorageOp::start("query_filtered");
+        let _timed = crate::TimedStorageOp::start_dataop(
+            crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_FILTERED_002,
+        );
         // Fast path: if no metadata filter, delegate to standard query
         let mf = match metadata_filter {
             Some(mf) if !mf.is_empty() => mf,
@@ -568,13 +624,16 @@ impl VectorStorage for PgVectorStorage {
         // SPEC-076 A3: opt-in ANN → exact reorder (default OFF).
         let reorder = AnnExactReorderPolicy::from_env();
         let tune_k = reorder.effective_candidate_k(top_k);
-        let sql = build_ann_select_sql(
-            &self.table_name,
-            emb_type,
-            &where_clause,
-            filter_sql.next_param,
-            top_k,
-            &reorder,
+        let sql = crate::dataop::sql_comment(
+            crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_FILTERED_002,
+            &build_ann_select_sql(
+                &self.table_name,
+                emb_type,
+                &where_clause,
+                filter_sql.next_param,
+                top_k,
+                &reorder,
+            ),
         );
 
         // Dynamic parameter binding using raw query + manual bind chain

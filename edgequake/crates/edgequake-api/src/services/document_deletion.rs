@@ -5,6 +5,10 @@
 //! - Order: graph discover/mutate/post-proof → vectors → KV/PDF/relational.
 //! - Never wipe metadata before graph provenance is proved absent.
 //! - Fail closed with `delete_failed` status (never leave permanent `deleting`).
+//! - **List-surface completeness**: after success (or already-absent), every
+//!   store that feeds `GET /documents` (KV metadata, `wsdoc:` index, SQL
+//!   `documents`) must be empty for that identity — otherwise merge re-injects
+//!   "ghost" rows on refresh.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -14,6 +18,7 @@ use uuid::Uuid;
 
 use edgequake_audit::{AuditEventType, AuditResult};
 use edgequake_core::MetricsTriggerType;
+use edgequake_storage::kv_keys;
 use edgequake_tasks::DeletionTaskData;
 
 use crate::error::{ApiError, ApiResult};
@@ -118,6 +123,165 @@ pub struct DocumentDeletionResult {
     pub persisted_tasks_removed: usize,
     pub partial_failure: bool,
     pub partial_failure_reason: Option<String>,
+}
+
+/// Result of list-surface purge (idempotent orphan / final cleanup).
+#[derive(Debug, Clone, Default)]
+pub struct ListSurfacePurgeResult {
+    pub kv_keys_deleted: usize,
+    pub relational_rows_deleted: u64,
+}
+
+/// Options for [`purge_document_list_surfaces`].
+#[derive(Debug, Clone, Default)]
+pub struct ListSurfacePurgeOpts<'a> {
+    /// Alternate KV key prefix when it differs from `document_id`.
+    pub key_prefix: Option<&'a str>,
+    pub content_hash: Option<&'a str>,
+    pub pdf_id: Option<&'a str>,
+}
+
+/// Purge every store that can re-surface a document on `GET /documents`.
+///
+/// # Invariant (SSOT)
+/// After this returns `Ok`, the identity must not appear via:
+/// - `{id}-metadata` / `{prefix}-metadata` (final + staging)
+/// - `{id}-content` / `{prefix}-content`
+/// - `wsdoc:{workspace}:{id}` and `wsdoc:{workspace}:{prefix}`
+/// - workspace content-hash pointer (when hash known)
+/// - relational `documents` row (workspace-scoped)
+///
+/// Idempotent: missing keys/rows are success. Graph / vector / chunk prefix
+/// cleanup remains the responsibility of the full cascade; this is the
+/// **list-surface** contract shared by cascade completion, batch already-absent,
+/// re-ingest wipe, and recovery of historical incomplete deletes.
+pub async fn purge_document_list_surfaces(
+    state: &AppState,
+    document_id: &str,
+    workspace_id: &str,
+    tenant_ctx: &TenantContext,
+    opts: ListSurfacePurgeOpts<'_>,
+) -> ApiResult<ListSurfacePurgeResult> {
+    let key_prefix = opts.key_prefix.unwrap_or(document_id);
+    let key_id_mismatch = key_prefix != document_id;
+
+    let mut keys: Vec<String> = Vec::with_capacity(16);
+    // Final + staging metadata for both identity shapes.
+    for id in identity_variants(document_id, key_prefix, key_id_mismatch) {
+        keys.push(metadata_key_for_document(id));
+        keys.push(kv_keys::staging_doc_metadata(id));
+        keys.push(format!("{id}-content"));
+        keys.push(kv_keys::staging_doc_content(id));
+        keys.push(kv_keys::workspace_doc_index(workspace_id, id));
+    }
+    if let Some(content_hash) = opts.content_hash {
+        if !content_hash.is_empty() {
+            keys.push(ContentHasher::workspace_hash_key(workspace_id, content_hash));
+            keys.push(kv_keys::staging_workspace_hash(workspace_id, content_hash));
+        }
+    }
+
+    // Dedup while preserving order (identity overlap is common).
+    keys.sort();
+    keys.dedup();
+
+    let kv_keys_deleted = keys.len();
+    state
+        .storage
+        .kv_storage
+        .delete(&keys)
+        .await
+        .map_err(ApiError::from)?;
+
+    #[cfg(feature = "postgres")]
+    let mut relational_rows_deleted = 0u64;
+    #[cfg(not(feature = "postgres"))]
+    let relational_rows_deleted = 0u64;
+
+    #[cfg(feature = "postgres")]
+    {
+        // Scoped SQL delete (fail-closed on error — never warn-and-leave ghosts).
+        for id in identity_variants(document_id, key_prefix, key_id_mismatch) {
+            relational_rows_deleted += crate::document_read_model::delete_relational_document(
+                state.pg_pool.as_ref(),
+                id,
+                tenant_ctx,
+            )
+            .await?;
+        }
+
+        // PDF asset row (best-effort: FK cascade often already cleared by documents DELETE).
+        if let Some(pdf_id) = opts.pdf_id {
+            if let Some(ref pdf_storage) = state.storage.pdf_storage {
+                if let Ok(pdf_uuid) = Uuid::parse_str(pdf_id) {
+                    if let Err(e) = pdf_storage.delete_pdf(&pdf_uuid).await {
+                        tracing::debug!(
+                            pdf_id = %pdf_id,
+                            document_id = %document_id,
+                            error = %e,
+                            "pdf_documents row already absent or delete skipped"
+                        );
+                    }
+                }
+            }
+        }
+
+        // Also try pdf_storage document record for deployments without pg_pool wiring.
+        if let Some(ref pdf_storage) = state.storage.pdf_storage {
+            for id in identity_variants(document_id, key_prefix, key_id_mismatch) {
+                if let Ok(doc_uuid) = Uuid::parse_str(id) {
+                    match pdf_storage.delete_document_record(&doc_uuid).await {
+                        Ok(()) => {}
+                        Err(e) => {
+                            tracing::debug!(
+                                document_id = %id,
+                                error = %e,
+                                "pdf_storage delete_document_record skipped"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        let mm_storage = state.storage.mm_asset_storage.as_deref();
+        let workspace_uuid = Uuid::parse_str(workspace_id).ok();
+        for id in identity_variants(document_id, key_prefix, key_id_mismatch) {
+            let _ =
+                crate::services::delete_document_mm_assets(mm_storage, id, workspace_uuid).await;
+        }
+    }
+
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = tenant_ctx;
+    }
+
+    tracing::debug!(
+        document_id = %document_id,
+        workspace_id = %workspace_id,
+        kv_keys = kv_keys_deleted,
+        relational_rows = relational_rows_deleted,
+        "List-surface purge complete"
+    );
+
+    Ok(ListSurfacePurgeResult {
+        kv_keys_deleted,
+        relational_rows_deleted,
+    })
+}
+
+#[inline]
+fn identity_variants<'a>(
+    document_id: &'a str,
+    key_prefix: &'a str,
+    key_id_mismatch: bool,
+) -> impl Iterator<Item = &'a str> {
+    std::iter::once(document_id).chain(if key_id_mismatch {
+        Some(key_prefix)
+    } else {
+        None
+    })
 }
 
 /// Reset a stuck/failed deleting document to a recoverable terminal status.
@@ -495,13 +659,12 @@ pub async fn perform_document_deletion(
             .await;
     }
 
+    // Chunk + residual prefix keys (graph/vector already proved clean).
+    // List surfaces (metadata, wsdoc, SQL, hash) are always purged via SSOT
+    // even when has_metadata was false (historical incomplete deletes).
     let mut keys_to_delete = chunk_ids.clone();
     if has_metadata {
         keys_to_delete.push(metadata_key.clone());
-        keys_to_delete.push(edgequake_storage::kv_keys::workspace_doc_index(
-            &workspace_id_for_storage,
-            &actual_key_prefix,
-        ));
     }
     if has_content {
         keys_to_delete.push(content_key);
@@ -533,11 +696,6 @@ pub async fn perform_document_deletion(
         keys_to_delete.extend(alt_prefix_keys);
     }
 
-    if let Some(content_hash) = data.content_hash.as_ref() {
-        let hash_key = ContentHasher::workspace_hash_key(&workspace_id_for_storage, content_hash);
-        keys_to_delete.push(hash_key);
-    }
-
     state.tasks.progress_broadcaster.deletion_phase(
         &document_id,
         &deletion_track_id,
@@ -553,75 +711,33 @@ pub async fn perform_document_deletion(
         .await
         .map_err(ApiError::from)?;
 
-    #[cfg(feature = "postgres")]
+    // SSOT list-surface purge: always (not gated on has_metadata). Fail-closed
+    // if relational delete errors — merge would re-inject ghosts on refresh.
+    if let Err(e) = purge_document_list_surfaces(
+        state,
+        &document_id,
+        &workspace_id_for_storage,
+        tenant_ctx,
+        ListSurfacePurgeOpts {
+            key_prefix: Some(&actual_key_prefix),
+            content_hash: data.content_hash.as_deref(),
+            pdf_id: data.pdf_id.as_deref(),
+        },
+    )
+    .await
     {
-        let mm_storage = state.storage.mm_asset_storage.as_deref();
-        let workspace_uuid = uuid::Uuid::parse_str(&workspace_id_for_storage).ok();
-        match crate::services::delete_document_mm_assets(mm_storage, &document_id, workspace_uuid)
-            .await
-        {
-            Ok(n) if n > 0 => {
-                tracing::debug!(
-                    document_id = %document_id,
-                    deleted = n,
-                    "Deleted document mm-assets"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    document_id = %document_id,
-                    error = %e,
-                    "Failed to delete document mm-assets (continuing cascade)"
-                );
-            }
-            _ => {}
-        }
-        if key_id_mismatch {
-            let _ = crate::services::delete_document_mm_assets(
-                mm_storage,
-                &actual_key_prefix,
-                workspace_uuid,
-            )
-            .await;
-        }
-    }
-
-    #[cfg(feature = "postgres")]
-    {
-        if let Some(ref pdf_storage) = state.storage.pdf_storage {
-            if let Some(ref pid) = data.pdf_id {
-                if let Ok(pdf_uuid) = Uuid::parse_str(pid) {
-                    if let Err(e) = pdf_storage.delete_pdf(&pdf_uuid).await {
-                        tracing::warn!(
-                            pdf_id = %pid,
-                            document_id = %document_id,
-                            error = %e,
-                            "Failed to delete pdf_documents row (may already be gone)"
-                        );
-                    }
-                }
-            }
-
-            let doc_ids_to_try: Vec<&str> = if key_id_mismatch {
-                vec![&actual_key_prefix, &document_id]
-            } else {
-                vec![&document_id]
-            };
-            for doc_id_str in &doc_ids_to_try {
-                if let Ok(doc_uuid) = Uuid::parse_str(doc_id_str) {
-                    match pdf_storage.delete_document_record(&doc_uuid).await {
-                        Ok(_) => break,
-                        Err(e) => {
-                            tracing::warn!(
-                                document_id = %doc_id_str,
-                                error = %e,
-                                "Failed to delete documents table row (may not exist)"
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        let reason = format!("List-surface purge failed: {e}");
+        tracing::error!(document_id = %document_id, %reason);
+        // Metadata may already be gone; best-effort delete_failed badge.
+        reset_deleting_status(
+            state,
+            &document_id,
+            &actual_key_prefix,
+            &reason,
+            Some(deletion_track_id.as_str()),
+        )
+        .await;
+        return Err(e);
     }
 
     tracing::info!(
@@ -840,4 +956,193 @@ pub async fn find_active_deletion_track_id(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use edgequake_storage::kv_keys;
+
+    #[tokio::test]
+    async fn purge_list_surfaces_removes_wsdoc_and_metadata_even_when_orphaned() {
+        let state = crate::state::AppState::test_state();
+        let ws = "00000000-0000-0000-0000-0000000000ab";
+        let doc = "purge-ghost-doc";
+        let meta_key = format!("{doc}-metadata");
+        let content_key = format!("{doc}-content");
+        let wsdoc = kv_keys::workspace_doc_index(ws, doc);
+        let hash = "a".repeat(64);
+        let hash_key = ContentHasher::workspace_hash_key(ws, &hash);
+
+        state
+            .storage
+            .kv_storage
+            .upsert(&[
+                (
+                    meta_key.clone(),
+                    serde_json::json!({
+                        "id": doc,
+                        "workspace_id": ws,
+                        "status": "completed",
+                    }),
+                ),
+                (content_key.clone(), serde_json::json!("body")),
+                (
+                    wsdoc.clone(),
+                    serde_json::json!({
+                        "metadata_key": meta_key,
+                        "document_id": doc,
+                        "workspace_id": ws,
+                    }),
+                ),
+                (hash_key.clone(), serde_json::json!(doc)),
+            ])
+            .await
+            .unwrap();
+
+        // Simulate incomplete cascade: metadata already gone, list surfaces remain.
+        state
+            .storage
+            .kv_storage
+            .delete(std::slice::from_ref(&meta_key))
+            .await
+            .unwrap();
+
+        let tenant = TenantContext {
+            tenant_id: Some("00000000-0000-0000-0000-000000000001".into()),
+            workspace_id: Some(ws.into()),
+            user_id: None,
+        };
+
+        let result = purge_document_list_surfaces(
+            &state,
+            doc,
+            ws,
+            &tenant,
+            ListSurfacePurgeOpts {
+                key_prefix: Some(doc),
+                content_hash: Some(&hash),
+                pdf_id: None,
+            },
+        )
+        .await
+        .expect("purge must succeed");
+
+        assert!(result.kv_keys_deleted >= 4);
+        assert!(
+            state
+                .storage
+                .kv_storage
+                .get_by_id(&wsdoc)
+                .await
+                .unwrap()
+                .is_none(),
+            "wsdoc index must be purged (ghost list source)"
+        );
+        assert!(
+            state
+                .storage
+                .kv_storage
+                .get_by_id(&content_key)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            state
+                .storage
+                .kv_storage
+                .get_by_id(&hash_key)
+                .await
+                .unwrap()
+                .is_none(),
+            "content-hash pointer must not outlive list surfaces"
+        );
+        // Idempotent second purge.
+        purge_document_list_surfaces(
+            &state,
+            doc,
+            ws,
+            &tenant,
+            ListSurfacePurgeOpts {
+                key_prefix: Some(doc),
+                content_hash: Some(&hash),
+                pdf_id: None,
+            },
+        )
+        .await
+        .expect("idempotent");
+    }
+
+    #[tokio::test]
+    async fn purge_list_surfaces_handles_key_prefix_mismatch() {
+        let state = crate::state::AppState::test_state();
+        let ws = "00000000-0000-0000-0000-0000000000cd";
+        let doc_id = "canonical-id";
+        let key_prefix = "legacy-prefix";
+        let wsdoc_id = kv_keys::workspace_doc_index(ws, doc_id);
+        let wsdoc_prefix = kv_keys::workspace_doc_index(ws, key_prefix);
+
+        state
+            .storage
+            .kv_storage
+            .upsert(&[
+                (
+                    wsdoc_id.clone(),
+                    serde_json::json!({"document_id": doc_id}),
+                ),
+                (
+                    wsdoc_prefix.clone(),
+                    serde_json::json!({"document_id": key_prefix}),
+                ),
+                (
+                    format!("{key_prefix}-metadata"),
+                    serde_json::json!({"id": doc_id, "workspace_id": ws}),
+                ),
+            ])
+            .await
+            .unwrap();
+
+        let tenant = TenantContext {
+            tenant_id: None,
+            workspace_id: Some(ws.into()),
+            user_id: None,
+        };
+
+        purge_document_list_surfaces(
+            &state,
+            doc_id,
+            ws,
+            &tenant,
+            ListSurfacePurgeOpts {
+                key_prefix: Some(key_prefix),
+                content_hash: None,
+                pdf_id: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(state
+            .storage
+            .kv_storage
+            .get_by_id(&wsdoc_id)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(state
+            .storage
+            .kv_storage
+            .get_by_id(&wsdoc_prefix)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(state
+            .storage
+            .kv_storage
+            .get_by_id(&format!("{key_prefix}-metadata"))
+            .await
+            .unwrap()
+            .is_none());
+    }
 }

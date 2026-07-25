@@ -10,15 +10,17 @@ impl DocumentTaskProcessor {
 
     /// SPEC-058: best-effort unindex on cancel-before-completed.
     async fn retract_indexes_on_cancel(&self, document_id: &str) {
-        let metadata_key =
-            crate::services::resolve_document_metadata_key(document_id, &self.kv_storage).await;
-        let workspace_id = match self.kv_storage.get_by_id(&metadata_key).await {
-            Ok(Some(meta)) => meta
-                .get("workspace_id")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            _ => None,
-        };
+        // IMP-075-11: one RT staging+final (not resolve key then re-get).
+        let workspace_id =
+            crate::services::load_staging_first_metadata(self.kv_storage.as_ref(), document_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|(_, meta)| {
+                    meta.get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                });
 
         let vector = match workspace_id.as_deref() {
             Some(ws) => self
@@ -72,9 +74,11 @@ impl DocumentTaskProcessor {
                 .await
                 .ok();
             // Free staging hash so cancelled shells do not block same-bytes re-upload.
-            let meta_key =
-                crate::services::resolve_document_metadata_key(document_id, &self.kv_storage).await;
-            if let Ok(Some(meta)) = self.kv_storage.get_by_id(&meta_key).await {
+            // IMP-075-11: one RT staging+final (not resolve key then re-get).
+            if let Ok(Some((_, meta))) =
+                crate::services::load_staging_first_metadata(self.kv_storage.as_ref(), document_id)
+                    .await
+            {
                 if let (Some(hash), Some(ws)) = (
                     meta.get("content_hash").and_then(|v| v.as_str()),
                     meta.get("workspace_id").and_then(|v| v.as_str()),

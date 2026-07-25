@@ -82,7 +82,8 @@ pub use filtered_diskann_label_policy::{
 };
 pub use graph::PostgresAGEGraphStorage;
 pub use hnsw_runtime_policy::{
-    hnsw_partial_by_workspace_enabled, parse_hnsw_iterative_scan_mode, HnswRuntimePolicy,
+    filtered_ann_gucs_satisfy_contract, hnsw_partial_by_workspace_enabled,
+    parse_hnsw_iterative_scan_mode, parse_partial_by_workspace_env, HnswRuntimePolicy,
 };
 pub use id_allocation::{allocate_document_id, is_uuidv7};
 pub use kv::PostgresKVStorage;

@@ -47,13 +47,14 @@ pub async fn sync_doc_cancelled_by_document_id(
     document_id: &str,
     message: &str,
 ) -> Result<bool, String> {
-    let metadata_key = crate::services::resolve_document_metadata_key(document_id, &kv).await;
-    let existing = kv
-        .get_by_id(&metadata_key)
-        .await
-        .map_err(|e| e.to_string())?;
+    // IMP-075-10: one RT staging+final (not resolve key then re-get).
+    let Some((metadata_key, existing)) =
+        crate::services::load_staging_first_metadata(kv.as_ref(), document_id).await?
+    else {
+        return Ok(false);
+    };
 
-    let Some(mut obj) = existing.and_then(|v| v.as_object().cloned()) else {
+    let Some(mut obj) = existing.as_object().cloned() else {
         return Ok(false);
     };
 
@@ -84,14 +85,14 @@ pub async fn sync_document_failed_on_orphan_heartbeat(
         return Ok(());
     };
 
-    let metadata_key = crate::services::resolve_document_metadata_key(&document_id, &kv).await;
+    // IMP-075-10: one RT staging+final (not resolve key then re-get).
+    let Some((metadata_key, existing)) =
+        crate::services::load_staging_first_metadata(kv.as_ref(), &document_id).await?
+    else {
+        return Ok(());
+    };
 
-    let existing = kv
-        .get_by_id(&metadata_key)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let Some(mut obj) = existing.and_then(|v| v.as_object().cloned()) else {
+    let Some(mut obj) = existing.as_object().cloned() else {
         return Ok(());
     };
 

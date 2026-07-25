@@ -92,6 +92,20 @@ impl PostgresAGEGraphStorage {
     /// `value_to_cypher`, which single-quote-escapes strings, so injection via
     /// node ids/properties is neutralized exactly as in the single-node path.
     ///
+    /**
+     * @dataop      DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046
+     * @engine      apache_age (primary write: native SQL ON CONFLICT when NATIVE_GRAPH_WRITES)
+     * @intent      Batch upsert graph vertices; native path uses UNIQUE node_id arbiter.
+     * @tables      {graph}."Node"
+     * @indexes     UNIQUE expression on properties->>'node_id'
+     * @complexity  time: O(K log N) native; Cypher MERGE higher latency
+     * @limits      - Adaptive Cypher UNWIND body ≤512KB; chunk dedupe by node_id
+     *              - Cypher path debug-only when native disabled
+     * @scaling     Linear in K; prefer native
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok
+     * @docs        specs/088-data-layer/age.md#data-age-graph-upsert-nodes-batch-046
+     */
     /// # SPEC-032 W-05: Adaptive UNWIND chunk size
     ///
     /// WHY: a fixed CHUNK=500 with entities that have long descriptions (e.g.,
@@ -103,6 +117,9 @@ impl PostgresAGEGraphStorage {
         &self,
         nodes: &[(String, HashMap<String, serde_json::Value>)],
     ) -> Result<()> {
+        let _timer = crate::TimedStorageOp::start_dataop(
+            crate::dataop::DATA_AGE_GRAPH_UPSERT_NODES_BATCH_046,
+        );
         if nodes.is_empty() {
             return Ok(());
         }
@@ -116,6 +133,12 @@ impl PostgresAGEGraphStorage {
         if super::super::native_graph_writes_enabled() {
             return self.pg_upsert_nodes_batch_native(nodes).await;
         }
+        // IMP-046-01: Cypher MERGE is debug-only — O(G) GIN path, higher locks.
+        tracing::warn!(
+            target: "edgequake_storage::graph",
+            count = nodes.len(),
+            "native graph writes disabled — using Cypher MERGE (set EDGEQUAKE_NATIVE_GRAPH_WRITES=1 for O(K log N) ON CONFLICT)"
+        );
 
         // SPEC-032 W-05: Adaptive chunk size — keep UNWIND body ≤ 512 KB.
         let chunk_size = Self::adaptive_unwind_chunk_size(nodes);
@@ -253,48 +276,91 @@ impl PostgresAGEGraphStorage {
         unique.sort();
         unique.dedup();
 
-        // Detach: edges where either end is in the delete set.
+        // Detach: edges where either end is in the delete set (COALESCE eq_* when present).
+        let mut conn = pool
+            .acquire()
+            .await
+            .map_err(|e| StorageError::Connection(format!("Failed to acquire connection: {e}")))?;
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let src = if eq_present {
+            super::super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt = if eq_present {
+            super::super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::super::helpers::prop_only_endpoint("e", "target")
+        };
+        let node_key = if eq_present {
+            super::super::helpers::coalesce_endpoint("n", "node")
+        } else {
+            super::super::helpers::prop_only_endpoint("n", "node")
+        };
         let del_edges = format!(
-            r#"DELETE FROM {graph}."EDGE" e
-               WHERE ag_catalog.agtype_to_json(e.properties)->>'source_id' = ANY($1::text[])
-                  OR ag_catalog.agtype_to_json(e.properties)->>'target_id' = ANY($1::text[])"#
+            r#"/* DATA-AGE-GRAPH-DELETE-NODES-BATCH detach */
+               DELETE FROM {graph}."EDGE" e
+               WHERE {src} = ANY($1::text[]) OR {tgt} = ANY($1::text[])"#
         );
         sqlx::query(&del_edges)
             .bind(&unique)
-            .execute(&pool)
+            .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("native batch edge detach failed: {e}")))?;
 
         let del_nodes = format!(
-            r#"DELETE FROM {graph}."Node" n
-               WHERE ag_catalog.agtype_to_json(n.properties)->>'node_id' = ANY($1::text[])"#
+            r#"/* DATA-AGE-GRAPH-DELETE-NODES-BATCH */
+               DELETE FROM {graph}."Node" n
+               WHERE {node_key} = ANY($1::text[])"#
         );
         sqlx::query(&del_nodes)
             .bind(&unique)
-            .execute(&pool)
+            .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("native batch node delete failed: {e}")))?;
         Ok(())
     }
 
-    /// Tenant-scoped delete — atomic MATCH+WHERE+DELETE (no cross-tenant IDOR).
+    /// Tenant-scoped delete — no cross-tenant IDOR (IMP-031-05 native when enabled).
     pub(in crate::adapters::postgres::graph) async fn pg_delete_node_scoped(
         &self,
         node_id: &str,
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<bool> {
-        let escaped_id = Self::escape_cypher_string(node_id);
-        let escaped_tid = Self::escape_cypher_string(tenant_id);
-        let escaped_wid = Self::escape_cypher_string(workspace_id);
-        let cypher = format!(
-            "MATCH (n:Node {{node_id: '{escaped_id}'}}) \
-             WHERE n.tenant_id = '{escaped_tid}' AND n.workspace_id = '{escaped_wid}' \
-             DETACH DELETE n \
-             RETURN n"
-        );
-        let rows = self.cypher_query(&cypher, &["n"]).await?;
-        Ok(!rows.is_empty())
+        if !super::super::native_graph_writes_enabled() {
+            let escaped_id = Self::escape_cypher_string(node_id);
+            let escaped_tid = Self::escape_cypher_string(tenant_id);
+            let escaped_wid = Self::escape_cypher_string(workspace_id);
+            let cypher = format!(
+                "MATCH (n:Node {{node_id: '{escaped_id}'}}) \
+                 WHERE n.tenant_id = '{escaped_tid}' AND n.workspace_id = '{escaped_wid}' \
+                 DETACH DELETE n \
+                 RETURN n"
+            );
+            let rows = self.cypher_query(&cypher, &["n"]).await?;
+            return Ok(!rows.is_empty());
+        }
+
+        // Verify node is in tenant/ws before detach-delete.
+        let Some(node) = self.pg_get_node(node_id).await? else {
+            return Ok(false);
+        };
+        let nt = node
+            .properties
+            .get("tenant_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let nw = node
+            .properties
+            .get("workspace_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if nt != tenant_id || nw != workspace_id {
+            return Ok(false);
+        }
+        self.pg_delete_nodes_batch(&[node_id.to_string()]).await?;
+        Ok(true)
     }
 
     /// SPEC-034 IMP-01: Native SQL batch node upsert — O(log G) per node.

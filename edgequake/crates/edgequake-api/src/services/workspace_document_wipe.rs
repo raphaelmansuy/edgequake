@@ -121,7 +121,6 @@ async fn purge_one_document_kv(
         .keys_with_prefix(&chunk_prefix)
         .await
         .unwrap_or_default();
-    let content_key = format!("{}-content", doc.document_id);
 
     if !chunk_ids.is_empty() {
         state
@@ -131,48 +130,29 @@ async fn purge_one_document_kv(
             .await
             .map_err(|e| ApiError::Internal(format!("wipe delete chunks: {e}")))?;
     }
-    state
-        .storage
-        .kv_storage
-        .delete(std::slice::from_ref(&doc.metadata_key))
-        .await
-        .map_err(|e| ApiError::Internal(format!("wipe delete metadata: {e}")))?;
-    let _ = state
-        .storage
-        .kv_storage
-        .delete(std::slice::from_ref(&content_key))
-        .await;
 
-    #[cfg(feature = "postgres")]
-    {
-        let mm_storage = state.storage.mm_asset_storage.as_deref();
-        let workspace_uuid = uuid::Uuid::parse_str(&tenant_ctx.workspace_id_or_default()).ok();
-        if let Err(e) =
-            crate::services::delete_document_mm_assets(mm_storage, &doc.document_id, workspace_uuid)
-                .await
-        {
-            return Err(ApiError::Internal(format!(
-                "workspace wipe mm-asset delete failed (retryable) doc={}: {e}",
-                doc.document_id
-            )));
-        }
-        if let Some(ref pdf_id_str) = doc.pdf_id {
-            if let (Some(ref pdf_storage), Ok(pdf_uuid)) = (
-                &state.storage.pdf_storage,
-                uuid::Uuid::parse_str(pdf_id_str),
-            ) {
-                if let Err(e) = pdf_storage.delete_pdf(&pdf_uuid).await {
-                    return Err(ApiError::Internal(format!(
-                        "workspace wipe PDF delete failed (retryable) pdf_id={pdf_id_str}: {e}"
-                    )));
-                }
-            }
-        }
-    }
-    #[cfg(not(feature = "postgres"))]
-    {
-        let _ = tenant_ctx;
-    }
+    // SSOT list-surface purge: metadata, content, wsdoc, SQL, mm, pdf.
+    // Workspace wipe also bulk-deletes relational at end; per-doc purge keeps
+    // wsdoc/SQL consistent if the wipe is interrupted mid-batch.
+    let workspace_id = tenant_ctx.workspace_id_or_default();
+    crate::services::purge_document_list_surfaces(
+        state,
+        &doc.document_id,
+        &workspace_id,
+        tenant_ctx,
+        crate::services::ListSurfacePurgeOpts {
+            key_prefix: Some(&doc.document_id),
+            content_hash: None,
+            pdf_id: doc.pdf_id.as_deref(),
+        },
+    )
+    .await
+    .map_err(|e| {
+        ApiError::Internal(format!(
+            "workspace wipe list-surface purge failed (retryable) doc={}: {e}",
+            doc.document_id
+        ))
+    })?;
 
     Ok(chunk_ids.len())
 }

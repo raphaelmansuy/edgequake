@@ -9,31 +9,28 @@ use crate::error::{Result, StorageError};
 use crate::traits::{GraphEdge, GraphNode};
 
 impl PostgresAGEGraphStorage {
+    /// IMP-031-01 / SPEC-088: native PK-style lookup — O(log N) via UNIQUE node_id expr.
+    /// Cypher property MATCH is not used on the request path (AGE#2348 / catalog anti-pattern).
     pub(in crate::adapters::postgres::graph) async fn pg_has_node(
         &self,
         node_id: &str,
     ) -> Result<bool> {
-        let cypher = "MATCH (n:Node {node_id: $node_id}) RETURN n LIMIT 1";
-        let params = serde_json::json!({ "node_id": node_id });
-        let rows = self.cypher_query_bound(cypher, &["n"], &params).await?;
-        Ok(!rows.is_empty())
+        Ok(self.pg_get_node(node_id).await?.is_some())
     }
 
+    /**
+     * @dataop      DATA-AGE-GRAPH-GET-NODE-026
+     * @engine      apache_age (native SQL primary)
+     * @intent      Single-node fetch by node_id — O(log N) UNIQUE expression index.
+     * @complexity  time: O(log N); space: O(1)
+     * @docs        specs/088-data-layer/age.md#data-age-graph-get-node-026
+     */
     pub(in crate::adapters::postgres::graph) async fn pg_get_node(
         &self,
         node_id: &str,
     ) -> Result<Option<GraphNode>> {
-        let cypher = "MATCH (n:Node {node_id: $node_id}) RETURN n";
-        let params = serde_json::json!({ "node_id": node_id });
-        let rows = self.cypher_query_bound(cypher, &["n"], &params).await?;
-
-        if rows.is_empty() {
-            return Ok(None);
-        }
-
-        let json_value: serde_json::Value = rows[0].get("n");
-        let agtype_str = json_value.to_string();
-        Ok(Self::parse_vertex(&agtype_str))
+        let mut map = self.pg_get_nodes_batch(&[node_id.to_string()]).await?;
+        Ok(map.remove(node_id))
     }
 
     /// FAST OPTIMIZED: Get node degree using native SQL.
@@ -215,59 +212,72 @@ impl PostgresAGEGraphStorage {
         Ok(results)
     }
 
+    /// ADMIN / dump path (FORBIDDEN on hot HTTP) — native scan, no Cypher.
+    /// Complexity: O(N) unavoidable; skips AGE planner overhead (IMP-031-07).
     pub(in crate::adapters::postgres::graph) async fn pg_get_all_nodes(
         &self,
     ) -> Result<Vec<GraphNode>> {
-        let cypher = "MATCH (n:Node) RETURN n";
-        let rows = self.cypher_query(cypher, &["n"]).await?;
-
-        let nodes: Vec<GraphNode> = rows
+        let pool = self.pool.get().await?;
+        let sql = format!(
+            r#"/* DATA-AGE-GRAPH-GET-ALL-NODES */
+               SELECT ag_catalog.agtype_to_json(n.properties) AS props
+               FROM {}."Node" n"#,
+            self.graph_name
+        );
+        let rows = sqlx::query(&sql)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("get_all_nodes native failed: {e}")))?;
+        Ok(rows
             .iter()
             .filter_map(|row| {
-                let json_value: serde_json::Value = row.get("n");
-                let agtype_str = json_value.to_string();
-                Self::parse_vertex(&agtype_str)
+                let props: serde_json::Value = row.get("props");
+                let node_id = props
+                    .get("node_id")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)?;
+                Self::parse_properties_to_node(&node_id, &props)
             })
-            .collect();
-
-        Ok(nodes)
+            .collect())
     }
 
+    /**
+     * @dataop      DATA-AGE-GRAPH-GET-NODES-BY-IDS-030
+     * @engine      apache_age (native SQL primary; IMP-031-01)
+     * @intent      Multi-id fetch preserving input order — one RT, O(K log N).
+     * @complexity  time: O(K log N); space: O(K)
+     * @limits      Never use Cypher IN on request path (planner may ignore property indexes).
+     * @docs        specs/088-data-layer/age.md#data-age-graph-get-nodes-by-ids-030
+     */
     pub(in crate::adapters::postgres::graph) async fn pg_get_nodes_by_ids(
         &self,
         node_ids: &[String],
     ) -> Result<Vec<GraphNode>> {
-        if node_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Build list of IDs for Cypher IN clause
-        let ids_list: Vec<String> = node_ids
+        // IMP-031-01: always native batch SQL (same path as get_nodes_batch).
+        // Returns only found nodes, order preserved for hits.
+        let map = self.pg_get_nodes_batch(node_ids).await?;
+        Ok(node_ids
             .iter()
-            .map(|id| format!("'{}'", Self::escape_cypher_string(id)))
-            .collect();
-
-        let cypher = format!(
-            "MATCH (n:Node) WHERE n.node_id IN [{}] RETURN n",
-            ids_list.join(", ")
-        );
-
-        let rows = self.cypher_query(&cypher, &["n"]).await?;
-
-        let nodes: Vec<GraphNode> = rows
-            .iter()
-            .filter_map(|row| {
-                let json_value: serde_json::Value = row.get("n");
-                let agtype_str = json_value.to_string();
-                Self::parse_vertex(&agtype_str)
-            })
-            .collect();
-
-        Ok(nodes)
+            .filter_map(|id| map.get(id).cloned())
+            .collect())
     }
 
     /// OPTIMIZED: LightRAG-inspired batch node retrieval using UNNEST with ORDINALITY.
     ///
+    /**
+     * @dataop      DATA-AGE-GRAPH-GET-NODES-BATCH-031
+     * @engine      apache_age (secondary: postgres native SQL)
+     * @intent      Batch fetch graph nodes by node_id in one round-trip (UNNEST + UNIQUE expr index).
+     * @tables      {graph}."Node"(properties agtype)
+     * @indexes     idx_node_prop_node_id_unique (expression UNIQUE on node_id)
+     * @complexity  time: O(K log N); space: O(K); io: K index lookups
+     * @limits      - Prefer over Cypher IN loops; K bounded by caller
+     *              - Cypher property MATCH may ignore GIN (AGE#2348) — this path uses SQL
+     * @scaling     Linear in K; verified e2e_spec061
+     * @tests       tests/data_layer/data_layer_limits.rs
+     * @pgversions  16: ok | 17: ok | 18: ok (AGE 1.7+/1.8)
+     * @docs        specs/088-data-layer/age.md#data-age-graph-get-nodes-batch-031
+     */
     /// This method uses a single SQL query with array binding to fetch multiple nodes
     /// in O(1) database round-trips, matching LightRAG's performance pattern.
     ///
@@ -276,13 +286,17 @@ impl PostgresAGEGraphStorage {
         &self,
         node_ids: &[String],
     ) -> Result<HashMap<String, GraphNode>> {
+        let _timer =
+            crate::TimedStorageOp::start_dataop(crate::dataop::DATA_AGE_GRAPH_GET_NODES_BATCH_031);
         if node_ids.is_empty() {
             return Ok(HashMap::new());
         }
 
         // Use direct SQL with UNNEST for batch parameter binding (LightRAG pattern)
-        let sql = format!(
-            r#"
+        let sql = crate::dataop::sql_comment(
+            crate::dataop::DATA_AGE_GRAPH_GET_NODES_BATCH_031,
+            &format!(
+                r#"
             WITH input(v, ord) AS (
               SELECT v, ord FROM unnest($1::text[]) WITH ORDINALITY AS t(v, ord)
             ),
@@ -297,7 +311,8 @@ impl PostgresAGEGraphStorage {
             ) = i.node_id
             ORDER BY i.ord
             "#,
-            self.graph_name
+                self.graph_name
+            ),
         );
 
         let rows = self.batch_sql_query(&sql, node_ids).await?;

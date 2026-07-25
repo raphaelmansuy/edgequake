@@ -13,7 +13,7 @@ use crate::handlers::documents::storage_helpers::{
 };
 use crate::middleware::TenantContext;
 use crate::services::text_insert_content::{
-    persist_document_content, resolve_document_metadata_key, resolve_text_insert_content,
+    load_staging_first_metadata, persist_document_content, resolve_text_insert_content,
 };
 use crate::state::AppState;
 
@@ -51,8 +51,11 @@ pub async fn reanalyze_document_multimodal(
     params: MultimodalReanalyzeParams,
 ) -> ApiResult<MultimodalReanalyzeOutcome> {
     let kv = Arc::clone(&state.storage.kv_storage);
-    let metadata_key = resolve_document_metadata_key(&params.document_id, &kv).await;
-    let Some(metadata) = kv.get_by_id(&metadata_key).await? else {
+    // IMP-075-11: one RT staging+final (not resolve key then re-get).
+    let Some((_, metadata)) = load_staging_first_metadata(kv.as_ref(), &params.document_id)
+        .await
+        .map_err(ApiError::Internal)?
+    else {
         return Err(ApiError::NotFound(format!(
             "Document {} not found",
             params.document_id

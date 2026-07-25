@@ -85,12 +85,11 @@ impl DocumentTaskProcessor {
                 .cloned()
                 .or_else(|| Some(json!(source_type)));
 
-            let metadata_key = crate::services::text_insert_content::resolve_document_metadata_key(
-                &document_id,
-                &self.kv_storage,
-            )
-            .await;
-            if let Ok(Some(existing)) = self.kv_storage.get_by_id(&metadata_key).await {
+            // IMP-075-11: one RT staging+final (not resolve key then re-get).
+            if let Ok(Some((metadata_key, existing))) =
+                crate::services::load_staging_first_metadata(self.kv_storage.as_ref(), &document_id)
+                    .await
+            {
                 if let Some(obj) = existing.as_object() {
                     let mut updated = obj.clone();
                     let mut changed = false;
@@ -425,17 +424,15 @@ impl DocumentTaskProcessor {
                     preprocess_result.duplicates_removed,
                 );
             }
-            let metadata_key = crate::services::text_insert_content::resolve_document_metadata_key(
+            // IMP-075-11: one RT staging+final (not resolve key then re-get).
+            let doc_metadata = crate::services::load_staging_first_metadata(
+                self.kv_storage.as_ref(),
                 &document_id,
-                &self.kv_storage,
             )
-            .await;
-            let doc_metadata = self
-                .kv_storage
-                .get_by_id(&metadata_key)
-                .await
-                .ok()
-                .flatten();
+            .await
+            .ok()
+            .flatten()
+            .map(|(_, v)| v);
 
             // SPEC-046 EQ-046-14: stamp / refresh process fingerprint; purge KG when
             // chunking or multimodal options changed vs last successful ingest
