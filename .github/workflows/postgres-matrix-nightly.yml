@@ -112,7 +112,7 @@ jobs:
           ./specs/061-multi-version-data-access-perf/e2e/run_data_access_perf_matrix.sh "${{ matrix.profile }}"
       - name: Upload perf JSONL artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eq-perf-${{ matrix.profile }}
           path: /tmp/eq-perf-${{ matrix.profile }}*.jsonl

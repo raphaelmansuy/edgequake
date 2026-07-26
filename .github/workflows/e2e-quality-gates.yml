@@ -53,7 +53,7 @@ jobs:
         run: cargo build --release --package edgequake
 
       - name: Upload backend binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-binary
           path: edgequake/target/release/edgequake
@@ -325,7 +325,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-results
@@ -406,7 +406,7 @@ jobs:
 
       - name: Upload SPEC-020 artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spec020-qc-artifacts
           path: specs/020-e2e-quality-control/e2e/
