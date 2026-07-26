@@ -33,7 +33,7 @@ edgequake-observability = { path = "../edgequake-observability", features = ["me
 edgequake-pdf2md = { workspace = true }
 
 axum.workspace = true
-axum-extra = { version = "0.10", features = ["multipart"] }
+axum-extra = { version = "0.12", features = ["multipart"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = "0.1"
 futures-util = "0.3"
