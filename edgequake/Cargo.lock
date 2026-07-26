@@ -1930,9 +1930,9 @@ dependencies = [
 
 [[package]]
 name = "edgequake-llm"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91df30b5b1ccfe85d65df92235c3c05d1f03b1542c2c0d6a82ffd4ff4653def"
+checksum = "1b986be66abf3a80a7ab410df7d41115db1687c0eddc919cde611e35bd5491cf"
 dependencies = [
  "anyhow",
  "async-openai",
@@ -2873,7 +2873,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -4394,7 +4394,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -4431,7 +4431,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
