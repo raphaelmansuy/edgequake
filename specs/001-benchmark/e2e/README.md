@@ -7,8 +7,18 @@ artifacts/
   smoke/          # full Acc n=40 (publication)
   smoke-fast/     # Acc gate n=8 (capped corpus OK)
   LIVE.md         # live progress board (docs / chunks / ETA)
-  history/        # archived scorecards
+  publish/        # Acc SSOT (latest + peers) — always commit thin claims
+  history/        # archived runs (see thin vs fat below)
 ```
+
+### Thin vs fat archives (SPEC-097 / GH-351)
+
+| Class | Examples | In git? |
+|-------|----------|---------|
+| **Thin SSOT** | `scorecard.json`, `SUMMARY.md`, `BUSINESS_REPORT.md`, `meta.json`, `LOCAL_ONLY.md` | Yes |
+| **Fat forensics** | `predictions_*.json`, `eval_*.json`, `eval_*.raw.json`, `logs/progress.jsonl` | **No** (gitignored; local-only) |
+
+Do not `git add -f` fat JSON. Regenerate with `make bench001-*`. Policy: [`specs/097-git-history/`](../../097-git-history/).
 
 ## Publication Acc pins (required)
 

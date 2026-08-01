@@ -115,6 +115,7 @@ Before submitting, verify:
 - new env vars are documented
 - Docker instructions still work
 - no secrets or generated artifacts are committed
+- run `make git-hygiene` (SPEC-097 / [#351](https://github.com/raphaelmansuy/edgequake/issues/351)): do **not** commit regenerable bench001 fat JSON (`predictions_*.json`, `eval_*.json`, `eval_*.raw.json`, `logs/progress.jsonl`). Acc claims live in thin `scorecard.json` / `SUMMARY.md` / `specs/001-benchmark/e2e/artifacts/publish/`. See [`specs/097-git-history/`](specs/097-git-history/).
 
 ## Community Standards
 

@@ -453,35 +453,76 @@ def empty_context_rate(preds: list[dict[str, Any]]) -> float:
     return empty / len(preds)
 
 
+# Thin SSOT — safe to commit (SPEC-097 / LAW-G2).
+_ARCHIVE_THIN = (
+    "scorecard.json",
+    "SUMMARY.md",
+    "BUSINESS_REPORT.md",
+    "EXEC_SUMMARY.txt",
+    "meta.json",
+    "eq_workspace.json",
+    "progress.json",
+    "LIVE.md",
+)
+
+# Fat regenerable forensics — local-only, gitignored (SPEC-097 / LAW-G3).
+_ARCHIVE_FAT = (
+    "eval_eq.json",
+    "eval_lr.json",
+    "eval_eq.raw.json",
+    "eval_lr.raw.json",
+    "predictions_eq.json",
+    "predictions_lr.json",
+)
+
+
+def _write_local_only_md(dest: Path, *, present_fat: list[str]) -> None:
+    """Document which archive files must not be committed (SPEC-097)."""
+    lines = [
+        "# LOCAL_ONLY — fat bench001 artifacts (SPEC-097 / GH-351)",
+        "",
+        "These files are written for local forensics and are **gitignored**.",
+        "Do not `git add -f` them. Acc claims live in `scorecard.json` /",
+        "`SUMMARY.md` / `publish/` peers.",
+        "",
+        "Regenerate via `make bench001-*`.",
+        "",
+    ]
+    if present_fat:
+        lines.append("Present in this archive:")
+        lines.append("")
+        for name in present_fat:
+            lines.append(f"- `{name}`")
+        lines.append("")
+    else:
+        lines.append("_No fat files were present when this archive was written._")
+        lines.append("")
+    (dest / "LOCAL_ONLY.md").write_text("\n".join(lines), encoding="utf-8")
+
+
 def archive_run(stage: str, scorecard: dict[str, Any]) -> Path:
-    """Copy key artifacts into history/<stage>-<timestamp>/ and refresh PROGRESS.md."""
+    """Copy key artifacts into history/<stage>-<timestamp>/ and refresh PROGRESS.md.
+
+    Thin scorecards/reports stay VCS-eligible; fat predictions/eval/logs are
+    copied locally only (SPEC-097 / GH-351).
+    """
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     dest = history_root() / f"{stage}-{ts}"
     dest.mkdir(parents=True, exist_ok=True)
     src = stage_artifact_dir(stage)
-    for name in (
-        "scorecard.json",
-        "SUMMARY.md",
-        "BUSINESS_REPORT.md",
-        "EXEC_SUMMARY.txt",
-        "meta.json",
-        "eq_workspace.json",
-        "progress.json",
-        "LIVE.md",
-        "eval_eq.json",
-        "eval_lr.json",
-        "eval_eq.raw.json",
-        "eval_lr.raw.json",
-        "predictions_eq.json",
-        "predictions_lr.json",
-    ):
+    present_fat: list[str] = []
+    for name in _ARCHIVE_THIN + _ARCHIVE_FAT:
         p = src / name
         if p.exists():
             shutil.copy2(p, dest / name)
+            if name in _ARCHIVE_FAT:
+                present_fat.append(name)
     logs_src = src / "logs" / "progress.jsonl"
     if logs_src.exists():
         (dest / "logs").mkdir(exist_ok=True)
         shutil.copy2(logs_src, dest / "logs" / "progress.jsonl")
+        present_fat.append("logs/progress.jsonl")
+    _write_local_only_md(dest, present_fat=present_fat)
     write_progress_md(scorecard=scorecard, archive_dir=dest)
     return dest
 

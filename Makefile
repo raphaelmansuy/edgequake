@@ -2562,6 +2562,11 @@ release-gates: ## Pre-release gate: fmt, workspace clippy, SPEC-006/018, WebUI, 
 	@chmod +x scripts/release_gates.sh
 	@./scripts/release_gates.sh
 
+.PHONY: git-hygiene
+git-hygiene: ## SPEC-097 / GH-351: block fat bench artifacts and >50MiB tip blobs
+	@chmod +x tools/git-hygiene/check_no_fat_artifacts.sh
+	@./tools/git-hygiene/check_no_fat_artifacts.sh
+
 .PHONY: spec090-perf-smoke
 spec090-perf-smoke: ## SPEC-090 falsifiable scaling smoke (needs DATABASE_URL)
 	@chmod +x scripts/perf/spec090_scaling_smoke.sh

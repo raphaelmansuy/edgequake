@@ -40,11 +40,22 @@ jobs:
           chmod +x scripts/check_migration_checksums.sh
           ./scripts/check_migration_checksums.sh --verbose
 
+  git-hygiene:
+    name: Git hygiene (SPEC-097)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Block fat bench artifacts / oversized tip blobs
+        run: |
+          chmod +x tools/git-hygiene/check_no_fat_artifacts.sh
+          ./tools/git-hygiene/check_no_fat_artifacts.sh
+
   check:
     name: Check (fmt + clippy)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: migration-checksum-guard
+    needs: [migration-checksum-guard, git-hygiene]
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust

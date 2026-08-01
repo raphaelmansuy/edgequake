@@ -144,12 +144,13 @@ edgequake-website/
 # Root-level marketing screenshots (safe to regenerate)
 /*.png
 
-# Bench001 medical-full raw eval/predictions exceed GitHub 100MB limit — keep
-# scorecard/SUMMARY/BUSINESS_REPORT only; regenerate locally via make bench001-medical-full-*.
-specs/001-benchmark/e2e/artifacts/medical-full/predictions_*.json
-specs/001-benchmark/e2e/artifacts/medical-full/eval_*.json
-specs/001-benchmark/e2e/artifacts/history/medical-full-*/predictions_*.json
-specs/001-benchmark/e2e/artifacts/history/medical-full-*/eval_*.json
+# SPEC-097 / GH-351 — fat regenerable bench001 archives (local-only).
+# Keep thin scorecard/SUMMARY/BUSINESS_REPORT/meta in git; regenerate fat via make bench001-*.
+specs/001-benchmark/e2e/artifacts/**/predictions_*.json
+specs/001-benchmark/e2e/artifacts/**/eval_*.json
+specs/001-benchmark/e2e/artifacts/**/eval_*.raw.json
+specs/001-benchmark/e2e/artifacts/**/logs/progress.jsonl
+specs/001-benchmark/e2e/artifacts/history/**/logs/
 
 # OS files
 Thumbs.db
