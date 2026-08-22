@@ -203,6 +203,13 @@ Design reference: [SPEC-043 §011 — Vertex AI Authentication](../specs/043-upd
 | `OPENROUTER_API_KEY`  | String | None                        | OpenRouter API key (required) |
 | `OPENROUTER_BASE_URL` | String | `https://openrouter.ai/api` | API endpoint                  |
 
+#### OrcaRouter
+
+| Variable              | Type   | Default                       | Description                             |
+| --------------------- | ------ | ----------------------------- | --------------------------------------- |
+| `ORCAROUTER_API_KEY`  | String | None                          | OrcaRouter API key (`sk-orca-…`) (required) |
+| `ORCAROUTER_BASE_URL` | String | `https://api.orcarouter.ai/v1` | API endpoint                            |
+
 #### MiniMax
 
 | Variable           | Type   | Default                     | Description                                                |
@@ -533,6 +540,7 @@ image_per_unit = 0.0
 | `vertexai`   | Google Vertex AI (enterprise) | **Identity** — `GOOGLE_CLOUD_PROJECT` + ADC/SA (no static API key) |
 | `xai`        | xAI Grok models         | `XAI_API_KEY`          |
 | `openrouter` | OpenRouter aggregator   | `OPENROUTER_API_KEY`   |
+| `orcarouter` | OrcaRouter AI gateway   | `ORCAROUTER_API_KEY`   |
 | `minimax`    | MiniMax AI models       | `MINIMAX_API_KEY`      |
 | `azure`      | Azure OpenAI            | `AZURE_OPENAI_API_KEY` |
 | `ollama`     | Ollama local models     | None (local)           |
@@ -812,6 +820,44 @@ supports_streaming = true
 input_per_1k = 0.00015
 output_per_1k = 0.0006
 ```
+
+### OrcaRouter
+
+```toml
+[[providers]]
+name = "orcarouter"
+display_name = "OrcaRouter"
+type = "openaicompatible"
+api_base = "https://api.orcarouter.ai/v1"
+api_key_env = "ORCAROUTER_API_KEY"
+enabled = true
+priority = 19
+
+[[providers.models]]
+name = "orcarouter/auto"
+display_name = "OrcaRouter Auto"
+model_type = "llm"
+tags = ["recommended"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 32768
+supports_vision = true
+supports_streaming = true
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+```
+
+OrcaRouter ([orcarouter.ai](https://www.orcarouter.ai)) is a unified AI gateway
+that exposes frontier models through an OpenAI-compatible chat completions API at
+`https://api.orcarouter.ai/v1`. It also runs gateway-level, zero-trust security for
+AI agents on the same endpoint — screening every prompt/response and governing every
+tool call on a default-deny basis, with no application code changes.
+
+Set `ORCAROUTER_API_KEY` (an `sk-orca-…` key) to use the OrcaRouter provider. The
+model `orcarouter/auto` routes automatically to a suitable model.
 
 ---
 
