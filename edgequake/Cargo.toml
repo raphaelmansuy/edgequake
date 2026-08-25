@@ -170,7 +170,7 @@ config = "0.14"
 
 # Testing
 tokio-test = "0.4"
-criterion = { version = "0.5", features = ["async_tokio"] }
+criterion = { version = "0.8", features = ["async_tokio"] }
 
 # Workspace crates
 edgequake-api = { path = "crates/edgequake-api" }
