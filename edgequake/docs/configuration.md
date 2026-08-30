@@ -122,6 +122,7 @@ Structured roles (extract/summary/keyword/vlm) default to the **lowest supported
 | Vertex AI    | `vertexai` | **Identity** | Enterprise — `GOOGLE_CLOUD_PROJECT` + ADC/SA (see below) |
 | Mistral      | `mistral`  | API key      | Requires `MISTRAL_API_KEY`                               |
 | Azure OpenAI | `azure`    | API key      | Set `base_url` to your Azure endpoint                    |
+| OrcaRouter   | `orcarouter` | API key   | OpenAI-compatible gateway — `ORCAROUTER_API_KEY`, `https://api.orcarouter.ai/v1` |
 | Ollama       | `ollama`   | None (local) | Set `base_url` to `http://localhost:11434`               |
 
 ### Google Vertex AI (identity auth)
