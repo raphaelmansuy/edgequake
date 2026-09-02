@@ -45,7 +45,7 @@ jobs:
       - name: Build Astro site
         run: pnpm run build
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: edgequake-website/dist
 
