@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.26.5] — 2026-09-02
+
+Patch: **SPEC-145** Langfuse truncated observation I/O — generation / LLM
+Input and Output are complete by default (full prompt + completion; secret
+redaction only). Optional `EDGEQUAKE_LANGFUSE_IO_MAX_BYTES` ceiling (`0` =
+unlimited). Stream paths keep the generation span open until tokens finish.
+**No new migration.** Schema train remains **149**. Upgrade:
+[`docs/operations/upgrade-to-0.26.5.md`](docs/operations/upgrade-to-0.26.5.md).
+
+**Deps (crates.io):** unchanged from 0.26.4 (`edgequake-llm` **0.10.8**, `edgequake-pdf2md` **0.9.11**, `edgeparse-core` **0.2.5**; `edgequake-sdk` **0.4.0`).
+
+**SPEC-001 Acc:** attested from existing [`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run; **PDF geometry not re-scored**.
+
+### Fixed
+- **SPEC-145 — Langfuse truncated logs** — Removed silent 512-byte
+  `query_preview` on generation/query-root I/O; `IoPolicy::Complete` is SSOT
+  (unlimited by default). Generation spans record the real LLM prompt/chat
+  turns, not a UI query stub. Stream Completeness via
+  `instrument_generation_token_stream`. Proof: `make spec145-proof` /
+  `make spec145-langfuse-e2e`. Spec:
+  [`specs/145-fix-truncated-logs/`](specs/145-fix-truncated-logs/).
+
+### Changed
+- **Observability / Helm** — `EDGEQUAKE_LANGFUSE_IO_MAX_BYTES` +
+  `api.langfuse.ioMaxBytes`; docs in `docs/OBSERVABILITY.md` and `.env.example`.
+  Retriever/embed/ingest **stats** stay Structured; ingest document **content**
+  stays Preview (unchanged intent).
+
 ## [0.26.4] — 2026-08-30
 
 Patch: SPEC-144 Next.js **16.3.3** Active LTS (August 2026 Critical RCEs),

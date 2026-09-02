@@ -165,12 +165,12 @@ pub struct LLMSummarizer {
 }
 
 impl LLMSummarizer {
-    /// Complete under a GenAI generation span (SPEC-124 LAW-124-12/13).
+    /// Complete under a GenAI generation span (SPEC-124 / SPEC-145 Complete I/O).
     async fn complete_summarize(
         &self,
         operation: &str,
         prompt: &str,
-        input_preview: &str,
+        _input_preview: &str,
     ) -> Result<String> {
         let model = self.llm_provider.model().to_string();
         let provider_name = self.llm_provider.name().to_string();
@@ -188,8 +188,24 @@ impl LLMSummarizer {
                 .await
                 .map_err(|e| PipelineError::ExtractionError(format!("LLM error: {}", e)))?;
             let content = response.content.trim().to_string();
+            let llm_input = edgequake_observability::format_llm_chat_turns_for_observation(
+                messages.iter().map(|m| {
+                    let role = match m.role {
+                        edgequake_llm::traits::ChatRole::System => "System",
+                        edgequake_llm::traits::ChatRole::Assistant => "Assistant",
+                        edgequake_llm::traits::ChatRole::User => "User",
+                        edgequake_llm::traits::ChatRole::Tool => "Tool",
+                        edgequake_llm::traits::ChatRole::Function => "Function",
+                    };
+                    (
+                        role,
+                        m.content.as_str(),
+                        m.images.as_ref().map(|i| i.len()).unwrap_or(0),
+                    )
+                }),
+            );
             let rec = edgequake_observability::LlmGenerationRecord::from_response(
-                Some(input_preview),
+                Some(&llm_input),
                 &content,
                 response.prompt_tokens as u64,
                 response.completion_tokens as u64,

@@ -76,7 +76,7 @@ impl Pipeline {
                     }
                 }
             }
-            edgequake_observability::record_observation_io(Some(&input), Some(&output));
+            edgequake_observability::record_structured_io(Some(&input), Some(&output));
             edgequake_observability::record_ingest_kg_meta(edgequake_observability::IngestKgMeta {
                 chunk_strategy: Some(self.config.chunk_strategy.as_str().to_string()),
                 chunk_size: Some(self.config.chunker.chunk_size),

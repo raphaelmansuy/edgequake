@@ -307,3 +307,129 @@ fn live_langfuse_otlp_roundtrip() {
         "Langfuse {ver} at {base} did not persist OTLP spans (marker={marker})"
     );
 }
+
+/// SPEC-145 E-145-01: live OTLP must persist Complete I/O past the old 512-byte cap.
+///
+/// Gated on `LANGFUSE_SPEC145_E2E=1` (same keys/base as OTLP e2e).
+#[test]
+fn live_spec145_complete_io_roundtrip() {
+    if std::env::var("LANGFUSE_SPEC145_E2E").ok().as_deref() != Some("1") {
+        return;
+    }
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    use crate::io_policy::MARKER_TAIL_COMPLETE;
+    use crate::langfuse_attrs::LANGFUSE_OBSERVATION_OUTPUT;
+    use crate::rag_span::record_observation_io;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let base = std::env::var("LANGFUSE_OTLP_E2E_BASE")
+        .or_else(|_| std::env::var("LANGFUSE_BASE_URL"))
+        .expect("LANGFUSE_SPEC145_E2E=1 requires LANGFUSE_BASE_URL");
+    let pk = std::env::var("LANGFUSE_PUBLIC_KEY").expect("LANGFUSE_PUBLIC_KEY");
+    let sk = std::env::var("LANGFUSE_SECRET_KEY").expect("LANGFUSE_SECRET_KEY");
+    let base = crate::langfuse::normalize_base_url(&base);
+    let pk = crate::langfuse::unquote_env_value(&pk);
+    let sk = crate::langfuse::unquote_env_value(&sk);
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("client");
+    let token = basic_auth_token(&pk, &sk);
+
+    let unique = format!("eq145-{}", uuid::Uuid::new_v4());
+    let mut output = "a".repeat(600);
+    output.push_str(MARKER_TAIL_COMPLETE);
+    output.push('_');
+    output.push_str(&unique);
+
+    let cfg = LangfuseConfig {
+        enabled: true,
+        base_url: base.clone(),
+        public_key_configured: true,
+        secret_key_configured: true,
+        ui_url: base.clone(),
+    };
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_endpoint(cfg.otlp_endpoint())
+        .with_headers(langfuse_otlp_headers(&pk, &sk))
+        .build()
+        .expect("OTLP SpanExporter");
+    let provider = SdkTracerProvider::builder()
+        .with_resource(
+            Resource::builder()
+                .with_service_name("edgequake-spec145-e2e")
+                .build(),
+        )
+        .with_simple_exporter(exporter)
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-e2e");
+    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    let _guard = tracing_subscriber::registry()
+        .with(otel_layer)
+        .set_default();
+
+    tracing::info_span!(
+        "generate-answer",
+        otel.name = "generate-answer",
+        langfuse.observation.type = OBSERVATION_TYPE_GENERATION,
+        langfuse.observation.input = tracing::field::Empty,
+        langfuse.observation.output = tracing::field::Empty,
+        gen_ai.prompt = tracing::field::Empty,
+        gen_ai.completion = tracing::field::Empty,
+    )
+    .in_scope(|| {
+        record_observation_io(Some("SYNTH_ORG query"), Some(&output));
+    });
+
+    provider.force_flush().expect("flush");
+    provider.shutdown().expect("shutdown");
+
+    let poll_rounds: u32 = std::env::var("LANGFUSE_OTLP_E2E_POLL_ROUNDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(45);
+    let mut found = false;
+    for _ in 0..poll_rounds {
+        std::thread::sleep(Duration::from_secs(2));
+        let urls = [
+            format!(
+                "{base}/api/public/observations?limit=50&name={}",
+                urlencoding_name("generate-answer")
+            ),
+            format!("{base}/api/public/v2/observations?limit=50"),
+            format!("{base}/api/public/observations?limit=50"),
+        ];
+        for url in urls {
+            let Ok(resp) = client
+                .get(&url)
+                .header("Authorization", format!("Basic {token}"))
+                .send()
+            else {
+                continue;
+            };
+            if !resp.status().is_success() {
+                continue;
+            }
+            let Ok(body) = resp.json::<JsonValue>() else {
+                continue;
+            };
+            if json_contains_str(&body, MARKER_TAIL_COMPLETE) && json_contains_str(&body, &unique) {
+                // Ensure we did not only get a truncated prefix without the unique tail.
+                found = true;
+                break;
+            }
+            let _ = LANGFUSE_OBSERVATION_OUTPUT;
+        }
+        if found {
+            break;
+        }
+    }
+    assert!(
+        found,
+        "Langfuse at {base} missing Complete I/O tail (marker={MARKER_TAIL_COMPLETE} unique={unique})"
+    );
+}

@@ -6,6 +6,7 @@
 
 pub mod error_context;
 pub mod http_span;
+pub mod io_policy;
 pub mod langfuse;
 pub mod langfuse_attrs;
 pub mod langfuse_context;
@@ -35,17 +36,24 @@ pub mod metrics;
 
 pub use error_context::ErrorEvent;
 pub use http_span::{record_http_error, record_http_status, with_http_span};
+pub use io_policy::{
+    format_llm_chat_turns_for_observation, langfuse_io_max_bytes, prepare_complete_io,
+    prepare_observation_io, preview_bytes, redact_secrets, IoPolicy, PreparedIo,
+    DEFAULT_LANGFUSE_IO_MAX_BYTES, INGEST_CONTENT_PREVIEW_BYTES, MARKER_TAIL_COMPLETE,
+    OBSERVATION_IO_PREVIEW_CHARS, RETRIEVAL_PREVIEW_BYTES,
+};
 pub use query_guard::{QueryFailureGuard, QueryOutcomeGuard};
 pub use rag_span::{
-    enter_pipeline_stage, query_preview, record_embedding_io, record_feature_tag,
-    record_gen_ai_usage, record_ingest_document_input, record_ingest_document_output,
-    record_observation_io, record_observation_type_span, record_pipeline_chunk_extraction_io,
-    record_query_root_io, record_rag_retrieval_complete, record_rag_retrieval_io,
-    record_rag_retrieval_outcome, stamp_ingest_langfuse, stamp_query_langfuse,
+    enter_pipeline_stage, generation_span, instrument_generation_token_stream, query_preview,
+    record_embedding_io, record_feature_tag, record_gen_ai_usage, record_ingest_document_input,
+    record_ingest_document_output, record_observation_io, record_observation_io_with_policy,
+    record_observation_type_span, record_pipeline_chunk_extraction_io, record_query_root_io,
+    record_rag_retrieval_complete, record_rag_retrieval_io, record_rag_retrieval_outcome,
+    record_structured_io, stamp_ingest_langfuse, stamp_query_langfuse,
     stamp_query_langfuse_identity, with_feature_root_span, with_ingest_document_span,
     with_ingest_task_span, with_llm_generation, with_pipeline_stage_span, with_rag_embedding_span,
-    with_rag_generation_span, with_rag_retrieval_span, LlmGenerationRecord, RagRetrievalAttrs,
-    OBSERVATION_IO_PREVIEW_CHARS,
+    with_rag_generation_span, with_rag_retrieval_span, GenerationIoStream, LlmGenerationRecord,
+    RagRetrievalAttrs,
 };
 pub use utf8_truncate::{
     utf8_clamp_span, utf8_prefix, utf8_prefix_at_sentence, utf8_prefix_ellipsis,

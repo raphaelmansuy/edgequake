@@ -4,7 +4,7 @@ title: 'EdgeQuake Documentation'
 
 # EdgeQuake Documentation
 
-> **Product: v0.26.4** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)
+> **Product: v0.26.5** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)
 
 High-performance Graph-Enhanced RAG in Rust. PostgreSQL (pgvector + Apache AGE) is required for all server modes. Auth is enabled by default unless `EDGEQUAKE_DEV_MODE=true` or `AUTH_ENABLED=false`.
 

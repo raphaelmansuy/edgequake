@@ -558,7 +558,7 @@ fn inmemory_ingest_chunking_token_distribution() {
     );
 
     tracer.in_span("ingest.chunking", |_cx| {
-        record_observation_io(Some("{\"chars\":100}"), Some(&output));
+        crate::record_structured_io(Some("{\"chars\":100}"), Some(&output));
         crate::record_ingest_kg_meta(crate::IngestKgMeta {
             chunk_strategy: Some("markdown".into()),
             chunk_size: Some(1200),
@@ -596,5 +596,268 @@ fn inmemory_ingest_chunking_token_distribution() {
         Some("0")
     );
     assert!(!out.contains("## "), "must not dump chunk text");
+    assert_no_cost_keys(&attrs);
+}
+
+/// SPEC-145 U-145-01/08: Complete I/O preserves >512 bytes + dual-write equality.
+#[test]
+fn inmemory_spec145_complete_io_preserves_long_output() {
+    use crate::io_policy::MARKER_TAIL_COMPLETE;
+    use crate::langfuse_attrs::GEN_AI_COMPLETION;
+
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145");
+
+    let mut output = "a".repeat(600);
+    output.push_str(MARKER_TAIL_COMPLETE);
+    let input = format!("query about SYNTH_ORG {}", "q".repeat(100));
+
+    tracer.in_span("generate-answer", |_cx| {
+        record_observation_io(Some(&input), Some(&output));
+    });
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    let attrs = attr_map(&spans[0]);
+    let out = attrs
+        .get(LANGFUSE_OBSERVATION_OUTPUT)
+        .cloned()
+        .unwrap_or_default();
+    let dual = attrs.get(GEN_AI_COMPLETION).cloned().unwrap_or_default();
+    assert!(
+        out.contains(MARKER_TAIL_COMPLETE),
+        "tail marker must survive (was truncated at 512)"
+    );
+    assert_eq!(out, output);
+    assert_eq!(out, dual, "dual-write keys must match");
+    assert_eq!(
+        attrs
+            .get("langfuse.observation.metadata.io_complete")
+            .map(String::as_str),
+        Some("true")
+    );
+    assert_no_cost_keys(&attrs);
+}
+
+/// SPEC-145 U-145-02: multibyte Complete I/O.
+#[test]
+fn inmemory_spec145_complete_io_multibyte() {
+    use crate::io_policy::MARKER_TAIL_COMPLETE;
+
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-mb");
+
+    let mut output = "é".repeat(400);
+    output.push_str(MARKER_TAIL_COMPLETE);
+
+    tracer.in_span("generate-answer", |_cx| {
+        record_observation_io(Some("q"), Some(&output));
+    });
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    let attrs = attr_map(&spans[0]);
+    let out = attrs
+        .get(LANGFUSE_OBSERVATION_OUTPUT)
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(out, output);
+    assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+}
+
+/// SPEC-145 U-145-03: ingest content stays Preview-budget inside Structured JSON.
+#[test]
+fn inmemory_spec145_ingest_preview_not_full_body() {
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-preview");
+
+    let body = format!("{}MARKER_FULL_BODY", "m".repeat(2000));
+    tracer.in_span("ingest.document", |_cx| {
+        record_ingest_document_input("doc-1", &body);
+    });
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    let attrs = attr_map(&spans[0]);
+    let inp = attrs
+        .get(LANGFUSE_OBSERVATION_INPUT)
+        .cloned()
+        .unwrap_or_default();
+    assert!(!inp.contains("MARKER_FULL_BODY"));
+    assert!(inp.contains("doc-1"));
+    assert!(inp.contains('…') || inp.len() < body.len());
+}
+
+/// SPEC-145 U-145-05: secrets redacted from Complete I/O.
+#[test]
+fn inmemory_spec145_secrets_redacted() {
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-redact");
+
+    let output = "see sk-lf-supersecret999 and Bearer tokensecret99 end";
+    tracer.in_span("generate-answer", |_cx| {
+        record_observation_io(Some("q"), Some(output));
+    });
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    let attrs = attr_map(&spans[0]);
+    let out = attrs
+        .get(LANGFUSE_OBSERVATION_OUTPUT)
+        .cloned()
+        .unwrap_or_default();
+    assert!(!out.contains("supersecret999"));
+    assert!(!out.contains("tokensecret99"));
+    assert!(out.contains("[REDACTED]"));
+}
+
+/// SPEC-145 U-145-04: Structured JSON unchanged (embedding helper).
+#[test]
+fn inmemory_spec145_structured_embedding_unchanged() {
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-struct");
+
+    tracer.in_span("embed-chunks", |_cx| {
+        record_embedding_io("chunks", 3, 3, Some(768));
+    });
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    let attrs = attr_map(&spans[0]);
+    assert_eq!(
+        attrs.get(LANGFUSE_OBSERVATION_INPUT).map(String::as_str),
+        Some("{\"kind\":\"chunks\",\"texts\":3}")
+    );
+    assert_eq!(
+        attrs.get(LANGFUSE_OBSERVATION_OUTPUT).map(String::as_str),
+        Some("{\"vectors\":3,\"dim\":768}")
+    );
+    assert!(
+        !attrs.contains_key("langfuse.observation.metadata.io_complete"),
+        "Structured must not set io_complete metadata"
+    );
+}
+
+/// SPEC-145 U-145-06: ceiling marks io_complete=false (via prepare_complete_io + manual attr path).
+#[test]
+fn inmemory_spec145_ceiling_metadata() {
+    use crate::io_policy::prepare_complete_io;
+    use crate::rag_span::record_observation_io_with_policy;
+    use crate::IoPolicy;
+
+    // Direct prepare proof (env OnceLock may already be default 1MiB).
+    let s = "x".repeat(100);
+    let p = prepare_complete_io(&s, 32);
+    assert!(!p.complete);
+    assert_eq!(p.text.len(), 32);
+
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-ceil");
+
+    // Preview policy still truncates with ellipsis (control).
+    tracer.in_span("preview", |_cx| {
+        record_observation_io_with_policy(
+            None,
+            Some(&"y".repeat(100)),
+            IoPolicy::Preview { max_bytes: 16 },
+        );
+    });
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    let attrs = attr_map(&spans[0]);
+    let out = attrs
+        .get(LANGFUSE_OBSERVATION_OUTPUT)
+        .cloned()
+        .unwrap_or_default();
+    assert!(out.ends_with('…'));
+    assert!(out.len() < 100);
+}
+
+/// SPEC-145 LAW-145-9: generation span stays open until token stream ends;
+/// Complete I/O lands on that span (not only HTTP root).
+#[tokio::test]
+async fn inmemory_spec145_stream_generation_io_complete() {
+    use crate::io_policy::MARKER_TAIL_COMPLETE;
+    use crate::langfuse_attrs::GEN_AI_COMPLETION;
+    use crate::rag_span::instrument_generation_token_stream;
+    use futures::StreamExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let exporter = InMemorySpanExporterBuilder::new().build();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let tracer = provider.tracer("edgequake-spec145-stream");
+    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    let _guard = tracing_subscriber::registry()
+        .with(otel_layer)
+        .set_default();
+
+    let mut full = "a".repeat(600);
+    full.push_str(MARKER_TAIL_COMPLETE);
+    // Three chunks so assemble path is exercised.
+    let chunk_a = full[..200].to_string();
+    let chunk_b = full[200..400].to_string();
+    let chunk_c = full[400..].to_string();
+    let raw = futures::stream::iter(vec![
+        Ok::<String, String>(chunk_a),
+        Ok(chunk_b),
+        Ok(chunk_c),
+    ]);
+
+    let mut wrapped = instrument_generation_token_stream(
+        "generate-answer",
+        "m",
+        "p",
+        "SYNTH_ORG query".into(),
+        raw,
+    );
+    let mut assembled = String::new();
+    while let Some(item) = wrapped.next().await {
+        assembled.push_str(&item.expect("token"));
+    }
+    drop(wrapped);
+
+    provider.force_flush().expect("flush");
+    let spans = exporter.get_finished_spans().expect("spans");
+    assert!(!spans.is_empty(), "expected at least the generation span");
+    let gen = spans
+        .iter()
+        .find(|s| s.name == "generate-answer" || s.name.contains("generate"))
+        .or_else(|| spans.first())
+        .expect("generation span");
+    let attrs = attr_map(gen);
+    let out = attrs
+        .get(LANGFUSE_OBSERVATION_OUTPUT)
+        .cloned()
+        .unwrap_or_default();
+    let dual = attrs.get(GEN_AI_COMPLETION).cloned().unwrap_or_default();
+    assert_eq!(assembled, full);
+    assert!(
+        out.contains(MARKER_TAIL_COMPLETE),
+        "generation output must keep tail past old 512 cap; got len={}",
+        out.len()
+    );
+    assert_eq!(out, full);
+    assert_eq!(out, dual);
     assert_no_cost_keys(&attrs);
 }

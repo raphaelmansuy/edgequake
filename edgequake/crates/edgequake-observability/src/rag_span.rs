@@ -11,6 +11,9 @@ use std::future::Future;
 
 use tracing::Instrument;
 
+use crate::io_policy::{
+    preview_bytes, IoPolicy, INGEST_CONTENT_PREVIEW_BYTES, RETRIEVAL_PREVIEW_BYTES,
+};
 use crate::langfuse_attrs::{
     GEN_AI_COMPLETION, GEN_AI_PROMPT, GEN_AI_USAGE_INPUT_TOKENS, GEN_AI_USAGE_OUTPUT_TOKENS,
     LANGFUSE_OBSERVATION_INPUT, LANGFUSE_OBSERVATION_OUTPUT, LANGFUSE_TRACE_TAGS,
@@ -18,8 +21,8 @@ use crate::langfuse_attrs::{
     OBSERVATION_TYPE_RETRIEVER, OBSERVATION_TYPE_SPAN,
 };
 
-/// Default byte budget for observation I/O previews (PII-safe).
-pub const OBSERVATION_IO_PREVIEW_CHARS: usize = 512;
+/// Re-export for callers that still import from `rag_span` (SPEC-145 moved SSOT to `io_policy`).
+pub use crate::io_policy::OBSERVATION_IO_PREVIEW_CHARS;
 
 /// Attributes for a retrieval-phase span.
 #[derive(Debug, Clone, Default)]
@@ -86,13 +89,13 @@ pub fn record_rag_retrieval_io(
     let mut out =
         format!("{{\"empty\":{empty},\"chunks\":{chunk_count},\"entities\":{entity_count}}}");
     if let Some(p) = preview.filter(|s| !s.is_empty()) {
-        let clipped = query_preview(p, 128);
+        let clipped = preview_bytes(p, RETRIEVAL_PREVIEW_BYTES);
         let escaped = escape_json_string(&clipped);
         out = format!(
             "{{\"empty\":{empty},\"chunks\":{chunk_count},\"entities\":{entity_count},\"preview\":\"{escaped}\"}}"
         );
     }
-    record_observation_io(None, Some(&out));
+    record_structured_io(None, Some(&out));
 }
 
 /// Outcome flags + retriever I/O in one call (DRY for arm_timed / query_pipeline).
@@ -148,7 +151,7 @@ impl LlmGenerationRecord {
         self
     }
 
-    /// Apply usage + I/O onto the current generation span.
+    /// Apply usage + I/O onto the current generation span (Complete I/O — LAW-145-1).
     pub fn record_on_current_span(&self) {
         record_gen_ai_usage(self.input_tokens, self.output_tokens);
         record_observation_io(self.input.as_deref(), self.output.as_deref());
@@ -171,22 +174,8 @@ pub async fn with_rag_generation_span<Fut, T>(
 where
     Fut: Future<Output = T>,
 {
-    let span = tracing::info_span!(
-        "rag.generation",
-        otel.name = %operation,
-        otel.kind = "client",
-        gen_ai.operation.name = "chat",
-        gen_ai.request.model = %model,
-        gen_ai.provider.name = %provider,
-        langfuse.observation.type = OBSERVATION_TYPE_GENERATION,
-        gen_ai.usage.input_tokens = tracing::field::Empty,
-        gen_ai.usage.output_tokens = tracing::field::Empty,
-        langfuse.observation.input = tracing::field::Empty,
-        langfuse.observation.output = tracing::field::Empty,
-        gen_ai.prompt = tracing::field::Empty,
-        gen_ai.completion = tracing::field::Empty,
-    );
-    fut.instrument(span).await
+    fut.instrument(generation_span(operation, model, provider))
+        .await
 }
 
 /// Generation span that records usage + I/O on `Ok` (SSOT for extract/keywords/glean/…).
@@ -248,7 +237,7 @@ pub fn record_embedding_io(kind: &str, text_count: usize, vector_count: usize, d
         Some(d) => format!("{{\"vectors\":{vector_count},\"dim\":{d}}}"),
         None => format!("{{\"vectors\":{vector_count}}}"),
     };
-    record_observation_io(Some(&input), Some(&output));
+    record_structured_io(Some(&input), Some(&output));
 }
 
 /// Run `fut` inside a feature root span (e.g. ingest.document as Langfuse `chain`).
@@ -285,10 +274,11 @@ where
 
 /// Record ingest.document input (doc id + content preview).
 pub fn record_ingest_document_input(document_id: &str, content: &str) {
-    let preview = query_preview(content, 256);
+    let preview = preview_bytes(content, INGEST_CONTENT_PREVIEW_BYTES);
     let escaped = escape_json_string(&preview);
     let input = format!("{{\"document_id\":\"{document_id}\",\"preview\":\"{escaped}\"}}");
-    record_observation_io(Some(&input), None);
+    // Structured: JSON envelope is short; Preview already applied to content.
+    record_structured_io(Some(&input), None);
 }
 
 fn escape_json_string(s: &str) -> String {
@@ -306,7 +296,7 @@ pub fn record_ingest_document_output(
     let output = format!(
         "{{\"chunks\":{chunk_count},\"entities\":{entity_count},\"relationships\":{relationship_count},\"successful_chunks\":{successful_chunks},\"failed_chunks\":{failed_chunks}}}"
     );
-    record_observation_io(None, Some(&output));
+    record_structured_io(None, Some(&output));
 }
 
 /// Record pipeline_chunk_extraction I/O on the current span.
@@ -320,10 +310,10 @@ pub fn record_pipeline_chunk_extraction_io(
     match (successful, failed, entity_count) {
         (Some(ok), Some(fail), Some(ents)) => {
             let output = format!("{{\"successful\":{ok},\"failed\":{fail},\"entities\":{ents}}}");
-            record_observation_io(Some(&input), Some(&output));
+            record_structured_io(Some(&input), Some(&output));
         }
         _ => {
-            record_observation_io(Some(&input), None);
+            record_structured_io(Some(&input), None);
         }
     }
 }
@@ -351,24 +341,61 @@ pub fn record_gen_ai_usage(input_tokens: Option<u64>, output_tokens: Option<u64>
     }
 }
 
-/// Record truncated observation I/O (LAW-124-8 / 16 / 17).
+/// Record observation I/O with [`IoPolicy::Complete`] (LAW-145-1 / LAW-124-16/17).
 ///
 /// Dual-writes Langfuse keys + `gen_ai.prompt` / `gen_ai.completion` aliases.
+/// Prefer [`record_structured_io`] for compact JSON; [`record_observation_io_with_policy`]
+/// for Preview.
 pub fn record_observation_io(input: Option<&str>, output: Option<&str>) {
+    record_observation_io_with_policy(input, output, IoPolicy::Complete);
+}
+
+/// Compact Structured observation I/O (LAW-145-4) — call sites never name [`IoPolicy`].
+pub fn record_structured_io(input: Option<&str>, output: Option<&str>) {
+    record_observation_io_with_policy(input, output, IoPolicy::Structured);
+}
+
+/// Record observation I/O under an explicit [`IoPolicy`] (LAW-145-3/4).
+pub fn record_observation_io_with_policy(
+    input: Option<&str>,
+    output: Option<&str>,
+    policy: IoPolicy,
+) {
     let span = tracing::Span::current();
+    let mut any_incomplete = false;
+    let mut max_io_bytes = 0usize;
+
     if let Some(inp) = input {
-        let preview = query_preview(inp, OBSERVATION_IO_PREVIEW_CHARS);
-        span.record(LANGFUSE_OBSERVATION_INPUT, preview.as_str());
-        span.record(GEN_AI_PROMPT, preview.as_str());
-        record_otel_str_attr(LANGFUSE_OBSERVATION_INPUT, &preview);
-        record_otel_str_attr(GEN_AI_PROMPT, &preview);
+        let prepared = crate::io_policy::prepare_observation_io(inp, policy);
+        if !prepared.complete {
+            any_incomplete = true;
+        }
+        max_io_bytes = max_io_bytes.max(prepared.io_bytes);
+        span.record(LANGFUSE_OBSERVATION_INPUT, prepared.text.as_str());
+        span.record(GEN_AI_PROMPT, prepared.text.as_str());
+        record_otel_str_attr(LANGFUSE_OBSERVATION_INPUT, &prepared.text);
+        record_otel_str_attr(GEN_AI_PROMPT, &prepared.text);
     }
     if let Some(out) = output {
-        let preview = query_preview(out, OBSERVATION_IO_PREVIEW_CHARS);
-        span.record(LANGFUSE_OBSERVATION_OUTPUT, preview.as_str());
-        span.record(GEN_AI_COMPLETION, preview.as_str());
-        record_otel_str_attr(LANGFUSE_OBSERVATION_OUTPUT, &preview);
-        record_otel_str_attr(GEN_AI_COMPLETION, &preview);
+        let prepared = crate::io_policy::prepare_observation_io(out, policy);
+        if !prepared.complete {
+            any_incomplete = true;
+        }
+        max_io_bytes = max_io_bytes.max(prepared.io_bytes);
+        span.record(LANGFUSE_OBSERVATION_OUTPUT, prepared.text.as_str());
+        span.record(GEN_AI_COMPLETION, prepared.text.as_str());
+        record_otel_str_attr(LANGFUSE_OBSERVATION_OUTPUT, &prepared.text);
+        record_otel_str_attr(GEN_AI_COMPLETION, &prepared.text);
+    }
+
+    // LAW-145-6: honest overflow metadata (Complete class only).
+    if matches!(policy, IoPolicy::Complete) && (input.is_some() || output.is_some()) {
+        if any_incomplete {
+            crate::langfuse_meta::record_observation_meta("io_complete", "false");
+            crate::langfuse_meta::record_observation_meta("io_bytes", &max_io_bytes.to_string());
+        } else if max_io_bytes > 0 {
+            crate::langfuse_meta::record_observation_meta("io_complete", "true");
+        }
     }
 }
 
@@ -454,12 +481,109 @@ pub fn record_query_root_io(query: &str, answer: &str) {
     record_observation_io(Some(query), Some(answer));
 }
 
-/// Pure helper: truncate query text for span attributes (PII-safe preview).
+/// Pure helper: UTF-8-safe byte preview with ellipsis (LAW-145-5).
+///
+/// `max_chars` is treated as a **byte** budget (historical name kept for callers).
 pub fn query_preview(query: &str, max_chars: usize) -> String {
-    if query.chars().count() <= max_chars {
-        return query.to_string();
+    preview_bytes(query, max_chars)
+}
+
+/// Build a GenAI `generation` span (same fields as [`with_rag_generation_span`]).
+pub fn generation_span(operation: &str, model: &str, provider: &str) -> tracing::Span {
+    tracing::info_span!(
+        "rag.generation",
+        otel.name = %operation,
+        otel.kind = "client",
+        gen_ai.operation.name = "chat",
+        gen_ai.request.model = %model,
+        gen_ai.provider.name = %provider,
+        langfuse.observation.type = OBSERVATION_TYPE_GENERATION,
+        gen_ai.usage.input_tokens = tracing::field::Empty,
+        gen_ai.usage.output_tokens = tracing::field::Empty,
+        langfuse.observation.input = tracing::field::Empty,
+        langfuse.observation.output = tracing::field::Empty,
+        gen_ai.prompt = tracing::field::Empty,
+        gen_ai.completion = tracing::field::Empty,
+    )
+}
+
+/// SPEC-145 LAW-145-9: wrap a live token stream so the **generation** span stays
+/// open until the stream ends, then record Complete I/O on that span.
+///
+/// `llm_input` must be the full prompt / chat text sent to the model (LAW-145-1),
+/// not a UI query stub.
+///
+/// Call sites must **not** wrap this in [`with_rag_generation_span`] (that would
+/// drop the outer span when the factory future returns).
+pub fn instrument_generation_token_stream<S, E>(
+    operation: &str,
+    model: &str,
+    provider: &str,
+    llm_input: String,
+    stream: S,
+) -> GenerationIoStream<S>
+where
+    S: futures::Stream<Item = Result<String, E>> + Send + 'static,
+    E: Send + 'static,
+{
+    GenerationIoStream {
+        inner: Box::pin(stream),
+        span: generation_span(operation, model, provider),
+        llm_input,
+        acc: String::new(),
+        recorded: false,
     }
-    format!("{}…", crate::utf8_prefix(query, max_chars))
+}
+
+/// Token stream that enters a generation span on each poll and records Complete
+/// I/O once when exhausted (LAW-145-9).
+pub struct GenerationIoStream<S> {
+    inner: std::pin::Pin<Box<S>>,
+    span: tracing::Span,
+    llm_input: String,
+    acc: String,
+    recorded: bool,
+}
+
+impl<S, E> futures::Stream for GenerationIoStream<S>
+where
+    S: futures::Stream<Item = Result<String, E>>,
+{
+    type Item = Result<String, E>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let _enter = this.span.enter();
+        match this.inner.as_mut().poll_next(cx) {
+            std::task::Poll::Ready(Some(Ok(text))) => {
+                this.acc.push_str(&text);
+                std::task::Poll::Ready(Some(Ok(text)))
+            }
+            std::task::Poll::Ready(Some(Err(e))) => std::task::Poll::Ready(Some(Err(e))),
+            std::task::Poll::Ready(None) => {
+                if !this.recorded {
+                    this.recorded = true;
+                    record_observation_io(Some(&this.llm_input), Some(&this.acc));
+                }
+                std::task::Poll::Ready(None)
+            }
+            std::task::Poll::Pending => std::task::Poll::Pending,
+        }
+    }
+}
+
+impl<S> Drop for GenerationIoStream<S> {
+    fn drop(&mut self) {
+        if !self.recorded {
+            self.recorded = true;
+            let _enter = self.span.enter();
+            // Partial assemble on cancel/disconnect — still Complete-class emit.
+            record_observation_io(Some(&self.llm_input), Some(&self.acc));
+        }
+    }
 }
 
 #[cfg(feature = "otel")]

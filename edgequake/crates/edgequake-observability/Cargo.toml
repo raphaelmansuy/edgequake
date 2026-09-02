@@ -28,6 +28,7 @@ serde_json.workspace = true
 http = "1"
 uuid.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
+futures = { workspace = true }
 
 metrics = { version = "0.24", optional = true }
 metrics-exporter-prometheus = { version = "0.17", optional = true }

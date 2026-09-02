@@ -68,6 +68,7 @@
 - [13-metadata-tokens-and-coverage.md](13-metadata-tokens-and-coverage.md) — tokens / observation types / denylist
 - [14-observation-io-and-full-observe.md](14-observation-io-and-full-observe.md) — Input/Output allowlist + gaps
 - [15-pipeline-observe-and-slugs.md](15-pipeline-observe-and-slugs.md) — slugs + query/ingest pipeline observe
+- [SPEC-145](../145-fix-truncated-logs/) — **I/O completeness amendment** (removes global 512 preview for generation + query-root; LAW-124-18 superseded for that class)
 - [SPEC-123](../123-env-config-priority/) — config priority law (models); Langfuse is **env-only** (LAW-124)
 - Skill: [`.github/skills/langfuse/`](../../.github/skills/langfuse/)
 - Upstream: [Langfuse OTel](https://langfuse.com/integrations/native/opentelemetry), [best practices](https://langfuse.com/docs/observability/best-practices)

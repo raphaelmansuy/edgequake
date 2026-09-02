@@ -238,12 +238,13 @@ pub fn build_bypass_chat_messages_with_budget(
     messages
 }
 
-/// Flatten bypass chat messages to a single prompt for providers that only
-/// expose text `stream()` (preserves roles; used for true token streaming).
-pub fn format_bypass_messages_as_prompt(messages: &[ChatMessage]) -> String {
+/// Flatten chat messages for Langfuse Complete I/O (LAW-145-1).
+///
+/// Text only — image binaries are noted as a count so observation I/O stays
+/// UTF-8 and does not omit the textual LLM turn content.
+pub fn format_chat_messages_for_observation(messages: &[ChatMessage]) -> String {
     use edgequake_llm::traits::ChatRole;
-    let mut parts = Vec::with_capacity(messages.len());
-    for m in messages {
+    edgequake_observability::format_llm_chat_turns_for_observation(messages.iter().map(|m| {
         let label = match m.role {
             ChatRole::System => "System",
             ChatRole::Assistant => "Assistant",
@@ -251,10 +252,20 @@ pub fn format_bypass_messages_as_prompt(messages: &[ChatMessage]) -> String {
             ChatRole::Tool => "Tool",
             ChatRole::Function => "Function",
         };
-        parts.push(format!("{label}: {}", m.content.trim()));
+        let image_count = m.images.as_ref().map(|i| i.len()).unwrap_or(0);
+        (label, m.content.as_str(), image_count)
+    }))
+}
+
+/// Flatten bypass chat messages to a single prompt for providers that only
+/// expose text `stream()` (preserves roles; used for true token streaming).
+pub fn format_bypass_messages_as_prompt(messages: &[ChatMessage]) -> String {
+    let mut prompt = format_chat_messages_for_observation(messages);
+    if !prompt.is_empty() {
+        prompt.push_str("\n\n");
     }
-    parts.push("Assistant:".to_string());
-    parts.join("\n\n")
+    prompt.push_str("Assistant:");
+    prompt
 }
 
 #[cfg(test)]

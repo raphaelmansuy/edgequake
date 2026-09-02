@@ -2,7 +2,7 @@
 title: 'Monitoring Guide'
 ---
 
-> **Product: v0.26.4** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.26.5** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Monitoring Guide
 

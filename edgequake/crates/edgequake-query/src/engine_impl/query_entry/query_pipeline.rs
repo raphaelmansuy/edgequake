@@ -310,7 +310,7 @@ impl QueryEngine {
                         .await;
                     let backend = if prefer_bm25 { "bm25" } else { "ce" };
                     edgequake_observability::record_observation_meta("rerank_backend", backend);
-                    edgequake_observability::record_observation_io(
+                    edgequake_observability::record_structured_io(
                         Some(&format!("{{\"applied\":true,\"backend\":\"{backend}\"}}")),
                         Some(&format!("{{\"chunks\":{}}}", chunks.len())),
                     );
@@ -324,7 +324,7 @@ impl QueryEngine {
         } else {
             let _stage = edgequake_observability::enter_pipeline_stage("query.rerank");
             edgequake_observability::record_observation_meta("rerank_applied", "false");
-            edgequake_observability::record_observation_io(
+            edgequake_observability::record_structured_io(
                 Some("{\"applied\":false}"),
                 Some("{\"skipped\":true}"),
             );

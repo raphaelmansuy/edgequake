@@ -19,6 +19,9 @@ data:
   {{- if .Values.api.langfuse.api }}
   EDGEQUAKE_LANGFUSE_API: {{ .Values.api.langfuse.api | quote }}
   {{- end }}
+  {{- if .Values.api.langfuse.ioMaxBytes }}
+  EDGEQUAKE_LANGFUSE_IO_MAX_BYTES: {{ .Values.api.langfuse.ioMaxBytes | quote }}
+  {{- end }}
   {{- range $key, $val := .Values.api.extraEnv }}
   {{ $key }}: {{ $val | quote }}
   {{- end }}

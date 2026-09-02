@@ -60,7 +60,8 @@ async fn complete_with_optional_effort(
     }
 }
 
-/// SPEC-124 LAW-124-12/14: record tokens + truncated I/O on current generation span.
+/// SPEC-124 / SPEC-145: record tokens + Complete I/O on current generation span.
+/// `input` must be the LLM prompt / chat messages text (LAW-145-1), not a UI stub.
 fn record_answer_gen_ai(response: &LLMResponse, input: &str, output: &str) {
     edgequake_observability::LlmGenerationRecord::from_response(
         Some(input),
@@ -664,7 +665,9 @@ Generate a comprehensive, well-structured answer that integrates observations fr
             .cloned()
             .unwrap_or_default()
             .with_provider_prompt_cache("query", provider.name(), provider.model());
-        let response = if let Some(imgs) = images.filter(|i| !i.is_empty()) {
+
+        // LAW-145-1: observation input = actual LLM text (full prompt / chat turns).
+        let (response, llm_input) = if let Some(imgs) = images.filter(|i| !i.is_empty()) {
             let system_text = self.build_vision_system_message(context, system_prompt_extension);
             let user_text = conversation_context::query_with_conversation_context(
                 query,
@@ -676,25 +679,36 @@ Generate a comprehensive, well-structured answer that integrates observations fr
                 ChatMessage::system(&sys),
                 ChatMessage::user_with_images(&user, imgs.to_vec()),
             ];
+            let chat_input = conversation_context::format_chat_messages_for_observation(&messages);
             match provider.chat(&messages, Some(&chat_opts)).await {
-                Ok(r) => r,
+                Ok(r) => (r, chat_input),
                 Err(e) => {
                     tracing::warn!(error = %e, "Vision chat failed; retrying as text-only query");
-                    complete_with_optional_effort(provider, &prompt, opts_ref).await?
+                    (
+                        complete_with_optional_effort(provider, &prompt, opts_ref).await?,
+                        prompt.clone(),
+                    )
                 }
             }
         } else if use_complete_blob {
-            complete_with_optional_effort(provider, &prompt, opts_ref).await?
+            (
+                complete_with_optional_effort(provider, &prompt, opts_ref).await?,
+                prompt.clone(),
+            )
         } else {
             let messages = answer_chat_messages(&system_text, query);
+            let chat_input = conversation_context::format_chat_messages_for_observation(&messages);
             match provider.chat(&messages, Some(&chat_opts)).await {
-                Ok(r) => r,
+                Ok(r) => (r, chat_input),
                 Err(e) => {
                     tracing::warn!(
                         error = %e,
                         "083 chat generate failed; falling back to complete blob"
                     );
-                    complete_with_optional_effort(provider, &prompt, opts_ref).await?
+                    (
+                        complete_with_optional_effort(provider, &prompt, opts_ref).await?,
+                        prompt.clone(),
+                    )
                 }
             }
         };
@@ -705,18 +719,26 @@ Generate a comprehensive, well-structured answer that integrates observations fr
         let content = response.content.trim().to_string();
         if content.is_empty() {
             tracing::warn!("080 empty LLM answer with non-empty context — retry once");
-            let retry = if use_complete_blob {
-                complete_with_optional_effort(provider, &prompt, opts_ref).await?
+            let (retry, retry_input) = if use_complete_blob {
+                (
+                    complete_with_optional_effort(provider, &prompt, opts_ref).await?,
+                    prompt.clone(),
+                )
             } else {
                 let messages = answer_chat_messages(&system_text, query);
+                let chat_input =
+                    conversation_context::format_chat_messages_for_observation(&messages);
                 match provider.chat(&messages, Some(&chat_opts)).await {
-                    Ok(r) => r,
-                    Err(_) => complete_with_optional_effort(provider, &prompt, opts_ref).await?,
+                    Ok(r) => (r, chat_input),
+                    Err(_) => (
+                        complete_with_optional_effort(provider, &prompt, opts_ref).await?,
+                        prompt.clone(),
+                    ),
                 }
             };
             let retry_content = retry.content.trim().to_string();
             if !retry_content.is_empty() {
-                record_answer_gen_ai(&retry, query, &retry_content);
+                record_answer_gen_ai(&retry, &retry_input, &retry_content);
                 return Ok((
                     finalize_answer_text(retry_content, gold_compat),
                     retry.completion_tokens,
@@ -728,7 +750,7 @@ Generate a comprehensive, well-structured answer that integrates observations fr
                 gold_compat,
                 "080 empty LLM after retry — extractive fallback from context"
             );
-            edgequake_observability::record_observation_io(Some(query), Some(&fallback));
+            edgequake_observability::record_observation_io(Some(&llm_input), Some(&fallback));
             return Ok((finalize_answer_text(fallback, gold_compat), 0));
         }
 
@@ -756,7 +778,7 @@ then elaborate. Do not invent facts outside Context.\n"
                         ) > crate::grounding::answer_context_token_coverage(&content, &corpus)
                             || crate::grounding::answer_has_context_span(&retry_content, &corpus))
                     {
-                        record_answer_gen_ai(&retry, query, &retry_content);
+                        record_answer_gen_ai(&retry, &reinforced, &retry_content);
                         return Ok((
                             finalize_answer_text(retry_content, gold_compat),
                             retry.completion_tokens,
@@ -766,7 +788,7 @@ then elaborate. Do not invent facts outside Context.\n"
             }
         }
 
-        record_answer_gen_ai(&response, query, &content);
+        record_answer_gen_ai(&response, &llm_input, &content);
         Ok((
             finalize_answer_text(content, gold_compat),
             response.completion_tokens,
@@ -814,7 +836,7 @@ then elaborate. Do not invent facts outside Context.\n"
                 let bypass_opts =
                     CompletionOptions::default().with_role_cache("bypass", provider.as_ref());
                 let response = match provider.chat(&messages, Some(&bypass_opts)).await {
-                    Ok(r) => r,
+                    Ok(r) => (r, conversation_context::format_chat_messages_for_observation(&messages)),
                     Err(e) if images.is_some_and(|i| !i.is_empty()) => {
                         tracing::warn!(error = %e, "Bypass vision chat failed; retrying as text-only");
                         let text_only = conversation_context::build_bypass_chat_messages(
@@ -824,12 +846,15 @@ then elaborate. Do not invent facts outside Context.\n"
                             DEFAULT_CONVERSATION_TURN_LIMIT,
                             None,
                         );
-                        provider.chat(&text_only, Some(&bypass_opts)).await?
+                        let llm_input =
+                            conversation_context::format_chat_messages_for_observation(&text_only);
+                        (provider.chat(&text_only, Some(&bypass_opts)).await?, llm_input)
                     }
                     Err(e) => return Err(e.into()),
                 };
+                let (response, llm_input) = response;
 
-                record_answer_gen_ai(&response, query, &response.content);
+                record_answer_gen_ai(&response, &llm_input, &response.content);
                 Ok((response.content, response.completion_tokens))
             },
         )
@@ -873,14 +898,21 @@ then elaborate. Do not invent facts outside Context.\n"
         }
 
         let prompt = conversation_context::format_bypass_messages_as_prompt(&messages);
-        provider
+        let model = provider.model().to_string();
+        let provider_name = provider.name().to_string();
+        let raw = provider
             .stream(&prompt)
             .await
-            .map(|s| {
-                s.map(|res| res.map_err(crate::error::QueryError::from))
-                    .boxed()
-            })
-            .map_err(crate::error::QueryError::from)
+            .map_err(crate::error::QueryError::from)?;
+        Ok(futures::StreamExt::boxed(
+            edgequake_observability::instrument_generation_token_stream(
+                "generate-bypass-answer",
+                &model,
+                &provider_name,
+                prompt,
+                raw.map(|res| res.map_err(crate::error::QueryError::from)),
+            ),
+        ))
     }
 
     /// Stream a vision (image-attached) answer (P-G11 / RC-16).
@@ -927,7 +959,9 @@ then elaborate. Do not invent facts outside Context.\n"
 
                 match provider.chat(&messages, Some(&chat_opts)).await {
                     Ok(r) => {
-                        record_answer_gen_ai(&r, query, &r.content);
+                        let llm_input =
+                            conversation_context::format_chat_messages_for_observation(&messages);
+                        record_answer_gen_ai(&r, &llm_input, &r.content);
                         Ok(futures::stream::once(async move { Ok(r.content) }).boxed())
                     }
                     Err(e) => {
@@ -944,20 +978,26 @@ then elaborate. Do not invent facts outside Context.\n"
                             None,
                         );
                         if provider.supports_streaming() {
-                            provider
+                            // Span stays open until tokens finish (LAW-145-9).
+                            let raw = provider
                                 .stream(&prompt)
                                 .await
-                                .map(|s| {
-                                    s.map(|res| res.map_err(crate::error::QueryError::from))
-                                        .boxed()
-                                })
-                                .map_err(crate::error::QueryError::from)
+                                .map_err(crate::error::QueryError::from)?;
+                            Ok(futures::StreamExt::boxed(
+                                edgequake_observability::instrument_generation_token_stream(
+                                    "generate-answer",
+                                    provider.model(),
+                                    provider.name(),
+                                    prompt,
+                                    raw.map(|res| res.map_err(crate::error::QueryError::from)),
+                                ),
+                            ))
                         } else {
                             let resp = provider
                                 .complete(&prompt)
                                 .await
                                 .map_err(crate::error::QueryError::from)?;
-                            record_answer_gen_ai(&resp, query, &resp.content);
+                            record_answer_gen_ai(&resp, &prompt, &resp.content);
                             Ok(futures::stream::once(async move { Ok(resp.content) }).boxed())
                         }
                     }

@@ -3306,7 +3306,7 @@ logs: ## Show recent logs from all services
 	@echo "$(BOLD)Docker Container Status:$(RESET)"
 	@cd $(DOCKER_DIR) && docker compose ps 2>/dev/null || echo "Docker not running"
 
-.PHONY: spec020-qc-proof observability-proof observability-jaeger resource-proof resource-proof-postgres release-gates spec124-proof spec124-langfuse-e2e spec124-langfuse-3.1-e2e spec124-langfuse-3.22-e2e spec124-langfuse-3.225-e2e spec124-langfuse-cloud-e2e spec124-langfuse-matrix spec125-proof spec128-proof
+.PHONY: spec020-qc-proof observability-proof observability-jaeger resource-proof resource-proof-postgres release-gates spec124-proof spec124-langfuse-e2e spec124-langfuse-3.1-e2e spec124-langfuse-3.22-e2e spec124-langfuse-3.225-e2e spec124-langfuse-cloud-e2e spec124-langfuse-matrix spec125-proof spec128-proof spec145-proof spec145-langfuse-e2e
 
 resource-proof: ## Run SPEC-006 resource safety proof suite (mock; no Postgres required)
 	@chmod +x specifications/006-ensure-perf/e2e/run_resource_proof.sh scripts/spec006_no_get_all_api.sh scripts/spec006_budget_catalog_sync.sh scripts/spec006_source_ids_migration.sh scripts/spec006_no_unguarded_community_api.sh scripts/spec006_no_adhoc_resource_budget.sh scripts/spec006_apply_migration_038.sh edgequake/scripts/migrations/apply_038.sh
@@ -3371,6 +3371,24 @@ spec124-proof: ## SPEC-124 Langfuse CI-unfakable proofs (InMemory OTEL + contrac
 	@cd $(BACKEND_DIR) && cargo test -p edgequake-pipeline --lib spec124_ingest_stages
 	@cd $(BACKEND_DIR) && cargo test -p edgequake-api --lib spec124_ingest_converting
 	@echo "$(GREEN)✓ SPEC-124 proof passed$(RESET)"
+
+spec145-proof: ## SPEC-145 Complete Langfuse I/O (InMemory + io_policy + stream contract; no keys)
+	@echo "$(BOLD)SPEC-145 proof$(RESET)"
+	@chmod +x scripts/spec145_langfuse_io_e2e.sh
+	@./scripts/spec145_langfuse_io_e2e.sh
+	@echo "$(GREEN)✓ SPEC-145 proof passed$(RESET)"
+
+spec145-langfuse-e2e: ## SPEC-145 live Complete I/O vs Langfuse 3.225.5 (starts stack; OTLP persist)
+	@echo "$(BOLD)SPEC-145 live Langfuse I/O$(RESET)"
+	@$(MAKE) langfuse-3.225-up --no-print-directory
+	@chmod +x $(ROOT_DIR)/scripts/spec145_langfuse_io_e2e.sh
+	@LANGFUSE_SPEC145_E2E=1 \
+		LANGFUSE_BASE_URL="$(LANGFUSE_3225_UI_URL)" \
+		LANGFUSE_OTLP_E2E_BASE="$(LANGFUSE_3225_UI_URL)" \
+		LANGFUSE_PUBLIC_KEY="$(LANGFUSE_3225_PK)" \
+		LANGFUSE_SECRET_KEY="$(LANGFUSE_3225_SK)" \
+		$(ROOT_DIR)/scripts/spec145_langfuse_io_e2e.sh
+	@echo "$(GREEN)✓ SPEC-145 live Langfuse I/O passed$(RESET)"
 
 spec125-proof: ## SPEC-125 markdown pack proofs (heading-dense fixture + Acc geometry + ingest.chunking distribution)
 	@echo "$(BOLD)SPEC-125 proof$(RESET)"

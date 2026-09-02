@@ -4,7 +4,7 @@ title: "Runtime Config and Authentication Hardening"
 
 # Runtime Config and Authentication Hardening
 
-> **Product: v0.26.4** · See also: [Docker Quickstart](/docs/operations/docker-quickstart/) (`EDGEQUAKE_DEV_MODE=true` for frictionless demos).
+> **Product: v0.26.5** · See also: [Docker Quickstart](/docs/operations/docker-quickstart/) (`EDGEQUAKE_DEV_MODE=true` for frictionless demos).
 
 EdgeQuake supports both demo-friendly local development and fail-closed authenticated deployments.
 

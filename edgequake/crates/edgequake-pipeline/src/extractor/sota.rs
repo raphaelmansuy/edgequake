@@ -354,8 +354,24 @@ where
                 &provider_name,
                 async {
                     let resp = self.llm_provider.chat(&messages, Some(&options)).await?;
+                    let llm_input = edgequake_observability::format_llm_chat_turns_for_observation(
+                        messages.iter().map(|m| {
+                            let role = match m.role {
+                                edgequake_llm::traits::ChatRole::System => "System",
+                                edgequake_llm::traits::ChatRole::Assistant => "Assistant",
+                                edgequake_llm::traits::ChatRole::User => "User",
+                                edgequake_llm::traits::ChatRole::Tool => "Tool",
+                                edgequake_llm::traits::ChatRole::Function => "Function",
+                            };
+                            (
+                                role,
+                                m.content.as_str(),
+                                m.images.as_ref().map(|i| i.len()).unwrap_or(0),
+                            )
+                        }),
+                    );
                     let rec = edgequake_observability::LlmGenerationRecord::from_response(
-                        Some(&chunk.content),
+                        Some(&llm_input),
                         &resp.content,
                         resp.prompt_tokens as u64,
                         resp.completion_tokens as u64,

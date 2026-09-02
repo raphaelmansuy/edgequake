@@ -67,6 +67,8 @@ api:
     # auto | otlp | ingestion — auto probes OTLP and falls back on HTTP 404 (Langfuse 3.1.x).
     # How-to: docs/operations/langfuse-3.1.md
     api: auto
+    # SPEC-145: per-field Complete I/O safety ceiling (bytes). Empty = product default 1 MiB.
+    ioMaxBytes: ""
   extraEnv: {}
   extraSecretEnv: {}
 

@@ -85,8 +85,10 @@ impl LLMKeywordExtractor {
                     .chat(&messages, Some(&opts))
                     .await
                     .map_err(QueryError::from)?;
+                let llm_input =
+                    crate::conversation_context::format_chat_messages_for_observation(&messages);
                 let rec = edgequake_observability::LlmGenerationRecord::from_response(
-                    Some(query),
+                    Some(&llm_input),
                     &response.content,
                     response.prompt_tokens as u64,
                     response.completion_tokens as u64,
@@ -415,8 +417,10 @@ impl KeywordExtractor for LLMKeywordExtractor {
                     .chat(&messages, Some(&opts))
                     .await
                     .map_err(QueryError::from)?;
+                let llm_input =
+                    crate::conversation_context::format_chat_messages_for_observation(&messages);
                 let rec = edgequake_observability::LlmGenerationRecord::from_response(
-                    Some(query),
+                    Some(&llm_input),
                     &response.content,
                     response.prompt_tokens as u64,
                     response.completion_tokens as u64,
@@ -455,8 +459,10 @@ impl KeywordExtractor for LLMKeywordExtractor {
                     .chat(&messages, Some(&opts))
                     .await
                     .map_err(QueryError::from)?;
+                let llm_input =
+                    crate::conversation_context::format_chat_messages_for_observation(&messages);
                 let rec = edgequake_observability::LlmGenerationRecord::from_response(
-                    Some(query),
+                    Some(&llm_input),
                     &response.content,
                     response.prompt_tokens as u64,
                     response.completion_tokens as u64,
