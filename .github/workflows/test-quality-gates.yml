@@ -91,7 +91,8 @@ jobs:
   e2e-ui:
     name: E2E UI Gate (chromium, no backend)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Suite has grown (~500+ chromium tests); 25m was canceling mid-run on GHA.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
 
