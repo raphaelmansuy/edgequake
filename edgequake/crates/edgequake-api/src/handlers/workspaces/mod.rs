@@ -52,6 +52,7 @@ mod bulk_ops;
 mod helpers;
 mod stats;
 mod tenants;
+mod workspace_copy;
 mod workspace_crud;
 
 // Re-export all public items (includes utoipa __path_* structs for OpenAPI)
@@ -59,6 +60,7 @@ pub use bulk_ops::*;
 pub use helpers::invalidate_workspace_stats_cache;
 pub use stats::*;
 pub use tenants::*;
+pub use workspace_copy::*;
 pub use workspace_crud::*;
 
 // Re-export DTOs from workspaces_types module
