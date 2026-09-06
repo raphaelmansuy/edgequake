@@ -29,6 +29,8 @@ pub struct ApiSecurityConfig {
     /// Return HTTP 202 Accepted (with Location) on v1 async RPC when a job/track id is present.
     /// Default **true** (REST-025) — set `EDGEQUAKE_V1_RPC_RETURN_202=0` for legacy 200.
     pub v1_rpc_return_202: bool,
+    /// Document-level ABAC (SPEC-146). Default **false**. When true, auth must be on (LAW-146-20).
+    pub doc_abac: bool,
 }
 
 impl Default for ApiSecurityConfig {
@@ -46,6 +48,7 @@ impl Default for ApiSecurityConfig {
             cors_fail_closed: false,
             require_delete_all_confirm: false,
             v1_rpc_return_202: true,
+            doc_abac: false,
         }
     }
 }
@@ -76,6 +79,7 @@ impl ApiSecurityConfig {
                 false,
             ),
             v1_rpc_return_202: parse_bool_env("EDGEQUAKE_V1_RPC_RETURN_202", true),
+            doc_abac: parse_bool_env("EDGEQUAKE_DOC_ABAC", false),
         }
     }
 }

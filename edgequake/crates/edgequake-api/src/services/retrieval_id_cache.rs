@@ -1,4 +1,7 @@
 //! TTL cache for retrieval_id → ContextRetrievalResponse (SPEC-028 MCP fetch).
+//!
+//! SPEC-146: bind each `ret_*` to principal (+ optional policy_generation);
+//! fetch mismatch → 404 (existence-hiding).
 
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -12,6 +15,9 @@ const MAX_ENTRIES: usize = 500;
 struct CacheEntry {
     response: ContextRetrievalResponse,
     expires_at: Instant,
+    /// SPEC-146: owning principal (`user:…` / `apikey:…`). `None` = pre-146 / flag-off.
+    principal: Option<String>,
+    policy_generation: Option<u64>,
 }
 
 /// In-memory retrieval handle cache (stateless MCP fetch SSOT).
@@ -37,10 +43,22 @@ impl RetrievalIdCache {
     }
 
     pub fn store(&self, response: ContextRetrievalResponse) {
+        self.store_for(response, None, None);
+    }
+
+    /// SPEC-146: store with principal binding.
+    pub fn store_for(
+        &self,
+        response: ContextRetrievalResponse,
+        principal: Option<String>,
+        policy_generation: Option<u64>,
+    ) {
         let retrieval_id = response.retrieval_id.clone();
         let entry = CacheEntry {
             response,
             expires_at: Instant::now() + self.ttl,
+            principal,
+            policy_generation,
         };
 
         let mut guard = self.inner.write().expect("retrieval cache lock");
@@ -55,12 +73,46 @@ impl RetrievalIdCache {
     }
 
     pub fn get(&self, retrieval_id: &str) -> Option<ContextRetrievalResponse> {
+        self.get_for(retrieval_id, None, None)
+            .ok()
+            .flatten()
+    }
+
+    /// SPEC-146: fetch with principal check. Mismatch → `Ok(None)` (404 at caller).
+    /// When `expected_principal` is `None`, skip principal check (flag-off).
+    pub fn get_for(
+        &self,
+        retrieval_id: &str,
+        expected_principal: Option<&str>,
+        expected_policy_generation: Option<u64>,
+    ) -> Result<Option<ContextRetrievalResponse>, ()> {
         let guard = self.inner.read().expect("retrieval cache lock");
-        let entry = guard.get(retrieval_id)?;
+        let entry = match guard.get(retrieval_id) {
+            Some(e) => e,
+            None => return Ok(None),
+        };
         if entry.expires_at <= Instant::now() {
-            return None;
+            return Ok(None);
         }
-        Some(entry.response.clone())
+        if let Some(expected) = expected_principal {
+            match entry.principal.as_deref() {
+                Some(bound) if bound == expected => {}
+                Some(_) => return Err(()),
+                // Bound entry without principal while caller expects one → deny.
+                None if entry.principal.is_none() && expected_policy_generation.is_some() => {
+                    return Err(());
+                }
+                None => {}
+            }
+        }
+        if let (Some(exp_gen), Some(bound_gen)) =
+            (expected_policy_generation, entry.policy_generation)
+        {
+            if exp_gen != bound_gen {
+                return Err(());
+            }
+        }
+        Ok(Some(entry.response.clone()))
     }
 
     pub fn is_expired(&self, retrieval_id: &str) -> bool {

@@ -3,10 +3,12 @@
  */
 
 import type { PdfUploadOptions } from "@/types";
+import { appendSecurityFields } from "@/lib/upload/append-security-fields";
+import type { SecurityFields } from "@/lib/security/security-fields";
 
 export function buildPdfUploadFormData(
   file: File,
-  options?: PdfUploadOptions,
+  options?: PdfUploadOptions & { security?: SecurityFields },
 ): FormData {
   const formData = new FormData();
   formData.append("file", file);
@@ -67,6 +69,8 @@ export function buildPdfUploadFormData(
   if (options?.vision_figure_system_prompt !== undefined) {
     formData.append("vision_figure_system_prompt", options.vision_figure_system_prompt);
   }
+
+  appendSecurityFields(formData, options?.security);
 
   return formData;
 }

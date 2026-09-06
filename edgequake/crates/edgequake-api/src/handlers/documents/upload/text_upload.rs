@@ -5,6 +5,7 @@ use axum::{extract::State, Json};
 use tracing::debug;
 
 use crate::error::ApiResult;
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::middleware::TenantContext;
 use crate::services::ContentHasher;
 use crate::state::AppState;
@@ -34,8 +35,10 @@ use crate::handlers::documents_types::*;
 pub async fn upload_document(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    auth: ApiOptionalAuth,
     Json(request): Json<UploadDocumentRequest>,
 ) -> ApiResult<(StatusCode, Json<UploadDocumentResponse>)> {
+    crate::services::spec146_authz::require_ingest_when_abac(&state, &tenant_ctx, &auth)?;
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
@@ -79,6 +82,7 @@ pub async fn upload_document(
             raw_byte_size: content_length,
             content_hash,
             custom_metadata: request.metadata,
+            security: Default::default(),
             track_id: request.track_id,
             expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::new(request.enable_gleaning, request.max_gleaning),

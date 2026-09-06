@@ -267,9 +267,11 @@ async fn resource_safety_popular_labels_503_when_materialize_full() {
         .expect("hold slot");
 
     let result = get_popular_labels(
+        State(state.clone()),
         State(StorageRuntime::from_ref(&state)),
         State(GraphQueryRuntime::from_ref(&state)),
         TenantContext::default(),
+        edgequake_api::handlers::auth::OptionalAuth(None),
         Query(PopularLabelsQuery {
             limit: 5,
             min_degree: None,
@@ -965,9 +967,11 @@ async fn spec053_popular_labels_still_503_when_semaphore_full() {
         .expect("hold slot");
 
     let result = get_popular_labels(
+        State(state.clone()),
         State(StorageRuntime::from_ref(&state)),
         State(GraphQueryRuntime::from_ref(&state)),
         TenantContext::default(),
+        edgequake_api::handlers::auth::OptionalAuth(None),
         Query(PopularLabelsQuery {
             limit: 5,
             min_degree: None,

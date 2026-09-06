@@ -13,6 +13,7 @@ import {
 } from "@/lib/documents/inventory-view-model";
 import type { SortDirection, SortField } from "@/lib/documents/document-sort";
 import type { DocStatus } from "@/hooks/use-document-preferences";
+import type { ClassificationFilter } from "@/components/documents/document-filters";
 import { useEffect, useMemo, useState } from "react";
 
 export interface UseDocumentsInventoryOptions {
@@ -20,6 +21,7 @@ export interface UseDocumentsInventoryOptions {
   workspaceId: string | null;
   searchQuery: string;
   statusFilter: DocStatus;
+  classificationFilter?: ClassificationFilter;
   sortField: SortField;
   sortDirection: SortDirection;
   pageSize?: number;
@@ -38,6 +40,7 @@ export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
     options.workspaceId,
     options.searchQuery,
     options.statusFilter,
+    options.classificationFilter,
     pageSize,
   ]);
 
@@ -57,6 +60,7 @@ export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
     // re-filter the current page in memory or docs 101+ stay invisible.
     searchQuery: documentPattern ? "" : options.searchQuery,
     statusFilter: options.statusFilter,
+    classificationFilter: options.classificationFilter,
     sortField: options.sortField,
     sortDirection: options.sortDirection,
     pageSize,

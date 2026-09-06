@@ -900,7 +900,7 @@ function ErrorHeader() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <h1 className="text-lg font-semibold">Document Not Found</h1>
+        <h1 className="text-lg font-semibold">Document not found.</h1>
       </div>
     </div>
   );
@@ -912,9 +912,9 @@ function ErrorContent({ error, onRetry }: { error: Error; onRetry: () => void })
       <div className="rounded-full bg-red-500/10 p-4 w-fit mx-auto mb-4">
         <AlertCircle className="h-8 w-8 text-red-500" />
       </div>
-      <h2 className="text-xl font-semibold mb-2">Document Not Found</h2>
+      <h2 className="text-xl font-semibold mb-2">Document not found.</h2>
       <p className="text-muted-foreground mb-4">
-        {error?.message || 'The document you are looking for could not be found or you may not have access to it.'}
+        Document not found.
       </p>
       <div className="flex gap-2 justify-center">
         <Button variant="outline" onClick={onRetry}>

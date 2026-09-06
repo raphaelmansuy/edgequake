@@ -147,9 +147,10 @@ From **v0.15**, the API enables authentication **secure by default** (SPEC-027).
 
 | Scenario | What to set |
 |----------|-------------|
-| **Quickstart / demo** | Nothing — compose defaults to `EDGEQUAKE_DEV_MODE=true` (open API, no login) |
+| **Quickstart / Docker demo** | Nothing — compose defaults to `EDGEQUAKE_DEV_MODE=true` (open API, no login) |
+| **Local `make dev`** | Auth **on** with fixed credentials `admin` / `EdgeQuake1` (shown on `/login`) |
+| **Open API escape hatch** | `make dev-open` (or `DEV_AUTH_ENABLED=false make dev`) |
 | **Production with login** | Bootstrap admin **before first API start** (see below) |
-| **Local dev from source** | `make dev` (auth off) or `make dev-auth` (auth on + demo login hidden) |
 
 **Enable login on Docker / production:**
 
@@ -389,6 +390,8 @@ cd edgequake/docker && docker compose up -d
 | `EDGEQUAKE_MASTER_API_KEY` | — | Bootstrap key for `POST /api/v1/users` without JWT |
 | `NEXT_PUBLIC_AUTH_ENABLED` | `false` (quickstart) | Web UI login gate + session handling |
 | `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` | `false` | Hide “Continue without login” on the login page |
+| `NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT` | `false` | Show + prefill local-dev credentials on `/login` (`make dev` sets `true`) |
+| `EDGEQUAKE_DEV_PIN_LOGIN` | — | Reset bootstrap admin password on every boot (local DB only; `make dev` sets `1`) |
 | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | `180` | Per-chunk LLM timeout (seconds) |
 | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16` | Max parallel LLM calls |
 | `RUST_LOG` | `info` | Log level |

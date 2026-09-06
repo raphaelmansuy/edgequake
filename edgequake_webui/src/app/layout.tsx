@@ -17,7 +17,7 @@ import './globals.css';
 
 // Force per-request rendering so getRuntimeConfig() reads container env vars
 // (EDGEQUAKE_API_URL, NEXT_PUBLIC_AUTH_ENABLED, NEXT_PUBLIC_DISABLE_DEMO_LOGIN,
-//  EDGEQUAKE_HEALTH_POLL_MS)
+//  NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT, EDGEQUAKE_HEALTH_POLL_MS)
 // at request time instead of baking build-time defaults into a static HTML shell.
 // @implements SPEC-013 / GitHub #218
 export const dynamic = 'force-dynamic';

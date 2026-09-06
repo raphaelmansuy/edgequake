@@ -84,10 +84,10 @@ export function VisionLLMSettingsCard() {
   return (
     <Card>
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Eye className="h-5 w-5 text-orange-600" />
-            <CardTitle>{t('settings.vision.title', 'Vision LLM Default')}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Eye className="h-5 w-5 text-orange-600 shrink-0" />
+            <CardTitle className="truncate">{t('settings.vision.title', 'Vision LLM Default')}</CardTitle>
           </div>
           {!isEditing && (
             <Button

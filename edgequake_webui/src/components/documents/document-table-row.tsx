@@ -44,6 +44,10 @@ import { DocumentActionsMenu } from './document-actions-menu';
 import { EnhancedStatusBadge } from './enhanced-status-badge';
 import { ErrorMessagePopover } from './error-message-popover';
 import { QuickActionButtons } from './quick-action-buttons';
+import { ClassificationChip } from '@/components/security/classification-chip';
+import { ShareModeBadge } from '@/components/security/share-mode-badge';
+import { principalDisplayName } from '@/components/security/principal-select';
+import { Badge } from '@/components/ui/badge';
 
 /** Stages that show live backend detail under the status badge */
 const LIVE_STAGE_MESSAGE_STAGES = new Set([
@@ -156,6 +160,10 @@ export interface DocumentTableRowProps {
   onViewPdf: (doc: Document) => void;
   /** Called when Retry action is triggered (failed-doc quick retry, no dialog) */
   onRetry: (docId: string) => void;
+  /** SPEC-146: retry quarantined security labels */
+  onRetryLabels?: (doc: Document) => void;
+  /** Username lookup for owner_principal_id */
+  ownerNames?: Record<string, string>;
   /** Called when Reprocess action is triggered (opens the choice dialog) */
   onReprocess: (docId: string) => void;
   /** Called when Cancel action is triggered */
@@ -173,6 +181,8 @@ export interface DocumentTableRowProps {
   isDeleting?: boolean;
   /** SPEC-099: Cost column opt-in */
   showCostColumn?: boolean;
+  /** SPEC-146: Class / Share columns when DOC_ABAC is on */
+  showAbacColumns?: boolean;
 }
 
 /**
@@ -194,6 +204,8 @@ export const DocumentTableRow = memo(function DocumentTableRow({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onRetryLabels,
+  ownerNames,
   onReprocess,
   onCancel,
   onDelete,
@@ -201,6 +213,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
   isCancelling,
   isDeleting = false,
   showCostColumn = false,
+  showAbacColumns = false,
 }: DocumentTableRowProps) {
   const { t } = useTranslation();
   const displayStatus = getDocumentDisplayStatus(doc);
@@ -300,6 +313,40 @@ export const DocumentTableRow = memo(function DocumentTableRow({
         </div>
       </TableCell>
 
+      {/* SPEC-146 Class / Share / Owner — existence-hiding: never Restricted */}
+      {showAbacColumns ? (
+        <>
+          <TableCell className="overflow-hidden" data-testid="spec146-cell-class">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <ClassificationChip value={doc.classification} />
+              {doc.security_status === 'quarantined' ? (
+                <Badge
+                  variant="outline"
+                  className="w-fit text-[10px] px-1 py-0 border-amber-500 text-amber-800 dark:text-amber-200"
+                  data-testid="spec146-quarantine-chip"
+                >
+                  {t('security.quarantined', 'Labeling failed / Quarantined')}
+                </Badge>
+              ) : null}
+            </div>
+          </TableCell>
+          <TableCell className="overflow-hidden" data-testid="spec146-cell-share">
+            <ShareModeBadge value={doc.share_mode} />
+          </TableCell>
+          <TableCell
+            className="overflow-hidden text-xs"
+            data-testid="spec146-cell-owner"
+          >
+            <span className="truncate block">
+              {doc.owner_principal_id
+                ? ownerNames?.[doc.owner_principal_id] ||
+                  principalDisplayName(undefined, doc.owner_principal_id)
+                : '—'}
+            </span>
+          </TableCell>
+        </>
+      ) : null}
+
       {/* Entity Count */}
       <TableCell className="overflow-hidden text-center tabular-nums">
         {doc.entity_count ?? doc.chunk_count ?? '-'}
@@ -348,6 +395,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
           onPreview={onClick}
           onViewInGraph={onViewInGraph}
           onRetry={onRetry}
+          onRetryLabels={onRetryLabels}
           isRetrying={isRetrying}
         >
           <DocumentActionsMenu

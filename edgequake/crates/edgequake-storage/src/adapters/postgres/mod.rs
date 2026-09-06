@@ -31,6 +31,7 @@
 //! - [`BR0350`]: Each workspace has isolated vector storage
 
 mod age_csv_loader;
+pub(crate) mod ann_abac;
 mod ann_exact_reorder_policy;
 mod binary_quantize_policy;
 mod capabilities;

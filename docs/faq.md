@@ -287,7 +287,8 @@ Only to LLM providers you configure:
 | Mode | When to use | Configuration |
 | ---- | ----------- | ------------- |
 | **Production** | Deployed stacks | Auth enabled (default); set `JWT_SECRET`, bootstrap admin, disable demo login |
-| **Local dev** | `make dev` | `EDGEQUAKE_DEV_MODE=true` (Makefile sets this when `DEV_AUTH_ENABLED=false`) |
+| **Local `make dev`** | Day-to-day development | Auth on with fixed credentials `admin` / `EdgeQuake1` (shown on `/login`) |
+| **Open API escape hatch** | Rare open-API proofs | `make dev-open` or `DEV_AUTH_ENABLED=false make dev` |
 
 **Bootstrap first admin** (before first login):
 

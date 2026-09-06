@@ -126,6 +126,9 @@ pub struct ApiCapabilities {
     /// SPEC-091 IP0 / F-IP-21: byte admission (`try_admit`) is process-local — not cluster SSOT.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub byte_admission_process_local: Option<bool>,
+    /// SPEC-146: document ABAC enabled (`EDGEQUAKE_DOC_ABAC`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc_abac: Option<bool>,
 }
 
 /// Task queue + query engine operational snapshot (SPEC-024 Phase 4.3).

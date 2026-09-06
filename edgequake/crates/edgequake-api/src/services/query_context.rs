@@ -130,7 +130,7 @@ async fn run_context_retrieval(
         .as_ref()
         .and_then(|f| serde_json::to_string(f).ok());
 
-    let mut allowed_document_ids = None;
+    let mut client_filter_ids = None;
     if let Some(ref filter) = document_filter {
         if let Some(allowed_ids) =
             crate::handlers::query::document_filter_resolver::resolve_document_filter(
@@ -141,9 +141,26 @@ async fn run_context_retrieval(
             )
             .await?
         {
-            allowed_document_ids = Some(allowed_ids);
+            client_filter_ids = Some(allowed_ids);
         }
     }
+
+    let (allowed_document_ids, authz_ctx, allow_set) =
+        crate::services::spec146_authz::resolve_query_allowed_document_ids(
+            state,
+            tenant_ctx,
+            tenant_ctx.user_id.as_deref(),
+            client_filter_ids,
+        )
+        .await?;
+    let (authz_principal, policy_generation, allow_fingerprint) = match (&authz_ctx, &allow_set) {
+        (Some(ctx), Some(allow)) => (
+            Some(format!("{}:{}", ctx.principal.kind_str(), ctx.principal.id_str())),
+            Some(ctx.policy_generation),
+            Some(allow.fingerprint()),
+        ),
+        _ => (None, None, None),
+    };
 
     let params = QueryExecutionParams {
         query: query.to_string(),
@@ -166,6 +183,9 @@ async fn run_context_retrieval(
         llm_provider: None,
         llm_model: None,
         reasoning_effort: None,
+        authz_principal,
+        policy_generation,
+        allow_fingerprint,
     };
 
     let engine_request = build_engine_request(&params);
@@ -273,7 +293,31 @@ pub async fn retrieve_context(
 
     let retrieval_id = new_retrieval_id();
     let response = build_context_response(&request, run, document_meta, retrieval_id, false);
-    global_retrieval_cache().store(response.clone());
+
+    // SPEC-146: bind ret_* to principal when ABAC on.
+    let (principal, policy_gen) = if state.security.doc_abac {
+        let uid = tenant_ctx.user_id.as_deref();
+        let principal = uid.map(|u| {
+            let p = edgequake_authz::PrincipalId::from_auth_user_id(u);
+            format!("{}:{}", p.kind_str(), p.id_str())
+        });
+        let policy_gen = if let Ok(Some(ws)) =
+            crate::services::spec146_authz::parse_workspace_uuid(tenant_ctx)
+        {
+            crate::services::spec146_authz::load_policy_generation(
+                state.allow_set_provider.as_ref(),
+                ws,
+            )
+            .await
+            .ok()
+        } else {
+            None
+        };
+        (principal, policy_gen)
+    } else {
+        (None, None)
+    };
+    global_retrieval_cache().store_for(response.clone(), principal, policy_gen);
     Ok(response)
 }
 
@@ -349,17 +393,22 @@ pub async fn search_context(
 }
 
 /// Options when fetching a cached retrieval (REST + MCP SSOT).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Default)]
 pub struct FetchContextOptions {
     pub granularity: ContentGranularity,
     pub include_subgraph: bool,
+    /// SPEC-146: principal binding for `ret_*` handles.
+    pub principal: Option<String>,
+    pub policy_generation: Option<u64>,
 }
 
-impl Default for FetchContextOptions {
-    fn default() -> Self {
+impl FetchContextOptions {
+    pub fn basic(granularity: ContentGranularity, include_subgraph: bool) -> Self {
         Self {
-            granularity: ContentGranularity::Agent,
-            include_subgraph: true,
+            granularity,
+            include_subgraph,
+            principal: None,
+            policy_generation: None,
         }
     }
 }
@@ -376,9 +425,26 @@ pub fn fetch_context_by_id(
         return Err(ApiError::Gone("Retrieval expired — re-run search".into()));
     }
 
-    let mut response = global_retrieval_cache()
-        .get(retrieval_id)
-        .ok_or_else(|| ApiError::NotFound(format!("Retrieval not found: {}", retrieval_id)))?;
+    let mut response = match global_retrieval_cache().get_for(
+        retrieval_id,
+        options.principal.as_deref(),
+        options.policy_generation,
+    ) {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return Err(ApiError::NotFound(format!(
+                "Retrieval not found: {}",
+                retrieval_id
+            )));
+        }
+        // SPEC-146: principal / policy_generation mismatch → existence-hiding 404.
+        Err(()) => {
+            return Err(ApiError::NotFound(format!(
+                "Retrieval not found: {}",
+                retrieval_id
+            )));
+        }
+    };
 
     debug!(retrieval_id, "fetch returning cached bundle");
     response.cached = true;

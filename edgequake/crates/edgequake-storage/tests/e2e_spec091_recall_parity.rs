@@ -89,7 +89,8 @@ async fn e2e_spec091_recall_parity_typed_vs_exact() {
                 workspace_id: Some(WorkspaceId(ws)),
                 embedding: query_emb.clone(),
                 limit: TOP_K as u32,
-            })
+                        allowed_document_ids: None,
+})
             .await
             .expect("typed search");
         let typed_top: HashSet<Uuid> = hits.iter().map(|h| h.chunk_id.0).collect();

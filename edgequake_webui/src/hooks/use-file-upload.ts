@@ -78,6 +78,8 @@ export interface UseFileUploadOptions {
    * because the feedback zone owns the upload session narrative.
    */
   demoteLoadingToast?: boolean;
+  /** SPEC-146 security labels applied to each upload. */
+  security?: import("@/lib/security/security-fields").SecurityFields;
 }
 
 export interface UseFileUploadReturn {
@@ -137,6 +139,7 @@ export function useFileUpload(
     visionChartSystemPrompt,
     visionFigureSystemPrompt,
     demoteLoadingToast = true,
+    security,
   } =
     options;
 
@@ -328,6 +331,7 @@ export function useFileUpload(
                 visionImageSystemPrompt,
                 visionChartSystemPrompt,
                 visionFigureSystemPrompt,
+                security,
                 onUploadProgress: applyUploadProgress,
               });
               response = {
@@ -617,6 +621,7 @@ export function useFileUpload(
       visionImageSystemPrompt,
       visionChartSystemPrompt,
       visionFigureSystemPrompt,
+      security,
       queryClient,
       t,
       tenantId,
@@ -695,6 +700,7 @@ export function useFileUpload(
                 force_reindex: true,
                 // SPEC-123 V4: preserve upload-level parser override on Replace.
                 pdf_parser_backend: pdfParserBackend,
+                security,
               });
               queryClient.invalidateQueries({ queryKey: ["documents"] });
             } catch (err) {
@@ -706,6 +712,7 @@ export function useFileUpload(
                 batchTrackId: `upload_${Date.now()}_${Math.random()
                   .toString(36)
                   .slice(2, 10)}`,
+                security,
               });
               queryClient.invalidateQueries({ queryKey: ["documents"] });
             } catch (err) {
@@ -747,7 +754,7 @@ export function useFileUpload(
 
       doReplaceAll();
     },
-    [pendingDuplicates, handleFilesUpload, queryClient, pdfParserBackend],
+    [pendingDuplicates, handleFilesUpload, queryClient, pdfParserBackend, security],
   );
 
   /**

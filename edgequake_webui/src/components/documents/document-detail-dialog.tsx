@@ -17,6 +17,7 @@
 'use client';
 
 import { DocumentContentEmptyState } from '@/components/document/document-content-empty-state';
+import { DocumentSecurityPanel } from '@/components/document/document-security-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -257,6 +258,7 @@ export function DocumentDetailDialog({
                 </Button>
               )}
             </div>
+            <DocumentSecurityPanel document={document} />
           </TabsContent>
 
           {/* OODA-82: Source tab for PDF documents - shows PDF+Markdown side by side */}

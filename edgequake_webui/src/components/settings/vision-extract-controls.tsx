@@ -382,8 +382,8 @@ export function VisionSettingsPanel({
             )
           }
           className={cn(
-            'bg-background justify-between gap-1.5 font-normal',
-            compact ? 'h-7 px-2 text-xs min-w-[7.5rem]' : 'h-9 px-3 text-sm min-w-[9rem]',
+            'bg-background justify-between gap-1.5 font-normal min-w-0 max-w-full',
+            compact ? 'h-7 px-2 text-xs' : 'h-9 px-3 text-sm',
             customized && 'border-foreground/30',
             className,
           )}

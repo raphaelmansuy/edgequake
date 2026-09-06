@@ -15,4 +15,10 @@ describe("document table column widths", () => {
     expect(documentTableColPercentSum(true)).toBe(100);
     expect(Number.parseFloat(DOCUMENT_TABLE_COL_PERCENTS.withCost.title)).toBeGreaterThanOrEqual(20);
   });
+
+  test("ABAC layouts sum to 100", () => {
+    expect(documentTableColPercentSum(false, true)).toBe(100);
+    expect(documentTableColPercentSum(true, true)).toBe(100);
+    expect(Number.parseFloat(DOCUMENT_TABLE_COL_PERCENTS.withAbac.class)).toBeGreaterThan(0);
+  });
 });

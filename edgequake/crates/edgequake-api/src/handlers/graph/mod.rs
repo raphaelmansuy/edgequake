@@ -51,6 +51,7 @@ mod tests {
     use axum::extract::FromRef;
     use axum::extract::{Path, Query, State};
 
+    use crate::handlers::auth::OptionalAuth;
     use crate::middleware::TenantContext;
     use crate::state::{AppState, GraphQueryRuntime, StorageRuntime};
 
@@ -66,7 +67,15 @@ mod tests {
             max_nodes: 100,
         };
 
-        let result = get_graph(State(storage), State(graph), tenant_ctx, Query(params)).await;
+        let result = get_graph(
+            State(state.clone()),
+            State(storage),
+            State(graph),
+            tenant_ctx,
+            OptionalAuth(None),
+            Query(params),
+        )
+        .await;
         assert!(result.is_ok());
 
         let response = result.unwrap().0;
@@ -85,7 +94,15 @@ mod tests {
             max_nodes: 50,
         };
 
-        let result = get_graph(State(storage), State(graph), tenant_ctx, Query(params)).await;
+        let result = get_graph(
+            State(state.clone()),
+            State(storage),
+            State(graph),
+            tenant_ctx,
+            OptionalAuth(None),
+            Query(params),
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -95,8 +112,10 @@ mod tests {
         let storage = StorageRuntime::from_ref(&state);
 
         let result = get_node(
+            State(state),
             State(storage),
             TenantContext::default(),
+            OptionalAuth(None),
             Path("nonexistent_node".to_string()),
         )
         .await;
@@ -113,7 +132,14 @@ mod tests {
             limit: 10,
         };
 
-        let result = search_labels(State(storage), TenantContext::default(), Query(params)).await;
+        let result = search_labels(
+            State(state),
+            State(storage),
+            TenantContext::default(),
+            OptionalAuth(None),
+            Query(params),
+        )
+        .await;
         assert!(result.is_ok());
 
         let response = result.unwrap().0;
@@ -132,9 +158,11 @@ mod tests {
         };
 
         let result = get_popular_labels(
+            State(state),
             State(storage),
             State(graph),
             TenantContext::default(),
+            OptionalAuth(None),
             Query(params),
         )
         .await;

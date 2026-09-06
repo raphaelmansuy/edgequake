@@ -59,27 +59,31 @@ export function QueryInterface() {
     <div className="flex h-full min-h-0">
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <header
-          className="flex items-center justify-between border-b px-page py-2 shrink-0 bg-background/80 backdrop-blur-sm gap-2"
+          className="flex flex-wrap items-center justify-between border-b px-page py-2 shrink-0 bg-background/80 backdrop-blur-sm gap-2 min-w-0"
           role="banner"
+          data-testid="query-page-header"
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <MobileHistoryPanel />
             <h1 className="text-base sm:text-lg font-semibold tracking-tight truncate">
               {t("query.title", "Query")}
             </h1>
-            <span className="text-xs text-muted-foreground hidden md:inline">
+            <span
+              className="text-xs text-muted-foreground hidden lg:inline"
+              data-testid="query-header-subtitle"
+            >
               {querySettings.mode === "bypass"
                 ? t("query.chatSubtitle", "General chat — no knowledge graph retrieval")
                 : t("query.subtitle", "Ask questions about your knowledge graph")}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 min-w-0 max-w-full">
             <Button
               variant="outline"
               size="sm"
               onClick={handleNewConversation}
               disabled={isLoading}
-              className="gap-1"
+              className="gap-1 shrink-0"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">{t("query.newConversation", "New")}</span>

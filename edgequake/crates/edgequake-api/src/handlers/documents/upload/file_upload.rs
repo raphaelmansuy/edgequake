@@ -7,6 +7,7 @@ use tracing::debug;
 use edgequake_audit::{AuditEventType, AuditResult};
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::middleware::TenantContext;
 use crate::multipart_upload::stream_field_to_tempfile;
 use crate::services::{record_compliance_event, ContentHasher};
@@ -42,8 +43,10 @@ use axum_extra::extract::Multipart;
 pub async fn upload_file(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    auth: ApiOptionalAuth,
     mut multipart: Multipart,
 ) -> ApiResult<(StatusCode, Json<FileUploadResponse>)> {
+    crate::services::spec146_authz::require_ingest_when_abac(&state, &tenant_ctx, &auth)?;
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
@@ -71,7 +74,13 @@ pub async fn upload_file(
             | "chunk_strategy"
             | "chunk_options"
             | "extract_max_entities"
-            | "extract_max_records" => {
+            | "extract_max_records"
+            | "classification"
+            | "share_mode"
+            | "security_status"
+            | "export_control"
+            | "pii"
+            | "project_id" => {
                 let text = field.text().await.map_err(|e| {
                     ApiError::BadRequest(format!("Failed to read {field_name}: {e}"))
                 })?;
@@ -110,6 +119,7 @@ pub async fn upload_file(
             raw_byte_size: content.len(),
             content_hash: content_hash.clone(),
             custom_metadata: metadata,
+            security: multipart_fields.security.clone(),
             track_id: None,
             expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),

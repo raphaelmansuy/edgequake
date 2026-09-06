@@ -195,6 +195,7 @@ async fn spec117_admission_stores_doc_caps_and_resolve_beats_workspace() {
             raw_byte_size: content.len(),
             content_hash: hash,
             custom_metadata: None,
+            security: Default::default(),
             track_id: None,
             expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),

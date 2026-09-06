@@ -180,6 +180,34 @@ async fn recover_orphaned_tasks(
     .map_err(|e| anyhow::anyhow!(e))
 }
 
+/// Periodic INV-07 / orphan-document recover interval (minutes).
+///
+/// - Unset / empty → **15** (aligned with INV-07 `inflight_orphan_minutes`)
+/// - `0` → disabled
+/// - any other positive integer → that interval
+fn orphan_document_recover_minutes_from_env() -> Option<u64> {
+    match std::env::var("EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES") {
+        Err(_) => Some(15),
+        Ok(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                return Some(15);
+            }
+            match trimmed.parse::<u64>() {
+                Ok(0) => None,
+                Ok(m) => Some(m),
+                Err(_) => {
+                    tracing::warn!(
+                        value = %s,
+                        "Invalid EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES; using default 15"
+                    );
+                    Some(15)
+                }
+            }
+        }
+    }
+}
+
 /// Normalize document metadata left in non-terminal states after a restart.
 ///
 /// Early upload stages are marked for re-upload. Later stages:
@@ -1693,13 +1721,11 @@ async fn async_main() -> Result<()> {
         }
     });
 
-    // PERIODIC DOCUMENT ORPHAN RECOVERY (SPEC-045): Re-normalize KV metadata for docs
-    // stuck in non-terminal states after long-running processing (complements task-level
-    // periodic_orphan_check). Disabled unless EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES>0.
-    if let Some(interval_mins) = std::env::var("EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES")
-        .ok()
-        .and_then(|s| s.parse::<u64>().ok())
-        .filter(|&m| m > 0)
+    // PERIODIC DOCUMENT ORPHAN RECOVERY (SPEC-045 / #384 INV-07):
+    // Re-normalize KV metadata for docs stuck in non-terminal states and drain
+    // orphan pending via SPEC-054. Default interval **15 minutes** (aligned with
+    // INV-07). Set `EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES=0` to disable.
+    if let Some(interval_mins) = orphan_document_recover_minutes_from_env()
     {
         let kv =
             Arc::clone(&state.storage.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>;
@@ -1805,6 +1831,11 @@ async fn async_main() -> Result<()> {
             "Periodic document orphan recovery enabled (every {} min, min_age={} min)",
             interval_mins,
             interval_mins
+        );
+    } else {
+        info!(
+            "Periodic document orphan recovery disabled \
+             (EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES=0)"
         );
     }
 

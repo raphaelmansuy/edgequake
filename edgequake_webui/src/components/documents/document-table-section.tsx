@@ -30,7 +30,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { DOCUMENT_TABLE_COL_PERCENTS } from '@/lib/documents/document-table-columns';
+import { useUsers } from '@/hooks/use-users';
+import { principalDisplayName } from '@/components/security/principal-select';
+import {
+  documentTableCols,
+  INVENTORY_CARDS_CLASS,
+  INVENTORY_TABLE_CLASS,
+} from '@/lib/documents/document-table-columns';
 import type { SortDirection, SortField } from '@/lib/documents/document-sort';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Document } from '@/types';
@@ -38,6 +44,7 @@ import { FileText } from 'lucide-react';
 import { memo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DocumentTableRow } from './document-table-row';
+import { DocumentInventoryCard } from './document-inventory-card';
 import { DocumentTableStates } from './document-table-states';
 import { SortableColumnHeader } from './sortable-column-header';
 
@@ -48,15 +55,22 @@ const ESTIMATED_ROW_HEIGHT = 52;
  * Shared colgroup — percentage widths so Title never collapses under
  * table-fixed when the inventory pane is narrow (preview panel open).
  */
-function TableColGroup({ showCostColumn }: { showCostColumn: boolean }) {
-  const cols = showCostColumn
-    ? DOCUMENT_TABLE_COL_PERCENTS.withCost
-    : DOCUMENT_TABLE_COL_PERCENTS.default;
+function TableColGroup({
+  showCostColumn,
+  showAbacColumns,
+}: {
+  showCostColumn: boolean;
+  showAbacColumns: boolean;
+}) {
+  const cols = documentTableCols(showCostColumn, showAbacColumns);
   return (
     <colgroup>
       <col style={{ width: cols.checkbox }} />
       <col style={{ width: cols.title }} />
       <col style={{ width: cols.status }} />
+      {'class' in cols ? <col style={{ width: cols.class }} /> : null}
+      {'share' in cols ? <col style={{ width: cols.share }} /> : null}
+      {'owner' in cols ? <col style={{ width: cols.owner }} /> : null}
       <col style={{ width: cols.entities }} />
       {'cost' in cols ? <col style={{ width: cols.cost }} /> : null}
       <col style={{ width: cols.created }} />
@@ -96,6 +110,7 @@ export interface DocumentTableSectionProps {
   onViewInGraph: (doc: Document) => void;
   onViewPdf: (doc: Document) => void;
   onRetry: (id: string) => void;
+  onRetryLabels?: (doc: Document) => void;
   onReprocess: (id: string) => void;
   onCancel: (trackId: string) => void;
   onDelete: (id: string) => void;
@@ -115,6 +130,8 @@ export interface DocumentTableSectionProps {
   onSort: (field: SortField) => void;
   /** SPEC-099: Cost column opt-in */
   showCostColumn?: boolean;
+  /** SPEC-146: Class / Share columns when DOC_ABAC is on */
+  showAbacColumns?: boolean;
   /** SPEC-099: overflow honesty affordance */
   overflowLabel?: string | null;
 }
@@ -143,6 +160,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   onViewInGraph,
   onViewPdf,
   onRetry,
+  onRetryLabels,
   onReprocess,
   onCancel,
   onDelete,
@@ -156,9 +174,14 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   sortDirection,
   onSort,
   showCostColumn = false,
+  showAbacColumns = false,
   overflowLabel = null,
 }: DocumentTableSectionProps) {
   const { t } = useTranslation();
+  const { users } = useUsers();
+  const ownerNames = Object.fromEntries(
+    users.map((u) => [u.user_id, principalDisplayName(u, u.user_id)]),
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
@@ -213,11 +236,14 @@ export const DocumentTableSection = memo(function DocumentTableSection({
           </div>
         )}
 
-        {/* Column header row — physically outside the scroll container */}
+        {/* Column header row — physically outside the scroll container (md+) */}
         {showTable && (
-          <div className="border border-border border-b-0 rounded-t-lg bg-muted/40 overflow-hidden shadow-sm">
+          <div className={`${INVENTORY_TABLE_CLASS} border border-border border-b-0 rounded-t-lg bg-muted/40 overflow-hidden shadow-sm`}>
             <table className="w-full table-fixed caption-bottom text-sm" role="presentation">
-              <TableColGroup showCostColumn={showCostColumn} />
+              <TableColGroup
+                showCostColumn={showCostColumn}
+                showAbacColumns={showAbacColumns}
+              />
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead scope="col" className="rounded-tl-lg w-11 overflow-hidden">
@@ -243,6 +269,31 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                     onSort={onSort}
                     className="overflow-hidden"
                   />
+                  {showAbacColumns ? (
+                    <>
+                      <TableHead
+                        scope="col"
+                        className="overflow-hidden text-xs"
+                        data-testid="spec146-col-class"
+                      >
+                        {t('documents.table.classification', 'Class')}
+                      </TableHead>
+                      <TableHead
+                        scope="col"
+                        className="overflow-hidden text-xs"
+                        data-testid="spec146-col-share"
+                      >
+                        {t('documents.table.shareMode', 'Share')}
+                      </TableHead>
+                      <TableHead
+                        scope="col"
+                        className="overflow-hidden text-xs"
+                        data-testid="spec146-col-owner"
+                      >
+                        {t('documents.table.owner', 'Owner')}
+                      </TableHead>
+                    </>
+                  ) : null}
                   <SortableColumnHeader
                     field="entity_count"
                     label={t('documents.table.entities', 'Entities')}
@@ -307,18 +358,59 @@ export const DocumentTableSection = memo(function DocumentTableSection({
         />
 
         {showTable && (
-          <div
-            className="relative w-full"
-            style={{ height: totalVirtualHeight }}
-            data-testid="documents-virtual-spacer"
-          >
+          <>
+            {/* Mobile / tablet cards (< md) */}
+            <div
+              className={INVENTORY_CARDS_CLASS}
+              data-testid="spec146-doc-cards"
+            >
+              {documents.map((doc) => {
+                const bareId = doc.id.replace(/^staging:/, '');
+                const isLiveRun =
+                  Boolean(activeRunDocumentIds?.has(doc.id)) ||
+                  Boolean(activeRunDocumentIds?.has(bareId));
+                void isLiveRun;
+                return (
+                  <DocumentInventoryCard
+                    key={doc.id}
+                    doc={doc}
+                    isSelected={selectedIds.has(doc.id)}
+                    isActive={selectedDocument?.id === doc.id}
+                    showAbacColumns={showAbacColumns}
+                    ownerNames={ownerNames}
+                    onSelect={onSelectOne}
+                    onClick={onRowClick}
+                    onViewDetails={onViewDetails}
+                    onViewInGraph={onViewInGraph}
+                    onViewPdf={onViewPdf}
+                    onRetry={onRetry}
+                    onRetryLabels={onRetryLabels}
+                    onReprocess={onReprocess}
+                    onCancel={onCancel}
+                    onDelete={onDelete}
+                    isRetrying={isRetrying}
+                    isCancelling={isCancelling}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Desktop virtualized table (md+) */}
+            <div
+              className={`relative w-full ${INVENTORY_TABLE_CLASS}`}
+              style={{ height: totalVirtualHeight }}
+              data-testid="documents-virtual-spacer"
+            >
             <div
               className="absolute left-0 right-0 border border-border rounded-b-lg overflow-hidden shadow-sm bg-background"
               style={{ transform: `translateY(${windowOffset}px)` }}
               aria-label={t('documents.table.ariaLabel', 'Documents list')}
             >
               <table className="w-full table-fixed caption-bottom text-sm">
-                <TableColGroup showCostColumn={showCostColumn} />
+                <TableColGroup
+                  showCostColumn={showCostColumn}
+                  showAbacColumns={showAbacColumns}
+                />
                 <TableBody>
                   {virtualItems.map((virtualRow) => {
                     const doc = documents[virtualRow.index];
@@ -340,6 +432,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                         isBackground={isBackground}
                         isLiveRun={isLiveRun}
                         showCostColumn={showCostColumn}
+                        showAbacColumns={showAbacColumns}
                         searchQuery={searchQuery}
                         onSelect={onSelectOne}
                         onClick={onRowClick}
@@ -348,6 +441,8 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                         onViewInGraph={onViewInGraph}
                         onViewPdf={onViewPdf}
                         onRetry={onRetry}
+                        onRetryLabels={onRetryLabels}
+                        ownerNames={ownerNames}
                         onReprocess={onReprocess}
                         onCancel={onCancel}
                         onDelete={onDelete}
@@ -364,7 +459,8 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                 </TableBody>
               </table>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

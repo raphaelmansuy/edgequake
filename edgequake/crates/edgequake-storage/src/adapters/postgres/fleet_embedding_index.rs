@@ -190,13 +190,46 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
             None => return Ok(Vec::new()),
         };
 
+        // SPEC-146: empty allow-set is fail-closed.
+        if let Some(allow) = req.allowed_document_ids.as_ref() {
+            if allow.is_empty() {
+                return Ok(Vec::new());
+            }
+        }
+
         let vector = Self::format_vector(&req.embedding);
         let ws_filter = req.workspace_id.is_some();
-        let limit = req.limit as i64;
+        let want = req.limit as usize;
+        let fetch_limit = if req.allowed_document_ids.is_some() {
+            super::ann_abac::abac_overfetch_limit(req.limit) as i64
+        } else {
+            req.limit as i64
+        };
         let cast = format!("halfvec({dim})");
+        let allow = req.allowed_document_ids.as_ref();
+        let doc_filter = allow.is_some();
+        let allow_len = allow.map(|a| a.len()).unwrap_or(0);
+        let allow_uuid_pred = super::ann_abac::uuid_in_allow_sql("left(cid, 36)::uuid", "$ALLOW", allow_len);
 
-        let q = match (family, ws_filter) {
-            (EmbeddingFamily::Entity, true) => format!(
+        // Provenance ∩ allow: entity/rel rows keep iff source_ids overlaps OR
+        // any source_chunk_ids derives a document in the allow-set.
+        let entity_allow_sql = format!(" AND (\
+            (e.source_ids IS NOT NULL AND e.source_ids && $ALLOW::uuid[]) \
+            OR EXISTS (\
+                SELECT 1 FROM unnest(COALESCE(e.source_chunk_ids, ARRAY[]::text[])) AS cid \
+                WHERE cid ~ '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}-chunk-' \
+                  AND {allow_uuid_pred}\
+            )\
+        )");
+        // relationships table has source_chunk_ids only (no source_ids uuid[]).
+        let rel_allow_sql = format!(" AND EXISTS (\
+                SELECT 1 FROM unnest(COALESCE(r.source_chunk_ids, ARRAY[]::text[])) AS cid \
+                WHERE cid ~ '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}-chunk-' \
+                  AND {allow_uuid_pred}\
+            )");
+
+        let q = match (family, ws_filter, doc_filter) {
+            (EmbeddingFamily::Entity, true, false) => format!(
                 "SELECT ('entity:' || e.name) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM entity_embeddings fe \
@@ -204,7 +237,7 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
                  ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4"
             ),
-            (EmbeddingFamily::Entity, false) => format!(
+            (EmbeddingFamily::Entity, false, false) => format!(
                 "SELECT ('entity:' || e.name) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM entity_embeddings fe \
@@ -212,7 +245,27 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
                  ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $3"
             ),
-            (EmbeddingFamily::Relationship, true) => format!(
+            (EmbeddingFamily::Entity, true, true) => format!(
+                "SELECT ('entity:' || e.name) AS legacy_id, \
+                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
+                 FROM entity_embeddings fe \
+                 JOIN entities e ON e.id = fe.entity_id \
+                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
+                 {entity_allow} \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $5",
+                entity_allow = entity_allow_sql.replace("$ALLOW", "$4")
+            ),
+            (EmbeddingFamily::Entity, false, true) => format!(
+                "SELECT ('entity:' || e.name) AS legacy_id, \
+                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
+                 FROM entity_embeddings fe \
+                 JOIN entities e ON e.id = fe.entity_id \
+                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
+                 {entity_allow} \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4",
+                entity_allow = entity_allow_sql.replace("$ALLOW", "$3")
+            ),
+            (EmbeddingFamily::Relationship, true, false) => format!(
                 "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM relationship_embeddings fe \
@@ -222,7 +275,7 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
                  ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4"
             ),
-            (EmbeddingFamily::Relationship, false) => format!(
+            (EmbeddingFamily::Relationship, false, false) => format!(
                 "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM relationship_embeddings fe \
@@ -232,14 +285,42 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
                  ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $3"
             ),
-            (EmbeddingFamily::Report, true) => format!(
+            (EmbeddingFamily::Relationship, true, true) => format!(
+                "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
+                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
+                 FROM relationship_embeddings fe \
+                 JOIN relationships r ON r.id = fe.relationship_id \
+                 JOIN entities es ON es.id = r.source_id \
+                 JOIN entities et ON et.id = r.target_id \
+                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
+                 {rel_allow} \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $5",
+                rel_allow = rel_allow_sql.replace("$ALLOW", "$4")
+            ),
+            (EmbeddingFamily::Relationship, false, true) => format!(
+                "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
+                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
+                 FROM relationship_embeddings fe \
+                 JOIN relationships r ON r.id = fe.relationship_id \
+                 JOIN entities es ON es.id = r.source_id \
+                 JOIN entities et ON et.id = r.target_id \
+                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
+                 {rel_allow} \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4",
+                rel_allow = rel_allow_sql.replace("$ALLOW", "$3")
+            ),
+            // Reports: no document provenance — drop all under ABAC allow filter.
+            (EmbeddingFamily::Report, _, true) => {
+                return Ok(Vec::new());
+            }
+            (EmbeddingFamily::Report, true, false) => format!(
                 "SELECT fe.report_id AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM report_embeddings fe \
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
                  ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4"
             ),
-            (EmbeddingFamily::Report, false) => format!(
+            (EmbeddingFamily::Report, false, false) => format!(
                 "SELECT fe.report_id AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM report_embeddings fe \
@@ -248,18 +329,37 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
             ),
         };
 
+        let use_tx = doc_filter;
+        let mut tx = if use_tx {
+            let mut t = self.pool.begin().await.map_err(StorageError::from)?;
+            let _ = sqlx::query("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
+                .execute(&mut *t)
+                .await;
+            Some(t)
+        } else {
+            None
+        };
+
         let mut query = sqlx::query(&q).bind(&vector).bind(model_id.0);
         if let Some(ws) = req.workspace_id {
             query = query.bind(ws.0);
         }
-        query = query.bind(limit);
+        if let Some(allow_ids) = allow {
+            query = query.bind(allow_ids.as_slice());
+        }
+        query = query.bind(fetch_limit);
 
-        let rows = query
-            .fetch_all(&self.pool)
-            .await
-            .map_err(StorageError::from)?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
+        let rows = match tx.as_mut() {
+            Some(t) => query.fetch_all(&mut **t).await.map_err(StorageError::from)?,
+            None => query.fetch_all(&self.pool).await.map_err(StorageError::from)?,
+        };
+
+        if let Some(t) = tx {
+            t.commit().await.map_err(StorageError::from)?;
+        }
+
+        let mut out = Vec::with_capacity(rows.len().min(want));
+        for row in rows.into_iter().take(want) {
             let legacy_id: String = row.try_get("legacy_id").map_err(StorageError::from)?;
             let score: f64 = row.try_get("score").map_err(StorageError::from)?;
             out.push(ScoredFleet {

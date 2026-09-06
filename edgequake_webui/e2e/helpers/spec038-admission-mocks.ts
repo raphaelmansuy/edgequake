@@ -312,7 +312,20 @@ export async function mockSpec038AdmissionRoutes(
     });
   });
 
-  await page.route("**/api/v1/tenants", async (route) => {
+  // NOTE: Playwright glob `**/api/v1/tenants` does NOT match `?limit=&offset=` query
+  // strings — use a trailing * so list pagination hits this mock (not the catch-all
+  // empty `{items:[]}`). Nested `/tenants/{id}/…` routes registered below still win (LIFO).
+  await page.route("**/api/v1/tenants*", async (route) => {
+    const url = route.request().url();
+    // Let detail / nested collection handlers (registered later) own these.
+    if (/\/api\/v1\/tenants\/[^/?]+/.test(url)) {
+      await route.fallback();
+      return;
+    }
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",

@@ -75,19 +75,134 @@ fn status_from_metadata(value: &Value) -> String {
         .unwrap_or_else(|| "processing".to_string())
 }
 
-/// Shell row projection: `(metadata, content, _shell marker)`.
-type ShellRow = (Option<Value>, Option<String>, Option<String>);
+/// True when JSONB metadata is missing or `{}` (column SSOT must synthesize).
+fn metadata_json_is_empty(metadata: &Option<Value>) -> bool {
+    match metadata {
+        None => true,
+        Some(Value::Object(map)) => map.is_empty(),
+        Some(Value::Null) => true,
+        _ => false,
+    }
+}
 
-/// Shell row with its document id: `(id, metadata, content, _shell marker)`.
-type ShellIdRow = (Uuid, Option<Value>, Option<String>, Option<String>);
+/// Synthesize a KV-shaped metadata object from relational document columns.
+///
+/// SPEC-091 / SPEC-021: list already merges relational rows when shell
+/// metadata JSONB is empty; detail must do the same or list→detail 404s.
+fn synthesize_metadata_from_columns(
+    title: Option<String>,
+    status: Option<String>,
+    tenant_id: Option<String>,
+    workspace_id: Option<String>,
+    track_id: Option<String>,
+    chunk_count: Option<i32>,
+    entity_count: Option<i32>,
+    file_size_bytes: Option<i64>,
+    error_message: Option<String>,
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
+    updated_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> Value {
+    let status = status
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(normalize_documents_column_status)
+        .unwrap_or_else(|| "processing".to_string());
+    let mut map = serde_json::Map::new();
+    map.insert("status".into(), Value::String(status));
+    if let Some(t) = title {
+        map.insert("title".into(), Value::String(t.clone()));
+        map.insert("file_name".into(), Value::String(t));
+    }
+    if let Some(t) = tenant_id {
+        map.insert("tenant_id".into(), Value::String(t));
+    }
+    if let Some(w) = workspace_id {
+        map.insert("workspace_id".into(), Value::String(w));
+    }
+    if let Some(tr) = track_id {
+        map.insert("track_id".into(), Value::String(tr));
+    }
+    if let Some(n) = chunk_count {
+        map.insert("chunk_count".into(), json!(n.max(0)));
+    }
+    if let Some(n) = entity_count {
+        map.insert("entity_count".into(), json!(n.max(0)));
+    }
+    if let Some(n) = file_size_bytes {
+        map.insert("file_size".into(), json!(n.max(0)));
+    }
+    if let Some(e) = error_message {
+        map.insert("error_message".into(), Value::String(e));
+    }
+    if let Some(ts) = created_at {
+        map.insert("created_at".into(), Value::String(ts.to_rfc3339()));
+    }
+    if let Some(ts) = updated_at {
+        map.insert("updated_at".into(), Value::String(ts.to_rfc3339()));
+    }
+    Value::Object(map)
+}
 
-/// Typed single-key read. Returns `Ok(None)` on miss/empty (→ KV fallback).
+/// Column SSOT for synthesizing empty metadata shells.
+type ShellSynthCols = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<i32>,
+    Option<i32>,
+    Option<i64>,
+    Option<String>,
+    Option<chrono::DateTime<chrono::Utc>>,
+    Option<chrono::DateTime<chrono::Utc>>,
+);
+
+fn resolve_metadata_value(
+    metadata: Option<Value>,
+    shell: Option<String>,
+    cols: ShellSynthCols,
+) -> Option<Value> {
+    let is_staging = shell.as_deref() == Some(STAGING_SHELL_VALUE);
+    let _ = is_staging; // staging filter applied by caller for Staging* kinds
+    if !metadata_json_is_empty(&metadata) {
+        return metadata;
+    }
+    Some(synthesize_metadata_from_columns(
+        cols.0, cols.1, cols.2, cols.3, cols.4, cols.5, cols.6, cols.7, cols.8, cols.9, cols.10,
+    ))
+}
+
+/// Typed single-key read. Returns `Ok(None)` on miss (→ KV fallback).
+///
+/// Empty `metadata` JSONB (`{}` / NULL) is **not** a miss for Metadata shells:
+/// we synthesize from relational columns so list→detail stays consistent
+/// (SPEC-021 / SPEC-091 relational primary).
 pub async fn shell_value_by_key(pool: &PgPool, key: &str) -> Result<Option<Value>, StorageError> {
     let Some((kind, doc)) = parse_shell_key(key) else {
         return Ok(None);
     };
-    let row: Option<(Option<Value>, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT metadata, NULLIF(content, ''), metadata->>'_shell' \
+    let row: Option<(
+        Option<Value>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<i32>,
+        Option<i32>,
+        Option<i64>,
+        Option<String>,
+        Option<chrono::DateTime<chrono::Utc>>,
+        Option<chrono::DateTime<chrono::Utc>>,
+    )> = sqlx::query_as(
+        "SELECT metadata, NULLIF(content, ''), metadata->>'_shell', \
+                title, status, tenant_id::text, workspace_id::text, track_id, \
+                chunk_count, entity_count, file_size_bytes, error_message, \
+                created_at, updated_at \
          FROM public.documents WHERE id = $1",
     )
     .bind(doc)
@@ -95,16 +210,46 @@ pub async fn shell_value_by_key(pool: &PgPool, key: &str) -> Result<Option<Value
     .await
     .map_err(|e| StorageError::Database(format!("document shell read failed: {e}")))?;
 
-    let Some((metadata, content, shell)) = row else {
+    let Some((
+        metadata,
+        content,
+        shell,
+        title,
+        status,
+        tenant_id,
+        workspace_id,
+        track_id,
+        chunk_count,
+        entity_count,
+        file_size_bytes,
+        error_message,
+        created_at,
+        updated_at,
+    )) = row
+    else {
         return Ok(None);
     };
-    let metadata = metadata.filter(|m| *m != Value::Object(serde_json::Map::new()));
+
+    let cols = (
+        title,
+        status,
+        tenant_id,
+        workspace_id,
+        track_id,
+        chunk_count,
+        entity_count,
+        file_size_bytes,
+        error_message,
+        created_at,
+        updated_at,
+    );
     let is_staging = shell.as_deref() == Some(STAGING_SHELL_VALUE);
+    let resolved_meta = resolve_metadata_value(metadata, shell.clone(), cols);
 
     Ok(match kind {
-        ShellKind::Metadata => metadata,
+        ShellKind::Metadata => resolved_meta,
         ShellKind::Content => content.map(legacy_content_value),
-        ShellKind::StagingMetadata if is_staging => metadata,
+        ShellKind::StagingMetadata if is_staging => resolved_meta,
         ShellKind::StagingContent if is_staging => content.map(legacy_content_value),
         _ => None,
     })
@@ -130,8 +275,28 @@ pub async fn shell_values_ordered(
     }
 
     let uuids: Vec<Uuid> = shell_idx.iter().map(|&i| parsed[i].unwrap().1).collect();
-    let rows: Vec<ShellIdRow> = sqlx::query_as(
-        "SELECT id, metadata, NULLIF(content, ''), metadata->>'_shell' \
+    type BatchRow = (
+        Uuid,
+        Option<Value>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<i32>,
+        Option<i32>,
+        Option<i64>,
+        Option<String>,
+        Option<chrono::DateTime<chrono::Utc>>,
+        Option<chrono::DateTime<chrono::Utc>>,
+    );
+    let rows: Vec<BatchRow> = sqlx::query_as(
+        "SELECT id, metadata, NULLIF(content, ''), metadata->>'_shell', \
+                title, status, tenant_id::text, workspace_id::text, track_id, \
+                chunk_count, entity_count, file_size_bytes, error_message, \
+                created_at, updated_at \
          FROM public.documents WHERE id = ANY($1)",
     )
     .bind(&uuids)
@@ -139,24 +304,50 @@ pub async fn shell_values_ordered(
     .await
     .map_err(|e| StorageError::Database(format!("document shell batch read failed: {e}")))?;
 
-    let map: std::collections::HashMap<Uuid, ShellRow> = rows
-        .into_iter()
-        .map(|(id, m, c, s)| (id, (m, c, s)))
-        .collect();
+    let map: std::collections::HashMap<Uuid, BatchRow> =
+        rows.into_iter().map(|r| (r.0, r)).collect();
 
     for &i in &shell_idx {
         let (kind, doc) = parsed[i].unwrap();
-        let Some((metadata, content, shell)) = map.get(&doc) else {
+        let Some(row) = map.get(&doc) else {
             continue;
         };
-        let metadata = metadata
-            .clone()
-            .filter(|m| *m != Value::Object(serde_json::Map::new()));
+        let (
+            _,
+            metadata,
+            content,
+            shell,
+            title,
+            status,
+            tenant_id,
+            workspace_id,
+            track_id,
+            chunk_count,
+            entity_count,
+            file_size_bytes,
+            error_message,
+            created_at,
+            updated_at,
+        ) = row;
+        let cols = (
+            title.clone(),
+            status.clone(),
+            tenant_id.clone(),
+            workspace_id.clone(),
+            track_id.clone(),
+            *chunk_count,
+            *entity_count,
+            *file_size_bytes,
+            error_message.clone(),
+            *created_at,
+            *updated_at,
+        );
         let is_staging = shell.as_deref() == Some(STAGING_SHELL_VALUE);
+        let resolved_meta = resolve_metadata_value(metadata.clone(), shell.clone(), cols);
         out[i] = match kind {
-            ShellKind::Metadata => metadata,
+            ShellKind::Metadata => resolved_meta,
             ShellKind::Content => content.clone().map(legacy_content_value),
-            ShellKind::StagingMetadata if is_staging => metadata,
+            ShellKind::StagingMetadata if is_staging => resolved_meta,
             ShellKind::StagingContent if is_staging => content.clone().map(legacy_content_value),
             _ => None,
         };
@@ -519,6 +710,55 @@ mod tests {
             legacy_content_value("hello".into()),
             json!({"content": "hello"})
         );
+    }
+
+    #[test]
+    fn empty_metadata_json_detected() {
+        assert!(metadata_json_is_empty(&None));
+        assert!(metadata_json_is_empty(&Some(Value::Null)));
+        assert!(metadata_json_is_empty(&Some(json!({}))));
+        assert!(!metadata_json_is_empty(&Some(json!({"status": "processing"}))));
+    }
+
+    #[test]
+    fn synthesize_metadata_uses_column_ssot() {
+        let v = synthesize_metadata_from_columns(
+            Some("spec129-dual".into()),
+            Some("processing".into()),
+            Some("tenant-1".into()),
+            Some("ws-1".into()),
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(v.get("title").and_then(|x| x.as_str()), Some("spec129-dual"));
+        assert_eq!(v.get("status").and_then(|x| x.as_str()), Some("processing"));
+        assert_eq!(v.get("tenant_id").and_then(|x| x.as_str()), Some("tenant-1"));
+        assert_eq!(v.get("workspace_id").and_then(|x| x.as_str()), Some("ws-1"));
+    }
+
+    #[test]
+    fn resolve_metadata_synthesizes_when_empty() {
+        let cols = (
+            Some("t".into()),
+            Some("failed".into()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let v = resolve_metadata_value(Some(json!({})), None, cols).expect("synth");
+        assert_eq!(v.get("title").and_then(|x| x.as_str()), Some("t"));
+        assert_eq!(v.get("status").and_then(|x| x.as_str()), Some("failed"));
     }
 
     // SPEC-129: vocabulary matrix lives in `documents_column_status` unit tests.

@@ -39,7 +39,7 @@ export function QueryModeSelector({ value, onChange, disabled }: QueryModeSelect
   return (
     <TooltipProvider delayDuration={200}>
       <div
-        className="flex flex-wrap items-center gap-1 p-1 bg-muted rounded-lg"
+        className="flex flex-wrap items-center gap-1 p-1 bg-muted rounded-lg min-w-0 max-w-full"
         role="group"
         aria-label={t('query.modes.groupLabel', 'Query retrieval mode')}
         data-tour="query-mode"

@@ -131,6 +131,7 @@ pub async fn fetch_query_context(
         FetchContextOptions {
             granularity,
             include_subgraph: query.include_subgraph,
+            ..Default::default()
         },
     )?))
 }

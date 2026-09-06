@@ -119,6 +119,18 @@ pub struct QueryRequest {
     /// included in the SPEC-103 answer-cache hash.
     #[serde(default)]
     pub reasoning_effort: Option<String>,
+
+    /// SPEC-146: cache isolation — principal key (`user:uuid` / `apikey:…`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authz_principal: Option<String>,
+
+    /// SPEC-146: workspace policy generation for cache / allow-set invalidation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_generation: Option<u64>,
+
+    /// SPEC-146: fingerprint of the document allow-set (never None under ABAC).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_fingerprint: Option<String>,
 }
 
 /// A single message in conversation history.
@@ -154,6 +166,9 @@ impl QueryRequest {
             ll_keywords: None,
             response_type: None,
             reasoning_effort: None,
+            authz_principal: None,
+            policy_generation: None,
+            allow_fingerprint: None,
         }
     }
 
@@ -353,6 +368,30 @@ impl QueryRequest {
     pub fn with_allowed_document_ids(mut self, ids: Vec<String>) -> Self {
         self.allowed_document_ids = Some(ids);
         self
+    }
+
+    /// SPEC-146: attach authz cache isolation fields.
+    pub fn with_authz_cache_scope(
+        mut self,
+        principal: impl Into<String>,
+        policy_generation: u64,
+        allow_fingerprint: impl Into<String>,
+    ) -> Self {
+        self.authz_principal = Some(principal.into());
+        self.policy_generation = Some(policy_generation);
+        self.allow_fingerprint = Some(allow_fingerprint.into());
+        self
+    }
+
+    /// SPEC-146: build AuthzCacheScope when principal + fingerprint present.
+    pub fn authz_cache_scope(&self) -> Option<crate::cache::AuthzCacheScope> {
+        let principal = self.authz_principal.as_ref()?;
+        let fp = self.allow_fingerprint.as_ref()?;
+        Some(crate::cache::AuthzCacheScope::from_parts(
+            principal.clone(),
+            self.policy_generation.unwrap_or(0),
+            fp.clone(),
+        ))
     }
 
     /// Attach images for a multimodal (vision) query.

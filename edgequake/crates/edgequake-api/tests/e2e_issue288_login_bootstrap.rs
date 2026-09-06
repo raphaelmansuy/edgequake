@@ -13,6 +13,7 @@ mod common;
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
 
@@ -42,6 +43,13 @@ fn auth_enabled_pg_state(pool: sqlx::PgPool) -> AppState {
     state
 }
 
+fn clear_bootstrap_env() {
+    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME");
+    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD");
+    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL");
+    std::env::remove_var("EDGEQUAKE_DEV_PIN_LOGIN");
+}
+
 async fn connect_and_bootstrap() -> Option<sqlx::PgPool> {
     let database_url = common::spec013_postgres::try_database_url()?;
     let pool = match PgPoolOptions::new()
@@ -63,6 +71,7 @@ async fn connect_and_bootstrap() -> Option<sqlx::PgPool> {
 }
 
 #[tokio::test]
+#[serial]
 async fn issue288_bootstrap_admin_allows_login_when_auth_enabled() {
     let pool = match connect_and_bootstrap().await {
         Some(p) => p,
@@ -72,6 +81,7 @@ async fn issue288_bootstrap_admin_allows_login_when_auth_enabled() {
         }
     };
 
+    clear_bootstrap_env();
     let username = format!("issue288_{}", &uuid::Uuid::new_v4().to_string()[..8]);
 
     std::env::set_var("EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME", &username);
@@ -113,12 +123,81 @@ async fn issue288_bootstrap_admin_allows_login_when_auth_enabled() {
         "login should succeed after bootstrap admin creation (GitHub #288)"
     );
 
-    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME");
-    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD");
-    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL");
+    clear_bootstrap_env();
 }
 
 #[tokio::test]
+#[serial]
+async fn issue288_dev_pin_login_resets_existing_password() {
+    let pool = match connect_and_bootstrap().await {
+        Some(p) => p,
+        None => {
+            eprintln!(
+                "SKIP issue288_dev_pin_login_resets_existing_password: DATABASE_URL not set"
+            );
+            return;
+        }
+    };
+
+    clear_bootstrap_env();
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let username = format!("pin288_{}", &uuid::Uuid::new_v4().to_string()[..8]);
+
+    // First bootstrap with an old password.
+    std::env::set_var("EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME", &username);
+    std::env::set_var("EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD", "OldSecurePass1!");
+    std::env::set_var(
+        "EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL",
+        format!("{username}@example.com"),
+    );
+
+    let state = auth_enabled_pg_state(pool.clone());
+    state.initialize_defaults().await.expect("defaults");
+    bootstrap_auth_identity_if_needed(&state)
+        .await
+        .expect("initial bootstrap");
+
+    // Pin to the well-known make-dev password (must reset even though login-capable).
+    std::env::set_var("EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD", "EdgeQuake1");
+    std::env::set_var("EDGEQUAKE_DEV_PIN_LOGIN", "1");
+    // resolve_dev_pin_login reads DATABASE_URL from the environment.
+    std::env::set_var("DATABASE_URL", &database_url);
+
+    bootstrap_auth_identity_if_needed(&state)
+        .await
+        .expect("pin bootstrap");
+
+    let app = build_app(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "username": username,
+                        "password": "EdgeQuake1"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "login must succeed with pinned password after EDGEQUAKE_DEV_PIN_LOGIN reset"
+    );
+
+    clear_bootstrap_env();
+}
+
+#[tokio::test]
+#[serial]
 async fn issue288_login_returns_401_without_bootstrap_user() {
     let pool = match connect_and_bootstrap().await {
         Some(p) => p,
@@ -130,7 +209,7 @@ async fn issue288_login_returns_401_without_bootstrap_user() {
         }
     };
 
-    std::env::remove_var("EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD");
+    clear_bootstrap_env();
 
     let state = auth_enabled_pg_state(pool);
     state.initialize_defaults().await.expect("defaults");

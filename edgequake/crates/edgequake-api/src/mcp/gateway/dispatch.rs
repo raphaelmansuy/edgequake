@@ -131,6 +131,18 @@ pub async fn execute_tool_call(
 
     let mut arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
+    // SPEC-146: reject ACL bypass attempts.
+    if arguments
+        .get("bypass_acl")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+        || arguments.get("bypass_acl").and_then(|v| v.as_str()).is_some()
+    {
+        return Err(GatewayError::Api(ApiError::forbidden_reason(
+            "bypass_acl is not permitted",
+        )));
+    }
+
     if let Some(ws) = &ctx.workspace_header {
         if arguments.get("workspace_id").is_none() {
             if let Some(obj) = arguments.as_object_mut() {
@@ -139,7 +151,12 @@ pub async fn execute_tool_call(
         }
     }
 
-    enforce_workspace_claim(&ctx.tenant_ctx, &arguments, ctx.auth_role.clone())?;
+    enforce_workspace_claim(
+        &ctx.tenant_ctx,
+        &arguments,
+        ctx.auth_role.clone(),
+        ctx.state.security.doc_abac,
+    )?;
     validate_tool_call_with_role(name, &arguments, ctx.auth_role.clone())?;
 
     let span = info_span!(
@@ -196,11 +213,34 @@ async fn execute_tool(
                 .get("include_subgraph")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
+            let (principal, policy_generation) = if state.security.doc_abac {
+                let principal = tenant_ctx.user_id.as_deref().map(|u| {
+                    let p = edgequake_authz::PrincipalId::from_auth_user_id(u);
+                    format!("{}:{}", p.kind_str(), p.id_str())
+                });
+                let policy_generation = if let Ok(Some(ws)) =
+                    crate::services::spec146_authz::parse_workspace_uuid(tenant_ctx)
+                {
+                    crate::services::spec146_authz::load_policy_generation(
+                        state.allow_set_provider.as_ref(),
+                        ws,
+                    )
+                    .await
+                    .ok()
+                } else {
+                    None
+                };
+                (principal, policy_generation)
+            } else {
+                (None, None)
+            };
             let resp = fetch_context_by_id(
                 retrieval_id,
                 FetchContextOptions {
                     granularity,
                     include_subgraph,
+                    principal,
+                    policy_generation,
                 },
             )?;
             Ok(serde_json::to_value(resp).unwrap())

@@ -369,11 +369,18 @@ impl StorageInspector {
     /// tier and logs a structured summary. CAUTION-tier issues are logged but
     /// not auto-repaired (require the admin endpoint, P-D2).
     ///
+    /// INV-07 stays LogOnly in `apply_repair` (inspect ≠ blind enqueue-all).
+    /// Pass `inv07_heal` to run a **budgeted** SPEC-054 reconcile on sample ids
+    /// after each inspect — closes the log-only gap without stampeding.
+    ///
     /// The handle is detached; the task exits when the process exits. Errors
     /// inside the loop are swallowed (logged) so a single bad run never kills
     /// the monitor.
     #[cfg(feature = "postgres")]
-    pub fn spawn_hourly_monitor(self: std::sync::Arc<Self>) {
+    pub fn spawn_hourly_monitor(
+        self: std::sync::Arc<Self>,
+        inv07_heal: Option<Inv07HealHook>,
+    ) {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(3600));
             // Skip the immediate first tick (startup already ran inspect()).
@@ -421,10 +428,52 @@ impl StorageInspector {
                         "SPEC-021 P-D1: hourly monitor auto-repairs applied"
                     );
                 }
+                // INV-07 bridge: budgeted SPEC-054 heal of sample ids (not apply_repair enqueue).
+                let inv07_ids = inv07_sample_ids(&report);
+                if !inv07_ids.is_empty() {
+                    if let Some(ref heal) = inv07_heal {
+                        tracing::info!(
+                            count = inv07_ids.len(),
+                            samples = ?inv07_ids,
+                            "INV-07: invoking budgeted SPEC-054 reconcile for sample ids"
+                        );
+                        heal(inv07_ids).await;
+                    }
+                }
             }
         });
     }
 }
+
+/// Sample document ids from INV-07 violations (deduped, capped at 20).
+pub fn inv07_sample_ids(report: &InspectorReport) -> Vec<String> {
+    let mut ids = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for v in &report.invariant_violations {
+        if v.invariant_id != "INV-07" {
+            continue;
+        }
+        for id in &v.sample_ids {
+            if seen.insert(id.clone()) {
+                ids.push(id.clone());
+            }
+            if ids.len() >= 20 {
+                return ids;
+            }
+        }
+    }
+    ids
+}
+
+/// Optional hook: budgeted SPEC-054 reconcile for INV-07 sample ids.
+///
+/// Kept out of `apply_repair` so INV-07 remains LogOnly (issue #384: inspect ≠ heal).
+#[cfg(feature = "postgres")]
+pub type Inv07HealHook = std::sync::Arc<
+    dyn Fn(Vec<String>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+        + Send
+        + Sync,
+>;
 
 // ── PostgreSQL implementations ───────────────────────────────────────────────
 
@@ -2007,6 +2056,8 @@ pub(crate) fn repair_recommendation_for_invariant(
             Some(RepairAction::LogOnly {
                 message: format!(
                     "INV-07: {} in-flight document(s) have no live task — \
+                     healer: hourly sample reconcile + periodic orphan recover \
+                     (EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES, default 15); \
                      ops: POST /api/v1/documents/recover-stuck or SPEC-054 reconcile; \
                      sample ids [{samples}]; no SAFE auto-enqueue from inspector",
                     violation.count
@@ -2133,7 +2184,7 @@ mod spec104_tests {
         );
     }
 
-    /// Issue #384: INV-07 must yield LogOnly (inspect ≠ heal).
+    /// Issue #384: INV-07 must yield LogOnly (inspect ≠ heal via apply_repair).
     #[test]
     fn e2e_384_inv07_logonly_repair() {
         let v = InvariantViolation {
@@ -2152,9 +2203,47 @@ mod spec104_tests {
                 assert!(message.contains("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
                 assert!(message.contains("recover-stuck"));
                 assert!(message.contains("no SAFE auto-enqueue"));
+                assert!(message.contains("periodic orphan recover"));
             }
             other => panic!("expected LogOnly, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn inv07_sample_ids_dedupes_and_caps() {
+        let report = InspectorReport {
+            timestamp: chrono::Utc::now(),
+            duration_ms: 1,
+            schema_issues: vec![],
+            invariant_violations: vec![
+                InvariantViolation {
+                    invariant_id: "INV-07".into(),
+                    severity: Severity::Critical,
+                    description: "x".into(),
+                    count: 2,
+                    sample_ids: vec!["a".into(), "b".into()],
+                },
+                InvariantViolation {
+                    invariant_id: "INV-07".into(),
+                    severity: Severity::Critical,
+                    description: "y".into(),
+                    count: 1,
+                    sample_ids: vec!["b".into(), "c".into()],
+                },
+                InvariantViolation {
+                    invariant_id: "INV-01".into(),
+                    severity: Severity::Warning,
+                    description: "z".into(),
+                    count: 1,
+                    sample_ids: vec!["ignore".into()],
+                },
+            ],
+            recommended_repairs: vec![],
+            auto_repaired: vec![],
+            has_critical: true,
+            has_warning: false,
+        };
+        assert_eq!(inv07_sample_ids(&report), vec!["a", "b", "c"]);
     }
 
     /// E2E-107-R2-02: SPEC-089 bounds remain the public SSOT (no timeout raise).

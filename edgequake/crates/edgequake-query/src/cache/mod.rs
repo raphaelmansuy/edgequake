@@ -14,10 +14,11 @@ pub use answer_cache::{
 };
 pub use embedding_cache::CachingEmbeddingProvider;
 pub use llm_response_cache::{
-    hash_keyword_args, hash_query_prompt, hash_query_prompt_with_effort,
+    current_authz_cache_scope, hash_keyword_args, hash_keyword_args_scoped, hash_query_prompt,
+    hash_query_prompt_with_effort, hash_query_prompt_with_effort_scoped, with_authz_cache_scope,
     keyword_cache_enabled_from_flags, llm_cache_storage_key, master_llm_cache_enabled,
-    resolve_llm_cache_flags, KvLlmResponseCache, LlmCacheFlags, LlmCacheType, LlmResponseCache,
-    MemoryLlmResponseCache, SharedLlmResponseCache, TieredLlmResponseCache,
+    resolve_llm_cache_flags, AuthzCacheScope, KvLlmResponseCache, LlmCacheFlags, LlmCacheType,
+    LlmResponseCache, MemoryLlmResponseCache, SharedLlmResponseCache, TieredLlmResponseCache,
 };
 pub use query_result_cache::QueryResultCache;
 

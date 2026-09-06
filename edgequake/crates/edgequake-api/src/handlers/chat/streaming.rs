@@ -188,6 +188,7 @@ pub async fn chat_completion_stream(
 
     // 4. Clone state for async task
     let state_clone = state.clone();
+    let tenant_ctx_clone = tenant_ctx.clone();
     let message_content = request.message.clone();
     let user_message_id = user_message.message_id;
     // SPEC-032: Clone provider, model, and workspace for async task
@@ -261,7 +262,8 @@ pub async fn chat_completion_stream(
             engine_request = engine_request.with_workspace_id(ws_id.to_string());
         }
 
-        // SPEC-005: Resolve document filter → allowed_document_ids for RAG context scoping
+        // SPEC-005 + SPEC-146: Resolve document filter ∩ allow-set for RAG scope
+        let mut client_filter_ids = None;
         if let Some(ref filter) = request_document_filter {
             let ws_id_str = workspace_id.as_ref().map(|id| id.to_string());
             let tenant_filter = Some(data_tenant_id.clone());
@@ -274,9 +276,9 @@ pub async fn chat_completion_stream(
             .await
             {
                 Ok(Some(allowed_ids)) => {
-                    engine_request = engine_request.with_allowed_document_ids(allowed_ids);
+                    client_filter_ids = Some(allowed_ids);
                 }
-                Ok(None) => {} // No filter constraints
+                Ok(None) => {}
                 Err(e) => {
                     let msg = format!("Document filter resolution failed: {e}");
                     ErrorEvent::log_stream_error(
@@ -294,6 +296,81 @@ pub async fn chat_completion_stream(
                         .await;
                     return;
                 }
+            }
+        }
+        match crate::services::spec146_authz::resolve_query_allowed_document_ids(
+            &state_clone,
+            &tenant_ctx_clone,
+            Some(&user_id.to_string()),
+            client_filter_ids,
+        )
+        .await
+        {
+            Ok((allowed_ids, authz_ctx, allow_set)) => {
+                // G-146-7: empty allow → SSOT token stream, no LLM.
+                if crate::services::spec146_authz::is_empty_allow_set(&allow_set) {
+                    let answer = edgequake_authz::ZERO_AUTHZ_ANSWER.to_string();
+                    let assistant_message = match state_clone
+                        .conversation_service
+                        .create_message(
+                            conversation_id,
+                            edgequake_core::types::CreateMessageRequest {
+                                content: answer.clone(),
+                                role: edgequake_core::types::MessageRole::Assistant,
+                                parent_id: Some(user_message_id),
+                                stream: true,
+                            },
+                        )
+                        .await
+                    {
+                        Ok(m) => m,
+                        Err(e) => {
+                            let _ = tx
+                                .send(ChatStreamEvent::Error {
+                                    message: e.to_string(),
+                                    code: "ASSISTANT_PERSIST_ERROR".to_string(),
+                                })
+                                .await;
+                            return;
+                        }
+                    };
+                    let _ = tx
+                        .send(ChatStreamEvent::Token {
+                            content: answer.clone(),
+                        })
+                        .await;
+                    let _ = tx
+                        .send(ChatStreamEvent::Done {
+                            assistant_message_id: assistant_message.message_id,
+                            tokens_used: 0,
+                            duration_ms: 0,
+                            llm_provider: None,
+                            llm_model: None,
+                            answer: Some(answer),
+                        })
+                        .await;
+                    return;
+                }
+                if let Some(ids) = allowed_ids {
+                    engine_request = engine_request.with_allowed_document_ids(ids);
+                }
+                if let (Some(ctx), Some(allow)) = (authz_ctx, allow_set) {
+                    engine_request = engine_request.with_authz_cache_scope(
+                        format!("{}:{}", ctx.principal.kind_str(), ctx.principal.id_str()),
+                        ctx.policy_generation,
+                        allow.fingerprint(),
+                    );
+                }
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                let _ = tx
+                    .send(ChatStreamEvent::Error {
+                        message: msg,
+                        code: "ABAC_ALLOW_SET_ERROR".to_string(),
+                    })
+                    .await;
+                return;
             }
         }
 

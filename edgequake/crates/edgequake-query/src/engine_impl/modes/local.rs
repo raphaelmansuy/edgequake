@@ -112,7 +112,7 @@ impl QueryEngine {
                 }
 
                 if !fallback_entity_ids.is_empty() {
-                    let edges = crate::graph_expand::expand_neighborhood_edges(
+                    let edges = crate::graph_expand::expand_neighborhood_edges_scoped(
                         &graph,
                         &fallback_entity_ids,
                         self.config.graph_depth,
@@ -120,6 +120,7 @@ impl QueryEngine {
                         self.config.graph_walk,
                         tenant_id.as_deref(),
                         workspace_id.as_deref(),
+                        allowed_document_ids,
                     )
                     .await?;
                     for edge in edges {
@@ -179,7 +180,7 @@ impl QueryEngine {
             )
             .await?;
 
-            let edges = crate::graph_expand::expand_neighborhood_edges(
+            let edges = crate::graph_expand::expand_neighborhood_edges_scoped(
                 &graph,
                 &entity_ids,
                 self.config.graph_depth,
@@ -187,6 +188,7 @@ impl QueryEngine {
                 self.config.graph_walk,
                 tenant_id.as_deref(),
                 workspace_id.as_deref(),
+                allowed_document_ids,
             )
             .await?;
 

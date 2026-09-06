@@ -645,7 +645,7 @@ impl AppState {
         let configured_pool_size = pool_bundle.total_max_connections() as usize;
         crate::read_path::warn_if_local_pool_oversized(configured_pool_size, llm_provider.name());
 
-        let app_state = Self {
+        let mut app_state = Self {
             storage,
             query: QueryRuntime {
                 llm_provider: Arc::clone(&llm_provider)
@@ -678,8 +678,13 @@ impl AppState {
             migration_bootstrap: Some(migration_bootstrap),
             postgres_capabilities: Some(postgres_capabilities),
             security: ApiSecurityConfig::from_env(),
+            allow_set_provider: None,
             server_config: crate::server_config_store::ServerConfigStore::new(),
         };
+        app_state.allow_set_provider = crate::services::spec146_authz::build_allow_set_provider(
+            app_state.pg_pool.as_ref(),
+            app_state.security.doc_abac,
+        );
 
         // SPEC-043: load server_config LLM defaults into process-wide overrides
         if let Err(e) = app_state.server_config.load_from_pool(&admin_pool).await {
@@ -691,7 +696,13 @@ impl AppState {
         // SPEC-021 P4-02: Startup storage invariant check + auto-repair (SAFE tier)
         // SPEC-021 P3-01: Log the entity sync mode for observability
         {
-            use crate::storage_inspector::{InspectorConfig, StorageInspector};
+            use crate::services::pending_doc_task_reconcile::{
+                reconcile_pending_documents_by_ids, reconcile_pending_documents_missing_tasks,
+                startup_reconcile_max_from_env,
+            };
+            use crate::storage_inspector::{
+                inv07_sample_ids, InspectorConfig, Inv07HealHook, StorageInspector,
+            };
             let inspector = StorageInspector::new(
                 Arc::new(admin_pool.clone()),
                 InspectorConfig::for_namespace("default"),
@@ -723,9 +734,56 @@ impl AppState {
                     "Storage auto-repairs applied at startup"
                 );
             }
-            // SPEC-021 P-D1: re-enable the hourly invariant monitor so drift
-            // accumulating after startup is detected and SAFE-tier auto-repaired.
-            std::sync::Arc::new(inspector).spawn_hourly_monitor();
+
+            // INV-07: budgeted SPEC-054 heal of sample ids at startup (inspect ≠ apply_repair).
+            let inv07_ids = inv07_sample_ids(&report);
+            if !inv07_ids.is_empty() {
+                let budget = startup_reconcile_max_from_env();
+                tracing::info!(
+                    count = inv07_ids.len(),
+                    "INV-07 at startup: budgeted SPEC-054 reconcile for sample ids"
+                );
+                if let Err(e) =
+                    reconcile_pending_documents_by_ids(&app_state, &inv07_ids, budget, "inv07_startup")
+                        .await
+                {
+                    tracing::warn!(error = %e, "INV-07 startup sample reconcile failed");
+                }
+                if let Err(e) = reconcile_pending_documents_missing_tasks(
+                    &app_state,
+                    budget,
+                    "inv07_startup_backlog",
+                )
+                .await
+                {
+                    tracing::warn!(error = %e, "INV-07 startup backlog reconcile failed");
+                }
+            }
+
+            // SPEC-021 P-D1: hourly monitor + INV-07 sample heal hook.
+            let heal_state = app_state.clone();
+            let inv07_heal: Inv07HealHook = Arc::new(move |ids: Vec<String>| {
+                let state = heal_state.clone();
+                Box::pin(async move {
+                    let budget = startup_reconcile_max_from_env();
+                    if let Err(e) =
+                        reconcile_pending_documents_by_ids(&state, &ids, budget, "inv07_hourly")
+                            .await
+                    {
+                        tracing::warn!(error = %e, "INV-07 hourly sample reconcile failed");
+                    }
+                    if let Err(e) = reconcile_pending_documents_missing_tasks(
+                        &state,
+                        budget,
+                        "inv07_hourly_backlog",
+                    )
+                    .await
+                    {
+                        tracing::warn!(error = %e, "INV-07 hourly backlog reconcile failed");
+                    }
+                })
+            });
+            std::sync::Arc::new(inspector).spawn_hourly_monitor(Some(inv07_heal));
         }
 
         // Rate-limit cleanup is started from create_router (SPEC-083 S-11).

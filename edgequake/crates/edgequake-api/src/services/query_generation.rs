@@ -102,6 +102,9 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+        authz_principal: None,
+        policy_generation: None,
+        allow_fingerprint: None,
         };
         assert!(!params.context_only);
     }

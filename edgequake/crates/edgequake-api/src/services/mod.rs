@@ -104,6 +104,7 @@ pub mod retrieval_id_cache;
 pub mod route_registry;
 pub mod session_storage;
 pub mod source_reference_builder;
+pub mod spec146_authz;
 pub mod staging_admission;
 pub mod startup_task_hydrate;
 pub mod summary_role;

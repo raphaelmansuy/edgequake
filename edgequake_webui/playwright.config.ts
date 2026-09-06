@@ -25,23 +25,24 @@ function portResponds(port: number): boolean {
   }
 }
 
-/** Prefer make dev on :3000 for integration; UI-only gate uses :3010 webServer (SPEC-144). */
+/** EdgeQuake UI default is :3010 (Makefile DEFAULT_FRONTEND_PORT). Prefer it over :3000. */
 function resolveFrontendUrl(): { baseURL: string; startWebServer: boolean } {
   if (customBaseUrl) {
     return { baseURL: customBaseUrl, startWebServer: false };
   }
-  // UI-only gate: isolated Next dev server (avoids :3000 foreign apps / :3001 collisions).
+  // UI-only gate: isolated Next dev server on EdgeQuake port.
   if (process.env.PLAYWRIGHT_SKIP_STACK_CHECK === "1") {
     if (portResponds(3010)) {
       return { baseURL: "http://localhost:3010", startWebServer: false };
     }
     return { baseURL: "http://localhost:3010", startWebServer: true };
   }
-  if (portResponds(3000)) {
-    return { baseURL: "http://localhost:3000", startWebServer: false };
-  }
   if (portResponds(3010)) {
     return { baseURL: "http://localhost:3010", startWebServer: false };
+  }
+  // Legacy fallback only if an EdgeQuake UI is explicitly on :3000.
+  if (portResponds(3000)) {
+    return { baseURL: "http://localhost:3000", startWebServer: false };
   }
   return { baseURL: "http://localhost:3010", startWebServer: true };
 }

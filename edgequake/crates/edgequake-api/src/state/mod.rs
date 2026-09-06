@@ -191,6 +191,9 @@ pub struct AppState {
     /// SPEC-027: runtime security flags (auth hardening, CORS, rate limits).
     pub security: ApiSecurityConfig,
 
+    /// SPEC-146: document ABAC allow-set provider (None when flag off).
+    pub allow_set_provider: Option<edgequake_authz::SharedAllowSetProvider>,
+
     /// SPEC-043: server-wide LLM defaults from `server_config` table.
     pub server_config: crate::server_config_store::ServerConfigStore,
 }

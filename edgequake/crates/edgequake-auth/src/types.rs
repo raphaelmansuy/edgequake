@@ -57,8 +57,8 @@ impl FromStr for Role {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "admin" => Ok(Self::Admin),
-            "user" => Ok(Self::User),
-            "readonly" => Ok(Self::Readonly),
+            "user" | "developer" => Ok(Self::User), // LAW-146-15: developer → user
+            "readonly" | "viewer" => Ok(Self::Readonly), // LAW-146-15: viewer → readonly
             _ => Err(format!("Unknown role: {}", s)),
         }
     }

@@ -111,6 +111,53 @@ pub fn compute_args_hash(parts: &[&str]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// SPEC-146: principal + policy_generation + allow fingerprint for cache isolation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AuthzCacheScope {
+    pub principal: String,
+    pub policy_generation: u64,
+    pub allow_fingerprint: String,
+}
+
+impl AuthzCacheScope {
+    pub fn from_parts(
+        principal: impl Into<String>,
+        policy_generation: u64,
+        allow_fingerprint: impl Into<String>,
+    ) -> Self {
+        Self {
+            principal: principal.into(),
+            policy_generation,
+            allow_fingerprint: allow_fingerprint.into(),
+        }
+    }
+
+    fn append_to_hash_parts<'a>(&'a self, parts: &mut Vec<&'a str>, gen_buf: &'a mut String) {
+        parts.push(&self.principal);
+        *gen_buf = self.policy_generation.to_string();
+        parts.push(gen_buf.as_str());
+        parts.push(&self.allow_fingerprint);
+    }
+}
+
+tokio::task_local! {
+    /// SPEC-146: request-scoped authz for keyword cache keying (set by query pipeline).
+    static AUTHZ_CACHE_SCOPE: Option<AuthzCacheScope>;
+}
+
+/// Run `f` with authz cache scope visible to keyword hash builders.
+pub async fn with_authz_cache_scope<F, T>(scope: Option<AuthzCacheScope>, f: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    AUTHZ_CACHE_SCOPE.scope(scope, f).await
+}
+
+/// Read the current task-local authz scope (if any).
+pub fn current_authz_cache_scope() -> Option<AuthzCacheScope> {
+    AUTHZ_CACHE_SCOPE.try_with(|s| s.clone()).ok().flatten()
+}
+
 /// Flattened LR-shaped id before SPEC-091 suffix.
 pub fn flattened_cache_id(mode: &str, cache_type: LlmCacheType, hash: &str) -> String {
     format!("{mode}:{}:{hash}", cache_type.as_str())
@@ -122,7 +169,27 @@ pub fn llm_cache_storage_key(mode: &str, cache_type: LlmCacheType, hash: &str) -
 }
 
 pub fn hash_keyword_args(query: &str, mode: &str, model: &str, language: Option<&str>) -> String {
-    compute_args_hash(&[query, mode, model, language.unwrap_or("")])
+    hash_keyword_args_scoped(query, mode, model, language, None)
+}
+
+/// SPEC-146: keyword cache hash includes authz scope when present.
+pub fn hash_keyword_args_scoped(
+    query: &str,
+    mode: &str,
+    model: &str,
+    language: Option<&str>,
+    authz: Option<&AuthzCacheScope>,
+) -> String {
+    let lang = language.unwrap_or("");
+    match authz {
+        None => compute_args_hash(&[query, mode, model, lang]),
+        Some(scope) => {
+            let mut gen = String::new();
+            let mut parts: Vec<&str> = vec![query, mode, model, lang];
+            scope.append_to_hash_parts(&mut parts, &mut gen);
+            compute_args_hash(&parts)
+        }
+    }
 }
 
 /// Query answer hash = full built RAG prompt (context-inclusive).
@@ -132,9 +199,33 @@ pub fn hash_query_prompt(prompt: &str) -> String {
 
 /// SPEC-109: include effective reasoning effort when set so effort changes bust cache.
 pub fn hash_query_prompt_with_effort(prompt: &str, reasoning_effort: Option<&str>) -> String {
-    match reasoning_effort.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(effort) => compute_args_hash(&[prompt, effort]),
-        None => hash_query_prompt(prompt),
+    hash_query_prompt_with_effort_scoped(prompt, reasoning_effort, None)
+}
+
+/// SPEC-146: answer cache hash includes authz scope when present.
+pub fn hash_query_prompt_with_effort_scoped(
+    prompt: &str,
+    reasoning_effort: Option<&str>,
+    authz: Option<&AuthzCacheScope>,
+) -> String {
+    let effort = reasoning_effort
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    match (effort, authz) {
+        (None, None) => hash_query_prompt(prompt),
+        (Some(e), None) => compute_args_hash(&[prompt, e]),
+        (None, Some(scope)) => {
+            let mut gen = String::new();
+            let mut parts: Vec<&str> = vec![prompt];
+            scope.append_to_hash_parts(&mut parts, &mut gen);
+            compute_args_hash(&parts)
+        }
+        (Some(e), Some(scope)) => {
+            let mut gen = String::new();
+            let mut parts: Vec<&str> = vec![prompt, e];
+            scope.append_to_hash_parts(&mut parts, &mut gen);
+            compute_args_hash(&parts)
+        }
     }
 }
 

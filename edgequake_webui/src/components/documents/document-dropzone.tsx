@@ -16,6 +16,8 @@ import {
   VisionSettingsPanel,
   type VisionExtractDraft,
 } from '@/components/settings/vision-extract-controls';
+import { SecurityFieldsForm } from '@/components/security/security-fields-form';
+import type { SecurityFields } from '@/lib/security/security-fields';
 import { useLlmModels } from '@/hooks/use-providers';
 import { useTranslation } from 'react-i18next';
 import { MAX_UPLOAD_LABEL } from '@/lib/api/upload-limits';
@@ -25,6 +27,7 @@ import {
   modelSupportsThinking,
   supportedReasoningEffortsForModel,
 } from '@/lib/settings/reasoning-effort-supported';
+import { CONTAIN_COMBO, CONTAIN_ROW, CONTAIN_STACK, CONTAIN_TRIGGER } from '@/lib/ui/containment';
 import type { PdfParserBackend } from '@/types/graph';
 import { useMemo } from 'react';
 
@@ -69,6 +72,13 @@ export interface DocumentDropzoneProps {
    * Always remains a full-width drop target (never removed).
    */
   collapsed?: boolean;
+  /** SPEC-146 upload security labels. */
+  securityFields?: SecurityFields;
+  onSecurityFieldsChange?: (value: SecurityFields) => void;
+  /** When true, show SecurityFieldsForm (typically when DOC_ABAC is on). */
+  showSecurityFields?: boolean;
+  /** Bubbles SecurityFields expand state for documents-chrome max-height. */
+  onSecurityExpandedChange?: (open: boolean) => void;
 }
 
 function ParserSelect({
@@ -97,52 +107,53 @@ function ParserSelect({
   return (
     <div
       className={cn(
-        'flex items-center gap-2',
-        hideSideLabel ? 'min-w-0 flex-1' : 'shrink-0',
+        hideSideLabel ? CONTAIN_ROW : CONTAIN_STACK,
+        hideSideLabel && 'flex-1',
         compact && 'opacity-80',
       )}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
       {!compact && !hideSideLabel && (
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
+        <span className="text-xs text-muted-foreground shrink-0 lg:whitespace-nowrap">
           {t('documents.upload.pdfParser', 'Parser for this upload')}
         </span>
       )}
-      <Select
-        value={pdfParserBackend}
-        onValueChange={(value: 'default' | 'vision' | 'edgeparse' | 'auto') =>
-          onPdfParserBackendChange(value)
-        }
-      >
-        <SelectTrigger
-          className={cn(
-            'bg-background',
-            triggerClassName ??
-              (compact
-                ? 'min-w-[10.5rem] w-auto max-w-[14rem] h-7 text-xs'
-                : 'min-w-[13.5rem] w-auto max-w-[18rem] h-9'),
-          )}
-          data-testid="spec038-upload-parser-select"
-          title={
-            pdfParserBackend === 'default' ? workspaceDefaultLabel : undefined
+      <div className={cn(CONTAIN_TRIGGER, 'flex-1')}>
+        <Select
+          value={pdfParserBackend}
+          onValueChange={(value: 'default' | 'vision' | 'edgeparse' | 'auto') =>
+            onPdfParserBackendChange(value)
           }
         >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="default">{workspaceDefaultLabel}</SelectItem>
-          <SelectItem value="vision">
-            {t('documents.upload.pdfParserVision', 'Vision')}
-          </SelectItem>
-          <SelectItem value="edgeparse">
-            {t('documents.upload.pdfParserEdgeParse', 'EdgeParse')}
-          </SelectItem>
-          <SelectItem value="auto">
-            {t('documents.upload.pdfParserAuto', 'Auto')}
-          </SelectItem>
-        </SelectContent>
-      </Select>
+          <SelectTrigger
+            className={cn(
+              'bg-background w-full',
+              CONTAIN_TRIGGER,
+              triggerClassName ??
+                (compact ? 'h-7 text-xs' : 'h-9'),
+            )}
+            data-testid="spec038-upload-parser-select"
+            title={
+              pdfParserBackend === 'default' ? workspaceDefaultLabel : undefined
+            }
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">{workspaceDefaultLabel}</SelectItem>
+            <SelectItem value="vision">
+              {t('documents.upload.pdfParserVision', 'Vision')}
+            </SelectItem>
+            <SelectItem value="edgeparse">
+              {t('documents.upload.pdfParserEdgeParse', 'EdgeParse')}
+            </SelectItem>
+            <SelectItem value="auto">
+              {t('documents.upload.pdfParserAuto', 'Auto')}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
@@ -172,6 +183,10 @@ export function DocumentDropzone({
   visionModel,
   quiet = false,
   collapsed = false,
+  securityFields,
+  onSecurityFieldsChange,
+  showSecurityFields = false,
+  onSecurityExpandedChange,
 }: DocumentDropzoneProps) {
   const { t } = useTranslation();
   const { data: llmCatalog } = useLlmModels();
@@ -232,7 +247,7 @@ export function DocumentDropzone({
         // Always a full-width single-line drop band — never a multi-paragraph hero
         // that steals the inventory flex budget (SPEC-099 scroll layout).
         'w-full border-dashed cursor-pointer transition-all duration-200',
-        'flex items-center gap-3 min-w-0',
+        'flex flex-wrap items-center gap-3 min-w-0',
         collapsed
           ? 'rounded-md border px-3 py-1.5 gap-2'
           : compact
@@ -297,7 +312,7 @@ export function DocumentDropzone({
       </div>
       <div
         className={cn(
-          'shrink-0 flex items-center gap-2',
+          CONTAIN_COMBO,
           (compact || collapsed) && 'opacity-80',
         )}
         data-testid="upload-parser-vision-combo"
@@ -311,9 +326,7 @@ export function DocumentDropzone({
           compact={compact || collapsed}
           hideSideLabel={false}
           triggerClassName={
-            compact || collapsed
-              ? 'min-w-[10.5rem] w-auto max-w-[14rem] h-7 text-xs'
-              : 'min-w-[13.5rem] w-auto max-w-[18rem] h-9'
+            compact || collapsed ? 'h-7 text-xs' : 'h-9'
           }
         />
         {showVisionPanel && visionExtract && onVisionExtractChange ? (
@@ -322,6 +335,7 @@ export function DocumentDropzone({
             onChange={onVisionExtractChange}
             showInheritHint={pdfParserBackend === 'default'}
             compact={compact || collapsed}
+            className="w-full lg:w-auto justify-self-stretch lg:justify-self-end"
             effort={
               showVisionEffort && onVisionReasoningEffortChange
                 ? {
@@ -341,6 +355,22 @@ export function DocumentDropzone({
           />
         ) : null}
       </div>
+      {/* SPEC-146: keep SecurityFields visible even when the upload slot is
+          collapsed by the feedback zone — labels must stay on the dropzone. */}
+      {showSecurityFields && securityFields && onSecurityFieldsChange ? (
+        <div
+          className="w-full basis-full mt-2 pt-2 border-t border-dashed border-muted-foreground/20"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <SecurityFieldsForm
+            value={securityFields}
+            onChange={onSecurityFieldsChange}
+            compact
+            onExpandedChange={onSecurityExpandedChange}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

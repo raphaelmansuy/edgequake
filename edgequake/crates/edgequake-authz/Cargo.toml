@@ -1,0 +1,26 @@
+[package]
+name = "edgequake-authz"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Document ABAC / allow-set PDP for EdgeQuake (SPEC-146)"
+rust-version.workspace = true
+
+[dependencies]
+edgequake-auth = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+cedar-policy = "4.12"
+sha2 = "0.10"
+hex = "0.4"
+sqlx = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }

@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/hover-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { isRestrictedCitationLabel } from '@/lib/query/query-empty-copy';
 import { displayEntityLabel } from '@/lib/graph/label-utils';
 import { buildDocumentPageUrl, formatChunkPageBadge } from '@/lib/utils/document-url';
 import { useSettingsStore } from '@/stores/use-settings-store';
@@ -919,16 +920,22 @@ export function SourceCitations({
   const hasEntities = context.entities && context.entities.length > 0;
   const hasRelationships = context.relationships && context.relationships.length > 0;
 
-  const chunksByDocument = useMemo(() => 
-    context.chunks?.reduce((acc, chunk) => {
-      if (!acc[chunk.document_id]) {
-        acc[chunk.document_id] = [];
-      }
-      acc[chunk.document_id].push(chunk);
-      return acc;
-    }, {} as Record<string, NonNullable<typeof context.chunks>>) || {},
-    [context]
-  );
+  const chunksByDocument = useMemo(() => {
+    const grouped =
+      context.chunks?.reduce(
+        (acc, chunk) => {
+          if (!acc[chunk.document_id]) {
+            acc[chunk.document_id] = [];
+          }
+          acc[chunk.document_id].push(chunk);
+          return acc;
+        },
+        {} as Record<string, NonNullable<typeof context.chunks>>,
+      ) || {};
+    return Object.fromEntries(
+      Object.entries(grouped).filter(([, chunks]) => !isRestrictedCitationLabel(getDocumentTitle(chunks))),
+    );
+  }, [context]);
 
   const confidence = useMemo(() => calculateConfidence(context), [context]);
   const { label: confidenceLabel, color: confidenceColor } = getConfidenceLabel(confidence);

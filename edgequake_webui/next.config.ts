@@ -67,6 +67,10 @@ const nextConfig: NextConfig = {
   // slashes (308) → infinite redirect loop with backend (303). Disable for proxied paths.
   skipTrailingSlashRedirect: true,
 
+  // Next 16 blocks cross-origin /_next/* in dev. Playwright and curl often use
+  // 127.0.0.1 while `next dev` binds as localhost — without this the UI paints blank.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
+
   // Reduce logging
   logging: {
     fetches: {

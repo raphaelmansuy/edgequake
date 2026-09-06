@@ -58,16 +58,16 @@ import { useState } from 'react';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const ROLES = ['admin', 'developer', 'viewer'] as const;
+const ROLES = ['admin', 'user', 'readonly'] as const;
 type Role = (typeof ROLES)[number];
 
 const ROLE_BADGE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   admin: 'default',
-  developer: 'secondary',
-  viewer: 'outline',
+  user: 'secondary',
+  readonly: 'outline',
 };
 
-const EMPTY_FORM: CreateUserRequest = { username: '', email: '', password: '', role: 'viewer' };
+const EMPTY_FORM: CreateUserRequest = { username: '', email: '', password: '', role: 'readonly' };
 
 // ── Root component ────────────────────────────────────────────────────────────
 

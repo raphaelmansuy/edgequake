@@ -156,6 +156,13 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
             None => return Ok(Vec::new()),
         };
 
+        // SPEC-146: empty allow-set is fail-closed (never all-pass).
+        if let Some(allow) = req.allowed_document_ids.as_ref() {
+            if allow.is_empty() {
+                return Ok(Vec::new());
+            }
+        }
+
         // Dim-scoped expression HNSW (mig 132) requires matching cast + dimensions filter.
         let cast = format!("halfvec({dim})");
         let vector = {
@@ -171,23 +178,102 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
             s
         };
 
+        let want = req.limit as usize;
+        let fetch_limit = if req.allowed_document_ids.is_some() {
+            super::ann_abac::abac_overfetch_limit(req.limit) as i64
+        } else {
+            req.limit as i64
+        };
+
+        // Filtered ANN: SET LOCAL iterative_scan inside a short TX (LAW-146-21).
+        let use_tx = req.allowed_document_ids.is_some();
+        let mut tx = if use_tx {
+            let mut t = self.pool.begin().await.map_err(StorageError::from)?;
+            let _ = sqlx::query("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
+                .execute(&mut *t)
+                .await;
+            Some(t)
+        } else {
+            None
+        };
+
         let rows = if let Some(ws) = req.workspace_id {
+            if let Some(allow) = req.allowed_document_ids.as_ref() {
+                let allow_pred = super::ann_abac::document_id_allow_sql(
+                    "c.document_id",
+                    4,
+                    allow.len(),
+                );
+                let q = format!(
+                    r#"
+                    SELECT ce.chunk_id,
+                           1.0 - ((ce.embedding::{cast}) <=> $1::{cast}) AS score
+                    FROM chunk_embeddings ce
+                    JOIN chunks c ON c.id = ce.chunk_id
+                    WHERE ce.model_id = $2
+                      AND ce.dimensions = {dim}
+                      AND ce.workspace_id = $3
+                      AND {allow_pred}
+                    ORDER BY (ce.embedding::{cast}) <=> $1::{cast}
+                    LIMIT $5
+                    "#
+                );
+                let exec = sqlx::query(&q)
+                    .bind(&vector)
+                    .bind(model_id.0)
+                    .bind(ws.0)
+                    .bind(allow.as_slice())
+                    .bind(fetch_limit);
+                match tx.as_mut() {
+                    Some(t) => exec.fetch_all(&mut **t).await.map_err(StorageError::from)?,
+                    None => exec.fetch_all(&self.pool).await.map_err(StorageError::from)?,
+                }
+            } else {
+                let q = format!(
+                    r#"
+                    SELECT chunk_id, 1.0 - ((embedding::{cast}) <=> $1::{cast}) AS score
+                    FROM chunk_embeddings
+                    WHERE model_id = $2 AND dimensions = {dim} AND workspace_id = $3
+                    ORDER BY (embedding::{cast}) <=> $1::{cast} LIMIT $4
+                    "#
+                );
+                sqlx::query(&q)
+                    .bind(&vector)
+                    .bind(model_id.0)
+                    .bind(ws.0)
+                    .bind(fetch_limit)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(StorageError::from)?
+            }
+        } else if let Some(allow) = req.allowed_document_ids.as_ref() {
+            let allow_pred = super::ann_abac::document_id_allow_sql(
+                "c.document_id",
+                3,
+                allow.len(),
+            );
             let q = format!(
                 r#"
-                SELECT chunk_id, 1.0 - ((embedding::{cast}) <=> $1::{cast}) AS score
-                FROM chunk_embeddings
-                WHERE model_id = $2 AND dimensions = {dim} AND workspace_id = $3
-                ORDER BY (embedding::{cast}) <=> $1::{cast} LIMIT $4
+                SELECT ce.chunk_id,
+                       1.0 - ((ce.embedding::{cast}) <=> $1::{cast}) AS score
+                FROM chunk_embeddings ce
+                JOIN chunks c ON c.id = ce.chunk_id
+                WHERE ce.model_id = $2
+                  AND ce.dimensions = {dim}
+                  AND {allow_pred}
+                ORDER BY (ce.embedding::{cast}) <=> $1::{cast}
+                LIMIT $4
                 "#
             );
-            sqlx::query(&q)
+            let exec = sqlx::query(&q)
                 .bind(&vector)
                 .bind(model_id.0)
-                .bind(ws.0)
-                .bind(req.limit as i64)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(StorageError::from)?
+                .bind(allow.as_slice())
+                .bind(fetch_limit);
+            match tx.as_mut() {
+                Some(t) => exec.fetch_all(&mut **t).await.map_err(StorageError::from)?,
+                None => exec.fetch_all(&self.pool).await.map_err(StorageError::from)?,
+            }
         } else {
             let q = format!(
                 r#"
@@ -200,13 +286,18 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
             sqlx::query(&q)
                 .bind(&vector)
                 .bind(model_id.0)
-                .bind(req.limit as i64)
+                .bind(fetch_limit)
                 .fetch_all(&self.pool)
                 .await
                 .map_err(StorageError::from)?
         };
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
+
+        if let Some(t) = tx {
+            t.commit().await.map_err(StorageError::from)?;
+        }
+
+        let mut out = Vec::with_capacity(rows.len().min(want));
+        for row in rows.into_iter().take(want) {
             let chunk_id: Uuid = row.try_get("chunk_id").map_err(StorageError::from)?;
             let score: f64 = row.try_get("score").map_err(StorageError::from)?;
             out.push(ScoredChunk {

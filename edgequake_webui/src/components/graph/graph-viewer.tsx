@@ -626,10 +626,11 @@ export function GraphViewer() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar - compact and slick */}
         <header 
-          className="flex items-center justify-between border-b px-2 sm:px-4 py-2 shrink-0 bg-card/50 backdrop-blur-sm"
+          className="flex flex-wrap items-center justify-between border-b px-2 sm:px-4 py-2 shrink-0 bg-card/50 backdrop-blur-sm gap-2 min-w-0"
           data-tour="graph-header"
+          data-testid="graph-header"
         >
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             {/* Mobile menu button */}
             {isMobile && (
               <Button 
@@ -649,7 +650,7 @@ export function GraphViewer() {
             {/* SPEC-100: always reserve count chip so load→data does not shove toolbar */}
             {!isMobile && (
               <span
-                className="min-w-[9.5rem] text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md tabular-nums"
+                className="min-w-0 max-w-full text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md tabular-nums"
                 data-testid="spec100-graph-count-slot"
               >
                 {headerNodeCount > 0 || headerEdgeCount > 0 || !isDocumentScoped
@@ -658,7 +659,7 @@ export function GraphViewer() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-0.5 sm:gap-1">
+          <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 min-w-0 max-w-full justify-end">
             {/* Show filter button on mobile and tablet (right panel is hidden) */}
             {isSmallScreen && (
               <Button 

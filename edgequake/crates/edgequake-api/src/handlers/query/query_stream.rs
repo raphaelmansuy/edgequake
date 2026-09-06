@@ -134,7 +134,7 @@ pub async fn stream_query(
     .await;
     let _langfuse_identity = stamp_query_langfuse_identity(langfuse_id.clone());
 
-    let mut allowed_document_ids = None;
+    let mut client_filter_ids = None;
     // SPEC-005 + SPEC-006: Resolve document filter
     if let Some(ref filter) = request.document_filter {
         let ws_id_str = tenant_ctx.workspace_id.clone();
@@ -148,7 +148,7 @@ pub async fn stream_query(
         .await
         {
             Ok(Some(allowed_ids)) => {
-                allowed_document_ids = Some(allowed_ids);
+                client_filter_ids = Some(allowed_ids);
             }
             Ok(None) => {}
             Err(e) => {
@@ -159,6 +159,27 @@ pub async fn stream_query(
             }
         }
     }
+
+    let user_id = auth_user
+        .as_ref()
+        .map(|u| u.user_id.to_string())
+        .or_else(|| tenant_ctx.user_id.clone());
+    let (allowed_document_ids, authz_ctx, allow_set) =
+        crate::services::spec146_authz::resolve_query_allowed_document_ids(
+            &state,
+            &tenant_ctx,
+            user_id.as_deref(),
+            client_filter_ids,
+        )
+        .await?;
+    let (authz_principal, policy_generation, allow_fingerprint) = match (&authz_ctx, &allow_set) {
+        (Some(ctx), Some(allow)) => (
+            Some(format!("{}:{}", ctx.principal.kind_str(), ctx.principal.id_str())),
+            Some(ctx.policy_generation),
+            Some(allow.fingerprint()),
+        ),
+        _ => (None, None, None),
+    };
 
     let params = QueryExecutionParams {
         query: request.query.clone(),
@@ -175,7 +196,7 @@ pub async fn stream_query(
         hl_keywords: request.hl_keywords.clone(),
         ll_keywords: request.ll_keywords.clone(),
         response_type: request.response_type.clone(),
-        allowed_document_ids,
+        allowed_document_ids: allowed_document_ids.clone(),
         data_tenant_id: data_tenant_id.clone(),
         workspace_id: tenant_ctx.workspace_id.clone(),
         llm_provider: request.llm_provider.clone(),
@@ -199,6 +220,9 @@ pub async fn stream_query(
                 None,
             )
         },
+        authz_principal,
+        policy_generation,
+        allow_fingerprint,
     };
     let engine_request = build_engine_request(&params);
 
@@ -306,6 +330,7 @@ pub async fn stream_query(
     let stream_use_v3 = use_v3;
     let stream_content_granularity = request.content_granularity;
     let stream_query_text = request.query.clone();
+    let stream_allowed_document_ids = allowed_document_ids.clone();
 
     let spawn_provider = used_provider
         .clone()
@@ -354,7 +379,7 @@ pub async fn stream_query(
             .await;
 
             match stream_result {
-                Ok((context, used_mode, mut stream)) => {
+                Ok((mut context, used_mode, mut stream)) => {
                     let retrieval_time_ms = retrieval_start.elapsed().as_millis() as u64;
 
                     // SPEC-083 X-22: emit Thinking before Context (do not delete variant).
@@ -373,6 +398,14 @@ pub async fn stream_query(
                             "thinking_event",
                         );
                         return;
+                    }
+
+                    // SPEC-146: allow-set safety net before citations/SSE (no stream-then-redact).
+                    if let Some(ref ids) = stream_allowed_document_ids {
+                        edgequake_query::context_filter::filter_context_by_document_ids(
+                            &mut context,
+                            Some(ids.as_slice()),
+                        );
                     }
 
                     // Build and enrich sources

@@ -30,6 +30,10 @@ pub struct QueryExecutionParams {
     pub llm_model: Option<String>,
     /// SPEC-109: effective reasoning effort (post-clamp) for answer generation.
     pub reasoning_effort: Option<String>,
+    /// SPEC-146: cache isolation fields (set when ABAC on).
+    pub authz_principal: Option<String>,
+    pub policy_generation: Option<u64>,
+    pub allow_fingerprint: Option<String>,
 }
 
 impl QueryExecutionParams {
@@ -124,6 +128,16 @@ pub fn build_engine_request(params: &QueryExecutionParams) -> EngineQueryRequest
     if let Some(ref allowed_ids) = params.allowed_document_ids {
         engine_request = engine_request.with_allowed_document_ids(allowed_ids.clone());
     }
+    if let (Some(principal), Some(fp)) = (
+        params.authz_principal.as_ref(),
+        params.allow_fingerprint.as_ref(),
+    ) {
+        engine_request = engine_request.with_authz_cache_scope(
+            principal.clone(),
+            params.policy_generation.unwrap_or(0),
+            fp.clone(),
+        );
+    }
     if let Some(ref hl) = params.hl_keywords {
         engine_request = engine_request.with_hl_keywords(hl.clone());
     }
@@ -167,6 +181,9 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+        authz_principal: None,
+        policy_generation: None,
+        allow_fingerprint: None,
         };
         let req = build_engine_request(&params);
         assert!(req.context_only);
@@ -195,6 +212,9 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+        authz_principal: None,
+        policy_generation: None,
+        allow_fingerprint: None,
         };
         let req = build_engine_request(&params);
         assert_eq!(req.question_type(), Some("Complex Reasoning"));
@@ -223,6 +243,9 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+        authz_principal: None,
+        policy_generation: None,
+        allow_fingerprint: None,
         };
         let req = build_engine_request(&params);
         assert!(req.has_keyword_override());

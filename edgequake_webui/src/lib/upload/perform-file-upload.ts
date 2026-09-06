@@ -10,6 +10,9 @@ import {
 import type { PdfUploadOptions } from "@/types";
 import type { MultipartUploadProgress } from "@/lib/upload/multipart-upload-client";
 
+import type { SecurityFields } from "@/lib/security/security-fields";
+import { mergeSecurityIntoMetadata } from "@/lib/upload/append-security-fields";
+
 import { classifyUploadFile, isMarkdownUploadFile } from "./file-kind";
 import { resolveProgressTrackId } from "./progress-track-id";
 
@@ -31,6 +34,8 @@ export interface PerformFileUploadOptions {
   visionImageSystemPrompt?: string;
   visionChartSystemPrompt?: string;
   visionFigureSystemPrompt?: string;
+  /** SPEC-146 security labels for admit. */
+  security?: SecurityFields;
   onUploadProgress?: (progress: MultipartUploadProgress) => void;
 }
 
@@ -84,9 +89,13 @@ export async function performFileUpload(
       vision_chart_system_prompt: options.visionChartSystemPrompt,
       vision_figure_system_prompt: options.visionFigureSystemPrompt,
       onUploadProgress: options.onUploadProgress,
-      metadata: options.expectedBatchCount
-        ? { expected_batch_count: options.expectedBatchCount }
-        : undefined,
+      security: options.security,
+      metadata: mergeSecurityIntoMetadata(
+        options.expectedBatchCount
+          ? { expected_batch_count: options.expectedBatchCount }
+          : undefined,
+        options.security,
+      ),
     });
     return {
       document_id: pdfResponse.document_id,
@@ -106,6 +115,7 @@ export async function performFileUpload(
   if (kind === "image") {
     const fileResponse = await uploadFile(file, {
       onUploadProgress: options.onUploadProgress,
+      security: options.security,
     });
     return {
       document_id: fileResponse.document_id,
@@ -135,9 +145,12 @@ export async function performFileUpload(
     title: file.name,
     async_processing: true,
     track_id: options.batchTrackId,
-    metadata: options.expectedBatchCount
-      ? { expected_batch_count: options.expectedBatchCount }
-      : undefined,
+    metadata: mergeSecurityIntoMetadata(
+      options.expectedBatchCount
+        ? { expected_batch_count: options.expectedBatchCount }
+        : undefined,
+      options.security,
+    ),
   });
 
   return {

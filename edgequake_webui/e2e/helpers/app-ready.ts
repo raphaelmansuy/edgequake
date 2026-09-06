@@ -60,7 +60,7 @@ export async function waitForAppReady(page: Page): Promise<void> {
     const password = page.getByRole("textbox", { name: /password/i });
     if (await signInButton.isVisible({ timeout: 1_500 }).catch(() => false)) {
       const user = process.env.E2E_USERNAME ?? "admin";
-      const pass = process.env.E2E_PASSWORD ?? "password";
+      const pass = process.env.E2E_PASSWORD ?? "EdgeQuake1";
       if (await username.isVisible().catch(() => false)) {
         await username.fill(user);
       }

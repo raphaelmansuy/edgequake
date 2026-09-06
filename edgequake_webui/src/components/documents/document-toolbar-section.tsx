@@ -13,7 +13,7 @@ import type { Document, PipelineStatus } from '@/types';
 import { useMemo } from 'react';
 import { BatchActionsBar } from './batch-actions-bar';
 import { DocumentDropzone, type DocumentDropzoneProps } from './document-dropzone';
-import type { DocStatus, SortField } from './document-filters';
+import type { DocStatus, SortField, ClassificationFilter } from './document-filters';
 import { DocumentFilters } from './document-filters';
 import { DocumentSearchBar } from './document-search-bar';
 import { ProcessingStatusSummary } from './processing-status-summary';
@@ -31,6 +31,9 @@ export interface DocumentToolbarSectionProps {
   sortDirection: 'asc' | 'desc';
   onSortDirectionChange: (value: 'asc' | 'desc') => void;
   statusCounts: StatusCounts;
+  classificationFilter?: ClassificationFilter;
+  onClassificationFilterChange?: (value: ClassificationFilter) => void;
+  showClassificationFilter?: boolean;
   
   // Pipeline status
   pipelineStatus: PipelineStatus | undefined;
@@ -66,6 +69,10 @@ export interface DocumentToolbarSectionProps {
   onVisionExtractChange?: DocumentDropzoneProps['onVisionExtractChange'];
   visionProvider?: string | null;
   visionModel?: string | null;
+  securityFields?: DocumentDropzoneProps['securityFields'];
+  onSecurityFieldsChange?: DocumentDropzoneProps['onSecurityFieldsChange'];
+  showSecurityFields?: boolean;
+  onSecurityExpandedChange?: DocumentDropzoneProps['onSecurityExpandedChange'];
 
   // Bulk actions
   selectedCount: number;
@@ -84,6 +91,9 @@ export function DocumentToolbarSection({
   sortDirection,
   onSortDirectionChange,
   statusCounts,
+  classificationFilter = 'all',
+  onClassificationFilterChange,
+  showClassificationFilter = false,
   pipelineStatus,
   pipelineUi: pipelineUiProp,
   documents,
@@ -105,6 +115,10 @@ export function DocumentToolbarSection({
   onVisionExtractChange,
   visionProvider,
   visionModel,
+  securityFields,
+  onSecurityFieldsChange,
+  showSecurityFields,
+  onSecurityExpandedChange,
   selectedCount,
   onBulkReprocess,
   onBulkDelete,
@@ -174,6 +188,9 @@ export function DocumentToolbarSection({
             sortDirection={sortDirection}
             onSortDirectionChange={onSortDirectionChange}
             statusCounts={statusCounts}
+            classification={classificationFilter}
+            onClassificationChange={onClassificationFilterChange}
+            showClassificationFilter={showClassificationFilter}
           />
         </div>
       )}
@@ -214,6 +231,10 @@ export function DocumentToolbarSection({
         onVisionExtractChange={onVisionExtractChange}
         visionProvider={visionProvider}
         visionModel={visionModel}
+        securityFields={securityFields}
+        onSecurityFieldsChange={onSecurityFieldsChange}
+        showSecurityFields={showSecurityFields}
+        onSecurityExpandedChange={onSecurityExpandedChange}
         quiet={quietDropzone && !collapseUploadSlot}
         collapsed={collapseUploadSlot}
       />

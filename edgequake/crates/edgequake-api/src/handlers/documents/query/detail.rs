@@ -8,11 +8,18 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::middleware::TenantContext;
 use crate::read_path::{run_with_read_path_guard, ReadPathDbPermit};
 use crate::services::document_body_loader::load_document_body;
+use crate::services::spec146_authz::{
+    audit_capability_deny, audit_deny, existence_hiding_not_found, load_policy_generation,
+    require_perm, resolve_allow_set, stamp_authz_context,
+};
 use crate::services::tenant_isolation::PgIsolationScope;
-use crate::state::{ApiSecurityConfig, PostgresRuntime, StorageRuntime, TaskRuntime};
+use crate::state::{AppState, PostgresRuntime, StorageRuntime, TaskRuntime};
+use edgequake_auth::Permission;
+use edgequake_authz::DenyReasonCode;
 
 use crate::handlers::documents_types::*;
 
@@ -26,47 +33,68 @@ use crate::handlers::documents_types::*;
     ),
     responses(
         (status = 200, description = "Document found", body = DocumentDetailResponse),
-        (status = 404, description = "Document not found"),
-        (status = 403, description = "Access denied - document belongs to different tenant"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Capability denied (not an existence secret)"),
+        (status = 404, description = "Document not found (existence-hiding for unauthorized IDs)"),
         (status = 503, description = "Read path busy under ingest load")
     )
 )]
 pub async fn get_document(
+    State(state): State<AppState>,
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
-    State(security): State<ApiSecurityConfig>,
     State(tasks): State<TaskRuntime>,
     State(read_path_db): State<Arc<ReadPathDbPermit>>,
+    auth: ApiOptionalAuth,
     tenant_ctx: TenantContext,
     axum::extract::Path(document_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<DocumentDetailResponse>> {
     run_with_read_path_guard(&read_path_db, || {
-        get_document_inner(
-            storage,
-            pg_runtime,
-            security,
-            tasks,
-            tenant_ctx,
-            document_id,
-        )
+        get_document_inner(state, storage, pg_runtime, tasks, auth, tenant_ctx, document_id)
     })
     .await
 }
 
 async fn get_document_inner(
+    state: AppState,
     storage: StorageRuntime,
     pg_runtime: PostgresRuntime,
-    security: ApiSecurityConfig,
     tasks: TaskRuntime,
+    auth: ApiOptionalAuth,
     tenant_ctx: TenantContext,
     document_id: String,
 ) -> ApiResult<Json<DocumentDetailResponse>> {
+    let security = state.security.clone();
     debug!(
         document_id = %document_id,
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,
         "Getting document by ID with tenant context"
     );
+
+    // SPEC-146: capability gate when ABAC on (403 + deny audit).
+    if security.doc_abac {
+        let auth_ctx = auth.context().ok_or_else(|| {
+            audit_capability_deny(
+                &state,
+                &tenant_ctx,
+                tenant_ctx.user_id.as_deref(),
+                "document.read",
+                "document",
+            );
+            ApiError::unauthorized()
+        })?;
+        if let Err(e) = require_perm(&auth_ctx.role, Permission::DocumentRead) {
+            audit_capability_deny(
+                &state,
+                &tenant_ctx,
+                Some(auth_ctx.user_id.as_str()),
+                "document.read",
+                "document",
+            );
+            return Err(e);
+        }
+    }
 
     // Fetch document metadata (final, then staging — SPEC-086 list-visible shells).
     let metadata_key =
@@ -96,27 +124,61 @@ async fn get_document_inner(
     // Parse metadata if available
     let meta_obj = metadata.as_ref().and_then(|v| v.as_object());
 
-    // Check tenant context (multi-tenancy)
-    if let Some(obj) = meta_obj {
-        let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
-        let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
+    // Check tenant context (multi-tenancy) — ABAC off keeps 403; ABAC on uses allow-set 404.
+    if !security.doc_abac {
+        if let Some(obj) = meta_obj {
+            let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
+            let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
 
-        // Verify tenant access
-        if let Some(ref filter_tid) = tenant_ctx.tenant_id {
-            if let Some(doc_tid) = doc_tenant_id {
-                if doc_tid != filter_tid {
-                    return Err(ApiError::forbidden());
+            if let Some(ref filter_tid) = tenant_ctx.tenant_id {
+                if let Some(doc_tid) = doc_tenant_id {
+                    if doc_tid != filter_tid {
+                        return Err(ApiError::forbidden());
+                    }
+                }
+            }
+
+            if let Some(ref filter_ws) = tenant_ctx.workspace_id {
+                if let Some(doc_ws) = doc_workspace_id {
+                    if doc_ws != filter_ws {
+                        return Err(ApiError::forbidden());
+                    }
                 }
             }
         }
-
-        // Verify workspace access
-        if let Some(ref filter_ws) = tenant_ctx.workspace_id {
-            if let Some(doc_ws) = doc_workspace_id {
-                if doc_ws != filter_ws {
-                    return Err(ApiError::forbidden());
-                }
-            }
+    } else {
+        let auth_ctx = auth
+            .context()
+            .ok_or_else(|| ApiError::unauthorized())?;
+        let ws = tenant_ctx
+            .workspace_id_uuid()
+            .ok_or_else(|| ApiError::BadRequest("Invalid workspace id".into()))?;
+        let policy_generation =
+            load_policy_generation(state.allow_set_provider.as_ref(), ws).await?;
+        let ctx = stamp_authz_context(
+            &state,
+            &tenant_ctx,
+            Some(auth_ctx.user_id.as_str()),
+            policy_generation,
+        )
+        .await?
+        .expect("doc_abac on ⇒ AuthzContext");
+        let allow = resolve_allow_set(state.allow_set_provider.as_ref(), &ctx).await?;
+        let doc_uuid = Uuid::parse_str(&document_id).ok();
+        let in_allow = doc_uuid
+            .as_ref()
+            .map(|id| allow.contains(id))
+            .unwrap_or(false);
+        if !in_allow {
+            audit_deny(
+                &state,
+                &ctx,
+                "document.read",
+                "document",
+                Some(&document_id),
+                DenyReasonCode::NotInAllowSet,
+            );
+            return Err(existence_hiding_not_found());
         }
     }
 

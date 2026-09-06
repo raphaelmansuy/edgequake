@@ -10,6 +10,7 @@ use axum::{
 use tracing::debug;
 
 use crate::error::ApiResult;
+use crate::handlers::auth::OptionalAuth;
 use crate::handlers::graph_types::*;
 use crate::handlers::isolation::properties_match_tenant_context;
 use crate::middleware::TenantContext;
@@ -17,7 +18,7 @@ use crate::services::{
     admit_graph_materialization, run_timed_graph_query,
     tenant_guard::{empty_graph_response, has_full_tenant_context, warn_missing_tenant_context},
 };
-use crate::state::{GraphQueryRuntime, StorageRuntime};
+use crate::state::{AppState, GraphQueryRuntime, StorageRuntime};
 
 /// Get knowledge graph with traversal from optional starting node.
 ///
@@ -44,9 +45,11 @@ use crate::state::{GraphQueryRuntime, StorageRuntime};
     )
 )]
 pub async fn get_graph(
+    State(state): State<AppState>,
     State(storage): State<StorageRuntime>,
     State(graph): State<GraphQueryRuntime>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Query(params): Query<GraphQueryParams>,
 ) -> ApiResult<Json<KnowledgeGraphResponse>> {
     let request_start = std::time::Instant::now();
@@ -68,6 +71,17 @@ pub async fn get_graph(
     }
 
     let _materialize_guard = admit_graph_materialization(&graph)?;
+
+    let user_id = crate::services::spec146_authz::optional_auth_user_id(
+        auth_user.as_ref(),
+        &tenant_ctx,
+    );
+    let allow_ids = crate::services::spec146_authz::resolve_optional_allow_ids(
+        &state,
+        &tenant_ctx,
+        user_id.as_deref(),
+    )
+    .await?;
 
     let (nodes, edges, is_truncated) = if let Some(start) = &params.start_node {
         let start = start.clone();
@@ -94,6 +108,12 @@ pub async fn get_graph(
             .nodes
             .into_iter()
             .filter(|n| !scoped || properties_match_tenant_context(&n.properties, &tenant_ctx))
+            .filter(|n| {
+                crate::services::spec146_authz::graph_properties_in_allow(
+                    &n.properties,
+                    allow_ids.as_deref(),
+                )
+            })
             .map(|n| GraphNodeResponse {
                 id: n.id.clone(),
                 label: crate::handlers::graph::graph_node_label(&n),
@@ -103,18 +123,19 @@ pub async fn get_graph(
                     .and_then(|v| v.as_str())
                     .unwrap_or("UNKNOWN")
                     .to_string(),
-                description: n
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
+                description: crate::services::spec146_authz::sanitize_graph_description(
+                    &n.properties,
+                    allow_ids.as_deref(),
+                ),
                 degree: 0,
-                properties: serde_json::to_value(&n.properties).unwrap_or_default(),
+                properties: crate::services::spec146_authz::sanitize_graph_properties(
+                    &n.properties,
+                    allow_ids.as_deref(),
+                ),
             })
             .collect();
 
-        // Also filter edges by tenant context
+        // Also filter edges by tenant context + provenance allow-set
         let node_ids: std::collections::HashSet<_> = nodes.iter().map(|n| &n.id).collect();
         let edges: Vec<GraphEdgeResponse> = kg
             .edges
@@ -123,6 +144,7 @@ pub async fn get_graph(
                 (!scoped || properties_match_tenant_context(&e.properties, &tenant_ctx))
                     && node_ids.contains(&e.source)
                     && node_ids.contains(&e.target)
+                    && crate::services::spec146_authz::edge_in_allow(e, allow_ids.as_deref())
             })
             .map(GraphEdgeResponse::from_storage_edge)
             .collect();
@@ -147,6 +169,12 @@ pub async fn get_graph(
             })
             .await?;
 
+        let nodes_with_degrees = crate::services::spec146_authz::filter_graph_nodes_by_allow(
+            nodes_with_degrees,
+            allow_ids.as_deref(),
+            max_nodes,
+        );
+
         // Convert to response format
         let nodes: Vec<GraphNodeResponse> = nodes_with_degrees
             .into_iter()
@@ -159,14 +187,15 @@ pub async fn get_graph(
                     .and_then(|v| v.as_str())
                     .unwrap_or("UNKNOWN")
                     .to_string(),
-                description: node
-                    .properties
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
+                description: crate::services::spec146_authz::sanitize_graph_description(
+                    &node.properties,
+                    allow_ids.as_deref(),
+                ),
                 degree,
-                properties: serde_json::to_value(&node.properties).unwrap_or_default(),
+                properties: crate::services::spec146_authz::sanitize_graph_properties(
+                    &node.properties,
+                    allow_ids.as_deref(),
+                ),
             })
             .collect();
 

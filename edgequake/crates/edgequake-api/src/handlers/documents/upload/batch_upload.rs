@@ -4,6 +4,7 @@ use axum::http::StatusCode;
 use axum::{extract::State, Json};
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::handlers::documents::upload::{
     admit_document_for_processing, DocumentAdmissionInput, DocumentAdmissionOutcome,
     GleaningAdmissionOptions, MultipartUploadFields,
@@ -37,8 +38,10 @@ use axum_extra::extract::Multipart;
 pub async fn upload_files_batch(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    auth: ApiOptionalAuth,
     mut multipart: Multipart,
 ) -> ApiResult<(StatusCode, Json<BatchUploadResponse>)> {
+    crate::services::spec146_authz::require_ingest_when_abac(&state, &tenant_ctx, &auth)?;
     let mut results = Vec::new();
     let mut processed = 0usize;
     let mut duplicates = 0usize;
@@ -66,7 +69,13 @@ pub async fn upload_files_batch(
             | "chunk_strategy"
             | "chunk_options"
             | "extract_max_entities"
-            | "extract_max_records" => {
+            | "extract_max_records"
+            | "classification"
+            | "share_mode"
+            | "security_status"
+            | "export_control"
+            | "pii"
+            | "project_id" => {
                 let text = field.text().await.map_err(|e| {
                     ApiError::BadRequest(format!("Failed to read {field_name}: {e}"))
                 })?;
@@ -85,6 +94,7 @@ pub async fn upload_files_batch(
         chunk_strategy: batch_chunk_strategy,
         chunk_options: batch_chunk_options,
         custom_metadata: batch_metadata,
+        security: multipart_fields.security.clone(),
         extract_max_entities: batch_extract_ents,
         extract_max_records: batch_extract_recs,
     };
@@ -156,6 +166,7 @@ struct BatchEnqueueOptions {
     chunk_strategy: Option<edgequake_pipeline::ChunkStrategy>,
     chunk_options: Option<edgequake_pipeline::ChunkOptions>,
     custom_metadata: Option<serde_json::Value>,
+    security: crate::services::spec146_authz::SecurityFormOverrides,
     extract_max_entities: Option<u32>,
     extract_max_records: Option<u32>,
 }
@@ -184,6 +195,7 @@ async fn enqueue_single_file(
             raw_byte_size: content.len(),
             content_hash,
             custom_metadata: opts.custom_metadata.clone(),
+            security: opts.security.clone(),
             track_id: None,
             expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),

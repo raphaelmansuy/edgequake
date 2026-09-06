@@ -26,6 +26,19 @@ fn cache_key(request: &QueryRequest, mode: QueryMode) -> String {
         for id in ids {
             id.hash(&mut hasher);
         }
+    } else {
+        // Distinguish None (unscoped) from Some([]) under ABAC.
+        "none".hash(&mut hasher);
+    }
+    // SPEC-146: principal + policy_generation + allow fingerprint.
+    if let Some(p) = &request.authz_principal {
+        p.hash(&mut hasher);
+    }
+    if let Some(g) = request.policy_generation {
+        g.hash(&mut hasher);
+    }
+    if let Some(fp) = &request.allow_fingerprint {
+        fp.hash(&mut hasher);
     }
     // SPEC-022 P-H6: Mix ordering depends on per-request weights — must not share cache entries.
     if mode == QueryMode::Mix {
@@ -191,12 +204,42 @@ mod tests {
     }
 
     #[test]
-    fn bump_epoch_evicts_entries() {
+    fn spec146_policy_generation_isolates_cache_entries() {
         let cache = QueryResultCache::with_defaults();
-        let mut req = QueryRequest::new("test");
-        req.context_only = true;
-        cache.put(&req, QueryMode::Local, QueryContext::default());
-        cache.bump_epoch();
-        assert!(cache.get(&req, QueryMode::Local).is_none());
+        let mut req_a = QueryRequest::new("abac cache");
+        req_a.context_only = true;
+        req_a.authz_principal = Some("user:alice".into());
+        req_a.policy_generation = Some(1);
+        req_a.allow_fingerprint = Some("fp-a".into());
+        req_a.allowed_document_ids = Some(vec!["doc-1".into()]);
+
+        let mut req_b = req_a.clone();
+        req_b.policy_generation = Some(2); // policy bump
+
+        cache.put(&req_a, QueryMode::Hybrid, QueryContext::default());
+        assert!(cache.get(&req_a, QueryMode::Hybrid).is_some());
+        assert!(
+            cache.get(&req_b, QueryMode::Hybrid).is_none(),
+            "different policy_generation must miss cache (SPEC-146)"
+        );
+    }
+
+    #[test]
+    fn spec146_principal_isolates_cache_entries() {
+        let cache = QueryResultCache::with_defaults();
+        let mut req_a = QueryRequest::new("abac principal");
+        req_a.context_only = true;
+        req_a.authz_principal = Some("user:alice".into());
+        req_a.policy_generation = Some(1);
+        req_a.allowed_document_ids = Some(vec!["doc-1".into()]);
+
+        let mut req_b = req_a.clone();
+        req_b.authz_principal = Some("user:bob".into());
+
+        cache.put(&req_a, QueryMode::Local, QueryContext::default());
+        assert!(
+            cache.get(&req_b, QueryMode::Local).is_none(),
+            "different principal must miss cache (SPEC-146)"
+        );
     }
 }

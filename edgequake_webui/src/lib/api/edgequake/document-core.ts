@@ -3,7 +3,9 @@ import {
   postMultipart,
   type MultipartUploadProgress,
 } from "@/lib/upload/multipart-upload-client";
+import { appendSecurityFields } from "@/lib/upload/append-security-fields";
 import { buildPdfUploadFormData } from "@/lib/upload/pdf-upload-form-data";
+import type { SecurityFields } from "@/lib/security/security-fields";
 import type {
   Document,
   DocumentStatusCounts,
@@ -77,10 +79,14 @@ export async function uploadDocument(
 
 export async function uploadFile(
   file: File,
-  options?: { onUploadProgress?: (progress: MultipartUploadProgress) => void },
+  options?: {
+    onUploadProgress?: (progress: MultipartUploadProgress) => void;
+    security?: SecurityFields;
+  },
 ): Promise<UploadDocumentResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  appendSecurityFields(formData, options?.security);
   return postMultipart<UploadDocumentResponse>("/documents/upload", formData, {
     fileSizeBytes: file.size,
     onProgress: options?.onUploadProgress,
@@ -89,6 +95,7 @@ export async function uploadFile(
 
 export type PdfUploadRequestOptions = PdfUploadOptions & {
   onUploadProgress?: (progress: MultipartUploadProgress) => void;
+  security?: SecurityFields;
 };
 
 export async function uploadPdfDocument(

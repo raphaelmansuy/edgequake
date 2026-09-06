@@ -223,6 +223,10 @@ fn bt045_ec06_periodic_orphan_and_auto_document_recover() {
     let src = include_str!("../../../src/main.rs");
     assert!(src.contains("periodic_orphan_check"));
     assert!(src.contains("EDGEQUAKE_AUTO_ORPHAN_DOCUMENT_RECOVER_MINUTES"));
+    assert!(
+        src.contains("orphan_document_recover_minutes_from_env"),
+        "periodic orphan recover must use SSOT env helper (default 15m / INV-07)"
+    );
 }
 
 // ── EC-045-12: informational notice scrubbing ───────────────────────────

@@ -120,15 +120,25 @@ pub async fn try_typed_chunk_query(
     query_embedding: &[f32],
     top_k: usize,
     workspace_key: &str,
+    allowed_document_ids: Option<&[String]>,
 ) -> Result<Option<Vec<VectorSearchResult>>, StorageError> {
     let Some(ws_uuid) = resolve_workspace_uuid(pool, workspace_key).await? else {
         return Ok(None);
     };
+    let allowed = crate::adapters::postgres::ann_abac::parse_allow_uuids(allowed_document_ids);
+    // SPEC-146: Some([]) must fail-closed (empty hits), never become unscoped.
+    if matches!(allowed.as_ref(), Some(v) if v.is_empty())
+        && allowed_document_ids.is_some()
+    {
+        record_typed_hit();
+        return Ok(Some(Vec::new()));
+    }
     let req = VectorQuery {
         model_id: ModelId(Uuid::nil()),
         workspace_id: Some(WorkspaceId(ws_uuid)),
         embedding: query_embedding.to_vec(),
         limit: top_k as u32,
+        allowed_document_ids: allowed,
     };
     let scored = index.search(&req).await?;
     let results = scored_to_legacy_results(pool, scored).await?;

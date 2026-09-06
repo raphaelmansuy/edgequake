@@ -35,6 +35,7 @@ import { WorkspaceStatusFooter } from '@/components/workspace/workspace-status-f
 import { WorkspaceEntityTypesCard } from '@/components/workspace/workspace-entity-types-card';
 import { WorkspaceRelationTypesCard } from '@/components/workspace/workspace-relation-types-card';
 import { WorkspaceExtractionLanguageCard } from '@/components/workspace/workspace-extraction-language-card';
+import { AuthzSettingsSection } from '@/components/settings/authz-settings-section';
 import { WorkspaceChunkingCard } from '@/components/workspace/workspace-chunking-card';
 import { WorkspaceExtractBudgetCard } from '@/components/workspace/workspace-extract-budget-card';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
@@ -322,6 +323,9 @@ export default function WorkspacePage() {
             setPendingRebuild(null);
           }}
         />
+
+        {/* SPEC-146 M1b: ABAC PAP cards (gated by /health doc_abac) */}
+        <AuthzSettingsSection />
 
         <WorkspaceStatusFooter />
 

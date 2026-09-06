@@ -42,8 +42,9 @@ export DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edge
 
 | Mode | Auth | Setup |
 | ---- | ---- | ----- |
-| **`make dev`** (default) | Off (open API) | Makefile sets `EDGEQUAKE_DEV_MODE=true` when `DEV_AUTH_ENABLED=false` |
-| **Production / `make dev-auth`** | On (default secure) | Set `JWT_SECRET`, bootstrap admin credentials, `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` |
+| **`make dev`** (default) | On — `admin` / `EdgeQuake1` | Credentials printed at startup and on `/login` |
+| **`make dev-open`** | Off (open API) | Escape hatch for rare open-API proofs |
+| **Production** | On (secure by default) | Set `JWT_SECRET`, bootstrap admin credentials, `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` |
 
 See [Runtime auth hardening](../operations/runtime-auth-hardening.md).
 

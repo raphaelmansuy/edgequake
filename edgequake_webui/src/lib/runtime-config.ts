@@ -3,6 +3,11 @@ export interface EdgeQuakeRuntimeConfig {
   authEnabled: boolean;
   disableDemoLogin: boolean;
   /**
+   * When true, the login page shows and prefills the well-known local-dev
+   * credentials (`admin` / `EdgeQuake1`). Set only by `make dev` — never in prod.
+   */
+  showDevLoginHint: boolean;
+  /**
    * Periodic `/live`+`/health` poll interval. `false` (default) = one probe on
    * mount. Set `EDGEQUAKE_HEALTH_POLL_MS` (e.g. `10000`) to restore looping.
    */
@@ -93,6 +98,9 @@ export function getRuntimeConfig(): EdgeQuakeRuntimeConfig {
     authEnabled: parseBoolean(browserConfig?.authEnabled ?? process.env.NEXT_PUBLIC_AUTH_ENABLED),
     disableDemoLogin: parseBoolean(
       browserConfig?.disableDemoLogin ?? process.env.NEXT_PUBLIC_DISABLE_DEMO_LOGIN
+    ),
+    showDevLoginHint: parseBoolean(
+      browserConfig?.showDevLoginHint ?? process.env.NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT
     ),
     healthPollIntervalMs: parseHealthPollIntervalMs(
       browserConfig?.healthPollIntervalMs !== undefined

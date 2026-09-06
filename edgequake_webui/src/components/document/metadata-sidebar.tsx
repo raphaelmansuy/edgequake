@@ -16,10 +16,11 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
-import { Brain, Database, Download, FileText, GitBranch, Network, Settings } from 'lucide-react';
+import { Brain, Database, Download, FileText, GitBranch, Network, Settings, Shield } from 'lucide-react';
 import { DocumentDownloadMenu } from '@/components/documents/document-download-menu';
 import { CollapsibleSection } from './collapsible-section';
 import { DocumentHierarchyTree } from './document-hierarchy-tree';
+import { DocumentSecurityPanel } from './document-security-panel';
 import { EnhancedMetadata } from './enhanced-metadata';
 import { EntityRelationStats } from './entity-relation-stats';
 import { KeyStats } from './key-stats';
@@ -54,6 +55,15 @@ export function MetadataSidebar({ document, onChunkSelect, onChunkResolved, sele
       {/* Scrollable sections - min-h-0 allows flex item to shrink below content height */}
       <ScrollArea className="flex-1 min-h-0" showShadows>
         <div className="p-3 space-y-2">
+          <CollapsibleSection
+            title="Security"
+            icon={<Shield className="h-4 w-4" />}
+            defaultOpen
+            testId="spec146-security-section"
+          >
+            <DocumentSecurityPanel document={document} />
+          </CollapsibleSection>
+
           {/* Extraction Lineage */}
           {document.lineage && (
             <CollapsibleSection

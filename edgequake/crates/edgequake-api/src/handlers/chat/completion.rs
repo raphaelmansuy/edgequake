@@ -179,7 +179,8 @@ pub async fn chat_completion(
         engine_request = engine_request.with_workspace_id(ws_id.to_string());
     }
 
-    // SPEC-005: Resolve document filter → allowed_document_ids for RAG context scoping
+    // SPEC-005 + SPEC-146: Resolve document filter ∩ allow-set for RAG scope
+    let mut client_filter_ids = None;
     if let Some(ref filter) = request.document_filter {
         let ws_id_str = workspace_id.as_ref().map(|id| id.to_string());
         let tenant_filter = Some(data_tenant_id.clone());
@@ -192,8 +193,63 @@ pub async fn chat_completion(
             )
             .await?
         {
-            engine_request = engine_request.with_allowed_document_ids(allowed_ids);
+            client_filter_ids = Some(allowed_ids);
         }
+    }
+    let (allowed_ids, authz_ctx, allow_set) =
+        crate::services::spec146_authz::resolve_query_allowed_document_ids(
+            &state,
+            &tenant_ctx,
+            Some(&user_id.to_string()),
+            client_filter_ids,
+        )
+        .await?;
+
+    // G-146-7 / LAW-146-7: empty allow-set → SSOT answer (no LLM), same as /query.
+    if crate::services::spec146_authz::is_empty_allow_set(&allow_set) {
+        let answer = edgequake_authz::ZERO_AUTHZ_ANSWER.to_string();
+        if !super::conversation_guard::conversation_exists(&state, conversation_id).await? {
+            return Err(ApiError::NotFound(format!(
+                "Conversation {} no longer exists",
+                conversation_id
+            )));
+        }
+        let assistant_message = state
+            .conversation_service
+            .create_message(
+                conversation_id,
+                CreateMessageRequest {
+                    content: answer.clone(),
+                    role: MessageRole::Assistant,
+                    parent_id: Some(user_message.message_id),
+                    stream: false,
+                },
+            )
+            .await?;
+        return Ok(Json(ChatCompletionResponse {
+            conversation_id,
+            user_message_id: user_message.message_id,
+            assistant_message_id: assistant_message.message_id,
+            content: answer,
+            mode: request.mode.clone().unwrap_or_else(|| "hybrid".into()),
+            sources: vec![],
+            stats: crate::handlers::query_types::QueryStats::default(),
+            tokens_used: 0,
+            duration_ms: 0,
+            llm_provider: None,
+            llm_model: None,
+        }));
+    }
+
+    if let Some(ids) = allowed_ids {
+        engine_request = engine_request.with_allowed_document_ids(ids);
+    }
+    if let (Some(ctx), Some(allow)) = (authz_ctx, allow_set) {
+        engine_request = engine_request.with_authz_cache_scope(
+            format!("{}:{}", ctx.principal.kind_str(), ctx.principal.id_str()),
+            ctx.policy_generation,
+            allow.fingerprint(),
+        );
     }
 
     // FEAT0203: Forward image attachments to the query engine for vision queries.

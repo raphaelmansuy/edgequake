@@ -94,7 +94,8 @@ async fn e2e_spec091_fleet_recall_parity_entity_typed_vs_exact() {
                     workspace_id: Some(WorkspaceId(ws)),
                     embedding: query_emb,
                     limit: TOP_K as u32,
-                },
+                            allowed_document_ids: None,
+},
             )
             .await
             .expect("typed search");

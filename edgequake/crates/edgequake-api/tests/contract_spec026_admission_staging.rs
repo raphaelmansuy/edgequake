@@ -36,6 +36,7 @@ fn sample_input(content: &str, hash: &str) -> DocumentAdmissionInput {
         raw_byte_size: content.len(),
         content_hash: hash.to_string(),
         custom_metadata: None,
+        security: Default::default(),
         track_id: None,
         expected_batch_count: None,
         gleaning: GleaningAdmissionOptions::default(),

@@ -138,6 +138,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             postgres_capabilities: None,
             security: ApiSecurityConfig::from_env(),
+            allow_set_provider: None,
             server_config: crate::server_config_store::ServerConfigStore::new(),
         }
     }
@@ -298,6 +299,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             postgres_capabilities: None,
             security: ApiSecurityConfig::default(),
+            allow_set_provider: None,
             server_config: crate::server_config_store::ServerConfigStore::new(),
         }
     }
@@ -463,6 +465,7 @@ impl AppState {
             #[cfg(feature = "postgres")]
             postgres_capabilities: None,
             security: ApiSecurityConfig::default(),
+            allow_set_provider: None,
             server_config: crate::server_config_store::ServerConfigStore::new(),
         }
     }

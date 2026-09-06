@@ -49,6 +49,7 @@ fn sample_md_input(
         raw_byte_size: content.len(),
         content_hash: hash.to_string(),
         custom_metadata: None,
+        security: Default::default(),
         track_id: client_track.map(|s| s.to_string()),
         expected_batch_count: None,
         gleaning: GleaningAdmissionOptions::default(),

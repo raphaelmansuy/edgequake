@@ -7,6 +7,7 @@
 //! @implements SPEC-005: Document date and pattern filters (Tier 1)
 //! @implements SPEC-031: Strict entity/relationship lineage filtering
 //! @implements SPEC-047 / 021 L2–L4: derive docs from chunk ids; fail-closed
+//! @implements SPEC-146: hub description from authorized occurrences only
 //!
 //! ## Filter strictness
 //!
@@ -22,7 +23,11 @@
 use std::collections::HashSet;
 
 use crate::context::QueryContext;
+use crate::helpers::extract_document_id;
 use crate::lineage_scope::{lineage_intersects_allowed, resolve_lineage_document_ids};
+
+/// LightRAG / merger field separator for multi-occurrence descriptions.
+const GRAPH_FIELD_SEP: &str = "<SEP>";
 
 /// Filter a `QueryContext` to only keep items from the allowed document set.
 ///
@@ -32,8 +37,10 @@ use crate::lineage_scope::{lineage_intersects_allowed, resolve_lineage_document_
 ///   2. `source_document_id` (singular)
 ///   3. docs derived from chunk id(s)
 ///   4. still empty → **drop** (021 L4)
+/// - **Entity descriptions**: when fragment count matches `source_chunk_ids`,
+///   keep only fragments whose chunk derives an allowed document (SPEC-146).
 ///
-/// @implements SPEC-031 · SPEC-047 / 021
+/// @implements SPEC-031 · SPEC-047 / 021 · SPEC-146
 pub fn filter_context_by_document_ids(context: &mut QueryContext, allowed_ids: Option<&[String]>) {
     let allowed = match allowed_ids {
         Some(ids) => ids,
@@ -59,8 +66,20 @@ pub fn filter_context_by_document_ids(context: &mut QueryContext, allowed_ids: O
         lineage_intersects_allowed(&docs, &id_set)
     });
 
+    for entity in &mut context.entities {
+        entity.description = filter_hub_description_refs(
+            &entity.description,
+            &entity.source_chunk_ids,
+            &id_set,
+        );
+    }
+
     context.relationships.retain(|rel| {
-        let chunk_ids: Vec<String> = rel.source_chunk_id.iter().cloned().collect();
+        let chunk_ids: Vec<String> = if !rel.source_chunk_ids.is_empty() {
+            rel.source_chunk_ids.clone()
+        } else {
+            rel.source_chunk_id.iter().cloned().collect()
+        };
         let docs = resolve_lineage_document_ids(
             &rel.source_document_ids,
             rel.source_document_id.as_deref(),
@@ -68,6 +87,77 @@ pub fn filter_context_by_document_ids(context: &mut QueryContext, allowed_ids: O
         );
         lineage_intersects_allowed(&docs, &id_set)
     });
+}
+
+/// Map a provenance ref (chunk id or bare document UUID) to a document id.
+fn ref_to_document_id(source_ref: &str) -> Option<String> {
+    if let Some(doc) = extract_document_id(source_ref) {
+        return Some(doc);
+    }
+    // Bare document UUID (graph `source_ids`).
+    if source_ref.len() == 36 {
+        return Some(source_ref.to_string());
+    }
+    None
+}
+
+/// Keep description fragments aligned with authorized provenance (SPEC-146).
+///
+/// `source_refs` may be chunk ids (`{doc}-chunk-N`) or bare document UUIDs.
+/// When `allowed_document_ids` is `None`, returns the description unchanged.
+pub fn filter_hub_description_by_allow(
+    description: &str,
+    source_refs: &[String],
+    allowed_document_ids: Option<&[String]>,
+) -> String {
+    let Some(allowed) = allowed_document_ids else {
+        return description.to_string();
+    };
+    let id_set: HashSet<&str> = allowed.iter().map(|s| s.as_str()).collect();
+    filter_hub_description_refs(description, source_refs, &id_set)
+}
+
+fn filter_hub_description_refs(
+    description: &str,
+    source_refs: &[String],
+    allowed: &HashSet<&str>,
+) -> String {
+    if description.is_empty() || source_refs.is_empty() {
+        return description.to_string();
+    }
+    if !description.contains(GRAPH_FIELD_SEP) {
+        // Single blob — keep only if every source is authorized.
+        let all_ok = source_refs.iter().all(|r| {
+            ref_to_document_id(r)
+                .map(|d| allowed.contains(d.as_str()))
+                .unwrap_or(false)
+        });
+        return if all_ok {
+            description.to_string()
+        } else {
+            // Partial authorization without fragment alignment → strip (fail-closed leak).
+            String::new()
+        };
+    }
+    let fragments: Vec<&str> = description.split(GRAPH_FIELD_SEP).collect();
+    if fragments.len() != source_refs.len() {
+        // Misaligned — cannot safely attribute; strip to avoid cross-label leak.
+        return String::new();
+    }
+    fragments
+        .iter()
+        .zip(source_refs.iter())
+        .filter_map(|(frag, r)| {
+            let doc = ref_to_document_id(r)?;
+            if allowed.contains(doc.as_str()) {
+                Some((*frag).trim())
+            } else {
+                None
+            }
+        })
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(GRAPH_FIELD_SEP)
 }
 
 #[cfg(test)]
@@ -277,6 +367,29 @@ mod tests {
         filter_context_by_document_ids(&mut ctx, Some(&allowed));
         assert_eq!(ctx.relationships.len(), 1);
         assert_eq!(ctx.relationships[0].source, "A");
+    }
+
+    #[test]
+    fn spec146_hub_description_drops_unauthorized_fragment() {
+        let entity = RetrievedEntity::new(
+            "HUB",
+            "CONCEPT",
+            "public occ<SEP>SECRET_TOKEN_SPEC146_UNAUTHORIZED",
+        )
+        .with_score(0.8)
+        .with_source_chunk_ids(vec!["doc-a-chunk-0".into(), "doc-b-chunk-0".into()])
+        .with_source_document_ids(vec!["doc-a".into(), "doc-b".into()]);
+        let mut ctx = QueryContext::new();
+        ctx.entities = vec![entity];
+        let allowed = vec!["doc-a".to_string()];
+        filter_context_by_document_ids(&mut ctx, Some(&allowed));
+        assert_eq!(ctx.entities.len(), 1);
+        assert!(
+            !ctx.entities[0].description.contains("SECRET_TOKEN"),
+            "unauthorized occurrence leaked: {}",
+            ctx.entities[0].description
+        );
+        assert!(ctx.entities[0].description.contains("public occ"));
     }
 
     #[test]

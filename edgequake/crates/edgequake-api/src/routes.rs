@@ -355,6 +355,56 @@ fn api_v1_routes() -> Router<AppState> {
                 .delete(handlers::delete_injection)
                 .patch(handlers::update_injection),
         )
+        // SPEC-146 M1b: Authz PAP surfaces
+        .route(
+            "/workspaces/{workspace_id}/authz/roles",
+            get(handlers::list_workspace_roles).post(handlers::create_workspace_role),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/roles/{role_id}",
+            delete(handlers::delete_workspace_role),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/members",
+            get(handlers::list_role_bindings).post(handlers::create_role_binding),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/members/{principal_kind}/{principal_id}/{role_id}",
+            delete(handlers::delete_role_binding),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/attribute-definitions",
+            get(handlers::list_attribute_definitions)
+                .post(handlers::create_attribute_definition),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/attribute-definitions/{attr_id}",
+            delete(handlers::delete_attribute_definition),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/principal-attributes",
+            get(handlers::list_principal_attributes).put(handlers::upsert_principal_attribute),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/principal-attributes/{principal_kind}/{principal_id}/{name}",
+            delete(handlers::delete_principal_attribute),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/policies",
+            get(handlers::list_policies).post(handlers::create_policy),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/policies/{policy_id}/versions",
+            get(handlers::list_policy_versions).post(handlers::publish_policy_version),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/break-glass",
+            get(handlers::list_break_glass_sessions).post(handlers::create_break_glass_session),
+        )
+        .route(
+            "/workspaces/{workspace_id}/authz/break-glass/{session_id}",
+            delete(handlers::revoke_break_glass_session),
+        )
         // Documents
         .route("/documents", post(handlers::upload_document))
         .route("/documents", get(handlers::list_documents))
@@ -429,6 +479,17 @@ fn api_v1_routes() -> Router<AppState> {
         .route(
             "/documents/{document_id}/deletion-impact",
             get(handlers::analyze_deletion_impact),
+        )
+        // SPEC-146: document ACL
+        .route(
+            "/documents/{document_id}/acl",
+            get(handlers::list_document_acl)
+                .post(handlers::grant_document_acl)
+                .delete(handlers::revoke_document_acl),
+        )
+        .route(
+            "/documents/{document_id}/security-labels",
+            patch(handlers::patch_document_security_labels),
         )
         // OODA-03: Chunk-level retry endpoints - MUST come before /documents/{document_id}
         .route(

@@ -201,9 +201,10 @@ impl QueryEngine {
         let cache_key = crate::cache::llm_cache_storage_key(
             mode_str,
             crate::cache::LlmCacheType::Query,
-            &crate::cache::hash_query_prompt_with_effort(
+            &crate::cache::hash_query_prompt_with_effort_scoped(
                 &prompt,
                 request.reasoning_effort.as_deref(),
+                request.authz_cache_scope().as_ref(),
             ),
         );
         let answer_cache_on =

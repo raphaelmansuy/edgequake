@@ -56,7 +56,7 @@ export const ContextTriggerChip = forwardRef<HTMLButtonElement, ContextTriggerCh
         className={cn(
           'h-8 gap-1.5 px-2.5 font-medium text-sm',
           'bg-muted/50 hover:bg-muted border border-border/50',
-          'min-w-[10rem] max-w-[min(28rem,42vw)]',
+          'min-w-0 max-w-[min(28rem,42vw)]',
           'transition-all duration-150',
           className,
         )}

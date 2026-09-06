@@ -169,7 +169,14 @@ pub async fn list_relational_document_summaries(
             (metadata->>'cost_usd')::double precision AS cost_usd,
             (metadata->>'input_tokens')::bigint AS input_tokens,
             (metadata->>'output_tokens')::bigint AS output_tokens,
-            (metadata->>'total_tokens')::bigint AS total_tokens
+            (metadata->>'total_tokens')::bigint AS total_tokens,
+            classification,
+            share_mode,
+            security_status,
+            owner_principal_id,
+            export_control,
+            pii,
+            project_id
         FROM public.documents
         WHERE workspace_id = $1
           AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)
@@ -231,6 +238,13 @@ pub async fn list_relational_document_summaries(
                 eta_basis: None,
                 query_ready: None,
                 cancelled_from_stage: None,
+                classification: row.try_get("classification").ok(),
+                share_mode: row.try_get("share_mode").ok(),
+                security_status: row.try_get("security_status").ok(),
+                owner_principal_id: row.try_get("owner_principal_id").ok(),
+                export_control: row.try_get("export_control").ok(),
+                pii: row.try_get("pii").ok(),
+                project_id: row.try_get("project_id").ok(),
             }
         })
         .collect())
@@ -585,6 +599,28 @@ pub fn merge_document_summaries(
             if kv.cost_usd.is_none() {
                 kv.cost_usd = rel.cost_usd;
             }
+            // SPEC-146: relational security columns are durable SSOT when present.
+            if rel.classification.is_some() {
+                kv.classification = rel.classification.clone();
+            }
+            if rel.share_mode.is_some() {
+                kv.share_mode = rel.share_mode.clone();
+            }
+            if rel.security_status.is_some() {
+                kv.security_status = rel.security_status.clone();
+            }
+            if rel.owner_principal_id.is_some() {
+                kv.owner_principal_id = rel.owner_principal_id.clone();
+            }
+            if rel.export_control.is_some() {
+                kv.export_control = rel.export_control;
+            }
+            if rel.pii.is_some() {
+                kv.pii = rel.pii;
+            }
+            if rel.project_id.is_some() {
+                kv.project_id = rel.project_id.clone();
+            }
         } else {
             by_id.insert(rel.id.clone(), kv_documents.len());
             kv_documents.push(rel);
@@ -832,6 +868,13 @@ mod tests {
             eta_basis: None,
             query_ready: None,
             cancelled_from_stage: None,
+        classification: None,
+        share_mode: None,
+        security_status: None,
+        owner_principal_id: None,
+            export_control: None,
+            pii: None,
+            project_id: None,
         }];
 
         let pg = vec![DocumentSummary {
@@ -867,6 +910,13 @@ mod tests {
             eta_basis: None,
             query_ready: None,
             cancelled_from_stage: None,
+        classification: None,
+        share_mode: None,
+        security_status: None,
+        owner_principal_id: None,
+            export_control: None,
+            pii: None,
+            project_id: None,
         }];
 
         let merged = merge_document_summaries(kv, pg);
@@ -911,6 +961,13 @@ mod tests {
             eta_basis: None,
             query_ready: None,
             cancelled_from_stage: None,
+        classification: None,
+        share_mode: None,
+        security_status: None,
+        owner_principal_id: None,
+            export_control: None,
+            pii: None,
+            project_id: None,
         }];
 
         let pg = vec![DocumentSummary {
@@ -946,6 +1003,13 @@ mod tests {
             eta_basis: None,
             query_ready: None,
             cancelled_from_stage: None,
+        classification: None,
+        share_mode: None,
+        security_status: None,
+        owner_principal_id: None,
+            export_control: None,
+            pii: None,
+            project_id: None,
         }];
 
         let merged = merge_document_summaries(kv, pg);
@@ -988,6 +1052,13 @@ mod tests {
             eta_basis: None,
             query_ready: None,
             cancelled_from_stage: None,
+        classification: None,
+        share_mode: None,
+        security_status: None,
+        owner_principal_id: None,
+            export_control: None,
+            pii: None,
+            project_id: None,
         }
     }
 

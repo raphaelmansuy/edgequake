@@ -3098,8 +3098,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "recover_stuck"
+        "x-edgequake-v2-job-type": "recover_stuck",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -3156,8 +3156,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_failed"
+        "x-edgequake-v2-job-type": "reprocess_failed",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/scan": {
@@ -3496,11 +3496,14 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized"
+          },
           "403": {
-            "description": "Access denied - document belongs to different tenant"
+            "description": "Capability denied (not an existence secret)"
           },
           "404": {
-            "description": "Document not found"
+            "description": "Document not found (existence-hiding for unauthorized IDs)"
           },
           "503": {
             "description": "Read path busy under ingest load"
@@ -3549,6 +3552,151 @@
           },
           "404": {
             "description": "Document not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/acl": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_document_acl",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "description": "Document UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ACL entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDocumentAclResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "grant_document_acl",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "description": "Document UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantDocumentAclRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "ACL granted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDocumentAclResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "revoke_document_acl",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "description": "Document UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeDocumentAclRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "ACL revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeDocumentAclResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4239,8 +4387,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reanalyze_multimodal",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reanalyze_multimodal"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -4288,6 +4436,68 @@
           },
           "503": {
             "description": "PostgreSQL required for chunk retry"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/security-labels": {
+      "patch": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "patch_document_security_labels",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "description": "Document UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchDocumentSecurityLabelsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Labels updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatchDocumentSecurityLabelsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Missing document:set_labels"
+          },
+          "404": {
+            "description": "Document not found (existence-hiding)"
           }
         },
         "security": [
@@ -8642,6 +8852,1061 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/authz/attribute-definitions": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_attribute_definitions",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attribute definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAttributeDefinitionsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "create_attribute_definition",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttributeDefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Attribute definition created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAttributeDefinitionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/attribute-definitions/{attr_id}": {
+      "delete": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "delete_attribute_definition",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attr_id",
+            "in": "path",
+            "description": "Attribute definition UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/break-glass": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_break_glass_sessions",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Break-glass sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBreakGlassResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — missing capability"
+          },
+          "404": {
+            "description": "Workspace not found (existence-hiding where applicable)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "create_break_glass_session",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBreakGlassRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateBreakGlassResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid TTL or reason"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — BreakGlass capability required"
+          },
+          "404": {
+            "description": "Workspace not found (existence-hiding where applicable)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/break-glass/{session_id}": {
+      "delete": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "revoke_break_glass_session",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeBreakGlassResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — BreakGlass or PolicyManage required"
+          },
+          "404": {
+            "description": "Session not found (existence-hiding)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/members": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_role_bindings",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role bindings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRoleBindingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — missing capability"
+          },
+          "404": {
+            "description": "Workspace not found (existence-hiding where applicable)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "create_role_binding",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleBindingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Binding created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRoleBindingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Already bound"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/members/{principal_kind}/{principal_id}/{role_id}": {
+      "delete": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "delete_role_binding",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal_kind",
+            "in": "path",
+            "description": "Principal kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal_id",
+            "in": "path",
+            "description": "Principal id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "path",
+            "description": "Role UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Binding deleted"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/policies": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_policies",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Policies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPoliciesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — missing capability"
+          },
+          "404": {
+            "description": "Workspace not found (existence-hiding where applicable)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "create_policy",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Policy created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePolicyResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/policies/{policy_id}/versions": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_policy_versions",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "path",
+            "description": "Policy UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Policy versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPolicyVersionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "publish_policy_version",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "path",
+            "description": "Policy UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishPolicyVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Version published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishPolicyVersionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/principal-attributes": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_principal_attributes",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal_kind",
+            "in": "query",
+            "description": "Filter by principal kind",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal_id",
+            "in": "query",
+            "description": "Filter by principal id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Principal attributes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPrincipalAttributesResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "upsert_principal_attribute",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPrincipalAttributeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Attribute upserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpsertPrincipalAttributeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/principal-attributes/{principal_kind}/{principal_id}/{name}": {
+      "delete": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "delete_principal_attribute",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal_kind",
+            "in": "path",
+            "description": "Principal kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal_id",
+            "in": "path",
+            "description": "Principal id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Attribute name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/roles": {
+      "get": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "list_workspace_roles",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace roles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRolesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — missing capability"
+          },
+          "404": {
+            "description": "Workspace not found (existence-hiding where applicable)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "create_workspace_role",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Role created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRoleResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Role name exists"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/authz/roles/{role_id}": {
+      "delete": {
+        "tags": [
+          "Authz"
+        ],
+        "operationId": "delete_workspace_role",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "path",
+            "description": "Role UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Role deleted"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/injection": {
       "put": {
         "tags": [
@@ -9125,8 +10390,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -9199,8 +10464,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -9273,8 +10538,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_all"
+        "x-edgequake-v2-job-type": "reprocess_all",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/stats": {
@@ -9765,8 +11030,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     },
     "/ws/progress/{track_id}": {
@@ -9797,8 +11062,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
@@ -9977,6 +11242,13 @@
             ],
             "description": "Local dev opt-out (`EDGEQUAKE_DEV_MODE`) — auth disabled when true."
           },
+          "doc_abac": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "SPEC-146: document ABAC enabled (`EDGEQUAKE_DOC_ABAC`)."
+          },
           "external_sso_pattern": {
             "type": [
               "string",
@@ -10124,6 +11396,51 @@
           "name": {},
           "prefix": {},
           "scopes": []
+        }
+      },
+      "AttributeDefinitionDto": {
+        "type": "object",
+        "required": [
+          "attr_id",
+          "workspace_id",
+          "scope",
+          "name",
+          "value_type"
+        ],
+        "properties": {
+          "attr_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enum_values": {},
+          "name": {
+            "type": "string"
+          },
+          "required_for_share_modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "string"
+          },
+          "value_type": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "attr_id": {},
+          "enum_values": {},
+          "name": {},
+          "required_for_share_modes": [],
+          "scope": {},
+          "value_type": {},
+          "workspace_id": {}
         }
       },
       "AttributionSettingsResponse": {
@@ -10458,6 +11775,70 @@
           "processed": {},
           "results": [],
           "total_files": {}
+        }
+      },
+      "BreakGlassSessionDto": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "workspace_id",
+          "principal_kind",
+          "principal_id",
+          "reason",
+          "expires_at",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope_doc_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "created_at": {},
+          "expires_at": {},
+          "principal_id": {},
+          "principal_kind": {},
+          "reason": {},
+          "revoked_at": {},
+          "scope_doc_ids": [],
+          "session_id": {},
+          "workspace_id": {}
         }
       },
       "BudgetInfo": {
@@ -12999,6 +14380,114 @@
           "scopes": []
         }
       },
+      "CreateAttributeDefinitionRequest": {
+        "type": "object",
+        "required": [
+          "scope",
+          "name",
+          "value_type"
+        ],
+        "properties": {
+          "enum_values": {},
+          "name": {
+            "type": "string"
+          },
+          "required_for_share_modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "string"
+          },
+          "value_type": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "enum_values": {},
+          "name": {},
+          "required_for_share_modes": [],
+          "scope": {},
+          "value_type": {}
+        }
+      },
+      "CreateAttributeDefinitionResponse": {
+        "type": "object",
+        "required": [
+          "attribute"
+        ],
+        "properties": {
+          "attribute": {
+            "$ref": "#/components/schemas/AttributeDefinitionDto"
+          }
+        },
+        "example": {
+          "attribute": {}
+        }
+      },
+      "CreateBreakGlassRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "principal_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "principal_kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional principal override (defaults to caller)."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "scope_doc_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "ttl_minutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "TTL minutes (default 15; max 60 — LAW-146-25).",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "principal_id": {},
+          "principal_kind": {},
+          "reason": {},
+          "scope_doc_ids": [],
+          "ttl_minutes": {}
+        }
+      },
+      "CreateBreakGlassResponse": {
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/BreakGlassSessionDto"
+          }
+        },
+        "example": {
+          "session": {}
+        }
+      },
       "CreateConversationApiRequest": {
         "type": "object",
         "description": "Create conversation request DTO.",
@@ -13176,6 +14665,34 @@
           "content": "What is EdgeQuake?"
         }
       },
+      "CreatePolicyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "name": {}
+        }
+      },
+      "CreatePolicyResponse": {
+        "type": "object",
+        "required": [
+          "policy"
+        ],
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/PolicyDto"
+          }
+        },
+        "example": {
+          "policy": {}
+        }
+      },
       "CreateRelationshipRequest": {
         "type": "object",
         "description": "Create relationship request.",
@@ -13249,6 +14766,84 @@
           "message": {},
           "relationship": {},
           "status": {}
+        }
+      },
+      "CreateRoleBindingRequest": {
+        "type": "object",
+        "required": [
+          "principal_kind",
+          "principal_id",
+          "role_id"
+        ],
+        "properties": {
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "principal_id": {},
+          "principal_kind": {},
+          "role_id": {}
+        }
+      },
+      "CreateRoleBindingResponse": {
+        "type": "object",
+        "required": [
+          "binding"
+        ],
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/RoleBindingDto"
+          }
+        },
+        "example": {
+          "binding": {}
+        }
+      },
+      "CreateRoleRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "is_builtin": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "example": {
+          "is_builtin": {},
+          "name": {},
+          "permissions": []
+        }
+      },
+      "CreateRoleResponse": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRoleDto"
+          }
+        },
+        "example": {
+          "role": {}
         }
       },
       "CreateTenantRequest": {
@@ -14082,6 +15677,55 @@
           "version": {}
         }
       },
+      "DocumentAclEntryDto": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "principal_kind",
+          "principal_id",
+          "permission",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "granted_by_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "granted_by_kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permission": {
+            "type": "string"
+          },
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "created_at": {},
+          "document_id": {},
+          "granted_by_id": {},
+          "granted_by_kind": {},
+          "permission": {},
+          "principal_id": {},
+          "principal_kind": {}
+        }
+      },
       "DocumentCostInfo": {
         "type": "object",
         "description": "Cost information for a processed document.",
@@ -14790,6 +16434,13 @@
             "description": "Number of chunks.",
             "minimum": 0
           },
+          "classification": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Classification (public|internal|confidential|secret)."
+          },
           "content_length": {
             "type": [
               "integer",
@@ -14874,6 +16525,13 @@
             "description": "Estimated seconds until claim (measured drain; clamped when unknown).",
             "minimum": 0
           },
+          "export_control": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Export-control flag (list/detail DTO — LAW-146-8)."
+          },
           "file_name": {
             "type": [
               "string",
@@ -14908,6 +16566,13 @@
             "description": "Output tokens used for processing.",
             "minimum": 0
           },
+          "owner_principal_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Owner principal user id (SPEC-146)."
+          },
           "pdf_id": {
             "type": [
               "string",
@@ -14915,6 +16580,13 @@
             ],
             "description": "Linked PDF document ID (only set if source_type is \"pdf\").\nUsed to fetch PDF content for viewing.\n@implements SPEC-002",
             "example": "8866e3c3-bbd6-4384-b86f-215c9844914d"
+          },
+          "pii": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "PII flag (list/detail DTO — LAW-146-8)."
           },
           "progress_counts": {
             "oneOf": [
@@ -14926,6 +16598,13 @@
                 "description": "Structured stage counts (LAW-IS1 / SPEC-091). Prefer over parsing stage_message."
               }
             ]
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional project id (list/detail DTO — LAW-146-8)."
           },
           "query_ready": {
             "type": [
@@ -14942,6 +16621,20 @@
             "format": "int64",
             "description": "SPEC-091 IS2 / LAW-IS4: 1-based FCFS queue position for pending admission.",
             "minimum": 0
+          },
+          "security_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Security status (ok|quarantined)."
+          },
+          "share_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Share mode (workspace|acl|classified|owner_only)."
           },
           "source_type": {
             "type": [
@@ -15023,6 +16716,7 @@
         "example": {
           "cancelled_from_stage": {},
           "chunk_count": {},
+          "classification": {},
           "content_length": {},
           "content_summary": {},
           "cost_usd": {},
@@ -15034,15 +16728,21 @@
           "error_message": {},
           "eta_basis": {},
           "eta_seconds": {},
+          "export_control": {},
           "file_name": {},
           "id": {},
           "input_tokens": {},
           "llm_model": {},
           "output_tokens": {},
+          "owner_principal_id": {},
           "pdf_id": {},
+          "pii": {},
           "progress_counts": {},
+          "project_id": {},
           "query_ready": {},
           "queue_position": {},
+          "security_status": {},
+          "share_mode": {},
           "source_type": {},
           "stage_message": {},
           "stage_progress": {},
@@ -16541,6 +18241,51 @@
         "example": {
           "entities": {},
           "relationship": {}
+        }
+      },
+      "GrantDocumentAclRequest": {
+        "type": "object",
+        "required": [
+          "principal_kind",
+          "principal_id",
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "permission": {},
+          "principal_id": {},
+          "principal_kind": {}
+        }
+      },
+      "GrantDocumentAclResponse": {
+        "type": "object",
+        "required": [
+          "entry",
+          "policy_generation"
+        ],
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/DocumentAclEntryDto"
+          },
+          "policy_generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "entry": {},
+          "policy_generation": {}
         }
       },
       "GraphEdgeResponse": {
@@ -18286,6 +20031,40 @@
           "total_pages": {}
         }
       },
+      "ListAttributeDefinitionsResponse": {
+        "type": "object",
+        "required": [
+          "attributes"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttributeDefinitionDto"
+            }
+          }
+        },
+        "example": {
+          "attributes": []
+        }
+      },
+      "ListBreakGlassResponse": {
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreakGlassSessionDto"
+            }
+          }
+        },
+        "example": {
+          "sessions": []
+        }
+      },
       "ListConversationsParams": {
         "type": "object",
         "description": "Pagination and filter parameters for listing conversations.",
@@ -18365,6 +20144,23 @@
           "limit": {},
           "order": {},
           "sort": {}
+        }
+      },
+      "ListDocumentAclResponse": {
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentAclEntryDto"
+            }
+          }
+        },
+        "example": {
+          "entries": []
         }
       },
       "ListDocumentsResponse": {
@@ -18654,6 +20450,57 @@
           "pagination": {}
         }
       },
+      "ListPoliciesResponse": {
+        "type": "object",
+        "required": [
+          "policies"
+        ],
+        "properties": {
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyDto"
+            }
+          }
+        },
+        "example": {
+          "policies": []
+        }
+      },
+      "ListPolicyVersionsResponse": {
+        "type": "object",
+        "required": [
+          "versions"
+        ],
+        "properties": {
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyVersionDto"
+            }
+          }
+        },
+        "example": {
+          "versions": []
+        }
+      },
+      "ListPrincipalAttributesResponse": {
+        "type": "object",
+        "required": [
+          "attributes"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrincipalAttributeDto"
+            }
+          }
+        },
+        "example": {
+          "attributes": []
+        }
+      },
       "ListRelationshipsQuery": {
         "type": "object",
         "description": "List relationships query parameters.",
@@ -18732,6 +20579,40 @@
           "page_size": {},
           "total": {},
           "total_pages": {}
+        }
+      },
+      "ListRoleBindingsResponse": {
+        "type": "object",
+        "required": [
+          "bindings"
+        ],
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleBindingDto"
+            }
+          }
+        },
+        "example": {
+          "bindings": []
+        }
+      },
+      "ListRolesResponse": {
+        "type": "object",
+        "required": [
+          "roles"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceRoleDto"
+            }
+          }
+        },
+        "example": {
+          "roles": []
         }
       },
       "ListTasksQuery": {
@@ -21893,6 +23774,113 @@
           "warnings": []
         }
       },
+      "PatchDocumentSecurityLabelsRequest": {
+        "type": "object",
+        "properties": {
+          "acl_principal_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "classification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "export_control": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "pii": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "security_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "share_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "acl_principal_ids": [],
+          "classification": {},
+          "export_control": {},
+          "pii": {},
+          "project_id": {},
+          "security_status": {},
+          "share_mode": {}
+        }
+      },
+      "PatchDocumentSecurityLabelsResponse": {
+        "type": "object",
+        "required": [
+          "classification",
+          "share_mode",
+          "security_status",
+          "export_control",
+          "pii",
+          "policy_generation"
+        ],
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "export_control": {
+            "type": "boolean"
+          },
+          "pii": {
+            "type": "boolean"
+          },
+          "policy_generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "security_status": {
+            "type": "string"
+          },
+          "share_mode": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "classification": {},
+          "export_control": {},
+          "pii": {},
+          "policy_generation": {},
+          "project_id": {},
+          "security_status": {},
+          "share_mode": {}
+        }
+      },
       "PdfBatchFileResult": {
         "type": "object",
         "description": "Result for a single file in batch PDF upload.",
@@ -22841,6 +24829,79 @@
         ],
         "example": {}
       },
+      "PolicyDto": {
+        "type": "object",
+        "required": [
+          "policy_id",
+          "workspace_id",
+          "name",
+          "active_version"
+        ],
+        "properties": {
+          "active_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "policy_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "active_version": {},
+          "name": {},
+          "policy_id": {},
+          "workspace_id": {}
+        }
+      },
+      "PolicyVersionDto": {
+        "type": "object",
+        "required": [
+          "policy_id",
+          "version",
+          "cedar_text",
+          "cedar_hash",
+          "schema_hash",
+          "created_at"
+        ],
+        "properties": {
+          "cedar_hash": {
+            "type": "string"
+          },
+          "cedar_text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "policy_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schema_hash": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "example": {
+          "cedar_hash": {},
+          "cedar_text": {},
+          "created_at": {},
+          "policy_id": {},
+          "schema_hash": {},
+          "version": {}
+        }
+      },
       "PoolRoleHealth": {
         "type": "object",
         "description": "SPEC-112 LAW-112-8: one role pool's configured max and live occupancy.",
@@ -23019,6 +25080,49 @@
           "pgvector_version": {},
           "postgres_major": {},
           "uuidv7_available": {}
+        }
+      },
+      "PrincipalAttributeDto": {
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "principal_kind",
+          "principal_id",
+          "name",
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "value": {},
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "name": {},
+          "principal_id": {},
+          "principal_kind": {},
+          "source": {},
+          "updated_at": {},
+          "value": {},
+          "workspace_id": {}
         }
       },
       "ProviderAttributionInfo": {
@@ -23286,6 +25390,41 @@
         "example": {
           "embedding": {},
           "llm": {}
+        }
+      },
+      "PublishPolicyVersionRequest": {
+        "type": "object",
+        "required": [
+          "cedar_text"
+        ],
+        "properties": {
+          "cedar_text": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "cedar_text": {}
+        }
+      },
+      "PublishPolicyVersionResponse": {
+        "type": "object",
+        "required": [
+          "version",
+          "policy_generation"
+        ],
+        "properties": {
+          "policy_generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "version": {
+            "$ref": "#/components/schemas/PolicyVersionDto"
+          }
+        },
+        "example": {
+          "policy_generation": {},
+          "version": {}
         }
       },
       "PutInjectionRequest": {
@@ -25851,6 +27990,103 @@
         "example": {
           "key_id": {},
           "message": {}
+        }
+      },
+      "RevokeBreakGlassResponse": {
+        "type": "object",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "revoked": {}
+        }
+      },
+      "RevokeDocumentAclRequest": {
+        "type": "object",
+        "required": [
+          "principal_kind",
+          "principal_id",
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "permission": {},
+          "principal_id": {},
+          "principal_kind": {}
+        }
+      },
+      "RevokeDocumentAclResponse": {
+        "type": "object",
+        "required": [
+          "revoked",
+          "policy_generation"
+        ],
+        "properties": {
+          "policy_generation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "policy_generation": {},
+          "revoked": {}
+        }
+      },
+      "RoleBindingDto": {
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "principal_kind",
+          "principal_id",
+          "role_id"
+        ],
+        "properties": {
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "principal_id": {},
+          "principal_kind": {},
+          "role_id": {},
+          "role_name": {},
+          "workspace_id": {}
         }
       },
       "SavedLlmDefaults": {
@@ -29217,6 +31453,51 @@
           "message": "Document accepted for ingestion"
         }
       },
+      "UpsertPrincipalAttributeRequest": {
+        "type": "object",
+        "required": [
+          "principal_kind",
+          "principal_id",
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "principal_id": {
+            "type": "string"
+          },
+          "principal_kind": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "example": {
+          "name": {},
+          "principal_id": {},
+          "principal_kind": {},
+          "source": {},
+          "value": {}
+        }
+      },
+      "UpsertPrincipalAttributeResponse": {
+        "type": "object",
+        "required": [
+          "attribute"
+        ],
+        "properties": {
+          "attribute": {
+            "$ref": "#/components/schemas/PrincipalAttributeDto"
+          }
+        },
+        "example": {
+          "attribute": {}
+        }
+      },
       "UserInfo": {
         "type": "object",
         "description": "User information (safe for API responses).",
@@ -29792,6 +32073,45 @@
           "tenant_id": "00000000-0000-0000-0000-000000000001"
         }
       },
+      "WorkspaceRoleDto": {
+        "type": "object",
+        "required": [
+          "role_id",
+          "workspace_id",
+          "name",
+          "is_builtin",
+          "permissions"
+        ],
+        "properties": {
+          "is_builtin": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "is_builtin": {},
+          "name": {},
+          "permissions": [],
+          "role_id": {},
+          "workspace_id": {}
+        }
+      },
       "WorkspaceStatsResponse": {
         "type": "object",
         "description": "Workspace statistics response.\n\nWHY embedding_count: Mission requirement to track embeddings per workspace.\nWHY entity_type_count: Dashboard EntityTypes KPI was very slow because the\nfrontend fetched ALL graph nodes just to count unique types. This field\ndelivers the count from a single Cypher aggregate query (<1ms vs 2-5s).",
@@ -29977,6 +32297,10 @@
     {
       "name": "Workspaces",
       "description": "Workspace management within tenants"
+    },
+    {
+      "name": "Authz",
+      "description": "SPEC-146 document ABAC PAP (roles, members, attrs, policies, ACL, break-glass)"
     },
     {
       "name": "Lineage",

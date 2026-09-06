@@ -743,6 +743,19 @@ fn spec027_relationship_handlers_use_storage_runtime_isp() {
         "src/handlers/lineage/chunk_detail.rs",
         "src/handlers/lineage/queries.rs",
         "src/handlers/lineage/export.rs",
+    ] {
+        let src = read_crate_src(path);
+        assert!(
+            src.contains("State<StorageRuntime>"),
+            "{path} must use StorageRuntime ISP extractor (API-SOLID-I-001)"
+        );
+        assert!(
+            !src.contains("State<AppState>"),
+            "{path} must not take full AppState when storage-only"
+        );
+    }
+    // SPEC-146 PEP: these keep StorageRuntime ISP *and* AppState for allow-set.
+    for path in [
         "src/handlers/graph/graph_query/node.rs",
         "src/handlers/documents/query/track_status.rs",
         "src/handlers/documents/query/list.rs",
@@ -753,8 +766,15 @@ fn spec027_relationship_handlers_use_storage_runtime_isp() {
             "{path} must use StorageRuntime ISP extractor (API-SOLID-I-001)"
         );
         assert!(
-            !src.contains("State<AppState>"),
-            "{path} must not take full AppState when storage-only"
+            src.contains("State<AppState>"),
+            "{path} needs AppState for SPEC-146 allow-set PEP"
+        );
+        assert!(
+            src.contains("resolve_allow_set")
+                || src.contains("resolve_optional_allow_ids")
+                || src.contains("filter_summaries_by_allow_set")
+                || src.contains("filter_metadata_entries_by_allow_set"),
+            "{path} must call SPEC-146 allow-set PEP helpers"
         );
     }
     for path in [
@@ -788,8 +808,13 @@ fn spec027_relationship_handlers_use_storage_runtime_isp() {
         "get_degrees_batch must use StorageRuntime ISP"
     );
     assert!(
-        !batch_fn.contains("State<AppState>"),
-        "get_degrees_batch must not take full AppState"
+        batch_fn.contains("State<AppState>"),
+        "get_degrees_batch needs AppState for SPEC-146 allow-set PEP"
+    );
+    assert!(
+        batch_fn.contains("authorized_degrees_batch")
+            || batch_fn.contains("resolve_optional_allow_ids"),
+        "get_degrees_batch must provenance-gate degrees (LAW-146-11)"
     );
     let list = read_crate_src("src/handlers/relationships/list.rs");
     assert!(
@@ -829,7 +854,16 @@ fn spec027_list_documents_isp() {
     assert!(list_fn.contains("State<StorageRuntime>"));
     assert!(list_fn.contains("State<PostgresRuntime>"));
     assert!(list_fn.contains("State<ResourceBudgetConfig>"));
-    assert!(!list_fn.contains("State<AppState>"));
+    assert!(
+        list_fn.contains("State<AppState>"),
+        "list_documents needs AppState for SPEC-146 allow-set PEP"
+    );
+    assert!(
+        list_fn.contains("resolve_allow_set")
+            || list_fn.contains("filter_summaries_by_allow_set")
+            || list_fn.contains("filter_metadata_entries_by_allow_set"),
+        "list_documents must call SPEC-146 allow-set PEP helpers"
+    );
 }
 
 #[test]
@@ -841,7 +875,14 @@ fn spec027_get_document_isp() {
         .expect("get_document");
     assert!(get_fn.contains("State<StorageRuntime>"));
     assert!(get_fn.contains("State<PostgresRuntime>"));
-    assert!(!get_fn.contains("State<AppState>"));
+    assert!(
+        get_fn.contains("State<AppState>"),
+        "get_document needs AppState for SPEC-146 allow-set PEP"
+    );
+    assert!(
+        get_fn.contains("resolve_allow_set") || get_fn.contains("existence_hiding_not_found"),
+        "get_document must call SPEC-146 allow-set / existence-hiding PEP"
+    );
 }
 
 #[test]

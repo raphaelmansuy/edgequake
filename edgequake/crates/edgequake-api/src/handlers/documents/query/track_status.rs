@@ -3,12 +3,17 @@
 use axum::{extract::State, Json};
 
 use crate::error::ApiResult;
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::middleware::TenantContext;
 use crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress;
+use crate::services::spec146_authz::{
+    audit_capability_deny, filter_summaries_by_allow_set, load_policy_generation,
+    resolve_allow_set, stamp_authz_context,
+};
 use crate::services::tenant_guard::{
     empty_track_status, has_full_tenant_context, warn_missing_tenant_context,
 };
-use crate::state::{StorageRuntime, TaskRuntime};
+use crate::state::{AppState, StorageRuntime, TaskRuntime};
 
 use crate::handlers::documents_types::*;
 
@@ -28,14 +33,46 @@ use crate::handlers::documents_types::*;
     )
 )]
 pub async fn get_track_status(
+    State(state): State<AppState>,
     State(storage): State<StorageRuntime>,
     State(tasks): State<TaskRuntime>,
     tenant_ctx: TenantContext,
+    auth: ApiOptionalAuth,
     axum::extract::Path(track_id): axum::extract::Path<String>,
 ) -> ApiResult<Json<TrackStatusResponse>> {
     if !has_full_tenant_context(&tenant_ctx) {
         warn_missing_tenant_context(&tenant_ctx, "get_track_status");
         return Ok(Json(empty_track_status(track_id)));
+    }
+
+    // SPEC-146: allow-set PEP — same existence-hiding as list (titles are secrets).
+    let mut allow_set = None;
+    if state.security.doc_abac {
+        let auth_ctx = auth.context().ok_or_else(|| {
+            audit_capability_deny(
+                &state,
+                &tenant_ctx,
+                tenant_ctx.user_id.as_deref(),
+                "document.list_meta",
+                "document",
+            );
+            crate::error::ApiError::unauthorized()
+        })?;
+        let ws = tenant_ctx
+            .workspace_id_uuid()
+            .ok_or_else(|| crate::error::ApiError::BadRequest("workspace required".into()))?;
+        let policy_generation =
+            load_policy_generation(state.allow_set_provider.as_ref(), ws).await?;
+        let ctx = stamp_authz_context(
+            &state,
+            &tenant_ctx,
+            Some(auth_ctx.user_id.as_str()),
+            policy_generation,
+        )
+        .await?
+        .expect("doc_abac on ⇒ AuthzContext");
+        let allow = resolve_allow_set(state.allow_set_provider.as_ref(), &ctx).await?;
+        allow_set = Some(allow);
     }
 
     // SPEC-027 + SPEC-086: include staging in-flight docs (same SSOT as progress).
@@ -163,9 +200,39 @@ pub async fn get_track_status(
                         .get("cancelled_from_stage")
                         .and_then(|v| v.as_str())
                         .map(String::from),
+                    classification: obj
+                        .get("classification")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    share_mode: obj
+                        .get("share_mode")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    security_status: obj
+                        .get("security_status")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    owner_principal_id: obj
+                        .get("owner_principal_id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    export_control: obj.get("export_control").and_then(|v| v.as_bool()),
+                    pii: obj.get("pii").and_then(|v| v.as_bool()),
+                    project_id: obj
+                        .get("project_id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                 });
             }
         }
+    }
+
+    if let Some(ref allow) = allow_set {
+        track_docs = filter_summaries_by_allow_set(track_docs, allow, |d| d.id.as_str());
+        created_times = track_docs
+            .iter()
+            .filter_map(|d| d.created_at.clone())
+            .collect();
     }
 
     // SPEC-057 P4: project display_status / ui_phase SSOT for track payloads.
@@ -183,7 +250,6 @@ pub async fn get_track_status(
     )
     .await;
 
-    // Calculate status summary (handle empty track gracefully - documents may still be processing)
     let status_summary = StatusCounts {
         pending: track_docs
             .iter()
@@ -193,14 +259,12 @@ pub async fn get_track_status(
             .iter()
             .filter(|d| d.status.as_deref() == Some("processing"))
             .count(),
-        // SPEC-021 P-B2: only count explicit completed/indexed, NOT NULL.
         completed: track_docs
             .iter()
             .filter(|d| {
                 d.status.as_deref() == Some("completed") || d.status.as_deref() == Some("indexed")
             })
             .count(),
-        // FIX-5: Track partial_failure status
         partial_failure: track_docs
             .iter()
             .filter(|d| d.status.as_deref() == Some("partial_failure"))
@@ -233,12 +297,10 @@ pub async fn get_track_status(
             .count(),
     };
 
-    // Find earliest created_at
     created_times.sort();
     let created_at = created_times.first().cloned();
 
     let registered_count = track_docs.len();
-    // SPEC-084 / GH-318: expected batch size from KV meta (client-declared).
     let expected_count = storage
         .kv_storage
         .get_by_id(&format!("track_expected:{track_id}"))
@@ -254,7 +316,6 @@ pub async fn get_track_status(
         .unwrap_or(true);
     let is_complete = no_active && registered_enough;
 
-    // Build latest message
     let denom = expected_count.unwrap_or(registered_count).max(1);
     let latest_message = if !is_complete {
         Some(format!(

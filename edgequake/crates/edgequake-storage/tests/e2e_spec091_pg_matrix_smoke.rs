@@ -62,7 +62,8 @@ async fn e2e_spec091_pg_matrix_smoke_typed_crud() {
             workspace_id: Some(WorkspaceId(ws)),
             embedding: row.embedding.clone(),
             limit: 1,
-        })
+                    allowed_document_ids: None,
+})
         .await
         .expect("typed search");
     assert_eq!(hits.len(), 1);

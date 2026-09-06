@@ -30,6 +30,10 @@ pub enum Permission {
     DocumentCreate,
     DocumentUpdate,
     DocumentDelete,
+    /// Change classification / ACL / share_mode (SPEC-146).
+    DocumentSetLabels,
+    /// List authorized titles only (SPEC-146).
+    DocumentListMeta,
 
     // Entity permissions
     EntityRead,
@@ -43,9 +47,20 @@ pub enum Permission {
     RelationshipUpdate,
     RelationshipDelete,
 
+    // Chunk / graph (SPEC-146)
+    ChunkRead,
+    GraphRead,
+
     // Query permissions
     QueryExecute,
     QueryAdvanced,
+
+    /// PAP: create/validate/publish Cedar policies (SPEC-146).
+    PolicyManage,
+    /// MCP tool invoke (SPEC-146).
+    McpInvoke,
+    /// Break-glass session (SPEC-146).
+    BreakGlass,
 
     // Workspace permissions
     WorkspaceRead,
@@ -84,6 +99,8 @@ impl Permission {
             Self::DocumentCreate => "document:create",
             Self::DocumentUpdate => "document:update",
             Self::DocumentDelete => "document:delete",
+            Self::DocumentSetLabels => "document:set_labels",
+            Self::DocumentListMeta => "document:list_meta",
 
             Self::EntityRead => "entity:read",
             Self::EntityCreate => "entity:create",
@@ -95,8 +112,14 @@ impl Permission {
             Self::RelationshipUpdate => "relationship:update",
             Self::RelationshipDelete => "relationship:delete",
 
+            Self::ChunkRead => "chunk:read",
+            Self::GraphRead => "graph:read",
+
             Self::QueryExecute => "query:execute",
             Self::QueryAdvanced => "query:advanced",
+            Self::PolicyManage => "policy:manage",
+            Self::McpInvoke => "mcp:invoke",
+            Self::BreakGlass => "system:break_glass",
 
             Self::WorkspaceRead => "workspace:read",
             Self::WorkspaceCreate => "workspace:create",
@@ -138,6 +161,8 @@ impl FromStr for Permission {
             "document:create" => Ok(Self::DocumentCreate),
             "document:update" => Ok(Self::DocumentUpdate),
             "document:delete" => Ok(Self::DocumentDelete),
+            "document:set_labels" => Ok(Self::DocumentSetLabels),
+            "document:list_meta" => Ok(Self::DocumentListMeta),
 
             "entity:read" => Ok(Self::EntityRead),
             "entity:create" => Ok(Self::EntityCreate),
@@ -149,8 +174,14 @@ impl FromStr for Permission {
             "relationship:update" => Ok(Self::RelationshipUpdate),
             "relationship:delete" => Ok(Self::RelationshipDelete),
 
+            "chunk:read" => Ok(Self::ChunkRead),
+            "graph:read" => Ok(Self::GraphRead),
+
             "query:execute" => Ok(Self::QueryExecute),
             "query:advanced" => Ok(Self::QueryAdvanced),
+            "policy:manage" => Ok(Self::PolicyManage),
+            "mcp:invoke" => Ok(Self::McpInvoke),
+            "system:break_glass" => Ok(Self::BreakGlass),
 
             "workspace:read" => Ok(Self::WorkspaceRead),
             "workspace:create" => Ok(Self::WorkspaceCreate),
@@ -200,6 +231,8 @@ impl RbacService {
                     Permission::DocumentCreate,
                     Permission::DocumentUpdate,
                     Permission::DocumentDelete,
+                    Permission::DocumentSetLabels,
+                    Permission::DocumentListMeta,
                     Permission::EntityRead,
                     Permission::EntityCreate,
                     Permission::EntityUpdate,
@@ -208,8 +241,13 @@ impl RbacService {
                     Permission::RelationshipCreate,
                     Permission::RelationshipUpdate,
                     Permission::RelationshipDelete,
+                    Permission::ChunkRead,
+                    Permission::GraphRead,
                     Permission::QueryExecute,
                     Permission::QueryAdvanced,
+                    Permission::PolicyManage,
+                    Permission::McpInvoke,
+                    Permission::BreakGlass,
                     Permission::WorkspaceRead,
                     Permission::WorkspaceCreate,
                     Permission::WorkspaceUpdate,
@@ -237,6 +275,8 @@ impl RbacService {
                     Permission::DocumentCreate,
                     Permission::DocumentUpdate,
                     Permission::DocumentDelete,
+                    Permission::DocumentSetLabels,
+                    Permission::DocumentListMeta,
                     Permission::EntityRead,
                     Permission::EntityCreate,
                     Permission::EntityUpdate,
@@ -245,8 +285,11 @@ impl RbacService {
                     Permission::RelationshipCreate,
                     Permission::RelationshipUpdate,
                     Permission::RelationshipDelete,
+                    Permission::ChunkRead,
+                    Permission::GraphRead,
                     Permission::QueryExecute,
                     Permission::QueryAdvanced,
+                    Permission::McpInvoke,
                     Permission::WorkspaceRead,
                     Permission::ApiKeyRead,
                     Permission::ApiKeyCreate,
@@ -260,9 +303,13 @@ impl RbacService {
                 // Readonly: only read operations
                 vec![
                     Permission::DocumentRead,
+                    Permission::DocumentListMeta,
                     Permission::EntityRead,
                     Permission::RelationshipRead,
+                    Permission::ChunkRead,
+                    Permission::GraphRead,
                     Permission::QueryExecute,
+                    Permission::McpInvoke,
                     Permission::WorkspaceRead,
                     Permission::ApiKeyRead,
                     Permission::TaskRead,

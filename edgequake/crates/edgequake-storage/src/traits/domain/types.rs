@@ -100,6 +100,11 @@ pub struct VectorQuery {
     pub workspace_id: Option<WorkspaceId>,
     pub embedding: Vec<f32>,
     pub limit: u32,
+    /// SPEC-146: document allow-set for ANN pre-filter.
+    /// `None` = no document scope (flag off / unscoped).
+    /// `Some([])` = fail-closed empty (ABAC on, no authorized docs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowed_document_ids: Option<Vec<uuid::Uuid>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

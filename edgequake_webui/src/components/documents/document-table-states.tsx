@@ -12,6 +12,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ZERO_AUTHZ_ANSWER } from '@/lib/query/query-empty-copy';
 import { FileText, Search, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -75,13 +76,17 @@ function LoadingSkeleton({ rowCount = 8 }: { rowCount?: number }) {
  * Empty state shown when a filter/search is active but yields no results.
  * WHY: Distinguishes "no documents in workspace" from "filter hides all docs".
  */
-function FilteredEmptyState({ onClearFilter }: { onClearFilter?: () => void }) {
+/** Existence-hiding empty browse — same SSOT copy as query ZERO_AUTHZ. */
+function ExistenceEmptyState({ onClearFilter }: { onClearFilter?: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="text-center py-16 text-muted-foreground border rounded-lg bg-muted/5">
+    <div
+      className="text-center py-16 text-muted-foreground border rounded-lg bg-muted/5"
+      data-testid="spec146-existence-empty"
+    >
       <Search className="h-12 w-12 mx-auto mb-4 opacity-40" />
       <p className="font-medium text-lg text-foreground">
-        {t('documents.noFilterResults', 'No matching documents')}
+        {t('documents.noFilterResults', ZERO_AUTHZ_ANSWER)}
       </p>
       <p className="text-sm mt-2 max-w-sm mx-auto">
         {t(
@@ -115,9 +120,14 @@ function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
           'Upload documents to build your knowledge graph',
         )}
       </p>
-      <Button variant="outline" className="mt-4" onClick={onUploadClick}>
+      <Button
+        variant="outline"
+        className="mt-4"
+        onClick={onUploadClick}
+        data-testid="documents-browse-files"
+      >
         <Upload className="h-4 w-4 mr-2" />
-        {t('documents.uploadDocuments', 'Upload Documents')}
+        {t('documents.browseFiles', 'Browse files')}
       </Button>
     </div>
   );
@@ -174,7 +184,7 @@ export function DocumentTableStates({
     // WHY: Only show filter-empty state when a filter/search is actively hiding results.
     const hasActiveFilter = (statusFilter && statusFilter !== 'all') || !!searchQuery;
     if (hasActiveFilter) {
-      return <FilteredEmptyState onClearFilter={onClearFilter} />;
+      return <ExistenceEmptyState onClearFilter={onClearFilter} />;
     }
     if (isBusyUpdating) {
       return <BusyUpdatingState />;

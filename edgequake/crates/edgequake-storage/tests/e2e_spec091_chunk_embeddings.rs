@@ -82,7 +82,8 @@ async fn e2e_spec091_chunk_embeddings_upsert_search_delete() {
         workspace_id: Some(WorkspaceId(ws)),
         embedding: w3::make_embedding(dim, 11),
         limit: 1,
-    };
+                allowed_document_ids: None,
+};
     let hits = index.search(&query).await.expect("search");
     assert_eq!(hits.len(), 1);
     assert_eq!(
@@ -97,7 +98,8 @@ async fn e2e_spec091_chunk_embeddings_upsert_search_delete() {
         workspace_id: Some(WorkspaceId(other_ws)),
         embedding: w3::make_embedding(dim, 11),
         limit: 10,
-    };
+                allowed_document_ids: None,
+};
     let none = index.search(&other).await.expect("other ws search");
     assert!(none.is_empty(), "workspace filter isolates rows");
 
@@ -168,7 +170,8 @@ async fn e2e_spec091_typed_dim_1024_upsert_search() {
         workspace_id: Some(WorkspaceId(ws)),
         embedding: w3::make_embedding(dim, 21),
         limit: 1,
-    };
+                allowed_document_ids: None,
+};
     let hits = index.search(&query).await.expect("1024 search");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].chunk_id.0, chunk_ids[1]);

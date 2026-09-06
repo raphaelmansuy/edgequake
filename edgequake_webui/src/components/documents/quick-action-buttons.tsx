@@ -16,6 +16,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { needsReuploadNotReprocess } from '@/lib/pipeline/pipeline-document-state';
+import { useCanSetLabels } from '@/hooks/use-can-set-labels';
 import type { Document } from '@/types';
 import { ExternalLink, Eye, RefreshCw, Sparkles } from 'lucide-react';
 import * as React from 'react';
@@ -52,6 +53,8 @@ export interface QuickActionButtonsProps {
   onViewInGraph: (doc: Document) => void;
   /** Handler for "Retry" click - reprocesses failed document */
   onRetry: (id: string) => void;
+  /** SPEC-146: retry quarantined labels via PATCH security-labels */
+  onRetryLabels?: (doc: Document) => void;
   /** Whether retry operation is in progress */
   isRetrying: boolean;
   /** Additional action elements (e.g., DocumentActionsMenu) */
@@ -66,9 +69,10 @@ interface ActionButtonProps {
   label: string;
   onClick: () => void;
   className?: string;
+  testId?: string;
 }
 
-function ActionButton({ icon, label, onClick, className }: ActionButtonProps) {
+function ActionButton({ icon, label, onClick, className, testId }: ActionButtonProps) {
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip delayDuration={300}>
@@ -79,6 +83,7 @@ function ActionButton({ icon, label, onClick, className }: ActionButtonProps) {
             className={`h-8 w-8 ${className || ''}`}
             onClick={onClick}
             aria-label={label}
+            data-testid={testId}
           >
             {icon}
           </Button>
@@ -104,34 +109,52 @@ export function QuickActionButtons({
   onPreview,
   onViewInGraph,
   onRetry,
+  onRetryLabels,
   isRetrying,
   children,
 }: QuickActionButtonsProps) {
+  const canSetLabels = useCanSetLabels();
   const status = doc.status ?? '';
   const canViewInGraph = canExploreGraph(doc);
   // Orphan staging shells need dismiss + re-upload, not Retry/reprocess.
   const canRetry =
     RETRYABLE_STATUSES.includes(status) && !needsReuploadNotReprocess(doc);
+  const canRetryLabels =
+    doc.security_status === 'quarantined' &&
+    Boolean(onRetryLabels) &&
+    canSetLabels;
 
   return (
     <div className="flex items-center gap-1 justify-end">
-      {/* Action buttons — visible only on row hover for a cleaner table (F-DOC-06) */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150">
-        {/* View Details - navigates to document detail page */}
+      {/* Retry labels stays keyboard-visible when quarantined (not hover-only). */}
+      {canRetryLabels ? (
+        <ActionButton
+          icon={
+            <RefreshCw
+              className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`}
+            />
+          }
+          label="Retry labels"
+          onClick={() => onRetryLabels?.(doc)}
+          className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+          testId="spec146-retry-labels"
+        />
+      ) : null}
+
+      {/* Other actions — visible on row hover for a cleaner table (F-DOC-06) */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
         <ActionButton
           icon={<ExternalLink className="h-4 w-4" />}
           label="View Details"
           onClick={() => onViewDetails(doc)}
         />
 
-        {/* Preview - opens side panel */}
         <ActionButton
           icon={<Eye className="h-4 w-4" />}
           label="Preview"
           onClick={() => onPreview(doc)}
         />
 
-        {/* Open graph — only when extract done and serving fence allows */}
         {canViewInGraph && (
           <ActionButton
             icon={<Sparkles className="h-4 w-4" />}
@@ -140,22 +163,20 @@ export function QuickActionButtons({
           />
         )}
 
-        {/* Retry - only for failed documents */}
         {canRetry && (
-        <ActionButton
-          icon={
-            <RefreshCw
-              className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`}
-            />
-          }
-          label="Retry"
-          onClick={() => onRetry(doc.id)}
-          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-        />
-      )}
-      </div>{/* end hover-reveal group */}
+          <ActionButton
+            icon={
+              <RefreshCw
+                className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`}
+              />
+            }
+            label="Retry"
+            onClick={() => onRetry(doc.id)}
+            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+          />
+        )}
+      </div>
 
-      {/* Additional actions (e.g., dropdown menu) — always visible */}
       {children}
     </div>
   );

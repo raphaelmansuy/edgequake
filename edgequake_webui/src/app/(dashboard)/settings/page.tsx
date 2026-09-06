@@ -8,6 +8,7 @@ import { PdfParserSettingsCard } from '@/components/settings/pdf-parser-settings
 import { ProviderStatusCard } from '@/components/settings/provider-status-card';
 import { LangfuseObservabilityCard } from '@/components/settings/langfuse-observability-card';
 import { UserManagementCard } from '@/components/settings/user-management-card';
+import { AuthzSettingsSection } from '@/components/settings/authz-settings-section';
 import { VisionLLMSettingsCard } from '@/components/settings/vision-llm-settings-card';
 import {
     AlertDialog,
@@ -153,6 +154,10 @@ export default function SettingsPage() {
             {t('settings.subtitle', 'Customize your EdgeQuake experience')}
           </p>
         </header>
+
+        {/* SPEC-146: ABAC PAP near top (visible without deep scroll) */}
+        <UserManagementCard />
+        <AuthzSettingsSection />
 
       {/* Appearance */}
       <Card>
@@ -637,8 +642,6 @@ export default function SettingsPage() {
       {/* Admin section — only fetches and renders for admin users (SPEC-0001) */}
       <div className="p-page md:px-8 max-w-4xl mx-auto space-y-page pt-0">
         <AdminQuotaSection />
-        {/* User management — Issue #205: admin-only user CRUD */}
-        <UserManagementCard />
       </div>
     </ScrollArea>
   );

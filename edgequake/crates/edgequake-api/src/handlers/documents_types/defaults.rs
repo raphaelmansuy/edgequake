@@ -53,9 +53,9 @@ pub fn default_max_reprocess() -> usize {
     100
 }
 
-/// Default: 10 minutes before considering a document stuck.
+/// Default: 15 minutes before considering a document stuck (aligned with INV-07).
 pub fn default_stuck_threshold_minutes() -> u64 {
-    10
+    15
 }
 
 /// Default maximum retry attempts for chunks.

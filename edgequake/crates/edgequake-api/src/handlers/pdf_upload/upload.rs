@@ -12,12 +12,17 @@ use super::types::*;
 use edgequake_audit::{AuditEventType, AuditResult};
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::middleware::TenantContext;
 use crate::multipart_upload::{
     ensure_batch_file_cap, stream_field_to_tempfile, StreamedUploadFile,
 };
 use crate::services::{
     record_compliance_event, recycle_orphan_workspace_pdf, workspace_has_visible_document_for_pdf,
+};
+use crate::services::spec146_authz::{
+    apply_security_labels_to_metadata, finish_security_admit, parse_security_labels,
+    SecurityFormOverrides,
 };
 use crate::state::AppState;
 use edgequake_pdf::PdfParserBackend;
@@ -83,8 +88,10 @@ use edgequake_storage::{
 pub async fn upload_pdf_document(
     State(state): State<AppState>,
     context: TenantContext,
+    auth: ApiOptionalAuth,
     mut multipart: Multipart,
 ) -> ApiResult<Json<PdfUploadResponse>> {
+    crate::services::spec146_authz::require_ingest_when_abac(&state, &context, &auth)?;
     info!(
         "PDF upload request: workspace={:?}, tenant={:?}",
         context.workspace_id, context.tenant_id
@@ -105,13 +112,15 @@ pub async fn upload_pdf_document(
         vision_reasoning_effort: None,
         vision_extract: Default::default(),
     };
+    let mut security_form = SecurityFormOverrides::default();
 
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| ApiError::BadRequest(format!("Failed to parse multipart: {}", e)))?
     {
-        match field.name() {
+        let field_name = field.name().map(|s| s.to_string());
+        match field_name.as_deref() {
             Some("file") => {
                 // SPEC-083 S-12: never persist raw multipart path components.
                 let filename = crate::file_validation::sanitize_filename(
@@ -221,6 +230,12 @@ pub async fn upload_pdf_document(
                     options.vision_extract.figure_system_prompt = Some(text);
                 }
             }
+            Some(name @ ("classification" | "share_mode" | "security_status" | "export_control"
+            | "pii" | "project_id")) => {
+                if let Ok(text) = field.text().await {
+                    security_form.ingest_text_field(name, &text);
+                }
+            }
             _ => {}
         }
     }
@@ -229,7 +244,9 @@ pub async fn upload_pdf_document(
         ApiError::BadRequest("Missing 'file' field in multipart request".to_string())
     })?;
     let (filename, file_data) = streamed.into_bytes()?;
-    let response = process_pdf_upload_parts(&state, &context, filename, file_data, options).await?;
+    let response =
+        process_pdf_upload_parts(&state, &context, filename, file_data, options, security_form)
+            .await?;
     Ok(Json(response))
 }
 
@@ -251,8 +268,10 @@ pub async fn upload_pdf_document(
 pub async fn upload_pdf_batch_document(
     State(state): State<AppState>,
     context: TenantContext,
+    auth: ApiOptionalAuth,
     mut multipart: Multipart,
 ) -> ApiResult<Json<PdfBatchUploadResponse>> {
+    crate::services::spec146_authz::require_ingest_when_abac(&state, &context, &auth)?;
     let mut options = PdfUploadOptions {
         enable_vision: true,
         vision_provider: None,
@@ -268,13 +287,15 @@ pub async fn upload_pdf_batch_document(
     };
     // SPEC-083 D-51: stream each file to temp; cap batch count; process sequentially.
     let mut files: Vec<StreamedUploadFile> = Vec::new();
+    let mut security_form = SecurityFormOverrides::default();
 
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| ApiError::BadRequest(format!("Failed to parse multipart: {}", e)))?
     {
-        match field.name() {
+        let field_name = field.name().map(|s| s.to_string());
+        match field_name.as_deref() {
             Some("file") | Some("files") => {
                 ensure_batch_file_cap(files.len())?;
                 let filename = crate::file_validation::sanitize_filename(
@@ -382,6 +403,12 @@ pub async fn upload_pdf_batch_document(
                     options.vision_extract.figure_system_prompt = Some(text);
                 }
             }
+            Some(name @ ("classification" | "share_mode" | "security_status" | "export_control"
+            | "pii" | "project_id")) => {
+                if let Ok(text) = field.text().await {
+                    security_form.ingest_text_field(name, &text);
+                }
+            }
             _ => {}
         }
     }
@@ -405,6 +432,7 @@ pub async fn upload_pdf_batch_document(
             filename.clone(),
             file_data,
             options.clone(),
+            security_form.clone(),
         )
         .await;
         match result {
@@ -456,6 +484,7 @@ async fn process_pdf_upload_parts(
     filename: String,
     file_data: Vec<u8>,
     mut options: PdfUploadOptions,
+    security_form: SecurityFormOverrides,
 ) -> ApiResult<PdfUploadResponse> {
     // SPEC-083 S-12: magic-byte MIME must match .pdf (rejects exe-as-pdf, etc.).
     crate::file_validation::validate_magic_matches_extension("pdf", &file_data)?;
@@ -847,6 +876,29 @@ async fn process_pdf_upload_parts(
     )
     .await
     .map_err(|e| ApiError::Internal(format!("Failed to provision queued document: {e}")))?;
+
+    // SPEC-146: dual-write security labels into KV + documents columns.
+    let security_labels =
+        parse_security_labels(options.metadata.as_ref(), &security_form);
+    let metadata_key =
+        crate::services::document_metadata_scan::metadata_key_for_document(&enqueue.document_id);
+    if let Ok(Some(mut metadata)) = state.storage.kv_storage.get_by_id(&metadata_key).await {
+        apply_security_labels_to_metadata(&mut metadata, &security_labels);
+        let _ = crate::services::upsert_metadata_kv_with_index(
+            state.storage.kv_storage.as_ref(),
+            &metadata_key,
+            metadata,
+        )
+        .await;
+    }
+    finish_security_admit(
+        state,
+        context,
+        &enqueue.document_id,
+        &security_labels,
+        context.user_id.as_deref(),
+    )
+    .await;
 
     if let Err(error) = crate::services::provision_relational_document_shell(
         state,

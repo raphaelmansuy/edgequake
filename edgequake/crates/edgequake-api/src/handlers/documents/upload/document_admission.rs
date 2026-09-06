@@ -23,6 +23,9 @@ use crate::middleware::TenantContext;
 use crate::services::process_fingerprint::{
     apply_fingerprint_to_metadata, ProcessFingerprintInput,
 };
+use crate::services::spec146_authz::{
+    apply_security_labels_to_metadata, finish_security_admit, parse_security_labels,
+};
 use crate::services::{
     apply_process_options_to_metadata, metadata_multimodal_patch, persist_manifest,
     resolve_process_options_from_metadata, MultimodalSummary,
@@ -65,6 +68,8 @@ pub struct DocumentAdmissionInput {
     pub raw_byte_size: usize,
     pub content_hash: String,
     pub custom_metadata: Option<Value>,
+    /// SPEC-146: multipart form security field overrides (classification, share_mode, …).
+    pub security: crate::services::spec146_authz::SecurityFormOverrides,
     pub track_id: Option<String>,
     /// SPEC-084 / GH-318: client-declared batch size for track completeness.
     pub expected_batch_count: Option<usize>,
@@ -352,6 +357,9 @@ pub async fn admit_document_for_processing(
     if let Some(doc_type) = input.document_type {
         doc_metadata["document_type"] = json!(doc_type);
     }
+    // SPEC-146: parse security labels before custom_metadata is moved.
+    let security_labels =
+        parse_security_labels(input.custom_metadata.as_ref(), &input.security);
     if let Some(custom) = input.custom_metadata {
         doc_metadata["custom_metadata"] = custom;
     }
@@ -404,11 +412,23 @@ pub async fn admit_document_for_processing(
         apply_fingerprint_to_metadata(obj, &fp.digest());
     }
 
+    // SPEC-146: dual-write security labels into KV metadata (defaults = workspace/ok).
+    apply_security_labels_to_metadata(&mut doc_metadata, &security_labels);
+
     state
         .storage
         .kv_storage
         .upsert(&[(staging_metadata_key, doc_metadata)])
         .await?;
+
+    finish_security_admit(
+        state,
+        tenant_ctx,
+        &document_id,
+        &security_labels,
+        tenant_ctx.user_id.as_deref(),
+    )
+    .await;
 
     state
         .storage
@@ -559,6 +579,7 @@ pub fn parse_document_extract_caps(
 #[derive(Debug, Default, Clone)]
 pub struct MultipartUploadFields {
     pub metadata: Option<Value>,
+    pub security: crate::services::spec146_authz::SecurityFormOverrides,
     chunk_strategy_raw: Option<String>,
     chunk_options_raw: Option<Value>,
     extract_max_entities: Option<u32>,
@@ -582,6 +603,10 @@ impl MultipartUploadFields {
             }
             "extract_max_records" if !text.is_empty() => {
                 self.extract_max_records = text.trim().parse().ok();
+            }
+            "classification" | "share_mode" | "security_status" | "export_control" | "pii"
+            | "project_id" => {
+                self.security.ingest_text_field(name, text);
             }
             _ => {}
         }
@@ -752,6 +777,7 @@ mod tests {
             raw_byte_size: 16,
             content_hash: "abc".into(),
             custom_metadata: None,
+            security: Default::default(),
             track_id: None,
             expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),
@@ -780,6 +806,7 @@ mod tests {
             raw_byte_size: 5,
             content_hash: "abc".into(),
             custom_metadata: None,
+            security: Default::default(),
             track_id: None,
             expected_batch_count: None,
             gleaning: GleaningAdmissionOptions::default(),

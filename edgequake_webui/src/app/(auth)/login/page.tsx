@@ -13,17 +13,26 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+/** Well-known local-dev credentials pinned by `make dev` (never for production). */
+export const DEV_LOGIN_USERNAME = 'admin';
+export const DEV_LOGIN_PASSWORD = 'EdgeQuake1';
+
 export default function LoginPage() {
   const router = useRouter();
   const authLogin = useAuthStore((s) => s.login);
   const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const { authEnabled, disableDemoLogin, showDevLoginHint } = getRuntimeConfig();
+  const showDemoLogin = !disableDemoLogin && !authEnabled;
+
+  const [username, setUsername] = useState(
+    showDevLoginHint ? DEV_LOGIN_USERNAME : ''
+  );
+  const [password, setPassword] = useState(
+    showDevLoginHint ? DEV_LOGIN_PASSWORD : ''
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { authEnabled, disableDemoLogin } = getRuntimeConfig();
-  const showDemoLogin = !disableDemoLogin && !authEnabled;
 
   // SPEC-101: empty auth-on install → first-run wizard instead of login form
   if (!setupLoading && setupStatus?.needs_setup && setupStatus.auth_enabled) {
@@ -54,7 +63,7 @@ export default function LoginPage() {
   };
 
   const handleSkipLogin = () => {
-    // For development/demo mode without auth
+    // For development/demo mode without auth (make dev-open escape hatch)
     router.push('/graph');
   };
 
@@ -71,8 +80,31 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form 
-            onSubmit={handleSubmit} 
+          {showDevLoginHint && (
+            <div
+              data-testid="dev-login-hint"
+              className="mb-4 rounded-md border border-dashed border-primary/40 bg-primary/5 p-3 text-sm"
+            >
+              <p className="font-medium text-foreground">Local development login</p>
+              <p className="mt-1 text-muted-foreground">
+                Username:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                  {DEV_LOGIN_USERNAME}
+                </code>
+                {' · '}
+                Password:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                  {DEV_LOGIN_PASSWORD}
+                </code>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pinned by <code className="font-mono">make dev</code> — not for production.
+              </p>
+            </div>
+          )}
+
+          <form
+            onSubmit={handleSubmit}
             className="space-y-4"
             aria-describedby={error ? 'login-error' : undefined}
           >
@@ -90,6 +122,7 @@ export default function LoginPage() {
                 required
                 aria-required="true"
                 aria-invalid={error ? 'true' : undefined}
+                autoComplete="username"
               />
             </div>
             <div className="space-y-2">
@@ -106,11 +139,12 @@ export default function LoginPage() {
                 required
                 aria-required="true"
                 aria-invalid={error ? 'true' : undefined}
+                autoComplete="current-password"
               />
             </div>
 
             {error && (
-              <div 
+              <div
                 id="login-error"
                 role="alert"
                 aria-live="assertive"

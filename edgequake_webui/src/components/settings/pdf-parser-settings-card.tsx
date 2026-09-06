@@ -62,10 +62,10 @@ export function PdfParserSettingsCard() {
   return (
     <Card>
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Gauge className="h-5 w-5 text-amber-600" />
-            <CardTitle>{t('settings.pdfParser.title', 'PDF Parser')}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Gauge className="h-5 w-5 text-amber-600 shrink-0" />
+            <CardTitle className="truncate">{t('settings.pdfParser.title', 'PDF Parser')}</CardTitle>
           </div>
           {!isEditing && (
             <Button

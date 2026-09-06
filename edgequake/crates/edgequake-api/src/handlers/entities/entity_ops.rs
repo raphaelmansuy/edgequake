@@ -10,12 +10,16 @@ use axum::{
 use chrono::Utc;
 
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::auth::OptionalAuth;
 use crate::handlers::isolation::{
     filter_edges_by_tenant_context, load_node_for_tenant_context, stamp_tenant_context_properties,
 };
 use crate::middleware::TenantContext;
 use crate::services::entity_merge::rewire_merged_entity_edges;
 use crate::services::entity_neighborhood::build_entity_neighborhood;
+use crate::services::spec146_authz::{
+    graph_properties_in_allow, optional_auth_user_id, resolve_optional_allow_ids,
+};
 use crate::state::AppState;
 
 use super::{node_to_entity_response, normalize_entity_name_for_graph};
@@ -289,13 +293,22 @@ pub async fn merge_entities(
 pub async fn get_entity_neighborhood(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Path(entity_name): Path<String>,
     Query(query): Query<EntityNeighborhoodQuery>,
 ) -> ApiResult<Json<EntityNeighborhoodResponse>> {
-    let resolved_entity = resolve_entity_node(&state, &entity_name, &tenant_ctx)
+    let resolved = resolve_entity_node(&state, &entity_name, &tenant_ctx)
         .await?
-        .map(|node| node.id)
         .ok_or_else(|| ApiError::NotFound(format!("Entity '{}' not found", entity_name)))?;
+
+    let user_id = optional_auth_user_id(auth_user.as_ref(), &tenant_ctx);
+    let allow_ids = resolve_optional_allow_ids(&state, &tenant_ctx, user_id.as_deref()).await?;
+    if !graph_properties_in_allow(&resolved.properties, allow_ids.as_deref()) {
+        return Err(ApiError::NotFound(format!(
+            "Entity '{}' not found",
+            entity_name
+        )));
+    }
 
     // Clamp depth to range [1, 3]
     let depth = query.depth.clamp(1, 3);
@@ -303,8 +316,9 @@ pub async fn get_entity_neighborhood(
     let (nodes, edges) = build_entity_neighborhood(
         &state.storage.graph_storage,
         &tenant_ctx,
-        &resolved_entity,
+        &resolved.id,
         depth,
+        allow_ids.as_deref(),
     )
     .await?;
 

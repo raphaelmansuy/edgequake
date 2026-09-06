@@ -26,6 +26,11 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getQueryModeMeta } from '@/lib/query/query-mode-meta';
+import {
+  displayQueryAnswer,
+  isZeroAuthzAnswer,
+  ZERO_AUTHZ_HELP,
+} from '@/lib/query/query-empty-copy';
 import { buildDocumentCitationUrl } from '@/lib/utils/document-url';
 import { cn } from '@/lib/utils';
 import type { QueryContext, QueryMode } from '@/types';
@@ -454,7 +459,18 @@ const AssistantMessage = memo(function AssistantMessage({
   // Parse Chain-of-Thought content
   const parsed = parseCOTContent(message.content);
   const hasThinking = parsed.thinking.length > 0;
-  const displayContent = parsed.response;
+  const sourceCount = message.context?.sources?.length ?? 0;
+  const queryMode = message.mode ?? 'mix';
+  const displayContent = displayQueryAnswer(
+    parsed.response || message.content,
+    sourceCount,
+    queryMode,
+  );
+  const showZeroAuthzHelp =
+    !message.isStreaming &&
+    !message.isError &&
+    queryMode !== 'bypass' &&
+    isZeroAuthzAnswer(parsed.response || message.content, sourceCount);
 
   return (
     <div
@@ -525,6 +541,14 @@ const AssistantMessage = memo(function AssistantMessage({
                     isStreaming={message.isStreaming}
                     className=""
                   />
+                  {showZeroAuthzHelp && (
+                    <p
+                      className="mt-2 text-sm text-muted-foreground"
+                      data-testid="spec146-zero-authz-help"
+                    >
+                      {t('query.zeroAuthzHelp', ZERO_AUTHZ_HELP)}
+                    </p>
+                  )}
                 </div>
               ) : null}
               

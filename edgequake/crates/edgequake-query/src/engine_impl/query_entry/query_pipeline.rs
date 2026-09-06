@@ -517,6 +517,18 @@ impl QueryEngine {
         request: &QueryRequest,
         providers: &QueryProviders<'_>,
     ) -> Result<PreparedQuery> {
+        // SPEC-146: keyword cache keys include principal|policy_gen|allow_fp.
+        crate::cache::with_authz_cache_scope(request.authz_cache_scope(), async {
+            self.pipeline_prepare_inner(request, providers).await
+        })
+        .await
+    }
+
+    async fn pipeline_prepare_inner(
+        &self,
+        request: &QueryRequest,
+        providers: &QueryProviders<'_>,
+    ) -> Result<PreparedQuery> {
         let keyword_query = crate::conversation_context::query_with_conversation_context(
             &request.query,
             &request.conversation_history,
@@ -905,9 +917,10 @@ impl QueryEngine {
             let cache_key = crate::cache::llm_cache_storage_key(
                 mode_str,
                 crate::cache::LlmCacheType::Query,
-                &crate::cache::hash_query_prompt_with_effort(
+                &crate::cache::hash_query_prompt_with_effort_scoped(
                     &prompt,
                     request.reasoning_effort.as_deref(),
+                    request.authz_cache_scope().as_ref(),
                 ),
             );
 

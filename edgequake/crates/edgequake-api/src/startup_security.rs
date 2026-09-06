@@ -72,6 +72,22 @@ pub fn validate_startup_security(
         );
     }
 
+    // LAW-146-20 / G-146-00: ABAC requires authentication (refuse DEV_MODE / auth-off / anonymous).
+    if security.doc_abac {
+        if auth.dev_mode || !auth.auth_enabled {
+            return StartupSecurityOutcome::Fatal(
+                "EDGEQUAKE_DOC_ABAC=1 requires authentication enabled and EDGEQUAKE_DEV_MODE off (LAW-146-20)"
+                    .to_string(),
+            );
+        }
+        if auth.allow_anonymous {
+            return StartupSecurityOutcome::Fatal(
+                "EDGEQUAKE_DOC_ABAC=1 refuses EDGEQUAKE_ALLOW_ANONYMOUS (LAW-146-20)"
+                    .to_string(),
+            );
+        }
+    }
+
     if warnings.is_empty() {
         return StartupSecurityOutcome::Ok;
     }
@@ -90,7 +106,8 @@ pub fn validate_startup_security(
     StartupSecurityOutcome::Warn(warnings)
 }
 
-fn is_non_local_database(url: &str) -> bool {
+/// Returns true when `DATABASE_URL` points at a non-local host (SPEC-027 / SPEC-083).
+pub fn is_non_local_database(url: &str) -> bool {
     let lower = url.to_ascii_lowercase();
     !(lower.contains("localhost")
         || lower.contains("127.0.0.1")
@@ -267,5 +284,63 @@ mod tests {
         if let StartupSecurityOutcome::Warn(w) = outcome {
             assert!(w.iter().any(|m| m.contains("KV_IDENTITY_MIRROR")));
         }
+    }
+
+    #[test]
+    fn g146_00_doc_abac_refuses_auth_off() {
+        let mut auth = AuthConfig::new("secure-test-secret-spec027-long-enough");
+        auth.auth_enabled = false;
+        auth.dev_mode = false;
+        auth.allow_anonymous = false;
+        let security = ApiSecurityConfig {
+            doc_abac: true,
+            ..Default::default()
+        };
+        let outcome = validate_startup_security(
+            Some("postgres://edgequake:edgequake@localhost/edgequake"),
+            &auth,
+            &security,
+        );
+        assert!(
+            matches!(outcome, StartupSecurityOutcome::Fatal(ref m) if m.contains("DOC_ABAC")),
+            "got {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn g146_00_doc_abac_refuses_dev_mode() {
+        let mut auth = AuthConfig::new("secure-test-secret-spec027-long-enough");
+        auth.auth_enabled = true;
+        auth.dev_mode = true;
+        auth.allow_anonymous = false;
+        let security = ApiSecurityConfig {
+            doc_abac: true,
+            ..Default::default()
+        };
+        let outcome = validate_startup_security(
+            Some("postgres://edgequake:edgequake@localhost/edgequake"),
+            &auth,
+            &security,
+        );
+        assert!(matches!(outcome, StartupSecurityOutcome::Fatal(_)));
+    }
+
+    #[test]
+    fn g146_00_doc_abac_refuses_anonymous() {
+        let mut auth = AuthConfig::new("secure-test-secret-spec027-long-enough");
+        auth.auth_enabled = true;
+        auth.dev_mode = false;
+        auth.allow_anonymous = true;
+        auth.api_keys = vec!["eq_test".into()];
+        let security = ApiSecurityConfig {
+            doc_abac: true,
+            ..Default::default()
+        };
+        let outcome = validate_startup_security(
+            Some("postgres://edgequake:edgequake@localhost/edgequake"),
+            &auth,
+            &security,
+        );
+        assert!(matches!(outcome, StartupSecurityOutcome::Fatal(_)));
     }
 }

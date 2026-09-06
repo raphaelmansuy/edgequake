@@ -23,13 +23,22 @@
 
 import { useSelectedWorkspace, useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
+import {
+  DEFAULT_SECURITY_FIELDS,
+  type SecurityFields,
+} from '@/lib/security/security-fields';
+import { patchDocumentSecurityLabels } from '@/lib/api/edgequake/documents';
+import type { ClassificationFilter } from './document-filters';
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SecurityFieldsForm } from '@/components/security/security-fields-form';
 import { nextDocumentSortState } from '@/lib/documents/document-sort';
+import { documentsChromeMaxClass } from '@/lib/documents/documents-chrome';
 import {
   beginDeleteSession,
   bindDeleteSessionTrackId,
@@ -67,6 +76,7 @@ import { useDocumentPreferences } from '@/hooks/use-document-preferences';
 import { useDocumentsInventory } from '@/hooks/use-documents-inventory';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { useDocumentWebSocket } from '@/hooks/use-document-websocket';
+import { useDocAbacEnabled } from '@/hooks/use-doc-abac';
 import {
   DEFAULT_VISION_EXTRACT_DRAFT,
   type VisionExtractDraft,
@@ -153,6 +163,29 @@ export function DocumentManager() {
   const [visionExtract, setVisionExtract] = useState<VisionExtractDraft>(
     () => ({ ...DEFAULT_VISION_EXTRACT_DRAFT }),
   );
+  const [securityFields, setSecurityFields] = useState<SecurityFields>(
+    () => ({ ...DEFAULT_SECURITY_FIELDS }),
+  );
+  const [securityExpanded, setSecurityExpanded] = useState(false);
+  const handleSecurityExpandedChange = useCallback((open: boolean) => {
+    setSecurityExpanded(open);
+    if (open) {
+      // After layout grows chrome, bring SecurityFields into the chrome viewport.
+      requestAnimationFrame(() => {
+        document
+          .querySelector('[data-testid="spec146-security-fields"]')
+          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+  }, []);
+  const { docAbacEnabled } = useDocAbacEnabled();
+  const [classificationFilter, setClassificationFilter] =
+    useState<ClassificationFilter>('all');
+  const [retryingLabels, setRetryingLabels] = useState(false);
+  const [retryLabelsDoc, setRetryLabelsDoc] = useState<Document | null>(null);
+  const [retryLabelFields, setRetryLabelFields] = useState<SecurityFields>(
+    DEFAULT_SECURITY_FIELDS,
+  );
   const [largePdfAdmissionOpen, setLargePdfAdmissionOpen] = useState(false);
   const [largePdfPreviews, setLargePdfPreviews] = useState<LargePdfAdmissionPreview[]>([]);
   const [pendingAdmissionFiles, setPendingAdmissionFiles] = useState<File[]>([]);
@@ -225,6 +258,7 @@ export function DocumentManager() {
     visionImageSystemPrompt: visionExtract.imageSystemPrompt || undefined,
     visionChartSystemPrompt: visionExtract.chartSystemPrompt || undefined,
     visionFigureSystemPrompt: visionExtract.figureSystemPrompt || undefined,
+    security: docAbacEnabled ? securityFields : undefined,
   });
 
   const handleFilesAccepted = useCallback(
@@ -355,6 +389,7 @@ export function DocumentManager() {
     workspaceId: selectedWorkspaceId,
     searchQuery,
     statusFilter,
+    classificationFilter,
     sortField,
     sortDirection,
   });
@@ -696,9 +731,10 @@ export function DocumentManager() {
       {/* Main Content - Flex column for proper scroll zones */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-clip">
         {/* Fixed Header Zone — title, filters, always-on dropzone stay pinned.
-            max-h keeps inventory usable on short viewports (EC-099-01). */}
+            max-h keeps inventory usable on short viewports (EC-099-01).
+            SPEC-146: grow when SecurityFields expanded so selects are not clipped. */}
         <div
-          className="min-h-0 shrink-0 max-h-[42dvh] space-y-3 overflow-y-auto overscroll-contain bg-background px-4 pt-4"
+          className={`min-h-0 shrink-0 ${documentsChromeMaxClass(securityExpanded && docAbacEnabled)} space-y-3 overflow-y-auto overscroll-contain bg-background px-4 pt-4`}
           data-testid="documents-chrome"
         >
           <DocumentHeader
@@ -739,6 +775,9 @@ export function DocumentManager() {
             sortDirection={sortDirection}
             onSortDirectionChange={setSortDirection}
             statusCounts={statusCounts}
+            classificationFilter={classificationFilter}
+            onClassificationFilterChange={setClassificationFilter}
+            showClassificationFilter={docAbacEnabled}
             pipelineStatus={pipelineStatus}
             pipelineUi={pipelineUi}
             documents={documents}
@@ -784,6 +823,10 @@ export function DocumentManager() {
             visionModel={
               selectedWorkspace?.vision_llm_model ?? selectedWorkspace?.llm_model
             }
+            securityFields={securityFields}
+            onSecurityFieldsChange={setSecurityFields}
+            showSecurityFields={docAbacEnabled}
+            onSecurityExpandedChange={handleSecurityExpandedChange}
             selectedCount={selectedCount}
             onBulkReprocess={() => {
               // WHY: Open the bulk choice dialog so the user picks full
@@ -1007,6 +1050,7 @@ export function DocumentManager() {
         isAllSelected={isAllSelected}
         activeRunDocumentIds={workingRunDocumentIds}
         showCostColumn={showCostColumn}
+        showAbacColumns={docAbacEnabled}
         overflowLabel={inventory.overflowLabel}
         onSelectAll={handleSelectAll}
         onSelectOne={handleSelectOne}
@@ -1022,6 +1066,19 @@ export function DocumentManager() {
           const name = doc?.file_name || doc?.title || id.slice(0, 8);
           reprocessMutation.mutate({ id, name, isPdf: doc?.source_type === 'pdf' });
         }}
+        onRetryLabels={(doc) => {
+          setRetryLabelsDoc(doc);
+          setRetryLabelFields({
+            ...DEFAULT_SECURITY_FIELDS,
+            classification: doc.classification || 'internal',
+            share_mode:
+              (doc.share_mode as SecurityFields['share_mode']) || 'workspace',
+            export_control: Boolean(doc.export_control),
+            pii: Boolean(doc.pii),
+            project_id: doc.project_id || undefined,
+            security_status: 'quarantined',
+          });
+        }}
         onReprocess={(id) => {
           // WHY: Open the choice dialog for the target document so the user can
           // pick between full PDF re-conversion and entity-only re-extraction.
@@ -1031,12 +1088,13 @@ export function DocumentManager() {
         }}
         onCancel={(trackId) => cancelMutation.mutate(trackId)}
         onDelete={handleDeleteDocument}
-        isRetrying={reprocessMutation.isPending}
+        isRetrying={reprocessMutation.isPending || retryingLabels}
         isCancelling={cancelMutation.isPending}
         deletingDocumentIds={deletingDocumentIds}
         onUploadClick={openFileDialog}
         onClearFilter={() => {
           setStatusFilter('all');
+          setClassificationFilter('all');
           setSearchQuery('');
         }}
         sortField={sortField}
@@ -1177,6 +1235,62 @@ export function DocumentManager() {
         }}
         isDeleting={deleteMutation.isPending}
       />
+
+      {/* SPEC-146: quarantine recovery — edit labels then PATCH (never blind re-PATCH). */}
+      <Dialog
+        open={retryLabelsDoc !== null}
+        onOpenChange={(open) => {
+          if (!open) setRetryLabelsDoc(null);
+        }}
+      >
+        <DialogContent data-testid="spec146-retry-labels-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {t('security.retryLabels', 'Retry labels')}
+            </DialogTitle>
+          </DialogHeader>
+          <SecurityFieldsForm
+            value={retryLabelFields}
+            onChange={setRetryLabelFields}
+            alwaysExpanded
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRetryLabelsDoc(null)}
+            >
+              {t('common.cancel', 'Cancel')}
+            </Button>
+            <Button
+              type="button"
+              data-testid="spec146-retry-labels-submit"
+              disabled={retryingLabels || !retryLabelsDoc}
+              onClick={async () => {
+                if (!retryLabelsDoc) return;
+                setRetryingLabels(true);
+                try {
+                  await patchDocumentSecurityLabels(
+                    retryLabelsDoc.id,
+                    retryLabelFields,
+                  );
+                  toast.success(t('security.retryLabels', 'Retry labels'));
+                  setRetryLabelsDoc(null);
+                  await refetch();
+                } catch (e) {
+                  toast.error(
+                    e instanceof Error ? e.message : 'Retry labels failed',
+                  );
+                } finally {
+                  setRetryingLabels(false);
+                }
+              }}
+            >
+              {t('security.saveLabels', 'Save labels')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </DocumentsActionsProvider>
   );

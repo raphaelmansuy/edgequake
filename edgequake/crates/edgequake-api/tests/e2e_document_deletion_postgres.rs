@@ -278,6 +278,7 @@ async fn create_postgres_test_state_named(
         audit_logger: None,
         migration_bootstrap: None,
         security: edgequake_api::state::ApiSecurityConfig::default(),
+        allow_set_provider: None,
         resource_guard: edgequake_core::ResourceGuard::default(),
         graph_materialize: std::sync::Arc::new(edgequake_core::GraphMaterializationSemaphore::new(
             4,

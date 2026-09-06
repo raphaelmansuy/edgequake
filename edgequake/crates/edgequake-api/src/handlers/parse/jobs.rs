@@ -38,6 +38,8 @@ struct JobRecord {
     status: JobStatus,
     created_at: Instant,
     request_id: String,
+    /// SPEC-146: minting principal; unauthorized GET → 404.
+    owner_principal: Option<String>,
     result: Option<ParseResponse>,
     error: Option<ParseJobErrorBody>,
     /// Kept until worker starts, then dropped.
@@ -93,6 +95,7 @@ impl ParseJobStore {
         pdf_bytes: Vec<u8>,
         resolved: ResolvedParseOptions,
         request_id: String,
+        owner_principal: Option<String>,
     ) -> ApiResult<ParseAsyncAccepted> {
         self.purge_expired().await;
         let job_id = format!("pr_{}", Uuid::new_v4().simple());
@@ -104,6 +107,7 @@ impl ParseJobStore {
                     status: JobStatus::Pending,
                     created_at: Instant::now(),
                     request_id: request_id.clone(),
+                    owner_principal,
                     result: None,
                     error: None,
                     pdf_bytes: Some(pdf_bytes),
@@ -123,6 +127,24 @@ impl ParseJobStore {
             status: JobStatus::Pending.as_str().to_string(),
             request_id,
         })
+    }
+
+    /// Insert a completed job without a worker (SPEC-146 parse IDOR gates).
+    pub async fn seed_completed_job(&self, job_id: &str, owner_principal: Option<String>) {
+        let mut map = self.inner.write().await;
+        map.insert(
+            job_id.to_string(),
+            JobRecord {
+                status: JobStatus::Completed,
+                created_at: Instant::now(),
+                request_id: "seed".into(),
+                owner_principal,
+                result: None,
+                error: None,
+                pdf_bytes: None,
+                resolved: None,
+            },
+        );
     }
 
     async fn run_job(&self, job_id: String) {
@@ -186,9 +208,26 @@ impl ParseJobStore {
     }
 
     pub async fn get(&self, job_id: &str) -> Option<ParseJobStatusResponse> {
+        self.get_for(job_id, None).await
+    }
+
+    /// SPEC-146: when `caller_principal` is `Some`, require owner match (else 404).
+    pub async fn get_for(
+        &self,
+        job_id: &str,
+        caller_principal: Option<&str>,
+    ) -> Option<ParseJobStatusResponse> {
         self.purge_expired().await;
         let map = self.inner.read().await;
         let job = map.get(job_id)?;
+        // SPEC-146: when a caller principal is supplied (ABAC on), unbound jobs
+        // are fail-closed — not world-readable.
+        if let Some(caller) = caller_principal {
+            match job.owner_principal.as_deref() {
+                Some(owner) if owner == caller => {}
+                Some(_) | None => return None,
+            }
+        }
         Some(ParseJobStatusResponse {
             job_id: job_id.to_string(),
             status: job.status.as_str().to_string(),
@@ -220,8 +259,21 @@ impl ParseJobStore {
 pub async fn get_parse_job(
     axum::extract::State(state): axum::extract::State<crate::state::AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
+    tenant_ctx: crate::middleware::TenantContext,
 ) -> ApiResult<axum::Json<ParseJobStatusResponse>> {
-    match state.parse_jobs.get(&id).await {
+    let caller = if state.security.doc_abac {
+        tenant_ctx.user_id.as_deref().map(|u| {
+            let p = edgequake_authz::PrincipalId::from_auth_user_id(u);
+            format!("{}:{}", p.kind_str(), p.id_str())
+        })
+    } else {
+        None
+    };
+    match state
+        .parse_jobs
+        .get_for(&id, caller.as_deref())
+        .await
+    {
         Some(status) => Ok(axum::Json(status)),
         None => Err(super::errors::ParseErrorCode::JobNotFound
             .into_api_error(format!("Parse job not found: {id}"))),

@@ -106,7 +106,7 @@ pub async fn execute_query(
     .await;
     let _langfuse_identity = stamp_query_langfuse_identity(langfuse_id);
 
-    let mut allowed_document_ids = None;
+    let mut client_filter_ids = None;
     if let Some(ref filter) = request.document_filter {
         if let Some(allowed_ids) = super::document_filter_resolver::resolve_document_filter(
             state.storage.kv_storage.as_ref(),
@@ -120,9 +120,47 @@ pub async fn execute_query(
                 matched_doc_count = allowed_ids.len(),
                 "Document filter resolved — restricting query scope"
             );
-            allowed_document_ids = Some(allowed_ids);
+            client_filter_ids = Some(allowed_ids);
         }
     }
+
+    let user_id = auth_user
+        .as_ref()
+        .map(|u| u.user_id.to_string())
+        .or_else(|| tenant_ctx.user_id.clone());
+    let (allowed_document_ids, authz_ctx, allow_set) =
+        crate::services::spec146_authz::resolve_query_allowed_document_ids(
+            &state,
+            &tenant_ctx,
+            user_id.as_deref(),
+            client_filter_ids,
+        )
+        .await?;
+
+    // G-146-52: empty allow-set → fixed SSOT answer (no LLM, no leak).
+    if crate::services::spec146_authz::is_empty_allow_set(&allow_set) {
+            let response = QueryResponse {
+                answer: edgequake_authz::ZERO_AUTHZ_ANSWER.to_string(),
+                mode: mode.as_str().to_string(),
+                sources: vec![],
+                subgraph: None,
+                stats: crate::handlers::query_types::QueryStats::default(),
+                conversation_id: None,
+                reranked: false,
+                explain: None,
+                trace_id: None,
+            };
+            return Ok((HeaderMap::new(), Json(response)));
+        }
+
+    let (authz_principal, policy_generation, allow_fingerprint) = match (&authz_ctx, &allow_set) {
+        (Some(ctx), Some(allow)) => (
+            Some(format!("{}:{}", ctx.principal.kind_str(), ctx.principal.id_str())),
+            Some(ctx.policy_generation),
+            Some(allow.fingerprint()),
+        ),
+        _ => (None, None, None),
+    };
 
     validate_llm_override_pair(
         request.llm_provider.as_deref(),
@@ -184,6 +222,9 @@ pub async fn execute_query(
         llm_provider: request.llm_provider.clone(),
         llm_model: request.llm_model.clone(),
         reasoning_effort,
+        authz_principal,
+        policy_generation,
+        allow_fingerprint,
     };
 
     let engine_request = build_engine_request(&params);

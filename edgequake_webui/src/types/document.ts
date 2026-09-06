@@ -140,6 +140,21 @@ export interface Document {
    */
   cancelled_from_stage?: string;
 
+  /** SPEC-146: classification (public|internal|confidential|secret). */
+  classification?: string | null;
+  /** SPEC-146: share_mode (workspace|acl|classified|owner_only). */
+  share_mode?: string | null;
+  /** SPEC-146: security_status (ok|quarantined). */
+  security_status?: string | null;
+  /** SPEC-146: owner principal user id. */
+  owner_principal_id?: string | null;
+  /** SPEC-146: export control flag. */
+  export_control?: boolean | null;
+  /** SPEC-146: PII flag. */
+  pii?: boolean | null;
+  /** SPEC-146: project id (optional free-text). */
+  project_id?: string | null;
+
   /**
    * Reprocess mode when this run was started via soft/hard reprocess (SPEC-048).
    * Wire: full | entities | merge

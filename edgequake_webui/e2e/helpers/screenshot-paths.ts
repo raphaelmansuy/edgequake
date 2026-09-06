@@ -143,10 +143,15 @@ export function spec096Screenshot(fileName: string): string {
   );
 }
 
-/** `specs/128-improve-pdf-parsing/e2e/screenshots/<fileName>` */
-export function spec128Screenshot(fileName: string): string {
+/** `specs/146-rbac-attributes-based-securty/e2e/screnshist/<fileName>` (KEEP SPELLING) */
+export function spec146Screenshot(fileName: string): string {
   return path.join(
-    ensureDir(path.join(REPO_ROOT, "specs/128-improve-pdf-parsing/e2e/screenshots")),
+    ensureDir(
+      path.join(
+        REPO_ROOT,
+        "specs/146-rbac-attributes-based-securty/e2e/screnshist",
+      ),
+    ),
     fileName,
   );
 }

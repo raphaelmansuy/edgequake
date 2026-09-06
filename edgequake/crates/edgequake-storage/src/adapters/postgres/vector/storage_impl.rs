@@ -761,6 +761,7 @@ impl VectorStorage for PgVectorStorage {
                             query_embedding,
                             top_k,
                             ws,
+                            mf.document_ids.as_deref(),
                         )
                         .await
                         {
@@ -816,11 +817,21 @@ impl VectorStorage for PgVectorStorage {
                             }
                         }
                     };
+                    let allowed = super::super::ann_abac::parse_allow_uuids(
+                        mf.document_ids.as_deref(),
+                    );
+                    // SPEC-146: empty allow-set → empty hits (fail-closed).
+                    if matches!(allowed.as_ref(), Some(v) if v.is_empty())
+                        && mf.document_ids.is_some()
+                    {
+                        return Ok(Vec::new());
+                    }
                     let req = VectorQuery {
                         model_id: ModelId(uuid::Uuid::nil()),
                         workspace_id: Some(WorkspaceId(ws_uuid)),
                         embedding: query_embedding.to_vec(),
                         limit: top_k as u32,
+                        allowed_document_ids: allowed,
                     };
                     match fleet.search(family, &req).await {
                         Ok(scored) => {

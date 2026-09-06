@@ -173,7 +173,7 @@ impl QueryEngine {
                 }
 
                 if !entity_ids.is_empty() {
-                    let edges = crate::graph_expand::expand_neighborhood_edges(
+                    let edges = crate::graph_expand::expand_neighborhood_edges_scoped(
                         &graph,
                         &entity_ids,
                         self.config.graph_depth,
@@ -181,6 +181,7 @@ impl QueryEngine {
                         self.config.graph_walk,
                         tenant_id.as_deref(),
                         workspace_id.as_deref(),
+                        allowed_document_ids,
                     )
                     .await?;
                     for edge in edges {
@@ -234,15 +235,22 @@ impl QueryEngine {
         )
         .await?;
 
-        crate::community_global::expand_global_context_with_communities(
-            &self.config,
-            &mut context,
-            &mut entity_ids,
-            self.graph_read(),
-            tenant_id.clone(),
-            workspace_id.clone(),
-        )
-        .await?;
+        // SPEC-146 M3 / R9: skip community inject under ABAC allow-set (mixed-label risk).
+        if allowed_document_ids.is_none() {
+            crate::community_global::expand_global_context_with_communities(
+                &self.config,
+                &mut context,
+                &mut entity_ids,
+                self.graph_read(),
+                tenant_id.clone(),
+                workspace_id.clone(),
+            )
+            .await?;
+        } else {
+            tracing::debug!(
+                "SPEC-146: skipping community global expansion under document allow-set"
+            );
+        }
 
         // Chunk fetch SSOT uses vector_type=chunk (not the relationship ANN `mf` above).
         // 078 R3: Mix post_truncate skips per-arm pick (re-pick after E/R truncate).

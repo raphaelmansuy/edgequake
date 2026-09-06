@@ -70,7 +70,8 @@ async fn e2e_spec091_cross_tenant_ann_no_leak() {
             workspace_id: Some(WorkspaceId(ws_a)),
             embedding: query_emb,
             limit: 20,
-        })
+                    allowed_document_ids: None,
+})
         .await
         .expect("search a");
 

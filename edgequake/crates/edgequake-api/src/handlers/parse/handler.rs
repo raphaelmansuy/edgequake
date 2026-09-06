@@ -43,7 +43,7 @@ use crate::state::AppState;
 )]
 pub async fn parse_document(
     State(state): State<AppState>,
-    _context: TenantContext,
+    tenant_ctx: TenantContext,
     Query(query_options): Query<ParseOptions>,
     req: Request,
 ) -> Result<Response, ApiError> {
@@ -75,11 +75,12 @@ pub async fn parse_document(
         )));
     };
 
-    dispatch_parse(&state, &headers, intake).await
+    dispatch_parse(&state, &tenant_ctx, &headers, intake).await
 }
 
 async fn dispatch_parse(
     state: &AppState,
+    tenant_ctx: &TenantContext,
     headers: &HeaderMap,
     intake: ParsedIntake,
 ) -> Result<Response, ApiError> {
@@ -126,9 +127,17 @@ async fn dispatch_parse(
     );
 
     if want_async {
+        let owner = if state.security.doc_abac {
+            tenant_ctx.user_id.as_deref().map(|u| {
+                let p = edgequake_authz::PrincipalId::from_auth_user_id(u);
+                format!("{}:{}", p.kind_str(), p.id_str())
+            })
+        } else {
+            None
+        };
         let accepted = state
             .parse_jobs
-            .enqueue(intake.bytes, resolved, request_id)
+            .enqueue(intake.bytes, resolved, request_id, owner)
             .await?;
         return Ok((StatusCode::ACCEPTED, Json(accepted)).into_response());
     }

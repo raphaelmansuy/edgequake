@@ -255,6 +255,37 @@ pub struct DocumentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "extracting")]
     pub cancelled_from_stage: Option<String>,
+
+    // ========================================================================
+    // SPEC-146: Document ABAC labels (list DTO — table Class/Share/Quarantine)
+    // ========================================================================
+    /// Classification (public|internal|confidential|secret).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classification: Option<String>,
+
+    /// Share mode (workspace|acl|classified|owner_only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub share_mode: Option<String>,
+
+    /// Security status (ok|quarantined).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security_status: Option<String>,
+
+    /// Owner principal user id (SPEC-146).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_principal_id: Option<String>,
+
+    /// Export-control flag (list/detail DTO — LAW-146-8).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub export_control: Option<bool>,
+
+    /// PII flag (list/detail DTO — LAW-146-8).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pii: Option<bool>,
+
+    /// Optional project id (list/detail DTO — LAW-146-8).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
 }
 
 // ── SPEC-031: Lightweight document search for the scope picker ───────────────

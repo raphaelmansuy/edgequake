@@ -1370,6 +1370,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/acl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_document_acl"];
+        put?: never;
+        post: operations["grant_document_acl"];
+        delete: operations["revoke_document_acl"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/assets": {
         parameters: {
             query?: never;
@@ -1657,6 +1673,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/security-labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["patch_document_security_labels"];
         trace?: never;
     };
     "/api/v1/entities/{entity_id}/provenance": {
@@ -3041,6 +3073,198 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/authz/attribute-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_attribute_definitions"];
+        put?: never;
+        post: operations["create_attribute_definition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/attribute-definitions/{attr_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_attribute_definition"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/break-glass": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_break_glass_sessions"];
+        put?: never;
+        post: operations["create_break_glass_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/break-glass/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["revoke_break_glass_session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_role_bindings"];
+        put?: never;
+        post: operations["create_role_binding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/members/{principal_kind}/{principal_id}/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_role_binding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_policies"];
+        put?: never;
+        post: operations["create_policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/policies/{policy_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_policy_versions"];
+        put?: never;
+        post: operations["publish_policy_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/principal-attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_principal_attributes"];
+        put: operations["upsert_principal_attribute"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/principal-attributes/{principal_kind}/{principal_id}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_principal_attribute"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_workspace_roles"];
+        put?: never;
+        post: operations["create_workspace_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/authz/roles/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_workspace_role"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/injection": {
         parameters: {
             query?: never;
@@ -3608,6 +3832,8 @@ export interface components {
             byte_admission_process_local?: boolean | null;
             /** @description Local dev opt-out (`EDGEQUAKE_DEV_MODE`) — auth disabled when true. */
             dev_mode?: boolean | null;
+            /** @description SPEC-146: document ABAC enabled (`EDGEQUAKE_DOC_ABAC`). */
+            doc_abac?: boolean | null;
             /** @description Documented external SSO integration pattern when `oauth2_oidc_builtin` is false. */
             external_sso_pattern?: string | null;
             /** @description v2 job catalog path template. */
@@ -3661,6 +3887,28 @@ export interface components {
             prefix: string;
             /** @description Scopes. */
             scopes: string[];
+        };
+        /**
+         * @example {
+         *       "attr_id": {},
+         *       "enum_values": {},
+         *       "name": {},
+         *       "required_for_share_modes": [],
+         *       "scope": {},
+         *       "value_type": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        AttributeDefinitionDto: {
+            /** Format: uuid */
+            attr_id: string;
+            enum_values?: unknown;
+            name: string;
+            required_for_share_modes?: string[];
+            scope: string;
+            value_type: string;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /**
          * @example {
@@ -3844,6 +4092,32 @@ export interface components {
             results: components["schemas"]["BatchFileResult"][];
             /** @description Total files received. */
             total_files: number;
+        };
+        /**
+         * @example {
+         *       "created_at": {},
+         *       "expires_at": {},
+         *       "principal_id": {},
+         *       "principal_kind": {},
+         *       "reason": {},
+         *       "revoked_at": {},
+         *       "scope_doc_ids": [],
+         *       "session_id": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        BreakGlassSessionDto: {
+            created_at: string;
+            expires_at: string;
+            principal_id: string;
+            principal_kind: string;
+            reason: string;
+            revoked_at?: string | null;
+            scope_doc_ids?: string[] | null;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /**
          * @description Budget information.
@@ -5036,6 +5310,59 @@ export interface components {
             scopes: string[];
         };
         /**
+         * @example {
+         *       "enum_values": {},
+         *       "name": {},
+         *       "required_for_share_modes": [],
+         *       "scope": {},
+         *       "value_type": {}
+         *     }
+         */
+        CreateAttributeDefinitionRequest: {
+            enum_values?: unknown;
+            name: string;
+            required_for_share_modes?: string[];
+            scope: string;
+            value_type: string;
+        };
+        /**
+         * @example {
+         *       "attribute": {}
+         *     }
+         */
+        CreateAttributeDefinitionResponse: {
+            attribute: components["schemas"]["AttributeDefinitionDto"];
+        };
+        /**
+         * @example {
+         *       "principal_id": {},
+         *       "principal_kind": {},
+         *       "reason": {},
+         *       "scope_doc_ids": [],
+         *       "ttl_minutes": {}
+         *     }
+         */
+        CreateBreakGlassRequest: {
+            principal_id?: string | null;
+            /** @description Optional principal override (defaults to caller). */
+            principal_kind?: string | null;
+            reason: string;
+            scope_doc_ids?: string[] | null;
+            /**
+             * Format: int32
+             * @description TTL minutes (default 15; max 60 — LAW-146-25).
+             */
+            ttl_minutes?: number;
+        };
+        /**
+         * @example {
+         *       "session": {}
+         *     }
+         */
+        CreateBreakGlassResponse: {
+            session: components["schemas"]["BreakGlassSessionDto"];
+        };
+        /**
          * @description Create conversation request DTO.
          * @example {
          *       "title": "Research Q&A",
@@ -5141,6 +5468,22 @@ export interface components {
             stream?: boolean;
         };
         /**
+         * @example {
+         *       "name": {}
+         *     }
+         */
+        CreatePolicyRequest: {
+            name: string;
+        };
+        /**
+         * @example {
+         *       "policy": {}
+         *     }
+         */
+        CreatePolicyResponse: {
+            policy: components["schemas"]["PolicyDto"];
+        };
+        /**
          * @description Create relationship request.
          * @example {
          *       "source": "SARAH_CHEN",
@@ -5183,6 +5526,47 @@ export interface components {
             relationship: components["schemas"]["RelationshipResponse"];
             /** @description Operation status. */
             status: string;
+        };
+        /**
+         * @example {
+         *       "principal_id": {},
+         *       "principal_kind": {},
+         *       "role_id": {}
+         *     }
+         */
+        CreateRoleBindingRequest: {
+            principal_id: string;
+            principal_kind: string;
+            /** Format: uuid */
+            role_id: string;
+        };
+        /**
+         * @example {
+         *       "binding": {}
+         *     }
+         */
+        CreateRoleBindingResponse: {
+            binding: components["schemas"]["RoleBindingDto"];
+        };
+        /**
+         * @example {
+         *       "is_builtin": {},
+         *       "name": {},
+         *       "permissions": []
+         *     }
+         */
+        CreateRoleRequest: {
+            is_builtin?: boolean;
+            name: string;
+            permissions?: string[];
+        };
+        /**
+         * @example {
+         *       "role": {}
+         *     }
+         */
+        CreateRoleResponse: {
+            role: components["schemas"]["WorkspaceRoleDto"];
         };
         /**
          * @description Request to create a new tenant.
@@ -5694,6 +6078,27 @@ export interface components {
             version: number;
         };
         /**
+         * @example {
+         *       "created_at": {},
+         *       "document_id": {},
+         *       "granted_by_id": {},
+         *       "granted_by_kind": {},
+         *       "permission": {},
+         *       "principal_id": {},
+         *       "principal_kind": {}
+         *     }
+         */
+        DocumentAclEntryDto: {
+            created_at: string;
+            /** Format: uuid */
+            document_id: string;
+            granted_by_id?: string | null;
+            granted_by_kind?: string | null;
+            permission: string;
+            principal_id: string;
+            principal_kind: string;
+        };
+        /**
          * @description Cost information for a processed document.
          * @example {
          *       "embedding_model": {},
@@ -6031,6 +6436,7 @@ export interface components {
          * @example {
          *       "cancelled_from_stage": {},
          *       "chunk_count": {},
+         *       "classification": {},
          *       "content_length": {},
          *       "content_summary": {},
          *       "cost_usd": {},
@@ -6042,15 +6448,21 @@ export interface components {
          *       "error_message": {},
          *       "eta_basis": {},
          *       "eta_seconds": {},
+         *       "export_control": {},
          *       "file_name": {},
          *       "id": {},
          *       "input_tokens": {},
          *       "llm_model": {},
          *       "output_tokens": {},
+         *       "owner_principal_id": {},
          *       "pdf_id": {},
+         *       "pii": {},
          *       "progress_counts": {},
+         *       "project_id": {},
          *       "query_ready": {},
          *       "queue_position": {},
+         *       "security_status": {},
+         *       "share_mode": {},
          *       "source_type": {},
          *       "stage_message": {},
          *       "stage_progress": {},
@@ -6072,6 +6484,8 @@ export interface components {
             cancelled_from_stage?: string | null;
             /** @description Number of chunks. */
             chunk_count: number;
+            /** @description Classification (public|internal|confidential|secret). */
+            classification?: string | null;
             /** @description Total length of document content in characters. */
             content_length?: number | null;
             /** @description First 200 characters of document content (preview). */
@@ -6109,6 +6523,8 @@ export interface components {
              * @description Estimated seconds until claim (measured drain; clamped when unknown).
              */
             eta_seconds?: number | null;
+            /** @description Export-control flag (list/detail DTO — LAW-146-8). */
+            export_control?: boolean | null;
             /** @description Original file name (used for display if title is not set). */
             file_name?: string | null;
             /** @description Document ID. */
@@ -6119,6 +6535,8 @@ export interface components {
             llm_model?: string | null;
             /** @description Output tokens used for processing. */
             output_tokens?: number | null;
+            /** @description Owner principal user id (SPEC-146). */
+            owner_principal_id?: string | null;
             /**
              * @description Linked PDF document ID (only set if source_type is "pdf").
              *     Used to fetch PDF content for viewing.
@@ -6126,7 +6544,11 @@ export interface components {
              * @example 8866e3c3-bbd6-4384-b86f-215c9844914d
              */
             pdf_id?: string | null;
+            /** @description PII flag (list/detail DTO — LAW-146-8). */
+            pii?: boolean | null;
             progress_counts?: null | components["schemas"]["IngestionProgressCounts"];
+            /** @description Optional project id (list/detail DTO — LAW-146-8). */
+            project_id?: string | null;
             /**
              * @description SPEC-091 IS3 / LD-09: when serving fence is on, whether the doc is queryable.
              *     Absent when fence is off (UI hides Ready/Indexed badge).
@@ -6137,6 +6559,10 @@ export interface components {
              * @description SPEC-091 IS2 / LAW-IS4: 1-based FCFS queue position for pending admission.
              */
             queue_position?: number | null;
+            /** @description Security status (ok|quarantined). */
+            security_status?: string | null;
+            /** @description Share mode (workspace|acl|classified|owner_only). */
+            share_mode?: string | null;
             /**
              * @description Document source type (pdf, markdown, text).
              *     @implements SPEC-002
@@ -6944,6 +7370,29 @@ export interface components {
             entities: components["schemas"]["RelationshipEntities"];
             /** @description Relationship data. */
             relationship: components["schemas"]["RelationshipResponse"];
+        };
+        /**
+         * @example {
+         *       "permission": {},
+         *       "principal_id": {},
+         *       "principal_kind": {}
+         *     }
+         */
+        GrantDocumentAclRequest: {
+            permission: string;
+            principal_id: string;
+            principal_kind: string;
+        };
+        /**
+         * @example {
+         *       "entry": {},
+         *       "policy_generation": {}
+         *     }
+         */
+        GrantDocumentAclResponse: {
+            entry: components["schemas"]["DocumentAclEntryDto"];
+            /** Format: int64 */
+            policy_generation: number;
         };
         /**
          * @description Graph edge response.
@@ -7788,6 +8237,22 @@ export interface components {
             total_pages: number;
         };
         /**
+         * @example {
+         *       "attributes": []
+         *     }
+         */
+        ListAttributeDefinitionsResponse: {
+            attributes: components["schemas"]["AttributeDefinitionDto"][];
+        };
+        /**
+         * @example {
+         *       "sessions": []
+         *     }
+         */
+        ListBreakGlassResponse: {
+            sessions: components["schemas"]["BreakGlassSessionDto"][];
+        };
+        /**
          * @description Pagination and filter parameters for listing conversations.
          * @example {
          *       "cursor": {},
@@ -7829,6 +8294,14 @@ export interface components {
             order?: string;
             /** @description Sort field (updated_at, created_at, title). */
             sort?: string;
+        };
+        /**
+         * @example {
+         *       "entries": []
+         *     }
+         */
+        ListDocumentAclResponse: {
+            entries: components["schemas"]["DocumentAclEntryDto"][];
         };
         /**
          * @description List documents response.
@@ -7985,6 +8458,30 @@ export interface components {
             pagination: components["schemas"]["PdfPaginationInfo"];
         };
         /**
+         * @example {
+         *       "policies": []
+         *     }
+         */
+        ListPoliciesResponse: {
+            policies: components["schemas"]["PolicyDto"][];
+        };
+        /**
+         * @example {
+         *       "versions": []
+         *     }
+         */
+        ListPolicyVersionsResponse: {
+            versions: components["schemas"]["PolicyVersionDto"][];
+        };
+        /**
+         * @example {
+         *       "attributes": []
+         *     }
+         */
+        ListPrincipalAttributesResponse: {
+            attributes: components["schemas"]["PrincipalAttributeDto"][];
+        };
+        /**
          * @description List relationships query parameters.
          * @example {
          *       "page": {},
@@ -8036,6 +8533,22 @@ export interface components {
              * @description Total number of pages.
              */
             total_pages: number;
+        };
+        /**
+         * @example {
+         *       "bindings": []
+         *     }
+         */
+        ListRoleBindingsResponse: {
+            bindings: components["schemas"]["RoleBindingDto"][];
+        };
+        /**
+         * @example {
+         *       "roles": []
+         *     }
+         */
+        ListRolesResponse: {
+            roles: components["schemas"]["WorkspaceRoleDto"][];
         };
         /**
          * @description Query parameters for listing tasks.
@@ -9658,6 +10171,47 @@ export interface components {
             warnings?: string[];
         };
         /**
+         * @example {
+         *       "acl_principal_ids": [],
+         *       "classification": {},
+         *       "export_control": {},
+         *       "pii": {},
+         *       "project_id": {},
+         *       "security_status": {},
+         *       "share_mode": {}
+         *     }
+         */
+        PatchDocumentSecurityLabelsRequest: {
+            acl_principal_ids?: string[] | null;
+            classification?: string | null;
+            export_control?: boolean | null;
+            pii?: boolean | null;
+            project_id?: string | null;
+            security_status?: string | null;
+            share_mode?: string | null;
+        };
+        /**
+         * @example {
+         *       "classification": {},
+         *       "export_control": {},
+         *       "pii": {},
+         *       "policy_generation": {},
+         *       "project_id": {},
+         *       "security_status": {},
+         *       "share_mode": {}
+         *     }
+         */
+        PatchDocumentSecurityLabelsResponse: {
+            classification: string;
+            export_control: boolean;
+            pii: boolean;
+            /** Format: int64 */
+            policy_generation: number;
+            project_id?: string | null;
+            security_status: string;
+            share_mode: string;
+        };
+        /**
          * @description Result for a single file in batch PDF upload.
          * @example {
          *       "duplicate_of": {},
@@ -10203,6 +10757,43 @@ export interface components {
          */
         PipelinePhase: "upload" | "pdf_conversion" | "chunking" | "embedding" | "extraction" | "graph_storage";
         /**
+         * @example {
+         *       "active_version": {},
+         *       "name": {},
+         *       "policy_id": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        PolicyDto: {
+            /** Format: int64 */
+            active_version: number;
+            name: string;
+            /** Format: uuid */
+            policy_id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @example {
+         *       "cedar_hash": {},
+         *       "cedar_text": {},
+         *       "created_at": {},
+         *       "policy_id": {},
+         *       "schema_hash": {},
+         *       "version": {}
+         *     }
+         */
+        PolicyVersionDto: {
+            cedar_hash: string;
+            cedar_text: string;
+            created_at: string;
+            /** Format: uuid */
+            policy_id: string;
+            schema_hash: string;
+            /** Format: int64 */
+            version: number;
+        };
+        /**
          * @description SPEC-112 LAW-112-8: one role pool's configured max and live occupancy.
          * @example {
          *       "idle": {},
@@ -10295,6 +10886,27 @@ export interface components {
             postgres_major: number;
             /** @description Native `uuidv7()` available (PG18+ with function present). */
             uuidv7_available: boolean;
+        };
+        /**
+         * @example {
+         *       "name": {},
+         *       "principal_id": {},
+         *       "principal_kind": {},
+         *       "source": {},
+         *       "updated_at": {},
+         *       "value": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        PrincipalAttributeDto: {
+            name: string;
+            principal_id: string;
+            principal_kind: string;
+            source: string;
+            updated_at: string;
+            value: unknown;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /**
          * @example {
@@ -10428,6 +11040,25 @@ export interface components {
             embedding: components["schemas"]["EmbeddingProviderHealth"];
             /** @description LLM provider details. */
             llm: components["schemas"]["LlmProviderHealth"];
+        };
+        /**
+         * @example {
+         *       "cedar_text": {}
+         *     }
+         */
+        PublishPolicyVersionRequest: {
+            cedar_text: string;
+        };
+        /**
+         * @example {
+         *       "policy_generation": {},
+         *       "version": {}
+         *     }
+         */
+        PublishPolicyVersionResponse: {
+            /** Format: int64 */
+            policy_generation: number;
+            version: components["schemas"]["PolicyVersionDto"];
         };
         /**
          * @description Request body for creating/updating a knowledge injection (text mode).
@@ -11825,6 +12456,55 @@ export interface components {
             key_id: string;
             /** @description Message. */
             message: string;
+        };
+        /**
+         * @example {
+         *       "revoked": {}
+         *     }
+         */
+        RevokeBreakGlassResponse: {
+            revoked: boolean;
+        };
+        /**
+         * @example {
+         *       "permission": {},
+         *       "principal_id": {},
+         *       "principal_kind": {}
+         *     }
+         */
+        RevokeDocumentAclRequest: {
+            permission: string;
+            principal_id: string;
+            principal_kind: string;
+        };
+        /**
+         * @example {
+         *       "policy_generation": {},
+         *       "revoked": {}
+         *     }
+         */
+        RevokeDocumentAclResponse: {
+            /** Format: int64 */
+            policy_generation: number;
+            revoked: boolean;
+        };
+        /**
+         * @example {
+         *       "principal_id": {},
+         *       "principal_kind": {},
+         *       "role_id": {},
+         *       "role_name": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        RoleBindingDto: {
+            principal_id: string;
+            principal_kind: string;
+            /** Format: uuid */
+            role_id: string;
+            role_name?: string | null;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /**
          * @example {
@@ -13485,6 +14165,30 @@ export interface components {
             track_id: string;
         };
         /**
+         * @example {
+         *       "name": {},
+         *       "principal_id": {},
+         *       "principal_kind": {},
+         *       "source": {},
+         *       "value": {}
+         *     }
+         */
+        UpsertPrincipalAttributeRequest: {
+            name: string;
+            principal_id: string;
+            principal_kind: string;
+            source?: string;
+            value: unknown;
+        };
+        /**
+         * @example {
+         *       "attribute": {}
+         *     }
+         */
+        UpsertPrincipalAttributeResponse: {
+            attribute: components["schemas"]["PrincipalAttributeDto"];
+        };
+        /**
          * @description User information (safe for API responses).
          * @example {
          *       "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -13704,6 +14408,24 @@ export interface components {
             vision_llm_provider?: string | null;
             vision_llm_resolution_source?: string | null;
             vision_page_system_prompt?: string | null;
+        };
+        /**
+         * @example {
+         *       "is_builtin": {},
+         *       "name": {},
+         *       "permissions": [],
+         *       "role_id": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        WorkspaceRoleDto: {
+            is_builtin: boolean;
+            name: string;
+            permissions: string[];
+            /** Format: uuid */
+            role_id: string;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /**
          * @description Workspace statistics response.
@@ -16133,14 +16855,21 @@ export interface operations {
                     "application/json": components["schemas"]["DocumentDetailResponse"];
                 };
             };
-            /** @description Access denied - document belongs to different tenant */
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Capability denied (not an existence secret) */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Document not found */
+            /** @description Document not found (existence-hiding for unauthorized IDs) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16183,6 +16912,83 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_document_acl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document UUID */
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ACL entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListDocumentAclResponse"];
+                };
+            };
+        };
+    };
+    grant_document_acl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document UUID */
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantDocumentAclRequest"];
+            };
+        };
+        responses: {
+            /** @description ACL granted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDocumentAclResponse"];
+                };
+            };
+        };
+    };
+    revoke_document_acl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document UUID */
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeDocumentAclRequest"];
+            };
+        };
+        responses: {
+            /** @description ACL revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeDocumentAclResponse"];
+                };
             };
         };
     };
@@ -16671,6 +17477,54 @@ export interface operations {
             };
             /** @description PostgreSQL required for chunk retry */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patch_document_security_labels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document UUID */
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchDocumentSecurityLabelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Labels updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatchDocumentSecurityLabelsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing document:set_labels */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Document not found (existence-hiding) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19243,6 +20097,707 @@ export interface operations {
                 content?: never;
             };
             /** @description Workspace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_attribute_definitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attribute definitions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAttributeDefinitionsResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_attribute_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAttributeDefinitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Attribute definition created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAttributeDefinitionResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_attribute_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Attribute definition UUID */
+                attr_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_break_glass_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Break-glass sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListBreakGlassResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — missing capability */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (existence-hiding where applicable) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_break_glass_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBreakGlassRequest"];
+            };
+        };
+        responses: {
+            /** @description Session created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateBreakGlassResponse"];
+                };
+            };
+            /** @description Invalid TTL or reason */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — BreakGlass capability required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (existence-hiding where applicable) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revoke_break_glass_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Session UUID */
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeBreakGlassResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — BreakGlass or PolicyManage required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found (existence-hiding) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_role_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role bindings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRoleBindingsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — missing capability */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (existence-hiding where applicable) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_role_binding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoleBindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Binding created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateRoleBindingResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already bound */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_role_binding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Principal kind */
+                principal_kind: string;
+                /** @description Principal id */
+                principal_id: string;
+                /** @description Role UUID */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binding deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_policies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policies */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPoliciesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — missing capability */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (existence-hiding where applicable) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatePolicyResponse"];
+                };
+            };
+        };
+    };
+    list_policy_versions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Policy UUID */
+                policy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy versions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPolicyVersionsResponse"];
+                };
+            };
+        };
+    };
+    publish_policy_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Policy UUID */
+                policy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishPolicyVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Version published */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishPolicyVersionResponse"];
+                };
+            };
+        };
+    };
+    list_principal_attributes: {
+        parameters: {
+            query?: {
+                /** @description Filter by principal kind */
+                principal_kind?: string;
+                /** @description Filter by principal id */
+                principal_id?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Principal attributes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPrincipalAttributesResponse"];
+                };
+            };
+        };
+    };
+    upsert_principal_attribute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertPrincipalAttributeRequest"];
+            };
+        };
+        responses: {
+            /** @description Attribute upserted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpsertPrincipalAttributeResponse"];
+                };
+            };
+        };
+    };
+    delete_principal_attribute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Principal kind */
+                principal_kind: string;
+                /** @description Principal id */
+                principal_id: string;
+                /** @description Attribute name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_workspace_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace roles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRolesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden — missing capability */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (existence-hiding where applicable) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_workspace_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Role created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateRoleResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Role name exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_workspace_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace UUID */
+                workspace_id: string;
+                /** @description Role UUID */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;

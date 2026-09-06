@@ -9,6 +9,7 @@ use axum::{
 use tracing::debug;
 
 use crate::error::ApiResult;
+use crate::handlers::auth::ApiOptionalAuth;
 use crate::middleware::TenantContext;
 use crate::read_path::{
     run_with_read_path_guard, should_skip_entity_reconcile, ReadPathDbPermit,
@@ -16,10 +17,16 @@ use crate::read_path::{
 };
 use crate::services::document_metadata_scan::canonical_document_id;
 use crate::services::list_pagination::paginate_vec;
+use crate::services::spec146_authz::{
+    audit_capability_deny, filter_metadata_entries_by_allow_set, filter_summaries_by_allow_set,
+    load_policy_generation, require_perm, resolve_allow_set, stamp_authz_context,
+};
 use crate::services::tenant_guard::{
     empty_documents_list, has_full_tenant_context, warn_missing_tenant_context,
 };
-use crate::state::{PostgresRuntime, StorageRuntime, TaskRuntime};
+use crate::state::{AppState, PostgresRuntime, StorageRuntime, TaskRuntime};
+use edgequake_auth::Permission;
+use edgequake_authz::AllowSet;
 use edgequake_core::ResourceBudgetConfig;
 
 use crate::handlers::documents_types::*;
@@ -44,26 +51,39 @@ use crate::handlers::documents_types::*;
 )]
 #[allow(clippy::field_reassign_with_default)]
 pub async fn list_documents(
+    State(state): State<AppState>,
     State(storage): State<StorageRuntime>,
     State(_pg_runtime): State<PostgresRuntime>,
     State(budget): State<ResourceBudgetConfig>,
     State(tasks): State<TaskRuntime>,
     State(read_path_db): State<Arc<ReadPathDbPermit>>,
+    auth: ApiOptionalAuth,
     tenant_ctx: TenantContext,
     Query(params): Query<ListDocumentsRequest>,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
     run_with_read_path_guard(&read_path_db, || {
-        list_documents_inner(storage, _pg_runtime, budget, tasks, tenant_ctx, params)
+        list_documents_inner(
+            state,
+            storage,
+            _pg_runtime,
+            budget,
+            tasks,
+            auth,
+            tenant_ctx,
+            params,
+        )
     })
     .await
 }
 
 #[allow(clippy::field_reassign_with_default)]
 async fn list_documents_inner(
+    state: AppState,
     storage: StorageRuntime,
     _pg_runtime: PostgresRuntime,
     budget: ResourceBudgetConfig,
     tasks: TaskRuntime,
+    auth: ApiOptionalAuth,
     tenant_ctx: TenantContext,
     params: ListDocumentsRequest,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
@@ -80,6 +100,46 @@ async fn list_documents_inner(
         return Ok(Json(empty_documents_list()));
     }
 
+    // SPEC-146: capability gate + allow-set (flag off → identical pre-146 behavior).
+    let mut allow_set: Option<AllowSet> = None;
+    if state.security.doc_abac {
+        let auth_ctx = auth.context().ok_or_else(|| {
+            audit_capability_deny(
+                &state,
+                &tenant_ctx,
+                tenant_ctx.user_id.as_deref(),
+                "document.list",
+                "document",
+            );
+            crate::error::ApiError::unauthorized()
+        })?;
+        if let Err(e) = require_perm(&auth_ctx.role, Permission::DocumentListMeta) {
+            audit_capability_deny(
+                &state,
+                &tenant_ctx,
+                Some(auth_ctx.user_id.as_str()),
+                "document.list",
+                "document",
+            );
+            return Err(e);
+        }
+        let ws = tenant_ctx
+            .workspace_id_uuid()
+            .ok_or_else(|| crate::error::ApiError::BadRequest("Invalid workspace id".into()))?;
+        let policy_generation =
+            load_policy_generation(state.allow_set_provider.as_ref(), ws).await?;
+        let ctx = stamp_authz_context(
+            &state,
+            &tenant_ctx,
+            Some(auth_ctx.user_id.as_str()),
+            policy_generation,
+        )
+        .await?
+        .expect("doc_abac on ⇒ AuthzContext");
+        let allow = resolve_allow_set(state.allow_set_provider.as_ref(), &ctx).await?;
+        allow_set = Some(allow);
+    }
+
     // SPEC-027: scoped metadata scan SSOT — cap keys *before* value fetch so
     // large workspaces never pay unbounded get_by_ids under ingest load.
     // SPEC-086: merge staging in-flight rows (O(L+S)) so MD ActiveRuns is visible.
@@ -90,12 +150,16 @@ async fn list_documents_inner(
             MAX_LIST_METADATA_ENTRIES,
         )
         .await?;
-    let metadata_entries = crate::services::document_metadata_scan::merge_staging_metadata_entries(
-        storage.kv_storage.as_ref(),
-        &tenant_ctx,
-        scoped.entries,
-    )
-    .await?;
+    let mut metadata_entries =
+        crate::services::document_metadata_scan::merge_staging_metadata_entries(
+            storage.kv_storage.as_ref(),
+            &tenant_ctx,
+            scoped.entries,
+        )
+        .await?;
+    if let Some(ref allow) = allow_set {
+        metadata_entries = filter_metadata_entries_by_allow_set(metadata_entries, allow);
+    }
     let truncated = scoped.truncated;
     if truncated {
         tracing::warn!(
@@ -139,6 +203,13 @@ async fn list_documents_inner(
         pdf_id: Option<String>,
         chunk_count: Option<usize>,
         cancelled_from_stage: Option<String>,
+        classification: Option<String>,
+        share_mode: Option<String>,
+        security_status: Option<String>,
+        owner_principal_id: Option<String>,
+        export_control: Option<bool>,
+        pii: Option<bool>,
+        project_id: Option<String>,
     }
 
     impl DocMetadata {
@@ -326,6 +397,30 @@ async fn list_documents_inner(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
+            // SPEC-146 ABAC labels (dual-written at admit)
+            meta.classification = obj
+                .get("classification")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            meta.share_mode = obj
+                .get("share_mode")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            meta.security_status = obj
+                .get("security_status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            meta.owner_principal_id = obj
+                .get("owner_principal_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            meta.export_control = obj.get("export_control").and_then(|v| v.as_bool());
+            meta.pii = obj.get("pii").and_then(|v| v.as_bool());
+            meta.project_id = obj
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
             meta.chunk_count = obj
                 .get("chunk_count")
                 .and_then(|v| v.as_u64())
@@ -386,6 +481,13 @@ async fn list_documents_inner(
                 eta_basis: None,
                 query_ready: None,
                 cancelled_from_stage: meta.cancelled_from_stage,
+                classification: meta.classification,
+                share_mode: meta.share_mode,
+                security_status: meta.security_status,
+                owner_principal_id: meta.owner_principal_id,
+                export_control: meta.export_control,
+                pii: meta.pii,
+                project_id: meta.project_id,
             }
         })
         .collect();
@@ -427,6 +529,11 @@ async fn list_documents_inner(
                 );
             }
         }
+    }
+
+    // SPEC-146: relational merge must not reintroduce denied ids (LAW-146-17).
+    if let Some(ref allow) = allow_set {
+        documents = filter_summaries_by_allow_set(documents, allow, |d| d.id.as_str());
     }
 
     // SPEC-089 / GH-336 / LAW-H1: do NOT reconcile entity counts here.

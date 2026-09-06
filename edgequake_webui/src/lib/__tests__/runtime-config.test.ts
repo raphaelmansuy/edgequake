@@ -60,6 +60,16 @@ describe("runtime-config", () => {
     process.env.EDGEQUAKE_HEALTH_POLL_MS = "off";
     expect(getRuntimeConfig().healthPollIntervalMs).toBe(false);
   });
+
+  it("defaults showDevLoginHint to false", () => {
+    delete process.env.NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT;
+    expect(getRuntimeConfig().showDevLoginHint).toBe(false);
+  });
+
+  it("enables showDevLoginHint when NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT is true", () => {
+    process.env.NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT = "true";
+    expect(getRuntimeConfig().showDevLoginHint).toBe(true);
+  });
 });
 
 describe("parseHealthPollIntervalMs", () => {

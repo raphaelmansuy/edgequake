@@ -33,6 +33,8 @@ pub mod spec013_postgres;
 pub mod spec114_live_extract;
 #[cfg(feature = "postgres")]
 pub mod test_db;
+#[cfg(feature = "postgres")]
+pub mod spec146_pg;
 
 pub mod inflight_task_invariant;
 pub mod oidc_wiremock;

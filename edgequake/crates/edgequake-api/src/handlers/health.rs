@@ -214,6 +214,7 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
             // SPEC-091 IP0: two budgets — do not conflate (F-IP-21).
             provider_budget_cluster: Some(true),
             byte_admission_process_local: Some(true),
+            doc_abac: Some(state.security.doc_abac),
         }),
         attribution: Some(crate::attribution::health_attribution_summary()),
     };

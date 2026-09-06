@@ -10,7 +10,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::cache::llm_response_cache::{hash_keyword_args, llm_cache_storage_key, LlmCacheType};
+use crate::cache::llm_response_cache::{
+    hash_keyword_args, hash_keyword_args_scoped, llm_cache_storage_key, LlmCacheType,
+};
 use crate::error::{QueryError, Result};
 use edgequake_llm::LLMProvider;
 
@@ -594,9 +596,19 @@ impl CachedKeywordExtractor {
             .filter(|s| !s.is_empty())
     }
 
-    fn build_cache_key(&self, query: &str) -> String {
+fn build_cache_key(&self, query: &str) -> String {
         let lang = Self::language_pin();
-        let hash = hash_keyword_args(query, &self.mode, &self.model, lang.as_deref());
+        // Prefer request-scoped authz from task-local when pipeline set it (SPEC-146).
+        let hash = match crate::cache::current_authz_cache_scope() {
+            Some(scope) => hash_keyword_args_scoped(
+                query,
+                &self.mode,
+                &self.model,
+                lang.as_deref(),
+                Some(&scope),
+            ),
+            None => hash_keyword_args(query, &self.mode, &self.model, lang.as_deref()),
+        };
         llm_cache_storage_key(&self.mode, LlmCacheType::Keywords, &hash)
     }
 }

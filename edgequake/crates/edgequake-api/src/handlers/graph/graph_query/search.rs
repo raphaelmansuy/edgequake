@@ -9,10 +9,11 @@ use axum::{
 };
 
 use crate::error::ApiResult;
+use crate::handlers::auth::OptionalAuth;
 use crate::handlers::graph_types::*;
 use crate::middleware::TenantContext;
 use crate::services::run_timed_graph_query;
-use crate::state::{GraphQueryRuntime, StorageRuntime};
+use crate::state::{AppState, GraphQueryRuntime, StorageRuntime};
 
 /// Search for node labels.
 #[utoipa::path(
@@ -28,47 +29,85 @@ use crate::state::{GraphQueryRuntime, StorageRuntime};
     )
 )]
 pub async fn search_labels(
+    State(state): State<AppState>,
     State(storage): State<StorageRuntime>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Query(params): Query<SearchLabelsQuery>,
 ) -> ApiResult<Json<SearchLabelsResponse>> {
+    let user_id = crate::services::spec146_authz::optional_auth_user_id(
+        auth_user.as_ref(),
+        &tenant_ctx,
+    );
+    let allow_ids = crate::services::spec146_authz::resolve_optional_allow_ids(
+        &state,
+        &tenant_ctx,
+        user_id.as_deref(),
+    )
+    .await?;
+
+    // SPEC-146: over-fetch when ABAC on so filtered autocomplete still fills.
+    let fetch_limit = if allow_ids.is_some() {
+        params.limit.saturating_mul(4).max(params.limit).min(200)
+    } else {
+        params.limit
+    };
+
     let raw_labels = storage
         .graph_storage
         .search_labels(
             &params.q,
-            params.limit,
+            fetch_limit,
             tenant_ctx.tenant_id.as_deref(),
             tenant_ctx.workspace_id.as_deref(),
         )
         .await?;
 
     // 072: never surface bare opaque machine IDs in autocomplete.
-    let mut labels = Vec::with_capacity(raw_labels.len());
+    // SPEC-146: drop labels whose node provenance is outside allow-set.
+    let mut labels = Vec::with_capacity(params.limit);
     for raw in raw_labels {
-        if edgequake_storage::is_opaque_identifier(&raw) {
+        if labels.len() >= params.limit {
+            break;
+        }
+        let (display, node_opt) = if edgequake_storage::is_opaque_identifier(&raw) {
             match storage.graph_storage.get_node(&raw).await {
                 Ok(Some(node)) => {
-                    labels.push(crate::handlers::graph::graph_node_label(&node));
+                    let label = crate::handlers::graph::graph_node_label(&node);
+                    (label, Some(node))
                 }
-                _ => {
-                    labels.push(edgequake_pipeline::soft_label_opaque(None, None));
-                }
+                _ => (edgequake_pipeline::soft_label_opaque(None, None), None),
             }
         } else {
             let bare = edgequake_pipeline::bare_entity_id(&raw);
             if edgequake_storage::is_opaque_identifier(bare) {
                 match storage.graph_storage.get_node(&raw).await {
                     Ok(Some(node)) => {
-                        labels.push(crate::handlers::graph::graph_node_label(&node));
+                        let label = crate::handlers::graph::graph_node_label(&node);
+                        (label, Some(node))
                     }
-                    _ => {
-                        labels.push(edgequake_pipeline::soft_label_opaque(None, None));
-                    }
+                    _ => (edgequake_pipeline::soft_label_opaque(None, None), None),
                 }
             } else {
-                labels.push(raw);
+                let node = storage.graph_storage.get_node(&raw).await.ok().flatten();
+                (raw, node)
+            }
+        };
+
+        if let Some(ref allow) = allow_ids {
+            let Some(ref node) = node_opt else {
+                // Fail-closed: cannot prove provenance → omit under ABAC.
+                continue;
+            };
+            if !crate::services::spec146_authz::graph_properties_in_allow(
+                &node.properties,
+                Some(allow.as_slice()),
+            ) {
+                continue;
             }
         }
+
+        labels.push(display);
     }
 
     Ok(Json(SearchLabelsResponse { labels }))
@@ -94,9 +133,11 @@ pub async fn search_labels(
     )
 )]
 pub async fn search_nodes(
+    State(state): State<AppState>,
     State(storage): State<StorageRuntime>,
     State(graph): State<GraphQueryRuntime>,
     tenant_ctx: TenantContext,
+    OptionalAuth(auth_user): OptionalAuth,
     Query(params): Query<SearchNodesQuery>,
 ) -> ApiResult<Json<SearchNodesResponse>> {
     use std::collections::HashSet;
@@ -132,6 +173,26 @@ pub async fn search_nodes(
     })
     .await?;
 
+    let user_id = crate::services::spec146_authz::optional_auth_user_id(
+        auth_user.as_ref(),
+        &tenant_ctx,
+    );
+    let allow_ids = crate::services::spec146_authz::resolve_optional_allow_ids(
+        &state,
+        &tenant_ctx,
+        user_id.as_deref(),
+    )
+    .await?;
+    let matching_nodes: Vec<_> = matching_nodes
+        .into_iter()
+        .filter(|(node, _)| {
+            crate::services::spec146_authz::graph_properties_in_allow(
+                &node.properties,
+                allow_ids.as_deref(),
+            )
+        })
+        .collect();
+
     let total_matches = matching_nodes.len();
     let is_truncated = total_matches >= params.limit;
 
@@ -161,6 +222,12 @@ pub async fn search_nodes(
                 .await
             {
                 for neighbor in neighbors {
+                    if !crate::services::spec146_authz::graph_properties_in_allow(
+                        &neighbor.properties,
+                        allow_ids.as_deref(),
+                    ) {
+                        continue;
+                    }
                     if node_ids.insert(neighbor.id.clone()) {
                         expanded_neighbors.push(neighbor);
                     }
@@ -222,12 +289,10 @@ pub async fn search_nodes(
                 .unwrap_or("UNKNOWN")
                 .to_string();
 
-            let description = node
-                .properties
-                .get("description")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            let description = crate::services::spec146_authz::sanitize_graph_description(
+                &node.properties,
+                allow_ids.as_deref(),
+            );
 
             GraphNodeResponse {
                 id: node.id.clone(),
@@ -235,7 +300,10 @@ pub async fn search_nodes(
                 node_type: entity_type,
                 description,
                 degree,
-                properties: serde_json::to_value(&node.properties).unwrap_or_default(),
+                properties: crate::services::spec146_authz::sanitize_graph_properties(
+                    &node.properties,
+                    allow_ids.as_deref(),
+                ),
             }
         })
         .collect();

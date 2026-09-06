@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
 import { GOTO_OPTS } from "./app-ready";
 
 const DEFAULT_USERNAME = process.env.E2E_USERNAME ?? "admin";
-const DEFAULT_PASSWORD = process.env.E2E_PASSWORD ?? "password";
+const DEFAULT_PASSWORD = process.env.E2E_PASSWORD ?? "EdgeQuake1";
 
 export async function probeLoginPage(
   page: Page,

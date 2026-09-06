@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { TenantGuard } from '@/components/layout/tenant-guard';
 import { FirstRunWizard } from '@/components/onboarding/first-run-wizard';
 import { ApiErrorBoundary } from '@/components/shared/api-error-boundary';
+import { BreakGlassBanner } from '@/components/security/break-glass-banner';
 import { BackendStatusBanner } from '@/components/shared/backend-status-banner';
 import { SkipLink } from '@/components/shared/skip-link';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
@@ -48,6 +49,8 @@ export default function DashboardLayout({
           <Header />
           {/* Backend-not-ready banner: fixed overlay, no layout shift (ES-01) */}
           <BackendStatusBanner />
+          {/* SPEC-146: active break-glass session banner (audited elevated access) */}
+          <BreakGlassBanner />
           {/* Breadcrumb: null at depth ≤ 1 (no empty band); bar at depth ≥ 2 */}
           <DynamicBreadcrumb />
           {/* Main content area - each page controls its own scrolling.

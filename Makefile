@@ -136,7 +136,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-langfuse dev-bg-langfuse dev-memory kill-app stop clean build test lint format sync-dev-ports \
+.PHONY: help install dev dev-auth dev-open dev-bg dev-auth-bg dev-open-bg dev-langfuse dev-bg-langfuse dev-memory kill-app stop clean build test lint format sync-dev-ports \
         ops17-smoke spec046-acc data-access-perf-matrix data-access-perf-matrix-release data-access-perf-matrix-prod data-access-perf-capacity-ladder ann-scale-battle ceiling-proof recall-pareto dedicated-midscale diskann-battle diskann-recall-pareto diskann-rescore-smoke filtered-recall-gate precision-layers-gate binary-quantize-bakeoff filtered-diskann-labels-bakeoff midscale-quantize-labels tiny-slice-exact-gate serving-view-check push-scale-ladder wave2-greenfield-env product-limits-check compare-eq-perf \
         postgres-image-build-pg18-vectorscale \
         dev-pg16 dev-pg17 dev-pg18 dev-bg-pg16 dev-bg-pg17 dev-bg-pg18 \
@@ -352,10 +352,21 @@ EDGEQUAKE_KV_FAMILY_ARTIFACT ?= relational
 EDGEQUAKE_KV_FAMILY_INJECTION ?= relational
 EDGEQUAKE_KV_FAMILY_METADATA ?= relational
 
-DEV_AUTH_ENABLED ?= false
-DEV_DISABLE_DEMO_LOGIN ?= false
-# SPEC-027 AC-4: frictionless local dev when DEV_AUTH_ENABLED=false (auth secure by default otherwise).
+# Local stack is always authenticated (SPEC-146 gap closure). Escape hatch:
+#   DEV_AUTH_ENABLED=false make dev   or   make dev-open
+DEV_AUTH_ENABLED ?= true
+DEV_DISABLE_DEMO_LOGIN ?= true
+DEV_SHOW_LOGIN_HINT ?= true
+DEV_BOOTSTRAP_ADMIN_USERNAME ?= admin
+DEV_BOOTSTRAP_ADMIN_PASSWORD ?= EdgeQuake1
+# Local-only JWT (≥32 chars, not the insecure product default) so auth-on boots without EDGEQUAKE_DEV_MODE.
+DEV_JWT_SECRET ?= edgequake-local-dev-jwt-secret-do-not-use-in-prod
+DEV_CORS_ORIGINS ?= http://localhost:3000,http://localhost:3010,http://127.0.0.1:3000,http://127.0.0.1:3010
+# SPEC-027: EDGEQUAKE_DEV_MODE forces auth off — only for the open-API escape hatch.
 DEV_EDGEQUAKE_DEV_MODE := $(if $(filter false,$(DEV_AUTH_ENABLED)),true,false)
+# Pin admin password on every local boot when auth is on (always-same credentials).
+DEV_PIN_LOGIN := $(if $(filter true,$(DEV_AUTH_ENABLED)),1,0)
+DEV_ALLOW_ANONYMOUS := $(if $(filter true,$(DEV_AUTH_ENABLED)),false,true)
 
 # OODA-09: Auto-configure providers based on OPENAI_API_KEY presence.
 # WHY: User sets OPENAI_API_KEY but system still uses Ollama defaults.
@@ -489,6 +500,23 @@ define LANGFUSE_LOCAL_BACKEND_WIRED
 curl -sf "$(BACKEND_URL)/api/v1/settings/langfuse" | python3 -c 'import json,sys; b=json.load(sys.stdin); ui=(b.get("ui_url") or b.get("base_url") or "").rstrip("/"); want=sys.argv[1].rstrip("/"); sys.exit(0 if b.get("export_active") and ui==want else 1)' "$(LANGFUSE_UI_URL)"
 endef
 
+# Auth + bootstrap env for local make targets (auth-on by default).
+# Single-line so recipe expansion stays one shell command.
+DEV_AUTH_INLINE_ENV = EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" AUTH_ENABLED="$(DEV_AUTH_ENABLED)" EDGEQUAKE_ALLOW_ANONYMOUS="$(DEV_ALLOW_ANONYMOUS)" EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME="$(DEV_BOOTSTRAP_ADMIN_USERNAME)" EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD="$(DEV_BOOTSTRAP_ADMIN_PASSWORD)" EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL="$(DEV_BOOTSTRAP_ADMIN_USERNAME)@localhost" EDGEQUAKE_DEV_PIN_LOGIN="$(DEV_PIN_LOGIN)" JWT_SECRET="$(DEV_JWT_SECRET)" EDGEQUAKE_CORS_ORIGINS="$(DEV_CORS_ORIGINS)"
+
+define DEV_AUTH_START_SH_EXPORTS
+printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_ALLOW_ANONYMOUS=\"$(DEV_ALLOW_ANONYMOUS)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME=\"$(DEV_BOOTSTRAP_ADMIN_USERNAME)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD=\"$(DEV_BOOTSTRAP_ADMIN_PASSWORD)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL=\"$(DEV_BOOTSTRAP_ADMIN_USERNAME)@localhost\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_DEV_PIN_LOGIN=\"$(DEV_PIN_LOGIN)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export JWT_SECRET=\"$(DEV_JWT_SECRET)\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export EDGEQUAKE_CORS_ORIGINS=\"$(DEV_CORS_ORIGINS)\"" >> /tmp/edgequake-start.sh;
+endef
+
 # Shared exports appended to /tmp/edgequake-start.sh by backend-bg.
 # SPEC-047: also pin VLM + chart modality so bench restarts do not silently drop MV-32.
 define BACKEND_STABILITY_EXPORTS
@@ -588,18 +616,19 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Quick Start$(RESET)"
 	@echo "  $(GREEN)make install$(RESET)      Install all dependencies"
-	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL PG18 — default)"
+	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (auth on — admin / EdgeQuake1)"
 	@echo "  $(GREEN)make dev-langfuse$(RESET) Full stack + local Langfuse v4 (UI :3310; injects init keys)"
 	@echo "  $(GREEN)make dev-pg16$(RESET)     Start dev stack with PostgreSQL 16 (legacy)"
 	@echo "  $(GREEN)make dev-pg17$(RESET)     Start dev stack with PostgreSQL 17"
 	@echo "  $(GREEN)make dev-pg18$(RESET)     Start dev stack with PostgreSQL 18 (same as make dev)"
-	@echo "  $(GREEN)make dev-auth$(RESET)     Start full development stack with authentication enabled"
-	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND without authentication"
+	@echo "  $(GREEN)make dev-auth$(RESET)     Alias of make dev (auth is the default)"
+	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND (auth on — admin / EdgeQuake1)"
+	@echo "  $(GREEN)make dev-open$(RESET)     Start full stack with auth disabled (open API escape hatch)"
 	@echo "  $(GREEN)make dev-bg-langfuse$(RESET) Background stack + local Langfuse v4 (UI :3310)"
 	@echo "  $(GREEN)make dev-bg-pg16$(RESET)  Background dev with PostgreSQL 16"
 	@echo "  $(GREEN)make dev-bg-pg17$(RESET)  Background dev with PostgreSQL 17"
 	@echo "  $(GREEN)make dev-bg-pg18$(RESET)  Background dev with PostgreSQL 18"
-	@echo "  $(GREEN)make dev-auth-bg$(RESET)  Start full stack in BACKGROUND with authentication enabled"
+	@echo "  $(GREEN)make dev-auth-bg$(RESET)  Alias of make dev-bg (auth is the default)"
 	@echo "  $(GREEN)make dev-memory$(RESET)   Start with in-memory storage (for testing)"
 	@echo "  $(GREEN)make stop$(RESET)         Stop all services"
 	@echo "  $(GREEN)make status$(RESET)       Check status of all services"
@@ -799,7 +828,7 @@ install: check-deps ## Install all project dependencies
 # Development
 # ============================================================================
 
-dev: kill-app check-deps check-ports ## Start full development stack without authentication
+dev: kill-app check-deps check-ports ## Start full development stack (auth on — admin / EdgeQuake1)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
 	@echo "$(YELLOW)→ Previous app processes killed; starting fresh$(RESET)"
@@ -822,9 +851,9 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
 	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
 	@if [ "$(DEV_AUTH_ENABLED)" = "true" ]; then \
-		echo "  $(BLUE)Auth$(RESET):     enabled"; \
+		echo "  $(BLUE)Auth$(RESET):     enabled — login $(DEV_BOOTSTRAP_ADMIN_USERNAME) / $(DEV_BOOTSTRAP_ADMIN_PASSWORD) (also shown on /login)"; \
 	else \
-		echo "  $(BLUE)Auth$(RESET):     disabled (default local mode)"; \
+		echo "  $(BLUE)Auth$(RESET):     disabled (open API escape hatch)"; \
 	fi
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "  $(BLUE)Provider$(RESET): OpenAI"; \
@@ -866,9 +895,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 			PORT="$$BACKEND_PORT" \
 			DATABASE_URL="$$_EFF_DB_URL" \
 			OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
-		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			$(DEV_AUTH_INLINE_ENV) \
 		EDGEQUAKE_NATIVE_GRAPH_WRITES="$(EDGEQUAKE_NATIVE_GRAPH_WRITES)" \
 		VLM_PROCESS_ENABLE="$(VLM_PROCESS_ENABLE)" \
 		EDGEQUAKE_MULTIMODAL_FAIL_MODE="$(EDGEQUAKE_MULTIMODAL_FAIL_MODE)" \
@@ -883,9 +910,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		(cd $(BACKEND_DIR) && \
 			PORT="$$BACKEND_PORT" \
 			DATABASE_URL="$$_EFF_DB_URL" \
-			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
-		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+			$(DEV_AUTH_INLINE_ENV) \
 		EDGEQUAKE_NATIVE_GRAPH_WRITES="$(EDGEQUAKE_NATIVE_GRAPH_WRITES)" \
 		VLM_PROCESS_ENABLE="$(VLM_PROCESS_ENABLE)" \
 		EDGEQUAKE_MULTIMODAL_FAIL_MODE="$(EDGEQUAKE_MULTIMODAL_FAIL_MODE)" \
@@ -902,7 +927,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		BACKEND_PID=$$!; \
 	fi; \
 	echo "$(YELLOW)→ Starting frontend on port $$FRONTEND_PORT...$(RESET)"; \
-	(bash $(FRONTEND_DIR)/scripts/ensure-dev-cache.sh && sleep 2 && cd $(FRONTEND_DIR) && PORT="$$FRONTEND_PORT" EDGEQUAKE_API_URL="$$EDGEQUAKE_API_URL" NEXT_PUBLIC_API_URL="$$NEXT_PUBLIC_API_URL" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
+	(bash $(FRONTEND_DIR)/scripts/ensure-dev-cache.sh && sleep 2 && cd $(FRONTEND_DIR) && PORT="$$FRONTEND_PORT" EDGEQUAKE_API_URL="$$EDGEQUAKE_API_URL" NEXT_PUBLIC_API_URL="$$NEXT_PUBLIC_API_URL" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT="$(DEV_SHOW_LOGIN_HINT)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
 	FRONTEND_PID=$$!; \
 	echo "$(GREEN)✓ Startup in progress$(RESET)"; \
 	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
@@ -928,8 +953,11 @@ $(foreach p,$(PG_PROFILES),$(eval $(call PG_DEV_RULE,$(p))))
 $(foreach p,$(PG_PROFILES),$(eval $(call PG_DEV_BG_RULE,$(p))))
 $(foreach p,$(PG_PROFILES),$(eval $(call PG_DB_START_RULE,$(p))))
 
-dev-auth: ## Start full development stack with authentication enabled
-	@$(MAKE) dev --no-print-directory DEV_AUTH_ENABLED=true DEV_DISABLE_DEMO_LOGIN=true
+dev-auth: ## Alias of make dev (auth is the default)
+	@$(MAKE) dev --no-print-directory
+
+dev-open: ## Start full stack with auth disabled (open API escape hatch)
+	@$(MAKE) dev --no-print-directory DEV_AUTH_ENABLED=false DEV_DISABLE_DEMO_LOGIN=false DEV_SHOW_LOGIN_HINT=false
 
 dev-langfuse: ## Start full development stack with local Langfuse v4 (UI :3310)
 	@$(MAKE) dev --no-print-directory WITH_LANGFUSE=1
@@ -957,7 +985,7 @@ dev-memory: check-deps check-ports ## Start development with in-memory storage (
 	echo "$(GREEN)✓ Backend PID: $$BACKEND_PID, Frontend PID: $$FRONTEND_PID$(RESET)"; \
 	wait
 
-dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND without authentication
+dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND (auth on — admin / EdgeQuake1)
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
 	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; Docker is touched only when needed$(RESET)"
@@ -1035,9 +1063,9 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	@echo "  $(BLUE)Frontend$(RESET): $(FRONTEND_URL)"
 	@echo "  $(BLUE)Swagger$(RESET):  $(BACKEND_URL)/swagger-ui"
 	@if [ "$(DEV_AUTH_ENABLED)" = "true" ]; then \
-		echo "  $(BLUE)Auth$(RESET): enabled"; \
+		echo "  $(BLUE)Auth$(RESET): enabled — login $(DEV_BOOTSTRAP_ADMIN_USERNAME) / $(DEV_BOOTSTRAP_ADMIN_PASSWORD) (also shown on /login)"; \
 	else \
-		echo "  $(BLUE)Auth$(RESET): disabled (default local mode)"; \
+		echo "  $(BLUE)Auth$(RESET): disabled (open API escape hatch)"; \
 	fi
 	@if [ -n "$(OPENAI_API_KEY)" ]; then \
 		echo "  $(BLUE)LLM Provider$(RESET): openai (gpt-5-nano)"; \
@@ -1058,8 +1086,11 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	@echo "  Use $(BOLD)make stop$(RESET) to stop all services"
 	@echo ""
 
-dev-auth-bg: ## Start full development stack in BACKGROUND with authentication enabled
-	@$(MAKE) dev-bg --no-print-directory DEV_AUTH_ENABLED=true DEV_DISABLE_DEMO_LOGIN=true
+dev-auth-bg: ## Alias of make dev-bg (auth is the default)
+	@$(MAKE) dev-bg --no-print-directory
+
+dev-open-bg: ## Start background stack with auth disabled (open API escape hatch)
+	@$(MAKE) dev-bg --no-print-directory DEV_AUTH_ENABLED=false DEV_DISABLE_DEMO_LOGIN=false DEV_SHOW_LOGIN_HINT=false
 
 stop-docker-services: ## Stop Docker/OrbStack-backed EdgeQuake containers if they are running
 	@if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
@@ -1204,9 +1235,7 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
-		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+		$(DEV_AUTH_INLINE_ENV) \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
@@ -1233,9 +1262,7 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		PORT="$(BACKEND_PORT)" \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		OPENAI_API_KEY="$(OPENAI_API_KEY)" \
-		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
-		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
-		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
+		$(DEV_AUTH_INLINE_ENV) \
 		EDGEQUAKE_DEFAULT_LLM_PROVIDER="$(EDGEQUAKE_DEFAULT_LLM_PROVIDER)" \
 		EDGEQUAKE_DEFAULT_LLM_MODEL="$(EDGEQUAKE_DEFAULT_LLM_MODEL)" \
 		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER="$(EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER)" \
@@ -1314,11 +1341,9 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		$(BACKEND_STABILITY_EXPORTS) \
 		printf '%s\n' "export MISTRAL_API_KEY=\"$$_MISTRAL_KEY\"" >> /tmp/edgequake-start.sh; \
-		[ -n "$(OPENAI_API_KEY)" ] && printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
+		[ -n "$(OPENAI_API_KEY)" ] && 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+		$(DEV_AUTH_START_SH_EXPORTS) \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_EMBEDDING_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export MISTRAL_EMBEDDING_MODEL=\"mistral-embed\"" >> /tmp/edgequake-start.sh; \
@@ -1341,9 +1366,7 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 		printf '%s\n' "export OPENAI_API_KEY=\"$(OPENAI_API_KEY)\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$MISTRAL_API_KEY" ] && printf '%s\n' "export MISTRAL_API_KEY=\"$$MISTRAL_API_KEY\"" >> /tmp/edgequake-start.sh; \
 		[ -n "$$ANTHROPIC_API_KEY" ] && printf '%s\n' "export ANTHROPIC_API_KEY=\"$$ANTHROPIC_API_KEY\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+		$(DEV_AUTH_START_SH_EXPORTS) \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"openai\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
@@ -1356,9 +1379,7 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 		printf '%s\n' "export PORT=\"$${BACKEND_PORT:-8090}\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export DATABASE_URL=\"$$_EFF_DB_URL\"" >> /tmp/edgequake-start.sh; \
 		$(BACKEND_STABILITY_EXPORTS) \
-		printf '%s\n' "export EDGEQUAKE_DEV_MODE=\"$(DEV_EDGEQUAKE_DEV_MODE)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-start.sh; \
+		$(DEV_AUTH_START_SH_EXPORTS) \
 		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_MODEL=\"gemma4:latest\"" >> /tmp/edgequake-start.sh; \
@@ -1422,7 +1443,7 @@ backend-fmt: ## Format backend code
 frontend-dev: ## Start frontend development server
 	@echo "$(BLUE)Starting frontend development server on port $(FRONTEND_PORT)...$(RESET)"
 	@bash $(FRONTEND_DIR)/scripts/ensure-dev-cache.sh
-	@cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" EDGEQUAKE_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)'
+	@cd $(FRONTEND_DIR) && PORT="$(FRONTEND_PORT)" EDGEQUAKE_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_API_URL="$(BACKEND_URL)" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT="$(DEV_SHOW_LOGIN_HINT)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)'
 
 frontend-bg: sync-dev-ports ## Start frontend development server in background
 	@if curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
@@ -1441,6 +1462,7 @@ frontend-bg: sync-dev-ports ## Start frontend development server in background
 	@printf '%s\n' "export NEXT_PUBLIC_API_URL=\"$${NEXT_PUBLIC_API_URL:-$$EDGEQUAKE_API_URL}\"" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "export NEXT_PUBLIC_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=\"$(DEV_DISABLE_DEMO_LOGIN)\"" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "export NEXT_PUBLIC_SHOW_DEV_LOGIN_HINT=\"$(DEV_SHOW_LOGIN_HINT)\"" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "if command -v pnpm >/dev/null 2>&1; then" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "  exec pnpm run dev" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "fi" >> /tmp/edgequake-frontend-start.sh

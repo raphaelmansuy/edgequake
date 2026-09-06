@@ -76,7 +76,8 @@ async fn e2e_spec091_retrieval_slo_protection() {
             embedding: w3::make_embedding(DIM, 2000 + s as u32),
             limit: 10,
             workspace_id: Some(WorkspaceId(ws)),
-        };
+                    allowed_document_ids: None,
+};
         let t0 = Instant::now();
         let hits = index.search(&q).await.expect("search");
         search_samples.push(t0.elapsed());
