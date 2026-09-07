@@ -12,10 +12,23 @@
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 
+/// First product cut whose serving API includes the SPEC-139 iw2 21000 +
+/// W3 coverage-sum engine. A newer CLI + older API image still 21000-terminates.
+pub const COPY_ENGINE_MIN_VERSION: &str = "0.26.3";
+
+/// Operator hint: confirm `/health.version` on the **running API** matches this CLI.
+pub fn copy_engine_image_skew_hint(cli_version: &str) -> String {
+    format!(
+        "copy engine: CLI v{cli_version} (iw2 21000 + W3 coverage-sum require serving API ≥ {COPY_ENGINE_MIN_VERSION}; \
+         confirm GET /health.version matches this CLI — a 0.26.1 API image still 21000-terminates)"
+    )
+}
+
 /// Banner + redacted database URL.
 pub fn print_banner(version: &str, redacted_database_url: &str) {
     println!("EdgeQuake migrate v{version}");
     println!("database: {redacted_database_url}");
+    println!("{}", copy_engine_image_skew_hint(version));
 }
 
 /// Plain-language map of what this CLI does (printed once on apply / dry-run).
@@ -567,6 +580,7 @@ pub fn print_console_banner(
 ) {
     println!("EdgeQuake migrate console v{version}");
     println!("database: {redacted_database_url}");
+    println!("{}", copy_engine_image_skew_hint(version));
     let engine = format!("{:?}", posture.engine_mode).to_lowercase();
     println!(
         "cutover phase: {:<18} engine: {:<11} serving-fence: {}",
@@ -828,9 +842,11 @@ pub fn print_guard(posture: &MigrationPosture, residue: &ResidueReport) {
             )
         } else {
             format!(
-                "RED — backend={}, uncovered_chunk={}, verify_chunk={}",
+                "RED — backend={}, uncovered_chunk={} (missing_spine={}, missing_embedding={}), verify_chunk={}",
                 v.backend,
                 v.uncovered_chunk_rows,
+                v.uncovered_chunk_missing_spine_rows,
+                v.uncovered_chunk_missing_embedding_rows,
                 if chunk_verify_ok {
                     "pass"
                 } else {
@@ -875,9 +891,13 @@ pub fn print_guard(posture: &MigrationPosture, residue: &ResidueReport) {
         );
     } else if !v.dropped && !v.chunk_retirable() && v.uncovered_chunk_rows > 0 {
         println!(
-            "    plain English: {} chunk vector(s) lack typed coverage. \
-             Wait for w3-chunk-embedding-backfill.",
-            v.uncovered_chunk_rows
+            "    plain English: {} chunk vector(s) lack typed coverage \
+             (missing_spine={} — no public.chunks row; missing_embedding={} — spine exists, no chunk_embeddings). \
+             Wait for w1-chunk-text-backfill (spine) and/or w3-chunk-embedding-backfill. \
+             DROP 126 stays fail-closed until uncovered_chunk=0.",
+            v.uncovered_chunk_rows,
+            v.uncovered_chunk_missing_spine_rows,
+            v.uncovered_chunk_missing_embedding_rows
         );
     } else if !v.dropped && !v.fleet_retirable() && v.uncovered_fleet_rows == 0 {
         println!(
@@ -896,6 +916,16 @@ fn fmt_hms(secs: f64) -> String {
 #[cfg(test)]
 mod first_principles_tests {
     use super::*;
+
+    #[test]
+    fn copy_engine_image_skew_names_min_cut_and_health() {
+        let hint = copy_engine_image_skew_hint("0.26.5");
+        assert!(hint.contains("0.26.5"));
+        assert!(hint.contains(COPY_ENGINE_MIN_VERSION));
+        assert!(hint.contains("/health.version"));
+        assert!(hint.contains("0.26.1"));
+        assert!(hint.contains("21000"));
+    }
 
     #[test]
     fn class_tags_and_plain_english() {

@@ -4,7 +4,8 @@
 //! Generalizes the W3 chunk backfill machinery: fleet-wide table enumeration,
 //! keyset cursor `(family, table, last_id)`, idempotent UNNEST +
 //! `ON CONFLICT DO UPDATE` with **within-batch arbiter dedupe** (SPEC-139 /
-//! LAW-139-1: Postgres 21000 if the same conflict key is proposed twice).
+//! LAW-139-1: Postgres 21000 if the same conflict key is proposed twice) and a
+//! SQL `DISTINCT ON` belt (SPEC-396) so a missed Rust collapse cannot 21000.
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -115,6 +116,136 @@ fn collapse_writes<K: Eq + std::hash::Hash + Clone>(
         out.legacy_ids.push(row.legacy_id);
     }
     out
+}
+
+/// SQL belt (SPEC-396 / SPEC-110 pattern): `DISTINCT ON` the ON CONFLICT
+/// arbiter so a missed Rust collapse cannot propose the same key twice.
+/// `WITH ORDINALITY` + `ORDER BY arbiter, ord DESC` is last-write-wins.
+const ENTITY_FLEET_UPSERT_SQL: &str = r#"
+INSERT INTO entity_embeddings
+  (model_id, entity_id, workspace_id, embedding, dimensions, legacy_vector_id)
+SELECT $1, e, w, v::halfvec, d, lid
+FROM (
+  SELECT DISTINCT ON (e) e, w, v, d, lid
+  FROM unnest($2::uuid[], $3::uuid[], $4::text[], $5::int[], $6::text[])
+    WITH ORDINALITY AS t(e, w, v, d, lid, ord)
+  ORDER BY e, ord DESC
+) s
+ON CONFLICT (model_id, entity_id) DO UPDATE
+  SET legacy_vector_id = COALESCE(entity_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)
+"#;
+
+const RELATIONSHIP_FLEET_UPSERT_SQL: &str = r#"
+INSERT INTO relationship_embeddings
+  (model_id, relationship_id, workspace_id, embedding, dimensions, legacy_vector_id)
+SELECT $1, r, w, v::halfvec, d, lid
+FROM (
+  SELECT DISTINCT ON (r) r, w, v, d, lid
+  FROM unnest($2::uuid[], $3::uuid[], $4::text[], $5::int[], $6::text[])
+    WITH ORDINALITY AS t(r, w, v, d, lid, ord)
+  ORDER BY r, ord DESC
+) s
+ON CONFLICT (model_id, relationship_id) DO UPDATE
+  SET legacy_vector_id = COALESCE(relationship_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)
+"#;
+
+const REPORT_FLEET_UPSERT_SQL: &str = r#"
+INSERT INTO report_embeddings
+  (model_id, report_id, workspace_id, embedding, dimensions, legacy_vector_id)
+SELECT $1, r, w, v::halfvec, d, lid
+FROM (
+  SELECT DISTINCT ON (r) r, w, v, d, lid
+  FROM unnest($2::text[], $3::uuid[], $4::text[], $5::int[], $6::text[])
+    WITH ORDINALITY AS t(r, w, v, d, lid, ord)
+  ORDER BY r, ord DESC
+) s
+ON CONFLICT (model_id, report_id) DO UPDATE
+  SET legacy_vector_id = COALESCE(report_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)
+"#;
+
+const ENTITY_ROW_UPSERT_SQL: &str = r#"
+INSERT INTO entity_embeddings
+  (model_id, entity_id, workspace_id, embedding, dimensions, legacy_vector_id)
+VALUES ($1, $2, $3, $4::halfvec, $5, $6)
+ON CONFLICT (model_id, entity_id) DO UPDATE
+  SET legacy_vector_id = COALESCE(entity_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)
+"#;
+
+const RELATIONSHIP_ROW_UPSERT_SQL: &str = r#"
+INSERT INTO relationship_embeddings
+  (model_id, relationship_id, workspace_id, embedding, dimensions, legacy_vector_id)
+VALUES ($1, $2, $3, $4::halfvec, $5, $6)
+ON CONFLICT (model_id, relationship_id) DO UPDATE
+  SET legacy_vector_id = COALESCE(relationship_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)
+"#;
+
+const REPORT_ROW_UPSERT_SQL: &str = r#"
+INSERT INTO report_embeddings
+  (model_id, report_id, workspace_id, embedding, dimensions, legacy_vector_id)
+VALUES ($1, $2, $3, $4::halfvec, $5, $6)
+ON CONFLICT (model_id, report_id) DO UPDATE
+  SET legacy_vector_id = COALESCE(report_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)
+"#;
+
+struct UpsertBatchResult {
+    written: i64,
+    extra_failed: i64,
+    /// SPEC-396: 21000 survived DISTINCT ON + per-row — do not advance last_id.
+    hold_cursor: bool,
+}
+
+/// Keyset resume id: hold keeps the incoming cursor so the batch is retried.
+pub(crate) fn resume_last_id(
+    scanned_last_id: &str,
+    incoming_last_id: &str,
+    hold_cursor: bool,
+) -> String {
+    if hold_cursor {
+        incoming_last_id.to_string()
+    } else {
+        scanned_last_id.to_string()
+    }
+}
+
+fn conflict_sqlstate(err: &sqlx::Error) -> Option<&'static str> {
+    match err {
+        sqlx::Error::Database(db) => match db.code().as_deref() {
+            Some("21000") => Some("21000"),
+            Some("23505") => Some("23505"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+async fn savepoint(tx: &mut Transaction<'_, Postgres>, name: &str) -> Result<(), StorageError> {
+    sqlx::query(&format!("SAVEPOINT {name}"))
+        .execute(&mut **tx)
+        .await
+        .map(|_| ())
+        .map_err(|e| StorageError::Database(format!("iw2 savepoint {name}: {e}")))
+}
+
+async fn rollback_to_savepoint(
+    tx: &mut Transaction<'_, Postgres>,
+    name: &str,
+) -> Result<(), StorageError> {
+    sqlx::query(&format!("ROLLBACK TO SAVEPOINT {name}"))
+        .execute(&mut **tx)
+        .await
+        .map(|_| ())
+        .map_err(|e| StorageError::Database(format!("iw2 rollback to {name}: {e}")))
+}
+
+async fn release_savepoint(
+    tx: &mut Transaction<'_, Postgres>,
+    name: &str,
+) -> Result<(), StorageError> {
+    sqlx::query(&format!("RELEASE SAVEPOINT {name}"))
+        .execute(&mut **tx)
+        .await
+        .map(|_| ())
+        .map_err(|e| StorageError::Database(format!("iw2 release {name}: {e}")))
 }
 
 fn vector_literal(embedding: &[f32]) -> String {
@@ -466,11 +597,31 @@ impl BackfillJob for FleetEmbeddingBackfillJob {
             .and_then(|r| r.try_get::<String, _>("id").ok())
             .unwrap_or_default();
 
-        let (written, failed) = match family {
+        let (written, failed, hold_cursor) = match family {
             EmbeddingFamily::Entity => self.write_entity_batch(tx, &rows).await?,
             EmbeddingFamily::Relationship => self.write_relationship_batch(tx, &rows).await?,
             EmbeddingFamily::Report => self.write_report_batch(tx, &rows).await?,
         };
+        if hold_cursor {
+            // SPEC-396: never swallow-and-advance. Returning Err rolls the
+            // batch TX back so `last_id` stays put for the next claim.
+            tracing::error!(
+                table,
+                family = family.backfill_family_key(),
+                incoming_last_id = %start_id,
+                scanned_last_id = %next_id,
+                written,
+                failed,
+                "iw2 21000 survived DISTINCT ON + per-row — cursor not advanced"
+            );
+            return Err(StorageError::Database(format!(
+                "iw2 {} insert 21000 after DISTINCT ON and per-row; \
+                 keyset cursor not advanced (last_id stays {:?})",
+                family.backfill_family_key(),
+                start_id
+            )));
+        }
+        let resume_id = resume_last_id(&next_id, &start_id, false);
 
         Ok(BatchOutcome {
             scanned,
@@ -479,7 +630,7 @@ impl BackfillJob for FleetEmbeddingBackfillJob {
             next_cursor: Some(json!({
                 "family": family.backfill_family_key(),
                 "table": table,
-                "last_id": next_id
+                "last_id": resume_id
             })),
         })
     }
@@ -559,12 +710,13 @@ impl FleetEmbeddingBackfillJob {
         .map_err(|e| StorageError::Database(format!("iw2 model upsert failed: {e}")))
     }
 
-    /// Returns `(written, failed)` — failed = durable unresolved joins / bad rows.
+    /// Returns `(written, failed, hold_cursor)` — failed = durable unresolved
+    /// joins / bad rows. `hold_cursor` means 21000 survived the SQL belt.
     async fn write_entity_batch(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         rows: &[sqlx::postgres::PgRow],
-    ) -> Result<(i64, i64), StorageError> {
+    ) -> Result<(i64, i64, bool), StorageError> {
         let mut prepared: Vec<(Uuid, FleetWrite)> = Vec::new();
         let mut dimensions = 0i32;
         let mut failed = 0i64;
@@ -621,46 +773,22 @@ impl FleetEmbeddingBackfillJob {
         }
         let batch = collapse_writes(prepared);
         if batch.keys.is_empty() {
-            return Ok((0, failed));
+            return Ok((0, failed, false));
         }
         let model_id = self.upsert_model(tx, dimensions).await?;
-        let written_res = sqlx::query(
-            "INSERT INTO entity_embeddings \
-             (model_id, entity_id, workspace_id, embedding, dimensions, legacy_vector_id) \
-             SELECT $1, e, w, v::halfvec, d, lid \
-             FROM unnest($2::uuid[], $3::uuid[], $4::text[], $5::int[], $6::text[]) \
-               AS t(e, w, v, d, lid) \
-             ON CONFLICT (model_id, entity_id) DO UPDATE \
-               SET legacy_vector_id = COALESCE(entity_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)",
-        )
-        .bind(model_id)
-        .bind(&batch.keys)
-        .bind(&batch.workspace_ids)
-        .bind(&batch.vectors)
-        .bind(&batch.dims)
-        .bind(&batch.legacy_ids)
-        .execute(&mut **tx)
-        .await;
-        match written_res {
-            Ok(r) => Ok((r.rows_affected() as i64, failed)),
-            Err(sqlx::Error::Database(db))
-                if db.code().as_deref() == Some("23505")
-                    || db.code().as_deref() == Some("21000") =>
-            {
-                // Unique legacy_vector_id (23505) or residual cardinality (21000).
-                Ok((0, failed + batch.keys.len() as i64))
-            }
-            Err(e) => Err(StorageError::Database(format!(
-                "iw2 entity insert failed: {e}"
-            ))),
-        }
+        let upsert = self.upsert_entity_batch(tx, model_id, &batch).await?;
+        Ok((
+            upsert.written,
+            failed + upsert.extra_failed,
+            upsert.hold_cursor,
+        ))
     }
 
     async fn write_relationship_batch(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         rows: &[sqlx::postgres::PgRow],
-    ) -> Result<(i64, i64), StorageError> {
+    ) -> Result<(i64, i64, bool), StorageError> {
         let mut prepared: Vec<(Uuid, FleetWrite)> = Vec::new();
         let mut dimensions = 0i32;
         let mut failed = 0i64;
@@ -723,45 +851,22 @@ impl FleetEmbeddingBackfillJob {
         }
         let batch = collapse_writes(prepared);
         if batch.keys.is_empty() {
-            return Ok((0, failed));
+            return Ok((0, failed, false));
         }
         let model_id = self.upsert_model(tx, dimensions).await?;
-        let written_res = sqlx::query(
-            "INSERT INTO relationship_embeddings \
-             (model_id, relationship_id, workspace_id, embedding, dimensions, legacy_vector_id) \
-             SELECT $1, r, w, v::halfvec, d, lid \
-             FROM unnest($2::uuid[], $3::uuid[], $4::text[], $5::int[], $6::text[]) \
-               AS t(r, w, v, d, lid) \
-             ON CONFLICT (model_id, relationship_id) DO UPDATE \
-               SET legacy_vector_id = COALESCE(relationship_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)",
-        )
-        .bind(model_id)
-        .bind(&batch.keys)
-        .bind(&batch.workspace_ids)
-        .bind(&batch.vectors)
-        .bind(&batch.dims)
-        .bind(&batch.legacy_ids)
-        .execute(&mut **tx)
-        .await;
-        match written_res {
-            Ok(r) => Ok((r.rows_affected() as i64, failed)),
-            Err(sqlx::Error::Database(db))
-                if db.code().as_deref() == Some("23505")
-                    || db.code().as_deref() == Some("21000") =>
-            {
-                Ok((0, failed + batch.keys.len() as i64))
-            }
-            Err(e) => Err(StorageError::Database(format!(
-                "iw2 relationship insert failed: {e}"
-            ))),
-        }
+        let upsert = self.upsert_relationship_batch(tx, model_id, &batch).await?;
+        Ok((
+            upsert.written,
+            failed + upsert.extra_failed,
+            upsert.hold_cursor,
+        ))
     }
 
     async fn write_report_batch(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         rows: &[sqlx::postgres::PgRow],
-    ) -> Result<(i64, i64), StorageError> {
+    ) -> Result<(i64, i64, bool), StorageError> {
         let mut prepared: Vec<(String, FleetWrite)> = Vec::new();
         let mut dimensions = 0i32;
         let mut failed = 0i64;
@@ -799,39 +904,297 @@ impl FleetEmbeddingBackfillJob {
         }
         let batch = collapse_writes(prepared);
         if batch.keys.is_empty() {
-            return Ok((0, failed));
+            return Ok((0, failed, false));
         }
         let model_id = self.upsert_model(tx, dimensions).await?;
-        let written_res = sqlx::query(
-            "INSERT INTO report_embeddings \
-             (model_id, report_id, workspace_id, embedding, dimensions, legacy_vector_id) \
-             SELECT $1, r, w, v::halfvec, d, lid \
-             FROM unnest($2::text[], $3::uuid[], $4::text[], $5::int[], $6::text[]) \
-               AS t(r, w, v, d, lid) \
-             ON CONFLICT (model_id, report_id) DO UPDATE \
-               SET legacy_vector_id = COALESCE(report_embeddings.legacy_vector_id, EXCLUDED.legacy_vector_id)",
-        )
-        .bind(model_id)
-        .bind(&batch.keys)
-        .bind(&batch.workspace_ids)
-        .bind(&batch.vectors)
-        .bind(&batch.dims)
-        .bind(&batch.legacy_ids)
-        .execute(&mut **tx)
-        .await;
+        let upsert = self.upsert_report_batch(tx, model_id, &batch).await?;
+        Ok((
+            upsert.written,
+            failed + upsert.extra_failed,
+            upsert.hold_cursor,
+        ))
+    }
+
+    async fn upsert_entity_batch(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        model_id: Uuid,
+        batch: &UnnestedBatch<Uuid>,
+    ) -> Result<UpsertBatchResult, StorageError> {
+        savepoint(tx, "iw2_upsert").await?;
+        let written_res = sqlx::query(ENTITY_FLEET_UPSERT_SQL)
+            .bind(model_id)
+            .bind(&batch.keys)
+            .bind(&batch.workspace_ids)
+            .bind(&batch.vectors)
+            .bind(&batch.dims)
+            .bind(&batch.legacy_ids)
+            .execute(&mut **tx)
+            .await;
         match written_res {
-            Ok(r) => Ok((r.rows_affected() as i64, failed)),
-            Err(sqlx::Error::Database(db))
-                if db.code().as_deref() == Some("23505")
-                    || db.code().as_deref() == Some("21000") =>
-            {
-                Ok((0, failed + batch.keys.len() as i64))
+            Ok(r) => {
+                release_savepoint(tx, "iw2_upsert").await.ok();
+                Ok(UpsertBatchResult {
+                    written: r.rows_affected() as i64,
+                    extra_failed: 0,
+                    hold_cursor: false,
+                })
             }
-            Err(e) => Err(StorageError::Database(format!(
-                "iw2 report insert failed: {e}"
-            ))),
+            Err(e) => {
+                let state = conflict_sqlstate(&e);
+                rollback_to_savepoint(tx, "iw2_upsert").await?;
+                match state {
+                    Some("21000") | Some("23505") => {
+                        tracing::warn!(
+                            sqlstate = state.unwrap_or("?"),
+                            keys = ?batch.legacy_ids,
+                            "iw2 entity UNNEST conflict — per-row fallback; 21000 will not advance cursor"
+                        );
+                        self.upsert_entity_rows(tx, model_id, batch, state == Some("21000"))
+                            .await
+                    }
+                    _ => Err(StorageError::Database(format!(
+                        "iw2 entity insert failed: {e}"
+                    ))),
+                }
+            }
         }
     }
+
+    async fn upsert_relationship_batch(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        model_id: Uuid,
+        batch: &UnnestedBatch<Uuid>,
+    ) -> Result<UpsertBatchResult, StorageError> {
+        savepoint(tx, "iw2_upsert").await?;
+        let written_res = sqlx::query(RELATIONSHIP_FLEET_UPSERT_SQL)
+            .bind(model_id)
+            .bind(&batch.keys)
+            .bind(&batch.workspace_ids)
+            .bind(&batch.vectors)
+            .bind(&batch.dims)
+            .bind(&batch.legacy_ids)
+            .execute(&mut **tx)
+            .await;
+        match written_res {
+            Ok(r) => {
+                release_savepoint(tx, "iw2_upsert").await.ok();
+                Ok(UpsertBatchResult {
+                    written: r.rows_affected() as i64,
+                    extra_failed: 0,
+                    hold_cursor: false,
+                })
+            }
+            Err(e) => {
+                let state = conflict_sqlstate(&e);
+                rollback_to_savepoint(tx, "iw2_upsert").await?;
+                match state {
+                    Some("21000") | Some("23505") => {
+                        tracing::warn!(
+                            sqlstate = state.unwrap_or("?"),
+                            keys = ?batch.legacy_ids,
+                            "iw2 relationship UNNEST conflict — per-row fallback; 21000 will not advance cursor"
+                        );
+                        self.upsert_relationship_rows(tx, model_id, batch, state == Some("21000"))
+                            .await
+                    }
+                    _ => Err(StorageError::Database(format!(
+                        "iw2 relationship insert failed: {e}"
+                    ))),
+                }
+            }
+        }
+    }
+
+    async fn upsert_report_batch(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        model_id: Uuid,
+        batch: &UnnestedBatch<String>,
+    ) -> Result<UpsertBatchResult, StorageError> {
+        savepoint(tx, "iw2_upsert").await?;
+        let written_res = sqlx::query(REPORT_FLEET_UPSERT_SQL)
+            .bind(model_id)
+            .bind(&batch.keys)
+            .bind(&batch.workspace_ids)
+            .bind(&batch.vectors)
+            .bind(&batch.dims)
+            .bind(&batch.legacy_ids)
+            .execute(&mut **tx)
+            .await;
+        match written_res {
+            Ok(r) => {
+                release_savepoint(tx, "iw2_upsert").await.ok();
+                Ok(UpsertBatchResult {
+                    written: r.rows_affected() as i64,
+                    extra_failed: 0,
+                    hold_cursor: false,
+                })
+            }
+            Err(e) => {
+                let state = conflict_sqlstate(&e);
+                rollback_to_savepoint(tx, "iw2_upsert").await?;
+                match state {
+                    Some("21000") | Some("23505") => {
+                        tracing::warn!(
+                            sqlstate = state.unwrap_or("?"),
+                            keys = ?batch.legacy_ids,
+                            "iw2 report UNNEST conflict — per-row fallback; 21000 will not advance cursor"
+                        );
+                        self.upsert_report_rows(tx, model_id, batch, state == Some("21000"))
+                            .await
+                    }
+                    _ => Err(StorageError::Database(format!(
+                        "iw2 report insert failed: {e}"
+                    ))),
+                }
+            }
+        }
+    }
+
+    async fn upsert_entity_rows(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        model_id: Uuid,
+        batch: &UnnestedBatch<Uuid>,
+        from_21000: bool,
+    ) -> Result<UpsertBatchResult, StorageError> {
+        upsert_uuid_rows(
+            tx,
+            model_id,
+            batch,
+            ENTITY_ROW_UPSERT_SQL,
+            "entity",
+            from_21000,
+        )
+        .await
+    }
+
+    async fn upsert_relationship_rows(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        model_id: Uuid,
+        batch: &UnnestedBatch<Uuid>,
+        from_21000: bool,
+    ) -> Result<UpsertBatchResult, StorageError> {
+        upsert_uuid_rows(
+            tx,
+            model_id,
+            batch,
+            RELATIONSHIP_ROW_UPSERT_SQL,
+            "relationship",
+            from_21000,
+        )
+        .await
+    }
+
+    async fn upsert_report_rows(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        model_id: Uuid,
+        batch: &UnnestedBatch<String>,
+        from_21000: bool,
+    ) -> Result<UpsertBatchResult, StorageError> {
+        let mut written = 0i64;
+        let mut extra_failed = 0i64;
+        for i in 0..batch.keys.len() {
+            savepoint(tx, "iw2_row").await?;
+            let res = sqlx::query(REPORT_ROW_UPSERT_SQL)
+                .bind(model_id)
+                .bind(&batch.keys[i])
+                .bind(batch.workspace_ids[i])
+                .bind(&batch.vectors[i])
+                .bind(batch.dims[i])
+                .bind(&batch.legacy_ids[i])
+                .execute(&mut **tx)
+                .await;
+            match res {
+                Ok(r) => {
+                    release_savepoint(tx, "iw2_row").await.ok();
+                    written += r.rows_affected() as i64;
+                }
+                Err(e) => {
+                    let state = conflict_sqlstate(&e);
+                    rollback_to_savepoint(tx, "iw2_row").await?;
+                    match state {
+                        Some("23505") => extra_failed += 1,
+                        Some("21000") => {
+                            return Ok(UpsertBatchResult {
+                                written,
+                                extra_failed: extra_failed + (batch.keys.len() - i) as i64,
+                                hold_cursor: true,
+                            });
+                        }
+                        _ => {
+                            return Err(StorageError::Database(format!(
+                                "iw2 report per-row insert failed: {e}"
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(UpsertBatchResult {
+            written,
+            extra_failed,
+            hold_cursor: from_21000 && written == 0,
+        })
+    }
+}
+
+async fn upsert_uuid_rows(
+    tx: &mut Transaction<'_, Postgres>,
+    model_id: Uuid,
+    batch: &UnnestedBatch<Uuid>,
+    sql: &str,
+    family: &str,
+    from_21000: bool,
+) -> Result<UpsertBatchResult, StorageError> {
+    let mut written = 0i64;
+    let mut extra_failed = 0i64;
+    for i in 0..batch.keys.len() {
+        savepoint(tx, "iw2_row").await?;
+        let res = sqlx::query(sql)
+            .bind(model_id)
+            .bind(batch.keys[i])
+            .bind(batch.workspace_ids[i])
+            .bind(&batch.vectors[i])
+            .bind(batch.dims[i])
+            .bind(&batch.legacy_ids[i])
+            .execute(&mut **tx)
+            .await;
+        match res {
+            Ok(r) => {
+                release_savepoint(tx, "iw2_row").await.ok();
+                written += r.rows_affected() as i64;
+            }
+            Err(e) => {
+                let state = conflict_sqlstate(&e);
+                rollback_to_savepoint(tx, "iw2_row").await?;
+                match state {
+                    Some("23505") => extra_failed += 1,
+                    Some("21000") => {
+                        return Ok(UpsertBatchResult {
+                            written,
+                            extra_failed: extra_failed + (batch.keys.len() - i) as i64,
+                            hold_cursor: true,
+                        });
+                    }
+                    _ => {
+                        return Err(StorageError::Database(format!(
+                            "iw2 {family} per-row insert failed: {e}"
+                        )));
+                    }
+                }
+            }
+        }
+    }
+    Ok(UpsertBatchResult {
+        written,
+        extra_failed,
+        hold_cursor: from_21000 && written == 0,
+    })
 }
 
 #[cfg(test)]
@@ -844,5 +1207,40 @@ mod tests {
         assert_eq!(job.step_id(), "iw2-fleet-embedding-backfill");
         assert_eq!(job.schema_generation(), 1);
         assert_eq!(job.step_sha384().len(), 96);
+    }
+
+    #[test]
+    fn contract_spec396_sql_distinct_on_arbiters() {
+        assert!(
+            ENTITY_FLEET_UPSERT_SQL.contains("DISTINCT ON (e)"),
+            "entity UNNEST must DISTINCT ON entity_id arbiter"
+        );
+        assert!(
+            RELATIONSHIP_FLEET_UPSERT_SQL.contains("DISTINCT ON (r)"),
+            "relationship UNNEST must DISTINCT ON relationship_id arbiter"
+        );
+        assert!(
+            REPORT_FLEET_UPSERT_SQL.contains("DISTINCT ON (r)"),
+            "report UNNEST must DISTINCT ON report_id arbiter"
+        );
+        for sql in [
+            ENTITY_FLEET_UPSERT_SQL,
+            RELATIONSHIP_FLEET_UPSERT_SQL,
+            REPORT_FLEET_UPSERT_SQL,
+        ] {
+            assert!(sql.contains("WITH ORDINALITY"), "last-write-wins ordinal");
+            assert!(
+                sql.contains("ON CONFLICT") && sql.contains("DO UPDATE"),
+                "must keep COALESCE provenance DO UPDATE"
+            );
+            assert!(!sql.contains("DO NOTHING"), "DO NOTHING loses provenance");
+        }
+    }
+
+    #[test]
+    fn contract_spec396_resume_last_id_holds_on_21000() {
+        assert_eq!(resume_last_id("entity:Z", "entity:A", true), "entity:A");
+        assert_eq!(resume_last_id("entity:Z", "entity:A", false), "entity:Z");
+        assert_eq!(resume_last_id("entity:Z", "", false), "entity:Z");
     }
 }

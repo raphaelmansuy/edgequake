@@ -73,6 +73,10 @@ pub async fn run_plan() -> Result<()> {
     let guidance = advisor::derive_guidance(&posture);
     println!("EdgeQuake migrate plan v{}", env!("CARGO_PKG_VERSION"));
     println!("database: {}", redacted());
+    println!(
+        "{}",
+        migrate_console::copy_engine_image_skew_hint(env!("CARGO_PKG_VERSION"))
+    );
     migrate_console::print_instructions(&guidance);
     Ok(())
 }
@@ -83,6 +87,10 @@ pub async fn run_guard(family: Option<String>) -> Result<()> {
     let posture = advisor::posture(&bundle.query).await?;
     println!("EdgeQuake migrate guard v{}", env!("CARGO_PKG_VERSION"));
     println!("database: {}", redacted());
+    println!(
+        "{}",
+        migrate_console::copy_engine_image_skew_hint(env!("CARGO_PKG_VERSION"))
+    );
     match family {
         None => migrate_console::print_guard(&posture, &posture.residue),
         Some(name) => print_family_guard(&posture, &name),

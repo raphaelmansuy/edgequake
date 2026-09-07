@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **#396 — 0.26.x embedding migration residuals** — iw2 UNNEST upserts add a
+  SQL `DISTINCT ON` arbiter belt (SPEC-110 pattern) so a missed Rust collapse
+  cannot raise Postgres 21000. Residual 21000/23505 rolls to a savepoint and
+  per-row upsert; 21000 no longer swallow-and-advances the keyset cursor.
+  W3 missing `chunks` spine increments `failed_count` and the advisor/guard
+  splits `uncovered_chunk` into `missing_spine` vs `missing_embedding` without
+  weakening DROP 125/126/131. CLI `migrate` / `guard` / `plan` print an
+  API-vs-CLI pin hint (`GET /health.version` must be ≥ 0.26.3).
+
 ## [0.26.5] — 2026-09-02
 
 Patch: **SPEC-145** Langfuse truncated observation I/O — generation / LLM
