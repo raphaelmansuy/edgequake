@@ -83,7 +83,10 @@ export function useWorkspaceTenantValidator(options?: {
               reason: `Workspace ${selectedWorkspaceId} belongs to tenant ${workspaceInList.tenant_id}, not ${selectedTenantId}`,
             };
 
-            console.error(
+            // WHY console.warn (not console.error): Next.js dev promotes
+            // console.error to a full-screen overlay. Mismatch is recovered
+            // via autoCorrect / reset — keep it in devtools only.
+            console.warn(
               "[WorkspaceTenantValidator] Mismatch detected:",
               result.reason,
             );
@@ -133,7 +136,7 @@ export function useWorkspaceTenantValidator(options?: {
             reason: `Workspace ${selectedWorkspaceId} (${workspace.name}) belongs to tenant ${workspace.tenant_id}, not ${selectedTenantId}`,
           };
 
-          console.error(
+          console.warn(
             "[WorkspaceTenantValidator] API verification failed:",
             result.reason,
           );
@@ -165,8 +168,14 @@ export function useWorkspaceTenantValidator(options?: {
           }
         }
       } catch (error) {
-        // Workspace doesn't exist or API error
-        console.error("[WorkspaceTenantValidator] Validation error:", error);
+        // Workspace doesn't exist, backend down, or other API error.
+        // WHY console.warn + message string (not console.error(error)):
+        // Next.js dev promotes console.error(Error) to a full-screen overlay
+        // (stack points at api/client.ts handleErrorResponse). The failure is
+        // already handled via autoCorrect / reset.
+        const message =
+          error instanceof Error ? error.message : String(error);
+        console.warn("[WorkspaceTenantValidator] Validation error:", message);
 
         if (autoCorrect) {
           // Select first available workspace for current tenant

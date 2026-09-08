@@ -297,8 +297,9 @@ async fn vector_posture(pool: &PgPool) -> Result<VectorPosture, StorageError> {
     let typed_report_rows = count_table(pool, "report_embeddings").await?;
     let legacy_chunk_rows = count_legacy_chunk_rows(pool).await?;
     let legacy_fleet_rows = count_legacy_fleet_rows(pool).await?;
-    let uncovered_chunk_rows =
-        crate::migration_engine::coverage::count_uncovered_chunk_rows(pool).await?;
+    let uncovered_chunk_split =
+        crate::migration_engine::coverage::count_uncovered_chunk_split(pool).await?;
+    let uncovered_chunk_rows = uncovered_chunk_split.total();
     let uncovered_fleet_rows =
         crate::migration_engine::coverage::count_uncovered_fleet_rows(pool).await?;
     let chunk_fleet_dropped = drop_migration_applied(pool, 126).await?;
@@ -326,6 +327,8 @@ async fn vector_posture(pool: &PgPool) -> Result<VectorPosture, StorageError> {
         legacy_chunk_rows,
         legacy_fleet_rows,
         uncovered_chunk_rows,
+        uncovered_chunk_missing_spine_rows: uncovered_chunk_split.missing_spine,
+        uncovered_chunk_missing_embedding_rows: uncovered_chunk_split.missing_embedding,
         uncovered_fleet_rows,
         chunk_fleet_dropped,
         dropped,

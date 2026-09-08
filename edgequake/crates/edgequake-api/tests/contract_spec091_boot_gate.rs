@@ -254,6 +254,8 @@ async fn newer_db_refuses_downgrade() {
     let drift = schema_drift(&pool).await.expect("drift derivable");
     assert!(drift.db_newer_than_binary);
     assert!(drift.migration_required());
+    assert_eq!(drift.applied_max, newer);
+    assert_eq!(drift.embedded_max, embedded_max);
 
     // The downgrade message builder itself is pinned (single builder, DRY).
     let pinned = boot_gate_downgrade_message(newer, embedded_max);
@@ -348,20 +350,33 @@ fn message_builder_pins_and_drift_logic() {
     assert!(downgrade.contains(BOOT_GATE_REFUSAL_PREFIX));
     assert!(downgrade.contains("NEWER than this binary"));
 
-    // SchemaDrift logic (no DB needed).
+    // SchemaDrift logic (no DB needed). Use embedded_max+1 — never hardcode a
+    // foreign-branch version (e.g. SPEC-146's 150) into this tree's fixtures.
+    let embedded_max = MIGRATOR
+        .migrations
+        .iter()
+        .map(|m| m.version)
+        .max()
+        .unwrap_or(0);
     assert!(SchemaDrift {
         pending_count: 1,
-        db_newer_than_binary: false
+        db_newer_than_binary: false,
+        applied_max: embedded_max.saturating_sub(1),
+        embedded_max,
     }
     .migration_required());
     assert!(SchemaDrift {
         pending_count: 0,
-        db_newer_than_binary: true
+        db_newer_than_binary: true,
+        applied_max: embedded_max + 1,
+        embedded_max,
     }
     .migration_required());
     assert!(!SchemaDrift {
         pending_count: 0,
-        db_newer_than_binary: false
+        db_newer_than_binary: false,
+        applied_max: embedded_max,
+        embedded_max,
     }
     .migration_required());
 }
