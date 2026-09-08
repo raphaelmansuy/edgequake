@@ -999,3 +999,71 @@ async fn cli_migrate_spec137_guard_does_not_mutate_ledger() {
 
     drop_db(&db, &name).await;
 }
+
+/// LAW-B5: `edgequake migrate` must refuse (exit 78) when the ledger is ahead
+/// of this binary — same STOP as serving boot (no "OK TO START THE SERVER").
+#[tokio::test]
+async fn cli_migrate_refuses_when_db_newer_than_binary() {
+    let Some(db) = dev_db_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let name = format!("edgequake_cli_lawb5_{}_{}", std::process::id(), nanos);
+    let Some(fresh) = create_fresh_db(&db, &name).await else {
+        eprintln!("SKIP: could not create fresh DB");
+        return;
+    };
+
+    // Fresh install applies the full train, then plant a fake applied version
+    // beyond this binary's embedded max (foreign-branch ledger residue).
+    let seed = run_cli(&[], &fresh, &[]);
+    assert!(
+        seed.status.success(),
+        "fresh seed must succeed: stdout={} stderr={}",
+        seed.stdout,
+        seed.stderr
+    );
+
+    let pool = sqlx::PgPool::connect(&fresh).await.expect("connect");
+    let embedded_max: i64 =
+        sqlx::query_scalar("SELECT coalesce(max(version), 0) FROM _sqlx_migrations")
+            .fetch_one(&pool)
+            .await
+            .expect("embedded max from seeded ledger");
+    let newer = embedded_max + 1;
+    sqlx::query(
+        "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) \
+         VALUES ($1, 'foreign-branch-seed', true, '\\x00', 1)",
+    )
+    .bind(newer)
+    .execute(&pool)
+    .await
+    .expect("seed newer ledger row");
+    pool.close().await;
+
+    let out = run_cli(&[], &fresh, &[]);
+    let code = out.status.code().unwrap_or(-1);
+    let combined = format!("{}{}", out.stdout, out.stderr);
+    assert_eq!(
+        code,
+        edgequake_api::state::migration_bootstrap::BOOT_GATE_EXIT_CODE,
+        "LAW-B5 migrate must exit 78: stdout={} stderr={}",
+        out.stdout,
+        out.stderr
+    );
+    assert!(
+        combined.contains(edgequake_api::state::migration_bootstrap::BOOT_GATE_REFUSAL_PREFIX)
+            || combined.contains("NEWER than this binary"),
+        "must print downgrade refusal: {combined}"
+    );
+    assert!(
+        !combined.contains("OK TO START THE SERVER"),
+        "must not soft-exit OK TO START when DB is newer: {combined}"
+    );
+
+    drop_db(&db, &name).await;
+}

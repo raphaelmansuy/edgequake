@@ -12,7 +12,17 @@ All notable changes to this project will be documented in this file.
   W3 missing `chunks` spine increments `failed_count` and the advisor/guard
   splits `uncovered_chunk` into `missing_spine` vs `missing_embedding` without
   weakening DROP 125/126/131. CLI `migrate` / `guard` / `plan` print an
-  API-vs-CLI pin hint (`GET /health.version` must be ≥ 0.26.3).
+  API-vs-CLI pin hint: serving API `/health.version` must match **this binary**
+  (engine runs in the API), not a GHCR tag with the same number. Published
+  0.26.3–0.26.5 images do not include SPEC-396; the SPEC-139 floor ≥ 0.26.3
+  is not sufficient.
+- **`edgequake migrate` LAW-B5** — when `_sqlx_migrations` is ahead of this
+  binary (e.g. local Postgres after switching off a branch that applied a
+  newer schema than this tree embeds), migrate prints the same STOP verdict
+  serving boot uses and exits 78 instead of "OK TO START THE SERVER".
+- **WebUI tenant/workspace validator** — recovered mismatches and API errors
+  use `console.warn` (message string) instead of `console.error(Error)` so
+  Next.js dev does not promote them to a full-screen overlay.
 
 ## [0.26.5] — 2026-09-02
 

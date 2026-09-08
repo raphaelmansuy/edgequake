@@ -11,15 +11,22 @@ mod postgres_test_config;
 #[path = "support/spec091_w3.rs"]
 mod w3;
 
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use edgequake_storage::entity_id::normalize_entity_name;
+use edgequake_storage::error::StorageError;
 use edgequake_storage::migration_engine::advisor;
 use edgequake_storage::migration_engine::chunk_embedding_backfill::ChunkEmbeddingBackfillJob;
 use edgequake_storage::migration_engine::coverage;
 use edgequake_storage::migration_engine::fleet_embedding_backfill::FleetEmbeddingBackfillJob;
-use edgequake_storage::migration_engine::BackfillJob;
+use edgequake_storage::migration_engine::lease::ensure_job_row;
+use edgequake_storage::migration_engine::{
+    run_engine, BackfillJob, BatchOutcome, MigrationEngineConfig, MigrationMode, VerifyReport,
+};
 use postgres_test_config::{contract_pg_pool, require_or_skip_postgres};
-use serde_json::json;
-use sqlx::PgPool;
+use serde_json::{json, Value};
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 const DIM: usize = 1536;
@@ -439,4 +446,175 @@ async fn e2e_spec396_04_w3_verify_sum_and_passes_ignores_mismatches() {
     eprintln!("UNFAKABLE E2E-396-04 passes_default_ignores_mismatches=1 equality_opt_in=1");
 
     let _ = pool;
+}
+
+const HOLD_STEP: &str = "e2e-396-05-hold";
+
+struct HoldCursorJob;
+
+#[async_trait]
+impl BackfillJob for HoldCursorJob {
+    fn step_id(&self) -> &'static str {
+        HOLD_STEP
+    }
+    fn step_sha384(&self) -> String {
+        "cc".repeat(48)
+    }
+    fn schema_generation(&self) -> i32 {
+        1
+    }
+    fn initial_cursor(&self) -> Value {
+        json!({})
+    }
+    async fn estimate_total(&self, _pool: &PgPool) -> Result<i64, StorageError> {
+        Ok(1)
+    }
+    async fn run_batch(
+        &self,
+        _tx: &mut Transaction<'_, Postgres>,
+        _cursor: &Value,
+        _limit: i64,
+    ) -> Result<BatchOutcome, StorageError> {
+        // Same contract as FleetEmbeddingBackfillJob hold_cursor: Err, not Ok+advance.
+        Err(StorageError::Database(
+            "iw2 entity insert 21000 after DISTINCT ON and per-row; \
+             keyset cursor not advanced (last_id stays \"entity:HOLD\")"
+                .into(),
+        ))
+    }
+    async fn verify(&self, _pool: &PgPool) -> Result<VerifyReport, StorageError> {
+        Ok(VerifyReport {
+            metric: "hold".into(),
+            expected: 0,
+            actual: 0,
+            sampled: 0,
+            mismatches: 0,
+        })
+    }
+}
+
+/// Residual 21000 → run_batch Err → runner `?` drops TX → lease last_id stays put.
+#[tokio::test]
+async fn e2e_spec396_05_21000_hold_does_not_advance_lease_cursor() {
+    let Some(cfg) = require_or_skip_postgres("spec396_05") else {
+        return;
+    };
+    let _g = w3::w3_lock().lock().await;
+    let pool = contract_pg_pool(&cfg).await;
+
+    let runner = include_str!("../src/migration_engine/runner.rs");
+    let batch_idx = runner
+        .find(".run_batch(")
+        .expect("runner must call run_batch");
+    let after_batch = &runner[batch_idx..];
+    let q_idx = after_batch.find(".await?").expect("run_batch must ?");
+    let progress_idx = after_batch
+        .find("record_batch_progress")
+        .expect("runner records progress only after Ok");
+    assert!(
+        q_idx < progress_idx,
+        "run_batch Err must not reach record_batch_progress"
+    );
+    let fleet = include_str!("../src/migration_engine/fleet_embedding_backfill.rs");
+    assert!(
+        fleet.contains("keyset cursor not advanced"),
+        "iw2 hold_cursor must refuse last_id advance via Err"
+    );
+    assert!(
+        fleet.contains("if hold_cursor {"),
+        "FleetEmbeddingBackfillJob must branch on hold_cursor"
+    );
+
+    sqlx::query(
+        "DELETE FROM edgequake.edgequake_migration_batch WHERE job_id IN \
+         (SELECT job_id FROM edgequake.edgequake_migration_job WHERE step_id = $1)",
+    )
+    .bind(HOLD_STEP)
+    .execute(&pool)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM edgequake.edgequake_migration_job WHERE step_id = $1")
+        .bind(HOLD_STEP)
+        .execute(&pool)
+        .await
+        .ok();
+
+    let job = HoldCursorJob;
+    let planted = json!({
+        "family": "entity",
+        "table": "eq_e2e39605_vectors",
+        "last_id": "entity:HOLD"
+    });
+    ensure_job_row(
+        &pool,
+        job.step_id(),
+        &job.step_sha384(),
+        job.schema_generation(),
+        job.reversibility(),
+        64,
+        Some(1),
+    )
+    .await
+    .expect("ensure");
+    sqlx::query(
+        "UPDATE edgequake.edgequake_migration_job \
+         SET cursor_position = $1, processed_count = 0, failed_count = 0 \
+         WHERE step_id = $2 AND schema_generation = $3",
+    )
+    .bind(&planted)
+    .bind(job.step_id())
+    .bind(job.schema_generation())
+    .execute(&pool)
+    .await
+    .expect("plant cursor");
+
+    let mut config = MigrationEngineConfig::from_env();
+    config.owner = "e2e396-05".into();
+    run_engine(
+        pool.clone(),
+        vec![Arc::new(HoldCursorJob) as Arc<dyn BackfillJob>],
+        config,
+        MigrationMode::Automatic,
+    )
+    .await
+    .expect("engine continues after hold Err");
+
+    let (cursor, processed, batches): (Value, i64, i64) = sqlx::query_as(
+        "SELECT j.cursor_position, j.processed_count, \
+                (SELECT count(*) FROM edgequake.edgequake_migration_batch b \
+                 WHERE b.job_id = j.job_id) \
+         FROM edgequake.edgequake_migration_job j \
+         WHERE j.step_id = $1 AND j.schema_generation = $2",
+    )
+    .bind(HOLD_STEP)
+    .bind(1)
+    .fetch_one(&pool)
+    .await
+    .expect("lease row");
+
+    assert_eq!(
+        cursor.get("last_id").and_then(|v| v.as_str()),
+        Some("entity:HOLD"),
+        "21000 hold must not persist a new last_id, got {cursor}"
+    );
+    assert_eq!(
+        processed, 0,
+        "uncommitted batch must not bump processed_count"
+    );
+    assert_eq!(batches, 0, "uncommitted batch must not write ledger rows");
+    eprintln!("UNFAKABLE E2E-396-05 last_id=entity:HOLD processed={processed} batches={batches}");
+
+    sqlx::query(
+        "DELETE FROM edgequake.edgequake_migration_batch WHERE job_id IN \
+         (SELECT job_id FROM edgequake.edgequake_migration_job WHERE step_id = $1)",
+    )
+    .bind(HOLD_STEP)
+    .execute(&pool)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM edgequake.edgequake_migration_job WHERE step_id = $1")
+        .bind(HOLD_STEP)
+        .execute(&pool)
+        .await
+        .ok();
 }

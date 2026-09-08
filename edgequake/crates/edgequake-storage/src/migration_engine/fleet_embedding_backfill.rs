@@ -1243,4 +1243,30 @@ mod tests {
         assert_eq!(resume_last_id("entity:Z", "entity:A", false), "entity:Z");
         assert_eq!(resume_last_id("entity:Z", "", false), "entity:Z");
     }
+
+    #[test]
+    fn contract_spec396_hold_cursor_returns_err_not_ok_outcome() {
+        let src = include_str!("fleet_embedding_backfill.rs");
+        assert!(
+            src.contains("iw2 21000 survived DISTINCT ON + per-row — cursor not advanced"),
+            "hold_cursor must log before returning Err"
+        );
+        assert!(
+            src.contains("keyset cursor not advanced"),
+            "Err text must refuse last_id advance"
+        );
+        let hold_idx = src
+            .find("iw2 21000 survived DISTINCT ON + per-row — cursor not advanced")
+            .expect("hold_cursor log");
+        let err_idx = src[hold_idx..]
+            .find("return Err")
+            .expect("hold_cursor must return Err");
+        let ok_idx = src[hold_idx..]
+            .find("Ok(BatchOutcome")
+            .unwrap_or(usize::MAX);
+        assert!(
+            err_idx < ok_idx,
+            "hold_cursor must Err before any BatchOutcome Ok (no swallow-and-advance)"
+        );
+    }
 }
