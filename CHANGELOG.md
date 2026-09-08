@@ -23,6 +23,9 @@ All notable changes to this project will be documented in this file.
 - **WebUI tenant/workspace validator** — recovered mismatches and API errors
   use `console.warn` (message string) instead of `console.error(Error)` so
   Next.js dev does not promote them to a full-screen overlay.
+- **SPEC-091 ER ladder tests** — `resolve_after_exact_miss` takes
+  `ErLadderPolicy` instead of re-reading process env, so parallel
+  `cargo test --lib` cannot race `EDGEQUAKE_ENTITY_EMBED_ER`.
 
 ## [0.26.5] — 2026-09-02
 
