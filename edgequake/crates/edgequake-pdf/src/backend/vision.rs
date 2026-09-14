@@ -11,11 +11,14 @@ use crate::chart_crop::{
     filter_chart_pages_by_page_png_ink, write_chart_crop_assets, CropCoverageReport,
     CHART_CROP_RENDER,
 };
-use crate::embedded_images::{figures_by_page, write_embedded_figure_assets};
 use crate::error::PdfConversionError;
+use crate::figure_extract::{
+    extract_embedded_figures, inventory_figure_pages, prune_artifact_figures,
+    skip_all_region_crops, write_caption_region_assets_for_keep_pages, EmbeddedFigureExtract,
+};
 use crate::page_assets::{write_page_png_assets, PageAssetRenderConfig};
 use crate::reasoning_effort_inject::ReasoningEffortInjectProvider;
-use crate::region_assets::{tables_by_page, write_caption_region_assets};
+use crate::region_assets::tables_by_page;
 use crate::vision_markdown::{normalize_vision_pages, VisionPageSlice};
 
 /// Vision-based PDF converter backed by `edgequake-pdf2md`.
@@ -158,86 +161,76 @@ impl PdfConverter for VisionPdfConverter {
                     .is_some_and(|m| m.is_manuscript_like());
                 let total_pages = output.stats.total_pages.max(output.pages.len()).max(1);
                 let page_numbers: Vec<usize> = (1..=total_pages).collect();
+                let mut extract =
+                    EmbeddedFigureExtract::from_plan(Vec::new(), page_numbers.clone());
                 let render = PageAssetRenderConfig {
                     dpi: vision.dpi.unwrap_or(150),
                     max_rendered_pixels: vision.max_rendered_pixels.unwrap_or(2000),
                 };
 
-                // 1) Embedded ImageXObjects first — VLM analyze SSOT (figure-bounded).
-                // SPEC-015V: gated by extract_figures.
-                if plan.write_figures {
+                // 1) Figure page plan + optional ImageXObject extract.
+                // Always inventory when figures or charts are enabled so artifact
+                // pages never become chart residuals.
+                if plan.write_figures || plan.write_charts {
                     if let Some(hook) = status_hook {
-                        hook("Extracting embedded figures from PDF…", 0.92);
+                        hook("Planning figure pages from PDF…", 0.92);
                     }
-                    match write_embedded_figure_assets(
-                        pdf_bytes,
-                        &page_assets.assets_root,
-                        Some(&page_numbers),
-                    )
-                    .await
-                    {
-                        Ok(written) => {
-                            info!(
-                                figures = written.len(),
-                                assets_root = %page_assets.assets_root.display(),
-                                "Embedded figure assets written for VLM analyze"
-                            );
-                            figure_map = figures_by_page(&written);
-                            // SPEC-134 P0 (LAW-134-1 page-as-unit): on
-                            // manuscript-class pages, a page delivered as many
-                            // small image tiles is a sliced scan — the tiles are
-                            // encoding artifacts, not figures. Suppressing them
-                            // here closes every downstream fragment channel at
-                            // once: markdown links, <drawing/> analyze tags, and
-                            // chart-residual candidates all read figure_map.
-                            if page_assets
-                                .page_modality
-                                .is_some_and(|m| m.is_manuscript_like())
-                            {
-                                let mut suppressed = 0usize;
-                                for (page, figs) in figure_map.iter_mut() {
-                                    if crate::embedded_images::is_scan_tiling_page(figs) {
-                                        suppressed += figs.len();
-                                        figs.clear();
-                                        info!(
-                                            page_num = page,
-                                            "SPEC-134: scan-tiling page — fragment links suppressed"
-                                        );
-                                    }
-                                }
-                                if suppressed > 0 {
-                                    info!(
-                                        suppressed,
-                                        "SPEC-134: scan-tiling fragments excluded from markdown/analyze"
+                    let planned = if plan.write_figures {
+                        extract_embedded_figures(
+                            pdf_bytes,
+                            &page_assets.assets_root,
+                            Some(&page_numbers),
+                        )
+                        .await
+                    } else {
+                        inventory_figure_pages(pdf_bytes, Some(&page_numbers)).await
+                    };
+                    match planned {
+                        Ok(e) => {
+                            extract = e;
+                            figure_map = extract.figure_map();
+                            if extract.keep_pages.is_empty() {
+                                if let Some(hook) = status_hook {
+                                    hook(
+                                        "Skipping encoding-artifact ImageXObjects — analyzing page images…",
+                                        0.92,
                                     );
                                 }
-                            }
-                            if let Some(hook) = status_hook {
-                                hook(
-                                    &format!(
-                                        "Extracted {} embedded figure(s) — rendering page images…",
-                                        written.len()
-                                    ),
-                                    0.93,
+                            } else if plan.write_figures {
+                                info!(
+                                    figures = extract.written.len(),
+                                    keep_pages = extract.keep_pages.len(),
+                                    artifact_pages = extract.artifact_pages.len(),
+                                    assets_root = %page_assets.assets_root.display(),
+                                    "Embedded figure assets written for VLM analyze"
                                 );
+                                if let Some(hook) = status_hook {
+                                    hook(
+                                        &format!(
+                                            "Extracted {} embedded figure(s) — rendering page images…",
+                                            extract.written.len()
+                                        ),
+                                        0.93,
+                                    );
+                                }
                             }
                         }
                         Err(e) => {
                             warn!(
                                 error = %e,
-                                "Embedded figure extract failed; analyze may fall back to chart crops"
+                                "Figure page plan failed; fail-closed (no fig/caption/chart crops)"
                             );
+                            extract = EmbeddedFigureExtract::fail_closed();
                         }
                     }
 
-                    // 1b) Caption-anchored Form XObject figures + table crops.
-                    // LAW-134-20: manuscript pages do not re-inject scan fragments
-                    // after tiling clear — Pass-A owns the full page.
-                    if !page_as_unit {
-                        match write_caption_region_assets(
+                    // 1b) Caption-anchored regions on keep pages only.
+                    if plan.write_figures && !extract.skip_all_region_crops(page_as_unit) {
+                        match write_caption_region_assets_for_keep_pages(
                             pdf_bytes,
                             &page_assets.assets_root,
                             &figure_map,
+                            &extract.keep_pages,
                         )
                         .await
                         {
@@ -263,6 +256,9 @@ impl PdfConverter for VisionPdfConverter {
                                 warn!(error = %e, "Caption region extract failed");
                             }
                         }
+                    }
+                    if plan.write_figures {
+                        prune_artifact_figures(&mut figure_map);
                     }
                 }
 
@@ -314,9 +310,12 @@ impl PdfConverter for VisionPdfConverter {
                 let page_nums: Vec<usize> = output.pages.iter().map(|p| p.page_num).collect();
                 let mut coverage =
                     CropCoverageReport::from_pages(&page_nums, &figure_map, &table_map);
-                if plan.write_charts && !page_as_unit {
-                    let candidates =
-                        chart_residual_candidate_pages(&page_nums, &figure_map, &table_map);
+                if plan.write_charts && !skip_all_region_crops(page_as_unit, &extract) {
+                    let candidates: Vec<usize> =
+                        chart_residual_candidate_pages(&page_nums, &figure_map, &table_map)
+                            .into_iter()
+                            .filter(|p| !extract.omit_page(*p, page_as_unit))
+                            .collect();
                     // EC-015V-4: without page PNGs, skip ink prefilter and crop candidates directly.
                     let chart_pages = if plan.write_page_pngs {
                         filter_chart_pages_by_page_png_ink(&page_assets.assets_root, &candidates)
@@ -357,8 +356,11 @@ impl PdfConverter for VisionPdfConverter {
                     }
                     // W1-fig-as-chart: only when both charts+figures enabled (EC-015V-2).
                     if plan.promote_fig_as_chart {
-                        let alongside =
-                            chart_residual_alongside_fig_pages(&page_nums, &figure_map, &table_map);
+                        let alongside: Vec<usize> =
+                            chart_residual_alongside_fig_pages(&page_nums, &figure_map, &table_map)
+                                .into_iter()
+                                .filter(|p| !extract.omit_page(*p, page_as_unit))
+                                .collect();
                         let promoted = crate::chart_crop::promote_fig_as_chart_when_ink_empty(
                             &page_assets.assets_root,
                             &alongside,

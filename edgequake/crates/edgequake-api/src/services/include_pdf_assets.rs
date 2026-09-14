@@ -18,9 +18,9 @@ use uuid::Uuid;
 use edgequake_pdf::page_numbers_from_markdown;
 #[cfg(feature = "postgres")]
 use edgequake_pdf::{
-    enrich_markdown_with_viewer_assets, figures_by_page, inject_on_disk_region_assets,
-    write_caption_region_assets, write_embedded_figure_assets, write_page_png_assets,
-    PageAssetRenderConfig,
+    enrich_markdown_with_viewer_assets, extract_embedded_figures, inject_on_disk_region_assets,
+    prune_artifact_figures, skip_all_region_crops, write_caption_region_assets_for_keep_pages,
+    write_page_png_assets, EmbeddedFigureExtract, PageAssetRenderConfig,
 };
 #[cfg(feature = "postgres")]
 use edgequake_storage::UpdatePdfProcessingRequest;
@@ -152,26 +152,40 @@ pub async fn include_extracted_pdf_assets(
         let pages = pages_for_asset_include(&body.markdown);
 
         let assets_root = document_mm_assets_root(document_id);
-        let figures = write_embedded_figure_assets(&pdf.pdf_data, &assets_root, Some(&pages))
+        let extract = extract_embedded_figures(&pdf.pdf_data, &assets_root, Some(&pages))
             .await
             .unwrap_or_else(|e| {
                 tracing::warn!(%document_id, error = %e, "Embedded figure extract skipped");
-                Vec::new()
+                EmbeddedFigureExtract::fail_closed()
             });
-        let mut figure_map = figures_by_page(&figures);
-        let (region_figs, region_tables) =
-            write_caption_region_assets(&pdf.pdf_data, &assets_root, &figure_map)
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::warn!(%document_id, error = %e, "Caption region extract skipped");
-                    (Vec::new(), Vec::new())
-                });
+        let mut figure_map = extract.figure_map();
+        let (region_figs, region_tables) = if skip_all_region_crops(false, &extract) {
+            tracing::info!(
+                %document_id,
+                artifact_pages = ?extract.artifact_pages,
+                "Caption region extract skipped — encoding-artifact pages; Pass-A raster is SSOT"
+            );
+            (Vec::new(), Vec::new())
+        } else {
+            write_caption_region_assets_for_keep_pages(
+                &pdf.pdf_data,
+                &assets_root,
+                &figure_map,
+                &extract.keep_pages,
+            )
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(%document_id, error = %e, "Caption region extract skipped");
+                (Vec::new(), Vec::new())
+            })
+        };
         for fig in &region_figs {
             figure_map
                 .entry(fig.page_num)
                 .or_default()
                 .push(fig.clone());
         }
+        prune_artifact_figures(&mut figure_map);
         // LAW-128-13: prune after every writer so include cannot resurrect logos.
         figure_map = edgequake_pdf::prune_figure_map_using_manifest(figure_map, &assets_root, true);
         let written = write_page_png_assets(
@@ -184,7 +198,7 @@ pub async fn include_extracted_pdf_assets(
         .map_err(|e| ApiError::Internal(format!("Failed to render PDF page assets: {e}")))?;
         let pages_rendered = written
             .len()
-            .max(figures.len() + region_figs.len() + region_tables.len());
+            .max(extract.written.len() + region_figs.len() + region_tables.len());
 
         // Drop stale / near-full chart PNGs (first principles: chart ≠ full page).
         let mut pages_with_region = std::collections::HashSet::new();
@@ -295,7 +309,7 @@ pub async fn include_extracted_pdf_assets(
         info!(
             %document_id,
             pages = pages_rendered,
-            figures = figures.len(),
+            figures = extract.written.len(),
             region_figs = region_figs.len(),
             region_tables = region_tables.len(),
             assets_persisted,

@@ -8,7 +8,7 @@ use std::time::Instant;
 use edgequake_llm::traits::LLMProvider;
 use edgequake_pdf::inline_images::scan_inline_image_refs;
 use edgequake_pdf::{
-    crop_descriptor_from_asset, should_suppress_crop_manuscript, CropGeometryCache, PageModality,
+    crop_descriptor_from_asset, should_suppress_crop_for_analyze, CropGeometryCache, PageModality,
 };
 use edgequake_storage::traits::KVStorage;
 use futures::stream::{self, StreamExt};
@@ -392,11 +392,11 @@ async fn analyze_images_pass_b(
     let skipped = discovered.saturating_sub(analyze_cap);
     let refs: Vec<_> = all_refs.into_iter().take(analyze_cap).collect();
 
-    // SPEC-134: Graphic-as-unit Pass-B suppression for manuscript pages.
-    // Filter out tick strips, single bars, scribbles, and chart fragments
-    // before VLM analysis (LAW-134-16) using real crop geometry (WP-5).
+    // Graphic-as-unit Pass-B: drop encoding-artifact crops (HTML table
+    // hairlines, tick strips, chart fragments) before VLM analysis. Print
+    // uses area/aspect; manuscript keeps the extra ink/fragment gates.
     let page_modality = current_page_modality();
-    let refs: Vec<_> = if page_modality.is_manuscript_like() {
+    let refs: Vec<_> = {
         let before = refs.len();
         let mut geometry = CropGeometryCache::default();
         let filtered: Vec<_> = refs
@@ -408,7 +408,7 @@ async fn analyze_images_pass_b(
                     image_ref.asset_path.as_deref(),
                     &image_ref.bytes,
                 );
-                !should_suppress_crop_manuscript(page_modality, &crop)
+                !should_suppress_crop_for_analyze(page_modality, &crop)
             })
             .collect();
         let suppressed = before - filtered.len();
@@ -417,12 +417,11 @@ async fn analyze_images_pass_b(
                 suppressed,
                 before,
                 after = filtered.len(),
-                "SPEC-134 Pass-B suppression: filtered manuscript crop fragments"
+                modality = page_modality.as_str(),
+                "Pass-B suppression: filtered encoding-artifact / fragment crops"
             );
         }
         filtered
-    } else {
-        refs
     };
 
     let total = refs.len();

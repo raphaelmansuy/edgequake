@@ -154,7 +154,82 @@ async fn contract_spec119_singular_probe_uses_index() {
     );
     eprintln!("OK SPEC-119 EXPLAIN singular source_document_id:\n{doc_plan}");
 
-    // EC-03: OR of both singular props (production singular_sql shape)
+    // EC-03 / production shape: `= ANY($1::text[])` (not OR+CTE IN — Seq Scan trap)
+    let any_chunk_sql = format!(
+        r#"EXPLAIN (FORMAT TEXT)
+           SELECT 1
+           FROM {graph}."EDGE" e
+           WHERE ag_catalog.agtype_to_json(e.properties)->>'source_chunk_id' = ANY($1::text[])
+           LIMIT 100"#
+    );
+    let any_chunk_rows: Vec<(String,)> = sqlx::query_as(&any_chunk_sql)
+        .bind(vec![chunk.clone()])
+        .fetch_all(&pool)
+        .await
+        .expect("EXPLAIN = ANY source_chunk_id");
+    let any_chunk_plan = any_chunk_rows
+        .into_iter()
+        .map(|r| r.0)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !any_chunk_plan.contains("_ag_label_edge"),
+        "= ANY EXPLAIN must target child EDGE: {any_chunk_plan}"
+    );
+    assert_plan_uses_index(
+        &any_chunk_plan,
+        &[PlanKind::Btree, PlanKind::Bitmap, PlanKind::Index],
+    );
+    let any_chunk_lower = any_chunk_plan.to_lowercase();
+    assert!(
+        !any_chunk_lower.contains("seq scan"),
+        "production singular = ANY(source_chunk_id) must not Seq Scan:\n{any_chunk_plan}"
+    );
+    assert!(
+        any_chunk_plan.contains("idx_edge_source_chunk_id")
+            || any_chunk_lower.contains("index cond"),
+        "expected Index Cond on = ANY source_chunk_id; plan:\n{any_chunk_plan}"
+    );
+    eprintln!("OK SPEC-119 EXPLAIN = ANY source_chunk_id:\n{any_chunk_plan}");
+
+    let any_doc_sql = format!(
+        r#"EXPLAIN (FORMAT TEXT)
+           SELECT 1
+           FROM {graph}."EDGE" e
+           WHERE ag_catalog.agtype_to_json(e.properties)->>'source_document_id' = ANY($1::text[])
+           LIMIT 100"#
+    );
+    let any_doc_rows: Vec<(String,)> = sqlx::query_as(&any_doc_sql)
+        .bind(vec![doc.clone()])
+        .fetch_all(&pool)
+        .await
+        .expect("EXPLAIN = ANY source_document_id");
+    let any_doc_plan = any_doc_rows
+        .into_iter()
+        .map(|r| r.0)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !any_doc_plan.contains("_ag_label_edge"),
+        "= ANY document_id EXPLAIN must target child EDGE: {any_doc_plan}"
+    );
+    assert_plan_uses_index(
+        &any_doc_plan,
+        &[PlanKind::Btree, PlanKind::Bitmap, PlanKind::Index],
+    );
+    let any_doc_lower = any_doc_plan.to_lowercase();
+    assert!(
+        !any_doc_lower.contains("seq scan"),
+        "production singular = ANY(source_document_id) must not Seq Scan:\n{any_doc_plan}"
+    );
+    assert!(
+        any_doc_plan.contains("idx_edge_source_document_id")
+            || any_doc_lower.contains("index cond"),
+        "expected Index Cond on = ANY source_document_id; plan:\n{any_doc_plan}"
+    );
+    eprintln!("OK SPEC-119 EXPLAIN = ANY source_document_id:\n{any_doc_plan}");
+
+    // EC-03: OR of both singular props (legacy trap shape — must still prefer index)
     let or_sql = format!(
         r#"EXPLAIN (FORMAT TEXT)
            SELECT 1
@@ -234,5 +309,13 @@ fn contract_spec119_singular_sql_source_has_no_jsonb_cast_on_arrow() {
     assert!(
         singular.contains("->>'source_chunk_id'") && singular.contains("->>'source_document_id'"),
         "singular SQL must still filter both singular citation props"
+    );
+    assert!(
+        singular.contains("= ANY($1::text[])"),
+        "SPEC-119: singular probes must use = ANY for Index Scan (not OR+CTE IN)"
+    );
+    assert!(
+        !singular.contains("IN (SELECT probe_id FROM probes)"),
+        "SPEC-119: must not use OR+CTE IN SubPlan (Seq Scan trap on large EDGE)"
     );
 }

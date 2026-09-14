@@ -36,19 +36,24 @@ fn modality_fed_to_conversion_config_on_production_path() {
 fn tiling_suppression_runs_at_figure_map_source() {
     let src = vision_backend_src();
     assert!(
-        src.contains("is_scan_tiling_page"),
-        "vision backend must detect scan-tiling pages"
+        src.contains("extract_embedded_figures"),
+        "vision backend must use the figure-extract facade (inventory skip + prune)"
+    );
+    assert!(
+        src.contains("skip_all_region_crops") || src.contains("omit_page"),
+        "caption and chart crops must share page-level omit (Pass-A raster is the unit)"
+    );
+    assert!(
+        src.contains("keep_pages") || src.contains("artifact_pages"),
+        "figure plan must expose keep_pages / artifact_pages"
+    );
+    assert!(
+        src.contains("prune_artifact_figures"),
+        "figure_map must be pruned after writers so fragments cannot re-enter"
     );
     assert!(
         src.contains("page_modality") && src.contains("is_manuscript_like()"),
-        "tiling suppression must be gated to manuscript-class modality"
-    );
-    // The suppression must run on figure_map itself (the SSOT consumed by
-    // markdown assembly, <drawing/> analyze tags, and chart-residual logic) —
-    // not on a downstream copy.
-    assert!(
-        src.contains("figure_map.iter_mut()"),
-        "suppression must mutate figure_map so every downstream channel closes"
+        "LAW-134-20 page-as-unit must still gate manuscript fragment inject"
     );
 }
 

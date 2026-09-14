@@ -319,43 +319,47 @@ pub const DEFAULT_SUPPRESS_AREA_FRAC: f32 = 0.008;
 /// Default ink density threshold (SPEC-134 WP-4).
 pub const DEFAULT_SUPPRESS_INK_FRAC: f32 = 0.01;
 
+/// Shared Pass-B area/aspect (Print + manuscript). Constants from [`figure_keep`].
+fn crop_fails_shared_geometry(crop: &CropDescriptor) -> bool {
+    crop.area_frac < DEFAULT_SUPPRESS_AREA_FRAC
+        || crate::figure_keep::crop_aspect_is_needle(crop.aspect_ratio)
+}
+
+/// Manuscript-only extras: empty ink, tighter tick-strip, chart children.
+fn manuscript_extra_suppress(crop: &CropDescriptor) -> bool {
+    crop.ink_frac < DEFAULT_SUPPRESS_INK_FRAC
+        || crop.aspect_ratio < 0.15
+        || crop.aspect_ratio > 6.0
+        || crop.is_chart_fragment
+}
+
 /// Decide whether to suppress Pass-B specialize for a crop on manuscript pages.
 ///
 /// First principles: a hand-drawn chart is a single semantic unit. Axis ticks,
 /// single bars, and scribbles are fragments — analyzing them separately is
 /// "crop theater" that wastes VLM calls and pollutes the markdown.
 ///
-/// Returns `true` when the crop should be suppressed (skipped).
+/// Print callers must use [`should_suppress_crop_for_analyze`] — this returns
+/// `false` for Print so legacy SPEC-134 contracts stay stable.
 pub fn should_suppress_crop_manuscript(
     modality: crate::page_modality::PageModality,
     crop: &CropDescriptor,
 ) -> bool {
-    if !modality.is_manuscript_like() {
-        return false; // print pages: no suppression
-    }
+    modality.is_manuscript_like() && should_suppress_crop_for_analyze(modality, crop)
+}
 
-    // Area gate: tiny crops are noise
-    if crop.area_frac < DEFAULT_SUPPRESS_AREA_FRAC {
+/// Pass-B keep/drop for **any** page modality.
+///
+/// Print HTML-to-PDF table rules fail the same area/aspect gates as manuscript
+/// tick strips. The extra manuscript ink/fragment rules stay MS-only.
+pub fn should_suppress_crop_for_analyze(
+    modality: crate::page_modality::PageModality,
+    crop: &CropDescriptor,
+) -> bool {
+    if crop_fails_shared_geometry(crop) {
         return true;
     }
-
-    // Ink gate: nearly empty crops are noise
-    if crop.ink_frac < DEFAULT_SUPPRESS_INK_FRAC {
-        return true;
-    }
-
-    // Tick-strip gate: very narrow crops are likely axis ticks or single glyphs
-    // Aspect ratio < 0.15 (tall thin) or > 6.0 (wide thin)
-    if crop.aspect_ratio < 0.15 || crop.aspect_ratio > 6.0 {
-        return true;
-    }
-
-    // Chart fragment gate: child of larger chart band
-    if crop.is_chart_fragment {
-        return true;
-    }
-
-    false
+    modality.is_manuscript_like() && manuscript_extra_suppress(crop)
 }
 
 // ── SPEC-134: real crop geometry for the suppression gate ────────────────────
@@ -516,7 +520,7 @@ mod suppress_tests {
     use crate::page_modality::PageModality;
 
     #[test]
-    fn print_modality_never_suppresses() {
+    fn print_modality_never_suppresses_via_manuscript_gate() {
         let crop = CropDescriptor {
             area_frac: 0.001,
             ink_frac: 0.001,
@@ -524,6 +528,17 @@ mod suppress_tests {
             is_chart_fragment: true,
         };
         assert!(!should_suppress_crop_manuscript(PageModality::Print, &crop));
+    }
+
+    #[test]
+    fn print_table_hairline_suppressed_for_analyze() {
+        let crop = CropDescriptor {
+            area_frac: 0.001,
+            ink_frac: 0.5,
+            aspect_ratio: 40.0,
+            is_chart_fragment: false,
+        };
+        assert!(should_suppress_crop_for_analyze(PageModality::Print, &crop));
     }
 
     #[test]

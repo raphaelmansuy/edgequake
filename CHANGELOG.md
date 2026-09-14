@@ -4,7 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.26.6] — 2026-09-14
+
+Patch: Vision PDF figure pipeline skips encoding-artifact pages (SPEC-147);
+graph delete discovery uses index-friendly singular citation probes (SPEC-119);
+Vision stall timeouts stay retryable until the circuit breaker trips so
+checkpoint resume works. Also folds #396 embedding migration residuals and
+related reliability fixes. **No new migration.** Schema train remains **149**.
+Upgrade: [`docs/operations/upgrade-to-0.26.6.md`](docs/operations/upgrade-to-0.26.6.md).
+
+**Deps (crates.io):** unchanged from 0.26.5 (`edgequake-llm` **0.10.8**, `edgequake-pdf2md` **0.9.11**, `edgeparse-core` **0.2.5**; `edgequake-sdk` **0.4.0`).
+
+**SPEC-001 Acc:** attested from existing [`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run; **PDF geometry not re-scored**.
+
 ### Fixed
+- **SPEC-147 — encoding-artifact Vision figures** — Page-level XObject inventory
+  + lopdf subset so decode-storm / OCR-tiling pages never become Pass-B figures;
+  fail-closed on inventory error. Document-level skip removed when other pages
+  remain keepable.
+- **SPEC-119 — singular edge discovery Seq Scan** — Cascade delete discovery
+  probes `source_chunk_id` / `source_document_id` with `= ANY($1::text[])`
+  (Index Scan on citation btrees) instead of OR+CTE IN (Seq Scan over large
+  `EDGE` tables under the 2s discovery budget). Batch/single delete paths map
+  discovery timeouts to product copy (LAW-119-5).
+- **Vision stall retry** — `TaskFailureInfo::timeout` is retryable until the
+  circuit breaker trips, so `[vision_progress=1]` stalls requeue for checkpoint
+  resume instead of permanent fail at attempt 1/3.
 - **#396 — 0.26.x embedding migration residuals** — iw2 UNNEST upserts add a
   SQL `DISTINCT ON` arbiter belt (SPEC-110 pattern) so a missed Rust collapse
   cannot raise Postgres 21000. Residual 21000/23505 rolls to a savepoint and

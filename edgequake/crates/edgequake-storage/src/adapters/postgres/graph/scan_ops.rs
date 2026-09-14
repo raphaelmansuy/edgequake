@@ -215,6 +215,26 @@ impl PostgresAGEGraphStorage {
         (exact, chunk_prefixes)
     }
 
+    /// Materialize the singular-citation probe list that the former SQL CTE built
+    /// (`exact_ids` ∪ `{chunk_prefix}{0..probe_limit-1}`) for `= ANY($1::text[])`.
+    fn singular_citation_probe_ids(
+        exact_ids: &[String],
+        chunk_prefixes: &[String],
+        probe_limit: i32,
+    ) -> Vec<String> {
+        let n = probe_limit.max(0) as usize;
+        let mut ids: Vec<String> = exact_ids.to_vec();
+        ids.reserve(chunk_prefixes.len().saturating_mul(n));
+        for pref in chunk_prefixes {
+            for i in 0..n {
+                ids.push(format!("{pref}{i}"));
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
     pub(super) async fn pg_find_nodes_by_source_prefixes(
         &self,
         filter: &NodeListFilter,
@@ -500,15 +520,15 @@ impl PostgresAGEGraphStorage {
         // SPEC-098 Symptom F: poisoned source_ids leave singular source_chunk_id /
         // source_document_id as the only citation. Bounded exact probes (no SeqScan
         // unnest of source_chunk_ids arrays — SPEC-071).
-        let singular_sql = format!(
+        //
+        // SPEC-119: OR + IN (SELECT FROM CTE) forces Seq Scan on large EDGE tables
+        // (hashed SubPlan Filter) and trips the 2s discovery budget. Split into two
+        // `= ANY($1::text[])` probes so idx_edge_source_chunk_id /
+        // idx_edge_source_document_id can Index Scan (LAW-119-2: no ::jsonb on ->>).
+        let singular_probe_ids =
+            Self::singular_citation_probe_ids(&exact_ids, &chunk_prefixes, probe_limit);
+        let singular_chunk_sql = format!(
             r#"
-            WITH probes AS (
-              SELECT unnest($1::text[]) AS probe_id
-              UNION ALL
-              SELECT pref || gs.i::text
-              FROM unnest($2::text[]) AS pref
-              CROSS JOIN generate_series(0, $3::int - 1) AS gs(i)
-            )
             SELECT
                 ag_catalog.agtype_to_json(e.properties) AS props,
                 {src} AS source_id,
@@ -517,13 +537,7 @@ impl PostgresAGEGraphStorage {
             WHERE {tenant_where}
               AND {src} IS NOT NULL
               AND {tgt} IS NOT NULL
-              AND (
-                -- SPEC-119 / LAW-119-2: btree expression must match (no ::jsonb on ->>).
-                -- ::jsonb cast defeats idx_edge_source_chunk_id / idx_edge_source_document_id
-                -- (same class as GH-362). Modern GIN path above keeps ::jsonb -> 'source_ids'.
-                {props}->>'source_chunk_id' IN (SELECT probe_id FROM probes)
-                OR {props}->>'source_document_id' IN (SELECT probe_id FROM probes)
-              )
+              AND {props}->>'source_chunk_id' = ANY($1::text[])
             LIMIT 5000
             "#,
             props = props_expr,
@@ -532,23 +546,42 @@ impl PostgresAGEGraphStorage {
             src = src_expr,
             tgt = tgt_expr,
         );
-        let singular_rows = match sqlx::query(&singular_sql)
-            .bind(&exact_ids)
-            .bind(&chunk_prefixes)
-            .bind(probe_limit)
-            .fetch_all(&mut **timed.as_mut())
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                let _ = timed.rollback().await;
-                return Err(StorageError::Database(format!(
-                    "Source-prefix singular edge query failed: {e}"
-                )));
+        let singular_doc_sql = format!(
+            r#"
+            SELECT
+                ag_catalog.agtype_to_json(e.properties) AS props,
+                {src} AS source_id,
+                {tgt} AS target_id
+            FROM {graph}."EDGE" e
+            WHERE {tenant_where}
+              AND {src} IS NOT NULL
+              AND {tgt} IS NOT NULL
+              AND {props}->>'source_document_id' = ANY($1::text[])
+            LIMIT 5000
+            "#,
+            props = props_expr,
+            graph = self.graph_name,
+            tenant_where = tenant_where_e,
+            src = src_expr,
+            tgt = tgt_expr,
+        );
+        for singular_sql in [singular_chunk_sql, singular_doc_sql] {
+            let singular_rows = match sqlx::query(&singular_sql)
+                .bind(&singular_probe_ids)
+                .fetch_all(&mut **timed.as_mut())
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let _ = timed.rollback().await;
+                    return Err(StorageError::Database(format!(
+                        "Source-prefix singular edge query failed: {e}"
+                    )));
+                }
+            };
+            for row in singular_rows {
+                Self::insert_discovered_edge(&mut by_key, row);
             }
-        };
-        for row in singular_rows {
-            Self::insert_discovered_edge(&mut by_key, row);
         }
 
         timed.commit().await?;

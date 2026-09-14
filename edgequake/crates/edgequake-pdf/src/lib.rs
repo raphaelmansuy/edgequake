@@ -5,7 +5,9 @@ pub mod drawing_tags;
 pub mod embedded_images;
 pub mod error;
 pub mod fallback;
+pub mod figure_extract;
 pub mod figure_filter;
+pub mod figure_keep;
 pub mod image_guard;
 pub mod inline_images;
 pub mod manuscript_profile;
@@ -18,12 +20,14 @@ pub mod page_modality;
 pub mod page_selection;
 pub mod page_signals;
 pub mod page_walk;
+pub mod pdf_subset;
 pub mod pdfium_ready;
 pub mod reasoning_effort_inject;
 pub mod region_assets;
 pub mod vision_extract;
 pub mod vision_markdown;
 pub mod vision_prompts;
+pub mod xobject_inventory;
 
 pub use backend::{
     create_pdf_converter, resolve_pdf_parser_choice, PageDrawingAssetsConfig, PdfConversionConfig,
@@ -49,21 +53,30 @@ pub use drawing_tags::{
     page_figure_drawing_item_id, page_num_from_asset_rel_path, page_table_asset_rel_path,
     ASSETS_SUBDIR, EMPTY_VISION_PAGE_PLACEHOLDER,
 };
-pub use embedded_images::{
-    figures_by_page, is_scan_tiling_page, write_embedded_figure_assets, WrittenFigureAsset,
-};
+pub use embedded_images::{figures_by_page, is_scan_tiling_page, WrittenFigureAsset};
 pub use error::PdfConversionError;
 pub use fallback::{
     build_edgeparse_fallback_message, should_fallback_to_edgeparse, VisionFailureKind,
+};
+pub use figure_extract::{
+    extract_embedded_figures, inventory_figure_pages, prune_artifact_figures,
+    prune_artifact_figures_with_media, skip_all_region_crops,
+    write_caption_region_assets_for_keep_pages, write_embedded_figure_assets,
+    EmbeddedFigureExtract,
 };
 pub use figure_filter::{
     apply_filter_result_or_keep, apply_filter_to_figure_map, collect_filter_candidates,
     crop_descriptor_from_asset, delete_discarded_pngs, discarded_rel_paths,
     discarded_rel_paths_from_manifest, figure_filter_env_enabled, inject_kept_descriptions,
     load_manifest, prune_chart_crop_paths, prune_figure_map, prune_figure_map_using_manifest,
-    should_suppress_crop_manuscript, strip_discarded_asset_lines, write_manifest, CropDescriptor,
-    CropGeometryCache, FigureCandidate, FigureFilter, FigureFilterResult, FigureKind,
-    FIGURE_FILTER_MANIFEST,
+    should_suppress_crop_for_analyze, should_suppress_crop_manuscript, strip_discarded_asset_lines,
+    write_manifest, CropDescriptor, CropGeometryCache, FigureCandidate, FigureFilter,
+    FigureFilterResult, FigureKind, FIGURE_FILTER_MANIFEST,
+};
+pub use figure_keep::{
+    classify_embedded_figure, crop_aspect_is_needle, is_decode_storm, is_encoding_artifact_page,
+    is_placement_tiling, keep_native_pixels, page_artifact_kind, FigureDropReason,
+    PageArtifactKind, DECODE_STORM_MIN_COUNT, MIN_FIGURE_EDGE_PX, TILE_STORM_MIN_COUNT,
 };
 pub use inline_images::{
     scan_inline_image_refs, InlineImageAnalysis, InlineImageAnalyzer, NoopInlineImageAnalyzer,
@@ -89,7 +102,7 @@ pub use page_signals::{
     classify_pages_from_bytes, compute_page_signals, compute_page_signals_blocking,
     orientation_mixed, ModalityAnalysis, PageSignals,
 };
-pub use page_walk::{walk_page_signals, PageWalkSignals};
+pub use page_walk::{walk_page_signals, walk_page_signals_abort_storm, PageWalkSignals};
 pub use pdfium_ready::{prime_pdfium, PdfPrimeError};
 pub use region_assets::{
     should_write_region_figure, tables_by_page, write_caption_region_assets, WrittenTableAsset,
@@ -112,3 +125,4 @@ pub use vision_prompts::{
     EMPTY_PAGE_ESCALATION_USER_PROMPT, GROUNDING_JUDGE_SYSTEM,
     RAG_PAGE_MANUSCRIPT_VISION_SYSTEM_PROMPT, RAG_PAGE_VISION_SYSTEM_PROMPT,
 };
+pub use xobject_inventory::{PageXObjectInventory, XObjectInventory};

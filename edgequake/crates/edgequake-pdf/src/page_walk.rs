@@ -33,6 +33,9 @@ pub struct PageWalkSignals {
     pub page_num: usize,
     /// Image placement bboxes `(x0, y0, x1, y1)` in PDF points.
     pub image_bboxes: Vec<(f64, f64, f64, f64)>,
+    /// Native `/Width`×`/Height` for every Image `Do` (including degenerate
+    /// placements). Used to skip pdfium decode of HTML table-border storms.
+    pub image_native: Vec<(u32, u32)>,
     /// Approximate glyph count from text-showing operators (string bytes;
     /// multi-byte encodings overcount — acceptable for a density heuristic).
     pub text_chars: usize,
@@ -46,6 +49,21 @@ const MAX_FORM_DEPTH: u8 = 4;
 /// Unparseable pages contribute an empty signals struct (fail-open: the
 /// classifier then sees a blank page → Print-leaning, the safe default).
 pub fn walk_page_signals(doc: &Document, page_nums: &[usize]) -> Vec<PageWalkSignals> {
+    walk_page_signals_inner(doc, page_nums, false)
+}
+
+/// Like [`walk_page_signals`], but stop a page once its Image `Do` list is a
+/// decode storm (HTML table-border pages have thousands of 5×1 XObjects).
+/// Used by extract gating — modality classification must not abort.
+pub fn walk_page_signals_abort_storm(doc: &Document, page_nums: &[usize]) -> Vec<PageWalkSignals> {
+    walk_page_signals_inner(doc, page_nums, true)
+}
+
+fn walk_page_signals_inner(
+    doc: &Document,
+    page_nums: &[usize],
+    abort_on_storm: bool,
+) -> Vec<PageWalkSignals> {
     let pages = doc.get_pages();
     page_nums
         .iter()
@@ -53,17 +71,23 @@ pub fn walk_page_signals(doc: &Document, page_nums: &[usize]) -> Vec<PageWalkSig
             let mut signals = PageWalkSignals {
                 page_num: pn,
                 image_bboxes: Vec::new(),
+                image_native: Vec::new(),
                 text_chars: 0,
             };
             if let Some(&page_id) = pages.get(&(pn as u32)) {
-                walk_page(doc, &mut signals, page_id);
+                walk_page(doc, &mut signals, page_id, abort_on_storm);
             }
             signals
         })
         .collect()
 }
 
-fn walk_page(doc: &Document, signals: &mut PageWalkSignals, page_id: ObjectId) {
+fn walk_page(
+    doc: &Document,
+    signals: &mut PageWalkSignals,
+    page_id: ObjectId,
+    abort_on_storm: bool,
+) {
     // Page resources (handles /Resources inheritance from parent Pages node).
     // The dictionary comes back inline when direct, or as object ids when
     // indirect — resolve the first id that yields a dictionary.
@@ -97,14 +121,17 @@ fn walk_page(doc: &Document, signals: &mut PageWalkSignals, page_id: ObjectId) {
         let Ok(content) = Content::decode(&data) else {
             continue;
         };
-        walk_ops(
+        if walk_ops(
             doc,
             &content.operations,
             page_resources.as_ref(),
             &mut ctm_stack,
             signals,
             0,
-        );
+            abort_on_storm,
+        ) {
+            break;
+        }
     }
 }
 
@@ -115,7 +142,8 @@ fn walk_ops(
     ctm_stack: &mut Vec<Matrix>,
     signals: &mut PageWalkSignals,
     depth: u8,
-) {
+    abort_on_storm: bool,
+) -> bool {
     for op in ops {
         match op.operator.as_str() {
             "q" => {
@@ -146,15 +174,34 @@ fn walk_ops(
                     continue;
                 };
                 match subtype_of(&stream.dict) {
-                    Some("Image") => emit_placement(ctm_stack.last(), signals),
-                    Some("Form") if depth < MAX_FORM_DEPTH => {
-                        walk_form(doc, stream, resources, ctm_stack, signals, depth);
+                    Some("Image") => {
+                        let native = image_native_size(&stream.dict);
+                        emit_placement(ctm_stack.last(), signals, Some(native));
+                        if abort_on_storm
+                            && crate::figure_keep::is_decode_storm(&signals.image_native)
+                        {
+                            return true;
+                        }
+                    }
+                    Some("Form")
+                        if depth < MAX_FORM_DEPTH
+                            && walk_form(
+                                doc,
+                                stream,
+                                resources,
+                                ctm_stack,
+                                signals,
+                                depth,
+                                abort_on_storm,
+                            ) =>
+                    {
+                        return true;
                     }
                     _ => {}
                 }
             }
-            // Inline image begins at the current CTM.
-            "BI" => emit_placement(ctm_stack.last(), signals),
+            // Inline image begins at the current CTM. Native size is unknown.
+            "BI" => emit_placement(ctm_stack.last(), signals, None),
             // Text-showing operators: Tj (string), TJ (array), ' and "
             // (move-and-show, string is the last operand).
             "Tj" | "'" | "\"" => {
@@ -170,6 +217,7 @@ fn walk_ops(
             _ => {}
         }
     }
+    false
 }
 
 fn walk_form(
@@ -179,7 +227,8 @@ fn walk_form(
     ctm_stack: &mut Vec<Matrix>,
     signals: &mut PageWalkSignals,
     depth: u8,
-) {
+    abort_on_storm: bool,
+) -> bool {
     // Form /Matrix concatenates onto the current CTM (default identity).
     let form_matrix = stream
         .dict
@@ -201,26 +250,32 @@ fn walk_form(
         .and_then(|o| o.as_dict().ok().cloned());
     let effective = form_resources.as_ref().or(page_resources);
 
+    let mut aborted = false;
     if let Ok(data) = stream.decompressed_content() {
         if let Ok(content) = Content::decode(&data) {
-            walk_ops(
+            aborted = walk_ops(
                 doc,
                 &content.operations,
                 effective,
                 ctm_stack,
                 signals,
                 depth + 1,
+                abort_on_storm,
             );
         }
     }
     ctm_stack.pop();
+    aborted
 }
 
 /// Emit the CTM-transformed unit square as an axis-aligned bbox.
 ///
 /// An image occupies [0,0]–[1,1] in its own space before the CTM applies
 /// (PDF 32000-1 §8.3.24), so the placement bbox is the transformed square.
-fn emit_placement(ctm: Option<&Matrix>, signals: &mut PageWalkSignals) {
+fn emit_placement(ctm: Option<&Matrix>, signals: &mut PageWalkSignals, native: Option<(u32, u32)>) {
+    if let Some(native) = native {
+        signals.image_native.push(native);
+    }
     let Some(ctm) = ctm else { return };
     let (x0, y0) = ctm.transform_point(0.0, 0.0);
     let (x1, y1) = ctm.transform_point(1.0, 0.0);
@@ -230,11 +285,26 @@ fn emit_placement(ctm: Option<&Matrix>, signals: &mut PageWalkSignals) {
     let max_x = x0.max(x1).max(x2).max(x3);
     let min_y = y0.min(y1).min(y2).min(y3);
     let max_y = y0.max(y1).max(y2).max(y3);
-    // Skip degenerate (zero-area) placements.
+    // Skip degenerate (zero-area) placements from the *area* signal.
+    // Native sizes are still recorded so table-border storms are visible.
     if (max_x - min_x).abs() < 0.1 || (max_y - min_y).abs() < 0.1 {
         return;
     }
     signals.image_bboxes.push((min_x, min_y, max_x, max_y));
+}
+
+fn image_native_size(dict: &Dictionary) -> (u32, u32) {
+    let w = dict.get(b"Width").ok().and_then(as_u32).unwrap_or(0);
+    let h = dict.get(b"Height").ok().and_then(as_u32).unwrap_or(0);
+    (w, h)
+}
+
+fn as_u32(obj: &Object) -> Option<u32> {
+    match obj {
+        Object::Integer(i) if *i >= 0 => u32::try_from(*i).ok(),
+        Object::Real(f) if *f >= 0.0 => Some(*f as u32),
+        _ => None,
+    }
 }
 
 fn lookup_xobject<'a>(

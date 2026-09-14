@@ -95,7 +95,18 @@ impl DocumentTaskProcessor {
                     match perform_document_deletion(state, &del_data, &tenant_ctx).await {
                         Ok(_) => deleted += 1,
                         Err(e) => {
-                            let reason = e.to_string();
+                            // SPEC-119 LAW-119-5: product copy only; raw detail in logs.
+                            let detail = e.to_string();
+                            let reason = if crate::services::is_source_discovery_timeout(&detail) {
+                                crate::services::log_graph_cleanup_timeout(
+                                    document_id,
+                                    crate::services::GraphCleanupAction::Delete,
+                                    &detail,
+                                );
+                                crate::services::deletion_failed_graph_cleanup_timeout()
+                            } else {
+                                detail
+                            };
                             tracing::warn!(
                                 document_id = %document_id,
                                 error = %e,

@@ -28,28 +28,17 @@ pub struct WrittenFigureAsset {
     pub bbox: Option<(f32, f32, f32, f32)>,
 }
 
-/// Extract + persist embedded figures as PNG assets.
+/// Decode ImageXObjects and write PNGs that pass [`crate::figure_keep::keep_native_pixels`].
 ///
-/// Optional `page_filter` is 1-indexed. Empty filter means all pages.
-pub async fn write_embedded_figure_assets(
+/// `page_remap`: when decoding a subset PDF, `page_remap[subset_page - 1]` is the
+/// original page number used for filenames. `None` = identity.
+///
+/// No inventory — callers that need skip-before-decode use
+/// [`crate::figure_extract::extract_embedded_figures`].
+pub(crate) fn write_decoded_figure_pngs(
     pdf_bytes: &[u8],
     assets_root: &Path,
-    page_filter: Option<&[usize]>,
-) -> Result<Vec<WrittenFigureAsset>, PdfConversionError> {
-    let bytes = pdf_bytes.to_vec();
-    let root = assets_root.to_path_buf();
-    let filter = page_filter.map(|p| p.to_vec());
-    tokio::task::spawn_blocking(move || {
-        write_embedded_figure_assets_blocking(&bytes, &root, filter.as_deref())
-    })
-    .await
-    .map_err(|e| PdfConversionError::Backend(format!("figure write task panicked: {e}")))?
-}
-
-fn write_embedded_figure_assets_blocking(
-    pdf_bytes: &[u8],
-    assets_root: &Path,
-    page_filter: Option<&[usize]>,
+    page_remap: Option<&[usize]>,
 ) -> Result<Vec<WrittenFigureAsset>, PdfConversionError> {
     let extracted = edgequake_pdf2md::extract_embedded_images_from_bytes(pdf_bytes, None)
         .map_err(|e| PdfConversionError::Backend(format!("embedded figure extract: {e}")))?;
@@ -61,16 +50,28 @@ fn write_embedded_figure_assets_blocking(
 
     let mut written = Vec::new();
     for fig in extracted {
-        if let Some(pages) = page_filter {
-            if !pages.contains(&fig.page_num) {
-                continue;
-            }
+        let page_num = match page_remap {
+            Some(r) => r
+                .get(fig.page_num.saturating_sub(1))
+                .copied()
+                .unwrap_or(fig.page_num),
+            None => fig.page_num,
+        };
+        if !crate::figure_keep::keep_native_pixels(fig.width, fig.height) {
+            debug!(
+                page_num,
+                index = fig.index,
+                width = fig.width,
+                height = fig.height,
+                "skipping encoding-artifact ImageXObject (not a VLM figure)"
+            );
+            continue;
         }
-        let filename = page_figure_asset_filename(fig.page_num, fig.index);
+        let filename = page_figure_asset_filename(page_num, fig.index);
         let full_path: PathBuf = assets_dir.join(&filename);
         if let Err(e) = fig.image.save_with_format(&full_path, ImageFormat::Png) {
             warn!(
-                page_num = fig.page_num,
+                page_num,
                 index = fig.index,
                 path = %full_path.display(),
                 error = %e,
@@ -80,7 +81,7 @@ fn write_embedded_figure_assets_blocking(
         }
         let rel_path = format!("{ASSETS_SUBDIR}/{filename}");
         debug!(
-            page_num = fig.page_num,
+            page_num,
             index = fig.index,
             width = fig.width,
             height = fig.height,
@@ -88,7 +89,7 @@ fn write_embedded_figure_assets_blocking(
             "Wrote embedded figure asset"
         );
         written.push(WrittenFigureAsset {
-            page_num: fig.page_num,
+            page_num,
             index: fig.index,
             rel_path,
             width: fig.width,
@@ -111,21 +112,9 @@ pub fn figures_by_page(written: &[WrittenFigureAsset]) -> HashMap<usize, Vec<Wri
     map
 }
 
-/// SPEC-134 P0: minimum embedded-image count on one page before scan tiling
-/// is considered. Real figure collections on a manuscript page rarely exceed
-/// a handful; a tiled scan delivers dozens (measured 21–48 on the assessment
-/// document, 2026-08-20).
-const SCAN_TILING_MIN_COUNT: usize = 12;
-
-/// SPEC-134 P0: median displayed-area ceiling (pt²) for tiling fragments.
-/// Observed tile medians are 133–407 pt² (~0.15–0.4 in²); a real pasted
-/// figure is at least ~1 in² (5,184 pt²). 2,000 pt² sits between the
-/// populations with an order-of-magnitude margin on both sides.
-const SCAN_TILING_MAX_MEDIAN_AREA_PT2: f64 = 2_000.0;
-
 /// Displayed area in pt² from the PDF-space bbox; falls back to pixel area
 /// when the bbox is unknown or degenerate.
-fn display_area_pt2(fig: &WrittenFigureAsset) -> f64 {
+pub(crate) fn display_area_pt2(fig: &WrittenFigureAsset) -> f64 {
     fig.bbox
         .map(|b| ((b.2 - b.0).abs() as f64) * ((b.3 - b.1).abs() as f64))
         .filter(|a| *a > 0.0)
@@ -142,13 +131,8 @@ fn display_area_pt2(fig: &WrittenFigureAsset) -> f64 {
 /// The rule is purely geometric and modality-agnostic (count + median
 /// fragment size); the modality gate is the caller's policy decision.
 pub fn is_scan_tiling_page(figs: &[WrittenFigureAsset]) -> bool {
-    if figs.len() < SCAN_TILING_MIN_COUNT {
-        return false;
-    }
-    let mut areas: Vec<f64> = figs.iter().map(display_area_pt2).collect();
-    areas.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let median = areas[areas.len() / 2];
-    median <= SCAN_TILING_MAX_MEDIAN_AREA_PT2
+    let areas: Vec<f64> = figs.iter().map(display_area_pt2).collect();
+    crate::figure_keep::is_fragment_area_tiling(&areas)
 }
 
 #[cfg(test)]
@@ -223,7 +207,11 @@ mod tests {
     #[serial]
     fn writes_fig_asset_filename_ssot() {
         let dir = tempfile::tempdir().unwrap();
-        let written = match write_embedded_figure_assets_blocking(&sample_pdf(), dir.path(), None) {
+        let written = match crate::embedded_images::write_decoded_figure_pngs(
+            &sample_pdf(),
+            dir.path(),
+            None,
+        ) {
             Ok(w) => w,
             Err(e) => {
                 eprintln!("pdfium unavailable: {e}");
