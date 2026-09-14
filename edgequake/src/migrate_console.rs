@@ -12,10 +12,29 @@
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 
+/// SPEC-139 floor (Rust LWW + W3 coverage-sum). **Not** sufficient for SPEC-396.
+pub const COPY_ENGINE_SPEC139_MIN_VERSION: &str = "0.26.3";
+
+/// Last published GHCR cut **without** SPEC-396 DISTINCT ON / 21000 cursor-hold.
+pub const COPY_ENGINE_PRE_SPEC396_MAX_VERSION: &str = "0.26.5";
+
+/// Operator hint: copy engine runs in the **serving API**, not the CLI.
+pub fn copy_engine_image_skew_hint(cli_version: &str) -> String {
+    format!(
+        "copy engine: CLI reports v{cli_version}. Serving API GET /health.version must match \
+         this binary (engine runs in the API process), not a GHCR tag with the same number. \
+         SPEC-396 (iw2 DISTINCT ON + 21000 cursor-hold) is in this source; published GHCR \
+         {COPY_ENGINE_SPEC139_MIN_VERSION}–{COPY_ENGINE_PRE_SPEC396_MAX_VERSION} do not include it \
+         (0.26.1 still 21000-terminates; {COPY_ENGINE_PRE_SPEC396_MAX_VERSION} still swallow-and-advances). \
+         SPEC-139 floor ≥ {COPY_ENGINE_SPEC139_MIN_VERSION} is not sufficient."
+    )
+}
+
 /// Banner + redacted database URL.
 pub fn print_banner(version: &str, redacted_database_url: &str) {
     println!("EdgeQuake migrate v{version}");
     println!("database: {redacted_database_url}");
+    println!("{}", copy_engine_image_skew_hint(version));
 }
 
 /// Plain-language map of what this CLI does (printed once on apply / dry-run).
@@ -200,6 +219,31 @@ pub fn pending_expandable_versions(pending: &[(i64, String)]) -> Vec<i64> {
         .map(|(v, _)| *v)
         .filter(|v| !is_irreversible_drop(*v))
         .collect()
+}
+
+/// LAW-B5: migrate must not print OK TO START when serving boot would refuse.
+#[cfg(feature = "postgres")]
+pub fn print_downgrade_refusal(applied_max: i64, embedded_max: i64) {
+    eprintln!();
+    eprintln!("══════════════════════════════════════════════════════════════════");
+    eprintln!(" VERDICT: STOP — database is newer than this binary");
+    eprintln!("══════════════════════════════════════════════════════════════════");
+    eprintln!(
+        "{}",
+        edgequake_api::state::migration_bootstrap::boot_gate_downgrade_message(
+            applied_max,
+            embedded_max
+        )
+    );
+    eprintln!();
+    eprintln!(" Serving boot will refuse with the same message (exit 78).");
+    eprintln!(" Typical local cause: another git branch applied a later migration");
+    eprintln!(" (this tree embeds through v{embedded_max}) against the same Postgres.");
+    eprintln!();
+    eprintln!(" What to do:");
+    eprintln!("  1. Check out / run the binary that includes v{applied_max}");
+    eprintln!("  2. Or restore a backup taken before that newer schema");
+    eprintln!("══════════════════════════════════════════════════════════════════");
 }
 
 /// Operator-facing soft-exit when only DROP OLD steps remain (safe to start server).
@@ -567,6 +611,7 @@ pub fn print_console_banner(
 ) {
     println!("EdgeQuake migrate console v{version}");
     println!("database: {redacted_database_url}");
+    println!("{}", copy_engine_image_skew_hint(version));
     let engine = format!("{:?}", posture.engine_mode).to_lowercase();
     println!(
         "cutover phase: {:<18} engine: {:<11} serving-fence: {}",
@@ -828,9 +873,11 @@ pub fn print_guard(posture: &MigrationPosture, residue: &ResidueReport) {
             )
         } else {
             format!(
-                "RED — backend={}, uncovered_chunk={}, verify_chunk={}",
+                "RED — backend={}, uncovered_chunk={} (missing_spine={}, missing_embedding={}), verify_chunk={}",
                 v.backend,
                 v.uncovered_chunk_rows,
+                v.uncovered_chunk_missing_spine_rows,
+                v.uncovered_chunk_missing_embedding_rows,
                 if chunk_verify_ok {
                     "pass"
                 } else {
@@ -875,9 +922,13 @@ pub fn print_guard(posture: &MigrationPosture, residue: &ResidueReport) {
         );
     } else if !v.dropped && !v.chunk_retirable() && v.uncovered_chunk_rows > 0 {
         println!(
-            "    plain English: {} chunk vector(s) lack typed coverage. \
-             Wait for w3-chunk-embedding-backfill.",
-            v.uncovered_chunk_rows
+            "    plain English: {} chunk vector(s) lack typed coverage \
+             (missing_spine={} — no public.chunks row; missing_embedding={} — spine exists, no chunk_embeddings). \
+             Wait for w1-chunk-text-backfill (spine) and/or w3-chunk-embedding-backfill. \
+             DROP 126 stays fail-closed until uncovered_chunk=0.",
+            v.uncovered_chunk_rows,
+            v.uncovered_chunk_missing_spine_rows,
+            v.uncovered_chunk_missing_embedding_rows
         );
     } else if !v.dropped && !v.fleet_retirable() && v.uncovered_fleet_rows == 0 {
         println!(
@@ -896,6 +947,39 @@ fn fmt_hms(secs: f64) -> String {
 #[cfg(test)]
 mod first_principles_tests {
     use super::*;
+
+    #[test]
+    fn copy_engine_image_skew_names_min_cut_and_health() {
+        let hint = copy_engine_image_skew_hint("0.26.5");
+        assert!(hint.contains("0.26.5"));
+        assert!(hint.contains(COPY_ENGINE_SPEC139_MIN_VERSION));
+        assert!(hint.contains(COPY_ENGINE_PRE_SPEC396_MAX_VERSION));
+        assert_eq!(COPY_ENGINE_SPEC139_MIN_VERSION, "0.26.3");
+        assert_eq!(COPY_ENGINE_PRE_SPEC396_MAX_VERSION, "0.26.5");
+        assert!(hint.contains("/health.version"));
+        assert!(hint.contains("0.26.1"));
+        assert!(hint.contains("21000"));
+        assert!(
+            hint.contains("must match") && hint.contains("this binary"),
+            "engine lives in the API process"
+        );
+        assert!(
+            !hint.contains("this CLI v0.26.5 includes SPEC-396"),
+            "crate version 0.26.5 must not claim the GHCR tag is SPEC-396-ready"
+        );
+        assert!(
+            hint.contains("this source"),
+            "unreleased tree vs published GHCR must be distinguished"
+        );
+        assert!(
+            hint.contains("swallow-and-advances"),
+            "0.26.5 GHCR must not look SPEC-396-ready"
+        );
+        assert!(
+            hint.contains("not sufficient"),
+            "SPEC-139 floor must not green-light pre-396 images"
+        );
+    }
 
     #[test]
     fn class_tags_and_plain_english() {
@@ -979,5 +1063,8 @@ mod first_principles_tests {
         print_first_principles();
         print_irreversible_pending_soft_exit(&[(131, "fleet vector drop".into())]);
         print_blocked_by_irreversible(131);
+        #[cfg(feature = "postgres")]
+        // Arbitrary applied > embedded — never hardcode a foreign-branch version.
+        print_downgrade_refusal(200, 149);
     }
 }

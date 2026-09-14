@@ -274,12 +274,18 @@ impl BackfillJob for ChunkEmbeddingBackfillJob {
         let mut workspace_ids: Vec<Uuid> = Vec::new();
         let mut vectors: Vec<String> = Vec::new();
         let mut dims: Vec<i32> = Vec::new();
+        // SPEC-396: missing `chunks` spine / NULL workspace is a visible miss,
+        // not a silent skip with failed: 0. DROP 126 stays fail-closed on the
+        // stricter uncovered predicate (legacy ∧ ¬typed coverage).
+        let mut failed = 0i64;
         for (doc_uuid, index, embedding) in parsed {
             let Some((chunk_id, ws)) = spine_map.get(&(doc_uuid, index)) else {
-                continue; // spine missing (W1 backfill lag) — skipped, reconciled on rerun
+                failed += 1;
+                continue;
             };
             let Some(ws_uuid) = ws else {
-                continue; // typed schema requires workspace_id NOT NULL
+                failed += 1;
+                continue;
             };
             chunk_ids.push(*chunk_id);
             workspace_ids.push(*ws_uuid);
@@ -317,7 +323,7 @@ impl BackfillJob for ChunkEmbeddingBackfillJob {
         Ok(BatchOutcome {
             scanned,
             written,
-            failed: 0,
+            failed,
             next_cursor: Some(json!({ "table": table, "last_id": next_id })),
         })
     }

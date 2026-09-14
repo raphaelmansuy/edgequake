@@ -457,6 +457,42 @@ mod tests {
     }
 
     #[test]
+    fn test_progress_aware_convert_stall_is_retryable() {
+        // SPEC: Vision stall with progress must requeue (checkpoint resume), not
+        // permanently fail on attempt 1/3 via retryable=false.
+        let data = serde_json::json!({"pdf_id": "test"});
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::PdfProcessing,
+            data,
+        );
+        task.max_retries = 3;
+
+        let err = TaskFailureInfo::from_processing_error(
+            "Timeout: Operation timed out: Vision extraction stalled: no progress for 300s \
+             (stall limit 300s) for PDF abc. Provider 'mistral' may be hung. Progress during \
+             this attempt is preserved for resume. [failure_class=timeout_phase_convert] \
+             [vision_progress=1]",
+        );
+        assert!(err.is_timeout());
+        assert!(err.made_progress);
+        assert!(
+            err.retryable,
+            "progress stall must stay retryable until circuit breaker trips"
+        );
+
+        task.mark_failed_with_details(err);
+        assert_eq!(task.retry_count, 1);
+        assert_eq!(task.consecutive_timeout_failures, 0);
+        assert!(!task.circuit_breaker_tripped);
+        assert!(
+            task.can_retry(),
+            "first progress stall must requeue (1 < max_retries=3)"
+        );
+    }
+
+    #[test]
     fn test_no_progress_timeouts_still_trip_breaker() {
         let data = serde_json::json!({"test": "data"});
         let mut task = Task::new(
@@ -474,6 +510,10 @@ mod tests {
         }
         assert!(task.circuit_breaker_tripped);
         assert!(!task.can_retry());
+        assert!(
+            task.error.as_ref().is_some_and(|e| !e.retryable),
+            "breaker must flip retryable=false"
+        );
     }
 
     #[test]

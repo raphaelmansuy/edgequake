@@ -157,7 +157,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         spec091-upgrade-soak spec091-gates spec103-llm-cache-proof \
         spec109-reasoning-effort-proof \
         spec110-migrate-118-proof spec137-migrate-025-026-proof \
-        spec139-migrate-engine-proof \
+        spec139-migrate-engine-proof spec396-engine-proof \
         spec93-migration-assessment spec93-migration-assessment-pg16 \
         spec93-migration-assessment-pg17 spec93-migration-assessment-pg18 \
         check-deps status \
@@ -2454,7 +2454,7 @@ QUICKSTART_COMPOSE := $(ROOT_DIR)/docker-compose.quickstart.yml
 	spec091-upgrade-soak spec091-gates \
 	spec93-migration-assessment spec93-migration-assessment-pg16 \
 	spec93-migration-assessment-pg17 spec93-migration-assessment-pg18 \
-	spec137-migrate-025-026-proof spec139-migrate-engine-proof
+	spec137-migrate-025-026-proof spec139-migrate-engine-proof spec396-engine-proof
 
 # SPEC-091: v0.22.0 GHCR → HEAD smoke soak (tiny corpus; migrations 106–141 + confirm-drop).
 # Formal realism matrix: make spec93-migration-assessment (see specs/93-migration-assessment/).
@@ -2526,6 +2526,12 @@ spec139-migrate-engine-proof: ## SPEC-139: mid-cutover engine (iw2 21000, W3 cov
 	@$(ROOT_DIR)/scripts/spec139_migrate_engine_proof.sh
 	@echo "$(GREEN)SPEC-139 proof OK$(RESET) — see specs/139-issue-migration/measurements/"
 
+spec396-engine-proof: ## SPEC-396: iw2 DISTINCT ON / 21000 cursor-hold / W3 missing-spine (fail-closed)
+	@echo "$(BOLD)$(BLUE)SPEC-396 migrate engine proof$(RESET)"
+	@chmod +x $(ROOT_DIR)/scripts/spec396_engine_proof.sh
+	@$(ROOT_DIR)/scripts/spec396_engine_proof.sh
+	@echo "$(GREEN)SPEC-396 proof OK$(RESET) — see specs/139-issue-migration/measurements/"
+
 spec109-e2e: dev-bg ## SPEC-109 reasoning effort UI E2E + measurement screenshots
 	@echo "$(BLUE)SPEC-109 E2E → frontend $(FRONTEND_URL) backend $(BACKEND_URL)$(RESET)"
 	@i=0; while [ $$i -lt 60 ]; do \
@@ -2575,6 +2581,7 @@ spec091-gates: ## SPEC-091: run wired data-layer e2e + contracts (serial)
 	  cargo test -p edgequake-storage --features postgres --test e2e_spec091_vector_retire -- --test-threads=1 && \
 	  cargo test -p edgequake-api --features postgres --test contract_spec091_boot_gate -- --test-threads=1 && \
 	  cargo test -p edgequake --features postgres --test cli_migrate_console -- --test-threads=1 && \
+	  cargo test -p edgequake-storage --features postgres --test e2e_spec396_engine -- --test-threads=1 && \
 	  cargo test -p edgequake-api --features postgres --test contract_spec091_strict_scope_headers -- --test-threads=1 && \
 	  cargo test -p edgequake-api --features postgres --test contract_spec091_cqrs_batch_sink -- --test-threads=1 && \
 	  cargo test -p edgequake-api --features postgres --test contract_spec091_outbox_ingest -- --test-threads=1 && \

@@ -51,9 +51,9 @@ pub use description_merge::{
 };
 pub use entity::description_similarity;
 pub use entity_resolution::{
-    cosine_similarity, entity_embed_er_enabled, er_llm_enabled, record_exact_merge,
-    resolve_after_exact_miss, ErDecision, DEFAULT_EMBED_ER_THRESHOLD, ENTITY_EMBED_ER_ENV,
-    ER_LLM_ENV,
+    cosine_similarity, entity_embed_er_enabled, er_llm_enabled, parse_er_on_flag,
+    record_exact_merge, resolve_after_exact_miss, ErDecision, ErLadderPolicy,
+    DEFAULT_EMBED_ER_THRESHOLD, ENTITY_EMBED_ER_ENV, ER_LLM_ENV,
 };
 pub use entity_type_vote::{apply_entity_type_vote, resolve_majority_type, ENTITY_TYPE_VOTES_KEY};
 pub use lineage::{

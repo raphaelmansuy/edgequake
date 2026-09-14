@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.26.6] — 2026-09-14
+
+Patch: Vision PDF figure pipeline skips encoding-artifact pages (SPEC-147);
+graph delete discovery uses index-friendly singular citation probes (SPEC-119);
+Vision stall timeouts stay retryable until the circuit breaker trips so
+checkpoint resume works. Also folds #396 embedding migration residuals and
+related reliability fixes. **No new migration.** Schema train remains **149**.
+Upgrade: [`docs/operations/upgrade-to-0.26.6.md`](docs/operations/upgrade-to-0.26.6.md).
+
+**Deps (crates.io):** unchanged from 0.26.5 (`edgequake-llm` **0.10.8**, `edgequake-pdf2md` **0.9.11**, `edgeparse-core` **0.2.5**; `edgequake-sdk` **0.4.0`).
+
+**SPEC-001 Acc:** attested from existing [`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run; **PDF geometry not re-scored**.
+
+### Fixed
+- **SPEC-147 — encoding-artifact Vision figures** — Page-level XObject inventory
+  + lopdf subset so decode-storm / OCR-tiling pages never become Pass-B figures;
+  fail-closed on inventory error. Document-level skip removed when other pages
+  remain keepable.
+- **SPEC-119 — singular edge discovery Seq Scan** — Cascade delete discovery
+  probes `source_chunk_id` / `source_document_id` with `= ANY($1::text[])`
+  (Index Scan on citation btrees) instead of OR+CTE IN (Seq Scan over large
+  `EDGE` tables under the 2s discovery budget). Batch/single delete paths map
+  discovery timeouts to product copy (LAW-119-5).
+- **Vision stall retry** — `TaskFailureInfo::timeout` is retryable until the
+  circuit breaker trips, so `[vision_progress=1]` stalls requeue for checkpoint
+  resume instead of permanent fail at attempt 1/3.
+- **#396 — 0.26.x embedding migration residuals** — iw2 UNNEST upserts add a
+  SQL `DISTINCT ON` arbiter belt (SPEC-110 pattern) so a missed Rust collapse
+  cannot raise Postgres 21000. Residual 21000/23505 rolls to a savepoint and
+  per-row upsert; 21000 no longer swallow-and-advances the keyset cursor.
+  W3 missing `chunks` spine increments `failed_count` and the advisor/guard
+  splits `uncovered_chunk` into `missing_spine` vs `missing_embedding` without
+  weakening DROP 125/126/131. CLI `migrate` / `guard` / `plan` print an
+  API-vs-CLI pin hint: serving API `/health.version` must match **this binary**
+  (engine runs in the API), not a GHCR tag with the same number. Published
+  0.26.3–0.26.5 images do not include SPEC-396; the SPEC-139 floor ≥ 0.26.3
+  is not sufficient.
+- **`edgequake migrate` LAW-B5** — when `_sqlx_migrations` is ahead of this
+  binary (e.g. local Postgres after switching off a branch that applied a
+  newer schema than this tree embeds), migrate prints the same STOP verdict
+  serving boot uses and exits 78 instead of "OK TO START THE SERVER".
+- **WebUI tenant/workspace validator** — recovered mismatches and API errors
+  use `console.warn` (message string) instead of `console.error(Error)` so
+  Next.js dev does not promote them to a full-screen overlay.
+- **SPEC-091 ER ladder tests** — `resolve_after_exact_miss` takes
+  `ErLadderPolicy` instead of re-reading process env, so parallel
+  `cargo test --lib` cannot race `EDGEQUAKE_ENTITY_EMBED_ER`.
+
 ## [0.26.5] — 2026-09-02
 
 Patch: **SPEC-145** Langfuse truncated observation I/O — generation / LLM

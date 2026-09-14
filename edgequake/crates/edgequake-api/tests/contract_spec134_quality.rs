@@ -110,7 +110,9 @@ fn verify_records_fail_reason_and_retries() {
 fn tiling_and_quarantine_still_wired() {
     // Slice D must not regress P0 (belief gate).
     let vision = vision_backend_src();
-    assert!(vision.contains("is_scan_tiling_page"));
+    assert!(vision.contains("extract_embedded_figures"));
+    assert!(vision.contains("skip_all_region_crops") || vision.contains("omit_page"));
+    assert!(vision.contains("prune_artifact_figures"));
     let prepare = include_str!("../src/processor/text_insert/prepare.rs");
     assert!(prepare.contains("strip_low_grounding_sections(&text_content)"));
 }

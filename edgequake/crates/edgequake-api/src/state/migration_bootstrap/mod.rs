@@ -994,6 +994,10 @@ pub struct SchemaDrift {
     pub pending_count: usize,
     /// Database applied a version beyond this binary's embedded latest (LAW-B5).
     pub db_newer_than_binary: bool,
+    /// Highest successful `_sqlx_migrations.version` (0 when the ledger is empty).
+    pub applied_max: i64,
+    /// Highest version this binary embeds (0 when the migrator is empty).
+    pub embedded_max: i64,
 }
 
 impl SchemaDrift {
@@ -1022,6 +1026,8 @@ pub async fn schema_drift(pool: &PgPool) -> Option<SchemaDrift> {
             .filter(|m| !applied.contains(&m.version))
             .count(),
         db_newer_than_binary: applied_max > embedded_max,
+        applied_max,
+        embedded_max,
     })
 }
 

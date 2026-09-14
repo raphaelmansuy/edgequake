@@ -694,6 +694,14 @@ async fn run_migrate_cli(args: &[String]) -> Result<()> {
             }
         };
     migrate_console::print_preflight(&pending);
+    if let Some(drift) =
+        edgequake_api::state::migration_bootstrap::schema_drift(&bundle.admin).await
+    {
+        if drift.db_newer_than_binary {
+            migrate_console::print_downgrade_refusal(drift.applied_max, drift.embedded_max);
+            std::process::exit(edgequake_api::state::migration_bootstrap::BOOT_GATE_EXIT_CODE);
+        }
+    }
     let confirmed = drop_confirmed(args);
 
     // SPEC-091 Doc 17 (LAW-C5 scope): consent for irreversible drops is

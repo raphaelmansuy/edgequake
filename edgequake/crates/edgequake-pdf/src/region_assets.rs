@@ -41,16 +41,19 @@ pub async fn write_caption_region_assets(
     let root = assets_root.to_path_buf();
     let existing = existing_figures_by_page.clone();
     tokio::task::spawn_blocking(move || {
-        write_caption_region_assets_blocking(&bytes, &root, &existing)
+        write_caption_region_assets_blocking(&bytes, &root, &existing, None)
     })
     .await
     .map_err(|e| PdfConversionError::Backend(format!("region write task panicked: {e}")))?
 }
 
-fn write_caption_region_assets_blocking(
+/// Decode caption regions from `pdf_bytes`, writing with optional page remap
+/// (`page_remap[subset_page - 1]` → original page for filenames).
+pub(crate) fn write_caption_region_assets_blocking(
     pdf_bytes: &[u8],
     assets_root: &Path,
     existing_figures_by_page: &HashMap<usize, Vec<WrittenFigureAsset>>,
+    page_remap: Option<&[usize]>,
 ) -> Result<(Vec<WrittenFigureAsset>, Vec<WrittenTableAsset>), PdfConversionError> {
     let regions = edgequake_pdf2md::extract_caption_regions_from_bytes(pdf_bytes, None)
         .map_err(|e| PdfConversionError::Backend(format!("caption region extract: {e}")))?;
@@ -60,18 +63,28 @@ fn write_caption_region_assets_blocking(
         PdfConversionError::Backend(format!("create assets dir {assets_dir:?}: {e}"))
     })?;
 
+    let remap_page = |subset: usize| -> usize {
+        page_remap
+            .and_then(|r| r.get(subset.saturating_sub(1)).copied())
+            .unwrap_or(subset)
+    };
+
+    // Index counters keyed by **original** page number.
     let mut figures = Vec::new();
     let mut tables = Vec::new();
     let mut fig_index_by_page: HashMap<usize, usize> = HashMap::new();
     for (page, list) in existing_figures_by_page {
-        fig_index_by_page.insert(*page, list.len());
+        let orig = remap_page(*page);
+        fig_index_by_page.insert(orig, list.len());
     }
 
     for region in regions {
+        let page_num = remap_page(region.page_num);
         match region.kind {
             edgequake_pdf2md::RegionKind::Figure => {
                 let existing = existing_figures_by_page
                     .get(&region.page_num)
+                    .or_else(|| existing_figures_by_page.get(&page_num))
                     .map(|v| v.as_slice())
                     .unwrap_or(&[]);
                 if !should_write_region_figure(
@@ -82,14 +95,14 @@ fn write_caption_region_assets_blocking(
                 ) {
                     continue;
                 }
-                let next = fig_index_by_page.entry(region.page_num).or_insert(0);
+                let next = fig_index_by_page.entry(page_num).or_insert(0);
                 *next += 1;
                 let index = *next;
-                let filename = page_figure_asset_filename(region.page_num, index);
+                let filename = page_figure_asset_filename(page_num, index);
                 let full_path: PathBuf = assets_dir.join(&filename);
                 if let Err(e) = region.image.save_with_format(&full_path, ImageFormat::Png) {
                     warn!(
-                        page_num = region.page_num,
+                        page_num,
                         label = %region.label,
                         error = %e,
                         "Failed to write caption figure region"
@@ -98,13 +111,13 @@ fn write_caption_region_assets_blocking(
                 }
                 let rel_path = format!("{ASSETS_SUBDIR}/{filename}");
                 debug!(
-                    page_num = region.page_num,
+                    page_num,
                     label = %region.label,
                     path = %rel_path,
                     "Wrote caption-anchored figure region"
                 );
                 figures.push(WrittenFigureAsset {
-                    page_num: region.page_num,
+                    page_num,
                     index,
                     rel_path,
                     width: region.width,
@@ -113,11 +126,11 @@ fn write_caption_region_assets_blocking(
                 });
             }
             edgequake_pdf2md::RegionKind::Table => {
-                let filename = page_table_asset_filename(region.page_num, region.index);
+                let filename = page_table_asset_filename(page_num, region.index);
                 let full_path: PathBuf = assets_dir.join(&filename);
                 if let Err(e) = region.image.save_with_format(&full_path, ImageFormat::Png) {
                     warn!(
-                        page_num = region.page_num,
+                        page_num,
                         label = %region.label,
                         error = %e,
                         "Failed to write caption table region"
@@ -126,13 +139,13 @@ fn write_caption_region_assets_blocking(
                 }
                 let rel_path = format!("{ASSETS_SUBDIR}/{filename}");
                 debug!(
-                    page_num = region.page_num,
+                    page_num,
                     label = %region.label,
                     path = %rel_path,
                     "Wrote caption-anchored table region"
                 );
                 tables.push(WrittenTableAsset {
-                    page_num: region.page_num,
+                    page_num,
                     index: region.index,
                     rel_path,
                     width: region.width,

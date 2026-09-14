@@ -448,8 +448,11 @@ pub fn derive_actions(posture: &MigrationPosture) -> Vec<GuardedAction> {
                 )
             } else if v.uncovered_chunk_rows > 0 {
                 format!(
-                    "cannot drop vector-legacy: {} legacy chunk rows uncovered in typed SSOT",
-                    v.uncovered_chunk_rows
+                    "cannot drop vector-legacy: {} legacy chunk rows uncovered in typed SSOT \
+                     (missing_spine={}, missing_embedding={})",
+                    v.uncovered_chunk_rows,
+                    v.uncovered_chunk_missing_spine_rows,
+                    v.uncovered_chunk_missing_embedding_rows
                 )
             } else if !v.verify_chunk.map(|x| x.passes()).unwrap_or(false) {
                 "cannot drop vector-legacy: chunk verify not passing".to_string()
@@ -488,8 +491,11 @@ pub fn derive_actions(posture: &MigrationPosture) -> Vec<GuardedAction> {
                 )
             } else if v.uncovered_chunk_rows > 0 {
                 format!(
-                    "cannot drop vector-fleet: {} legacy chunk rows uncovered (migration 126 first)",
-                    v.uncovered_chunk_rows
+                    "cannot drop vector-fleet: {} legacy chunk rows uncovered \
+                     (missing_spine={}, missing_embedding={}; migration 126 first)",
+                    v.uncovered_chunk_rows,
+                    v.uncovered_chunk_missing_spine_rows,
+                    v.uncovered_chunk_missing_embedding_rows
                 )
             } else if !v.verify_fleet.map(|x| x.passes()).unwrap_or(false) {
                 "cannot drop vector-fleet: fleet verify not passing".to_string()
@@ -593,6 +599,8 @@ mod tests {
                 legacy_chunk_rows: 0,
                 legacy_fleet_rows: 0,
                 uncovered_chunk_rows: 0,
+                uncovered_chunk_missing_spine_rows: 0,
+                uncovered_chunk_missing_embedding_rows: 0,
                 uncovered_fleet_rows: 0,
                 chunk_fleet_dropped: false,
                 dropped: false,

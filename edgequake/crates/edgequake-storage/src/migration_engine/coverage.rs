@@ -210,33 +210,86 @@ where
     Ok(tables)
 }
 
+/// Split of migration-126 uncovered chunk rows (SPEC-396 honesty).
+///
+/// `total()` ≡ `count_uncovered_chunk_rows` ≡ DROP 126 (`legacy ∧ ¬typed`).
+/// The split is advisor-only — it does **not** weaken the drop predicate.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UncoveredChunkSplit {
+    /// UUID-shaped `{doc}-chunk-{n}` with no `public.chunks` row.
+    pub missing_spine: i64,
+    /// Spine exists, but no `chunk_embeddings` coverage.
+    pub missing_embedding: i64,
+}
+
+impl UncoveredChunkSplit {
+    pub fn total(self) -> i64 {
+        self.missing_spine + self.missing_embedding
+    }
+
+    pub fn add(&mut self, other: Self) {
+        self.missing_spine += other.missing_spine;
+        self.missing_embedding += other.missing_embedding;
+    }
+}
+
 /// Uncovered legacy chunk rows — mirrors migration 126 guard predicate.
 pub async fn count_uncovered_chunk_rows(pool: &PgPool) -> Result<i64, StorageError> {
+    Ok(count_uncovered_chunk_split(pool).await?.total())
+}
+
+/// Uncovered chunk rows split into missing spine vs missing embedding.
+pub async fn count_uncovered_chunk_split(
+    pool: &PgPool,
+) -> Result<UncoveredChunkSplit, StorageError> {
     let tables = list_vector_tables(pool).await?;
-    let mut total = 0i64;
+    let mut total = UncoveredChunkSplit::default();
     for t in tables {
-        let sql = format!(
-            "SELECT count(*) FROM public.{t} v \
+        total.add(count_uncovered_chunk_split_table(pool, &t).await?);
+    }
+    Ok(total)
+}
+
+async fn count_uncovered_chunk_split_table(
+    pool: &PgPool,
+    table: &str,
+) -> Result<UncoveredChunkSplit, StorageError> {
+    let re = LEGACY_CHUNK_VECTOR_ID_RE;
+    let sql = format!(
+        "SELECT \
+           count(*) FILTER ( \
              WHERE v.id ~ '{re}' \
+               AND NOT EXISTS ( \
+                    SELECT 1 FROM public.chunks c \
+                    WHERE c.document_id = left(v.id, 36)::uuid \
+                      AND c.chunk_index = substring(v.id from 44)::int)) \
+             AS missing_spine, \
+           count(*) FILTER ( \
+             WHERE v.id ~ '{re}' \
+               AND EXISTS ( \
+                    SELECT 1 FROM public.chunks c \
+                    WHERE c.document_id = left(v.id, 36)::uuid \
+                      AND c.chunk_index = substring(v.id from 44)::int) \
                AND NOT EXISTS ( \
                     SELECT 1 FROM public.chunks c \
                     JOIN public.chunk_embeddings ce ON ce.chunk_id = c.id \
                     WHERE c.document_id = left(v.id, 36)::uuid \
-                      AND c.chunk_index = substring(v.id from 44)::int)",
-            re = LEGACY_CHUNK_VECTOR_ID_RE
-        );
-        let n: i64 = match sqlx::query_scalar(&sql).fetch_one(pool).await {
-            Ok(n) => n,
-            Err(sqlx::Error::Database(db)) if db.code().as_deref() == Some("42P01") => 0,
-            Err(e) => {
-                return Err(StorageError::Database(format!(
-                    "coverage uncovered chunks failed: {e}"
-                )))
-            }
-        };
-        total += n;
+                      AND c.chunk_index = substring(v.id from 44)::int)) \
+             AS missing_embedding \
+         FROM public.{table} v"
+    );
+    match sqlx::query_as::<_, (i64, i64)>(&sql).fetch_one(pool).await {
+        Ok((missing_spine, missing_embedding)) => Ok(UncoveredChunkSplit {
+            missing_spine,
+            missing_embedding,
+        }),
+        Err(sqlx::Error::Database(db)) if db.code().as_deref() == Some("42P01") => {
+            Ok(UncoveredChunkSplit::default())
+        }
+        Err(e) => Err(StorageError::Database(format!(
+            "coverage uncovered chunk split failed: {e}"
+        ))),
     }
-    Ok(total)
 }
 
 /// Drop-covered: provenance `legacy_vector_id` (entity/rel) or report_id/provenance.
@@ -778,6 +831,23 @@ pub async fn scan_fleet_stamp_batch(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn contract_spec396_uncovered_chunk_split_total() {
+        let s = UncoveredChunkSplit {
+            missing_spine: 3,
+            missing_embedding: 5,
+        };
+        assert_eq!(s.total(), 8);
+        let mut acc = UncoveredChunkSplit::default();
+        acc.add(s);
+        acc.add(UncoveredChunkSplit {
+            missing_spine: 1,
+            missing_embedding: 0,
+        });
+        assert_eq!(acc.total(), 9);
+        assert_eq!(acc.missing_spine, 4);
+    }
 
     #[test]
     fn resolve_display_name_to_normalized_legacy_key() {

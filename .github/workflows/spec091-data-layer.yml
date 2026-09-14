@@ -249,6 +249,10 @@ jobs:
         working-directory: edgequake
         run: cargo test -p edgequake --features postgres --test cli_migrate_console -- --test-threads=1
 
+      - name: SPEC-396 embedding migration residuals (iw2 DISTINCT ON / W3 / cursor-hold)
+        working-directory: edgequake
+        run: cargo test -p edgequake-storage --features postgres --test e2e_spec396_engine -- --test-threads=1
+
       # ── SPEC-091 IW0 contracts (isolation + typed routing) ──
 
       - name: IW0 strict scope headers (fail-closed)

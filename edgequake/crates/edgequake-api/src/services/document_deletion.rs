@@ -29,8 +29,9 @@ use crate::services::document_metadata_scan::metadata_key_for_document;
 use crate::services::document_task_cleanup::purge_persisted_tasks_for_document_except;
 use crate::services::document_vector_storage::get_workspace_vector_storage_for_delete;
 use crate::services::{
-    cascade_remove_document_sources_with_progress, record_compliance_event, ContentHasher,
-    DocumentSourceScope,
+    cascade_remove_document_sources_with_progress, deletion_failed_graph_cleanup_timeout,
+    is_source_discovery_timeout, log_graph_cleanup_timeout, record_compliance_event, ContentHasher,
+    DocumentSourceScope, GraphCleanupAction,
 };
 use crate::state::AppState;
 
@@ -579,16 +580,26 @@ pub async fn perform_document_deletion(
             match stats {
                 Some(s) => s,
                 None => {
-                    let reason = format!(
-                        "Graph cascade error: {}",
-                        last_err
-                            .as_ref()
-                            .map(|e| e.to_string())
-                            .unwrap_or_else(|| "unknown".to_string())
-                    );
+                    let detail = last_err
+                        .as_ref()
+                        .map(|e| e.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    // SPEC-119 LAW-119-5: product copy in KV before return so
+                    // intermediate polls never show raw Postgres / AGE detail.
+                    let reason = if is_source_discovery_timeout(&detail) {
+                        log_graph_cleanup_timeout(
+                            &document_id,
+                            GraphCleanupAction::Delete,
+                            &detail,
+                        );
+                        deletion_failed_graph_cleanup_timeout()
+                    } else {
+                        format!("Graph cascade error: {detail}")
+                    };
                     tracing::error!(
                         document_id = %document_id,
                         %reason,
+                        detail = %detail,
                         "Graph cascade delete failed after retry — aborting KV wipe (fail-closed)"
                     );
                     reset_deleting_status(

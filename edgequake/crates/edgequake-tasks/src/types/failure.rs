@@ -69,15 +69,16 @@ impl TaskFailureInfo {
     /// @implements CIRCUIT_BREAKER: Timeout classification
     ///
     /// WHY: Timeouts need special handling via circuit breaker pattern.
-    /// Consecutive timeouts indicate structural problem (doc too large,
-    /// LLM overloaded) that won't resolve by retrying.
+    /// Consecutive **no-progress** timeouts trip the breaker (which sets
+    /// `retryable = false`). Until then, timeouts remain retryable so Vision
+    /// stall watchdog can resume from durable checkpoints (`max_retries`).
     pub fn timeout(step: impl Into<String>, reason: impl Into<String>) -> Self {
         Self::new(
             "Operation timed out",
             step,
             reason,
             "Document may be too large. Try: 1) Use smaller chunk size, 2) Split document, 3) Use provider with longer timeout",
-            false, // Not retryable after circuit breaker trips
+            true, // Retryable until circuit breaker trips
         )
     }
 

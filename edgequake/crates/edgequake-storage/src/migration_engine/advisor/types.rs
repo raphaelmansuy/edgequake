@@ -351,7 +351,13 @@ pub struct VectorPosture {
     /// Legacy entity/relationship/report rows remaining in `eq_*_vectors`.
     pub legacy_fleet_rows: i64,
     /// Legacy chunk rows without typed coverage (SPEC-111 — drop readiness).
+    /// Equals `uncovered_chunk_missing_spine_rows + uncovered_chunk_missing_embedding_rows`
+    /// (≡ DROP 126). Split is advisor honesty only — does not weaken the gate.
     pub uncovered_chunk_rows: i64,
+    /// Uncovered because `public.chunks` spine is missing (SPEC-396).
+    pub uncovered_chunk_missing_spine_rows: i64,
+    /// Uncovered because spine exists but `chunk_embeddings` does not (SPEC-396).
+    pub uncovered_chunk_missing_embedding_rows: i64,
     /// Legacy fleet rows without typed coverage (SPEC-111).
     pub uncovered_fleet_rows: i64,
     /// Migration 126 applied — chunk-dedicated legacy vector fleet retired.
