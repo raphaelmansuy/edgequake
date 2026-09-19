@@ -214,7 +214,27 @@ fn ollama_api_routes() -> Router<AppState> {
 
 /// API v1 routes.
 fn api_v1_routes() -> Router<AppState> {
-    Router::new()
+    // Explicit type annotation — inference through the feature-flagged if-branch
+    // below is fragile because the fresh `Router::new()` has no state binding
+    // until it is chained with a route that takes `State<AppState>`.
+    let mut router: Router<AppState> = Router::new();
+
+    // EN-3677 Graph KB Migration Phase 1 — feature-flagged workspace copy.
+    // Gate at route-registration time (NOT per-request) so a disabled feature
+    // is indistinguishable from an unimplemented route (plain 404, no leak).
+    if crate::services::workspace_copy::feature_enabled() {
+        router = router
+            .route(
+                "/workspaces/{source_workspace_id}/copy",
+                post(handlers::copy_workspace),
+            )
+            .route(
+                "/workspace-copy-jobs/{job_id}",
+                get(handlers::get_workspace_copy_job),
+            );
+    }
+
+    router
         // Authentication (Phase 3)
         .route("/auth/login", post(handlers::login))
         .route("/auth/refresh", post(handlers::refresh_token))

@@ -5,7 +5,11 @@
 include!(concat!(env!("OUT_DIR"), "/openapi_path_count.rs"));
 
 /// Handler function names registered in `openapi.rs` `paths()` (last path segment).
-pub const REGISTERED_HANDLER_COUNT: usize = 200;
+///
+/// EN-3677 Phase 1 bumped this from 200 → 202: `copy_workspace` and
+/// `get_workspace_copy_job`. `delete_workspace` was already registered
+/// (added by an earlier commit) so it is not counted twice.
+pub const REGISTERED_HANDLER_COUNT: usize = 202;
 
 const _: () = assert!(
     OPENAPI_GENERATED_HANDLER_COUNT == REGISTERED_HANDLER_COUNT,

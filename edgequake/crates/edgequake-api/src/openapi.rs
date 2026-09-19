@@ -113,6 +113,9 @@ use crate::handlers;
         handlers::get_workspace,
         handlers::update_workspace,
         handlers::delete_workspace,
+        // EN-3677 Graph KB Migration Phase 1
+        handlers::copy_workspace,
+        handlers::get_workspace_copy_job,
         handlers::get_workspace_stats,
         handlers::get_chunk_detail,
         handlers::get_entity_provenance,
@@ -400,6 +403,12 @@ use crate::handlers;
         handlers::ReprocessAllResponse,
         handlers::RebuildKnowledgeGraphRequest,
         handlers::RebuildKnowledgeGraphResponse,
+        // EN-3677 Workspace Copy DTOs
+        handlers::CopyWorkspaceRequest,
+        handlers::CopyWorkspaceResponse,
+        handlers::CopyWorkspaceStatus,
+        handlers::CopyMode,
+        handlers::CopyStatus,
         // Lineage & Provenance schemas (OODA-28)
         handlers::ChunkDetailResponse,
         handlers::EntityProvenanceResponse,
