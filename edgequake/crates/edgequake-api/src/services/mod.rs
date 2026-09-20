@@ -86,7 +86,15 @@ pub mod pending_doc_task_reconcile;
 pub mod pipeline_failure_classify;
 pub mod pipeline_ws_bridge;
 #[cfg(feature = "postgres")]
+pub mod postgres_checkpoint_artifact_store;
+#[cfg(feature = "postgres")]
 pub mod postgres_chunk_lineage;
+#[cfg(feature = "postgres")]
+pub mod postgres_identity_store;
+#[cfg(feature = "postgres")]
+pub mod postgres_session_store;
+#[cfg(feature = "postgres")]
+pub mod postgres_workspace_store;
 pub mod process_fingerprint;
 pub mod progress_counts;
 pub mod progress_facade;

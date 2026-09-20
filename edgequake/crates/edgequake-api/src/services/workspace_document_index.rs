@@ -19,7 +19,7 @@ use edgequake_storage::traits::KVStorage;
 /// the shared sidecar registry (SPEC-091 Wave B4/B5) so one pool serves every
 /// relational KV-family cutover (DRY).
 #[cfg(feature = "postgres")]
-pub fn register_membership_pool(pool: sqlx::PgPool) {
+pub fn register_membership_pool(pool: impl Into<std::sync::Arc<sqlx::PgPool>>) {
     crate::services::relational_sidecar_store::register_sidecar_pool(pool);
 }
 
@@ -48,7 +48,7 @@ async fn relational_workspace_doc_ids(workspace_id: &str) -> Option<Vec<String>>
         )
         .bind(ws)
         .bind(workspace_id)
-        .fetch_all(pool)
+        .fetch_all(pool.as_ref())
         .await
         {
             Ok(rows) => Some(rows.iter().map(uuid::Uuid::to_string).collect()),

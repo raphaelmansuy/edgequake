@@ -163,7 +163,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
         spec93-migration-assessment-pg17 spec93-migration-assessment-pg18 \
         check-deps status \
         test-quality test-invariants test-timing test-count test-flaky \
-	test-e2e-critical test-e2e-full test-e2e-lint test-stability-report \
+	test-e2e-critical test-e2e-full test-e2e-lint test-stability-report provider-access-test \
         measure-bulk-ingest \
         sdk-e2e sdk-e2e-with-stack sdk-csharp-test-unit
 
@@ -1404,6 +1404,12 @@ backend-sqlx-prepare: db-start ## Generate SQLx metadata for offline builds
 backend-test: ## Run backend tests
 	@echo "$(BLUE)Running backend tests...$(RESET)"
 	@cd $(BACKEND_DIR) && cargo test
+
+PROFILE ?= P0
+SUITE ?= smoke
+
+provider-access-test: ## Run strict SPEC-149 provider certification
+	@PROFILE=$(PROFILE) SUITE=$(SUITE) bash scripts/provider-access/test-profile.sh
 
 backend-run: ## Run the compiled backend binary
 	@echo "$(BLUE)Running backend...$(RESET)"

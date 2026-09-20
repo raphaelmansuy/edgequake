@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "spec": "SPEC-149",
+  "review_gate": "J21",
+  "ports": [
+    {
+      "group": "documents/chunks",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["DocumentRepository", "ChunkRepository", "KVStorage"],
+      "production_constructor": "AppState::new_postgres -> PostgresChunkRepository/PostgresKVStorage wiring",
+      "pg_implementation": ["adapters/postgres/chunk_repository.rs", "adapters/postgres/kv.rs", "edgequake-api/services/document_read_model.rs"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "Every document and chunk operation is tenant_id + workspace_id scoped; typed absence must not widen scope.",
+      "transaction_participation": "Required participant in ingestion reservation, bounded chunk commit, publication, and lifecycle tombstone transactions; current chunk UnitOfWork is not a real transaction.",
+      "test_id": "PROVIDER-ACCESS-E2E04"
+    },
+    {
+      "group": "graph facts",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["GraphStorage", "GraphStorageReadOps", "GraphStorageMutateOps", "GraphScanOps"],
+      "production_constructor": "AppState::new_postgres -> PostgresAGEGraphStorage::with_pool",
+      "pg_implementation": ["adapters/postgres/graph/", "edgequake-api/services/document_graph_lineage.rs", "edgequake-api/postgres_lineage_sink.rs"],
+      "sqlite_status": "none",
+      "scope_rules": "Canonical facts and source contributions require tenant/workspace/revision keys; names alone are never authority.",
+      "transaction_participation": "Canonical fact revisions belong to the relational ingestion/lifecycle commit; AGE projection delivery is asynchronous and receipt-tracked.",
+      "test_id": "PROVIDER-ACCESS-E2E06"
+    },
+    {
+      "group": "vector embeddings (chunk/entity/rel/report)",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["EmbeddingIndex", "FleetEmbeddingIndex", "VectorStorage", "WorkspaceVectorRegistry"],
+      "production_constructor": "AppState::new_postgres -> PgVectorStorage/PgWorkspaceVectorRegistry; typed indexes are assembled by PostgreSQL ingestion services",
+      "pg_implementation": ["adapters/postgres/chunk_embedding_index.rs", "adapters/postgres/fleet_embedding_index.rs", "adapters/postgres/vector/", "adapters/postgres/workspace_vector.rs"],
+      "sqlite_status": "none",
+      "scope_rules": "Mandatory tenant/workspace, family, model revision, content revision, document and visibility predicates execute before candidate return.",
+      "transaction_participation": "Embedding manifests are committed with relational authority; physical vector writes are projection deliveries except for current co-located compatibility paths.",
+      "test_id": "PROVIDER-ACCESS-E2E11"
+    },
+    {
+      "group": "visibility/serving",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["DocumentRepository (partial)", "ServingFenceQuery (PostgreSQL helper)"],
+      "production_constructor": "AppState::new_postgres -> document_read_model and serving-fence query helpers",
+      "pg_implementation": ["adapters/postgres/serving_fence_query.rs", "edgequake-api/document_read_model.rs", "edgequake-api/services/workspace_document_index.rs"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "Batch current-state checks require exact tenant/workspace/document/revision identity; pending, stale, deleted, or foreign rows are non-serving.",
+      "transaction_participation": "Visibility publication and revocation must commit atomically with authority revision and durable delivery intents.",
+      "test_id": "PROVIDER-ACCESS-E2E03"
+    },
+    {
+      "group": "identity/users",
+      "owning_crate": "edgequake-api",
+      "existing_trait": ["IdentityPolicy; no injectable persistence port"],
+      "production_constructor": "AppState::new_postgres -> PostgresRuntime pool consumed by services/identity_storage.rs",
+      "pg_implementation": ["services/identity_storage.rs", "handlers/auth/", "edgequake-auth"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "User identity is globally unique where declared; authorization always resolves tenant/workspace membership before constructing access scope.",
+      "transaction_participation": "Credential, lockout, role, and bootstrap membership changes require adapter-local transactions; currently implemented as direct policy-layer SQL calls.",
+      "test_id": "PROVIDER-ACCESS-E2E10"
+    },
+    {
+      "group": "sessions/api_keys",
+      "owning_crate": "edgequake-api",
+      "existing_trait": ["No injectable port; session_storage functions and auth DTO records"],
+      "production_constructor": "Auth handlers receive StorageRuntime/PostgresRuntime and call services/session_storage.rs",
+      "pg_implementation": ["services/session_storage.rs", "handlers/auth/api_keys.rs"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "Refresh tokens and API keys bind to a user and authorized tenant/workspace context; revocation must survive restart.",
+      "transaction_participation": "Issue/revoke/rotate operations require atomic credential state transitions; current direct SQL operations are individually committed.",
+      "test_id": "PROVIDER-ACCESS-E2E10"
+    },
+    {
+      "group": "tenants/workspaces/memberships",
+      "owning_crate": "edgequake-core",
+      "existing_trait": ["TenantService", "WorkspaceService"],
+      "production_constructor": "AppState::new_postgres -> WorkspaceServiceImpl::new(pool)",
+      "pg_implementation": ["workspace_service_impl/", "edgequake-api/services/tenant_isolation.rs"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "Workspace lookup is tenant-bound; membership grants/revokes precede access-scope construction and same-name workspaces may coexist across tenants.",
+      "transaction_participation": "Tenant/workspace creation, membership, quota, and default provisioning use relational transactions where multi-row invariants apply.",
+      "test_id": "PROVIDER-ACCESS-E2E02"
+    },
+    {
+      "group": "conversations",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["ConversationStorage", "ConversationService"],
+      "production_constructor": "AppState::new_postgres -> ConversationServiceImpl::new(pool); PostgresConversationStorage is available behind the storage port",
+      "pg_implementation": ["adapters/postgres/conversation.rs", "edgequake-core/conversation_service_impl.rs"],
+      "sqlite_status": "planned",
+      "scope_rules": "Conversation and message reads/writes require tenant/workspace/user ownership and stable ordered pagination.",
+      "transaction_participation": "Conversation/message append and metadata updates require adapter-local transactions for multi-row operations.",
+      "test_id": "PROVIDER-ACCESS-E2E14"
+    },
+    {
+      "group": "tasks/leases",
+      "owning_crate": "edgequake-tasks",
+      "existing_trait": ["TaskStorage", "TaskRepository", "TaskStatusReader", "TaskClaimer", "CancelStore", "FairnessLedger"],
+      "production_constructor": "AppState::new_postgres -> PostgresTaskStorage::new(queue_pool)",
+      "pg_implementation": ["edgequake-tasks/src/postgres.rs", "edgequake-api/services/queue_relational_ssot.rs"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "Task payload and status remain tenant/workspace scoped; claim ownership uses worker identity, lease epoch, and fencing.",
+      "transaction_participation": "Enqueue, claim, renew, terminal transition, cancellation, and fairness counters require atomic compare-and-update semantics.",
+      "test_id": "PROVIDER-ACCESS-E2E05"
+    },
+    {
+      "group": "provider_budgets",
+      "owning_crate": "edgequake-tasks",
+      "existing_trait": ["ProviderBudget"],
+      "production_constructor": "AppState::new_postgres -> PostgresProviderBudget::new(admin_pool)",
+      "pg_implementation": ["edgequake-tasks/src/provider_budget.rs"],
+      "sqlite_status": "planned",
+      "scope_rules": "Reservations are keyed by provider role plus tenant/workspace fairness identity; one scope cannot consume another scope's reservation.",
+      "transaction_participation": "Acquire, renew, release, and expiry reclamation require atomic slot accounting and fencing.",
+      "test_id": "PROVIDER-ACCESS-E2E14"
+    },
+    {
+      "group": "checkpoints/artifacts",
+      "owning_crate": "edgequake-api",
+      "existing_trait": ["No unified port; pipeline checkpoint and artifact retrieval services"],
+      "production_constructor": "DocumentTaskProcessor and artifact handlers consume PostgresRuntime/StorageRuntime",
+      "pg_implementation": ["processor/pipeline_checkpoint.rs", "services/artifact_retrieval.rs", "services/multimodal/manifest_store.rs"],
+      "sqlite_status": "in_progress",
+      "scope_rules": "Checkpoint and artifact keys include tenant/workspace/document/task/revision; provider error is distinct from absence.",
+      "transaction_participation": "Checkpoint advancement is conditional on task lease/revision; artifact manifests publish only after all required blobs are durable.",
+      "test_id": "PROVIDER-ACCESS-E2E14"
+    },
+    {
+      "group": "originals/pdf/mm/layout",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["DocumentOriginalStorage", "PdfDocumentStorage", "DocumentMmAssetStorage", "DocumentPageLayoutStorage"],
+      "production_constructor": "AppState::new_postgres -> PostgresOriginalStorage/PostgresPdfStorage/PostgresMmAssetStorage/PostgresPageLayoutStorage",
+      "pg_implementation": ["adapters/postgres/original_storage_impl.rs", "adapters/postgres/pdf_storage_impl.rs", "adapters/postgres/mm_asset_storage_impl.rs", "adapters/postgres/page_layout_storage_impl.rs"],
+      "sqlite_status": "planned",
+      "scope_rules": "Blob and layout access requires tenant/workspace/document ownership; checksums and page/asset identities are immutable within a content revision.",
+      "transaction_participation": "Metadata and publication state participate in document commit; large bytes may stage separately but remain non-serving until manifest publication.",
+      "test_id": "PROVIDER-ACCESS-E2E14"
+    },
+    {
+      "group": "migration_jobs",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["MigrationLedger", "migration_engine runner/lease modules"],
+      "production_constructor": "edgequake migrate and AppState PostgreSQL bootstrap construct migration engine access from admin_pool",
+      "pg_implementation": ["traits/domain/migration_ledger.rs", "migration_engine/", "edgequake-api/state/migration_bootstrap/"],
+      "sqlite_status": "planned",
+      "scope_rules": "Schema migrations are provider-wide administrative operations; data movement jobs retain source/target binding, partition, and scope checkpoints.",
+      "transaction_participation": "Each migration page and checkpoint update is idempotent and fenced; schema application remains an explicit operator transaction sequence.",
+      "test_id": "PROVIDER-ACCESS-E2E08"
+    },
+    {
+      "group": "outbox/projection_ledger",
+      "owning_crate": "edgequake-storage",
+      "existing_trait": ["OutboxSink; no complete per-target ProjectionLedger port"],
+      "production_constructor": "Ingestion persistence creates PostgresOutboxSink; API outbox drain consumes PostgreSQL rows",
+      "pg_implementation": ["outbox.rs", "outbox_drain.rs", "edgequake-api/services/outbox_drain_applier.rs"],
+      "sqlite_status": "done",
+      "scope_rules": "Events carry tenant/workspace, authority revision, target binding generation, schema version, and immutable operation identity.",
+      "transaction_participation": "Event append is required in the authority commit; claim/lease/ack/retry/quarantine are fenced ledger transactions.",
+      "test_id": "PROVIDER-ACCESS-E2E07"
+    },
+    {
+      "group": "audit",
+      "owning_crate": "edgequake-audit",
+      "existing_trait": ["AuditLogger concrete service; no storage trait"],
+      "production_constructor": "AppState::new_postgres -> AuditLogger::new(pool)",
+      "pg_implementation": ["edgequake-audit/src/logger.rs"],
+      "sqlite_status": "planned",
+      "scope_rules": "Security events retain actor, tenant/workspace when applicable, action, outcome, and immutable timestamp; query authorization is administrative.",
+      "transaction_participation": "Audit append is durable and immutable; security-critical authority changes must define whether audit failure aborts or records an explicit recovery obligation.",
+      "test_id": "PROVIDER-ACCESS-E2E14"
+    }
+  ]
+}

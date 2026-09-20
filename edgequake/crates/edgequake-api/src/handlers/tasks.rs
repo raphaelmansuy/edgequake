@@ -296,7 +296,7 @@ pub async fn cancel_task(
         .map(|t| t.workspace_id.to_string())
         .unwrap_or_else(|| "default".to_string());
     let vector =
-        crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key).await;
+        crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key).await?;
     let applied = cancel_track_with_doc_and_pdf_chain(
         &state.tasks.storage,
         &state.tasks.cancellation_registry,

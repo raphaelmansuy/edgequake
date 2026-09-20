@@ -186,6 +186,7 @@ async fn provision_test_db(cfg: PostgresConfig) {
         // drifts (SPEC-110/111) so sqlx migrate can apply pending files
         // without requiring EDGEQUAKE_DEV_MODE (prod still fails closed).
         repair_test_db_migration_checksums(&pool).await;
+        repair_stale_spec149_migration_collision(&pool).await;
         // Idempotent: applies only pending migrations, so concurrent test
         // processes and repeat runs converge without dropping anything.
         if let Err(e) = MIGRATOR.run(&pool).await {
@@ -193,6 +194,41 @@ async fn provision_test_db(cfg: PostgresConfig) {
         }
         pool.close().await;
     }
+}
+
+/// Scratch DBs that recorded a non-PROVIDER-ACCESS version 150 leave the
+/// ledger tables missing while sqlx thinks 150 is done. Drop the orphan row
+/// (and any later orphans) so the real 150–153 files can apply.
+async fn repair_stale_spec149_migration_collision(pool: &sqlx::PgPool) {
+    let Ok(ledger_present): Result<bool, _> =
+        sqlx::query_scalar("SELECT to_regclass('public.data_bindings') IS NOT NULL")
+            .fetch_one(pool)
+            .await
+    else {
+        return;
+    };
+    if ledger_present {
+        return;
+    }
+    let Ok(stale_150): Result<Option<String>, _> = sqlx::query_scalar(
+        "SELECT description FROM _sqlx_migrations \
+         WHERE version = 150 AND success = true",
+    )
+    .fetch_optional(pool)
+    .await
+    else {
+        return;
+    };
+    let Some(description) = stale_150 else {
+        return;
+    };
+    if description == "provider access ledger" {
+        return;
+    }
+    eprintln!("test-db: clearing stale migration 150 ({description}) so SPEC-149 ledger can apply");
+    let _ = sqlx::query("DELETE FROM _sqlx_migrations WHERE version >= 150")
+        .execute(pool)
+        .await;
 }
 
 /// Update `_sqlx_migrations.checksum` for known broken→fixed pairs so the

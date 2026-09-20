@@ -1,0 +1,246 @@
+{
+  "commit": "c8a5af76f3dc7c1bbfa124514c13a18e5afdb86b",
+  "audited_on": "2026-09-20",
+  "method": "Static source audit plus 2026-09-20 P0 hot-path re-audit hashes for feat/149-data-access-improvements. Line numbers are 1-based. Baseline commit records the original audit; hashes reflect current tree.",
+  "entries": [
+    {
+      "id": "E01",
+      "path": "edgequake/crates/edgequake-api/src/state/config.rs",
+      "line": 23,
+      "needle": "pub enum StorageMode",
+      "sha256": "70a270ae34f23402cc050d50703af9da904980c675c9ae295ad7355f9c30ba9f"
+    },
+    {
+      "id": "E02",
+      "path": "edgequake/crates/edgequake-api/src/state/postgres.rs",
+      "line": 394,
+      "needle": "let materialized =",
+      "sha256": "7d994577102233ebeba6381bcf2ffbc397a9e4fd9816dd6186c095f92e073a07"
+    },
+    {
+      "id": "E03",
+      "path": "edgequake/crates/edgequake-api/src/state/postgres_runtime.rs",
+      "line": 12,
+      "needle": "pub pool: Option<PgPool>",
+      "sha256": "9f6b82ce0ad373f5a8e2318597ec8e524e532bc26c1179092355694196783f18"
+    },
+    {
+      "id": "E04",
+      "path": "edgequake/crates/edgequake-storage/src/traits/domain/document_repository.rs",
+      "line": 12,
+      "needle": "async fn touch_indexed",
+      "sha256": "56b09630b394b9dea0d7fead9b821c8a2bd4452c4744aac9b0b176925b6942e1"
+    },
+    {
+      "id": "E05",
+      "path": "edgequake/crates/edgequake-storage/src/traits/domain/types.rs",
+      "line": 98,
+      "needle": "pub struct UnitOfWork",
+      "sha256": "c49484a36bf6d5272893f9171323a3b6983e8396cba43ca9f7d6dc63268abdd1"
+    },
+    {
+      "id": "E06",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/chunk_repository.rs",
+      "line": 497,
+      "needle": "_tx: &mut UnitOfWork",
+      "sha256": "5c19b2b7b1a3446a71bc068a690ac389a962bde449120dfc5f17e90035388be6"
+    },
+    {
+      "id": "E07",
+      "path": "edgequake/crates/edgequake-storage/src/outbox.rs",
+      "line": 96,
+      "needle": "pub async fn enqueue_outbox_best_effort",
+      "sha256": "4b929d376b797255ff14e3b907ff6a7ae8a5ec904724d64503a44776034aa33f"
+    },
+    {
+      "id": "E08",
+      "path": "edgequake/crates/edgequake-api/src/services/outbox_drain_applier.rs",
+      "line": 43,
+      "needle": "async fn apply_outbox_event",
+      "sha256": "da9e70d54107f02e964cdd48ac06bb54e5d7c9f05c09c3c6b5cb409ed3f5890d"
+    },
+    {
+      "id": "E09",
+      "path": "edgequake/crates/edgequake-storage/src/traits/vector.rs",
+      "line": 386,
+      "needle": "async fn query_filtered",
+      "sha256": "32e763880db27f016f972c2b6765adec571b955194a137962b4cb99752ed15b0"
+    },
+    {
+      "id": "E10",
+      "path": "edgequake/crates/edgequake-storage/src/traits/vector.rs",
+      "line": 151,
+      "needle": "fn matches_fields",
+      "sha256": "32e763880db27f016f972c2b6765adec571b955194a137962b4cb99752ed15b0"
+    },
+    {
+      "id": "E11",
+      "path": "edgequake/crates/edgequake-storage/src/traits/graph_mutate_ops.rs",
+      "line": 110,
+      "needle": "async fn delete_edges_batch",
+      "sha256": "370da09b71b39150949e284c701806d1c627365c792ae45e820ce04e8d64aab3"
+    },
+    {
+      "id": "E12",
+      "path": "edgequake/crates/edgequake-storage/src/traits/graph_read_ops.rs",
+      "line": 208,
+      "needle": "async fn get_edges_for_node_set",
+      "sha256": "fbf096242a5fd466cfaf7e50d0033b09d1ef3d2fe20a0e7ba57c44c3410a5d0f"
+    },
+    {
+      "id": "E13",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/vector/storage_impl.rs",
+      "line": 714,
+      "needle": "async fn query_filtered",
+      "sha256": "b87f9aa6ad8b6c34d935ea1552c69834bb586a15cfb923e32b58ac156c28402d"
+    },
+    {
+      "id": "E14",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/vector/typed_read.rs",
+      "line": 118,
+      "needle": "pub async fn try_typed_chunk_query",
+      "sha256": "15df4293511b37d566d0727cad79bc940305132e493bf2937a1ed4e4d7c52794"
+    },
+    {
+      "id": "E15",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/chunk_embedding_index.rs",
+      "line": 175,
+      "needle": "async fn search",
+      "sha256": "ecf06d111e624d01e5d4b8149636c2ce35afcb7a6f6bfee2f08222d768f46b4a"
+    },
+    {
+      "id": "E16",
+      "path": "edgequake/crates/edgequake-api/src/services/relational_sidecar_store.rs",
+      "line": 58,
+      "needle": "static SIDECAR_STORE",
+      "sha256": "82159b6abd67a5fb837163931020944a32dc353955a66a1d7eb9b3078bfdef8f"
+    },
+    {
+      "id": "E17",
+      "path": "edgequake/crates/edgequake-api/src/services/document_vector_storage.rs",
+      "line": 72,
+      "needle": "pub async fn get_workspace_vector_storage_for_delete",
+      "sha256": "18a7eb1c96a4a6718f87aa051ffdb0047083c3d242835548db0f4f2136ba2d2e"
+    },
+    {
+      "id": "E18",
+      "path": "edgequake/crates/edgequake-api/src/postgres_entity_sink.rs",
+      "line": 49,
+      "needle": "pub async fn create_for_runtime",
+      "sha256": "9996c3f4476715adf267dd7aae782817c3c6a55d5a8e29b53825a4d08cab8dcc"
+    },
+    {
+      "id": "E19",
+      "path": "edgequake/crates/edgequake-storage/src/traits/workspace_vector.rs",
+      "line": 85,
+      "needle": "pub fn table_name",
+      "sha256": "ade59963224442bf2045d07bcccac1610c61225211ec5e70c77a46e049060df6"
+    },
+    {
+      "id": "E20",
+      "path": "edgequake/crates/edgequake-storage/src/error.rs",
+      "line": 153,
+      "needle": "impl From<sqlx::Error>",
+      "sha256": "ec16c8888c9f62c21f38372e629e4cef6e85c0d9a124bdfed596df4c96160680"
+    },
+    {
+      "id": "E21",
+      "path": "edgequake/crates/edgequake-storage/tests/storage_backend_contract.rs",
+      "line": 50,
+      "needle": "Skipping postgres contract",
+      "sha256": "601b55df2852709a55693a668ad5ea9099e193effa9ecbd0789c905d89e6fc7a"
+    },
+    {
+      "id": "E22",
+      "path": "edgequake/crates/edgequake-storage/src/graph_batch_dedupe.rs",
+      "line": 26,
+      "needle": "pub fn dedupe_nodes_by_id",
+      "sha256": "18dc334d19df4c7c6f281df4f299f765c478d67f4bbd5937fb2c9561ad92f501"
+    },
+    {
+      "id": "E23",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/memory/vector.rs",
+      "line": 82,
+      "needle": "scores.sort_by",
+      "sha256": "2c04e2b826c47f331d1dfc34d7aff261c62c0ad77fd10a64875c29401eaaa76a"
+    },
+    {
+      "id": "E24",
+      "path": "edgequake/crates/edgequake-storage/src/traits/domain/types.rs",
+      "line": 105,
+      "needle": "pub struct VectorQuery",
+      "sha256": "c49484a36bf6d5272893f9171323a3b6983e8396cba43ca9f7d6dc63268abdd1"
+    },
+    {
+      "id": "E25",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs",
+      "line": 253,
+      "needle": "async fn delete_edges_batch",
+      "sha256": "60c0c27a1d5e7b0a6c3f5e77e8a3b600106e53458a0d83b644a9dd13c32ce7e7"
+    },
+    {
+      "id": "E26",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/memory/graph.rs",
+      "line": 942,
+      "needle": "async fn delete_edges_batch",
+      "sha256": "fd5abb01891adb6007e2741f9396d3996079008121a6d891ecbfb5257ecd4614"
+    },
+    {
+      "id": "E27",
+      "path": "edgequake/crates/edgequake-storage/src/traits/graph.rs",
+      "line": 180,
+      "needle": "pub trait GraphStorage:",
+      "sha256": "b47b36a306aaf774a693d1ff1941e989a75575a22bde6107b484f38b8630cf1a"
+    },
+    {
+      "id": "E28",
+      "path": "edgequake/crates/edgequake-core/src/workspace_service_impl/mod.rs",
+      "line": 44,
+      "needle": "pool: PgPool",
+      "sha256": "ea2caa3bb3a26897c46c47e27d4784c565dc878d115abf1d9a194a081ee9f0f5"
+    },
+    {
+      "id": "E29",
+      "path": "edgequake/crates/edgequake-api/src/services/identity_storage.rs",
+      "line": 119,
+      "needle": "pool: &sqlx::PgPool",
+      "sha256": "e485cc75d2efec2a4115c86197c074c79407daaf9b27e7fc11dc6524973cb3c7"
+    },
+    {
+      "id": "E30",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/serving_fence_query.rs",
+      "line": 171,
+      "needle": "pub async fn apply_serving_fence",
+      "sha256": "ee2a4541c7565945f4d34810c763440de2f8856456a56de8d98ba073e4de96fa"
+    },
+    {
+      "id": "E31",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/chunk_embedding_index.rs",
+      "line": 119,
+      "needle": "_model: ModelId",
+      "sha256": "ecf06d111e624d01e5d4b8149636c2ce35afcb7a6f6bfee2f08222d768f46b4a"
+    },
+    {
+      "id": "E32",
+      "path": "edgequake/crates/edgequake-storage/src/traits/graph_mutate_ops.rs",
+      "line": 52,
+      "needle": "async fn upsert_nodes_batch_with_mode",
+      "sha256": "370da09b71b39150949e284c701806d1c627365c792ae45e820ce04e8d64aab3"
+    },
+    {
+      "id": "E33",
+      "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/pool_bundle.rs",
+      "line": 73,
+      "needle": "pub struct PgPoolBundle",
+      "sha256": "c02366fe0da281565046ae9a1be2305d8ff180d42b94c35131883dcf2c0f4404"
+    },
+    {
+      "id": "E34",
+      "path": "edgequake/crates/edgequake-storage/src/vector_backend.rs",
+      "line": 5,
+      "needle": "pub enum VectorBackend",
+      "sha256": "c3d11ce8515181951f5a394e2a9400bc0b9c76e06a5be6053de3c10628bd3aae"
+    }
+  ],
+  "re_audited_on": "2026-09-20"
+}

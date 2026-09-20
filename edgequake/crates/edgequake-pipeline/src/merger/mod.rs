@@ -56,8 +56,8 @@ pub use entity_resolution::{
     ER_LLM_ENV,
 };
 pub use entity_type_vote::{
-    apply_entity_type_vote, apply_manual_type_override, resolve_majority_type,
-    ENTITY_TYPE_LOCKED_KEY, ENTITY_TYPE_VOTES_KEY,
+    add_type_vote, apply_entity_type_vote, apply_manual_type_override, merge_type_into_entity,
+    resolve_majority_type, ENTITY_TYPE_LOCKED_KEY, ENTITY_TYPE_VOTES_KEY,
 };
 pub use lineage::{
     document_id_from_chunk_id, document_ids_from_chunk_ids, insert_chunk_lineage_properties,

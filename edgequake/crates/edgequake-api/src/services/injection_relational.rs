@@ -75,7 +75,7 @@ pub async fn typed_injection_upsert(meta: &Value) {
         .bind(content)
         .bind(status)
         .bind(stored)
-        .execute(pool)
+        .execute(pool.as_ref())
         .await;
         if let Err(e) = result {
             if injections_prefer_relational() {
@@ -100,7 +100,7 @@ pub async fn typed_injection_get(injection_id: &str) -> Option<Value> {
              WHERE id = $1 AND metadata->>'source_type' = 'injection'",
         )
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(pool.as_ref())
         .await
         {
             Ok(v) => v,
@@ -135,14 +135,14 @@ pub async fn typed_injection_list(
         .bind(ws)
         .bind(limit)
         .bind(offset)
-        .fetch_all(pool)
+        .fetch_all(pool.as_ref())
         .await;
         let total = sqlx::query_scalar::<_, i64>(
             "SELECT count(*) FROM public.documents \
              WHERE workspace_id = $1 AND metadata->>'source_type' = 'injection'",
         )
         .bind(ws)
-        .fetch_one(pool)
+        .fetch_one(pool.as_ref())
         .await;
         match (rows, total) {
             (Ok(items), Ok(total)) => Some((items, total)),
@@ -173,7 +173,7 @@ pub async fn typed_injection_delete(injection_id: &str) {
             "DELETE FROM public.documents WHERE id = $1 AND metadata->>'source_type' = 'injection'",
         )
         .bind(id)
-        .execute(pool)
+        .execute(pool.as_ref())
         .await
         {
             if injections_prefer_relational() {

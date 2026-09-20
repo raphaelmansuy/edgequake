@@ -141,6 +141,15 @@ impl GraphStorageReadOps for FailingGraphStorage {
         Ok(vec![])
     }
 
+    async fn get_edges_for_node_set(
+        &self,
+        _node_ids: &[String],
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphEdge>, StorageError> {
+        Ok(vec![])
+    }
+
     async fn get_knowledge_graph(
         &self,
         _start_node: &str,
@@ -224,6 +233,14 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         )))
     }
 
+    async fn upsert_nodes_batch_with_mode(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+        _mode: edgequake_storage::GraphPropertyWriteMode,
+    ) -> Result<(), StorageError> {
+        self.upsert_nodes_batch(nodes).await
+    }
+
     async fn delete_node(&self, _node_id: &str) -> Result<(), StorageError> {
         Ok(())
     }
@@ -255,7 +272,22 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         Ok(())
     }
 
+    async fn upsert_edges_batch_with_mode(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+        _mode: edgequake_storage::GraphPropertyWriteMode,
+    ) -> Result<(), StorageError> {
+        self.upsert_edges_batch(edges).await
+    }
+
     async fn delete_edge(&self, _source: &str, _target: &str) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    async fn delete_edges_batch(
+        &self,
+        _edges: &[(String, String, String)],
+    ) -> Result<(), StorageError> {
         Ok(())
     }
 
@@ -271,6 +303,13 @@ impl GraphStorageMutateOps for FailingGraphStorage {
 
     async fn clear(&self) -> Result<(), StorageError> {
         Ok(())
+    }
+
+    async fn clear_workspace(
+        &self,
+        _workspace_id: &uuid::Uuid,
+    ) -> Result<(usize, usize), StorageError> {
+        Ok((0, 0))
     }
 }
 

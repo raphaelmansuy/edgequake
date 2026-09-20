@@ -1,7 +1,8 @@
 //! PostgreSQL ChunkRepository — relational chunk authority writer (SPEC-091 W1).
 
 use async_trait::async_trait;
-use sqlx::PgPool;
+use serde::Deserialize;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::error::StorageError;
@@ -9,6 +10,7 @@ use crate::traits::domain::{
     Chunk, ChunkCursor, ChunkId, ChunkRepository, ChunkText, DocumentId, InsertReport, Page,
     UnitOfWork,
 };
+use edgequake_storage_contracts::PreparedRecord;
 
 /// Postgres adapter for `ChunkRepository::insert_batch` (idempotent via UNIQUE constraint).
 pub struct PostgresChunkRepository {
@@ -28,6 +30,25 @@ pub(crate) struct ChunkInsertRow {
     pub metadata: serde_json::Value,
     pub page_start: Option<i32>,
     pub page_end: Option<i32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct PreparedChunkPayload {
+    #[serde(default)]
+    chunk_index: Option<i32>,
+    content: String,
+    #[serde(default)]
+    start_offset: Option<i32>,
+    #[serde(default)]
+    end_offset: Option<i32>,
+    #[serde(default)]
+    token_count: Option<i32>,
+    #[serde(default)]
+    metadata: serde_json::Value,
+    #[serde(default)]
+    page_start: Option<i32>,
+    #[serde(default)]
+    page_end: Option<i32>,
 }
 
 /// LAW-D7: single round trip per batch via `unnest` (mirrors vector upsert in
@@ -123,6 +144,215 @@ impl PostgresChunkRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+}
+
+/// Insert prepared chunk records using the committer-owned transaction.
+///
+/// A prepared payload may be the canonical JSON shape represented by
+/// `PreparedChunkPayload`; plain UTF-8 payloads remain accepted for the
+/// compatibility ingestion path and receive an ordinal-derived chunk index.
+/// Every conflict is read back and compared so `ON CONFLICT` never turns a
+/// mismatched replay into success.
+pub(crate) async fn insert_prepared_chunks_in_transaction(
+    tx: &mut Transaction<'_, Postgres>,
+    document_id: Uuid,
+    tenant_id: Uuid,
+    workspace_id: Uuid,
+    batch_ordinal: i32,
+    records: &[PreparedRecord],
+) -> Result<(), StorageError> {
+    if records.is_empty() {
+        return Ok(());
+    }
+
+    ensure_document_parent_in_transaction(tx, document_id, Some(tenant_id), Some(workspace_id))
+        .await?;
+
+    let base_index = batch_ordinal.checked_mul(10_000).ok_or_else(|| {
+        StorageError::InvalidInput("batch ordinal exceeds chunk index range".into())
+    })?;
+    let mut ids = Vec::with_capacity(records.len());
+    let mut indexes = Vec::with_capacity(records.len());
+    let mut contents = Vec::with_capacity(records.len());
+    let mut starts = Vec::with_capacity(records.len());
+    let mut ends = Vec::with_capacity(records.len());
+    let mut token_counts = Vec::with_capacity(records.len());
+    let mut metadata = Vec::with_capacity(records.len());
+    let mut page_starts = Vec::with_capacity(records.len());
+    let mut page_ends = Vec::with_capacity(records.len());
+
+    for (position, record) in records.iter().enumerate() {
+        let fallback_index = base_index
+            .checked_add(i32::try_from(position).map_err(|_| {
+                StorageError::InvalidInput("prepared chunk position exceeds i32".into())
+            })?)
+            .ok_or_else(|| StorageError::InvalidInput("chunk index overflow".into()))?;
+        let parsed = serde_json::from_slice::<PreparedChunkPayload>(&record.payload).ok();
+        let (index, content, start, end, tokens, mut meta, page_start, page_end) =
+            if let Some(payload) = parsed {
+                (
+                    payload.chunk_index.unwrap_or(fallback_index),
+                    payload.content,
+                    payload.start_offset,
+                    payload.end_offset,
+                    payload.token_count,
+                    payload.metadata,
+                    payload.page_start,
+                    payload.page_end,
+                )
+            } else {
+                let content = String::from_utf8(record.payload.clone()).map_err(|_| {
+                    StorageError::InvalidInput(format!(
+                        "prepared chunk {} payload must be canonical JSON or UTF-8",
+                        record.id
+                    ))
+                })?;
+                (
+                    fallback_index,
+                    content,
+                    None,
+                    None,
+                    None,
+                    serde_json::json!({}),
+                    None,
+                    None,
+                )
+            };
+        if !meta.is_object() {
+            meta = serde_json::json!({"source_metadata": meta});
+        }
+        if let Some(object) = meta.as_object_mut() {
+            object.insert(
+                "provider_access_revision".into(),
+                serde_json::json!(record.revision),
+            );
+            object.insert(
+                "provider_access_digest".into(),
+                serde_json::json!(record.digest),
+            );
+        }
+
+        ids.push(record.id);
+        indexes.push(index);
+        contents.push(content);
+        starts.push(start);
+        ends.push(end);
+        token_counts.push(tokens);
+        metadata.push(meta);
+        page_starts.push(page_start);
+        page_ends.push(page_end);
+    }
+
+    let tenant_ids = vec![tenant_id; records.len()];
+    let workspace_ids = vec![workspace_id; records.len()];
+    let document_ids = vec![document_id; records.len()];
+    sqlx::query(
+        r#"
+        INSERT INTO public.chunks (
+            id, document_id, tenant_id, workspace_id, chunk_index, content,
+            start_offset, end_offset, token_count, metadata, page_start, page_end
+        )
+        SELECT * FROM unnest(
+            $1::uuid[], $2::uuid[], $3::uuid[], $4::uuid[], $5::int[],
+            $6::text[], $7::int[], $8::int[], $9::int[], $10::jsonb[],
+            $11::int[], $12::int[]
+        )
+        ON CONFLICT DO NOTHING
+        "#,
+    )
+    .bind(&ids)
+    .bind(&document_ids)
+    .bind(&tenant_ids)
+    .bind(&workspace_ids)
+    .bind(&indexes)
+    .bind(&contents)
+    .bind(&starts)
+    .bind(&ends)
+    .bind(&token_counts)
+    .bind(&metadata)
+    .bind(&page_starts)
+    .bind(&page_ends)
+    .execute(&mut **tx)
+    .await
+    .map_err(|error| {
+        StorageError::Database(format!(
+            "prepared chunks transaction insert failed: {error}"
+        ))
+    })?;
+
+    let rows = sqlx::query_as::<_, (Uuid, i32, String, Option<Uuid>, Option<Uuid>)>(
+        r#"
+        SELECT id, chunk_index, content, tenant_id, workspace_id
+        FROM public.chunks
+        WHERE document_id = $1 AND chunk_index = ANY($2)
+        "#,
+    )
+    .bind(document_id)
+    .bind(&indexes)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|error| {
+        StorageError::Database(format!(
+            "prepared chunks replay verification failed: {error}"
+        ))
+    })?;
+
+    if rows.len() != records.len() {
+        return Err(StorageError::Conflict(
+            "prepared chunk replay did not resolve every logical row".into(),
+        ));
+    }
+    let actual: std::collections::HashMap<i32, _> = rows
+        .into_iter()
+        .map(|(id, index, content, tenant, workspace)| (index, (id, content, tenant, workspace)))
+        .collect();
+    for ((record, index), expected_content) in
+        records.iter().zip(indexes.iter()).zip(contents.iter())
+    {
+        let Some((id, content, tenant, workspace)) = actual.get(index) else {
+            return Err(StorageError::Conflict(format!(
+                "prepared chunk index {index} is missing after insert"
+            )));
+        };
+        if *id != record.id
+            || content != expected_content
+            || *tenant != Some(tenant_id)
+            || *workspace != Some(workspace_id)
+        {
+            return Err(StorageError::Conflict(format!(
+                "prepared chunk index {index} conflicts with an existing row"
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub(crate) async fn ensure_document_parent_in_transaction(
+    tx: &mut Transaction<'_, Postgres>,
+    document_id: Uuid,
+    tenant_id: Option<Uuid>,
+    workspace_id: Option<Uuid>,
+) -> Result<(), StorageError> {
+    sqlx::query(
+        r#"
+        INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
+        VALUES ($1, $2, $3, '', 'processing')
+        ON CONFLICT (id) DO UPDATE SET
+            tenant_id = COALESCE(documents.tenant_id, EXCLUDED.tenant_id),
+            workspace_id = COALESCE(documents.workspace_id, EXCLUDED.workspace_id)
+        "#,
+    )
+    .bind(document_id)
+    .bind(tenant_id)
+    .bind(workspace_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|error| {
+        StorageError::Database(format!(
+            "transactional document parent ensure failed: {error}"
+        ))
+    })?;
+    Ok(())
 }
 
 /// Insert a minimal `documents` parent (write path only).
@@ -230,10 +460,10 @@ async fn ensure_document_parents(pool: &PgPool, chunks: &[Chunk]) -> Result<(), 
     let mut tenants: Vec<Option<Uuid>> = Vec::new();
     let mut workspaces: Vec<Option<Uuid>> = Vec::new();
     for c in chunks {
-        if seen.insert(c.document_id.0) {
-            ids.push(c.document_id.0);
-            tenants.push(c.tenant_id.map(|t| t.0));
-            workspaces.push(c.workspace_id.map(|w| w.0));
+        if seen.insert(c.document_id.into_uuid()) {
+            ids.push(c.document_id.into_uuid());
+            tenants.push(c.tenant_id.map(|t| t.into_uuid()));
+            workspaces.push(c.workspace_id.map(|w| w.into_uuid()));
         }
     }
     sqlx::query(
@@ -276,9 +506,9 @@ impl ChunkRepository for PostgresChunkRepository {
         let rows: Vec<ChunkInsertRow> = chunks
             .iter()
             .map(|c| ChunkInsertRow {
-                document_id: c.document_id.0,
-                tenant_id: c.tenant_id.map(|t| t.0),
-                workspace_id: c.workspace_id.map(|w| w.0),
+                document_id: c.document_id.into_uuid(),
+                tenant_id: c.tenant_id.map(|t| t.into_uuid()),
+                workspace_id: c.workspace_id.map(|w| w.into_uuid()),
                 chunk_index: c.chunk_index,
                 content: c.content.clone(),
                 start_offset: c.start_offset,
@@ -331,7 +561,7 @@ impl ChunkRepository for PostgresChunkRepository {
             ORDER BY chunk_index
             "#,
         )
-        .bind(document_id.0)
+        .bind(document_id.into_uuid())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| StorageError::Database(e.to_string()))?;
@@ -352,7 +582,7 @@ impl ChunkRepository for PostgresChunkRepository {
             WHERE document_id = $1 AND chunk_index = $2
             "#,
         )
-        .bind(document_id.0)
+        .bind(document_id.into_uuid())
         .bind(chunk_index)
         .fetch_optional(&self.pool)
         .await
@@ -362,7 +592,7 @@ impl ChunkRepository for PostgresChunkRepository {
 
     async fn count_for_document(&self, document_id: DocumentId) -> Result<u64, StorageError> {
         let (count,): (i64,) = sqlx::query_as("SELECT count(*) FROM chunks WHERE document_id = $1")
-            .bind(document_id.0)
+            .bind(document_id.into_uuid())
             .fetch_one(&self.pool)
             .await
             .map_err(|e| StorageError::Database(e.to_string()))?;
@@ -387,7 +617,7 @@ impl ChunkRepository for PostgresChunkRepository {
                 LIMIT $3
                 "#,
             )
-            .bind(cur.document_id.0)
+            .bind(cur.document_id.into_uuid())
             .bind(cur.chunk_index)
             .bind(limit)
             .fetch_all(&self.pool)
@@ -428,7 +658,7 @@ impl ChunkRepository for PostgresChunkRepository {
         document_id: DocumentId,
     ) -> Result<u64, StorageError> {
         let result = sqlx::query("DELETE FROM chunks WHERE document_id = $1")
-            .bind(document_id.0)
+            .bind(document_id.into_uuid())
             .execute(&self.pool)
             .await
             .map_err(|e| StorageError::Database(e.to_string()))?;
@@ -450,7 +680,7 @@ impl ChunkRepository for PostgresChunkRepository {
             SET state = EXCLUDED.state, updated_at = now()
             "#,
         )
-        .bind(document_id.0)
+        .bind(document_id.into_uuid())
         .bind(state)
         .execute(&self.pool)
         .await
@@ -480,9 +710,9 @@ impl ChunkRow {
         use crate::traits::domain::{TenantId, WorkspaceId};
         Chunk {
             id: ChunkId::new(self.id),
-            document_id: DocumentId(self.document_id),
-            tenant_id: self.tenant_id.map(TenantId),
-            workspace_id: self.workspace_id.map(WorkspaceId),
+            document_id: DocumentId::new(self.document_id),
+            tenant_id: self.tenant_id.map(TenantId::new),
+            workspace_id: self.workspace_id.map(WorkspaceId::new),
             chunk_index: self.chunk_index,
             content: self.content,
             start_offset: self.start_offset,
@@ -505,9 +735,9 @@ mod tests {
         let doc_id = Uuid::new_v4();
         let chunk = Chunk {
             id: ChunkId::new(Uuid::new_v4()),
-            document_id: DocumentId(doc_id),
-            tenant_id: Some(TenantId(Uuid::new_v4())),
-            workspace_id: Some(WorkspaceId(Uuid::new_v4())),
+            document_id: DocumentId::new(doc_id),
+            tenant_id: Some(TenantId::new(Uuid::new_v4())),
+            workspace_id: Some(WorkspaceId::new(Uuid::new_v4())),
             chunk_index: 3,
             content: "spec-091".into(),
             start_offset: Some(0),
@@ -517,7 +747,7 @@ mod tests {
             page_start: None,
             page_end: None,
         };
-        assert_eq!(chunk.document_id.0, doc_id);
+        assert_eq!(chunk.document_id.into_uuid(), doc_id);
         assert_eq!(chunk.chunk_index, 3);
     }
 }

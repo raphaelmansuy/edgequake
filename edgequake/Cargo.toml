@@ -11,6 +11,7 @@ members = [
     "crates/edgequake-query",
     "crates/edgequake-rate-limiter",
     "crates/edgequake-storage",
+    "crates/edgequake-storage-contracts",
     "crates/edgequake-tasks",
 ]
 
@@ -54,7 +55,16 @@ path = "examples/spec115_mistral_ingest.rs"
 [features]
 default = ["postgres", "vision", "otel"]
 otel = ["edgequake-observability/otel", "edgequake-api/otel"]
-postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]
+postgres = [
+    "edgequake-api/postgres",
+    "edgequake-storage/postgres",
+    "dep:sqlx",
+    "sqlx/postgres",
+]
+qdrant = ["edgequake-api/qdrant", "edgequake-storage/qdrant"]
+neo4j = ["edgequake-api/neo4j", "edgequake-storage/neo4j"]
+sqlite = ["edgequake-api/sqlite", "edgequake-storage/sqlite"]
+p3 = ["sqlite", "neo4j", "qdrant"]
 vision = ["edgequake-api/vision"]
 
 [dependencies]
@@ -74,7 +84,7 @@ anyhow = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 num_cpus = { workspace = true }
-sqlx = { workspace = true }
+sqlx = { workspace = true, optional = true }
 chrono = { workspace = true }
 
 [dev-dependencies]
@@ -151,7 +161,6 @@ utoipa-swagger-ui = { version = "8.0", features = ["axum"] }
 sqlx = { version = "0.8", features = [
     "runtime-tokio",
     "tls-rustls-ring-webpki",
-    "postgres",
     "chrono",
     "json",
     "uuid",
@@ -185,6 +194,7 @@ edgequake-llm = "0.10.8"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
+edgequake-storage-contracts = { path = "crates/edgequake-storage-contracts" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 edgequake-observability = { path = "crates/edgequake-observability" }
 edgeparse-core = "0.2.5"

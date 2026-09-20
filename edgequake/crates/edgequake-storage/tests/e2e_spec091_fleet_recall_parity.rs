@@ -63,7 +63,7 @@ async fn e2e_spec091_fleet_recall_parity_entity_typed_vs_exact() {
         corpus.push((legacy_id.clone(), emb.clone()));
         rows.push(FleetEmbeddingRow {
             key: FleetEmbeddingKey::Entity(eid),
-            workspace_id: WorkspaceId(ws),
+            workspace_id: WorkspaceId::new(ws),
             dimensions: DIM as i32,
             embedding: emb,
             legacy_vector_id: Some(legacy_id),
@@ -91,7 +91,13 @@ async fn e2e_spec091_fleet_recall_parity_entity_typed_vs_exact() {
                 EmbeddingFamily::Entity,
                 &VectorQuery {
                     model_id: ModelId(Uuid::nil()),
-                    workspace_id: Some(WorkspaceId(ws)),
+                    model_revision: "test-current".into(),
+                    workspace_id: Some(WorkspaceId::new(ws)),
+                    document_ids: None,
+                    tenant_id: None,
+                    modalities: None,
+                    filter_ids: None,
+                    vector_type: None,
                     embedding: query_emb,
                     limit: TOP_K as u32,
                 },

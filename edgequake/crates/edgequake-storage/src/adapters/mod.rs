@@ -26,3 +26,12 @@ pub mod workspace_vector_cache;
 
 #[cfg(feature = "postgres")]
 pub mod postgres;
+
+#[cfg(feature = "sqlite")]
+pub mod sqlite;
+
+#[cfg(feature = "qdrant")]
+pub mod qdrant;
+
+#[cfg(feature = "neo4j")]
+pub mod neo4j;

@@ -20,6 +20,24 @@ pub trait TaskStorage: Send + Sync {
     /// Get task by track ID
     async fn get_task(&self, track_id: &str) -> TaskResult<Option<Task>>;
 
+    /// Batch-fetch tasks by track IDs (list enrichment).
+    ///
+    /// Default looks up each id sequentially. Postgres overrides with a single
+    /// `WHERE track_id = ANY(...)` query so document list enrichment stays
+    /// inside the interactive read-path budget.
+    async fn get_tasks_by_track_ids(
+        &self,
+        track_ids: &[String],
+    ) -> TaskResult<std::collections::HashMap<String, Task>> {
+        let mut out = std::collections::HashMap::with_capacity(track_ids.len());
+        for id in track_ids {
+            if let Some(task) = self.get_task(id).await? {
+                out.insert(id.clone(), task);
+            }
+        }
+        Ok(out)
+    }
+
     /// Update existing task
     async fn update_task(&self, task: &Task) -> TaskResult<()>;
 

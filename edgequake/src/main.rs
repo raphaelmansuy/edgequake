@@ -3,7 +3,9 @@
 //! This is the main entry point for the EdgeQuake server.
 
 mod container_ops;
+#[cfg(feature = "postgres")]
 mod migrate_advisor_cli;
+#[cfg(feature = "postgres")]
 mod migrate_console;
 
 use anyhow::{Context, Result};
@@ -1073,6 +1075,24 @@ fn tokio_worker_stack_size() -> usize {
 }
 
 async fn async_main() -> Result<()> {
+    #[cfg(feature = "postgres")]
+    {
+        return async_main_postgres().await;
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let config = edgequake_api::state::data_access_config::DataAccessConfig::from_env()?;
+        let runtimes = edgequake_api::state::data_access_factory::DataAccessFactory::build(config)?;
+        anyhow::bail!(
+            "profile {} validated, but this server binary only assembles P0/P1/P2 PostgreSQL \
+             runtimes; use the P3 runtime binary when deploying SQLite authority",
+            runtimes.profile_label
+        );
+    }
+}
+
+#[cfg(feature = "postgres")]
+async fn async_main_postgres() -> Result<()> {
     let _obs_guard = init_observability(ObservabilityConfig::from_env());
 
     // SPEC-090 F-090-20b: `edgequake migrate` — admin-pool migrate + reconcile ledger.

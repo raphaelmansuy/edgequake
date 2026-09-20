@@ -10,7 +10,17 @@ description = "REST API server for EdgeQuake"
 [features]
 default = ["otel"]
 otel = ["edgequake-observability/otel"]
-postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
+postgres = [
+    "edgequake-storage/postgres",
+    "edgequake-core/postgres",
+    "edgequake-tasks/postgres",
+    "dep:sqlx",
+    "sqlx/postgres",
+]
+sqlite = ["edgequake-storage/sqlite"]
+qdrant = ["edgequake-storage/qdrant"]
+neo4j = ["edgequake-storage/neo4j"]
+p3 = ["sqlite", "neo4j", "qdrant"]
 # SPEC-021 P-E3: enables the EdgeQuake orchestrator for contract tests.
 # Forwarded to edgequake-core so `#[cfg(feature = "pipeline")]` test gates work.
 pipeline = ["edgequake-core/pipeline"]
@@ -24,7 +34,7 @@ edgequake-storage = { path = "../edgequake-storage", features = ["observability"
 edgequake-llm = { workspace = true }
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
-edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres", "openapi"] }
+edgequake-tasks = { path = "../edgequake-tasks", features = ["openapi"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }

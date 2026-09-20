@@ -359,6 +359,7 @@ pub(super) async fn clear_document_derived_data_in_workspace(
                 state, ws,
             )
             .await
+            .map_err(|e| format!("Failed to resolve document vector binding: {e}"))?
         }
         None => state.storage.vector_registry.default_storage(),
     };

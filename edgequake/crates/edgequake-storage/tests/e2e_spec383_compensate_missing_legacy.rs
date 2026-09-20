@@ -109,7 +109,7 @@ async fn e2e_spec383_compensate_skips_missing_legacy_and_cascades_typed() {
             ModelId(Uuid::nil()),
             &[EmbeddingRow {
                 chunk_id: chunk_id.into(),
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 embedding: emb,
                 dimensions: DIM as i32,
             }],
@@ -157,7 +157,7 @@ async fn e2e_spec383_compensate_skips_missing_legacy_and_cascades_typed() {
     );
 
     let repo = PostgresChunkRepository::new(pool.clone());
-    repo.delete_for_document(&mut UnitOfWork::default(), DocumentId(doc))
+    repo.delete_for_document(&mut UnitOfWork::default(), DocumentId::new(doc))
         .await
         .expect("relational chunk compensation");
 

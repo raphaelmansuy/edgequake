@@ -45,12 +45,10 @@ pub trait ChunkRepository: Send + Sync {
     ) -> Result<u64, StorageError>;
 
     /// W4 serving lifecycle: set `chunk_serving_state.state` for every chunk of
-    /// a document (default no-op for adapters without a serving fence).
+    /// a document.
     async fn set_serving_state(
         &self,
-        _document_id: DocumentId,
-        _state: &str,
-    ) -> Result<u64, StorageError> {
-        Ok(0)
-    }
+        document_id: DocumentId,
+        state: &str,
+    ) -> Result<u64, StorageError>;
 }

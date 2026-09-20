@@ -99,7 +99,7 @@ async fn e2e_spec091_typed_only_ingest_and_query() {
             ModelId(Uuid::nil()),
             &[EmbeddingRow {
                 chunk_id: chunk_id.into(),
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 dimensions: DIM as i32,
                 embedding: emb.clone(),
             }],
@@ -125,7 +125,7 @@ async fn e2e_spec091_typed_only_ingest_and_query() {
             ModelId(Uuid::nil()),
             &[FleetEmbeddingRow {
                 key: FleetEmbeddingKey::Entity(entity_id),
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 dimensions: DIM as i32,
                 embedding: emb.clone(),
                 legacy_vector_id: None,

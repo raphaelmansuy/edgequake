@@ -771,7 +771,8 @@ impl DocumentTaskProcessor {
             task.track_id.clone(),
         )
         .with_filename(filename.clone())
-        .with_document_metadata(early_doc_id.clone(), Arc::clone(&self.kv_storage));
+        .with_document_metadata(early_doc_id.clone(), Arc::clone(&self.kv_storage))
+        .with_physical_page_count(page_count_opt.unwrap_or(0) as usize);
 
         if let Some(ref broadcaster) = self.progress_broadcaster {
             callback = callback.with_broadcaster(broadcaster.clone());
@@ -1213,6 +1214,9 @@ impl DocumentTaskProcessor {
                     status_hook: Some(status_hook),
                     pages: None,
                     reasoning_effort: data.vision_reasoning_effort.clone(),
+                    api_timeout_secs: Some(crate::safety_limits::vision_page_timeout_secs(
+                        &vision_provider,
+                    )),
                 }
             }),
         };
@@ -1581,11 +1585,38 @@ impl DocumentTaskProcessor {
                             page_modality,
                         );
                     let assets_root = crate::services::document_mm_assets_root(&early_doc_id);
-                    let outcome = crate::services::manuscript_verify::escalate_empty_pages(
+                    let ms_pages = convert_plan.manuscript_pages.clone();
+                    let allowed = if convert_plan.is_split() {
+                        Some(ms_pages.as_slice())
+                    } else {
+                        None
+                    };
+                    let physical_total = page_count.max(1);
+                    let progress_cb = progress_callback.clone();
+                    let escalate_hook: crate::services::manuscript_verify::ManuscriptPageProgressHook =
+                        Arc::new(move |done, total, _page| {
+                            let local = if total > 0 {
+                                done as f64 / total as f64
+                            } else {
+                                0.0
+                            };
+                            progress_cb.report_band_status(
+                                crate::pipeline_progress_callback::ConvertingProgressBand::Recovery,
+                                format!(
+                                    "{physical_total}/{physical_total} — recovering empty pages ({done}/{total})"
+                                ),
+                                local,
+                            );
+                        });
+                    let outcome = crate::services::manuscript_verify::escalate_empty_pages_bounded(
                         &markdown,
                         assets_root.as_path(),
                         provider,
                         page_modality,
+                        allowed,
+                        Some(&escalate_hook),
+                        crate::services::manuscript_verify::PageWorkLimits::default(),
+                        Some(&cancel_token),
                     )
                     .await;
                     if !outcome.pages_escalated.is_empty() || !outcome.pages_failed.is_empty() {
@@ -1642,16 +1673,46 @@ impl DocumentTaskProcessor {
                             provider,
                             page_modality,
                         );
-                    progress_callback
-                        .report_converting_status("Verifying transcription grounding…", 0.965);
+                    progress_callback.report_band_status(
+                        crate::pipeline_progress_callback::ConvertingProgressBand::Verify,
+                        "Verifying transcription grounding…",
+                        0.0,
+                    );
                     let assets_root = crate::services::document_mm_assets_root(&early_doc_id);
-                    let outcome = crate::services::manuscript_verify::verify_manuscript_markdown(
-                        &markdown,
-                        page_modality,
-                        Some(assets_root.as_path()),
-                        provider,
-                    )
-                    .await;
+                    let ms_pages = convert_plan.manuscript_pages.clone();
+                    let allowed =
+                        if convert_plan.is_split() || !convert_plan.manuscript_pages.is_empty() {
+                            Some(ms_pages.as_slice())
+                        } else {
+                            None
+                        };
+                    let physical_total = page_count.max(1);
+                    let progress_cb = progress_callback.clone();
+                    let verify_hook: crate::services::manuscript_verify::ManuscriptPageProgressHook =
+                        Arc::new(move |done, total, _page| {
+                            let local = if total > 0 {
+                                done as f64 / total as f64
+                            } else {
+                                0.0
+                            };
+                            progress_cb.report_band_status(
+                                crate::pipeline_progress_callback::ConvertingProgressBand::Verify,
+                                format!(
+                                    "{physical_total}/{physical_total} — verifying ({done}/{total})"
+                                ),
+                                local,
+                            );
+                        });
+                    let outcome =
+                        crate::services::manuscript_verify::verify_manuscript_markdown_scoped(
+                            &markdown,
+                            page_modality,
+                            Some(assets_root.as_path()),
+                            provider,
+                            allowed,
+                            Some(&verify_hook),
+                        )
+                        .await;
                     tracing::info!(
                         pdf_id = %data.pdf_id,
                         pages_judged = outcome.pages_judged,

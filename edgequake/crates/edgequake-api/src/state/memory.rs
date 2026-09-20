@@ -116,6 +116,7 @@ impl AppState {
             tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
+            operational_stores: super::OperationalStores::default(),
             config: AppConfig::default(),
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
@@ -125,6 +126,16 @@ impl AppState {
             pool_bundle: None,
             #[cfg(feature = "postgres")]
             pool_budget: None,
+            #[cfg(feature = "postgres")]
+            ingestion_committer: None,
+            #[cfg(feature = "postgres")]
+            lifecycle_committer: None,
+            #[cfg(feature = "postgres")]
+            document_reader: None,
+            #[cfg(feature = "postgres")]
+            projection_ledger: None,
+            #[cfg(feature = "postgres")]
+            projection_worker: None,
             start_time: std::time::Instant::now(),
             path_validation_config: crate::path_validation::PathValidationConfig::default(),
             audit_logger: None,
@@ -273,6 +284,7 @@ impl AppState {
             tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
+            operational_stores: super::OperationalStores::default(),
             config: AppConfig::default(),
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),
@@ -282,6 +294,16 @@ impl AppState {
             pool_bundle: None,
             #[cfg(feature = "postgres")]
             pool_budget: None,
+            #[cfg(feature = "postgres")]
+            ingestion_committer: None,
+            #[cfg(feature = "postgres")]
+            lifecycle_committer: None,
+            #[cfg(feature = "postgres")]
+            document_reader: None,
+            #[cfg(feature = "postgres")]
+            projection_ledger: None,
+            #[cfg(feature = "postgres")]
+            projection_worker: None,
             start_time: std::time::Instant::now(),
             path_validation_config: crate::path_validation::PathValidationConfig {
                 allow_any_path: true,
@@ -438,6 +460,7 @@ impl AppState {
             tasks: TaskRuntime::new(task_storage, task_queue),
             workspace_service,
             conversation_service,
+            operational_stores: super::OperationalStores::default(),
             config: AppConfig::default(),
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::strict(100, 60)),
@@ -447,6 +470,16 @@ impl AppState {
             pool_bundle: None,
             #[cfg(feature = "postgres")]
             pool_budget: None,
+            #[cfg(feature = "postgres")]
+            ingestion_committer: None,
+            #[cfg(feature = "postgres")]
+            lifecycle_committer: None,
+            #[cfg(feature = "postgres")]
+            document_reader: None,
+            #[cfg(feature = "postgres")]
+            projection_ledger: None,
+            #[cfg(feature = "postgres")]
+            projection_worker: None,
             start_time: std::time::Instant::now(),
             path_validation_config: crate::path_validation::PathValidationConfig {
                 allow_any_path: true,

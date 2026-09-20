@@ -33,6 +33,7 @@
 mod age_csv_loader;
 mod ann_exact_reorder_policy;
 mod binary_quantize_policy;
+mod binding_registry;
 mod capabilities;
 pub mod chunk_embedding_index;
 pub(crate) mod chunk_repository;
@@ -48,6 +49,7 @@ mod graph;
 mod hnsw_manifest;
 mod hnsw_runtime_policy;
 mod id_allocation;
+mod ingestion_committer;
 pub mod ingestion_dedup;
 mod kv;
 mod kv_relation_state;
@@ -65,6 +67,7 @@ mod row_count_stats;
 mod scale_gates;
 mod schema;
 pub(crate) mod serving_fence_query;
+mod standalone_embedding_store;
 mod statement_timeout;
 pub(crate) mod typed_embedding_dims;
 pub mod vector;
@@ -80,6 +83,7 @@ pub use binary_quantize_policy::{
     build_binary_hnsw_index_sql, build_binary_rerank_select_sql, BinaryQuantizePolicy,
     DEFAULT_BINARY_CANDIDATE_K,
 };
+pub use binding_registry::PgBindingRegistry;
 pub use capabilities::{
     age_copy_loader_min_rows, age_rls_requested, age_supports_copy_loader, age_supports_rls,
     extension_version_at_least, pgvector_meets_cve_floor, AnnIndexPolicy, DocumentIdGenerator,
@@ -121,6 +125,7 @@ pub use hnsw_runtime_policy::{
     parse_hnsw_iterative_scan_mode, parse_partial_by_workspace_env, HnswRuntimePolicy,
 };
 pub use id_allocation::{allocate_document_id, is_uuidv7};
+pub use ingestion_committer::PgIngestionCommitter;
 pub use kv::PostgresKVStorage;
 pub use kv_relation_state::{KvRelationPresence, KvRelationState};
 pub use mm_asset_storage_impl::PostgresMmAssetStorage;
@@ -146,7 +151,10 @@ pub use rls::{
 // Use `acquire_rls_connection` / `with_acquired_tenant_context` (SEC-014 SSOT).
 // The type remains in `rls` for transitional `#[deprecated]` compile errors.
 pub use scale_gates::{partition_allowed, quantization_allowed, ScaleGateEvidence};
-pub use serving_fence_query::{apply_serving_fence, serving_fence_filtered_total};
+pub use serving_fence_query::{
+    apply_serving_fence, serving_fence_filtered_total, PgVisibilityRepository,
+};
+pub use standalone_embedding_store::{PgStandaloneEmbeddingStore, StandaloneEmbeddingCapabilities};
 pub use vector::{
     allow_vector_table_rebuild, fts_language_from_env, sanitize_fts_language, PgVectorStorage,
     DEFAULT_FTS_LANGUAGE, FTS_LANGUAGE_ENV,

@@ -73,10 +73,13 @@ mod auth_runtime;
 pub(crate) mod bundled_models;
 mod compliance_runtime;
 mod config;
+pub mod data_access_config;
+pub mod data_access_factory;
 mod graph_query_runtime;
 mod memory;
 #[cfg(feature = "postgres")]
 pub mod migration_bootstrap;
+mod operational_stores;
 #[cfg(feature = "postgres")]
 mod postgres;
 mod postgres_runtime;
@@ -93,6 +96,7 @@ pub use auth_runtime::AuthRuntime;
 pub use compliance_runtime::ComplianceRuntime;
 pub use config::*;
 pub use graph_query_runtime::GraphQueryRuntime;
+pub use operational_stores::OperationalStores;
 pub use postgres_runtime::PostgresRuntime;
 pub use query_runtime::QueryRuntime;
 pub use security_config::ApiSecurityConfig;
@@ -135,6 +139,9 @@ pub struct AppState {
     /// Conversation service for managing chat sessions.
     pub conversation_service: SharedConversationService,
 
+    /// Provider-independent operational relational ports.
+    pub operational_stores: OperationalStores,
+
     /// Configuration.
     pub config: AppConfig,
 
@@ -155,6 +162,26 @@ pub struct AppState {
     /// SPEC-112: boot-time shared-DB pool budget evaluation (for /health).
     #[cfg(feature = "postgres")]
     pub pool_budget: Option<edgequake_storage::PoolBudgetReport>,
+
+    /// SPEC-149: atomic relational ingestion authority.
+    #[cfg(feature = "postgres")]
+    pub ingestion_committer: Option<Arc<dyn edgequake_storage::contracts::IngestionCommitter>>,
+
+    /// SPEC-149: compare-and-tombstone document lifecycle authority.
+    #[cfg(feature = "postgres")]
+    pub lifecycle_committer: Option<Arc<dyn edgequake_storage::contracts::LifecycleCommitter>>,
+
+    /// SPEC-149: authoritative document revision reads for generation allocation.
+    #[cfg(feature = "postgres")]
+    pub document_reader: Option<Arc<dyn edgequake_storage::contracts::DocumentReader>>,
+
+    /// SPEC-149: durable leased projection delivery ledger.
+    #[cfg(feature = "postgres")]
+    pub projection_ledger: Option<Arc<dyn edgequake_storage::ProjectionWorkLedger>>,
+
+    /// SPEC-149: owned projection worker (cancelled on AppState drop).
+    #[cfg(feature = "postgres")]
+    pub projection_worker: Option<Arc<edgequake_storage::ProjectionWorkerRuntime>>,
 
     /// Server start time for uptime calculation.
     pub start_time: std::time::Instant,

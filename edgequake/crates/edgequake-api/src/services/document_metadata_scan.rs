@@ -86,7 +86,7 @@ async fn load_all_document_metadata_keys(
             if let Some(pool) = crate::services::relational_sidecar_store::sidecar_pool() {
                 // Bound the janitor scan; reconcile already stamps max_documents.
                 match edgequake_storage::adapters::postgres::document_shell::shell_metadata_keys(
-                    pool,
+                    pool.as_ref(),
                     Some(5_000),
                 )
                 .await
@@ -268,7 +268,7 @@ async fn load_staging_metadata_entries(
                 ) == edgequake_storage::kv_family_cutover::KvFamilyMode::Relational =>
             {
                 match edgequake_storage::adapters::postgres::document_shell::shell_staging_keys(
-                    pool,
+                    pool.as_ref(),
                 )
                 .await
                 {

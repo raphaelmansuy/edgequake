@@ -68,7 +68,7 @@ describe("patchDocumentsCacheFromProgress", () => {
       "ws-1",
     ]);
     expect(data?.items[0].current_stage).toBe("extracting");
-    expect(data?.items[0].stage_progress).toBe(42);
+    expect(data?.items[0].stage_progress).toBe(0.42);
     expect(data?.items[0].stage_message).toBe("Chunk 3/10");
     expect(data?.items[1].current_stage).toBeUndefined();
   });
@@ -134,6 +134,7 @@ describe("patchDocumentsCacheFromProgress", () => {
         task_id: "pdf-track",
         current_page: 7,
         total_pages: 17,
+        completed_pages: 7,
         progress: 0.41,
         phase: "ocr",
       },
@@ -148,6 +149,64 @@ describe("patchDocumentsCacheFromProgress", () => {
     expect(data?.items[0].display_status).toBe("converting");
     expect(data?.items[0].ui_phase).toBe("running");
     expect(data?.items[0].status).toBe("processing");
+    expect(data?.items[0].stage_message).toBe("Converting 7/17 pages");
+  });
+
+  it("caps active PdfPageProgress below 1.0 and ignores late events after completed", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["documents", "ws-1"], {
+      items: [
+        makeDoc("a", {
+          status: "processing",
+          current_stage: "converting",
+          stage_progress: 0.5,
+          stage_message: "Converting 12/25 pages",
+          track_id: "pdf-track",
+        }),
+      ],
+    });
+
+    patchDocumentsCacheFromProgress(queryClient, {
+      type: "PdfPageProgress",
+      data: {
+        document_id: "a",
+        task_id: "pdf-track",
+        current_page: 25,
+        total_pages: 25,
+        completed_pages: 25,
+        progress: 1,
+        phase: "group_complete",
+      },
+    });
+    let data = queryClient.getQueryData<{ items: Document[] }>([
+      "documents",
+      "ws-1",
+    ]);
+    expect(data?.items[0].stage_progress).toBe(0.99);
+
+    patchDocumentsCacheFromProgress(queryClient, {
+      type: "ingestion_completed",
+      track_id: "pdf-track",
+      document_id: "a",
+    });
+    patchDocumentsCacheFromProgress(queryClient, {
+      type: "PdfPageProgress",
+      data: {
+        document_id: "a",
+        task_id: "pdf-track",
+        current_page: 3,
+        total_pages: 25,
+        completed_pages: 3,
+        progress: 0.1,
+        phase: "extracted",
+      },
+    });
+    data = queryClient.getQueryData<{ items: Document[] }>([
+      "documents",
+      "ws-1",
+    ]);
+    expect(data?.items[0].status).toBe("completed");
+    expect(data?.items[0].stage_progress).toBe(1);
   });
 
   it("patches StatusSnapshot active_tasks", () => {
@@ -173,7 +232,7 @@ describe("patchDocumentsCacheFromProgress", () => {
       "documents",
       "ws-1",
     ]);
-    expect(data?.items[0].stage_progress).toBe(55);
+    expect(data?.items[0].stage_progress).toBe(0.55);
     expect(data?.items[0].stage_message).toBe("Extracting entities");
   });
 });

@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use edgequake_storage::EntityId;
 
 use crate::extractor::{ExtractedEntity, ExtractedRelationship, ExtractionResult};
+use crate::pipeline::helpers::mention_merge::incoming_description_is_longer;
 
 /// LightRAG entity VDB content: `{name}\n{description}`.
 pub fn entity_embed_text(name: &str, description: &str) -> String {
@@ -65,7 +66,7 @@ pub fn unique_entities_for_embed(extractions: &[ExtractionResult]) -> Vec<Unique
             if let Some(existing) = by_key.get_mut(&key) {
                 existing.mentions.push((ext_idx, ent_idx));
                 // Prefer richer description for the canonical embed text.
-                if entity.description.len() > description_len_from_embed_text(&existing.text) {
+                if incoming_description_is_longer(&existing.text, &entity.description) {
                     existing.text = entity_embed_text(&entity.name, &entity.description);
                 }
             } else {

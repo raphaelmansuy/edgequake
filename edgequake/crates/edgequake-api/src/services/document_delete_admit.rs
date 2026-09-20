@@ -61,7 +61,7 @@ async fn touch_sql_deleting(document_id: &str) -> ApiResult<()> {
             "UPDATE public.documents SET status = 'deleting', updated_at = NOW() WHERE id = $1",
         )
         .bind(doc_uuid)
-        .execute(pool)
+        .execute(pool.as_ref())
         .await
         {
             Ok(result) => {
@@ -171,7 +171,7 @@ pub async fn touch_sql_delete_failed(document_id: &str) {
             "UPDATE public.documents SET status = 'delete_failed', updated_at = NOW() WHERE id = $1",
         )
         .bind(doc_uuid)
-        .execute(pool)
+        .execute(pool.as_ref())
         .await
         {
             tracing::warn!(

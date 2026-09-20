@@ -212,13 +212,30 @@ type StatusSnapshotEventActive = {
 function normalizePdfPageProgress(data: RawRecord): PdfPageProgressEvent {
   const pageNum = num(data.page_num) ?? num(data.current_page) ?? 0;
   const totalPages = num(data.total_pages) ?? 0;
-  let progress = num(data.progress);
+  const explicitCompleted = num(data.completed_pages);
+  const explicitProgress = num(data.progress);
+  // Legacy backends without completed_pages: prefer progress-derived count,
+  // then physical page_num. Never force 0 when progress exists.
+  const completedPages =
+    explicitCompleted ??
+    (explicitProgress !== undefined && totalPages > 0
+      ? Math.round(
+          (explicitProgress > 1 ? explicitProgress / 100 : explicitProgress) *
+            totalPages,
+        )
+      : pageNum);
+
+  let progress = explicitProgress;
   if (progress === undefined) {
     progress =
-      totalPages > 0 ? Math.min(1, Math.max(0, pageNum / totalPages)) : 0;
+      totalPages > 0
+        ? Math.min(1, Math.max(0, completedPages / totalPages))
+        : 0;
   } else if (progress > 1) {
     progress = progress / 100;
   }
+  // Clamp at the normalization boundary so typed consumers never see >1 / <0.
+  progress = Math.min(1, Math.max(0, progress));
 
   return {
     type: "PdfPageProgress",
@@ -229,6 +246,7 @@ function normalizePdfPageProgress(data: RawRecord): PdfPageProgressEvent {
       task_id: str(data.task_id) ?? "",
       current_page: pageNum,
       total_pages: totalPages,
+      completed_pages: completedPages,
       progress,
       phase: str(data.phase),
       success: data.success as boolean | undefined,

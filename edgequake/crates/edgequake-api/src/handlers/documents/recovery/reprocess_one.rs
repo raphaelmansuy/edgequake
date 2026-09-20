@@ -339,7 +339,7 @@ async fn enqueue_after_early_admit(
 
     let vector =
         crate::services::get_workspace_vector_storage_for_delete(state, workspace_id_for_tasks)
-            .await;
+            .await?;
     // SPEC-119: checked retract fails closed on discovery timeouts.
     let retract_stats = crate::services::retract_document_indexes_checked(
         &state.storage.graph_storage,

@@ -317,11 +317,13 @@ export interface PdfPageProgressEvent {
     document_id: string;
     /** Task tracking ID (matches track_id for ingestion tracking) */
     task_id: string;
-    /** Current page number */
+    /** Current physical page number (identity, not progress numerator) */
     current_page: number;
-    /** Total pages in PDF */
+    /** Total physical pages in PDF */
     total_pages: number;
-    /** Progress percentage (0.0 - 1.0) */
+    /** Unique physical pages completed so far (document-global) */
+    completed_pages: number;
+    /** Progress percentage (0.0 - 1.0) from completed_pages / total_pages */
     progress: number;
     /** Current phase: "start", "extraction", "partial_complete", "complete" */
     phase?: string;

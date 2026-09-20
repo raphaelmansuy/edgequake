@@ -803,6 +803,16 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
         Ok(())
     }
 
+    /// Memory stores replace complete property maps, so `MergeSources` and
+    /// `Replace` intentionally have identical behavior in this adapter.
+    async fn upsert_nodes_batch_with_mode(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+        _mode: crate::traits::GraphPropertyWriteMode,
+    ) -> Result<()> {
+        self.upsert_nodes_batch(nodes).await
+    }
+
     async fn delete_node(&self, node_id: &str) -> Result<()> {
         self.delete_nodes_batch(&[node_id.to_string()]).await
     }
@@ -909,6 +919,16 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
                 .insert(source.clone());
         }
         Ok(())
+    }
+
+    /// Memory stores replace complete property maps, so `MergeSources` and
+    /// `Replace` intentionally have identical behavior in this adapter.
+    async fn upsert_edges_batch_with_mode(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+        _mode: crate::traits::GraphPropertyWriteMode,
+    ) -> Result<()> {
+        self.upsert_edges_batch(edges).await
     }
 
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()> {

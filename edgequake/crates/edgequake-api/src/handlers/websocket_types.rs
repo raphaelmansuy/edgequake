@@ -167,10 +167,13 @@ pub enum ProgressEvent {
         pdf_id: String,
         /// Task tracking ID.
         task_id: String,
-        /// Current page number (1-indexed, 0 for start/complete events).
+        /// Current page number (1-indexed physical identity, 0 for start events).
         page_num: u32,
-        /// Total pages in PDF.
+        /// Total physical pages in PDF.
         total_pages: u32,
+        /// Unique physical pages completed so far (document-global).
+        #[serde(default)]
+        completed_pages: u32,
         /// Current phase: "start", "extraction", "complete".
         phase: String,
         /// Markdown length for this page (0 if not yet rendered).
@@ -815,6 +818,7 @@ mod tests {
             task_id: "task-456".to_string(),
             page_num: 5,
             total_pages: 30,
+            completed_pages: 0,
             phase: "extraction".to_string(),
             markdown_len: 1024,
             success: true,
@@ -838,6 +842,7 @@ mod tests {
             task_id: "task-456".to_string(),
             page_num: 3,
             total_pages: 10,
+            completed_pages: 0,
             phase: "extraction".to_string(),
             markdown_len: 0,
             success: false,

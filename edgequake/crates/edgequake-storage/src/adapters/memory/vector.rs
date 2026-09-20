@@ -19,6 +19,7 @@
 //! - [`BR0221`]: Thread-safe concurrent access via RwLock
 
 use async_trait::async_trait;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -68,6 +69,27 @@ impl MemoryVectorStorage {
             dot / (norm_a * norm_b)
         }
     }
+
+    /// Exact top-k with O(n) partitioning plus O(k log k) result ordering.
+    fn select_top_k(mut scores: Vec<(String, f32)>, top_k: usize) -> Vec<(String, f32)> {
+        if top_k == 0 {
+            return Vec::new();
+        }
+        if scores.len() > top_k {
+            scores.select_nth_unstable_by(top_k, score_order);
+            scores.truncate(top_k);
+        }
+        scores.sort_by(score_order);
+        scores
+    }
+}
+
+fn score_order(left: &(String, f32), right: &(String, f32)) -> Ordering {
+    right
+        .1
+        .partial_cmp(&left.1)
+        .unwrap_or(Ordering::Equal)
+        .then_with(|| left.0.cmp(&right.0))
 }
 
 #[async_trait]
@@ -108,7 +130,7 @@ impl VectorStorage for MemoryVectorStorage {
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
 
-        let mut scores: Vec<(String, f32)> = vectors
+        let scores: Vec<(String, f32)> = vectors
             .iter()
             .filter(|(id, _)| {
                 filter_set
@@ -122,13 +144,8 @@ impl VectorStorage for MemoryVectorStorage {
             })
             .collect();
 
-        // Sort by score descending
-        scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        // Take top_k
-        let results: Vec<VectorSearchResult> = scores
+        let results: Vec<VectorSearchResult> = Self::select_top_k(scores, top_k)
             .into_iter()
-            .take(top_k)
             .map(|(id, score)| VectorSearchResult {
                 id: id.clone(),
                 score,
@@ -352,7 +369,7 @@ impl VectorStorage for MemoryVectorStorage {
         let filter_set: Option<std::collections::HashSet<&String>> =
             filter_ids.map(|ids| ids.iter().collect());
 
-        let mut scores: Vec<(String, f32)> = vectors
+        let scores: Vec<(String, f32)> = vectors
             .iter()
             .filter(|(id, _)| {
                 filter_set
@@ -373,11 +390,8 @@ impl VectorStorage for MemoryVectorStorage {
             })
             .collect();
 
-        scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        let results: Vec<VectorSearchResult> = scores
+        let results: Vec<VectorSearchResult> = Self::select_top_k(scores, top_k)
             .into_iter()
-            .take(top_k)
             .map(|(id, score)| VectorSearchResult {
                 id: id.clone(),
                 score,

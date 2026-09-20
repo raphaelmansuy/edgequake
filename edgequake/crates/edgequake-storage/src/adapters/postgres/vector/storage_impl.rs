@@ -761,6 +761,8 @@ impl VectorStorage for PgVectorStorage {
                             query_embedding,
                             top_k,
                             ws,
+                            filter_ids,
+                            mf,
                         )
                         .await
                         {
@@ -770,13 +772,7 @@ impl VectorStorage for PgVectorStorage {
                                 return Ok(Vec::new());
                             }
                             Err(e) => {
-                                super::typed_read::record_fallback();
-                                tracing::warn!(
-                                    error = %e,
-                                    workspace = %ws,
-                                    "SPEC-091: typed chunk query failed; returning empty (no legacy 42P01)"
-                                );
-                                return Ok(Vec::new());
+                                return Err(e);
                             }
                         }
                     }
@@ -810,43 +806,53 @@ impl VectorStorage for PgVectorStorage {
                                 Ok(Some(u)) => u,
                                 Ok(None) => return Ok(Vec::new()),
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "fleet workspace resolve failed");
-                                    return Ok(Vec::new());
+                                    return Err(StorageError::from(e));
                                 }
                             }
                         }
                     };
+                    let document_ids = mf.document_ids.as_ref().map(|ids| {
+                        ids.iter()
+                            .filter_map(|id| uuid::Uuid::parse_str(id).ok())
+                            .collect::<Vec<_>>()
+                    });
+                    if mf.document_ids.as_ref().is_some_and(|ids| !ids.is_empty())
+                        && document_ids.as_ref().is_some_and(Vec::is_empty)
+                    {
+                        return Ok(Vec::new());
+                    }
+                    let tenant_id = match mf.tenant_id.as_deref() {
+                        Some(id) => match uuid::Uuid::parse_str(id) {
+                            Ok(id) => Some(crate::traits::domain::TenantId::new(id)),
+                            Err(_) => return Ok(Vec::new()),
+                        },
+                        None => None,
+                    };
                     let req = VectorQuery {
                         model_id: ModelId(uuid::Uuid::nil()),
-                        workspace_id: Some(WorkspaceId(ws_uuid)),
+                        model_revision: "legacy-current".into(),
+                        workspace_id: Some(WorkspaceId::new(ws_uuid)),
+                        document_ids,
+                        tenant_id,
+                        modalities: mf.modalities.clone(),
+                        filter_ids: filter_ids.map(<[String]>::to_vec),
+                        vector_type: mf.vector_type.clone(),
                         embedding: query_embedding.to_vec(),
                         limit: top_k as u32,
                     };
-                    match fleet.search(family, &req).await {
-                        Ok(scored) => {
-                            let results = scored
-                                .into_iter()
-                                .map(|s| VectorSearchResult {
-                                    id: s.legacy_id,
-                                    score: s.score,
-                                    metadata: serde_json::json!({
-                                        "vector_type": vtype,
-                                        "workspace_id": ws,
-                                    }),
-                                })
-                                .collect();
-                            return Ok(results);
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                error = %e,
-                                workspace = %ws,
-                                family = ?family,
-                                "SPEC-091: typed fleet query failed; returning empty (no legacy 42P01)"
-                            );
-                            return Ok(Vec::new());
-                        }
-                    }
+                    let scored = fleet.search(family, &req).await?;
+                    let results = scored
+                        .into_iter()
+                        .map(|s| VectorSearchResult {
+                            id: s.legacy_id,
+                            score: s.score,
+                            metadata: serde_json::json!({
+                                "vector_type": vtype,
+                                "workspace_id": ws,
+                            }),
+                        })
+                        .collect();
+                    return Ok(results);
                 }
             }
             // Typed authority + no workspace / unsupported type: do not hit legacy.

@@ -140,7 +140,7 @@ async fn e2e_spec120_mirror_then_losing_fk_absorb() {
     use edgequake_storage::embedding_family::EmbeddingFamily;
     use edgequake_storage::traits::{FleetEmbeddingKey, FleetEmbeddingRow, ModelId, WorkspaceId};
     let loser = FleetEmbeddingRow {
-        workspace_id: WorkspaceId(workspace),
+        workspace_id: WorkspaceId::new(workspace),
         embedding: emb,
         dimensions: 1024,
         key: FleetEmbeddingKey::Entity(e2),

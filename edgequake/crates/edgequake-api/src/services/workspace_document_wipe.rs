@@ -91,7 +91,7 @@ async fn clear_vectors_fail_closed(state: &AppState, workspace_uuid: Uuid) -> Ap
                 .unwrap_or_else(|_| "text-embedding-3-small".to_string());
             let chunk_index = edgequake_storage::PgChunkEmbeddingIndex::new(pool.clone(), &model);
             let fleet = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), &model);
-            let ws = edgequake_storage::traits::domain::WorkspaceId(workspace_uuid);
+            let ws = edgequake_storage::traits::domain::WorkspaceId::new(workspace_uuid);
             use edgequake_storage::embedding_family::EmbeddingFamily;
             use edgequake_storage::traits::domain::{EmbeddingIndex, FleetEmbeddingIndex};
             typed_n += chunk_index.delete_for_workspace(ws).await.map_err(|e| {

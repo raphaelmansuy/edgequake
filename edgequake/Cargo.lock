@@ -2062,6 +2062,7 @@ dependencies = [
  "edgequake-llm",
  "edgequake-observability",
  "edgequake-storage",
+ "edgequake-storage-contracts",
  "futures",
  "parking_lot",
  "regex",
@@ -2130,17 +2131,32 @@ dependencies = [
  "async-trait",
  "chrono",
  "edgequake-observability",
+ "edgequake-storage-contracts",
  "proptest",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-test",
  "tracing",
  "tracing-subscriber",
  "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
+name = "edgequake-storage-contracts"
+version = "0.26.10"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
  "uuid",
 ]
 
@@ -3381,6 +3397,7 @@ version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]

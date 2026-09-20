@@ -80,7 +80,7 @@ pub async fn cancel_operation(
         &state,
         &task.workspace_id.to_string(),
     )
-    .await;
+    .await?;
 
     #[cfg(feature = "postgres")]
     let applied = if let Some(ref pool) = state.pg_pool {

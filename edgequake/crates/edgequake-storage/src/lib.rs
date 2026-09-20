@@ -55,6 +55,9 @@
 //! - [`crate::adapters::memory`] for in-memory implementations
 //! - [`crate::adapters::postgres`] for PostgreSQL adapters
 
+/// Driver-free provider contracts. Re-exported for incremental caller migration.
+pub use edgequake_storage_contracts as contracts;
+
 pub mod adapters;
 pub mod chunk_content;
 pub mod chunk_text_authority;
@@ -114,6 +117,8 @@ pub mod outbox;
 pub mod outbox_drain;
 pub mod page_layout_storage;
 pub mod pdf_storage;
+#[cfg(feature = "postgres")]
+pub mod projection;
 pub mod scorecard;
 pub mod serving_fence;
 pub mod storage_op_metrics;
@@ -189,7 +194,12 @@ pub use graph_batch_dedupe::{
 pub use graph_metrics::{
     collect_graph_quality_metrics, log_graph_quality, metrics_from_merge_delta, GraphQualityMetrics,
 };
-pub use migration_engine::{MigrationJobProgress, MigrationMode, MIGRATION_MODE_ENV};
+#[cfg(feature = "postgres")]
+pub use migration_engine::PgVectorCutoverStore;
+pub use migration_engine::{
+    ensure_caught_up, BindingCompleteness, CutoverState, MigrationJobProgress, MigrationMode,
+    VectorCutoverStore, VectorProviderCutover, MIGRATION_MODE_ENV,
+};
 
 // Re-export PDF storage types
 pub use mm_asset_storage::{
@@ -210,6 +220,13 @@ pub use pdf_storage::{
     calculate_pdf_checksum, validate_pdf_data, CreatePdfRequest, DocumentStatsUpdate,
     ExtractionMethod, ListPdfFilter, PdfDocument, PdfDocumentStorage, PdfList, PdfProcessingStatus,
     UpdatePdfProcessingRequest,
+};
+#[cfg(feature = "postgres")]
+pub use projection::{
+    scoped_graph_node_id, AgeGraphProjectionApplier, GraphProjectionApplier, PgProjectionLedger,
+    PgvectorProjectionApplier, ProjectionLedger, ProjectionRunReport, ProjectionTarget,
+    ProjectionWorkLedger, ProjectionWorker, ProjectionWorkerConfig, ProjectionWorkerCounters,
+    ProjectionWorkerRuntime, VectorProjectionApplier,
 };
 
 pub use conversation_storage::ConversationStorage;
@@ -253,12 +270,13 @@ pub use serving_fence::{
     SERVING_FENCE_ENV, SERVING_STATE_READY,
 };
 pub use traits::{
-    kv_key_matches_like, vector_upsert_chunk_size, Chunk, ChunkCursor, ChunkId, ChunkRepository,
-    ChunkText, DocumentId, DocumentRepository, EmbeddingIndex, FleetEmbeddingIndex, GraphEdge,
-    GraphNode, GraphPropertyWriteMode, GraphReadView, GraphStorage, GraphStorageAnalyticsOps,
-    GraphStorageMutateOps, GraphStorageReadOps, InsertReport, KVStorage, KnowledgeGraph,
-    MetadataFilter, MirrorLegacyReport, ModelId, TextEmbedder, UnitOfWork, VectorSearchResult,
-    VectorStorage, WorkspaceId, WorkspaceVectorConfig, WorkspaceVectorRegistry,
+    kv_key_matches_like, vector_upsert_chunk_size, BoundedGraphTraversal, Chunk, ChunkCursor,
+    ChunkId, ChunkRepository, ChunkText, DocumentId, DocumentRepository, EmbeddingIndex,
+    FleetEmbeddingIndex, GraphEdge, GraphExpansionAuthorizer, GraphNode, GraphPropertyWriteMode,
+    GraphReadView, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
+    GraphStorageReadOps, GraphTraversalBudget, GraphTruncationReason, InsertReport, KVStorage,
+    KnowledgeGraph, MetadataFilter, MirrorLegacyReport, ModelId, TextEmbedder, UnitOfWork,
+    VectorSearchResult, VectorStorage, WorkspaceId, WorkspaceVectorConfig, WorkspaceVectorRegistry,
     DEFAULT_VECTOR_UPSERT_CHUNK,
 };
 
@@ -267,6 +285,30 @@ pub use adapters::memory::{
     MemoryChunkRepository, MemoryConversationStorage, MemoryGraphStorage, MemoryKVStorage,
     MemoryMmAssetStorage, MemoryOriginalStorage, MemoryPageLayoutStorage, MemoryPdfStorage,
     MemoryVectorStorage, MemoryWorkspaceVectorRegistry,
+};
+
+#[cfg(feature = "sqlite")]
+pub use adapters::sqlite::{
+    connect_sqlite, validate_sqlite_deployment, SqliteIngestionCommitter, SqliteProjectionLedger,
+};
+
+#[cfg(feature = "qdrant")]
+pub use adapters::qdrant::{
+    collection_name as qdrant_collection_name, compile_metadata_filter as compile_qdrant_filter,
+    drop_qdrant_binding, provision_qdrant_binding, verify_qdrant_binding, CompiledFilter,
+    QdrantClient, QdrantPointPayload, QdrantVectorPoint, REQUIRED_PAYLOAD_INDEXES,
+};
+
+#[cfg(all(feature = "neo4j", feature = "postgres"))]
+pub use adapters::neo4j::{
+    AgeRollbackReadiness, GraphDigestMismatch, GraphDigestReport, GraphReplayReport,
+    PgNeo4jGraphMigration,
+};
+#[cfg(feature = "neo4j")]
+pub use adapters::neo4j::{
+    EdgeRevision as Neo4jEdgeRevision, EntityRevision as Neo4jEntityRevision, GraphObjectPayload,
+    Neo4jClient, Neo4jConfig, Neo4jMutationReceipt, Neo4jProvisionReport, Neo4jTraversalRequest,
+    Neo4jTraversalResult, RevisionDigest as Neo4jRevisionDigest,
 };
 
 // Conditionally export PostgreSQL adapters
@@ -284,15 +326,17 @@ pub use adapters::postgres::{
     pool_role_max_connections_with_queue_floor, quantization_allowed, resolve_pool_max_connections,
     session_application_name, with_session_hygiene, with_session_hygiene_labeled,
     AnnExactReorderPolicy, BinaryQuantizePolicy, BudgetMode, FilteredDiskannLabelPolicy,
-    HnswIndexManifest, HnswRuntimePolicy, PgChunkEmbeddingIndex, PgFleetEmbeddingIndex,
-    PgPoolBundle, PgQuarantineSink, PgVectorStorage, PgWorkspaceVectorRegistry, PoolBudgetReport,
-    PoolRole, PostgresAGEGraphStorage, PostgresChunkRepository, PostgresConfig,
+    HnswIndexManifest, HnswRuntimePolicy, PgBindingRegistry, PgChunkEmbeddingIndex,
+    PgFleetEmbeddingIndex, PgIngestionCommitter, PgPoolBundle, PgQuarantineSink,
+    PgStandaloneEmbeddingStore, PgVectorStorage, PgVisibilityRepository, PgWorkspaceVectorRegistry,
+    PoolBudgetReport, PoolRole, PostgresAGEGraphStorage, PostgresChunkRepository, PostgresConfig,
     PostgresConversationStorage, PostgresKVStorage, PostgresMmAssetStorage,
     PostgresOriginalStorage, PostgresPageLayoutStorage, PostgresPdfStorage, PostgresPool,
-    ScaleGateEvidence, VectorIndexType, VectorStorageMode, WorkspaceLabelMap,
-    DEFAULT_ANN_REORDER_CANDIDATE_K, DEFAULT_BINARY_CANDIDATE_K, DISKANN_OPTIN_RESCORE,
-    DISKANN_OPTIN_SEARCH_LIST, LAST_SOURCE_PREFIX_COUNT_LEN, MAX_WORKSPACE_LABELS,
-    SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT, SOURCE_PREFIX_DISCOVERY_CALLS,
+    ScaleGateEvidence, StandaloneEmbeddingCapabilities, VectorIndexType, VectorStorageMode,
+    WorkspaceLabelMap, DEFAULT_ANN_REORDER_CANDIDATE_K, DEFAULT_BINARY_CANDIDATE_K,
+    DISKANN_OPTIN_RESCORE, DISKANN_OPTIN_SEARCH_LIST, LAST_SOURCE_PREFIX_COUNT_LEN,
+    MAX_WORKSPACE_LABELS, SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT,
+    SOURCE_PREFIX_DISCOVERY_CALLS,
 };
 
 // SPEC-091 W3 dual-read counters.

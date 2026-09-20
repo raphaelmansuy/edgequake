@@ -9,6 +9,7 @@ description = "Document processing pipeline for EdgeQuake"
 
 [dependencies]
 edgequake-storage = { path = "../edgequake-storage", features = ["observability"] }
+edgequake-storage-contracts = { workspace = true }
 edgequake-llm = { workspace = true }
 edgequake-observability = { path = "../edgequake-observability", features = ["metrics"] }
 
@@ -29,9 +30,9 @@ unicode-normalization = "0.1"
 tiktoken-rs = { workspace = true }
 # tiktoken_rs::cl100k_base_singleton returns Arc<parking_lot::Mutex<_>>
 parking_lot = "0.12"
+sha2 = "0.10"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "macros", "rt-multi-thread"] }
 serial_test = "3"
-sha2 = "0.10"
 serde_json.workspace = true

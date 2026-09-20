@@ -45,7 +45,7 @@ async fn document_id_by_track_id(track_id: &str) -> Option<String> {
          LIMIT 1",
     )
     .bind(track_id)
-    .fetch_optional(pool)
+    .fetch_optional(pool.as_ref())
     .await
     {
         Ok(row) => row,
@@ -129,7 +129,7 @@ pub async fn touch_relational_document_track_status_best_effort(
             .bind(doc_uuid)
             .bind(tid)
             .bind(&pg_status)
-            .execute(pool)
+            .execute(pool.as_ref())
             .await
         } else {
             sqlx::query(
@@ -139,7 +139,7 @@ pub async fn touch_relational_document_track_status_best_effort(
             )
             .bind(doc_uuid)
             .bind(&pg_status)
-            .execute(pool)
+            .execute(pool.as_ref())
             .await
         };
         if let Err(e) = result {

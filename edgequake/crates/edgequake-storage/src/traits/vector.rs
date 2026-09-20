@@ -363,16 +363,7 @@ pub trait VectorStorage: Send + Sync {
     ///
     /// Number of vectors deleted.
     ///
-    /// # Default Implementation
-    ///
-    /// Returns 0 by default. Implementations should override this for
-    /// workspace-scoped clearing.
-    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize> {
-        // Default implementation does nothing - clear() clears all
-        // Implementations should override this for workspace-scoped clearing
-        let _ = workspace_id;
-        Ok(0)
-    }
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<usize>;
 
     /// Delete all vectors belonging to a document (SPEC-047 P1a / ingest battle plan).
     ///
@@ -384,21 +375,12 @@ pub trait VectorStorage: Send + Sync {
     ///
     /// Number of vectors deleted.
     ///
-    /// # Default
-    ///
-    /// Returns 0 — backends that store document-scoped vectors must override.
-    async fn delete_by_document(&self, document_id: &str) -> Result<usize> {
-        let _ = document_id;
-        Ok(0)
-    }
+    async fn delete_by_document(&self, document_id: &str) -> Result<usize>;
 
     /// Query with metadata pre-filter (SPEC-007 Tier 2+).
     ///
     /// Pushes tenant/workspace/document filters to the storage layer (SQL WHERE)
     /// instead of post-filtering in application code.
-    ///
-    /// Default implementation ignores `metadata_filter` and delegates to `query()`.
-    /// Backends that support SQL-level filtering override this for better performance.
     ///
     /// @implements SPEC-007 R-T2-01
     async fn query_filtered(
@@ -407,10 +389,7 @@ pub trait VectorStorage: Send + Sync {
         top_k: usize,
         filter_ids: Option<&[String]>,
         metadata_filter: Option<&MetadataFilter>,
-    ) -> Result<Vec<VectorSearchResult>> {
-        let _ = metadata_filter;
-        self.query(query_embedding, top_k, filter_ids).await
-    }
+    ) -> Result<Vec<VectorSearchResult>>;
 
     /// Whether this backend exposes PostgreSQL native FTS (`ts_rank_cd`) for sparse retrieval.
     ///

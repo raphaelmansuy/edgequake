@@ -30,6 +30,7 @@ mod graph_mutate_ops;
 mod graph_read_ops;
 mod graph_read_view;
 mod graph_scan_ops;
+mod graph_traversal;
 mod kv;
 mod vector;
 mod workspace_vector;
@@ -56,6 +57,10 @@ pub use graph_scan_ops::{
     is_topology_entity_ref, node_matches_list_filter, node_matches_tenant_workspace,
     scope_dim_matches_legacy_null, sources_match_prefixes, EdgeListFilter, GraphScanOps,
     NodeListFilter, PagedGraphResult,
+};
+pub use graph_traversal::{
+    traverse_graph_bounded, BoundedGraphTraversal, GraphExpansionAuthorizer, GraphTraversalBudget,
+    GraphTruncationReason,
 };
 pub use kv::{kv_key_matches_like, KVStorage};
 pub use vector::{

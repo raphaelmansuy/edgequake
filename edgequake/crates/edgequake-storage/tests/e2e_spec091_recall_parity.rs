@@ -58,7 +58,7 @@ async fn e2e_spec091_recall_parity_typed_vs_exact() {
         corpus.push((cid, emb.clone()));
         rows.push(EmbeddingRow {
             chunk_id: cid.into(),
-            workspace_id: WorkspaceId(ws),
+            workspace_id: WorkspaceId::new(ws),
             dimensions: DIM as i32,
             embedding: emb,
         });
@@ -86,7 +86,13 @@ async fn e2e_spec091_recall_parity_typed_vs_exact() {
         let hits = index
             .search(&VectorQuery {
                 model_id: ModelId(Uuid::nil()),
-                workspace_id: Some(WorkspaceId(ws)),
+                model_revision: "test-current".into(),
+                workspace_id: Some(WorkspaceId::new(ws)),
+                document_ids: None,
+                tenant_id: None,
+                modalities: None,
+                filter_ids: None,
+                vector_type: None,
                 embedding: query_emb.clone(),
                 limit: TOP_K as u32,
             })

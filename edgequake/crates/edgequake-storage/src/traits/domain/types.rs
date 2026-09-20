@@ -3,6 +3,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// SPEC-149: one ID model at the access boundary (contracts are SSOT).
+pub use edgequake_storage_contracts::{DocumentId, TenantId, WorkspaceId};
+
 /// Typed chunk identifier (relational authority).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ChunkId(pub Uuid);
@@ -20,16 +23,8 @@ impl From<Uuid> for ChunkId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DocumentId(pub Uuid);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct WorkspaceId(pub Uuid);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TenantId(pub Uuid);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelId(pub Uuid);
+
 
 /// Authoritative chunk row for relational insert.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,9 +82,16 @@ pub struct Page<T> {
     pub next_cursor: Option<ChunkCursor>,
 }
 
-/// Placeholder transaction handle — adapters map to sqlx TX or in-memory locks.
+/// Legacy label-only transaction hint.
+///
+/// New atomic ingestion and lifecycle paths must use
+/// [`edgequake_storage_contracts::IngestionCommitter`] or
+/// [`edgequake_storage_contracts::LifecycleCommitter`]. This type remains for
+/// source compatibility with repository calls that have not yet moved into an
+/// authority committer; its label does not create a database transaction.
 #[derive(Debug, Default)]
 pub struct UnitOfWork {
+    /// Compatibility-only diagnostic label; not a transactional boundary.
     pub label: Option<String>,
 }
 
@@ -97,7 +99,19 @@ pub struct UnitOfWork {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VectorQuery {
     pub model_id: ModelId,
+    /// Immutable provider/model preprocessing revision.
+    pub model_revision: String,
     pub workspace_id: Option<WorkspaceId>,
+    #[serde(default)]
+    pub document_ids: Option<Vec<uuid::Uuid>>,
+    #[serde(default)]
+    pub tenant_id: Option<TenantId>,
+    #[serde(default)]
+    pub modalities: Option<Vec<String>>,
+    #[serde(default)]
+    pub filter_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub vector_type: Option<String>,
     pub embedding: Vec<f32>,
     pub limit: u32,
 }

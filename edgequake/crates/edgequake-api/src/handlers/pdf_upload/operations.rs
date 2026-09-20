@@ -282,7 +282,8 @@ pub async fn cancel_pdf_processing(
         let mut cancelled_track_id = None;
         let workspace_key = workspace_id.to_string();
         let vector =
-            crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key).await;
+            crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key)
+                .await?;
         for applied in &cancel_results {
             if applied.cancelled {
                 if cancelled_track_id.is_none() {

@@ -56,6 +56,91 @@ pub enum StorageError {
     /// Invalid data
     #[error("Invalid data: {0}")]
     InvalidData(String),
+
+    /// Backend does not implement the requested capability.
+    #[error("Unsupported capability: {0}")]
+    UnsupportedCapability(String),
+
+    /// Storage is temporarily unavailable.
+    #[error("Storage unavailable: {0}")]
+    Unavailable(String),
+
+    /// Storage operation exceeded its deadline.
+    #[error("Storage deadline exceeded: {0}")]
+    DeadlineExceeded(String),
+
+    /// Storage throttled the operation.
+    #[error("Storage rate limited: {0}")]
+    RateLimited(String),
+
+    /// Transaction can be retried after serialization/deadlock failure.
+    #[error("Serialization retry required: {0}")]
+    SerializationRetry(String),
+
+    /// The caller cannot determine whether the operation committed.
+    #[error("Storage operation outcome unknown: {0}")]
+    UnknownOutcome(String),
+
+    /// Requested tenant or workspace scope is forbidden.
+    #[error("Forbidden storage scope: {0}")]
+    ForbiddenScope(String),
+}
+
+impl From<StorageError> for edgequake_storage_contracts::AccessError {
+    fn from(error: StorageError) -> Self {
+        use edgequake_storage_contracts::AccessError;
+        match error {
+            StorageError::NotFound(message) => AccessError::NotFound(message),
+            StorageError::AlreadyExists(message) | StorageError::Conflict(message) => {
+                AccessError::Conflict(message)
+            }
+            StorageError::InvalidQuery(message)
+            | StorageError::InvalidInput(message)
+            | StorageError::InvalidConfig(message) => AccessError::InvalidInput(message),
+            StorageError::ForbiddenScope(message) => AccessError::ForbiddenScope(message),
+            StorageError::UnsupportedCapability(message) => {
+                AccessError::UnsupportedCapability(message)
+            }
+            StorageError::Unavailable(message) => AccessError::Unavailable(message),
+            StorageError::DeadlineExceeded(message) => AccessError::DeadlineExceeded(message),
+            StorageError::RateLimited(message) => AccessError::RateLimited(message),
+            StorageError::SerializationRetry(message) => AccessError::SerializationRetry(message),
+            StorageError::UnknownOutcome(message) | StorageError::Transaction(message) => {
+                AccessError::UnknownOutcome(message)
+            }
+            StorageError::Serialization(message) | StorageError::InvalidData(message) => {
+                AccessError::CorruptData(message)
+            }
+            StorageError::Connection(message) | StorageError::Database(message) => {
+                AccessError::Unavailable(message)
+            }
+            StorageError::Io(error) => AccessError::Unavailable(error.to_string()),
+            StorageError::NotInitialized => {
+                AccessError::Unavailable("Storage not initialized".into())
+            }
+        }
+    }
+}
+
+impl From<edgequake_storage_contracts::AccessError> for StorageError {
+    fn from(error: edgequake_storage_contracts::AccessError) -> Self {
+        use edgequake_storage_contracts::AccessError;
+        match error {
+            AccessError::InvalidInput(message) => StorageError::InvalidInput(message),
+            AccessError::ForbiddenScope(message) => StorageError::ForbiddenScope(message),
+            AccessError::NotFound(message) => StorageError::NotFound(message),
+            AccessError::Conflict(message) => StorageError::Conflict(message),
+            AccessError::UnsupportedCapability(message) => {
+                StorageError::UnsupportedCapability(message)
+            }
+            AccessError::Unavailable(message) => StorageError::Unavailable(message),
+            AccessError::DeadlineExceeded(message) => StorageError::DeadlineExceeded(message),
+            AccessError::RateLimited(message) => StorageError::RateLimited(message),
+            AccessError::SerializationRetry(message) => StorageError::SerializationRetry(message),
+            AccessError::UnknownOutcome(message) => StorageError::UnknownOutcome(message),
+            AccessError::CorruptData(message) => StorageError::InvalidData(message),
+        }
+    }
 }
 
 impl From<serde_json::Error> for StorageError {
@@ -70,25 +155,38 @@ impl From<sqlx::Error> for StorageError {
         match err {
             sqlx::Error::RowNotFound => StorageError::NotFound("Row not found".to_string()),
             sqlx::Error::Database(e) => {
-                // Check for unique constraint violations (duplicate keys)
-                if let Some(constraint) = e.constraint() {
-                    if constraint.contains("unique") || constraint.contains("pkey") {
-                        return StorageError::AlreadyExists(format!(
-                            "Constraint violation: {}",
-                            constraint
-                        ));
-                    }
-                }
-                StorageError::Database(e.to_string())
+                classify_sqlstate(e.code().as_deref(), e.message(), e.constraint())
             }
             sqlx::Error::PoolTimedOut => {
-                StorageError::Connection("Connection pool timeout".to_string())
+                StorageError::Unavailable("Connection pool timeout".to_string())
             }
             sqlx::Error::PoolClosed => {
-                StorageError::Connection("Connection pool closed".to_string())
+                StorageError::Unavailable("Connection pool closed".to_string())
+            }
+            sqlx::Error::Io(e) => StorageError::Connection(e.to_string()),
+            sqlx::Error::Tls(e) => StorageError::Connection(e.to_string()),
+            sqlx::Error::Protocol(e) => StorageError::Connection(e),
+            sqlx::Error::WorkerCrashed => {
+                StorageError::Unavailable("Database worker crashed".to_string())
             }
             _ => StorageError::Database(err.to_string()),
         }
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn classify_sqlstate(code: Option<&str>, message: &str, constraint: Option<&str>) -> StorageError {
+    let message = match constraint {
+        Some(name) => format!("{message} (constraint: {name})"),
+        None => message.to_string(),
+    };
+    match code {
+        Some("23505") => StorageError::AlreadyExists(message),
+        Some("40001" | "40P01") => StorageError::SerializationRetry(message),
+        Some("57014") => StorageError::DeadlineExceeded(message),
+        Some(code) if code.starts_with("08") => StorageError::Connection(message),
+        Some("53300" | "57P01" | "57P02" | "57P03") => StorageError::Unavailable(message),
+        _ => StorageError::Database(message),
     }
 }
 
@@ -166,5 +264,52 @@ mod tests {
         let error = StorageError::NotInitialized;
         let debug = format!("{:?}", error);
         assert!(debug.contains("NotInitialized"));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn sqlstate_unique_violation_maps_to_already_exists() {
+        assert!(matches!(
+            classify_sqlstate(Some("23505"), "duplicate key", Some("chunks_pkey")),
+            StorageError::AlreadyExists(message) if message.contains("chunks_pkey")
+        ));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn sqlstate_retryable_transaction_failures_are_typed() {
+        for code in ["40001", "40P01"] {
+            assert!(matches!(
+                classify_sqlstate(Some(code), "retry transaction", None),
+                StorageError::SerializationRetry(_)
+            ));
+        }
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn sqlstate_query_cancel_maps_to_deadline() {
+        assert!(matches!(
+            classify_sqlstate(Some("57014"), "canceling statement", None),
+            StorageError::DeadlineExceeded(_)
+        ));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn sqlstate_connection_class_maps_to_connection() {
+        assert!(matches!(
+            classify_sqlstate(Some("08006"), "connection failure", None),
+            StorageError::Connection(_)
+        ));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn constraint_name_does_not_override_sqlstate() {
+        assert!(matches!(
+            classify_sqlstate(Some("23503"), "foreign key failure", Some("looks_unique")),
+            StorageError::Database(_)
+        ));
     }
 }

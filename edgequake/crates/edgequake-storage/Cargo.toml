@@ -11,9 +11,13 @@ repository.workspace = true
 [features]
 default = []
 observability = ["dep:edgequake-observability"]
-postgres = ["dep:sqlx"]
+postgres = ["dep:sqlx", "sqlx/postgres"]
+sqlite = ["dep:sqlx", "sqlx/sqlite"]
+qdrant = ["dep:reqwest"]
+neo4j = ["dep:reqwest"]
+p3 = ["sqlite", "neo4j", "qdrant"]
 # Enable all storage backends
-full = ["postgres"]
+full = ["postgres", "sqlite", "qdrant", "neo4j"]
 
 [dependencies]
 async-trait = { workspace = true }
@@ -25,9 +29,11 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 sha2 = "0.10"
 unicode-normalization = "0.1"
+edgequake-storage-contracts = { workspace = true }
 
 # Optional PostgreSQL dependencies
 sqlx = { workspace = true, optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 chrono = { workspace = true }
 
 edgequake-observability = { path = "../edgequake-observability", optional = true, features = ["metrics"] }
@@ -41,3 +47,4 @@ uuid = { version = "1.19", features = ["v4"] }
 # feature is not enabled for the library itself, only for tests.
 sqlx = { workspace = true, features = ["migrate"] }
 tracing-subscriber = { workspace = true }
+tempfile = "3.10"

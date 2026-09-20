@@ -171,7 +171,7 @@ pub(crate) async fn run_recover_stuck(
         &state,
         tenant_ctx.workspace_id.as_deref().unwrap_or("default"),
     )
-    .await;
+    .await?;
 
     for (doc_id, doc_title) in &stuck_docs {
         let metadata_key =

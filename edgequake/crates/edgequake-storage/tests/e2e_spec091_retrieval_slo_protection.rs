@@ -39,7 +39,7 @@ async fn e2e_spec091_retrieval_slo_protection() {
         let cid = w3::seed_chunk(&pool, doc, ws, i as i32, &format!("r{i}")).await;
         rows.push(EmbeddingRow {
             chunk_id: cid.into(),
-            workspace_id: WorkspaceId(ws),
+            workspace_id: WorkspaceId::new(ws),
             dimensions: DIM as i32,
             embedding: w3::make_embedding(DIM, 1000 + i as u32),
         });
@@ -73,9 +73,15 @@ async fn e2e_spec091_retrieval_slo_protection() {
     for s in 0..SAMPLES {
         let q = VectorQuery {
             model_id: ModelId(Uuid::nil()),
+            model_revision: "test-current".into(),
+            workspace_id: Some(WorkspaceId::new(ws)),
+            document_ids: None,
+            tenant_id: None,
+            modalities: None,
+            filter_ids: None,
+            vector_type: None,
             embedding: w3::make_embedding(DIM, 2000 + s as u32),
             limit: 10,
-            workspace_id: Some(WorkspaceId(ws)),
         };
         let t0 = Instant::now();
         let hits = index.search(&q).await.expect("search");

@@ -194,7 +194,7 @@ async fn e2e_spec136_durable_lid_retry_sequential_merger_absorbs() {
             EmbeddingFamily::Entity,
             ModelId(Uuid::nil()),
             &[FleetEmbeddingRow {
-                workspace_id: WorkspaceId(workspace),
+                workspace_id: WorkspaceId::new(workspace),
                 embedding: vec![0.11; DIM],
                 dimensions: DIM as i32,
                 key: FleetEmbeddingKey::Entity(winner),

@@ -32,16 +32,24 @@ pub struct WrittenTableAsset {
 /// Figures: write Form/vector crops even when the page already has ImageXObject
 /// embeds; skip only duplicates (IoU / pure-image clusters). See
 /// [`should_write_region_figure`].
+///
+/// Optional `page_filter` is 1-indexed. Empty/`None` means all pages.
 pub async fn write_caption_region_assets(
     pdf_bytes: &[u8],
     assets_root: &Path,
     existing_figures_by_page: &HashMap<usize, Vec<WrittenFigureAsset>>,
+    page_filter: Option<&[usize]>,
 ) -> Result<(Vec<WrittenFigureAsset>, Vec<WrittenTableAsset>), PdfConversionError> {
+    // Empty explicit filter means "no pages" — skip the full-document extract.
+    if page_filter.is_some_and(|p| p.is_empty()) {
+        return Ok((Vec::new(), Vec::new()));
+    }
     let bytes = pdf_bytes.to_vec();
     let root = assets_root.to_path_buf();
     let existing = existing_figures_by_page.clone();
+    let filter = page_filter.map(|p| p.to_vec());
     tokio::task::spawn_blocking(move || {
-        write_caption_region_assets_blocking(&bytes, &root, &existing)
+        write_caption_region_assets_blocking(&bytes, &root, &existing, filter.as_deref())
     })
     .await
     .map_err(|e| PdfConversionError::Backend(format!("region write task panicked: {e}")))?
@@ -51,6 +59,7 @@ fn write_caption_region_assets_blocking(
     pdf_bytes: &[u8],
     assets_root: &Path,
     existing_figures_by_page: &HashMap<usize, Vec<WrittenFigureAsset>>,
+    page_filter: Option<&[usize]>,
 ) -> Result<(Vec<WrittenFigureAsset>, Vec<WrittenTableAsset>), PdfConversionError> {
     let regions = edgequake_pdf2md::extract_caption_regions_from_bytes(pdf_bytes, None)
         .map_err(|e| PdfConversionError::Backend(format!("caption region extract: {e}")))?;
@@ -68,6 +77,11 @@ fn write_caption_region_assets_blocking(
     }
 
     for region in regions {
+        if let Some(pages) = page_filter {
+            if !pages.contains(&region.page_num) {
+                continue;
+            }
+        }
         match region.kind {
             edgequake_pdf2md::RegionKind::Figure => {
                 let existing = existing_figures_by_page

@@ -16,6 +16,7 @@ use crate::traits::domain::{
 #[derive(Default)]
 pub struct MemoryChunkRepository {
     inner: RwLock<HashMap<Uuid, Chunk>>,
+    serving_states: RwLock<HashMap<Uuid, String>>,
 }
 
 impl MemoryChunkRepository {
@@ -102,14 +103,14 @@ impl ChunkRepository for MemoryChunkRepository {
         let mut items: Vec<Chunk> = guard.values().cloned().collect();
         items.sort_by(|a, b| {
             a.document_id
-                .0
-                .cmp(&b.document_id.0)
+                .into_uuid()
+                .cmp(&b.document_id.into_uuid())
                 .then(a.chunk_index.cmp(&b.chunk_index))
         });
         if let Some(cur) = cursor {
             items.retain(|c| {
-                c.document_id.0 > cur.document_id.0
-                    || (c.document_id.0 == cur.document_id.0 && c.chunk_index > cur.chunk_index)
+                c.document_id.into_uuid() > cur.document_id.into_uuid()
+                    || (c.document_id.into_uuid() == cur.document_id.into_uuid() && c.chunk_index > cur.chunk_index)
             });
         }
         let limit = limit as usize;
@@ -133,8 +134,37 @@ impl ChunkRepository for MemoryChunkRepository {
     ) -> Result<u64, StorageError> {
         let mut guard = self.inner.write().map_err(map_lock_err)?;
         let before = guard.len();
+        let removed_ids: Vec<Uuid> = guard
+            .values()
+            .filter(|chunk| chunk.document_id == document_id)
+            .map(|chunk| chunk.id.0)
+            .collect();
         guard.retain(|_, c| c.document_id != document_id);
+        let mut states = self.serving_states.write().map_err(map_lock_err)?;
+        for id in removed_ids {
+            states.remove(&id);
+        }
         Ok((before - guard.len()) as u64)
+    }
+
+    async fn set_serving_state(
+        &self,
+        document_id: DocumentId,
+        state: &str,
+    ) -> Result<u64, StorageError> {
+        let chunks = self.inner.read().map_err(map_lock_err)?;
+        let chunk_ids: Vec<Uuid> = chunks
+            .values()
+            .filter(|chunk| chunk.document_id == document_id)
+            .map(|chunk| chunk.id.0)
+            .collect();
+        drop(chunks);
+
+        let mut states = self.serving_states.write().map_err(map_lock_err)?;
+        for id in &chunk_ids {
+            states.insert(*id, state.to_string());
+        }
+        Ok(chunk_ids.len() as u64)
     }
 }
 
@@ -159,9 +189,9 @@ mod tests {
         let repo = MemoryChunkRepository::new();
         let chunk = Chunk {
             id: ChunkId::new(Uuid::new_v4()),
-            document_id: DocumentId(Uuid::new_v4()),
-            tenant_id: Some(TenantId(Uuid::new_v4())),
-            workspace_id: Some(WorkspaceId(Uuid::new_v4())),
+            document_id: DocumentId::new(Uuid::new_v4()),
+            tenant_id: Some(TenantId::new(Uuid::new_v4())),
+            workspace_id: Some(WorkspaceId::new(Uuid::new_v4())),
             chunk_index: 0,
             content: "hello".into(),
             start_offset: Some(0),

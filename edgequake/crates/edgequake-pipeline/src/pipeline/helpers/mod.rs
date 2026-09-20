@@ -8,6 +8,7 @@
 
 mod embeddings;
 mod lineage;
+pub mod mention_merge;
 mod stats;
 pub mod unique_embed;
 

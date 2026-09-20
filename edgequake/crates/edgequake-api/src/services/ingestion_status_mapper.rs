@@ -321,20 +321,25 @@ pub async fn enrich_document_summaries_with_cancel(
     registry: &edgequake_tasks::CancellationRegistry,
     task_storage: &dyn edgequake_tasks::storage::TaskStorage,
 ) {
+    let track_ids: Vec<String> = summaries
+        .iter()
+        .filter_map(|s| s.track_id.clone())
+        .collect();
+    let tasks = task_storage
+        .get_tasks_by_track_ids(&track_ids)
+        .await
+        .unwrap_or_default();
+
     for summary in summaries.iter_mut() {
         let cancel_intent = match summary.track_id.as_deref() {
             Some(track_id) => registry.has_cancel_intent(track_id).await,
             None => false,
         };
-        let task_status_owned = match summary.track_id.as_deref() {
-            Some(track_id) => task_storage
-                .get_task(track_id)
-                .await
-                .ok()
-                .flatten()
-                .map(|t| t.status.to_string()),
-            None => None,
-        };
+        let task_status_owned = summary
+            .track_id
+            .as_ref()
+            .and_then(|id| tasks.get(id))
+            .map(|t| t.status.to_string());
         enrich_document_summary_status_with_task(
             summary,
             None,

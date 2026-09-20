@@ -238,7 +238,7 @@ pub async fn cancel_pipeline(
                 }
                 let ws = task.workspace_id.to_string();
                 let vector =
-                    crate::services::get_workspace_vector_storage_for_delete(&state, &ws).await;
+                    crate::services::get_workspace_vector_storage_for_delete(&state, &ws).await?;
                 crate::services::retract_indexes_for_task(
                     &state.storage.graph_storage,
                     &vector,

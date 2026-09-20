@@ -64,11 +64,11 @@ async fn e2e_spec118_relational_persist_injection_composite() {
         .expect("persist must not fail on injection:: composite (#376)");
 
     let spine = repo
-        .load_for_document(edgequake_storage::traits::domain::DocumentId(inj))
+        .load_for_document(edgequake_storage::traits::domain::DocumentId::new(inj))
         .await
         .expect("load");
     assert_eq!(spine.len(), 1);
-    assert_eq!(spine[0].document_id.0, inj);
+    assert_eq!(spine[0].document_id.into_uuid(), inj);
     assert_eq!(
         spine[0]
             .metadata

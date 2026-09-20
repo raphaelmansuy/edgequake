@@ -78,6 +78,29 @@ impl VectorStorage for FailDelete {
     async fn clear(&self) -> edgequake_storage::error::Result<()> {
         self.inner.clear().await
     }
+    async fn clear_workspace(
+        &self,
+        workspace_id: &uuid::Uuid,
+    ) -> edgequake_storage::error::Result<usize> {
+        self.inner.clear_workspace(workspace_id).await
+    }
+    async fn delete_by_document(
+        &self,
+        document_id: &str,
+    ) -> edgequake_storage::error::Result<usize> {
+        self.inner.delete_by_document(document_id).await
+    }
+    async fn query_filtered(
+        &self,
+        query_embedding: &[f32],
+        top_k: usize,
+        filter_ids: Option<&[String]>,
+        metadata_filter: Option<&edgequake_storage::MetadataFilter>,
+    ) -> edgequake_storage::error::Result<Vec<VectorSearchResult>> {
+        self.inner
+            .query_filtered(query_embedding, top_k, filter_ids, metadata_filter)
+            .await
+    }
 }
 
 #[tokio::test]

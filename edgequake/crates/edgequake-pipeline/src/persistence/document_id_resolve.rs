@@ -24,10 +24,10 @@ pub fn is_injection_composite_document_id(raw: &str) -> bool {
 /// - otherwise → `StorageError::InvalidData` (fail-closed for unknown ids)
 pub fn resolve_relational_document_id(raw: &str) -> Result<DocumentId, StorageError> {
     if let Ok(u) = Uuid::parse_str(raw) {
-        return Ok(DocumentId(u));
+        return Ok(DocumentId::new(u));
     }
     if let Some(mapped) = map_injection_composite(raw) {
-        return Ok(DocumentId(mapped));
+        return Ok(DocumentId::new(mapped));
     }
     Err(StorageError::InvalidData(format!(
         "invalid uuid '{raw}': not a bare UUID or injection::{{ws}}::{{uuid}} composite"
@@ -52,7 +52,7 @@ mod tests {
     fn contract_spec118_resolve_bare_uuid() {
         let id = Uuid::new_v4();
         let got = resolve_relational_document_id(&id.to_string()).expect("bare uuid");
-        assert_eq!(got.0, id);
+        assert_eq!(got.into_uuid(), id);
         assert!(!is_injection_composite_document_id(&id.to_string()));
     }
 
@@ -62,7 +62,7 @@ mod tests {
         let inj = Uuid::new_v4();
         let raw = format!("injection::{ws}::{inj}");
         let got = resolve_relational_document_id(&raw).expect("injection composite");
-        assert_eq!(got.0, inj);
+        assert_eq!(got.into_uuid(), inj);
         assert!(is_injection_composite_document_id(&raw));
     }
 
@@ -97,7 +97,7 @@ mod tests {
         assert_eq!(raw.len(), 85);
         let got = resolve_relational_document_id(raw).expect("map issue shape");
         assert_eq!(
-            got.0,
+            got.into_uuid(),
             Uuid::parse_str("3fc4a415-33e7-4a38-88d9-86ae6b8bb36e").unwrap()
         );
     }

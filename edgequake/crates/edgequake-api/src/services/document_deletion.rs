@@ -14,6 +14,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "postgres")]
+use sha2::{Digest as _, Sha256};
 use uuid::Uuid;
 
 use edgequake_audit::{AuditEventType, AuditResult};
@@ -359,6 +361,145 @@ pub async fn reset_deleting_status(
     }
 }
 
+#[cfg(feature = "postgres")]
+async fn tombstone_document_required(
+    state: &AppState,
+    data: &DeletionTaskData,
+    metadata: Option<&serde_json::Value>,
+) -> ApiResult<Vec<Uuid>> {
+    // Memory AppState has no pg_pool: keep the pre-SPEC-149 non-authoritative path.
+    if state.pg_pool.is_none() {
+        return Ok(Vec::new());
+    }
+    let committer = state.lifecycle_committer.as_ref().ok_or_else(|| {
+        ApiError::Internal(
+            "P0 deletion requires lifecycle_committer; refuse physical cleanup without tombstone"
+                .into(),
+        )
+    })?;
+    let tenant_id = Uuid::parse_str(&data.tenant_id)
+        .map_err(|error| ApiError::BadRequest(format!("invalid deletion tenant_id: {error}")))?;
+    let workspace_id = Uuid::parse_str(&data.workspace_id)
+        .map_err(|error| ApiError::BadRequest(format!("invalid deletion workspace_id: {error}")))?;
+    let document_id = Uuid::parse_str(&data.document_id)
+        .map_err(|error| ApiError::BadRequest(format!("invalid deletion document_id: {error}")))?;
+
+    let metadata_revision = metadata.and_then(|value| {
+        ["provider_access_revision", "object_revision"]
+            .iter()
+            .find_map(|key| value.get(key).and_then(serde_json::Value::as_u64))
+    });
+    let expected_revision = if let Some(revision) = metadata_revision {
+        revision
+    } else {
+        let reader = state.document_reader.as_ref().ok_or_else(|| {
+            ApiError::Internal(
+                "P0 deletion requires document_reader when metadata revision is absent".into(),
+            )
+        })?;
+        let scope = edgequake_storage::contracts::AccessScope::new(
+            edgequake_storage::contracts::TenantId::new(tenant_id),
+            edgequake_storage::contracts::WorkspaceId::new(workspace_id),
+        );
+        let views = reader
+            .get_many(
+                &scope,
+                &[edgequake_storage::contracts::DocumentId::new(document_id)],
+            )
+            .await
+            .map_err(edgequake_storage::StorageError::from)
+            .map_err(ApiError::from)?;
+        match views.into_iter().next().flatten() {
+            Some(view) if view.deleted => {
+                return Err(ApiError::Conflict(
+                    "document is already tombstoned".into(),
+                ));
+            }
+            Some(view) => view.revision,
+            None => 0,
+        }
+    };
+    let idempotency_key = format!("delete:{document_id}:{expected_revision}");
+    let canonical = serde_json::to_vec(&serde_json::json!({
+        "tenant_id": tenant_id,
+        "workspace_id": workspace_id,
+        "document_id": document_id,
+        "expected_revision": expected_revision,
+        "idempotency_key": idempotency_key,
+    }))
+    .map_err(|error| ApiError::Internal(format!("encode tombstone command: {error}")))?;
+    let command = edgequake_storage::contracts::DeleteDocument {
+        scope: edgequake_storage::contracts::AccessScope::new(
+            edgequake_storage::contracts::TenantId::new(tenant_id),
+            edgequake_storage::contracts::WorkspaceId::new(workspace_id),
+        ),
+        document_id: edgequake_storage::contracts::DocumentId::new(document_id),
+        expected_revision,
+        idempotency_key,
+        command_digest: Sha256::digest(canonical).into(),
+    };
+    let receipt = committer
+        .tombstone_document(&command)
+        .await
+        .map_err(edgequake_storage::StorageError::from)
+        .map_err(ApiError::from)?;
+    if receipt.target_binding_ids.is_empty() {
+        return Err(ApiError::Internal(
+            "tombstone receipt recorded zero target bindings; refuse default-store cleanup".into(),
+        ));
+    }
+    Ok(receipt.target_binding_ids)
+}
+
+#[cfg(not(feature = "postgres"))]
+async fn tombstone_document_required(
+    _state: &AppState,
+    _data: &DeletionTaskData,
+    _metadata: Option<&serde_json::Value>,
+) -> ApiResult<Vec<Uuid>> {
+    // Memory / non-postgres builds use an explicit non-authoritative path.
+    Ok(Vec::new())
+}
+
+#[cfg(feature = "postgres")]
+async fn vector_cleanup_targets(state: &AppState, binding_ids: &[Uuid]) -> ApiResult<Vec<Uuid>> {
+    if state.pg_pool.is_none() {
+        return Ok(Vec::new());
+    }
+    if binding_ids.is_empty() {
+        return Err(ApiError::Internal(
+            "exact-binding vector cleanup refused empty target list".into(),
+        ));
+    }
+    let pool = state
+        .pg_pool
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("lifecycle committer has no PostgreSQL pool".into()))?;
+    let vector_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT binding_id FROM public.data_bindings \
+         WHERE binding_id = ANY($1) \
+           AND role IN ('vector', 'vector_projection', 'embedding') \
+           AND state IN ('active', 'draining') \
+         ORDER BY binding_id",
+    )
+    .bind(binding_ids)
+    .fetch_all(pool)
+    .await
+    .map_err(edgequake_storage::StorageError::from)
+    .map_err(ApiError::from)?;
+    if vector_ids.is_empty() {
+        return Err(ApiError::Internal(
+            "tombstone targets contain no vector bindings; refuse default-store cleanup".into(),
+        ));
+    }
+    Ok(vector_ids)
+}
+
+#[cfg(not(feature = "postgres"))]
+async fn vector_cleanup_targets(_state: &AppState, _binding_ids: &[Uuid]) -> ApiResult<Vec<Uuid>> {
+    Ok(Vec::new())
+}
+
 /// Run the authoritative cascade for a document (graph → vectors → KV → relational).
 pub async fn perform_document_deletion(
     state: &AppState,
@@ -372,14 +513,14 @@ pub async fn perform_document_deletion(
         .metadata_key
         .clone()
         .unwrap_or_else(|| metadata_key_for_document(&actual_key_prefix));
-    let has_metadata = state
+    let metadata = state
         .storage
         .kv_storage
         .get_by_id(&metadata_key)
         .await
         .ok()
-        .flatten()
-        .is_some();
+        .flatten();
+    let has_metadata = metadata.is_some();
     let content_key = format!("{}-content", actual_key_prefix);
     let has_content = data.has_content
         || state
@@ -436,6 +577,16 @@ pub async fn perform_document_deletion(
         }
     }
 
+    // SPEC-149: durable logical deletion precedes every physical provider
+    // mutation. A conflict or unavailable authority fails closed.
+    let target_binding_ids = tombstone_document_required(state, data, metadata.as_ref()).await?;
+    #[cfg(feature = "postgres")]
+    let vector_target_bindings = vector_cleanup_targets(state, &target_binding_ids).await?;
+    #[cfg(not(feature = "postgres"))]
+    let vector_target_bindings: Vec<Uuid> = Vec::new();
+    let cleanup_vectors = !vector_target_bindings.is_empty() || cfg!(not(feature = "postgres"));
+    let _ = &vector_target_bindings; // retained for exact-binding cleanup evidence/logging
+
     // Keep the running deletion task itself (DRY with wipe keep-self). Matching
     // on document_id alone used to cancel+delete this row mid-cascade.
     // In-flight ingest siblings are cancelled; Failed/Indexed/Cancelled stay
@@ -450,7 +601,7 @@ pub async fn perform_document_deletion(
     .await;
 
     let workspace_vector_storage =
-        get_workspace_vector_storage_for_delete(state, &workspace_id_for_storage).await;
+        get_workspace_vector_storage_for_delete(state, &workspace_id_for_storage).await?;
 
     let chunks_deleted = chunk_ids.len();
     let mut embeddings_deleted = 0usize;
@@ -647,7 +798,7 @@ pub async fn perform_document_deletion(
     }
 
     let vectors_already_done = checkpoint.as_deref() == Some(CHECKPOINT_VECTORS_DONE);
-    if !vectors_already_done {
+    if !vectors_already_done && cleanup_vectors {
         state.tasks.progress_broadcaster.deletion_phase(
             &document_id,
             &deletion_track_id,
@@ -691,6 +842,14 @@ pub async fn perform_document_deletion(
                 .delete_by_document(&actual_key_prefix)
                 .await;
         }
+        write_deletion_checkpoint(state, &metadata_key, has_metadata, CHECKPOINT_VECTORS_DONE)
+            .await;
+    } else if !vectors_already_done {
+        tracing::debug!(
+            document_id = %document_id,
+            target_bindings = ?target_binding_ids,
+            "Skipping chunk vector cleanup because the tombstone targeted no vector binding"
+        );
         write_deletion_checkpoint(state, &metadata_key, has_metadata, CHECKPOINT_VECTORS_DONE)
             .await;
     }

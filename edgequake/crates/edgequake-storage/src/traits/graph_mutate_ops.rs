@@ -49,16 +49,11 @@ pub trait GraphStorageMutateOps: Send + Sync {
 
     /// Batch upsert with explicit property write mode (SPEC-098 cascade prune).
     ///
-    /// Default delegates to [`upsert_nodes_batch`](Self::upsert_nodes_batch)
-    /// for both modes (memory already replaces; ingest callers keep MergeSources).
     async fn upsert_nodes_batch_with_mode(
         &self,
         nodes: &[(String, HashMap<String, serde_json::Value>)],
         mode: GraphPropertyWriteMode,
-    ) -> Result<()> {
-        let _ = mode;
-        self.upsert_nodes_batch(nodes).await
-    }
+    ) -> Result<()>;
 
     async fn delete_node(&self, node_id: &str) -> Result<()>;
 
@@ -103,10 +98,7 @@ pub trait GraphStorageMutateOps: Send + Sync {
         &self,
         edges: &[(String, String, HashMap<String, serde_json::Value>)],
         mode: GraphPropertyWriteMode,
-    ) -> Result<()> {
-        let _ = mode;
-        self.upsert_edges_batch(edges).await
-    }
+    ) -> Result<()>;
 
     async fn delete_edge(&self, source: &str, target: &str) -> Result<()>;
 
@@ -114,22 +106,8 @@ pub trait GraphStorageMutateOps: Send + Sync {
     ///
     /// `rel_type` must be normalized (see [`crate::normalize_rel_type`]). Cascade
     /// exclusive prune deletes one multigraph sister at a time — never all rels
-    /// between endpoints. Default loops `delete_edge` (all rels) only when callers
-    /// still use the legacy pair API via adapters that expand triples.
-    async fn delete_edges_batch(&self, edges: &[(String, String, String)]) -> Result<()> {
-        // Fallback: collapse to endpoint pairs (may over-delete sisters). Adapters
-        // that implement D-30 should override with precise SQL/memory deletes.
-        let mut pairs: Vec<(String, String)> = edges
-            .iter()
-            .map(|(s, t, _)| (s.clone(), t.clone()))
-            .collect();
-        pairs.sort();
-        pairs.dedup();
-        for (source, target) in pairs {
-            self.delete_edge(&source, &target).await?;
-        }
-        Ok(())
-    }
+    /// between endpoints.
+    async fn delete_edges_batch(&self, edges: &[(String, String, String)]) -> Result<()>;
 
     /// Delete an edge only when tenant/workspace properties match.
     async fn delete_edge_scoped(
@@ -142,8 +120,5 @@ pub trait GraphStorageMutateOps: Send + Sync {
 
     async fn clear(&self) -> Result<()>;
 
-    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)> {
-        let _ = workspace_id;
-        Ok((0, 0))
-    }
+    async fn clear_workspace(&self, workspace_id: &uuid::Uuid) -> Result<(usize, usize)>;
 }

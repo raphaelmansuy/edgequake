@@ -208,6 +208,29 @@ impl TaskStorage for PostgresTaskStorage {
         }
     }
 
+    async fn get_tasks_by_track_ids(
+        &self,
+        track_ids: &[String],
+    ) -> TaskResult<std::collections::HashMap<String, Task>> {
+        let mut out = std::collections::HashMap::with_capacity(track_ids.len());
+        if track_ids.is_empty() {
+            return Ok(out);
+        }
+        let sql = format!("SELECT {TASK_SELECT_COLUMNS} FROM tasks WHERE track_id = ANY($1)");
+        let rows = sqlx::query(&sql)
+            .bind(track_ids)
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| {
+                TaskError::StorageError(format!("Failed to batch-fetch tasks: {}", e))
+            })?;
+        for row in rows {
+            let task = task_from_row(&row)?;
+            out.insert(task.track_id.clone(), task);
+        }
+        Ok(out)
+    }
+
     /// Lightweight heartbeat: only update `updated_at` column.
     ///
     /// WHY: This is ~10x cheaper than a full `update_task` because it doesn't

@@ -36,7 +36,7 @@ async fn e2e_spec091_ingestion_p95_budget() {
             ModelId(Uuid::nil()),
             &[EmbeddingRow {
                 chunk_id: warm_cid.into(),
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 dimensions: DIM as i32,
                 embedding: w3::make_embedding(DIM, 1),
             }],
@@ -52,7 +52,7 @@ async fn e2e_spec091_ingestion_p95_budget() {
             let cid = w3::seed_chunk(&pool, doc, ws, idx, &format!("c{idx}")).await;
             rows.push(EmbeddingRow {
                 chunk_id: cid.into(),
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 dimensions: DIM as i32,
                 embedding: w3::make_embedding(DIM, (s * 16 + i) as u32 + 10),
             });

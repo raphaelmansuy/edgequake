@@ -109,7 +109,7 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
         )?;
         let model_id = self.resolve_model_id(dimensions).await?;
 
-        let workspace_ids: Vec<Uuid> = rows.iter().map(|r| r.workspace_id.0).collect();
+        let workspace_ids: Vec<Uuid> = rows.iter().map(|r| r.workspace_id.into_uuid()).collect();
         let dims: Vec<i32> = rows.iter().map(|r| r.dimensions).collect();
         let vectors: Vec<String> = rows
             .iter()
@@ -184,6 +184,27 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
         family: EmbeddingFamily,
         req: &VectorQuery,
     ) -> Result<Vec<ScoredFleet>, StorageError> {
+        let type_matches = req.vector_type.as_deref().is_none_or(|kind| match family {
+            EmbeddingFamily::Entity => kind.eq_ignore_ascii_case("entity"),
+            EmbeddingFamily::Relationship => {
+                kind.eq_ignore_ascii_case("relationship") || kind.eq_ignore_ascii_case("relation")
+            }
+            EmbeddingFamily::Report => kind.eq_ignore_ascii_case("report"),
+        });
+        if !type_matches
+            || req.document_ids.as_ref().is_some_and(Vec::is_empty)
+            || req.modalities.as_ref().is_some_and(Vec::is_empty)
+            || req.filter_ids.as_ref().is_some_and(Vec::is_empty)
+            || matches!(
+                family,
+                EmbeddingFamily::Relationship | EmbeddingFamily::Report
+            ) && req.modalities.is_some()
+            || matches!(family, EmbeddingFamily::Report)
+                && (req.document_ids.is_some() || req.tenant_id.is_some())
+        {
+            return Ok(Vec::new());
+        }
+
         let dim = validate_ann_dimensions(req.embedding.len() as i32)?;
         let model_id = match self.find_model_id(&self.model_name, dim).await? {
             Some(id) => id,
@@ -191,38 +212,25 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
         };
 
         let vector = Self::format_vector(&req.embedding);
-        let ws_filter = req.workspace_id.is_some();
         let limit = req.limit as i64;
         let cast = format!("halfvec({dim})");
 
-        let q = match (family, ws_filter) {
-            (EmbeddingFamily::Entity, true) => format!(
-                "SELECT ('entity:' || e.name) AS legacy_id, \
-                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
-                 FROM entity_embeddings fe \
-                 JOIN entities e ON e.id = fe.entity_id \
-                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
-                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4"
-            ),
-            (EmbeddingFamily::Entity, false) => format!(
+        let q = match family {
+            EmbeddingFamily::Entity => format!(
                 "SELECT ('entity:' || e.name) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM entity_embeddings fe \
                  JOIN entities e ON e.id = fe.entity_id \
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
-                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $3"
+                   AND ($3::uuid IS NULL OR fe.workspace_id = $3) \
+                   AND ($4::uuid[] IS NULL OR e.source_ids && $4) \
+                   AND ($5::uuid IS NULL OR e.tenant_id = $5) \
+                   AND ($6::text[] IS NULL OR e.metadata->>'modality' = ANY($6)) \
+                   AND ($7::text[] IS NULL OR e.id::text = ANY($7) \
+                        OR ('entity:' || e.name) = ANY($7)) \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $8"
             ),
-            (EmbeddingFamily::Relationship, true) => format!(
-                "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
-                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
-                 FROM relationship_embeddings fe \
-                 JOIN relationships r ON r.id = fe.relationship_id \
-                 JOIN entities es ON es.id = r.source_id \
-                 JOIN entities et ON et.id = r.target_id \
-                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
-                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4"
-            ),
-            (EmbeddingFamily::Relationship, false) => format!(
+            EmbeddingFamily::Relationship => format!(
                 "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM relationship_embeddings fe \
@@ -230,31 +238,42 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                  JOIN entities es ON es.id = r.source_id \
                  JOIN entities et ON et.id = r.target_id \
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
-                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $3"
+                   AND ($3::uuid IS NULL OR fe.workspace_id = $3) \
+                   AND ($4::uuid[] IS NULL OR EXISTS ( \
+                         SELECT 1 \
+                         FROM unnest(COALESCE(r.source_chunk_ids, '{{}}'::uuid[])) AS source_chunk_id \
+                         JOIN chunks c ON c.id = source_chunk_id \
+                         WHERE c.document_id = ANY($4) \
+                       )) \
+                   AND ($5::uuid IS NULL OR r.tenant_id = $5) \
+                   AND $6::text[] IS NULL \
+                   AND ($7::text[] IS NULL OR r.id::text = ANY($7) \
+                        OR (es.name || '->' || et.name || ':' || r.relation_type) = ANY($7)) \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $8"
             ),
-            (EmbeddingFamily::Report, true) => format!(
-                "SELECT fe.report_id AS legacy_id, \
-                        1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
-                 FROM report_embeddings fe \
-                 WHERE fe.model_id = $2 AND fe.dimensions = {dim} AND fe.workspace_id = $3 \
-                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $4"
-            ),
-            (EmbeddingFamily::Report, false) => format!(
+            EmbeddingFamily::Report => format!(
                 "SELECT fe.report_id AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
                  FROM report_embeddings fe \
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
-                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $3"
+                   AND ($3::uuid IS NULL OR fe.workspace_id = $3) \
+                   AND $4::uuid[] IS NULL \
+                   AND $5::uuid IS NULL \
+                   AND $6::text[] IS NULL \
+                   AND ($7::text[] IS NULL OR fe.report_id = ANY($7)) \
+                 ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $8"
             ),
         };
 
-        let mut query = sqlx::query(&q).bind(&vector).bind(model_id.0);
-        if let Some(ws) = req.workspace_id {
-            query = query.bind(ws.0);
-        }
-        query = query.bind(limit);
-
-        let rows = query
+        let rows = sqlx::query(&q)
+            .bind(&vector)
+            .bind(model_id.0)
+            .bind(req.workspace_id.map(|id| id.into_uuid()))
+            .bind(req.document_ids.as_deref())
+            .bind(req.tenant_id.map(|id| id.into_uuid()))
+            .bind(req.modalities.as_deref())
+            .bind(req.filter_ids.as_deref())
+            .bind(limit)
             .fetch_all(&self.pool)
             .await
             .map_err(StorageError::from)?;
@@ -277,7 +296,7 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
     ) -> Result<u64, StorageError> {
         let table = family.typed_table();
         let deleted = sqlx::query(&format!("DELETE FROM {table} WHERE workspace_id = $1"))
-            .bind(workspace.0)
+            .bind(workspace.into_uuid())
             .execute(&self.pool)
             .await
             .map_err(StorageError::from)?
@@ -311,7 +330,7 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
             }
             let index = index_cache.get(&ws).expect("just inserted");
             let row_template = |key: FleetEmbeddingKey| FleetEmbeddingRow {
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 embedding: embedding.clone(),
                 dimensions: embedding.len() as i32,
                 key,

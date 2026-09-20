@@ -56,7 +56,7 @@ async fn insert_entity(pool: &sqlx::PgPool, id: Uuid, name: &str, tenant: Uuid, 
 
 fn entity_row(ws: Uuid, eid: Uuid, lid: &str, seed: f32) -> FleetEmbeddingRow {
     FleetEmbeddingRow {
-        workspace_id: WorkspaceId(ws),
+        workspace_id: WorkspaceId::new(ws),
         embedding: emb(seed),
         dimensions: DIM as i32,
         key: FleetEmbeddingKey::Entity(eid),
@@ -220,7 +220,7 @@ async fn contract_spec120_relationship_dual_fk_absorb() {
     let index = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), "spec120-rel");
     let lid = "SRC_A->TGT_A:LINKS";
     let mk = |rid: Uuid, seed: f32| FleetEmbeddingRow {
-        workspace_id: WorkspaceId(workspace),
+        workspace_id: WorkspaceId::new(workspace),
         embedding: emb(seed),
         dimensions: DIM as i32,
         key: FleetEmbeddingKey::Relationship(rid),
@@ -261,7 +261,7 @@ async fn contract_spec120_report_dual_fk_absorb() {
     let run = Uuid::new_v4();
     let lid = format!("community_report:cluster-{run}");
     let mk = |report_id: String, seed: f32| FleetEmbeddingRow {
-        workspace_id: WorkspaceId(workspace),
+        workspace_id: WorkspaceId::new(workspace),
         embedding: emb(seed),
         dimensions: DIM as i32,
         key: FleetEmbeddingKey::Report(report_id),
@@ -537,7 +537,7 @@ async fn contract_spec136_null_lid_loser_pk_relationship_absorb_and_retry() {
     let index = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), "spec136-rel");
     let lid = "SRC_B->TGT_B:LINKS";
     let mk = |rid: Uuid, seed: f32| FleetEmbeddingRow {
-        workspace_id: WorkspaceId(workspace),
+        workspace_id: WorkspaceId::new(workspace),
         embedding: emb(seed),
         dimensions: DIM as i32,
         key: FleetEmbeddingKey::Relationship(rid),

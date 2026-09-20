@@ -205,50 +205,10 @@ pub trait GraphStorageReadOps: Send + Sync {
         Ok(results)
     }
 
-    #[allow(deprecated)]
     async fn get_edges_for_node_set(
         &self,
         node_ids: &[String],
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
-    ) -> Result<Vec<GraphEdge>> {
-        let all_edges = self.get_all_edges().await?;
-        let node_set: std::collections::HashSet<&str> =
-            node_ids.iter().map(|s| s.as_str()).collect();
-
-        let filtered: Vec<GraphEdge> = all_edges
-            .into_iter()
-            .filter(|e| {
-                if !node_set.contains(e.source.as_str()) || !node_set.contains(e.target.as_str()) {
-                    return false;
-                }
-
-                if let Some(tid) = tenant_id {
-                    let edge_tenant = e
-                        .properties
-                        .get("tenant_id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    if !edge_tenant.is_empty() && edge_tenant != tid {
-                        return false;
-                    }
-                }
-
-                if let Some(wid) = workspace_id {
-                    let edge_workspace = e
-                        .properties
-                        .get("workspace_id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    if !edge_workspace.is_empty() && edge_workspace != wid {
-                        return false;
-                    }
-                }
-
-                true
-            })
-            .collect();
-
-        Ok(filtered)
-    }
+    ) -> Result<Vec<GraphEdge>>;
 }

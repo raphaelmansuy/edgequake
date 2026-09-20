@@ -19,7 +19,7 @@ use uuid::Uuid;
 fn row(chunk_id: Uuid, workspace: Uuid, embedding: Vec<f32>) -> EmbeddingRow {
     EmbeddingRow {
         chunk_id: chunk_id.into(),
-        workspace_id: WorkspaceId(workspace),
+        workspace_id: WorkspaceId::new(workspace),
         dimensions: embedding.len() as i32,
         embedding,
     }
@@ -79,7 +79,13 @@ async fn e2e_spec091_chunk_embeddings_upsert_search_delete() {
     // Search returns the nearest chunk for an exact-match query.
     let query = VectorQuery {
         model_id: ModelId(Uuid::nil()),
-        workspace_id: Some(WorkspaceId(ws)),
+        model_revision: "test-current".into(),
+        workspace_id: Some(WorkspaceId::new(ws)),
+        document_ids: None,
+        tenant_id: None,
+        modalities: None,
+        filter_ids: None,
+        vector_type: None,
         embedding: w3::make_embedding(dim, 11),
         limit: 1,
     };
@@ -94,7 +100,13 @@ async fn e2e_spec091_chunk_embeddings_upsert_search_delete() {
     let other_ws = w3::seed_workspace(&pool, "port-other").await;
     let other = VectorQuery {
         model_id: ModelId(Uuid::nil()),
-        workspace_id: Some(WorkspaceId(other_ws)),
+        model_revision: "test-current".into(),
+        workspace_id: Some(WorkspaceId::new(other_ws)),
+        document_ids: None,
+        tenant_id: None,
+        modalities: None,
+        filter_ids: None,
+        vector_type: None,
         embedding: w3::make_embedding(dim, 11),
         limit: 10,
     };
@@ -103,7 +115,7 @@ async fn e2e_spec091_chunk_embeddings_upsert_search_delete() {
 
     // delete_for_workspace removes only this workspace's rows.
     let deleted = index
-        .delete_for_workspace(WorkspaceId(ws))
+        .delete_for_workspace(WorkspaceId::new(ws))
         .await
         .expect("delete");
     assert_eq!(deleted, 3);
@@ -165,7 +177,13 @@ async fn e2e_spec091_typed_dim_1024_upsert_search() {
 
     let query = VectorQuery {
         model_id: ModelId(Uuid::nil()),
-        workspace_id: Some(WorkspaceId(ws)),
+        model_revision: "test-current".into(),
+        workspace_id: Some(WorkspaceId::new(ws)),
+        document_ids: None,
+        tenant_id: None,
+        modalities: None,
+        filter_ids: None,
+        vector_type: None,
         embedding: w3::make_embedding(dim, 21),
         limit: 1,
     };

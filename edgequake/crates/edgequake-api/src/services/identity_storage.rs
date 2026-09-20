@@ -439,38 +439,38 @@ fn pg_row_to_user_record(row: PgUserRow) -> UserRecord {
 #[cfg(feature = "postgres")]
 async fn load_user_record_pg(
     pool: &sqlx::PgPool,
-    security: &ApiSecurityConfig,
+    _security: &ApiSecurityConfig,
     user_id: &str,
 ) -> Result<Option<UserRecord>, ApiError> {
-    use crate::services::tenant_isolation::{with_optional_pg_rls, PgIsolationScope};
-    use edgequake_storage::StorageError;
+    use edgequake_storage::contracts::{IdentityStore, TenantId};
 
     let user_uuid = Uuid::parse_str(user_id)
         .map_err(|_| ApiError::Internal("Invalid user_id for PG load".into()))?;
     let (tenant_id, _) = default_identity_scope();
-    let scope = Some(PgIsolationScope::default_identity(Some(user_uuid)));
+    let store = crate::services::postgres_identity_store::PostgresIdentityStore::new(pool.clone());
+    store
+        .get_user(TenantId::new(tenant_id), user_uuid)
+        .await
+        .map(|user| user.map(identity_user_to_user_record))
+        .map_err(|error| ApiError::Internal(error.to_string()))
+}
 
-    with_optional_pg_rls(pool, security, scope, move |conn| {
-        Box::pin(async move {
-            let row = sqlx::query_as::<_, PgUserRow>(
-                r#"
-                SELECT user_id, username, email, password_hash, role, is_active,
-                       COALESCE(failed_login_attempts, 0) AS failed_login_attempts,
-                       locked_until, created_at, updated_at, last_login_at
-                FROM users
-                WHERE user_id = $1 AND tenant_id = $2
-                "#,
-            )
-            .bind(user_uuid)
-            .bind(tenant_id)
-            .fetch_optional(&mut *conn)
-            .await
-            .map_err(|e| StorageError::Database(format!("PG user load failed: {e}")))?;
-
-            Ok(row.map(pg_row_to_user_record))
-        })
-    })
-    .await
+#[cfg(feature = "postgres")]
+fn identity_user_to_user_record(user: edgequake_storage::contracts::IdentityUser) -> UserRecord {
+    UserRecord {
+        user_id: user.user_id.to_string(),
+        username: user.username,
+        email: user.email,
+        password_hash: user.password_hash,
+        role: user.role,
+        is_active: user.is_active,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        last_login_at: user.last_login_at,
+        failed_login_attempts: user.failed_login_attempts,
+        locked_until: user.locked_until,
+        metadata: std::collections::HashMap::new(),
+    }
 }
 
 #[cfg(feature = "postgres")]

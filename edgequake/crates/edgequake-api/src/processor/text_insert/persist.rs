@@ -259,6 +259,14 @@ impl DocumentTaskProcessor {
                 crate::services::resolve_relational_chunk_repo(self.pg_pool.as_ref()),
                 #[cfg(not(feature = "postgres"))]
                 crate::services::resolve_relational_chunk_repo(None),
+                #[cfg(feature = "postgres")]
+                self.app_state
+                    .as_ref()
+                    .and_then(|state| state.ingestion_committer.clone()),
+                #[cfg(feature = "postgres")]
+                self.app_state
+                    .as_ref()
+                    .and_then(|state| state.document_reader.clone()),
                 // SPEC-091 W3: typed embedding dual-write pool
                 #[cfg(feature = "postgres")]
                 self.pg_pool.clone(),
