@@ -29,6 +29,7 @@
 #   - xAI: grok-4.3 (LLM)
 #   - MiniMax: MiniMax-M2.7 (LLM)
 #   - OpenRouter: openai/gpt-4o-mini (LLM)
+#   - OrcaRouter: orcarouter/auto (LLM)
 #   - Ollama: gemma4:latest (LLM), embeddinggemma (embedding)
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
@@ -2237,6 +2238,47 @@ embedding_dimension = 0
 [providers.models.cost]
 input_per_1k = 0.003
 output_per_1k = 0.003
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# =============================================================================
+# ORCAROUTER PROVIDER
+# =============================================================================
+# OrcaRouter - unified gateway for 200+ frontier models and AI-agent security
+# Requires: ORCAROUTER_API_KEY environment variable
+# OpenAI-compatible chat completions API (Bearer auth).
+
+[[providers]]
+name = "orcarouter"
+display_name = "OrcaRouter"
+type = "openaicompatible"
+api_base = "https://api.orcarouter.ai/v1"
+api_key_env = "ORCAROUTER_API_KEY"
+enabled = true
+priority = 19
+description = "OrcaRouter - unified AI gateway for frontier models with gateway-level, zero-trust security for AI agents"
+
+[[providers.models]]
+name = "orcarouter/auto"
+display_name = "Auto (via OrcaRouter)"
+model_type = "llm"
+description = "OrcaRouter automatic model routing"
+deprecated = false
+tags = ["recommended", "fast"]
+
+[providers.models.capabilities]
+context_length = 200000
+max_output_tokens = 32768
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
 embedding_per_1k = 0.0
 image_per_unit = 0.0
 

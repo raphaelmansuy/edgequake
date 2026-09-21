@@ -462,6 +462,7 @@ fn check_api_key(provider_name: &str) -> Result<()> {
         "mistral" => ("MISTRAL_API_KEY", "Mistral"),
         "xai" => ("XAI_API_KEY", "xAI"),
         "openrouter" => ("OPENROUTER_API_KEY", "OpenRouter"),
+        "orcarouter" => ("ORCAROUTER_API_KEY", "OrcaRouter"),
         "nvidia" => ("NVIDIA_API_KEY", "NVIDIA NIM"),
         "cohere" => ("COHERE_API_KEY", "Cohere"),
         "jina" => ("JINA_API_KEY", "Jina AI"),
@@ -491,10 +492,50 @@ fn create_inner_llm_provider(
     if provider == "vertexai" || provider == "vertex" {
         return create_vertex_llm_via_adc(model, ctx);
     }
+    if provider == "orcarouter" {
+        return create_orcarouter_llm_provider(model, ctx);
+    }
     match ctx {
         Some(ctx) => ProviderFactory::create_llm_provider_with_context(provider_name, model, ctx),
         None => ProviderFactory::create_llm_provider(provider_name, model),
     }
+}
+
+/// Create an OrcaRouter LLM provider (OpenAI-compatible gateway).
+///
+/// OrcaRouter (<https://www.orcarouter.ai>) is a unified AI gateway exposing an
+/// OpenAI-compatible chat completions API at `https://api.orcarouter.ai/v1`. It
+/// authenticates with `Authorization: Bearer` using an `sk-orca-…` key read from
+/// the `ORCAROUTER_API_KEY` environment variable.
+fn create_orcarouter_llm_provider(
+    model: &str,
+    ctx: Option<ApplicationContext>,
+) -> Result<Arc<dyn LLMProvider>> {
+    let config = edgequake_llm::ProviderConfig {
+        name: "orcarouter".to_string(),
+        display_name: "OrcaRouter".to_string(),
+        provider_type: edgequake_llm::ConfigProviderType::OpenAICompatible,
+        api_key_env: Some("ORCAROUTER_API_KEY".to_string()),
+        api_key: None,
+        base_url: Some("https://api.orcarouter.ai/v1".to_string()),
+        base_url_env: None,
+        default_llm_model: Some(model.to_string()),
+        default_embedding_model: None,
+        models: Vec::new(),
+        enabled: true,
+        priority: 19,
+        description: "OrcaRouter - unified AI gateway for frontier models".to_string(),
+        settings: Default::default(),
+        headers: Default::default(),
+        timeout_seconds: 120,
+        supports_thinking: false,
+    };
+    let mut provider = edgequake_llm::OpenAICompatibleProvider::from_config(config)?;
+    provider = provider.with_model(model);
+    if let Some(ctx) = ctx {
+        provider = provider.with_application_context(ctx);
+    }
+    Ok(Arc::new(provider))
 }
 
 fn create_vertex_llm_via_adc(
@@ -1253,6 +1294,7 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
         "gemini" => "gemini-2.5-flash",
         "xai" => "grok-4-1-fast",
         "openrouter" => "openai/gpt-4o-mini",
+        "orcarouter" => "orcarouter/auto",
         "mistral" => "mistral-small-latest",
         "ollama" => "gemma4:latest",
         "lmstudio" | "lm-studio" | "lm_studio" => "gemma-3n-e4b-it",
@@ -1397,5 +1439,20 @@ mod issue255_gateway_model_tests {
         clear_gateway_env();
         assert!(is_model_provider_mismatch("openai", "gemma3:latest"));
         clear_gateway_env();
+    }
+
+    #[test]
+    #[serial]
+    fn orcarouter_gateway_slash_model_not_mismatch() {
+        clear_gateway_env();
+        // orcarouter/auto is a gateway-routed model — never flagged as a mismatch.
+        assert!(!is_model_provider_mismatch("orcarouter", "orcarouter/auto"));
+        clear_gateway_env();
+    }
+
+    #[test]
+    #[serial]
+    fn orcarouter_default_model_is_auto() {
+        assert_eq!(default_model_for_provider("orcarouter"), "orcarouter/auto");
     }
 }
