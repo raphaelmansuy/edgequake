@@ -2,7 +2,7 @@
 title: "EdgeQuake × Langfuse — Compatibilité, déploiement Kubernetes et remédiation"
 version: "1.0"
 date: "2026-08-26"
-produit: "EdgeQuake v0.26.4"
+produit: "EdgeQuake v0.26.9"
 methode: "Tests empiriques sur Langfuse 3.1.1, 3.225.5 et 4 — résultats reproductibles"
 ---
 

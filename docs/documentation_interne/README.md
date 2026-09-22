@@ -4,10 +4,10 @@
 
 | Champ           | Valeur                                                                                                               |
 | -----------------| ----------------------------------------------------------------------------------------------------------------------|
-| Produit couvert | EdgeQuake **v0.26.4** (schéma de base : migrations 001 → 149)                                                        |
+| Produit couvert | EdgeQuake **v0.26.5** (schéma de base : migrations 001 → 149) + correctifs de correction du graphe (doc 07 §7)         |
 | Statut          | Bon pour diffusion client                                                                                            |
-| Date d'édition  | 2026-08-30                                                                                                           |
-| Méthode         | Rédigé sur la base du code source v0.26.4 ; toute affirmation technique est vérifiable par référence `fichier:ligne` |
+| Date d'édition  | 2026-09-17                                                                                                           |
+| Méthode         | Rédigé sur la base du code source v0.26.5 ; toute affirmation technique est vérifiable par référence `fichier:ligne` ; les capacités des documents 05–07 ont été exécutées contre une instance |
 
 ## Composition du dossier
 
@@ -17,6 +17,10 @@
 | 02   | [Guide d'intégration IT](02-integration-it.md)                                 | Procédures d'exploitation, monitoring, sauvegarde/restauration, mise à jour, rollback, runbooks d'incident, checklists                                                        | Exploitation, DBA, supervision             |
 | 03   | [Deep dive architecture & algorithme](03-deep-dive-architecture-algorithme.md) | Fonctionnement interne : crates, pipeline d'ingestion, modèle de données, moteur d'interrogation, décisions d'architecture                                                    | Architectes, développeurs, data scientists |
 | 04   | [Langfuse — compatibilité & Kubernetes](04-langfuse-kubernetes.md)             | Compatibilité de version Langfuse (**3.1 incompatible**), déploiement en pods séparés, remédiation et validation                                                              | Exploitation, architectes                  |
+| 05   | [Guide de construction d'une ontologie](05-ontologie-guide-construction.md)    | Protocole en cinq étapes (cadrage, domaine, panel de questions, dérivation, validation), exemple complet exécuté, déclaration par interface / API / fichier JSON externe, limites | Data scientists, experts métier            |
+| 06   | [Algorithme d'extraction et modèle relationnel](06-algorithme-extraction-ontologie.md) | Comment l'ontologie est injectée dans le prompt et imposée sur la sortie du LLM ; identité des entités, vote de type, fusion ; modèle relationnel (propriétés des nœuds et arêtes) | Data scientists, architectes               |
+| 07   | [Maintenance du graphe et correction du parsing](07-maintenance-graphe-correction-parsing.md) | Ce qui est automatique ; matrice de correction interface / API ; quatre granularités de ré-extraction ; correction du texte source ; persistance des corrections ; **cinq défauts corrigés** (vérifiés API + navigateur) ; réponse « ré-extraction à la page » | Data scientists, exploitation              |
+| B2   | [Description de la plateforme (fiche de référencement IT)](08-B2-description-plateforme.md) | Fiche d'identité applicative, composants et licences, interfaces, exploitation ; **cotation DICT** argumentée ; **classification des données** (catégorie, emplacement, sensibilité, chiffrement, rétention, suppression) ; données personnelles ; flux sortants et souveraineté ; points d'attention | Référencement IT, architecture d'entreprise, RSSI |
 
 ## Historique des révisions
 
@@ -29,6 +33,8 @@
 | **1.4** | **2026-08-27** | **Pin produit v0.26.2** : Langfuse 3.1.x ingestion fallback (SPEC-124), Helm/kind Kubernetes (SPEC-138), SSE, `include_stats`. Schéma **149** inchangé. |
 | **1.5** | **2026-08-28** | **Pin produit v0.26.3** : SPEC-139 moteur de copie mid-cutover (iw2 21000, W3 coverage-sum, remainder). Schéma **149** inchangé. |
 | **1.6** | **2026-08-30** | **Pin produit v0.26.4** : SPEC-144 Next.js 16.3.3 (August Critical RCEs) + proxy SSOT; SPEC-140/141 listes; distroless API. Schéma **149** inchangé. |
+| **1.7** | **2026-09-17** | **Pin produit v0.26.5**. Ajout des documents **05** (guide ontologie), **06** (algorithme d'extraction et modèle relationnel) et **07** (maintenance du graphe, correction du parsing). Doc 03 : correction du format d'extraction (**JSON**, pas tuple — §3.3, §7.3) et de la politique de reprise (§3.4, chemin de production). Doc 07 §7 : cinq défauts de la v0.26.5 identifiés par exécution et corrigés dans le code livré (résolution des entités scoped `ws::NOM` pour GET/PUT/DELETE, entités et relations manuelles scoped, `retry-chunks` avec pipeline du workspace et lignage, persistance des corrections de type, bouton *Delete* de l'interface sans `confirm=true`). |
+| **1.8** | **2026-09-17** | Ajout de la fiche **B2 — Description de la plateforme** (référencement IT : identité applicative, DICT, classification des données). Doc 07 : cinquième correctif (bouton *Delete* de l'interface), validation en navigateur réel. |
 
 ## Conventions
 
