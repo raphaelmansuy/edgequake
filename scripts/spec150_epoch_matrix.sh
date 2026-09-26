@@ -212,11 +212,29 @@ run_one() {
     local rc=$?
     if [[ $rc -ne 0 ]]; then
       # Transient docker networking (connection refused) — one retry.
-      if grep -qiE 'connection refused|could not connect|server closed' "$report_dir/${tag}-migrate.log"; then
-        echo "  migrate retry after transient DB error…" >&2
+      # Under SKIP_SCHEMA_DIFF CI also retries any migrate_fail once (container
+      # flaps mid-matrix are common on shared GH runners).
+      if [[ "${SKIP_SCHEMA_DIFF:-0}" == "1" ]] \
+        || grep -qiE 'connection refused|could not connect|server closed' "$report_dir/${tag}-migrate.log"; then
+        echo "  migrate retry after failure (rc=$rc)…" >&2
         sleep 3
-        DATABASE_URL="$url" "$bin" migrate >>"$report_dir/${tag}-migrate.log" 2>&1
-        rc=$?
+        # Recreate PG if the container died mid-run.
+        if ! docker exec -e PGPASSWORD=edgequake "$container" \
+          psql -U edgequake -d edgequake -c 'SELECT 1' >/dev/null 2>&1; then
+          echo "  recreating PG container for retry…" >&2
+          docker rm -f "$container" >/dev/null 2>&1 || true
+          port=$(pick_port)
+          container=$(start_pg "$major" "$port") || true
+          url=$(db_url "$port")
+          if [[ -n "$container" ]]; then
+            replay_epoch "$tag" "$url" || true
+            psql "$url" -v ON_ERROR_STOP=0 -f "$SEED_SQL" >/dev/null 2>&1 || true
+          fi
+        fi
+        if [[ -n "$container" ]]; then
+          DATABASE_URL="$url" "$bin" migrate >>"$report_dir/${tag}-migrate.log" 2>&1
+          rc=$?
+        fi
       fi
     fi
     if [[ $rc -ne 0 ]]; then
