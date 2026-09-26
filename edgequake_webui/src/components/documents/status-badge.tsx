@@ -81,6 +81,7 @@ const statusConfig = {
   embedding: { icon: Cpu, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Embedding', animate: true },
   re_embedding: { icon: Cpu, color: 'bg-cyan-500', textColor: 'text-cyan-600 dark:text-cyan-400', label: 'Re-embedding', animate: true },
   storing: { icon: Database, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Storing', animate: true },
+  projecting: { icon: Database, color: 'bg-indigo-500', textColor: 'text-indigo-600 dark:text-indigo-400', label: 'Projecting', animate: true },
   processing: { icon: Loader2, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Processing', animate: true },
   indexing: { icon: Database, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', label: 'Indexing', animate: true },
 
@@ -135,6 +136,7 @@ const PROCESSING_STAGES = [
   { key: 'embedding', label: 'Embedding', description: 'Generating vector embeddings' },
   { key: 're_embedding', label: 'Re-embedding', description: 'Re-generating embeddings after slim checkpoint' },
   { key: 'storing', label: 'Storing', description: 'Storing in graph & vector databases' },
+  { key: 'projecting', label: 'Projecting', description: 'Applying projections to graph and vectors' },
 ] as const;
 
 function getStageProgress(status: DocumentStatus): { current: number; total: number; description: string } | null {

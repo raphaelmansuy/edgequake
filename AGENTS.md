@@ -698,6 +698,12 @@ make backend-bg
 | `EDGEQUAKE_VISION_MODEL_MANUSCRIPT` | Optional | Vision model override for manuscript-class docs (SPEC-134 WP-10; no vendor hardcoded) | `gpt-5.2`, … |
 | `EDGEQUAKE_VISION_MAX_IMAGE_BYTES` | Optional | Per-image binary budget for vision calls (SPEC-134 Slice D; default **3500000**). Oversized PNGs are re-encoded to JPEG. `0` disables | `3500000` |
 | `EDGEQUAKE_PDF_EMPTY_PAGE_RETRY` | Optional | Re-OCR pages that returned the empty placeholder while a page render exists (SPEC-134 Slice D; default **on**) | `0` / `false` disables |
+| `EDGEQUAKE_SCHEMA_GATE` | Optional | Serve boot when schema pending: `fail` (exit 78) or `wait` (lite `/live` 200, `/ready` 503) (SPEC-150; default **fail**; Helm/compose set **wait**) | `wait` |
+| `EDGEQUAKE_SCHEMA_GATE_POLL` | Optional | Seconds between ledger polls in wait mode (SPEC-150; default **2**) | `2` |
+| `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` | Optional | Seconds to wait for migrate advisory lock before exit 75 (SPEC-150; default **60**) | `60` |
+| `EDGEQUAKE_MIGRATE_LOCK_TIMEOUT` | Optional | Session `lock_timeout` for migrate (SPEC-150; default **5s**) | `5s` |
+| `EDGEQUAKE_MIGRATE_STATEMENT_TIMEOUT` | Optional | Override session `statement_timeout` for migrate (SPEC-150; default per lock_class) | `30s` |
+| `EDGEQUAKE_SERVE_RECONCILE` | Optional | One-release escape hatch: allow serve-time support reconcile (SPEC-150; default **off**) | `1` |
 | `OLLAMA_HOST`                  | Optional | Ollama server URL               | `http://localhost:11434`                             |
 | `OLLAMA_EMBEDDING_MODEL`       | Optional | Ollama embedding model          | `embeddinggemma:latest`                              |
 | `RUST_LOG`                     | Optional | Logging level                   | `debug`, `info`, `warn`                              |

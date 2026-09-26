@@ -248,6 +248,7 @@ async fn e2e_worker_cancel_ssot_clears_stage_progress() {
 
     let updated = edgequake_api::services::sync_doc_cancelled_by_document_id(
         Arc::clone(&workers.kv_storage),
+        None,
         doc_id,
         "Task cancelled during 'embedding' stage",
     )

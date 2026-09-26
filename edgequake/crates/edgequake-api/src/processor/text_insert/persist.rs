@@ -241,6 +241,7 @@ impl DocumentTaskProcessor {
             }
         };
 
+        let mut awaiting_projection = false;
         let chunk_embeddings_stored =
             match crate::services::persist_with_providers_progress_and_embedder(
                 persist_llm,
@@ -256,9 +257,17 @@ impl DocumentTaskProcessor {
                 text_embedder,
                 // SPEC-091 W1: relational chunk spine when pool is present
                 #[cfg(feature = "postgres")]
-                crate::services::resolve_relational_chunk_repo(self.pg_pool.as_ref()),
+                crate::services::resolve_relational_chunk_repo(self.optional_pg_pool()),
                 #[cfg(not(feature = "postgres"))]
                 crate::services::resolve_relational_chunk_repo(None),
+                #[cfg(feature = "postgres")]
+                self.app_state
+                    .as_ref()
+                    .and_then(|state| state.ingestion_committer.clone()),
+                #[cfg(feature = "postgres")]
+                self.app_state
+                    .as_ref()
+                    .and_then(|state| state.document_reader.clone()),
                 // SPEC-091 W3: typed embedding dual-write pool
                 #[cfg(feature = "postgres")]
                 self.pg_pool.clone(),
@@ -275,6 +284,7 @@ impl DocumentTaskProcessor {
             .await
             {
                 Ok(out) => {
+                    awaiting_projection = out.awaiting_projection;
                     info!(
                         document_id = %document_id,
                         chunk_vectors = out.chunk_vector_ids.len(),
@@ -359,6 +369,8 @@ impl DocumentTaskProcessor {
             );
             stats_with_lineage.error_details = Some(combined);
             "failed"
+        } else if awaiting_projection {
+            "projecting"
         } else {
             "completed"
         };

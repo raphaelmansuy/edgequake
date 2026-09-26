@@ -141,6 +141,7 @@ pub async fn stream_query(
         let tenant_filter = data_tenant_id.clone();
         match crate::handlers::query::document_filter_resolver::resolve_document_filter(
             state.storage.kv_storage.as_ref(),
+            state.optional_pg_pool(),
             filter,
             &tenant_filter,
             &ws_id_str,

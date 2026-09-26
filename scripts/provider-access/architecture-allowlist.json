@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "spec": "SPEC-149",
+  "policy": "SQL drivers and PgPool are forbidden in policy layers unless a path is listed here with a removal step.",
+  "allowlist": [
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/identity_storage.rs",
+      "reason": "Current identity SSOT performs credential, lockout, role, and membership SQL directly.",
+      "removal_step": "J21a"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/session_storage.rs",
+      "reason": "Refresh-token and API-key persistence is selected inside the API policy service.",
+      "removal_step": "J21a"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/handlers/auth/api_keys.rs",
+      "reason": "API-key lifecycle still reaches PostgreSQL-specific persistence paths from handlers.",
+      "removal_step": "J21a"
+    },
+    {
+      "path": "edgequake/crates/edgequake-core/src/workspace_service_impl/",
+      "reason": "Workspace, tenant, membership, quota, and metrics policy owns a PgPool and direct SQL.",
+      "removal_step": "J21b"
+    },
+    {
+      "path": "edgequake/crates/edgequake-core/src/conversation_service_impl.rs",
+      "reason": "Conversation policy is constructed directly from PgPool instead of ConversationStorage.",
+      "removal_step": "J21b"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/workspace_document_index.rs",
+      "reason": "Workspace document indexing and lookup use direct relational queries in an API service.",
+      "removal_step": "J21b"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/document_read_model.rs",
+      "reason": "Document list/read merge policy executes PostgreSQL queries instead of a scoped document reader port.",
+      "removal_step": "J21b"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/queue_relational_ssot.rs",
+      "reason": "Queue policy reads and mutates task relational state outside the task adapter.",
+      "removal_step": "J21c"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/task_document_sync.rs",
+      "reason": "Task/document synchronization performs direct PostgreSQL updates across service boundaries.",
+      "removal_step": "J21c"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/relational_sidecar_store.rs",
+      "reason": "The process-global sidecar pool provides direct SQL access to policy services.",
+      "removal_step": "J10"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/document_stage_mirror.rs",
+      "reason": "Ingestion staging mirrors document state with direct PostgreSQL statements.",
+      "removal_step": "J10"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/ingestion_dedup_store.rs",
+      "reason": "Admission idempotency and dedup state are implemented as direct SQL in policy code.",
+      "removal_step": "J21d"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/processor/pipeline_checkpoint.rs",
+      "reason": "Pipeline checkpoint persistence is coupled to PostgreSQL instead of an injected checkpoint port.",
+      "removal_step": "J21d"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/artifact_retrieval.rs",
+      "reason": "Artifact metadata lookup includes direct PostgreSQL access and provider-specific absence handling.",
+      "removal_step": "J21d"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/multimodal/",
+      "reason": "Multimodal manifest/chunk policy persists and loads PostgreSQL rows directly.",
+      "removal_step": "J21d"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/pdf_lineage.rs",
+      "reason": "PDF lineage persistence is direct PostgreSQL SQL outside the blob adapter traits.",
+      "removal_step": "J21d"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/server_config_store.rs",
+      "reason": "Runtime server configuration persistence uses PostgreSQL-specific storage in the API layer.",
+      "removal_step": "J21d"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/postgres_entity_sink.rs",
+      "reason": "The relational entity sink is assembled in the API crate and exposes PostgreSQL transaction details.",
+      "removal_step": "J10"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/postgres_lineage_sink.rs",
+      "reason": "Graph lineage authority writes are implemented in an API-local PostgreSQL sink.",
+      "removal_step": "J10"
+    },
+    {
+      "path": "edgequake/crates/edgequake-api/src/services/outbox_drain_applier.rs",
+      "reason": "Projection delivery policy currently consumes PostgreSQL outbox details directly.",
+      "removal_step": "J12"
+    }
+  ]
+}

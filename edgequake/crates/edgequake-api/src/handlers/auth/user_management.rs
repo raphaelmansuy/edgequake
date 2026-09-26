@@ -15,7 +15,9 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::handlers::auth::{ApiOptionalAuth, ApiRequireAdmin};
-use crate::state::{ApiSecurityConfig, AuthRuntime, PostgresRuntime, StorageRuntime};
+use crate::state::{
+    ApiSecurityConfig, AuthRuntime, OperationalStores, PostgresRuntime, StorageRuntime,
+};
 use edgequake_auth::{Role, User};
 
 use super::{get_record_by_id, persist_user_record, UserRecord};
@@ -85,6 +87,7 @@ pub async fn create_user(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     ApiOptionalAuth(auth_context): ApiOptionalAuth,
     Json(request): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<CreateUserResponse>), ApiError> {
@@ -168,7 +171,14 @@ pub async fn create_user(
     );
 
     let user_record = UserRecord::from(&user);
-    persist_user_record(&storage, Some(&pg_runtime), &security, &user_record).await?;
+    persist_user_record(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &user_record,
+    )
+    .await?;
 
     info!("User created: {} ({})", user.username, user.user_id);
 
@@ -277,12 +287,19 @@ pub async fn get_user(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserInfo>, ApiError> {
-    let record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
+    let record = get_record_by_id(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &user_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
 
     Ok(Json(UserInfo::from(&record)))
 }
@@ -308,12 +325,19 @@ pub async fn delete_user(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
+    let record = get_record_by_id(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &user_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
 
     #[cfg(feature = "postgres")]
     crate::services::identity_storage::delete_user_record(
@@ -356,13 +380,20 @@ pub async fn update_user(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     _admin: ApiRequireAdmin,
     Path(user_id): Path<String>,
     Json(request): Json<UpdateUserRequest>,
 ) -> Result<Json<UpdateUserResponse>, ApiError> {
-    let mut record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
+    let mut record = get_record_by_id(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &user_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound(format!("User not found: {}", user_id)))?;
     let now = Utc::now();
     let policy = crate::services::identity_storage::IdentityPolicy::resolve(
         &security,
@@ -425,7 +456,14 @@ pub async fn update_user(
 
     record.updated_at = now;
 
-    persist_user_record(&storage, Some(&pg_runtime), &security, &record).await?;
+    persist_user_record(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &record,
+    )
+    .await?;
 
     info!("User updated: {} ({})", record.username, user_id);
 

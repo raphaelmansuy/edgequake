@@ -16,3 +16,19 @@ pub struct PostgresRuntime {
 #[cfg(not(feature = "postgres"))]
 #[derive(Clone)]
 pub struct PostgresRuntime;
+
+impl PostgresRuntime {
+    /// Explicit pool port for handlers that extract `PostgresRuntime`.
+    #[inline]
+    pub fn optional_pg_pool(&self) -> crate::services::OptionalPgPool<'_> {
+        #[cfg(feature = "postgres")]
+        {
+            self.pool.as_ref()
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = self;
+            crate::services::no_pg_pool()
+        }
+    }
+}

@@ -115,6 +115,7 @@ impl ResolvedParseOptions {
                 status_hook: None,
                 pages: self.pages.clone(),
                 reasoning_effort: None,
+                api_timeout_secs: None,
             })
         } else {
             None

@@ -45,6 +45,10 @@ spec:
             - secretRef:
                 name: {{ .Values.api.langfuse.existingSecret }}
             {{- end }}
+          env:
+            # SPEC-150: wait for migrate Job instead of crash-looping on exit 78.
+            - name: EDGEQUAKE_SCHEMA_GATE
+              value: {{ .Values.api.schemaGate | default "wait" | quote }}
           lifecycle:
             preStop:
               exec:
@@ -54,6 +58,13 @@ spec:
                   - {{ .Values.api.preStopSleepSeconds | quote }}
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /live
+              port: http
+            failureThreshold: 60
+            periodSeconds: 5
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /live

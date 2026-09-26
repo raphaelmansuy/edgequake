@@ -1,126 +1,60 @@
 # Database Migrations
 
-EdgeQuake uses [SQLx](https://github.com/launchbadge/sqlx) embedded migrations. On server start with PostgreSQL, pending migrations in `edgequake/migrations/` are applied automatically.
+EdgeQuake uses [SQLx](https://github.com/launchbadge/sqlx) embedded migrations.
+**Schema is applied only by `edgequake migrate`** (SPEC-091 LD-15 / SPEC-150).
+The API process never auto-applies numbered migrations on start.
 
 ## Quick Reference
 
 | Task | Command |
 |------|---------|
-| Fresh dev stack | `make dev` (migrations run on backend start) |
-| Check migration immutability | `./scripts/check_migration_checksums.sh` |
-| Resource safety proofs | `make resource-proof` |
-| Migration 038 (prod ops) | `edgequake/scripts/migrations/apply_038.sh --help` |
+| Fresh dev stack | `make dev` (runs `edgequake migrate` before backend start) |
+| Apply schema | `edgequake migrate` / `edgequake migrate --confirm-drop` |
+| Drain data jobs | `edgequake migrate drain` |
+| Preview | `edgequake migrate dry-run` |
+| Check immutability | `./scripts/check_migration_checksums.sh` |
+| Manifest SSOT | `edgequake/migrations/manifest.toml` |
 
 ## How Migrations Work
 
 1. **Numbered SQL files** — `NNN_description.sql` in `edgequake/migrations/`
-2. **Bootstrap auto-apply** — `migration_bootstrap::run_postgres_migrations()` on API start (progression logs + post-hooks)
-3. **Immutability lock** — `edgequake/migrations/checksums.lock` prevents editing deployed migrations
-4. **Support scripts** — `edgequake/migrations/support/` holds ops-only SQL (not picked up by sqlx)
+2. **Explicit CLI apply** — `edgequake migrate` (admin pool + reconcile)
+3. **Manifest** — phases, fossils, irreversible drops, compat window (SPEC-150)
+4. **Immutability lock** — `checksums.lock` is append-only; never edit shipped bodies
+5. **Support scripts** — `migrations/support/` ops-only SQL (also locked)
 
-### Bootstrap behavior (first principles)
+### Serving vs migrate
 
-| Principle | Implementation |
-|-----------|----------------|
-| Idempotent | sqlx + `CREATE INDEX IF NOT EXISTS`; safe restart |
-| Observable | Structured `edgequake.migration` logs per step/graph |
-| Workload-safe | Graphs ≥500k vertices: defer blocking index build; ops use `--concurrent` |
-| Non-fatal | Missing AGE → skip 038 verify; server still starts |
-| Verifiable | `/health` → `schema.source_ids_indexes` reports readiness |
+| Process | Writes schema? | Behavior when behind |
+|---------|----------------|----------------------|
+| `edgequake migrate` | Yes | Applies expandables; gates drops behind `--confirm-drop` |
+| API (`edgequake`) | No | `EDGEQUAKE_SCHEMA_GATE=fail` → exit 78; `wait` → lite `/live` + `/ready` 503 |
 
-**Env vars:**
+**Env vars (SPEC-150):**
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `EDGEQUAKE_MIGRATION_LARGE_GRAPH_THRESHOLD` | `500000` | Defer inline index repair above this vertex count |
+| `EDGEQUAKE_SCHEMA_GATE` | `fail` | `wait` binds lite router until migrate catches up |
+| `EDGEQUAKE_SCHEMA_GATE_POLL` | `2` | Poll seconds in wait mode |
+| `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` | `60` | Advisory lock wait (exit 75) |
+| `EDGEQUAKE_MIGRATE_LOCK_TIMEOUT` | `5s` | Session `lock_timeout` |
+| `EDGEQUAKE_MIGRATE_STATEMENT_TIMEOUT` | (per class) | Session `statement_timeout` |
+| `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` | unset | Emergency unknown-hash override |
+| `EDGEQUAKE_SERVE_RECONCILE` | unset | One-release escape for serve-time support DDL |
+| `EDGEQUAKE_MIGRATION_LARGE_GRAPH_THRESHOLD` | `500000` | Defer inline index repair |
 
-**Log target:** filter with `RUST_LOG=edgequake.migration=info` for migration-only progression output.
+See `specs/150-reliable-migration-system/` for the full design.
 
-### Rules
 
-- **Never edit** a migration that has been deployed to production. Add a new numbered file instead.
-- **Append checksum** when adding a migration: `./scripts/update_migration_checksums.sh`
-- **Atomic commit:** stage new `NNN_*.sql` and `checksums.lock` together. The pre-commit hook (`./scripts/install_migration_hooks.sh`) hard-fails if either half is missing; bypass only with `--no-verify` (CI still fails).
-- **Auxiliary SQL** (preflight, rollback, CONCURRENTLY) lives under `migrations/support/` — not in the sqlx scan path.
-
-## Migration 038 — source_ids Indexes (SPEC-006)
-
-Improves bounded document delete, lineage, and relationship lookups on large AGE graphs.
-
-| File | Role |
-|------|------|
-| `038_add_source_ids_gin_indexes.sql` | sqlx version marker (no blocking DDL) |
-| `support/038/apply.sql` | Size-aware index SSOT (bootstrap + ops) |
-| `support/038/preflight.sql` | Read-only preflight |
-| `support/038/concurrent.sql` | Zero-downtime for large graphs |
-| `support/038/rollback.sql` | Drop indexes only |
-| `support/038/verify.sql` | Post-apply verification |
-
-**Full guide:** [migrations/038-source-ids-indexes.md](migrations/038-source-ids-indexes.md)
+## Golden path (upgrade)
 
 ```bash
-export DATABASE_URL="postgres://edgequake:edgequake@localhost/edgequake"
-./edgequake/scripts/migrations/apply_038.sh --dry-run
-./edgequake/scripts/migrations/apply_038.sh --apply --yes
-./edgequake/scripts/migrations/apply_038.sh --verify
+edgequake migrate dry-run
+edgequake migrate
+edgequake migrate drain --timeout 3600   # optional data cutover
+edgequake migrate --confirm-drop         # only when guard GREEN
+curl -sf localhost:8080/ready
 ```
 
-## Migration 078 — Child Workspace Stats Indexes (SPEC-040 / #262)
-
-Repairs AGE child-table indexes for workspace-scoped graph stats (fixes 15s timeout / nested-loop plans on large graphs).
-
-| File | Role |
-|------|------|
-| `078_age_child_workspace_stats.sql` | sqlx migration — auto-applied on `make dev` / backend start |
-| `support/078/concurrent.sql` | Ops-only CONCURRENTLY build for graphs >100k nodes |
-| `specs/040-edgequake-issues/e2e/measure_graph_stats_perf.sh` | Performance proof |
-
-**Full guide:** [migrations/078-age-child-workspace-stats.md](migrations/078-age-child-workspace-stats.md)
-
-```bash
-# Verify auto-deploy (local)
-psql "$DATABASE_URL" -c "SELECT version, description FROM _sqlx_migrations WHERE version = 78;"
-
-# Measure performance post-M078
-./specs/040-edgequake-issues/e2e/measure_graph_stats_perf.sh
-
-# Production large graph (manual, outside transaction)
-psql "$DATABASE_URL" -f edgequake/migrations/support/078/concurrent.sql
-```
-
-## Post-deploy verify (087–089 / SPEC-057)
-
-After upgrading an environment that applies migrations 087–089, confirm lockfile and view shape:
-
-```sql
-SELECT version, description, encode(checksum, 'hex')
-FROM _sqlx_migrations
-WHERE version IN (87, 88, 89)
-ORDER BY version;
-
-SELECT column_name
-FROM information_schema.columns
-WHERE table_schema = 'edgequake' AND table_name = 'tasks'
-  AND column_name LIKE 'lease%'
-ORDER BY column_name;
-```
-
-Checksum hex must match the three lines in `edgequake/migrations/checksums.lock`.
-Expect `lease_expires_at`, `lease_owner`, `lease_token` on `edgequake.tasks`.
-Repeat on staging/prod after each upgrade; local `make dev` already applies these on backend start.
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| `migration N was previously applied but has been modified` | Restore canonical SQL or create new migration; never edit deployed files |
-| `column "lease_expires_at" does not exist` on claim | Apply migration 089 (refresh `edgequake.tasks` view after 088); do not edit 088 |
-| Backend fails on migrate | Check `DATABASE_URL`, PostgreSQL version, AGE extension |
-| Slow stats / graph timeout on large workspace | Apply migration 078 (auto on upgrade); verify with `measure_graph_stats_perf.sh`; use `support/078/concurrent.sql` if >100k nodes |
-| OOM on list/delete (exit 137) | See [SPEC-006](../../specifications/006-ensure-perf/010-brutal-assessment.md); run `make resource-proof` |
-
-## Related Docs
-
-- [Runbook](runbook.md) — production operations
-- [Getting Started](getting-started.md) — local setup
-- [SPEC-006 specification](../../specifications/006-ensure-perf/000-index.md)
+Full runbook: [`specs/150-reliable-migration-system/11-ops-runbook.md`](../../specs/150-reliable-migration-system/11-ops-runbook.md).
+Epoch proof: `make spec150-matrix-quick`.

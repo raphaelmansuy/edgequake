@@ -502,7 +502,7 @@ export function DocumentManager() {
       }
       const pct =
         primary.progress01 != null
-          ? Math.round(primary.progress01 * 100)
+          ? Math.round(Math.min(1, Math.max(0, primary.progress01)) * 100)
           : undefined;
       const stage = stageDisplayName(String(primary.stage));
       return pct != null

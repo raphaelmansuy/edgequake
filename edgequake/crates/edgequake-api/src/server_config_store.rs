@@ -113,7 +113,7 @@ impl ServerConfigStore {
     #[cfg(feature = "postgres")]
     pub async fn snapshot_with_postgres(
         &self,
-        pool: Option<&sqlx::PgPool>,
+        pool: crate::services::OptionalPgPool<'_>,
     ) -> ServerConfigSnapshot {
         let inner = self.inner.read().await;
         ServerConfigSnapshot {

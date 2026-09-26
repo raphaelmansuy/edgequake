@@ -29,6 +29,7 @@ pub(crate) async fn record_failed_login(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    identity: Option<&dyn edgequake_storage::contracts::IdentityStore>,
     config: &AuthConfig,
     record: &mut UserRecord,
 ) -> Result<(), ApiError> {
@@ -44,7 +45,7 @@ pub(crate) async fn record_failed_login(
         record.locked_until = Some(now + chrono::Duration::seconds(lock_secs as i64));
     }
     record.updated_at = now;
-    persist_user_record(storage, pg_runtime, security, record).await?;
+    persist_user_record(storage, pg_runtime, security, identity, record).await?;
 
     if locked_now {
         return Err(ApiError::account_locked());
@@ -57,6 +58,7 @@ pub(crate) async fn record_successful_login(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    identity: Option<&dyn edgequake_storage::contracts::IdentityStore>,
     record: &mut UserRecord,
 ) -> Result<(), ApiError> {
     let now = Utc::now();
@@ -64,7 +66,7 @@ pub(crate) async fn record_successful_login(
     record.locked_until = None;
     record.last_login_at = Some(now);
     record.updated_at = now;
-    persist_user_record(storage, pg_runtime, security, record).await?;
+    persist_user_record(storage, pg_runtime, security, identity, record).await?;
     Ok(())
 }
 

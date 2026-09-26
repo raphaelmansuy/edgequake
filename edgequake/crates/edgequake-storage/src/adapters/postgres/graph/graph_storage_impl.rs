@@ -222,6 +222,16 @@ impl GraphStorageMutateOps for PostgresAGEGraphStorage {
             .await
     }
 
+    async fn delete_nodes_scoped_batch(
+        &self,
+        node_ids: &[String],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize> {
+        self.pg_delete_nodes_scoped_batch(node_ids, tenant_id, workspace_id)
+            .await
+    }
+
     async fn upsert_edge(
         &self,
         source: &str,
@@ -262,6 +272,16 @@ impl GraphStorageMutateOps for PostgresAGEGraphStorage {
         workspace_id: &str,
     ) -> Result<bool> {
         self.pg_delete_edge_scoped(source, target, tenant_id, workspace_id)
+            .await
+    }
+
+    async fn delete_edges_scoped_batch(
+        &self,
+        edges: &[(String, String)],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize> {
+        self.pg_delete_edges_scoped_batch(edges, tenant_id, workspace_id)
             .await
     }
 

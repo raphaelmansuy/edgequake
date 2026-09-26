@@ -58,7 +58,7 @@ async fn spec045_orphan_heartbeat_syncs_document_to_failed() {
     };
 
     let err_msg = "Task heartbeat lost (no update for 12 minutes). The worker may have crashed.";
-    sync_document_failed_on_orphan_heartbeat(Arc::clone(&kv), &task, err_msg)
+    sync_document_failed_on_orphan_heartbeat(Arc::clone(&kv), None, &task, err_msg)
         .await
         .expect("sync");
 
@@ -79,6 +79,10 @@ fn spec045_extract_document_id_wired_in_main_periodic_orphan() {
     let main_rs = include_str!("../../../src/main.rs");
     assert!(main_rs.contains("sync_document_failed_on_orphan_heartbeat"));
     assert!(main_rs.contains("periodic_kv_storage"));
+    assert!(
+        main_rs.contains("periodic_pg_pool"),
+        "periodic orphan check must thread pg_pool into heartbeat sync"
+    );
     assert!(extract_document_id_from_task(&Task::new(
         uuid::Uuid::new_v4(),
         uuid::Uuid::new_v4(),

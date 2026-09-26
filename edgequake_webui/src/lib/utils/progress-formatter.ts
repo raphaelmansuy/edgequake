@@ -100,13 +100,14 @@ export function formatStageName(stage: IngestionStage): string {
     gleaning: "Refining Extraction",
     merging: "Merging Graph",
     summarizing: "Summarizing",
-    embedding: "Generating Embeddings",
-    storing: "Storing",
-    indexing: "Indexing",
-    completed: "Completed",
-    failed: "Failed",
-    pending: "Pending",
-  };
+  embedding: "Generating Embeddings",
+  storing: "Storing",
+  projecting: "Applying Projections",
+  indexing: "Indexing",
+  completed: "Completed",
+  failed: "Failed",
+  pending: "Pending",
+};
 
   return stageNames[stage] || stage;
 }
@@ -247,7 +248,10 @@ export function formatOverallProgress(track: IngestionProgress): string {
  * - 100 → "100%"
  */
 export function formatProgressPercentage(progress: number): string {
-  return `${Math.round(progress)}%`;
+  if (!Number.isFinite(progress)) {
+    return "0%";
+  }
+  return `${Math.round(Math.min(100, Math.max(0, progress)))}%`;
 }
 
 /**

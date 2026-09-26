@@ -13,6 +13,7 @@ describe("normalizeProgressEvent", () => {
         task_id: "track-1",
         page_num: 5,
         total_pages: 10,
+        completed_pages: 5,
         phase: "extraction",
         markdown_len: 100,
         success: true,
@@ -25,8 +26,65 @@ describe("normalizeProgressEvent", () => {
     expect(event.data.document_id).toBe("pdf-1");
     expect(event.data.current_page).toBe(5);
     expect(event.data.total_pages).toBe(10);
+    expect(event.data.completed_pages).toBe(5);
     expect(event.data.progress).toBe(0.5);
     expect(event.data.phase).toBe("extraction");
+  });
+
+  it("derives progress from completed_pages not physical page_num", () => {
+    const event = normalizeProgressEvent({
+      type: "PdfPageProgress",
+      data: {
+        pdf_id: "pdf-1",
+        task_id: "track-1",
+        page_num: 24,
+        total_pages: 25,
+        completed_pages: 12,
+        phase: "extracted",
+        success: true,
+      },
+    });
+    expect(event?.type).toBe("PdfPageProgress");
+    if (event?.type !== "PdfPageProgress") return;
+    expect(event.data.current_page).toBe(24);
+    expect(event.data.completed_pages).toBe(12);
+    expect(event.data.progress).toBe(0.48);
+  });
+
+  it("legacy progress without completed_pages derives completion count", () => {
+    const event = normalizeProgressEvent({
+      type: "PdfPageProgress",
+      data: {
+        pdf_id: "pdf-1",
+        task_id: "track-1",
+        page_num: 7,
+        total_pages: 10,
+        progress: 0.7,
+        phase: "extraction",
+        success: true,
+      },
+    });
+    expect(event?.type).toBe("PdfPageProgress");
+    if (event?.type !== "PdfPageProgress") return;
+    expect(event.data.completed_pages).toBe(7);
+    expect(event.data.progress).toBe(0.7);
+  });
+
+  it("clamps malformed progress into 0..1", () => {
+    const event = normalizeProgressEvent({
+      type: "PdfPageProgress",
+      data: {
+        pdf_id: "pdf-1",
+        task_id: "track-1",
+        page_num: 1,
+        total_pages: 10,
+        completed_pages: 1,
+        progress: 250,
+      },
+    });
+    expect(event?.type).toBe("PdfPageProgress");
+    if (event?.type !== "PdfPageProgress") return;
+    expect(event.data.progress).toBe(1);
   });
 
   it("U-149-11 preserves StageTransition data envelope", () => {

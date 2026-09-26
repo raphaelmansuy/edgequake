@@ -56,6 +56,24 @@ services:
       retries: 5
       start_period: 10s
 
+  # ── Schema migrate (SPEC-150: before API) ───────────────────────────────────
+  migrate:
+    image: ghcr.io/raphaelmansuy/edgequake:${EDGEQUAKE_VERSION:-latest}
+    container_name: edgequake-migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      EDGEQUAKE_MIGRATE_CLI: "1"
+      EDGEQUAKE_LLM_PROVIDER: mock
+      EDGEQUAKE_EMBEDDING_PROVIDER: mock
+      EDGEQUAKE_ALLOW_MOCK_PROVIDER: "1"
+    command: ["edgequake", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edgequake
+
   # ── EdgeQuake API ──────────────────────────────────────────────────────────
   api:
     image: ghcr.io/raphaelmansuy/edgequake:${EDGEQUAKE_VERSION:-latest}
@@ -67,6 +85,8 @@ services:
       EDGEQUAKE_HOST: 0.0.0.0
       EDGEQUAKE_PORT: 8080
       DATABASE_URL: postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      # SPEC-150: wait for migrate instead of exit 78
+      EDGEQUAKE_SCHEMA_GATE: ${EDGEQUAKE_SCHEMA_GATE:-wait}
       # ── LLM Provider ────────────────────────────────────────────────────────
       # Default: Ollama running on the host machine.
       # Override: EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-...
@@ -148,6 +168,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - edgequake
     healthcheck:

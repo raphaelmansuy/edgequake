@@ -65,22 +65,22 @@ pub async fn get_workspace_vector_storage_with_fallback(
     }
 }
 
-/// Lenient vector storage lookup for deletion (never block delete on missing workspace).
+/// Resolve the exact workspace binding for deletion.
+///
+/// Resolution failure is returned so callers can leave targeted cleanup
+/// pending. It must never redirect a delete to the default binding.
 pub async fn get_workspace_vector_storage_for_delete(
     state: &AppState,
     workspace_id: &str,
-) -> Arc<dyn VectorStorage> {
-    match get_workspace_vector_storage_strict(state, workspace_id).await {
-        Ok(storage) => storage,
-        Err(e) => {
+) -> Result<Arc<dyn VectorStorage>, ApiError> {
+    get_workspace_vector_storage_strict(state, workspace_id)
+        .await
+        .map_err(|error| {
             warn!(
                 workspace_id = %workspace_id,
-                error = %e,
-                "Workspace not found or vector storage unavailable during document deletion. \
-                 Proceeding with default storage. Orphaned vector rows (if any) can be \
-                 cleaned up later via the vector storage maintenance API."
+                error = %error,
+                "Exact vector binding unavailable; targeted deletion remains pending"
             );
-            state.storage.vector_registry.default_storage()
-        }
-    }
+            error
+        })
 }

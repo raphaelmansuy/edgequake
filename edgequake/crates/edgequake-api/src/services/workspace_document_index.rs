@@ -19,14 +19,17 @@ use edgequake_storage::traits::KVStorage;
 /// the shared sidecar registry (SPEC-091 Wave B4/B5) so one pool serves every
 /// relational KV-family cutover (DRY).
 #[cfg(feature = "postgres")]
-pub fn register_membership_pool(pool: sqlx::PgPool) {
+pub fn register_membership_pool(pool: impl Into<std::sync::Arc<sqlx::PgPool>>) {
     crate::services::relational_sidecar_store::register_sidecar_pool(pool);
 }
 
 /// Relational membership: `documents.id` for a workspace, when cut over.
 /// Returns `None` (→ KV fallback) when the flag is off, no pool is registered,
 /// the workspace id is not a UUID, or the query fails (warn-logged).
-async fn relational_workspace_doc_ids(workspace_id: &str) -> Option<Vec<String>> {
+async fn relational_workspace_doc_ids(
+    pool: crate::services::OptionalPgPool<'_>,
+    workspace_id: &str,
+) -> Option<Vec<String>> {
     #[cfg(feature = "postgres")]
     {
         // SPEC-091 RM1: relational is SSOT. Explicit `EDGEQUAKE_KV_FAMILY_WSDOC=kv`
@@ -35,7 +38,7 @@ async fn relational_workspace_doc_ids(workspace_id: &str) -> Option<Vec<String>>
         if force_kv {
             return None;
         }
-        let pool = crate::services::relational_sidecar_store::sidecar_pool()?;
+        let pool = pool?;
         let ws = uuid::Uuid::parse_str(workspace_id).ok()?;
         // Wave B3/C: shell-written documents may carry the workspace in the
         // metadata JSONB while the FK-guarded `workspace_id` column stays NULL
@@ -64,7 +67,7 @@ async fn relational_workspace_doc_ids(workspace_id: &str) -> Option<Vec<String>>
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = workspace_id;
+        let _ = (pool, workspace_id);
         None
     }
 }
@@ -156,19 +159,23 @@ pub struct WorkspaceMetadataKeyList {
 /// List metadata keys for documents in a workspace via index prefix scan.
 pub async fn list_workspace_metadata_keys(
     kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> Result<Vec<String>, StorageError> {
-    Ok(list_workspace_metadata_keys_detailed(kv, workspace_id)
-        .await?
-        .keys)
+    Ok(
+        list_workspace_metadata_keys_detailed(kv, pool, workspace_id)
+            .await?
+            .keys,
+    )
 }
 
 /// Same as [`list_workspace_metadata_keys`] but preserves membership authority.
 pub async fn list_workspace_metadata_keys_detailed(
     kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> Result<WorkspaceMetadataKeyList, StorageError> {
-    if let Some(doc_ids) = relational_workspace_doc_ids(workspace_id).await {
+    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id).await {
         return Ok(WorkspaceMetadataKeyList {
             keys: doc_ids
                 .iter()
@@ -206,22 +213,24 @@ pub async fn list_workspace_metadata_keys_detailed(
 /// huge limits to `i64` for SQL is undefined for the unlimited path.
 pub async fn list_workspace_metadata_keys_limited(
     kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
     max_entries: usize,
 ) -> Result<(Vec<String>, bool), StorageError> {
     let listed =
-        list_workspace_metadata_keys_limited_detailed(kv, workspace_id, max_entries).await?;
+        list_workspace_metadata_keys_limited_detailed(kv, pool, workspace_id, max_entries).await?;
     Ok((listed.keys, listed.truncated))
 }
 
 /// Bounded listing with membership authority (see [`WorkspaceMetadataKeyList`]).
 pub async fn list_workspace_metadata_keys_limited_detailed(
     kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
     max_entries: usize,
 ) -> Result<WorkspaceMetadataKeyList, StorageError> {
     let max_entries = max_entries.clamp(1, 1_000_000);
-    if let Some(doc_ids) = relational_workspace_doc_ids(workspace_id).await {
+    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id).await {
         // Relational branch: bounded in-memory — the relational read path
         // scales via `idx_documents_tenant_workspace`, and Wave C replaces
         // metadata keys wholesale, so a SQL LIMIT here would be throwaway.
@@ -268,9 +277,10 @@ pub async fn list_workspace_metadata_keys_limited_detailed(
 /// Document ids indexed under a workspace (prefix scan).
 pub async fn list_workspace_document_ids(
     kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> Result<Vec<String>, StorageError> {
-    if let Some(doc_ids) = relational_workspace_doc_ids(workspace_id).await {
+    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id).await {
         return Ok(doc_ids);
     }
     let prefix = kv_keys::workspace_doc_index_prefix(workspace_id);
@@ -328,7 +338,7 @@ mod tests {
         upsert_metadata_kv_with_index(kv.as_ref(), "doc-x-metadata", meta)
             .await
             .unwrap();
-        let keys = list_workspace_metadata_keys(kv.as_ref(), &ws)
+        let keys = list_workspace_metadata_keys(kv.as_ref(), None, &ws)
             .await
             .unwrap();
         assert_eq!(keys, vec!["doc-x-metadata".to_string()]);
@@ -350,7 +360,7 @@ mod tests {
             .await
             .unwrap();
 
-        let keys = list_workspace_metadata_keys(kv.as_ref(), &ws)
+        let keys = list_workspace_metadata_keys(kv.as_ref(), None, &ws)
             .await
             .unwrap();
         assert_eq!(keys, vec!["doc-b-metadata".to_string()]);
@@ -375,7 +385,7 @@ mod tests {
             .await
             .unwrap();
 
-        let keys = list_workspace_metadata_keys(kv.as_ref(), &ws)
+        let keys = list_workspace_metadata_keys(kv.as_ref(), None, &ws)
             .await
             .unwrap();
         assert_eq!(keys, vec![meta_key.to_string()]);

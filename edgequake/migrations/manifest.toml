@@ -1,0 +1,1162 @@
+# SPEC-150 migration manifest — single source of truth
+# Fossils: known historical SHA-384 variants auto-accepted by edgequake migrate.
+# checksums.lock remains the CI pin of the *current* hash per file.
+
+schema_version = 1
+compat_serve_min = 149
+compat_serve_max = 159
+irreversible_drop = [125, 126, 131]
+legacy_cutover_assert = 142
+
+[[migration]]
+version = 1
+file = "001_init_database.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+[[migration.fossils]]
+sha384 = "9e44513e1b22ab482a3703f394d1f0e35fe24625b77eca236789a3b702bbf6c1ceb9ed8beed4e13c9c4ca4b28feae925"
+tags = ["v0.11.0"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 2
+file = "002_add_tasks_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 3
+file = "003_add_document_status_fields.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 4
+file = "004_add_conversation_history_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 5
+file = "005_add_audit_log_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 6
+file = "006_add_is_manual_flags.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 7
+file = "007_add_auth_tables.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 8
+file = "008_add_multi_tenancy_tables.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 9
+file = "009_add_rls_policies.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 10
+file = "010_add_conversations_tables.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 11
+file = "011_tenant_performance_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 12
+file = "012_audit_logs_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 13
+file = "013_add_age_graph.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 14
+file = "014_add_graph_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 15
+file = "015_add_fulltext_search.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 16
+file = "016_workspace_metrics_history.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 17
+file = "017_add_processing_substates.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 19
+file = "019_add_tenant_workspace_to_tasks.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+[[migration.fossils]]
+sha384 = "7b544306c5da16b05ec0607aa81b356055e82f4247705f98b5b036c26ab2cf1c5910d2a062309c6fedbd44e0eb54437a"
+tags = ["v0.10.6", "v0.10.7", "v0.10.8", "v0.10.9", "v0.10.10", "v0.10.11", "v0.10.12"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 20
+file = "020_add_circuit_breaker_to_tasks.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 21
+file = "021_add_failed_chunks_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 22
+file = "022_add_pdf_documents_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 23
+file = "023_workspace_scoped_content_hash.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 24
+file = "024_fix_task_status_constraint.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 25
+file = "025_add_pdf_unique_checksum.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 26
+file = "026_fix_task_type_constraint.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 27
+file = "027_add_gin_index_metadata.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 28
+file = "028_add_vector_materialized_columns.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 29
+file = "029_add_vector_btree_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 30
+file = "030_add_server_config.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 31
+file = "031_refresh_edgequake_tasks_view.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 32
+file = "032_fix_document_status_constraints.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 33
+file = "033_add_edgeparse_extraction_method.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 34
+file = "034_fix_pdf_documents_edgeparse_constraint.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 35
+file = "035_harden_task_compatibility_defaults.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 36
+file = "036_add_edge_property_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 37
+file = "037_backfill_vector_tenant_workspace_columns.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 38
+file = "038_add_source_ids_gin_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 39
+file = "039_cqrs_entities_schema.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 40
+file = "040_entity_backfill_marker.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 41
+file = "041_document_stats_columns.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 42
+file = "042_pgvector_upgrade_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 43
+file = "043_age_upgrade_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 44
+file = "044_community_labels_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 45
+file = "045_vector_content_fts_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 46
+file = "046_graph_isolation_perf_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 47
+file = "047_workspace_doc_kv_index_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 48
+file = "048_auth_identity_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 49
+file = "049_membership_identity_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 50
+file = "050_pg_rls_context_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 51
+file = "051_pg_identity_ssot_primary_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 52
+file = "052_pg_session_artifacts_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 53
+file = "053_pg_auth_kv_reads_removed_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 54
+file = "054_identity_pg_rls_envelope_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 55
+file = "055_auth_secure_by_default_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 56
+file = "056_auth_kv_store_consolidated_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 57
+file = "057_kv_identity_mirror_deprecated_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 58
+file = "058_kv_mirror_ignored_with_pg_pool_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 59
+file = "059_pg_only_auth_branch_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 60
+file = "060_oauth_oidc_honesty_auth_kv_quarantine_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 61
+file = "061_auth_kv_handler_isolation_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 62
+file = "062_auth_mod_identity_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 63
+file = "063_auth_service_layer_ssot_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 64
+file = "064_oauth_oidc_builtin_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 65
+file = "065_auth_kv_eliminated_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 66
+file = "066_chunk_lineage_tables.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 67
+file = "067_native_graph_write_helpers.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 68
+file = "068_drop_kv_gin_value_index.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 69
+file = "069_drop_duplicate_fts_index.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 70
+file = "070_consolidate_age_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 71
+file = "071_hnsw_optimize.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+[[migration.fossils]]
+sha384 = "fa6cce9c4b088b5dbc850764887e9bd119f32ceca259611113ab4673b6c3319353ae2b44218a3d312d03e3509f5520ca"
+tags = ["v0.13.0", "v0.13.2", "v0.13.3"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 72
+file = "072_edge_text_cast_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 73
+file = "073_drop_vector_metadata_gin.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 74
+file = "074_native_upsert_unique_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 75
+file = "075_fix_native_graph_write_helpers.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 76
+file = "076_fix_graphid_cast.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 77
+file = "077_post_startup_index_cleanup.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 78
+file = "078_age_child_workspace_stats.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+[[migration.fossils]]
+sha384 = "d22cc6d8416c6a8ccf28542c583724f139fcf70926edef4faec490b9daac665a7e526b9c46bdc758f4c05d0d0c1d62d2"
+tags = ["v0.13.2"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 79
+file = "079_age_child_node_index_reconcile.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 80
+file = "080_halfvec_embeddings_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 81
+file = "081_age_graph_rls_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 82
+file = "082_add_document_originals.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 83
+file = "083_age_native_unique_index_reconcile.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 84
+file = "084_add_document_mm_assets.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 85
+file = "085_document_mm_assets_asset_id.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 86
+file = "086_edge_bfs_index_reconcile.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 87
+file = "087_pdf_processing_status_cancelled.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 88
+file = "088_task_lease_columns.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 89
+file = "089_refresh_tasks_view_lease_columns.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 90
+file = "090_eq_merge_graph_properties.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 91
+file = "091_vector_content_tsv_writable.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 92
+file = "092_eq_id_denorm_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 93
+file = "093_eq_serving_chunk_presence.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 94
+file = "094_extend_task_type_deletion.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 95
+file = "095_extend_task_type_workspace_wipe.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 96
+file = "096_rls_fail_closed_force.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 97
+file = "097_edge_multigraph_rel_type.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 98
+file = "098_batch_deletion_task_type_and_claim_index.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 99
+file = "099_tasks_progress_column.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 100
+file = "100_tasks_claim_pending_idx.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 101
+file = "101_tasks_pdf_id_column.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 102
+file = "102_reconcile_state_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 103
+file = "103_pdf_document_blobs_side_table.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 104
+file = "104_tasks_monthly_partitions.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 105
+file = "105_pdf_blob_cutover.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 106
+file = "106_spec091_migration_engine.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 107
+file = "107_spec091_typed_kv_replacements.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 108
+file = "108_spec091_chunk_embeddings.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 109
+file = "109_spec091_serving_fence.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 110
+file = "110_spec091_provider_budget.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 111
+file = "111_spec091_fairness_park_marker.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 112
+file = "112_spec120_cancel_fence.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 113
+file = "113_spec120_task_p1.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 114
+file = "114_spec120_task_p2.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 115
+file = "115_spec120_status_transition_trigger.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 116
+file = "116_spec091_sidecar_tables.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 117
+file = "117_spec091_dedup_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 118
+file = "118_spec091_wsdoc_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+[[migration.fossils]]
+sha384 = "331967467fdbeb58aeeb41ca92b6e3ec87ee84ace9286166275e14af9699a4cb862f1a92516043ee9c2489138a560629"
+tags = ["v0.23.0", "v0.24.0", "v0.24.1"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 119
+file = "119_spec091_artifact_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 120
+file = "120_spec091_auth_kv_purge.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 121
+file = "121_spec091_injection_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+[[migration.fossils]]
+sha384 = "da347384f34eb9db99d635f482293c7ce4cb678f3dc1a809e9b0308b95a8475471a9fa5b894667fb7a9d8207d8e5de7f"
+tags = ["v0.23.0", "v0.24.0", "v0.24.1"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 122
+file = "122_spec091_shell_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 123
+file = "123_spec091_job_control_states.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 124
+file = "124_spec091_llm_cache_drain.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 125
+file = "125_spec091_kv_drop.sql"
+phase = "contract"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+confirm_drop = true
+[[migration.fossils]]
+sha384 = "67b73fd0f683dd5cae06213ae59c75c2f8fea214074e8b250997aa77efc90a1fa01c14764f9fdb968b0e73685136b2f6"
+tags = ["v0.23.0", "v0.24.0", "v0.24.1"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 126
+file = "126_spec091_vector_drop.sql"
+phase = "contract"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+confirm_drop = true
+
+[[migration]]
+version = 128
+file = "128_spec091_listing_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 129
+file = "129_spec091_chunk_hnsw_ef_converge.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 130
+file = "130_spec091_fleet_embeddings.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 131
+file = "131_spec091_fleet_vector_drop.sql"
+phase = "contract"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+confirm_drop = true
+[[migration.fossils]]
+sha384 = "461fa2a7c560513df711f954edd4f24444c91cd0385a70189e41cecdebaf2f53cca49c932122b0d002407a6c7fc0dbe8"
+tags = ["v0.23.0", "v0.24.0", "v0.24.1"]
+equivalence = "equivalent"
+dev_only = false
+[[migration.fossils]]
+sha384 = "d6bc6c00b753f8599248dda86ce5d314e147491bcbb9932273c43afcbfc84a5d51c6a797387dfffeeca00588dc02c896"
+tags = ["pre-release"]
+equivalence = "equivalent"
+dev_only = false
+
+[[migration]]
+version = 132
+file = "132_spec091_unconstrained_halfvec.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 133
+file = "133_spec091_outbox_harden.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 134
+file = "134_spec091_outbox_drain.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 135
+file = "135_spec091_chunk_context_preamble.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 136
+file = "136_spec091_chunk_content_tsv.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 137
+file = "137_spec091_age_citation_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 138
+file = "138_tasks_fairness_hold_until.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 139
+file = "139_spec098_entity_spine_ensure.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 140
+file = "140_spec098_edge_arbiter_reconcile.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 141
+file = "141_spec098_document_lifecycle_status.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 142
+file = "142_spec105_legacy_cutover_assert.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 143
+file = "143_spec111_legacy_vector_id.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 144
+file = "144_spec111_legacy_vector_id_ws_unique.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 145
+file = "145_spec119_edge_singular_citation_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_share"
+
+[[migration]]
+version = 146
+file = "146_conversations_mode_bypass.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 147
+file = "147_messages_llm_lineage.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 148
+file = "148_document_pages_layout.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 149
+file = "149_tasks_document_id_column.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 150
+file = "150_provider_access_ledger.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+[[migration.fossils]]
+sha384 = "4392854c4daf5bcf8204f178dd1ad6c0b9cfdc094d5a120b4880a1f99ed254b5ced55829c18de21b13efa4c2402c9c6a"
+tags = ["dev"]
+equivalence = "dev_collision"
+dev_only = true
+
+[[migration]]
+version = 151
+file = "151_standalone_embedding_projections.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 152
+file = "152_projection_cleanup_intents.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 153
+file = "153_vector_provider_cutovers.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 154
+file = "154_provider_access_binding_integrity.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 155
+file = "155_projection_event_manifests.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 156
+file = "156_graph_lineage_source_ids_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 157
+file = "157_graph_lineage_gin_pending_limit.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 158
+file = "158_graph_lineage_orphan_document_repair.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"
+
+[[migration]]
+version = 159
+file = "159_spec150_migration_run.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+

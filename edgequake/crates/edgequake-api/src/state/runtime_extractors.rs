@@ -10,7 +10,7 @@ use edgequake_core::ResourceBudgetConfig;
 
 use super::{
     ApiSecurityConfig, AppConfig, AppState, AuthRuntime, ComplianceRuntime, GraphQueryRuntime,
-    PostgresRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
+    OperationalStores, PostgresRuntime, QueryRuntime, StorageRuntime, TaskRuntime,
 };
 use edgequake_auth::extractors::AuthState;
 
@@ -99,6 +99,12 @@ impl FromRef<AppState> for PostgresRuntime {
 impl FromRef<AppState> for PostgresRuntime {
     fn from_ref(_state: &AppState) -> Self {
         PostgresRuntime
+    }
+}
+
+impl FromRef<AppState> for OperationalStores {
+    fn from_ref(state: &AppState) -> Self {
+        state.operational_stores.clone()
     }
 }
 

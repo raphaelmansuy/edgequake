@@ -8,7 +8,7 @@ edition.workspace = true
 tokio = { version = "1.40", features = ["full", "sync"] }
 
 # Database
-sqlx = { workspace = true }
+sqlx = { workspace = true, features = ["postgres"] }
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }

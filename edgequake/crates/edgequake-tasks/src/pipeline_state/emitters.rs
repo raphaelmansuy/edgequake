@@ -3,7 +3,7 @@
 //! Contains: `emit_chunk_progress`, `emit_chunk_failure`, `emit_pdf_page_progress`,
 //! `emit_stage_transition`.
 
-use super::event::PipelineEvent;
+use super::event::{PdfPageProgressPayload, PipelineEvent};
 use super::PipelineState;
 
 impl PipelineState {
@@ -93,35 +93,24 @@ impl PipelineState {
         });
     }
 
-    /// Emit a PDF page progress event.
+    /// Emit a PDF page progress event from a typed payload.
     ///
     /// @implements SPEC-007: PDF Upload Support with progress tracking
     /// @implements OODA-07: PDF page-level progress visibility
     ///
-    /// WHY: This method sends real-time PDF extraction progress to WebSocket
-    /// subscribers, enabling the frontend to display page-by-page progress
-    /// like "Extracting page 5 of 10...".
-    #[allow(clippy::too_many_arguments)]
-    pub fn emit_pdf_page_progress(
-        &self,
-        pdf_id: String,
-        task_id: String,
-        page_num: u32,
-        total_pages: u32,
-        phase: String,
-        markdown_len: usize,
-        success: bool,
-        error: Option<String>,
-    ) {
+    /// WHY: Typed payload prevents positional field-order drift when
+    /// `completed_pages` was added alongside physical `page_num`.
+    pub fn emit_pdf_page_progress(&self, payload: PdfPageProgressPayload) {
         let _ = self.tx.send(PipelineEvent::PdfPageProgress {
-            pdf_id,
-            task_id,
-            page_num,
-            total_pages,
-            phase,
-            markdown_len,
-            success,
-            error,
+            pdf_id: payload.pdf_id,
+            task_id: payload.task_id,
+            page_num: payload.page_num,
+            total_pages: payload.total_pages,
+            completed_pages: payload.completed_pages,
+            phase: payload.phase,
+            markdown_len: payload.markdown_len,
+            success: payload.success,
+            error: payload.error,
         });
     }
 }

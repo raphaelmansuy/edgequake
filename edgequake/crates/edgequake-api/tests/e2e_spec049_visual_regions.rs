@@ -113,7 +113,7 @@ async fn assert_corpus_writes_figs(path: &std::path::Path, min_figs: usize) {
     };
     let tmp = tempfile::tempdir().unwrap();
     let (figs, tables) =
-        match write_caption_region_assets(&bytes, tmp.path(), &HashMap::new()).await {
+        match write_caption_region_assets(&bytes, tmp.path(), &HashMap::new(), None).await {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("skip write: {e}");

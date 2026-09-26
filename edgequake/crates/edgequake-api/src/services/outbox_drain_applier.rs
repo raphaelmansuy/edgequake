@@ -27,16 +27,38 @@ pub fn outbox_applier_compensate_total() -> u64 {
 }
 
 /// Spawn the periodic outbox drain with a typed retract applier when mode ≠ off.
+///
+/// When `projection_owns_provider_writes` is true (SPEC-149 projection worker
+/// is the sole graph/vector writer), compensate events are ack-only and must
+/// not delete provider rows.
 pub fn spawn_outbox_drain_applier(
     pool: PgPool,
     vector: Arc<dyn VectorStorage>,
     graph: Arc<dyn GraphStorage>,
 ) -> Option<tokio::task::JoinHandle<()>> {
+    spawn_outbox_drain_applier_with_mode(pool, vector, graph, false)
+}
+
+/// Same as [`spawn_outbox_drain_applier`], with explicit provider-write ownership.
+pub fn spawn_outbox_drain_applier_with_mode(
+    pool: PgPool,
+    vector: Arc<dyn VectorStorage>,
+    graph: Arc<dyn GraphStorage>,
+    projection_owns_provider_writes: bool,
+) -> Option<tokio::task::JoinHandle<()>> {
     let config = OutboxDrainConfig::from_env();
     spawn_outbox_drain(pool, config, move |event| {
         let vector = Arc::clone(&vector);
         let graph = Arc::clone(&graph);
-        async move { apply_outbox_event(vector.as_ref(), graph.as_ref(), event).await }
+        async move {
+            apply_outbox_event(
+                vector.as_ref(),
+                graph.as_ref(),
+                event,
+                projection_owns_provider_writes,
+            )
+            .await
+        }
     })
 }
 
@@ -44,6 +66,7 @@ async fn apply_outbox_event(
     vector: &dyn VectorStorage,
     graph: &dyn GraphStorage,
     event: OutboxEvent,
+    projection_owns_provider_writes: bool,
 ) -> Result<(), String> {
     match event.event_type.as_str() {
         OUTBOX_EVENT_CHUNK_DECLARED | OUTBOX_EVENT_CHUNK_READY | OUTBOX_EVENT_MERGE_DONE => {
@@ -57,6 +80,15 @@ async fn apply_outbox_event(
             Ok(())
         }
         OUTBOX_EVENT_COMPENSATE => {
+            if projection_owns_provider_writes {
+                // ProjectionWorker owns graph/vector mutation; ack without retract.
+                ACKED.fetch_add(1, Ordering::Relaxed);
+                tracing::debug!(
+                    event_id = %event.id,
+                    "outbox compensate ack-only; projection worker owns provider writes"
+                );
+                return Ok(());
+            }
             apply_compensate_payload(vector, graph, &event).await?;
             COMPENSATE_APPLIED.fetch_add(1, Ordering::Relaxed);
             Ok(())

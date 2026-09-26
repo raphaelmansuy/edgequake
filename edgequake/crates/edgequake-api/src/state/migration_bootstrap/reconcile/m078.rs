@@ -33,7 +33,7 @@ pub(super) const M078_CHECKSUM_FIXED_V0133: &str =
 /// SPEC-083 X-02 / LAW-MIG: production refuses silent repair — authorize via
 /// `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=78` or `EDGEQUAKE_DEV_MODE`.
 pub async fn repair_migration_078_checksum_if_needed(pool: &PgPool) -> Result<bool, sqlx::Error> {
-    use super::super::checksum_repair::{allow_checksum_repair, refuse_silent_repair_message};
+    use super::super::checksum_repair::authorize_checksum_rewrite;
     if !super::super::helpers::sqlx_migrations_table_exists(pool).await? {
         return Ok(false);
     }
@@ -54,11 +54,11 @@ pub async fn repair_migration_078_checksum_if_needed(pool: &PgPool) -> Result<bo
         return Ok(false);
     }
 
-    if !allow_checksum_repair(MIGRATION_078_VERSION) {
-        return Err(sqlx::Error::Protocol(refuse_silent_repair_message(
-            MIGRATION_078_VERSION,
-            "v0.13.2 broken AGE stats",
-        )));
+    // SPEC-150: known production fossils auto-accept; else scoped env.
+    if let Err(msg) =
+        authorize_checksum_rewrite(MIGRATION_078_VERSION, &current, "v0.13.2 broken AGE stats")
+    {
+        return Err(sqlx::Error::Protocol(msg));
     }
 
     sqlx::query(
@@ -75,7 +75,7 @@ pub async fn repair_migration_078_checksum_if_needed(pool: &PgPool) -> Result<bo
         step = "migration_078_checksum_repair",
         from = M078_CHECKSUM_BROKEN_V0132,
         to = M078_CHECKSUM_FIXED_V0133,
-        "Repaired migration 078 checksum (SPEC-041 #273; DEV_MODE)"
+        "Repaired migration 078 checksum (SPEC-041 #273; fossil/allow)"
     );
 
     Ok(true)

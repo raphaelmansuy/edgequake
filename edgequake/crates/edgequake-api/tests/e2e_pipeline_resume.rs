@@ -95,6 +95,7 @@ async fn test_checkpoint_save_load_roundtrip_returns_identical_result() {
 
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &original,
         WORKSPACE_A,
@@ -107,6 +108,7 @@ async fn test_checkpoint_save_load_roundtrip_returns_identical_result() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -157,6 +159,7 @@ async fn test_slim_checkpoint_strips_embeddings_and_signals_reembed() {
 
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &original,
         WORKSPACE_A,
@@ -169,6 +172,7 @@ async fn test_slim_checkpoint_strips_embeddings_and_signals_reembed() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -202,6 +206,7 @@ async fn test_checkpoint_missing_triggers_full_reprocess() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         "nonexistent-doc",
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -231,6 +236,7 @@ async fn test_checkpoint_workspace_mismatch_rejects() {
 
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &make_result(&doc_id, 3),
         "workspace-A",
@@ -243,6 +249,7 @@ async fn test_checkpoint_workspace_mismatch_rejects() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         "workspace-B",
         PROVIDER_MOCK,
@@ -270,6 +277,7 @@ async fn test_checkpoint_extraction_provider_mismatch_rejects() {
 
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &make_result(&doc_id, 5),
         WORKSPACE_A,
@@ -282,6 +290,7 @@ async fn test_checkpoint_extraction_provider_mismatch_rejects() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         "mistral", // now loading with mistral — should reject
@@ -310,6 +319,7 @@ async fn test_checkpoint_content_change_rejects() {
 
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &make_result(&doc_id, 2),
         WORKSPACE_A,
@@ -322,6 +332,7 @@ async fn test_checkpoint_content_change_rejects() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -350,6 +361,7 @@ async fn test_clear_checkpoint_removes_entry() {
 
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &make_result(&doc_id, 9),
         WORKSPACE_A,
@@ -363,6 +375,7 @@ async fn test_clear_checkpoint_removes_entry() {
     // Confirm it exists
     assert!(load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -372,12 +385,13 @@ async fn test_clear_checkpoint_removes_entry() {
     .await
     .is_some());
 
-    clear_pipeline_checkpoint(&kv, &doc_id).await;
+    clear_pipeline_checkpoint(&kv, None, &doc_id).await;
 
     // Must be gone now
     assert!(
         load_pipeline_checkpoint(
             &kv,
+            None,
             &doc_id,
             WORKSPACE_A,
             PROVIDER_MOCK,
@@ -492,6 +506,7 @@ async fn test_corrupt_checkpoint_cleaned_up_and_returns_none() {
 
     let loaded = load_pipeline_checkpoint(
         &kv,
+        None,
         doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -544,6 +559,7 @@ async fn test_full_ingestion_resume_simulation() {
     // ── Step 2: Save checkpoint (mirrors text_insert.rs after extraction) ─
     save_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         &first_result,
         WORKSPACE_A,
@@ -560,6 +576,7 @@ async fn test_full_ingestion_resume_simulation() {
     // ── Step 4: Retry — load checkpoint, skip extraction ──────────────────
     let resumed = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,
@@ -585,10 +602,11 @@ async fn test_full_ingestion_resume_simulation() {
     );
 
     // ── Step 6: After successful storage, clear checkpoint ────────────────
-    clear_pipeline_checkpoint(&kv, &doc_id).await;
+    clear_pipeline_checkpoint(&kv, None, &doc_id).await;
 
     let post_clear = load_pipeline_checkpoint(
         &kv,
+        None,
         &doc_id,
         WORKSPACE_A,
         PROVIDER_MOCK,

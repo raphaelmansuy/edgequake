@@ -49,7 +49,7 @@ pub async fn update_app_attribution(
     };
 
     #[cfg(feature = "postgres")]
-    if let Some(pool) = state.pg_pool.as_ref() {
+    if let Some(pool) = state.optional_pg_pool() {
         save_app_attribution(pool, &saved)
             .await
             .map_err(|e| ApiError::Internal(format!("Failed to save app_attribution: {e}")))?;

@@ -43,7 +43,7 @@ async fn e2e_spec091_cross_tenant_ann_no_leak() {
         let emb_a = w3::make_embedding(DIM, 800 + i as u32);
         rows_a.push(EmbeddingRow {
             chunk_id: cid_a.into(),
-            workspace_id: WorkspaceId(ws_a),
+            workspace_id: WorkspaceId::new(ws_a),
             dimensions: DIM as i32,
             embedding: emb_a,
         });
@@ -53,7 +53,7 @@ async fn e2e_spec091_cross_tenant_ann_no_leak() {
         let emb_b = w3::make_embedding(DIM, 900 + i as u32);
         rows_a.push(EmbeddingRow {
             chunk_id: cid_b.into(),
-            workspace_id: WorkspaceId(ws_b),
+            workspace_id: WorkspaceId::new(ws_b),
             dimensions: DIM as i32,
             embedding: emb_b,
         });
@@ -67,7 +67,13 @@ async fn e2e_spec091_cross_tenant_ann_no_leak() {
     let hits = index
         .search(&VectorQuery {
             model_id: ModelId(Uuid::nil()),
-            workspace_id: Some(WorkspaceId(ws_a)),
+            model_revision: "test-current".into(),
+            workspace_id: Some(WorkspaceId::new(ws_a)),
+            document_ids: None,
+            tenant_id: None,
+            modalities: None,
+            filter_ids: None,
+            vector_type: None,
             embedding: query_emb,
             limit: 20,
         })

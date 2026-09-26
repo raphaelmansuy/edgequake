@@ -83,15 +83,18 @@ async fn list_documents_inner(
     // SPEC-027: scoped metadata scan SSOT — cap keys *before* value fetch so
     // large workspaces never pay unbounded get_by_ids under ingest load.
     // SPEC-086: merge staging in-flight rows (O(L+S)) so MD ActiveRuns is visible.
+    let pool = _pg_runtime.optional_pg_pool();
     let scoped =
         crate::services::document_metadata_scan::load_scoped_document_metadata_entries_limited(
             storage.kv_storage.as_ref(),
+            pool,
             &tenant_ctx,
             MAX_LIST_METADATA_ENTRIES,
         )
         .await?;
     let metadata_entries = crate::services::document_metadata_scan::merge_staging_metadata_entries(
         storage.kv_storage.as_ref(),
+        pool,
         &tenant_ctx,
         scoped.entries,
     )
@@ -583,6 +586,7 @@ async fn list_documents_inner(
                                         | "summarizing"
                                         | "embedding"
                                         | "storing"
+                                        | "projecting"
                                         | "indexing"
                                 )
                             )
@@ -643,11 +647,18 @@ async fn list_documents_inner(
     .await;
 
     // SPEC-091 IS3 / LD-09: query_ready when serving fence is on.
+    // SPEC-149: promote stuck projecting → completed when deliveries are applied.
     #[cfg(feature = "postgres")]
     if let Some(pool) = _pg_runtime.pool.as_ref() {
         let fence_on = edgequake_storage::serving_fence::serving_fence_enabled_from_env();
         crate::services::list_run_enrich::enrich_page_query_ready(pool, fence_on, &mut documents)
             .await;
+        crate::services::list_run_enrich::enrich_page_projecting_promote(
+            &storage.kv_storage,
+            pool,
+            &mut documents,
+        )
+        .await;
     }
 
     Ok(Json(ListDocumentsResponse {

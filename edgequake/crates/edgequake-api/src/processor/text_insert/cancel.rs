@@ -79,6 +79,7 @@ impl DocumentTaskProcessor {
             // Terminal field SSOT (failure_class + stage_progress=0), same as HTTP cancel.
             let _ = crate::services::sync_doc_cancelled_by_document_id(
                 Arc::clone(&self.kv_storage),
+                self.optional_pg_pool(),
                 document_id,
                 &msg,
             )
@@ -103,7 +104,7 @@ impl DocumentTaskProcessor {
                     // SPEC-091 W2: typed ingestion_dedup staging release.
                     #[cfg(feature = "postgres")]
                     crate::services::ingestion_dedup_store::dual_release_staging(
-                        self.pg_pool.as_ref(),
+                        self.optional_pg_pool(),
                         ws,
                         hash,
                     )

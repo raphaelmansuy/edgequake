@@ -91,7 +91,7 @@ async fn ensure_document_exists(
         let mut scoped = tenant.clone();
         scoped.workspace_id = Some(tenant.workspace_id_or_default());
         let scope = crate::document_read_model::relational_document_scope(
-            state.pg_pool.as_ref(),
+            state.optional_pg_pool(),
             document_id,
             &scoped,
         )

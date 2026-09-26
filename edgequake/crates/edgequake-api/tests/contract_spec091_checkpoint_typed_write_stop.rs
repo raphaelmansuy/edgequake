@@ -17,7 +17,7 @@ use edgequake_api::processor::pipeline_checkpoint::{
     checkpoint_key, load_pipeline_checkpoint, save_pipeline_checkpoint,
 };
 use edgequake_api::services::relational_sidecar_store::{
-    register_sidecar_pool, typed_checkpoint_get, CHECKPOINT_KIND_CRASH,
+    register_sidecar_pool, sidecar_store, typed_checkpoint_get, CHECKPOINT_KIND_CRASH,
 };
 use edgequake_pipeline::{ProcessingResult, ProcessingStats};
 use edgequake_storage::traits::KVStorage;
@@ -74,9 +74,11 @@ async fn relational_checkpoint_write_stops_kv() {
     };
     let text = "wp1 checkpoint write-stop body";
     let workspace = "cccccccc-0019-0019-0019-cccccccccccc";
-    save_pipeline_checkpoint(&kv, &doc_id, &result, workspace, "openai", "ollama", text)
-        .await
-        .expect("save");
+    save_pipeline_checkpoint(
+        &kv, None, &doc_id, &result, workspace, "openai", "ollama", text,
+    )
+    .await
+    .expect("save");
 
     let key = checkpoint_key(&doc_id);
     let kv_val = kv.get_by_id(&key).await.expect("kv get");
@@ -85,7 +87,7 @@ async fn relational_checkpoint_write_stops_kv() {
         "KV must not receive checkpoint when relational typed write succeeds; got {kv_val:?}"
     );
 
-    let typed = typed_checkpoint_get(&doc_id, CHECKPOINT_KIND_CRASH)
+    let typed = typed_checkpoint_get(sidecar_store().as_deref(), &doc_id, CHECKPOINT_KIND_CRASH)
         .await
         .expect("typed row present");
     assert!(
@@ -93,7 +95,8 @@ async fn relational_checkpoint_write_stops_kv() {
         "typed payload shape: {typed}"
     );
 
-    let loaded = load_pipeline_checkpoint(&kv, &doc_id, workspace, "openai", "ollama", text).await;
+    let loaded =
+        load_pipeline_checkpoint(&kv, None, &doc_id, workspace, "openai", "ollama", text).await;
     assert!(
         loaded.is_some(),
         "resume must load from typed when KV empty"

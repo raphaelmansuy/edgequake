@@ -1,0 +1,133 @@
+PROVIDER-ACCESS audit validation — 2026-09-20
+Baseline commit: c8a5af76f3dc7c1bbfa124514c13a18e5afdb86b
+Scope: specifications only; no runtime sources or migrations modified.
+
+Documentation validation (repository root):
+python3 specs/149-data-access-improvements/scripts/validate_spec.py
+PASS: 10 documents, 134 local links, 34 source anchors; ASCII boxes and F01-F14 / I1-I8 / W0-W9 / T01-T20 traceability valid.
+
+Validator Python AST parse: PASS.
+
+Existing memory contracts (edgequake/):
+CARGO_TARGET_DIR=<isolated-temporary-target> cargo test -p edgequake-storage --no-default-features --test storage_backend_contract --offline
+PASS: 3 passed, 0 failed, 0 ignored, 0 measured, 0 filtered out.
+
+Storage library lint (edgequake/):
+CARGO_TARGET_DIR=<isolated-temporary-target> cargo clippy -p edgequake-storage --no-default-features --lib --offline -- -D warnings
+PASS: exit 0.
+
+Initial test invocation without target override failed because the configured
+/Volumes/CargoBuild/target/debug/.cargo-lock was outside writable permissions.
+The temporary target resolved this without escalation or configuration edits.
+
+Limitations: no live PostgreSQL/AGE/pgvector, SQLite, Neo4j or Qdrant
+certification, chaos runs, performance measurements or exploit reproduction.
+No new provider implementation is claimed.
+
+Historical Cargo target paths above are elided after the naming revision.
+Results are retained from the original audit; this does not imply a rerun.
+
+Implementation-readiness and naming assessment — 2026-09-20
+Scope: documentation, delivery manifest and documentation validator only.
+Initiative: Provider-Independent Data Access; identifier prefix PROVIDER-ACCESS.
+Layout: design / implementation / validation / references / evidence / scripts.
+
+python3 specs/149-data-access-improvements/scripts/validate_spec.py
+PASS: 15 documents, 227 local links, 34 source anchors; ASCII boxes and
+F01-F14 / I1-I8 / W0-W9 / T01-T20 traceability valid; 24 ordered steps,
+15 E2E scenarios, 5 releases, 6 compositions valid.
+
+Validator AST parse: PASS.
+Delivery manifest accepted: PASS.
+Negative validator checks: PASS (6 rejected invalid cases): forward dependency
+or cycle; missing scenario; missing final composition; premature release gate;
+unknown contract test; duplicate implementation step.
+Naming scan: PASS, obsolete numeric shorthand absent from every spec file/path.
+Exact directory/artifact ownership: PASS.
+
+Current official PostgreSQL, SQLite, SQLx 0.8.6, Qdrant and Neo4j sources were
+reviewed; references/official-sources.md records S15-S19 added for this assessment.
+No new runtime tests, real-provider certification, migration or soak were run
+for this documentation-only revision. Earlier memory/Clippy results above
+remain historical baseline evidence, not proof of proposed provider behavior.
+
+Honest implementation assessment — 2026-09-20
+Scope: branch feat/149-data-access-improvements vs definition-of-done.md.
+Verdict: foundation/adapters prototype; product serving P0 only; P1-P4 unavailable.
+Approximate DoD: scaffolding 70-80%; hot-path 25-35%; full six-profile cert not met.
+Safeguard: DataAccessRuntimes::assert_product_serving_allowed refuses non-P0 at boot.
+Cert runner: PROFILE=P0 SUITE=smoke only (profile_suite_not_yet_certifiable otherwise).
+Hot path: UnitOfWork/autocommit ingest remains; ProjectionWorker not spawned;
+PgIngestionCommitter not on production ingest.
+Migrations 150-153: additive expand-contract; empty OK; not a provider cutover proof.
+Evidence owner: evidence/implementation-status.md
+python3 specs/149-data-access-improvements/scripts/validate_spec.py
+
+P0 production-correct hot path — 2026-09-20
+Scope: bindings catalog + authority + fenced projection + exact-binding delete + managed worker.
+Verdict: P0 hot path production-correct; full R1 E2E01-07 (incl. E2E04) still open.
+Migrations: 150-154 additive (154 = binding integrity triggers).
+
+Strict PostgreSQL proof (EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1, scratch edgequake_test):
+cargo test -p edgequake-storage --features postgres \
+  --test e2e_spec149_ingestion_committer --test e2e_spec149_projection_replay \
+  -- --nocapture --test-threads=1
+PASS: e2e_spec149_ingestion_committer 5 passed / 0 failed / 0 ignored
+PASS: e2e_spec149_projection_replay 4 passed / 0 failed / 0 ignored
+Coverage: 20-way same-key receipt, digest conflict, pre-event rollback,
+  lease takeover + stale-epoch ack reject, cross-tenant same-name graph isolation,
+  exact-binding tombstone cleanup intents, real AGE+pgvector replay apply.
+
+Quality gates (same day):
+cargo fmt --check -p edgequake-storage -p edgequake-storage-contracts \
+  -p edgequake-api -p edgequake-pipeline → PASS
+cargo clippy -p edgequake-storage-contracts -p edgequake-storage --features postgres \
+  --all-targets -- -D warnings → PASS
+cargo clippy -p edgequake-pipeline -p edgequake-api --features postgres --lib \
+  -- -D warnings → PASS
+cargo test -p edgequake-storage --features postgres --lib → PASS (442)
+cargo test -p edgequake-pipeline --lib → PASS (510)
+cargo test -p edgequake-storage --features postgres --test spec149_architecture_imports → PASS
+bash scripts/provider-access/assert-p3-no-postgres.sh → PASS
+python3 specs/149-data-access-improvements/scripts/validate_spec.py → PASS
+  (16 documents, 231 links, 34 anchors; E02 hash re-audited for postgres.rs)
+
+Cert runner recovery suite ID: SPEC149-P0-HOTPATH-REPLAY (not PROVIDER-ACCESS-E2E04).
+Evidence owner: evidence/implementation-status.md
+
+---
+2026-09-22 explicit access ports:
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --test-threads=1
+e2e_spec149_ingestion_committer: 9 passed, 0 failed, 0 ignored
+e2e_spec149_projection_replay: 7 passed, 0 failed, 0 ignored
+  (includes shared_node + shared_edge retain proofs)
+python3 specs/149-data-access-improvements/scripts/validate_spec.py → PASS
+  (E02/E16 hashes re-audited after removing production sidecar registration)
+Evidence owner: evidence/implementation-status.md (hot path remains Open)
+
+---
+2026-09-22 P0 crash/replay (E2E04 B1–B3):
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --features "postgres,provider-access-fault" --test-threads=1
+e2e_spec149_ingestion_committer: 9 passed, 0 failed, 0 ignored (B1 + 20 identical waiters)
+e2e_spec149_process_kill: 2 passed, 0 failed, 0 ignored (B2 + B3 SIGKILL)
+e2e_spec149_projection_replay: 7 passed, 0 failed, 0 ignored
+Cert runner recovery suite ID: PROVIDER-ACCESS-E2E04 (B1–B3 barriers only; not full HTTP E2E01–15)
+Evidence owner: evidence/implementation-status.md (P0 crash/replay Closed; HTTP/P1–P4 Open)
+
+---
+2026-09-22 P0 single writer + wired e2e + batch budget:
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --test-threads=1
+e2e_spec149_projection_replay: 8 passed, 0 failed, 0 ignored
+  batch budget batch_size=4: n=3→1, n=4→1, n=5→2 graph/vector apply calls
+provider_access_e2e: 4 passed, 0 failed, 0 ignored
+  (E2E01 health + P0 wiring drain + P3 fail-closed)
+P0 boot: compensation drain skipped; outbox compensate ack-only with ProjectionWorker
+Evidence owner: evidence/implementation-status.md (single writer / wiring / batch Closed; HTTP still Open)
+
+---
+2026-09-22 physical role-batch apply:
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --test-threads=1
+e2e_spec149_projection_replay: 8 passed, 0 failed, 0 ignored
+  apply_batch_entries + provider_batch_writes == ceil(n/4) for n=3,4,5 (graph and vector)
+  shared_node + shared_edge retain still pass
+Evidence owner: evidence/implementation-status.md (physical batch apply Closed; HTTP/P1–P4 Open)

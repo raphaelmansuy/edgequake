@@ -133,6 +133,55 @@ pub async fn enrich_page_query_ready(
     }
 }
 
+/// Promote stuck `projecting` rows on the visible page when deliveries are applied.
+///
+/// WHY: Durable commit leaves `projecting` until SPEC-149 replay settles. The
+/// periodic reconciler eventually heals, but list polls should close ActiveRuns
+/// as soon as deliveries are applied without waiting for the next reconcile tick.
+#[cfg(feature = "postgres")]
+pub async fn enrich_page_projecting_promote(
+    kv: &std::sync::Arc<dyn edgequake_storage::traits::KVStorage>,
+    pool: &sqlx::PgPool,
+    documents: &mut [DocumentSummary],
+) {
+    for doc in documents.iter_mut() {
+        let status = doc.status.as_deref().unwrap_or("").to_ascii_lowercase();
+        let stage = doc
+            .current_stage
+            .as_deref()
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if status != "projecting" && stage != "projecting" {
+            continue;
+        }
+        match crate::services::sync_doc_projecting_when_applied(
+            std::sync::Arc::clone(kv),
+            Some(pool),
+            &doc.id,
+        )
+        .await
+        {
+            Ok(true) => {
+                doc.status = Some("completed".into());
+                doc.current_stage = Some("completed".into());
+                doc.error_message = None;
+                doc.stage_progress = Some(1.0);
+                if doc.stage_message.as_deref().unwrap_or("").is_empty() {
+                    doc.stage_message = Some("Processing complete".into());
+                }
+            }
+            Ok(false) => {}
+            Err(e) => {
+                tracing::debug!(
+                    document_id = %doc.id,
+                    error = %e,
+                    "SPEC-149: list projecting promote skipped"
+                );
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

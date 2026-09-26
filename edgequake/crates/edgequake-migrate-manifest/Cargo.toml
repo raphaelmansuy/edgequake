@@ -1,0 +1,17 @@
+[package]
+name = "edgequake-migrate-manifest"
+description = "SPEC-150 migration manifest SSOT (phases, fossils, compat window)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+toml = "0.8"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+sha2 = "0.10"

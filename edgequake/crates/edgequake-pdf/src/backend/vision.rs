@@ -16,7 +16,17 @@ use crate::error::PdfConversionError;
 use crate::page_assets::{write_page_png_assets, PageAssetRenderConfig};
 use crate::reasoning_effort_inject::ReasoningEffortInjectProvider;
 use crate::region_assets::{tables_by_page, write_caption_region_assets};
-use crate::vision_markdown::{normalize_vision_pages, VisionPageSlice};
+use crate::vision_markdown::{normalize_selected_vision_pages, VisionPageSlice};
+
+/// Expand a [`PageSelection`] to 1-indexed physical page numbers.
+fn selected_page_numbers_1indexed(selection: &PageSelection, physical_total: usize) -> Vec<usize> {
+    let total = physical_total.max(1);
+    selection
+        .to_indices(total)
+        .into_iter()
+        .map(|idx0| idx0 + 1)
+        .collect()
+}
 
 /// Vision-based PDF converter backed by `edgequake-pdf2md`.
 ///
@@ -114,13 +124,17 @@ impl PdfConverter for VisionPdfConverter {
             builder = builder.no_resume(true);
         }
         // Prefer vision.pages; fall back to top-level PdfConversionConfig.pages.
-        let pages = vision
+        // Keep a clone: post-OCR asset writers must see the same selection.
+        let page_selection = vision
             .pages
             .clone()
             .or_else(|| config.pages.clone())
             .unwrap_or(PageSelection::All);
-        if !matches!(pages, PageSelection::All) {
-            builder = builder.pages(pages);
+        if !matches!(page_selection, PageSelection::All) {
+            builder = builder.pages(page_selection.clone());
+        }
+        if let Some(secs) = vision.api_timeout_secs {
+            builder = builder.api_timeout_secs(secs);
         }
 
         let conversion_config = builder
@@ -156,8 +170,15 @@ impl PdfConverter for VisionPdfConverter {
                 let page_as_unit = page_assets
                     .page_modality
                     .is_some_and(|m| m.is_manuscript_like());
-                let total_pages = output.stats.total_pages.max(output.pages.len()).max(1);
-                let page_numbers: Vec<usize> = (1..=total_pages).collect();
+                // Physical total from pdf2md stats; asset work must only touch
+                // this group's selected pages (mixed 13/12 must not do 25+25).
+                let physical_total = output.stats.total_pages.max(1);
+                let page_numbers = selected_page_numbers_1indexed(&page_selection, physical_total);
+                let asset_started = std::time::Instant::now();
+                info!(
+                    selected_pages = page_numbers.len(),
+                    physical_total, "Vision asset pipeline scoped to selected pages"
+                );
                 let render = PageAssetRenderConfig {
                     dpi: vision.dpi.unwrap_or(150),
                     max_rendered_pixels: vision.max_rendered_pixels.unwrap_or(2000),
@@ -238,6 +259,7 @@ impl PdfConverter for VisionPdfConverter {
                             pdf_bytes,
                             &page_assets.assets_root,
                             &figure_map,
+                            Some(&page_numbers),
                         )
                         .await
                         {
@@ -271,7 +293,8 @@ impl PdfConverter for VisionPdfConverter {
                     if let Some(hook) = status_hook {
                         hook(
                             &format!(
-                                "Rendering page images for the viewer (0/{total_pages} pages)…"
+                                "Rendering page images for the viewer (0/{} pages)…",
+                                page_numbers.len()
                             ),
                             0.94,
                         );
@@ -287,6 +310,7 @@ impl PdfConverter for VisionPdfConverter {
                         Ok(written) => {
                             info!(
                                 pages = written.len(),
+                                selected_pages = page_numbers.len(),
                                 assets_root = %page_assets.assets_root.display(),
                                 "Vision page PNG assets written for markdown viewer"
                             );
@@ -295,7 +319,7 @@ impl PdfConverter for VisionPdfConverter {
                                     &format!(
                                         "Rendered page images ({}/{} pages) — assembling markdown…",
                                         written.len(),
-                                        total_pages
+                                        page_numbers.len()
                                     ),
                                     0.95,
                                 );
@@ -451,6 +475,12 @@ impl PdfConverter for VisionPdfConverter {
                         None,
                     );
                 }
+                info!(
+                    selected_pages = page_numbers.len(),
+                    physical_total,
+                    elapsed_ms = asset_started.elapsed().as_millis() as u64,
+                    "Vision asset pipeline finished for selected pages"
+                );
             }
         }
 
@@ -463,8 +493,12 @@ impl PdfConverter for VisionPdfConverter {
             })
             .collect();
 
-        let total_pages = output.stats.total_pages.max(page_slices.len()).max(1);
-        let normalized = normalize_vision_pages(&page_slices, total_pages, output.markdown.trim());
+        let physical_total = output.stats.total_pages.max(page_slices.len()).max(1);
+        let selected_pages = selected_page_numbers_1indexed(&page_selection, physical_total);
+        // Only normalize pages owned by this convert group — placeholders for
+        // out-of-group pages used to overwrite real content at stitch time.
+        let normalized =
+            normalize_selected_vision_pages(&page_slices, &selected_pages, output.markdown.trim());
         let id_prefix = config
             .page_drawing_assets
             .as_ref()
@@ -512,7 +546,8 @@ impl PdfConverter for VisionPdfConverter {
         }
 
         info!(
-            pages = total_pages,
+            pages = physical_total,
+            selected_pages = selected_pages.len(),
             processed_pages = output.stats.processed_pages,
             markdown_len = markdown.len(),
             viewer_images = emit_viewer_images,

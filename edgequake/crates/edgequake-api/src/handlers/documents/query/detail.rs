@@ -53,6 +53,32 @@ pub async fn get_document(
     .await
 }
 
+/// SPEC-149: settle `projecting` → `completed` on detail polls, like list polls
+/// do (`enrich_page_projecting_promote`). Returns true when metadata changed.
+async fn promote_projecting_if_applied(
+    storage: &StorageRuntime,
+    pg_runtime: &PostgresRuntime,
+    document_id: &str,
+    metadata: Option<&Value>,
+) -> bool {
+    if !metadata.is_some_and(crate::services::metadata_is_projecting) {
+        return false;
+    }
+    match crate::services::sync_doc_projecting_when_applied(
+        Arc::clone(&storage.kv_storage),
+        pg_runtime.optional_pg_pool(),
+        document_id,
+    )
+    .await
+    {
+        Ok(promoted) => promoted,
+        Err(e) => {
+            debug!(document_id = %document_id, error = %e, "SPEC-149: detail projecting promote skipped");
+            false
+        }
+    }
+}
+
 async fn get_document_inner(
     storage: StorageRuntime,
     pg_runtime: PostgresRuntime,
@@ -96,7 +122,7 @@ async fn get_document_inner(
     // Parse metadata if available
     let meta_obj = metadata.as_ref().and_then(|v| v.as_object());
 
-    // Check tenant context (multi-tenancy)
+    // Check tenant context (multi-tenancy) from KV metadata when present.
     if let Some(obj) = meta_obj {
         let doc_tenant_id = obj.get("tenant_id").and_then(|v| v.as_str());
         let doc_workspace_id = obj.get("workspace_id").and_then(|v| v.as_str());
@@ -119,6 +145,53 @@ async fn get_document_inner(
             }
         }
     }
+
+    // Relational authority fence (PROVIDER-ACCESS-E2E02): documents created via the
+    // ingestion committer live in public.documents without KV metadata. Deny
+    // cross-tenant / cross-workspace reads as not-found so secrets never leak.
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = pg_runtime.pool.as_ref() {
+        if let Ok(doc_uuid) = Uuid::parse_str(&document_id) {
+            let row = sqlx::query_as::<_, (Option<Uuid>, Option<Uuid>)>(
+                "SELECT tenant_id, workspace_id FROM public.documents WHERE id = $1",
+            )
+            .bind(doc_uuid)
+            .fetch_optional(pool)
+            .await
+            .map_err(|error| ApiError::Internal(format!("document scope lookup: {error}")))?;
+            if let Some((doc_tenant, doc_workspace)) = row {
+                if let Some(ref filter_tid) = tenant_ctx.tenant_id {
+                    if let (Ok(filter), Some(owned)) = (Uuid::parse_str(filter_tid), doc_tenant) {
+                        if filter != owned {
+                            return Err(ApiError::NotFound(format!(
+                                "Document {} not found",
+                                document_id
+                            )));
+                        }
+                    }
+                }
+                if let Some(ref filter_ws) = tenant_ctx.workspace_id {
+                    if let (Ok(filter), Some(owned)) = (Uuid::parse_str(filter_ws), doc_workspace) {
+                        if filter != owned {
+                            return Err(ApiError::NotFound(format!(
+                                "Document {} not found",
+                                document_id
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Only after scope checks pass: a denied read must never heal/write state.
+    if promote_projecting_if_applied(&storage, &pg_runtime, &document_id, metadata.as_ref()).await {
+        metadata = storage.kv_storage.get_by_id(&metadata_key).await?;
+        if metadata.is_none() {
+            metadata = storage.kv_storage.get_by_id(&staging_key).await?;
+        }
+    }
+    let meta_obj = metadata.as_ref().and_then(|v| v.as_object());
 
     // Fetch document content via SSOT loader (KV first, then PDF pipeline markdown).
     let metadata_value = metadata
@@ -434,7 +507,7 @@ async fn get_document_inner(
         .as_ref()
         .and_then(crate::services::summary_from_metadata);
     let multimodal_items =
-        crate::services::load_manifest(storage.kv_storage.as_ref(), &document_id)
+        crate::services::load_manifest(storage.kv_storage.as_ref(), None, &document_id)
             .await
             .map(|manifest| crate::services::manifest_item_status_views(&manifest));
 

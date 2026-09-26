@@ -360,6 +360,49 @@ impl DocumentTaskProcessor {
         self
     }
 
+    pub(crate) fn installed_operational_ports(
+        &self,
+    ) -> crate::services::relational_sidecar_store::InstalledPorts {
+        #[cfg(feature = "postgres")]
+        let pool = self
+            .app_state
+            .as_ref()
+            .and_then(|state| state.pg_pool.clone())
+            .or_else(|| self.pg_pool.clone())
+            .map(std::sync::Arc::new);
+        let store = self
+            .app_state
+            .as_ref()
+            .and_then(|state| state.operational_stores.checkpoint_artifacts.clone());
+        crate::services::relational_sidecar_store::InstalledPorts::new(
+            #[cfg(feature = "postgres")]
+            pool,
+            store,
+        )
+    }
+
+    /// Explicit Postgres pool port for document SQL helpers.
+    #[inline]
+    pub(crate) fn optional_pg_pool(&self) -> crate::services::OptionalPgPool<'_> {
+        #[cfg(feature = "postgres")]
+        {
+            self.pg_pool.as_ref()
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            None
+        }
+    }
+
+    /// Checkpoint/artifact store from AppState when present.
+    pub(crate) fn checkpoint_store(
+        &self,
+    ) -> Option<&dyn edgequake_storage::contracts::CheckpointArtifactStore> {
+        self.app_state
+            .as_ref()
+            .and_then(|state| state.operational_stores.checkpoint_artifacts.as_deref())
+    }
+
     /// Set the relational CQRS sink for dual-write to the entities table (SPEC-021 P3-01).
     ///
     /// WHY: Defaults to `NoopEntitySink` (zero cost). Set this to `PostgresEntitySink`

@@ -27,6 +27,7 @@ use crate::services::document_metadata_scan::load_scoped_document_metadata_entri
 /// @implements SPEC-005 @implements SPEC-031
 pub async fn resolve_document_filter(
     kv_storage: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     filter: &DocumentFilter,
     tenant_id: &Option<String>,
     workspace_id: &Option<String>,
@@ -59,8 +60,10 @@ pub async fn resolve_document_filter(
         workspace_id: workspace_id.clone(),
         user_id: None,
     };
+    // Membership is `public.documents` after the KV cutover. A missing pool
+    // makes date and title-pattern filters match nothing.
     let metadata_values: Vec<serde_json::Value> =
-        load_scoped_document_metadata_entries(kv_storage, &tenant_ctx)
+        load_scoped_document_metadata_entries(kv_storage, pool, &tenant_ctx)
             .await?
             .into_iter()
             .map(|(_, v)| v)
@@ -220,9 +223,10 @@ mod tests {
     async fn test_all_none_returns_none() {
         let kv = setup_kv_with_docs(vec![]).await;
         let filter = DocumentFilter::default();
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap();
         assert!(result.is_none(), "Empty filter must return None");
     }
 
@@ -239,10 +243,11 @@ mod tests {
             date_from: Some("2025-01-01T00:00:00Z".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
 
         assert!(result.contains(&"doc1".to_string()));
         assert!(result.contains(&"doc2".to_string()));
@@ -266,10 +271,11 @@ mod tests {
             date_to: Some("2025-04-30T23:59:59Z".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
 
         assert_eq!(result, vec!["doc3".to_string()]);
     }
@@ -287,10 +293,11 @@ mod tests {
             document_pattern: Some("report".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
 
         assert_eq!(result, vec!["doc1".to_string()]);
     }
@@ -308,10 +315,11 @@ mod tests {
             document_pattern: Some("report, summary".to_string()),
             ..Default::default()
         };
-        let mut result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
         result.sort();
 
         assert_eq!(result, vec!["doc1".to_string(), "doc2".to_string()]);
@@ -331,10 +339,11 @@ mod tests {
             document_pattern: Some("report".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
 
         assert_eq!(result, vec!["doc1".to_string()]);
     }
@@ -350,10 +359,11 @@ mod tests {
             date_from: Some("2026-01-01T00:00:00Z".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
 
         assert!(result.is_empty(), "No documents should match future date");
     }
@@ -368,9 +378,10 @@ mod tests {
             ..Default::default()
         };
         // Empty document_ids → is_empty() → None (no filtering)
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap();
         assert!(result.is_none(), "Empty document_ids must be a no-op");
     }
 
@@ -382,10 +393,11 @@ mod tests {
         // We verify by checking the returned IDs match what was provided.
         let kv = setup_kv_with_docs(vec![]).await;
         let filter = filter_ids_only(vec!["abc", "def"]);
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
         let mut result = result;
         result.sort();
         assert_eq!(result, vec!["abc".to_string(), "def".to_string()]);
@@ -398,10 +410,11 @@ mod tests {
             document_ids: Some(vec!["a".to_string(), "b".to_string(), "a".to_string()]),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
         assert_eq!(result.len(), 2, "Duplicates must be removed");
     }
 
@@ -419,10 +432,11 @@ mod tests {
             date_from: Some("2025-01-01T00:00:00Z".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
         assert_eq!(result, vec!["doc1".to_string()]);
     }
 
@@ -441,10 +455,11 @@ mod tests {
             document_pattern: Some("summary".to_string()),
             ..Default::default()
         };
-        let mut result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
         result.sort();
         assert_eq!(result, vec!["doc1".to_string(), "doc2".to_string()]);
     }
@@ -459,10 +474,11 @@ mod tests {
             document_pattern: Some("real".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &None, &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result =
+            resolve_document_filter(&kv, crate::services::no_pg_pool(), &filter, &None, &None)
+                .await
+                .unwrap()
+                .unwrap();
         // "real-doc" matches pattern; "phantom-id" is not in KV
         assert_eq!(result, vec!["real-doc".to_string()]);
     }
@@ -479,10 +495,16 @@ mod tests {
             document_pattern: Some("alpha, beta".to_string()),
             ..Default::default()
         };
-        let result = resolve_document_filter(&kv, &filter, &Some("t1".to_string()), &None)
-            .await
-            .unwrap()
-            .unwrap();
+        let result = resolve_document_filter(
+            &kv,
+            crate::services::no_pg_pool(),
+            &filter,
+            &Some("t1".to_string()),
+            &None,
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(result, vec!["doc1".to_string()]);
     }
 }

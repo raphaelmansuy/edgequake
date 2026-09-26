@@ -11,7 +11,7 @@ mod emitters;
 mod event;
 mod pdf_tracking;
 
-pub use event::{PipelineEvent, PipelineMessage, PipelineStatusSnapshot};
+pub use event::{PdfPageProgressPayload, PipelineEvent, PipelineMessage, PipelineStatusSnapshot};
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -420,16 +420,17 @@ mod tests {
         let mut rx = state.subscribe();
 
         // Emit a PDF page progress event
-        state.emit_pdf_page_progress(
-            "pdf-123".to_string(),
-            "task-456".to_string(),
-            5,
-            10,
-            "extraction".to_string(),
-            2048,
-            true,
-            None,
-        );
+        state.emit_pdf_page_progress(PdfPageProgressPayload {
+            pdf_id: "pdf-123".to_string(),
+            task_id: "task-456".to_string(),
+            page_num: 5,
+            total_pages: 10,
+            completed_pages: 5,
+            phase: "extraction".to_string(),
+            markdown_len: 2048,
+            success: true,
+            error: None,
+        });
 
         // Receive and verify the event
         let event = rx.try_recv().unwrap();
@@ -439,6 +440,7 @@ mod tests {
                 task_id,
                 page_num,
                 total_pages,
+                completed_pages,
                 phase,
                 markdown_len,
                 success,
@@ -448,6 +450,7 @@ mod tests {
                 assert_eq!(task_id, "task-456");
                 assert_eq!(page_num, 5);
                 assert_eq!(total_pages, 10);
+                assert_eq!(completed_pages, 5);
                 assert_eq!(phase, "extraction");
                 assert_eq!(markdown_len, 2048);
                 assert!(success);
@@ -463,16 +466,17 @@ mod tests {
         let state = PipelineState::new();
         let mut rx = state.subscribe();
 
-        state.emit_pdf_page_progress(
-            "pdf-err".to_string(),
-            "task-err".to_string(),
-            3,
-            5,
-            "extraction".to_string(),
-            0,
-            false,
-            Some("Page 3 extraction failed: corrupt image".to_string()),
-        );
+        state.emit_pdf_page_progress(PdfPageProgressPayload {
+            pdf_id: "pdf-err".to_string(),
+            task_id: "task-err".to_string(),
+            page_num: 3,
+            total_pages: 5,
+            completed_pages: 3,
+            phase: "extraction".to_string(),
+            markdown_len: 0,
+            success: false,
+            error: Some("Page 3 extraction failed: corrupt image".to_string()),
+        });
 
         let event = rx.try_recv().unwrap();
         match event {
@@ -480,10 +484,12 @@ mod tests {
                 success,
                 error,
                 page_num,
+                completed_pages,
                 ..
             } => {
                 assert!(!success);
                 assert_eq!(page_num, 3);
+                assert_eq!(completed_pages, 3);
                 assert!(error.unwrap().contains("corrupt image"));
             }
             _ => panic!("Expected PdfPageProgress event"),
@@ -498,6 +504,7 @@ mod tests {
             task_id: "task-ser".to_string(),
             page_num: 7,
             total_pages: 15,
+            completed_pages: 0,
             phase: "rendering".to_string(),
             markdown_len: 4096,
             success: true,

@@ -173,7 +173,7 @@ pub use multimodal::{
 pub use persistence::{
     build_chunk_vector_batch, build_relational_chunks, is_injection_composite_document_id,
     persist_processing_result, persist_relational_chunks, resolve_relational_document_id,
-    ChunkVectorBuildOptions, DefaultIngestionPersister, IngestionPersistConfig,
+    ChunkVectorBuildOptions, DefaultIngestionPersister, IngestionAuthority, IngestionPersistConfig,
     IngestionPersistContext, IngestionPersistOutput, IngestionPersistSettings, IngestionPersister,
 };
 pub use pipeline::{

@@ -380,17 +380,52 @@ pub fn normalize_vision_pages(
     total_pages: usize,
     fallback_markdown: &str,
 ) -> Vec<VisionPageSlice> {
-    let total = total_pages.max(1);
+    let selected: Vec<usize> = (1..=total_pages.max(1)).collect();
+    normalize_selected_vision_pages(pages, &selected, fallback_markdown)
+}
+
+/// Normalize only the pages owned by the current convert group.
+///
+/// Mixed modality groups must not synthesize placeholders for out-of-group
+/// physical pages — those placeholders used to overwrite real content at stitch.
+pub fn normalize_selected_vision_pages(
+    pages: &[VisionPageSlice],
+    selected_pages: &[usize],
+    fallback_markdown: &str,
+) -> Vec<VisionPageSlice> {
     let mut by_num: HashMap<usize, String> = pages
         .iter()
         .map(|p| (p.page_num, p.markdown.clone()))
         .collect();
 
-    if by_num.is_empty() && !fallback_markdown.trim().is_empty() {
-        by_num.insert(1, fallback_markdown.trim().to_string());
+    let mut selected: Vec<usize> = selected_pages.to_vec();
+    selected.sort_unstable();
+    selected.dedup();
+
+    if selected.is_empty() {
+        let mut nums: Vec<usize> = by_num.keys().copied().collect();
+        nums.sort_unstable();
+        if nums.is_empty() && !fallback_markdown.trim().is_empty() {
+            return vec![VisionPageSlice {
+                page_num: 1,
+                markdown: fallback_markdown.trim().to_string(),
+            }];
+        }
+        return nums
+            .into_iter()
+            .map(|page_num| VisionPageSlice {
+                page_num,
+                markdown: by_num.remove(&page_num).unwrap_or_default(),
+            })
+            .collect();
     }
 
-    (1..=total)
+    if by_num.is_empty() && !fallback_markdown.trim().is_empty() {
+        by_num.insert(selected[0], fallback_markdown.trim().to_string());
+    }
+
+    selected
+        .into_iter()
         .map(|page_num| VisionPageSlice {
             page_num,
             markdown: by_num.remove(&page_num).unwrap_or_default(),
@@ -747,6 +782,10 @@ pub fn assemble_vision_markdown_with_policy(
 ///
 /// Homogeneous converts (`parts.len() <= 1`) are returned unchanged so trailing
 /// crop-coverage comments stay byte-identical on the print Acc path.
+///
+/// When the same physical page appears in more than one part, prefer non-empty
+/// real content over empty/placeholder sections so later groups cannot erase
+/// earlier OCR.
 pub fn stitch_page_markdown_in_order(parts: &[String]) -> String {
     if parts.len() <= 1 {
         return parts.first().cloned().unwrap_or_default();
@@ -762,7 +801,14 @@ pub fn stitch_page_markdown_in_order(parts: &[String]) -> String {
             continue;
         }
         for (num, section) in sections {
-            by_page.insert(num, section);
+            match by_page.get(&num) {
+                Some(existing) => {
+                    by_page.insert(num, prefer_page_section(existing, &section));
+                }
+                None => {
+                    by_page.insert(num, section);
+                }
+            }
         }
     }
     let mut out = by_page.into_values().collect::<Vec<_>>().join("\n\n");
@@ -773,6 +819,25 @@ pub fn stitch_page_markdown_in_order(parts: &[String]) -> String {
         out.push_str(&tail);
     }
     out
+}
+
+fn section_body_is_empty_or_placeholder(section: &str) -> bool {
+    let body = match section.find('\n') {
+        Some(idx) => section[idx + 1..].trim(),
+        None => "",
+    };
+    body.is_empty() || body == EMPTY_VISION_PAGE_PLACEHOLDER
+}
+
+fn prefer_page_section(existing: &str, incoming: &str) -> String {
+    let existing_empty = section_body_is_empty_or_placeholder(existing);
+    let incoming_empty = section_body_is_empty_or_placeholder(incoming);
+    match (existing_empty, incoming_empty) {
+        (false, true) => existing.to_string(),
+        (true, false) => incoming.to_string(),
+        // Both real or both empty: keep first (stable, one section per page).
+        _ => existing.to_string(),
+    }
 }
 
 fn split_marked_page_sections(markdown: &str) -> Vec<(usize, String)> {
@@ -1502,5 +1567,83 @@ Figure 1: COLLEAGUE.SKILL architecture for automated person-grounded skill gener
         assert!(normalized[0].markdown.is_empty());
         assert_eq!(normalized[1].markdown, "only page 2");
         assert_eq!(normalized[2].page_num, 3);
+    }
+
+    #[test]
+    fn normalize_selected_skips_out_of_group_pages() {
+        let pages = vec![VisionPageSlice {
+            page_num: 2,
+            markdown: "print page".into(),
+        }];
+        let selected = vec![1usize, 2, 5];
+        let normalized = normalize_selected_vision_pages(&pages, &selected, "");
+        assert_eq!(normalized.len(), 3);
+        assert_eq!(
+            normalized.iter().map(|p| p.page_num).collect::<Vec<_>>(),
+            vec![1, 2, 5]
+        );
+        assert!(normalized[0].markdown.is_empty());
+        assert_eq!(normalized[1].markdown, "print page");
+        assert!(!normalized.iter().any(|p| p.page_num == 3));
+    }
+
+    #[test]
+    fn stitch_prefers_real_content_over_placeholder() {
+        let print = "<!-- edgequake-page:1 -->\nReal print content\n\n<!-- edgequake-page:2 -->\nMore print\n";
+        let manuscript = format!(
+            "<!-- edgequake-page:1 -->\n{EMPTY_VISION_PAGE_PLACEHOLDER}\n\n<!-- edgequake-page:3 -->\nManuscript body\n"
+        );
+        let stitched = stitch_page_markdown_in_order(&[print.to_string(), manuscript]);
+        assert!(stitched.contains("Real print content"));
+        assert!(!stitched.contains(&format!(
+            "<!-- edgequake-page:1 -->\n{EMPTY_VISION_PAGE_PLACEHOLDER}"
+        )));
+        assert!(stitched.contains("Manuscript body"));
+        assert!(stitched.contains("More print"));
+        let nums = page_numbers_from_markdown(&stitched);
+        assert_eq!(nums, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn mixed_13_12_selection_emits_each_page_once() {
+        let print_pages: Vec<usize> = (1..=13).collect();
+        let manuscript_pages: Vec<usize> = (14..=25).collect();
+        let print_slices: Vec<VisionPageSlice> = print_pages
+            .iter()
+            .map(|&n| VisionPageSlice {
+                page_num: n,
+                markdown: format!("print-{n}"),
+            })
+            .collect();
+        let ms_slices: Vec<VisionPageSlice> = manuscript_pages
+            .iter()
+            .map(|&n| VisionPageSlice {
+                page_num: n,
+                markdown: format!("ms-{n}"),
+            })
+            .collect();
+        let print_md = assemble_vision_markdown(
+            &normalize_selected_vision_pages(&print_slices, &print_pages, ""),
+            false,
+            None,
+        );
+        let ms_md = assemble_vision_markdown(
+            &normalize_selected_vision_pages(&ms_slices, &manuscript_pages, ""),
+            false,
+            None,
+        );
+        // Simulate the old bug: full-document normalize would inject placeholders.
+        let buggy_ms =
+            assemble_vision_markdown(&normalize_vision_pages(&ms_slices, 25, ""), false, None);
+        let buggy = stitch_page_markdown_in_order(&[print_md.clone(), buggy_ms]);
+        // Without prefer_page_section, page 1 would be placeholder — with it, print wins.
+        assert!(buggy.contains("print-1"));
+        let good = stitch_page_markdown_in_order(&[print_md, ms_md]);
+        let nums = page_numbers_from_markdown(&good);
+        assert_eq!(nums.len(), 25);
+        assert_eq!(nums, (1..=25).collect::<Vec<_>>());
+        assert!(good.contains("print-13"));
+        assert!(good.contains("ms-14"));
+        assert!(good.contains("ms-25"));
     }
 }

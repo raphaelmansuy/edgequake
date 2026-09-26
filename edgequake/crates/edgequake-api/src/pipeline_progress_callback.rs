@@ -39,11 +39,38 @@ use crate::handlers::ProgressBroadcaster;
 use edgequake_pdf2md::ConversionProgressCallback;
 use edgequake_storage::traits::KVStorage;
 use edgequake_tasks::progress::PipelinePhase;
-use edgequake_tasks::PipelineState;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use edgequake_tasks::{PdfPageProgressPayload, PipelineState};
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::runtime::Handle;
+use tokio::sync::mpsc;
+
+/// Document-level converting progress bands (never regress across mixed groups).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConvertingProgressBand {
+    /// Pass-A OCR pages: `0.00 .. 0.90 * completed/total`.
+    Ocr,
+    /// Asset render / figure filter after a group: `0.90 .. 0.95`.
+    Assets,
+    /// Empty-page recovery: `0.95 .. 0.97`.
+    Recovery,
+    /// Grounding verify: `0.97 .. 0.99`.
+    Verify,
+    /// Terminal converting complete.
+    Complete,
+}
+
+struct MetadataWrite {
+    seq: u64,
+    stage_message: String,
+    stage_progress: f64,
+}
+
+struct MetadataWriterHandle {
+    tx: mpsc::UnboundedSender<MetadataWrite>,
+}
 
 /// Adapter that forwards PDF extraction progress to PipelineState and ProgressBroadcaster.
 ///
@@ -103,11 +130,21 @@ pub struct PipelineProgressCallback {
     /// slow providers like Ollama. Time-based debounce (every 2s) ensures the
     /// frontend polling (also 2s) always sees fresh progress.
     last_metadata_update_ms: AtomicU64,
-    /// FIX-PROGRESS: Completed page counter (incremented atomically).
-    ///
-    /// WHY: Pages complete out of order with concurrent processing. This counter
-    /// tracks the actual number of completed pages instead of relying on page_num.
+    /// Document-global count of unique physical pages that reached a terminal
+    /// state (complete / error / resumed-from-checkpoint).
     completed_pages: AtomicUsize,
+    /// Unique physical page numbers already counted toward `completed_pages`.
+    completed_page_set: Mutex<HashSet<usize>>,
+    /// When true, `total_pages` is the immutable physical document page count
+    /// and must not be overwritten by per-group selected totals from pdf2md.
+    physical_total_locked: AtomicBool,
+    /// Monotonic sequence for fencing async metadata writes so older spawned
+    /// patches cannot overwrite newer substages.
+    metadata_seq: AtomicU64,
+    /// Last emitted document-global stage progress (f64 bits) — never decreases.
+    last_stage_progress_bits: AtomicU64,
+    /// Single-writer queue for ordered metadata patches (optional).
+    metadata_writer: Option<MetadataWriterHandle>,
 }
 
 impl PipelineProgressCallback {
@@ -139,9 +176,32 @@ impl PipelineProgressCallback {
             last_metadata_page: AtomicUsize::new(0),
             // FIX-PROGRESS: No metadata written yet
             last_metadata_update_ms: AtomicU64::new(0),
-            // FIX-PROGRESS: No pages completed yet
+            // Document-global unique completed pages
             completed_pages: AtomicUsize::new(0),
+            completed_page_set: Mutex::new(HashSet::new()),
+            physical_total_locked: AtomicBool::new(false),
+            metadata_seq: AtomicU64::new(0),
+            last_stage_progress_bits: AtomicU64::new(0f64.to_bits()),
+            metadata_writer: None,
         }
+    }
+
+    /// Lock the immutable physical page count for the whole document.
+    ///
+    /// Mixed modality converts fire `on_conversion_start` once per group with
+    /// the *selected* count; callers must pin the physical total (e.g. 25) so
+    /// progress stays `completed/25` across both groups.
+    ///
+    /// A zero `total` is ignored (page count unknown yet).
+    #[must_use]
+    pub fn with_physical_page_count(self, total: usize) -> Self {
+        if total == 0 {
+            return self;
+        }
+        let n = total.max(1);
+        self.total_pages.store(n, Ordering::SeqCst);
+        self.physical_total_locked.store(true, Ordering::SeqCst);
+        self
     }
 
     /// Add the original filename for progress display.
@@ -158,14 +218,64 @@ impl PipelineProgressCallback {
     /// WHY: Updates document metadata with page-by-page progress so users see
     /// "Converting PDF: page 5/10 (50%)" in the documents list without waiting
     /// for WebSocket or manual refresh.
+    ///
+    /// Starts a single-writer task so metadata patches apply in sequence order
+    /// (avoids read-modify-write races across fire-and-forget spawns).
     #[must_use]
     pub fn with_document_metadata(
         mut self,
         document_id: String,
         kv_storage: Arc<dyn KVStorage>,
     ) -> Self {
+        let (tx, mut rx) = mpsc::unbounded_channel::<MetadataWrite>();
+        let doc_id = document_id.clone();
+        let kv = Arc::clone(&kv_storage);
+        self.runtime_handle.spawn(async move {
+            let mut applied_seq = 0u64;
+            while let Some(update) = rx.recv().await {
+                if update.seq < applied_seq {
+                    continue;
+                }
+                applied_seq = update.seq;
+                let stage_message = update.stage_message;
+                let stage_progress = update.stage_progress;
+                let seq = update.seq;
+                if let Err(e) = crate::services::patch_document_metadata(&kv, &doc_id, |obj| {
+                    let prev_seq = obj
+                        .get("progress_seq")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    if seq < prev_seq {
+                        return;
+                    }
+                    crate::services::sync_progress_counts_from_message(obj, &stage_message);
+                    obj.insert(
+                        "stage_message".to_string(),
+                        serde_json::json!(stage_message),
+                    );
+                    obj.insert(
+                        "stage_progress".to_string(),
+                        serde_json::json!(stage_progress),
+                    );
+                    obj.insert("progress_seq".to_string(), serde_json::json!(seq));
+                    obj.insert(
+                        "updated_at".to_string(),
+                        serde_json::json!(chrono::Utc::now().to_rfc3339()),
+                    );
+                })
+                .await
+                {
+                    tracing::warn!(
+                        doc_id = %doc_id,
+                        error = %e,
+                        "Failed to upsert document metadata progress"
+                    );
+                }
+            }
+        });
         self.document_id = Some(document_id);
         self.kv_storage = Some(kv_storage);
+        self.metadata_writer = Some(MetadataWriterHandle { tx });
         self
     }
 
@@ -184,8 +294,98 @@ impl PipelineProgressCallback {
     /// WHY: `on_conversion_complete` fires when pdf2md finishes page OCR, but vision
     /// still renders PNGs / persists mm-assets / may run multimodal analyze. Without
     /// these messages the UI freezes at "24/24 pages" and looks stalled.
+    ///
+    /// Absolute caller fractions are remapped into document bands and floored at the
+    /// current OCR fraction so mixed-group asset hooks cannot regress progress.
     pub fn report_converting_status(&self, stage_message: impl Into<String>, stage_progress: f64) {
-        self.update_document_metadata(stage_message.into(), stage_progress.clamp(0.0, 1.0));
+        let total = self.total_pages.load(Ordering::Relaxed).max(1);
+        let completed = self.completed_pages.load(Ordering::Relaxed).min(total);
+        let msg = stage_message.into();
+        let message = if msg.contains(" — ") || msg.contains('/') {
+            msg
+        } else {
+            format!("{completed}/{total} — {msg}")
+        };
+        let band = infer_converting_band(&message, stage_progress);
+        let mapped = self.map_band_progress(band, stage_progress);
+        self.update_document_metadata(message, mapped);
+    }
+
+    /// Explicit band-aware status report (preferred over absolute fractions).
+    pub fn report_band_status(
+        &self,
+        band: ConvertingProgressBand,
+        stage_message: impl Into<String>,
+        local_progress: f64,
+    ) {
+        let total = self.total_pages.load(Ordering::Relaxed).max(1);
+        let completed = self.completed_pages.load(Ordering::Relaxed).min(total);
+        let msg = stage_message.into();
+        let message = if matches!(band, ConvertingProgressBand::Complete) || msg.contains(" — ") {
+            msg
+        } else {
+            format!("{completed}/{total} — {msg}")
+        };
+        let mapped = self.map_band_progress(band, local_progress);
+        self.update_document_metadata(message, mapped);
+    }
+
+    fn map_band_progress(&self, band: ConvertingProgressBand, local: f64) -> f64 {
+        let total = self.document_total() as f64;
+        let completed = self.completed_pages.load(Ordering::Relaxed) as f64;
+        let ocr_floor = if total > 0.0 {
+            (completed / total) * 0.90
+        } else {
+            0.0
+        };
+        let local = local.clamp(0.0, 1.0);
+        let candidate = match band {
+            ConvertingProgressBand::Ocr => ocr_floor,
+            ConvertingProgressBand::Assets => {
+                // Map legacy 0.92..0.965 hooks into 0.90..0.95, floored at OCR.
+                let t = if local >= 0.90 {
+                    ((local - 0.90) / 0.07).clamp(0.0, 1.0)
+                } else {
+                    local
+                };
+                (0.90 + 0.05 * t).max(ocr_floor)
+            }
+            ConvertingProgressBand::Recovery => 0.95 + 0.02 * local,
+            ConvertingProgressBand::Verify => 0.97 + 0.02 * local,
+            ConvertingProgressBand::Complete => 1.0,
+        };
+        self.advance_stage_progress(candidate.clamp(0.0, 1.0))
+    }
+
+    fn advance_stage_progress(&self, candidate: f64) -> f64 {
+        let candidate = candidate.clamp(0.0, 1.0);
+        loop {
+            let prev_bits = self.last_stage_progress_bits.load(Ordering::SeqCst);
+            let prev = f64::from_bits(prev_bits);
+            let next = candidate.max(prev);
+            if self
+                .last_stage_progress_bits
+                .compare_exchange(
+                    prev_bits,
+                    next.to_bits(),
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                )
+                .is_ok()
+            {
+                return next;
+            }
+        }
+    }
+
+    fn ocr_progress_fraction(&self, completed: usize) -> f64 {
+        let total = self.document_total();
+        let raw = if total > 0 {
+            (completed as f64 / total as f64) * 0.90
+        } else {
+            0.0
+        };
+        self.advance_stage_progress(raw.clamp(0.0, 0.90))
     }
 
     /// Mark PdfConversion phase complete after post-page work finishes.
@@ -201,61 +401,33 @@ impl PipelineProgressCallback {
         });
     }
 
-    /// Send a ProgressEvent to WebSocket clients if broadcaster is configured.
+    /// PdfPageProgress is forwarded solely via `pipeline_ws_bridge` from
+    /// PipelineState — keep the broadcaster handle for API compatibility with
+    /// `with_broadcaster`, but do not dual-emit page events here.
+    #[allow(dead_code)]
     fn broadcast_event(&self, event: ProgressEvent) {
+        if matches!(event, ProgressEvent::PdfPageProgress { .. }) {
+            return;
+        }
         if let Some(ref broadcaster) = self.progress_broadcaster {
-            // Ignore send errors (no subscribers is OK)
             broadcaster.broadcast(event);
         }
     }
 
-    /// Update document metadata with current progress.
-    ///
-    /// WHY: Users polling /documents see real-time progress without WebSocket.
+    /// Update document metadata with current progress (ordered single-writer).
     fn update_document_metadata(&self, stage_message: String, stage_progress: f64) {
-        if let (Some(ref doc_id), Some(ref kv)) = (&self.document_id, &self.kv_storage) {
-            let doc_id = doc_id.clone();
-            let kv = Arc::clone(kv);
-            let handle = self.runtime_handle.clone();
-
-            handle.spawn(async move {
-                // Staging-aware + terminal-status guard (DRY with text_insert_content).
-                if let Err(e) = crate::services::patch_document_metadata(&kv, &doc_id, |obj| {
-                    // LAW-IS1: persist structured counts at write time (list/ActiveRuns SSOT).
-                    crate::services::sync_progress_counts_from_message(obj, &stage_message);
-                    obj.insert(
-                        "stage_message".to_string(),
-                        serde_json::json!(stage_message),
-                    );
-                    obj.insert(
-                        "stage_progress".to_string(),
-                        serde_json::json!(stage_progress),
-                    );
-                    obj.insert(
-                        "updated_at".to_string(),
-                        serde_json::json!(chrono::Utc::now().to_rfc3339()),
-                    );
-                })
-                .await
-                {
-                    tracing::warn!(
-                        doc_id = %doc_id,
-                        error = %e,
-                        "Failed to upsert document metadata progress"
-                    );
-                }
-            });
-        }
+        let Some(ref writer) = self.metadata_writer else {
+            return;
+        };
+        let seq = self.metadata_seq.fetch_add(1, Ordering::SeqCst) + 1;
+        let _ = writer.tx.send(MetadataWrite {
+            seq,
+            stage_message,
+            stage_progress: stage_progress.clamp(0.0, 1.0),
+        });
     }
 
     /// FIX-PROGRESS: Check if enough time has passed to warrant a metadata update.
-    ///
-    /// WHY: Count-based debounce (every 50 pages) creates 10-15 minute gaps for slow
-    /// providers like Ollama (~60s/page). Time-based debounce (every 2s) ensures the
-    /// frontend polling (also 2s) always sees fresh progress.
-    ///
-    /// Returns `true` if at least `interval_ms` milliseconds have passed since the last
-    /// metadata update, and atomically stores the new timestamp.
     fn should_update_metadata(&self, interval_ms: u64) -> bool {
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -263,7 +435,6 @@ impl PipelineProgressCallback {
             .as_millis() as u64;
         let last = self.last_metadata_update_ms.load(Ordering::Relaxed);
         if now_ms.saturating_sub(last) >= interval_ms {
-            // CAS: only one thread wins the race to update the timestamp
             self.last_metadata_update_ms
                 .compare_exchange(last, now_ms, Ordering::SeqCst, Ordering::Relaxed)
                 .is_ok()
@@ -271,151 +442,168 @@ impl PipelineProgressCallback {
             false
         }
     }
+
+    fn document_total(&self) -> usize {
+        self.total_pages.load(Ordering::Relaxed).max(1)
+    }
+
+    /// Mark a physical page terminal (complete/error/resumed). Returns new unique count.
+    fn mark_page_terminal(&self, page_num: usize) -> usize {
+        let inserted = {
+            let mut set = self
+                .completed_page_set
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            set.insert(page_num)
+        };
+        if inserted {
+            self.completed_pages.fetch_add(1, Ordering::SeqCst) + 1
+        } else {
+            self.completed_pages.load(Ordering::Relaxed)
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)] // maps onto PdfPageProgressPayload fields
+    fn emit_pdf_progress(
+        &self,
+        page_num: u32,
+        completed_pages: u32,
+        total_pages: u32,
+        phase: String,
+        markdown_len: usize,
+        success: bool,
+        error: Option<String>,
+    ) {
+        self.pipeline_state
+            .emit_pdf_page_progress(PdfPageProgressPayload {
+                pdf_id: self.pdf_id.clone(),
+                task_id: self.task_id.clone(),
+                page_num,
+                total_pages,
+                completed_pages,
+                phase,
+                markdown_len,
+                success,
+                error,
+            });
+    }
 }
 
 impl ConversionProgressCallback for PipelineProgressCallback {
-    fn on_conversion_start(&self, total_pages: usize) {
-        self.total_pages.store(total_pages, Ordering::SeqCst);
+    fn on_conversion_start(&self, group_total: usize) {
+        let locked = self.physical_total_locked.load(Ordering::Relaxed);
+        let completed = self.completed_pages.load(Ordering::Relaxed);
+        let total = if locked {
+            self.document_total()
+        } else if completed == 0 {
+            let n = group_total.max(1);
+            self.total_pages.store(n, Ordering::SeqCst);
+            n
+        } else {
+            // Infer physical total when page_count was unknown at start:
+            // completed so far + this group's selected pages (mixed 13+12 → 25).
+            let inferred = completed.saturating_add(group_total).max(1);
+            let prev = self.total_pages.load(Ordering::Relaxed);
+            let n = inferred.max(prev);
+            self.total_pages.store(n, Ordering::SeqCst);
+            n
+        };
 
         tracing::info!(
-            total_pages = total_pages,
+            group_total,
+            document_total = total,
+            completed,
             pdf_id = %self.pdf_id,
-            "PDF conversion started"
+            physical_locked = locked,
+            "PDF conversion started (group)"
         );
 
-        // Emit start event to PipelineState (internal)
-        self.pipeline_state.emit_pdf_page_progress(
-            self.pdf_id.clone(),
-            self.task_id.clone(),
+        // Suppress per-group start resets when physical total is already locked.
+        if locked && completed > 0 {
+            return;
+        }
+
+        self.emit_pdf_progress(
             0,
-            total_pages as u32,
+            completed as u32,
+            total as u32,
             "extraction".to_string(),
             0,
             true,
             None,
         );
 
-        // OODA-10: Also broadcast to WebSocket clients
-        self.broadcast_event(ProgressEvent::PdfPageProgress {
-            pdf_id: self.pdf_id.clone(),
-            task_id: self.task_id.clone(),
-            page_num: 0,
-            total_pages: total_pages as u32,
-            phase: "extraction".to_string(),
-            markdown_len: 0,
-            success: true,
-            error: None,
-        });
-
-        // FIX-PAGE-COUNT: Immediately update document metadata with real page count.
-        // WHY: The early metadata written in pdf_processing.rs may have page_count=0
-        // if extract_page_count() failed (common for binary PDFs). Now that pdfium
-        // has opened the file and detected the actual number of pages, we update
-        // the KV metadata so the document list shows the correct "0/N pages"
-        // instead of "0/0 pages".
         self.update_document_metadata(
-            format!("Converting PDF to Markdown (0/{} pages)", total_pages),
-            0.0,
+            format!("Converting PDF to Markdown ({completed}/{total} pages)"),
+            self.ocr_progress_fraction(completed),
         );
 
-        // OODA-13: Persist to queryable storage (async via spawn)
-        // OODA-04: Use captured runtime handle to spawn from sync context
-        let state = self.pipeline_state.clone();
-        let track_id = self.task_id.clone();
-        let pdf_id = self.pdf_id.clone();
-        let filename = self.filename.clone();
-        let pages = total_pages;
-        self.runtime_handle.spawn(async move {
-            state
-                .start_pdf_progress(&track_id, &pdf_id, &filename)
-                .await;
-            state
-                .start_pdf_phase(&track_id, PipelinePhase::PdfConversion, pages)
-                .await;
-        });
+        if !locked || completed == 0 {
+            let state = self.pipeline_state.clone();
+            let track_id = self.task_id.clone();
+            let pdf_id = self.pdf_id.clone();
+            let filename = self.filename.clone();
+            let pages = total;
+            self.runtime_handle.spawn(async move {
+                state
+                    .start_pdf_progress(&track_id, &pdf_id, &filename)
+                    .await;
+                state
+                    .start_pdf_phase(&track_id, PipelinePhase::PdfConversion, pages)
+                    .await;
+            });
+        }
     }
 
-    fn on_page_start(&self, page_num: usize, total_pages: usize) {
-        // Store total pages in case extraction_start wasn't called
-        self.total_pages.store(total_pages, Ordering::SeqCst);
+    fn on_page_start(&self, page_num: usize, _group_total: usize) {
+        let total = self.document_total();
+        let completed = self.completed_pages.load(Ordering::Relaxed);
 
         tracing::debug!(
-            page_num = page_num,
-            total_pages = total_pages,
+            page_num,
+            total_pages = total,
+            completed,
             pdf_id = %self.pdf_id,
             "PDF page extraction starting"
         );
 
-        // Emit "starting page N" event to PipelineState
-        self.pipeline_state.emit_pdf_page_progress(
-            self.pdf_id.clone(),
-            self.task_id.clone(),
+        self.emit_pdf_progress(
             page_num as u32,
-            total_pages as u32,
+            completed as u32,
+            total as u32,
             "extracting".to_string(),
             0,
             true,
             None,
         );
 
-        // OODA-10: Also broadcast to WebSocket clients
-        self.broadcast_event(ProgressEvent::PdfPageProgress {
-            pdf_id: self.pdf_id.clone(),
-            task_id: self.task_id.clone(),
-            page_num: page_num as u32,
-            total_pages: total_pages as u32,
-            phase: "extracting".to_string(),
-            markdown_len: 0,
-            success: true,
-            error: None,
-        });
-
-        // FIX-PROGRESS: Update document metadata on page start (time-debounced).
-        // WHY: With slow LLM providers (Ollama ~60s/page), users see NO visual
-        // feedback until the first page COMPLETES. Updating on page_start shows
-        // "Starting page X/N..." immediately, so users know work is happening.
-        // Debounce interval: 2 seconds (matches frontend polling interval).
         if self.should_update_metadata(2_000) {
-            let completed = self.completed_pages.load(Ordering::Relaxed);
-            let progress = if total_pages > 0 {
-                completed as f64 / total_pages as f64
-            } else {
-                0.0
-            };
+            let progress = self.ocr_progress_fraction(completed);
             self.update_document_metadata(
                 format!(
-                    "Converting PDF to Markdown: starting page {}/{} ({} completed)",
-                    page_num + 1,
-                    total_pages,
-                    completed
+                    "Converting PDF to Markdown: starting page {page_num}/{total} ({completed} completed)"
                 ),
                 progress,
             );
         }
     }
 
-    fn on_page_complete(&self, page_num: usize, total_pages: usize, markdown_len: usize) {
-        // FIX-PROGRESS: Track actual completed pages atomically.
-        let completed = self.completed_pages.fetch_add(1, Ordering::SeqCst) + 1;
-
-        // Store total_pages for use in debounce logic
-        self.total_pages.store(total_pages, Ordering::SeqCst);
-        let total = total_pages;
+    fn on_page_complete(&self, page_num: usize, _group_total: usize, markdown_len: usize) {
+        let completed = self.mark_page_terminal(page_num);
+        let total = self.document_total();
 
         tracing::debug!(
-            page_num = page_num,
+            page_num,
             total_pages = total,
-            completed = completed,
-            markdown_len = markdown_len,
+            completed,
+            markdown_len,
             pdf_id = %self.pdf_id,
             "PDF page extraction complete"
         );
 
-        // Emit to PipelineState
-        self.pipeline_state.emit_pdf_page_progress(
-            self.pdf_id.clone(),
-            self.task_id.clone(),
+        self.emit_pdf_progress(
             page_num as u32,
+            completed as u32,
             total as u32,
             "extracted".to_string(),
             markdown_len,
@@ -423,29 +611,6 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             None,
         );
 
-        // OODA-10: Also broadcast to WebSocket clients
-        self.broadcast_event(ProgressEvent::PdfPageProgress {
-            pdf_id: self.pdf_id.clone(),
-            task_id: self.task_id.clone(),
-            page_num: page_num as u32,
-            total_pages: total as u32,
-            phase: "extracted".to_string(),
-            markdown_len,
-            success: true,
-            error: None,
-        });
-
-        // FIX-PROGRESS: Time-based metadata debounce (replaces count-based).
-        //
-        // WHY: Count-based debounce (every 50 pages for 500+ page docs) creates
-        // 10-15 minute gaps between UI updates with slow LLM providers (Ollama
-        // ~60s/page). Time-based debounce (2 seconds) aligns with frontend
-        // polling (also 2s) so users always see fresh progress.
-        //
-        // Override conditions (always update regardless of timer):
-        //   - First completed page: immediate feedback
-        //   - Last completed page: ensure 100% is shown
-        //   - 25% milestones: notable progress markers
         let is_first_completed = completed == 1;
         let is_last_page = completed >= total;
         let milestone = total > 0 && {
@@ -458,66 +623,51 @@ impl ConversionProgressCallback for PipelineProgressCallback {
 
         if should_update {
             self.last_metadata_page.store(page_num, Ordering::SeqCst);
-
-            let progress_percent = if total > 0 {
-                (completed as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            };
+            let progress = self.ocr_progress_fraction(completed);
+            let progress_percent = (completed as f64 / total as f64) * 100.0;
             let remaining = total.saturating_sub(completed);
             let message = if total >= 100 {
                 format!(
-                    "Converting PDF to Markdown: page {}/{} ({:.0}%) — {} remaining",
-                    completed, total, progress_percent, remaining
+                    "Converting PDF to Markdown: page {completed}/{total} ({progress_percent:.0}%) — {remaining} remaining"
                 )
             } else {
                 format!(
-                    "Converting PDF to Markdown: page {}/{} ({:.0}%)",
-                    completed, total, progress_percent
+                    "Converting PDF to Markdown: page {completed}/{total} ({progress_percent:.0}%)"
                 )
             };
-            self.update_document_metadata(
-                message,
-                progress_percent / 100.0, // Normalize to 0.0-1.0
-            );
+            self.update_document_metadata(message, progress);
         }
 
-        // OODA-13: Persist to queryable storage (async via spawn)
-        // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();
         let track_id = self.task_id.clone();
-        let page = page_num;
-        let total_pages = total;
         self.runtime_handle.spawn(async move {
             state
                 .update_pdf_phase(
                     &track_id,
                     PipelinePhase::PdfConversion,
-                    page,
-                    &format!("Extracted page {} of {}", page, total_pages),
+                    completed,
+                    &format!("Extracted {completed} of {total} pages (page {page_num})"),
                 )
                 .await;
         });
     }
 
-    fn on_page_error(&self, page_num: usize, total_pages: usize, error: String) {
-        // Store total_pages for consistency
-        self.total_pages.store(total_pages, Ordering::SeqCst);
-        let total = total_pages;
+    fn on_page_error(&self, page_num: usize, _group_total: usize, error: String) {
+        let completed = self.mark_page_terminal(page_num);
+        let total = self.document_total();
 
         tracing::warn!(
-            page_num = page_num,
+            page_num,
             total_pages = total,
+            completed,
             error = %error,
             pdf_id = %self.pdf_id,
             "PDF page extraction error"
         );
 
-        // Emit to PipelineState
-        self.pipeline_state.emit_pdf_page_progress(
-            self.pdf_id.clone(),
-            self.task_id.clone(),
+        self.emit_pdf_progress(
             page_num as u32,
+            completed as u32,
             total as u32,
             "extraction_error".to_string(),
             0,
@@ -525,98 +675,105 @@ impl ConversionProgressCallback for PipelineProgressCallback {
             Some(error.clone()),
         );
 
-        // OODA-10: Also broadcast to WebSocket clients
-        self.broadcast_event(ProgressEvent::PdfPageProgress {
-            pdf_id: self.pdf_id.clone(),
-            task_id: self.task_id.clone(),
-            page_num: page_num as u32,
-            total_pages: total as u32,
-            phase: "extraction_error".to_string(),
-            markdown_len: 0,
-            success: false,
-            error: Some(error.to_string()),
-        });
-
-        // OODA-13: Update phase with error message (still tracks progress)
-        // OODA-04: Use captured runtime handle to spawn from sync context
         let state = self.pipeline_state.clone();
         let track_id = self.task_id.clone();
-        let page = page_num;
-        let total_pages = total;
-        let err_msg = error.to_string();
+        let err_msg = error;
         self.runtime_handle.spawn(async move {
             state
                 .update_pdf_phase(
                     &track_id,
                     PipelinePhase::PdfConversion,
-                    page,
-                    &format!("Error on page {}/{}: {}", page, total_pages, err_msg),
+                    completed,
+                    &format!("Error on page {page_num}/{total}: {err_msg}"),
                 )
                 .await;
         });
     }
 
-    fn on_conversion_complete(&self, total_pages: usize, success_count: usize) {
-        tracing::info!(
-            total_pages = total_pages,
-            success_count = success_count,
+    fn on_page_resumed(&self, page_num: usize, _group_total: usize) {
+        let completed = self.mark_page_terminal(page_num);
+        let total = self.document_total();
+        tracing::debug!(
+            page_num,
+            completed,
+            total_pages = total,
             pdf_id = %self.pdf_id,
-            "PDF conversion complete"
+            "PDF page resumed from checkpoint"
+        );
+        self.emit_pdf_progress(
+            page_num as u32,
+            completed as u32,
+            total as u32,
+            "resumed".to_string(),
+            0,
+            true,
+            None,
+        );
+        if self.should_update_metadata(2_000) {
+            let progress = self.ocr_progress_fraction(completed);
+            self.update_document_metadata(
+                format!("Converting PDF to Markdown: page {completed}/{total} (resumed)"),
+                progress,
+            );
+        }
+    }
+
+    fn on_conversion_complete(&self, group_total: usize, success_count: usize) {
+        let total = self.document_total();
+        let completed = self.completed_pages.load(Ordering::Relaxed);
+        tracing::info!(
+            group_total,
+            group_success = success_count,
+            document_total = total,
+            completed,
+            pdf_id = %self.pdf_id,
+            "PDF conversion group complete"
         );
 
-        // Emit completion event
-        let phase = if success_count == total_pages {
-            "complete".to_string()
+        // Do not reset progress on group complete — mixed docs fire this twice.
+        let phase = if completed >= total {
+            "group_complete".to_string()
         } else {
-            format!("partial_complete_{}_of_{}", success_count, total_pages)
-        };
-        let error_msg = if success_count < total_pages {
-            Some(format!(
-                "Extracted {}/{} pages successfully",
-                success_count, total_pages
-            ))
-        } else {
-            None
+            format!("group_partial_{success_count}_of_{group_total}")
         };
 
-        // Emit to PipelineState
-        self.pipeline_state.emit_pdf_page_progress(
-            self.pdf_id.clone(),
-            self.task_id.clone(),
-            total_pages as u32,
-            total_pages as u32,
-            phase.clone(),
+        self.emit_pdf_progress(
+            completed as u32,
+            completed as u32,
+            total as u32,
+            phase,
             0,
             success_count > 0,
-            error_msg.clone(),
+            None,
         );
 
-        // OODA-10: Also broadcast to WebSocket clients
-        self.broadcast_event(ProgressEvent::PdfPageProgress {
-            pdf_id: self.pdf_id.clone(),
-            task_id: self.task_id.clone(),
-            page_num: total_pages as u32,
-            total_pages: total_pages as u32,
-            phase,
-            markdown_len: 0,
-            success: success_count > 0,
-            error: error_msg,
-        });
-
-        // Page OCR finished — keep converting stage active for post-page work
-        // (PNG render, mm-asset persist, multimodal analyze). Do NOT mark
-        // PdfConversion complete here; caller finishes that via
-        // `complete_pdf_conversion_phase` after those steps.
-        //
-        // Message avoids "complete"/"extracted" wording that previously caused
-        // the WebUI to prematurely show a Chunking badge.
         self.update_document_metadata(
-            format!(
-                "Pages converted ({}/{}) — preparing page images…",
-                success_count, total_pages
-            ),
-            0.92,
+            format!("{completed}/{total} — rendering"),
+            self.map_band_progress(ConvertingProgressBand::Assets, 0.0),
         );
+    }
+}
+
+fn infer_converting_band(message: &str, stage_progress: f64) -> ConvertingProgressBand {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("verif") || lower.contains("grounding") {
+        ConvertingProgressBand::Verify
+    } else if lower.contains("recover") || lower.contains("empty page") {
+        ConvertingProgressBand::Recovery
+    } else if lower.contains("finished") || stage_progress >= 1.0 {
+        ConvertingProgressBand::Complete
+    } else if lower.contains("render")
+        || lower.contains("figure")
+        || lower.contains("asset")
+        || lower.contains("chart")
+        || lower.contains("filter")
+        || lower.contains("saving page")
+        || lower.contains("analyz")
+        || stage_progress >= 0.90
+    {
+        ConvertingProgressBand::Assets
+    } else {
+        ConvertingProgressBand::Ocr
     }
 }
 
@@ -651,6 +808,7 @@ mod tests {
                 task_id,
                 page_num,
                 total_pages,
+                completed_pages,
                 markdown_len,
                 success,
                 ..
@@ -659,11 +817,88 @@ mod tests {
                 assert_eq!(task_id, "task-456");
                 assert_eq!(page_num, 5);
                 assert_eq!(total_pages, 10);
+                assert_eq!(completed_pages, 1);
                 assert_eq!(markdown_len, 2048);
                 assert!(success);
             }
             _ => panic!("Expected PdfPageProgress event"),
         }
+    }
+
+    #[tokio::test]
+    async fn unknown_totals_infer_physical_count_across_groups() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+        let callback =
+            PipelineProgressCallback::new(state, "pdf-infer".into(), "task-infer".into());
+        // No with_physical_page_count — simulate heal failure.
+        callback.on_conversion_start(13);
+        for p in 1..=13 {
+            callback.on_page_complete(p, 13, 10);
+        }
+        callback.on_conversion_start(12);
+        for p in 14..=25 {
+            callback.on_page_complete(p, 12, 10);
+        }
+
+        let mut last_total = 0u32;
+        let mut last_completed = 0u32;
+        while let Ok(ev) = rx.try_recv() {
+            if let edgequake_tasks::PipelineEvent::PdfPageProgress {
+                total_pages,
+                completed_pages,
+                ..
+            } = ev
+            {
+                last_total = total_pages;
+                last_completed = completed_pages;
+            }
+        }
+        assert_eq!(last_total, 25);
+        assert_eq!(last_completed, 25);
+    }
+
+    #[tokio::test]
+    async fn mixed_groups_keep_monotonic_document_progress() {
+        let state = PipelineState::new();
+        let mut rx = state.subscribe();
+        let callback =
+            PipelineProgressCallback::new(state.clone(), "pdf-mixed".into(), "task-mixed".into())
+                .with_physical_page_count(25);
+
+        // Print group (13 pages) then manuscript group (12 pages).
+        callback.on_conversion_start(13);
+        for p in 1..=13 {
+            callback.on_page_complete(p, 13, 10);
+        }
+        callback.on_conversion_complete(13, 13);
+        // Second group must not reset totals.
+        callback.on_conversion_start(12);
+        for p in 14..=25 {
+            callback.on_page_complete(p, 12, 10);
+        }
+        callback.on_page_error(20, 12, "dup".into()); // already counted
+        callback.on_page_resumed(21, 12); // already counted
+
+        let mut last_completed = 0u32;
+        while let Ok(ev) = rx.try_recv() {
+            if let edgequake_tasks::PipelineEvent::PdfPageProgress {
+                total_pages,
+                completed_pages,
+                phase,
+                ..
+            } = ev
+            {
+                assert_eq!(total_pages, 25, "phase={phase}");
+                assert!(
+                    completed_pages >= last_completed,
+                    "completed went {last_completed} → {completed_pages} ({phase})"
+                );
+                last_completed = completed_pages;
+            }
+        }
+        assert_eq!(last_completed, 25);
+        assert_eq!(callback.completed_pages.load(Ordering::Relaxed), 25);
     }
 
     #[tokio::test]
@@ -710,28 +945,24 @@ mod tests {
             state.clone(),
             "pdf-done".to_string(),
             "task-done".to_string(),
-        );
+        )
+        .with_physical_page_count(2);
 
-        callback.on_conversion_start(10);
-        callback.on_conversion_complete(10, 10);
+        callback.on_conversion_start(2);
+        callback.on_page_complete(1, 2, 10);
+        callback.on_page_complete(2, 2, 10);
+        callback.on_conversion_complete(2, 2);
 
-        // Skip start event
-        let _ = rx.try_recv();
-
-        let event = rx.try_recv().unwrap();
-        match event {
-            edgequake_tasks::PipelineEvent::PdfPageProgress {
-                phase,
-                success,
-                error,
-                ..
-            } => {
-                assert_eq!(phase, "complete");
-                assert!(success);
-                assert!(error.is_none());
+        let mut saw_group_complete = false;
+        while let Ok(ev) = rx.try_recv() {
+            if let edgequake_tasks::PipelineEvent::PdfPageProgress { phase, success, .. } = ev {
+                if phase == "group_complete" {
+                    assert!(success);
+                    saw_group_complete = true;
+                }
             }
-            _ => panic!("Expected PdfPageProgress event"),
         }
+        assert!(saw_group_complete);
     }
 
     #[tokio::test]
@@ -743,71 +974,85 @@ mod tests {
             state.clone(),
             "pdf-partial".to_string(),
             "task-partial".to_string(),
-        );
+        )
+        .with_physical_page_count(10);
 
-        callback.on_conversion_start(10);
-        callback.on_conversion_complete(10, 8); // 2 pages failed
-
-        // Skip start event
-        let _ = rx.try_recv();
-
-        let event = rx.try_recv().unwrap();
-        match event {
-            edgequake_tasks::PipelineEvent::PdfPageProgress {
-                phase,
-                success,
-                error,
-                ..
-            } => {
-                assert!(phase.contains("partial"));
-                assert!(success); // Still success because some pages worked
-                assert!(error.unwrap().contains("8/10"));
-            }
-            _ => panic!("Expected PdfPageProgress event"),
+        callback.on_conversion_start(8);
+        for p in 1..=8 {
+            callback.on_page_complete(p, 8, 10);
         }
+        callback.on_conversion_complete(8, 8); // first mixed group only
+
+        let mut saw_partial = false;
+        while let Ok(ev) = rx.try_recv() {
+            if let edgequake_tasks::PipelineEvent::PdfPageProgress { phase, success, .. } = ev {
+                if phase.contains("partial") {
+                    assert!(success);
+                    assert!(phase.contains("8_of_8"));
+                    saw_partial = true;
+                }
+            }
+        }
+        assert!(saw_partial);
     }
 
-    /// OODA-10: Test that with_broadcaster enables dual event delivery.
+    #[tokio::test]
+    async fn asset_status_does_not_regress_mixed_progress() {
+        let state = PipelineState::new();
+        let callback =
+            PipelineProgressCallback::new(state, "pdf-assets".into(), "task-assets".into())
+                .with_physical_page_count(25);
+
+        callback.on_conversion_start(13);
+        for p in 1..=13 {
+            callback.on_page_complete(p, 13, 10);
+        }
+        // Group-local absolute asset fractions used to jump to 0.96 then OCR
+        // of group 2 would drop to 14/25 — bands + floor prevent regression.
+        callback.report_converting_status("Rendering page images…", 0.94);
+        let after_assets = f64::from_bits(callback.last_stage_progress_bits.load(Ordering::SeqCst));
+        assert!(after_assets >= 0.90 * (13.0 / 25.0));
+
+        callback.on_conversion_start(12);
+        callback.on_page_complete(14, 12, 10);
+        let after_next = f64::from_bits(callback.last_stage_progress_bits.load(Ordering::SeqCst));
+        assert!(
+            after_next + f64::EPSILON >= after_assets,
+            "progress regressed {after_assets} → {after_next}"
+        );
+    }
+
+    /// OODA-10: PdfPageProgress is bridge-only; broadcaster is retained for API compat.
     #[tokio::test]
     async fn test_pipeline_progress_callback_with_broadcaster() {
         let state = PipelineState::new();
-        let _internal_rx = state.subscribe();
+        let mut internal_rx = state.subscribe();
 
-        // Create broadcaster and subscribe BEFORE callback fires events
         let broadcaster = ProgressBroadcaster::new(16);
         let mut ws_rx = broadcaster.subscribe();
 
         let callback = PipelineProgressCallback::new(
             state.clone(),
-            "pdf-ws-test".to_string(),
-            "task-ws-test".to_string(),
+            "pdf-dual".to_string(),
+            "task-dual".to_string(),
         )
         .with_broadcaster(broadcaster);
 
-        // Fire an event
         callback.on_conversion_start(5);
+        callback.on_page_complete(1, 5, 100);
 
-        // Verify WebSocket subscriber received the event
-        let ws_event = ws_rx.try_recv().unwrap();
-        match ws_event {
-            ProgressEvent::PdfPageProgress {
-                pdf_id,
-                task_id,
-                page_num,
-                total_pages,
-                phase,
-                success,
-                ..
-            } => {
-                assert_eq!(pdf_id, "pdf-ws-test");
-                assert_eq!(task_id, "task-ws-test");
-                assert_eq!(page_num, 0);
-                assert_eq!(total_pages, 5);
-                assert_eq!(phase, "extraction");
-                assert!(success);
+        // Internal PipelineState still receives events.
+        let mut saw_internal = false;
+        while let Ok(ev) = internal_rx.try_recv() {
+            if matches!(ev, edgequake_tasks::PipelineEvent::PdfPageProgress { .. }) {
+                saw_internal = true;
             }
-            _ => panic!("Expected PdfPageProgress event from broadcaster"),
         }
+        assert!(saw_internal);
+
+        // Direct broadcaster dual-emit for PdfPageProgress is intentionally disabled
+        // (pipeline_ws_bridge is the single WS path).
+        assert!(ws_rx.try_recv().is_err());
     }
 
     /// OODA-13: Test that callbacks persist progress to queryable storage.
@@ -841,11 +1086,11 @@ mod tests {
         assert_eq!(progress.pdf_id, "pdf-persist-test");
         assert_eq!(progress.filename, "test_document.pdf");
 
-        // PdfConversion phase should be active (index 1)
+        // PdfConversion phase should be active; current is unique completed count.
         let pdf_phase = &progress.phases[PipelinePhase::PdfConversion.index()];
         assert_eq!(pdf_phase.status, PhaseStatus::Active);
         assert_eq!(pdf_phase.total, 10);
-        assert_eq!(pdf_phase.current, 5);
+        assert_eq!(pdf_phase.current, 1);
     }
 
     /// OODA-13: Test that on_extraction_complete marks phase as completed.
@@ -902,7 +1147,7 @@ mod tests {
             "task-zero".to_string(),
         );
 
-        // Zero pages should not panic
+        // Zero pages should not panic; totals floor at 1 for display safety.
         callback.on_conversion_start(0);
         callback.on_conversion_complete(0, 0);
 
@@ -912,20 +1157,20 @@ mod tests {
             edgequake_tasks::PipelineEvent::PdfPageProgress {
                 total_pages, phase, ..
             } => {
-                assert_eq!(total_pages, 0);
+                assert_eq!(total_pages, 1);
                 assert_eq!(phase, "extraction");
             }
             _ => panic!("Expected PdfPageProgress event"),
         }
 
-        // Verify complete event
+        // Verify group-complete event (document-global vocabulary).
         let event = rx.try_recv().unwrap();
         match event {
             edgequake_tasks::PipelineEvent::PdfPageProgress {
                 total_pages, phase, ..
             } => {
-                assert_eq!(total_pages, 0);
-                assert_eq!(phase, "complete");
+                assert_eq!(total_pages, 1);
+                assert!(phase.contains("group_"));
             }
             _ => panic!("Expected PdfPageProgress event"),
         }
@@ -971,11 +1216,11 @@ mod tests {
             _ => panic!("Expected PdfPageProgress event"),
         }
 
-        // Verify complete event
+        // Verify group-complete event
         let event = rx.try_recv().unwrap();
         match event {
             edgequake_tasks::PipelineEvent::PdfPageProgress { phase, success, .. } => {
-                assert_eq!(phase, "complete");
+                assert_eq!(phase, "group_complete");
                 assert!(success);
             }
             _ => panic!("Expected PdfPageProgress event"),
@@ -1011,12 +1256,12 @@ mod tests {
             edgequake_tasks::PipelineEvent::PdfPageProgress {
                 phase,
                 success,
-                error,
+                completed_pages,
                 ..
             } => {
-                assert!(phase.contains("partial_complete"));
+                assert_eq!(phase, "group_complete");
                 assert!(!success); // 0 successes → false
-                assert!(error.unwrap().contains("0/3"));
+                assert_eq!(completed_pages, 3);
             }
             _ => panic!("Expected PdfPageProgress event"),
         }
@@ -1089,18 +1334,18 @@ mod tests {
             let _ = rx.try_recv();
         }
 
-        // Verify partial completion
+        // Verify group completion after all pages terminal
         let event = rx.try_recv().unwrap();
         match event {
             edgequake_tasks::PipelineEvent::PdfPageProgress {
                 phase,
                 success,
-                error,
+                completed_pages,
                 ..
             } => {
-                assert!(phase.contains("partial_complete"));
+                assert_eq!(phase, "group_complete");
                 assert!(success); // 2 > 0, so still success
-                assert!(error.unwrap().contains("2/4"));
+                assert_eq!(completed_pages, 4);
             }
             _ => panic!("Expected PdfPageProgress event"),
         }
@@ -1250,11 +1495,11 @@ mod tests {
         );
     }
 
-    /// Edge case: WebSocket broadcaster receives error events.
+    /// Edge case: Errors still reach PipelineState (WS is bridge-only).
     #[tokio::test]
     async fn test_broadcaster_receives_errors() {
         let state = PipelineState::new();
-        let _internal_rx = state.subscribe();
+        let mut internal_rx = state.subscribe();
 
         let broadcaster = ProgressBroadcaster::new(16);
         let mut ws_rx = broadcaster.subscribe();
@@ -1267,27 +1512,29 @@ mod tests {
         .with_broadcaster(broadcaster);
 
         callback.on_conversion_start(3);
-        // Drain start event
-        let _ = ws_rx.try_recv();
-
         callback.on_page_error(1, 3, "GPU OOM".to_string());
 
-        let ws_event = ws_rx.try_recv().unwrap();
-        match ws_event {
-            ProgressEvent::PdfPageProgress {
+        let mut saw_error = false;
+        while let Ok(ev) = internal_rx.try_recv() {
+            if let edgequake_tasks::PipelineEvent::PdfPageProgress {
                 phase,
                 success,
                 error,
                 page_num,
                 ..
-            } => {
-                assert_eq!(phase, "extraction_error");
-                assert!(!success);
-                assert_eq!(page_num, 1);
-                assert_eq!(error.unwrap(), "GPU OOM");
+            } = ev
+            {
+                if phase == "extraction_error" {
+                    assert!(!success);
+                    assert_eq!(page_num, 1);
+                    assert_eq!(error.unwrap(), "GPU OOM");
+                    saw_error = true;
+                }
             }
-            _ => panic!("Expected PdfPageProgress error event"),
         }
+        assert!(saw_error);
+        // Direct broadcaster path remains suppressed for PdfPageProgress.
+        assert!(ws_rx.try_recv().is_err());
     }
 
     /// Edge case: Completion with exact total sets 100% progress.

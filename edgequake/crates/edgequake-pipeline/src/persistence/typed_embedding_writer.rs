@@ -35,7 +35,7 @@ pub async fn persist_typed_chunk_embeddings(
 ) -> Result<u64, StorageError> {
     // SPEC-118: share resolve SSOT with relational_chunk_writer (DRY).
     let doc_uuid = match resolve_relational_document_id(&ctx.document_id) {
-        Ok(DocumentId(u)) => u,
+        Ok(id) => id.into_uuid(),
         Err(_) => return Ok(0),
     };
     let ws_uuid = match ctx
@@ -60,7 +60,7 @@ pub async fn persist_typed_chunk_embeddings(
     // Resolve relational chunk ids for this document in one round trip
     // (LAW-D7); unmatched chunks are skipped (defensive — W1 writer already
     // inserted them, so a miss indicates a partial-failure retry).
-    let spine = repo.load_for_document(DocumentId(doc_uuid)).await?;
+    let spine = repo.load_for_document(DocumentId::new(doc_uuid)).await?;
     let id_by_index: HashMap<i32, Uuid> =
         spine.into_iter().map(|c| (c.chunk_index, c.id.0)).collect();
 
@@ -72,7 +72,7 @@ pub async fn persist_typed_chunk_embeddings(
         };
         batch.push(EmbeddingRow {
             chunk_id: (*chunk_uuid).into(),
-            workspace_id: WorkspaceId(ws_uuid),
+            workspace_id: WorkspaceId::new(ws_uuid),
             embedding: embedding.to_vec(),
             dimensions: embedding.len() as i32,
         });

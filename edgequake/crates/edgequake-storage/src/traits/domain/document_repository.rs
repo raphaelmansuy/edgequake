@@ -14,6 +14,8 @@ pub trait DocumentRepository: Send + Sync {
         _tx: &mut UnitOfWork,
         _document_id: DocumentId,
     ) -> Result<(), StorageError> {
-        Ok(())
+        Err(StorageError::UnsupportedCapability(
+            "DocumentRepository::touch_indexed not implemented".into(),
+        ))
     }
 }

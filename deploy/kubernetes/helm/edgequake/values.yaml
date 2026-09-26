@@ -31,6 +31,8 @@ postgres:
 
 api:
   replicaCount: 1
+  # SPEC-150: wait for migrate instead of exit-78 crash loop.
+  schemaGate: wait
   image:
     repository: ghcr.io/raphaelmansuy/edgequake
     tag: ""
@@ -70,6 +72,10 @@ api:
     # SPEC-145: per-field Complete I/O safety ceiling (bytes). Empty = product default 1 MiB.
     ioMaxBytes: ""
   extraEnv: {}
+
+# SPEC-150 migrate Job settings
+migrate:
+  activeDeadlineSeconds: 1800
   extraSecretEnv: {}
 
 web:

@@ -13,11 +13,14 @@
 //!   `EDGEQUAKE_KV_FAMILY_ARTIFACT` = relational) typed-first; any gap
 //!   (flag off, no pool, non-UUID doc id, typed miss/error) falls back to KV.
 //!
-//! One process-global pool registry serves every sidecar reader/writer
-//! (DRY — mirrors the B2 quarantine sink and B3 membership wiring).
+//! A temporary process registry serves legacy call sites. It owns one
+//! replaceable `Arc<PgPool>`; re-registration drops the previous outer owner,
+//! so separate test runtimes do not accumulate leaked pools.
 
 use serde_json::Value;
+use std::sync::{Arc, RwLock};
 
+use edgequake_storage::contracts::CheckpointArtifactStore;
 use edgequake_storage::kv_family_cutover::{
     kv_family_mode_from_env, KvFamilyMode, KV_FAMILY_ARTIFACT, KV_FAMILY_CHECKPOINT,
 };
@@ -28,27 +31,126 @@ pub const ARTIFACT_KIND_LINEAGE: &str = "lineage";
 pub const ARTIFACT_KIND_MM_MANIFEST: &str = "multimodal-manifest";
 pub const ARTIFACT_KIND_MM_CHUNKS: &str = "multimodal-chunks";
 
+struct SidecarStoreRegistry {
+    store: RwLock<Option<Arc<dyn CheckpointArtifactStore>>>,
+}
+
+impl SidecarStoreRegistry {
+    const fn new() -> Self {
+        Self {
+            store: RwLock::new(None),
+        }
+    }
+
+    fn replace(&self, store: Arc<dyn CheckpointArtifactStore>) {
+        *self.store.write().expect("sidecar store lock") = Some(store);
+    }
+
+    fn get(&self) -> Option<Arc<dyn CheckpointArtifactStore>> {
+        self.store
+            .read()
+            .expect("sidecar store lock")
+            .as_ref()
+            .map(Arc::clone)
+    }
+}
+
+static SIDECAR_STORE: SidecarStoreRegistry = SidecarStoreRegistry::new();
+
+tokio::task_local! {
+    static INSTALLED_PORTS: InstalledPorts;
+}
+
+/// Ports for the current request or task. Explicit values win over the process registry.
+#[derive(Clone, Default)]
+pub struct InstalledPorts {
+    #[cfg(feature = "postgres")]
+    pool: Option<Arc<sqlx::PgPool>>,
+    store: Option<Arc<dyn CheckpointArtifactStore>>,
+}
+
+impl InstalledPorts {
+    pub fn new(
+        #[cfg(feature = "postgres")] pool: Option<Arc<sqlx::PgPool>>,
+        store: Option<Arc<dyn CheckpointArtifactStore>>,
+    ) -> Self {
+        Self {
+            #[cfg(feature = "postgres")]
+            pool,
+            store,
+        }
+    }
+}
+
+/// Run `future` with operational ports visible to sidecar readers.
+pub async fn with_ports<F, T>(ports: InstalledPorts, future: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    INSTALLED_PORTS.scope(ports, future).await
+}
+
+fn installed_store() -> Option<Arc<dyn CheckpointArtifactStore>> {
+    INSTALLED_PORTS
+        .try_with(|ports| ports.store.clone())
+        .ok()
+        .flatten()
+}
+
 #[cfg(feature = "postgres")]
-static SIDECAR_POOL: std::sync::RwLock<Option<&'static sqlx::PgPool>> =
-    std::sync::RwLock::new(None);
+fn installed_pool() -> Option<Arc<sqlx::PgPool>> {
+    INSTALLED_PORTS
+        .try_with(|ports| ports.pool.clone())
+        .ok()
+        .flatten()
+}
+
+#[cfg(feature = "postgres")]
+static LEGACY_SIDECAR_POOL: RwLock<Option<Arc<sqlx::PgPool>>> = RwLock::new(None);
+
+/// Install a provider-independent sidecar store.
+pub fn register_sidecar_store(store: Arc<dyn CheckpointArtifactStore>) {
+    SIDECAR_STORE.replace(store);
+}
 
 /// Register the Postgres pool for all sidecar I/O.
 ///
 /// Re-registration **replaces** the stored pool (last call wins). Production
 /// registers once at startup; tests register a fresh pool per runtime. A
 /// `OnceLock` (first-call-wins) is wrong for tests because each `#[tokio::test]`
-/// runs its own runtime — a pool created on a prior test's runtime hangs
-/// (`PoolTimedOut`) when reused from a later test. The pool is leaked to obtain
-/// `&'static`, which is fine (one leak in prod, a handful per test process).
+/// may run its own runtime. Keeping one replaceable `Arc` lets a later
+/// `AppState` replace the prior pool without leaking it forever.
 #[cfg(feature = "postgres")]
-pub fn register_sidecar_pool(pool: sqlx::PgPool) {
-    let leaked: &'static sqlx::PgPool = Box::leak(Box::new(pool));
-    *SIDECAR_POOL.write().expect("sidecar pool lock") = Some(leaked);
+pub fn register_sidecar_pool(pool: impl Into<Arc<sqlx::PgPool>>) {
+    let pool = pool.into();
+    *LEGACY_SIDECAR_POOL
+        .write()
+        .expect("legacy sidecar pool lock") = Some(Arc::clone(&pool));
+    register_sidecar_store(Arc::new(
+        crate::services::postgres_checkpoint_artifact_store::PostgresCheckpointArtifactStore::new(
+            pool.as_ref().clone(),
+        ),
+    ));
 }
 
+/// Compatibility accessor for relational groups not yet extracted in J21.
 #[cfg(feature = "postgres")]
-pub fn sidecar_pool() -> Option<&'static sqlx::PgPool> {
-    *SIDECAR_POOL.read().expect("sidecar pool lock")
+pub fn sidecar_pool() -> Option<Arc<sqlx::PgPool>> {
+    if let Some(pool) = installed_pool() {
+        return Some(pool);
+    }
+    LEGACY_SIDECAR_POOL
+        .read()
+        .expect("legacy sidecar pool lock")
+        .as_ref()
+        .map(Arc::clone)
+}
+
+pub fn sidecar_store() -> Option<Arc<dyn CheckpointArtifactStore>> {
+    if let Some(store) = installed_store() {
+        return Some(store);
+    }
+    SIDECAR_STORE.get()
 }
 
 pub fn checkpoints_prefer_relational() -> bool {
@@ -63,7 +165,6 @@ pub fn artifacts_prefer_relational() -> bool {
 /// family flag flips relational they are the ONLY write (the adapter write-stop
 /// drops the KV upsert) — escalate failures to error! so an authoritative
 /// loss is loud. Rollback = flip the family flag back to `kv`.
-#[cfg(feature = "postgres")]
 fn log_write_failure(relational: bool, op: &str, document_id: &str, kind: &str, e: &str) {
     if relational {
         tracing::error!(
@@ -80,262 +181,155 @@ fn log_write_failure(relational: bool, op: &str, document_id: &str, kind: &str, 
 }
 
 /// Parse a UUID document id — typed sidecars are keyed by `documents.id`.
-#[cfg(feature = "postgres")]
 fn doc_uuid(document_id: &str) -> Option<uuid::Uuid> {
     uuid::Uuid::parse_str(document_id).ok()
 }
 
-/// Ensure the FK parent exists (checkpoints can be written for documents
-/// whose admission row raced or predates Wave B3).
-#[cfg(feature = "postgres")]
-async fn ensure_parent(pool: &sqlx::PgPool, doc: uuid::Uuid) -> Result<(), String> {
-    // Parent-only ensure for checkpoint FK; empty title → schema placeholder
-    // repaired later by admission / staging shell when a real title arrives.
-    edgequake_storage::ensure_admission_document_row(pool, doc, None, None, "")
-        .await
-        .map_err(|e| e.to_string())
-}
-
 // ── pipeline_checkpoints ────────────────────────────────────────────────────
 
-/// True when a typed checkpoint write can land (pool installed + UUID doc id).
-pub fn typed_checkpoint_writable(document_id: &str) -> bool {
-    #[cfg(feature = "postgres")]
-    {
-        sidecar_pool().is_some() && doc_uuid(document_id).is_some()
-    }
-    #[cfg(not(feature = "postgres"))]
-    {
-        let _ = document_id;
-        false
-    }
+/// True when a typed checkpoint write can land (store present + UUID doc id).
+pub fn typed_checkpoint_writable(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) -> bool {
+    store.is_some() && doc_uuid(document_id).is_some()
 }
 
-/// Typed upsert (warn-only). No-op without a pool or for non-UUID ids.
+/// Typed upsert (warn-only). No-op without a store or for non-UUID ids.
 /// Returns whether the row was written successfully.
-pub async fn typed_checkpoint_put(document_id: &str, kind: &str, payload: &Value) -> bool {
-    #[cfg(feature = "postgres")]
-    {
-        let (Some(pool), Some(doc)) = (sidecar_pool(), doc_uuid(document_id)) else {
-            return false;
-        };
-        let relational = checkpoints_prefer_relational();
-        if let Err(e) = ensure_parent(pool, doc).await {
+pub async fn typed_checkpoint_put(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+    payload: &Value,
+) -> bool {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
+        return false;
+    };
+    match store.put_checkpoint(doc, kind, payload).await {
+        Ok(()) => true,
+        Err(error) => {
             log_write_failure(
-                relational,
-                "checkpoint_parent_ensure",
+                checkpoints_prefer_relational(),
+                "checkpoint_upsert",
                 document_id,
                 kind,
-                &e,
+                &error.to_string(),
             );
-            return false;
+            false
         }
-        let result = sqlx::query(
-            r#"
-            INSERT INTO public.pipeline_checkpoints (document_id, kind, payload)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (document_id, kind) DO UPDATE SET
-                payload = EXCLUDED.payload, updated_at = now()
-            "#,
-        )
-        .bind(doc)
-        .bind(kind)
-        .bind(payload)
-        .execute(pool)
-        .await;
-        match result {
-            Ok(_) => true,
-            Err(e) => {
-                log_write_failure(
-                    relational,
-                    "checkpoint_upsert",
-                    document_id,
-                    kind,
-                    &e.to_string(),
-                );
-                false
-            }
-        }
-    }
-    #[cfg(not(feature = "postgres"))]
-    {
-        let _ = (document_id, kind, payload);
-        false
     }
 }
 
-/// Typed read. `None` on miss, error, no pool, or non-UUID id (→ KV fallback).
-pub async fn typed_checkpoint_get(document_id: &str, kind: &str) -> Option<Value> {
-    #[cfg(feature = "postgres")]
-    {
-        let (pool, doc) = (sidecar_pool()?, doc_uuid(document_id)?);
-        match sqlx::query_scalar::<_, Value>(
-            "SELECT payload FROM public.pipeline_checkpoints WHERE document_id = $1 AND kind = $2",
-        )
-        .bind(doc)
-        .bind(kind)
-        .fetch_optional(pool)
-        .await
-        {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(document_id, kind, error = %e, "typed checkpoint read failed");
-                None
-            }
+/// Typed read. `None` on miss, error, no store, or non-UUID id (→ KV fallback).
+pub async fn typed_checkpoint_get(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+) -> Option<Value> {
+    let (store, doc) = (store?, doc_uuid(document_id)?);
+    match store.get_checkpoint(doc, kind).await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(document_id, kind, error = %error, "typed checkpoint read failed");
+            None
         }
-    }
-    #[cfg(not(feature = "postgres"))]
-    {
-        let _ = (document_id, kind);
-        None
     }
 }
 
 /// Typed delete (warn-only), paired with the caller's KV delete.
-pub async fn typed_checkpoint_delete(document_id: &str, kind: &str) {
-    #[cfg(feature = "postgres")]
-    {
-        let (Some(pool), Some(doc)) = (sidecar_pool(), doc_uuid(document_id)) else {
-            return;
-        };
-        if let Err(e) = sqlx::query(
-            "DELETE FROM public.pipeline_checkpoints WHERE document_id = $1 AND kind = $2",
-        )
-        .bind(doc)
-        .bind(kind)
-        .execute(pool)
-        .await
-        {
-            log_write_failure(
-                checkpoints_prefer_relational(),
-                "checkpoint_delete",
-                document_id,
-                kind,
-                &e.to_string(),
-            );
-        }
+pub async fn typed_checkpoint_delete(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+) {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
+        return;
+    };
+    if let Err(error) = store.delete_checkpoint(doc, kind).await {
+        log_write_failure(
+            checkpoints_prefer_relational(),
+            "checkpoint_delete",
+            document_id,
+            kind,
+            &error.to_string(),
+        );
     }
-    #[cfg(not(feature = "postgres"))]
-    let _ = (document_id, kind);
 }
 
 /// Startup sweep mirroring `cleanup_stale_checkpoints` for typed rows.
-pub async fn cleanup_stale_typed_checkpoints(max_age_secs: u64) {
-    #[cfg(feature = "postgres")]
-    {
-        let Some(pool) = sidecar_pool() else { return };
-        match sqlx::query(
-            "DELETE FROM public.pipeline_checkpoints \
-             WHERE kind = 'checkpoint' AND updated_at < now() - make_interval(secs => $1)",
-        )
-        .bind(max_age_secs as i64)
-        .execute(pool)
-        .await
-        {
-            Ok(r) if r.rows_affected() > 0 => tracing::info!(
-                cleaned = r.rows_affected(),
-                "cleaned up stale typed pipeline checkpoints on startup"
-            ),
-            Ok(_) => {}
-            Err(e) => tracing::warn!(error = %e, "typed checkpoint sweep failed"),
-        }
+pub async fn cleanup_stale_typed_checkpoints(
+    store: Option<&dyn CheckpointArtifactStore>,
+    max_age_secs: u64,
+) {
+    let Some(store) = store else { return };
+    match store.cleanup_stale_checkpoints(max_age_secs).await {
+        Ok(cleaned) if cleaned > 0 => tracing::info!(
+            cleaned,
+            "cleaned up stale typed pipeline checkpoints on startup"
+        ),
+        Ok(_) => {}
+        Err(error) => tracing::warn!(error = %error, "typed checkpoint sweep failed"),
     }
-    #[cfg(not(feature = "postgres"))]
-    let _ = max_age_secs;
 }
 
 // ── document_artifacts ──────────────────────────────────────────────────────
 
-/// Typed upsert (warn-only). No-op without a pool or for non-UUID ids.
-pub async fn typed_artifact_put(document_id: &str, kind: &str, payload: &Value) {
-    #[cfg(feature = "postgres")]
-    {
-        let (Some(pool), Some(doc)) = (sidecar_pool(), doc_uuid(document_id)) else {
-            return;
-        };
-        let relational = artifacts_prefer_relational();
-        if let Err(e) = ensure_parent(pool, doc).await {
-            log_write_failure(relational, "artifact_parent_ensure", document_id, kind, &e);
-            return;
-        }
-        let result = sqlx::query(
-            r#"
-            INSERT INTO public.document_artifacts (document_id, kind, payload)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (document_id, kind) DO UPDATE SET
-                payload = EXCLUDED.payload, updated_at = now()
-            "#,
-        )
-        .bind(doc)
-        .bind(kind)
-        .bind(payload)
-        .execute(pool)
-        .await;
-        if let Err(e) = result {
-            log_write_failure(
-                relational,
-                "artifact_upsert",
-                document_id,
-                kind,
-                &e.to_string(),
-            );
-        }
+/// Typed upsert (warn-only). No-op without a store or for non-UUID ids.
+pub async fn typed_artifact_put(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+    payload: &Value,
+) {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
+        return;
+    };
+    if let Err(error) = store.put_artifact(doc, kind, payload).await {
+        log_write_failure(
+            artifacts_prefer_relational(),
+            "artifact_upsert",
+            document_id,
+            kind,
+            &error.to_string(),
+        );
     }
-    #[cfg(not(feature = "postgres"))]
-    let _ = (document_id, kind, payload);
 }
 
-/// Typed read. `None` on miss, error, no pool, or non-UUID id (→ KV fallback).
-pub async fn typed_artifact_get(document_id: &str, kind: &str) -> Option<Value> {
-    #[cfg(feature = "postgres")]
-    {
-        let (pool, doc) = (sidecar_pool()?, doc_uuid(document_id)?);
-        match sqlx::query_scalar::<_, Value>(
-            "SELECT payload FROM public.document_artifacts WHERE document_id = $1 AND kind = $2",
-        )
-        .bind(doc)
-        .bind(kind)
-        .fetch_optional(pool)
-        .await
-        {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(document_id, kind, error = %e, "typed artifact read failed");
-                None
-            }
+/// Typed read. `None` on miss, error, no store, or non-UUID id (→ KV fallback).
+pub async fn typed_artifact_get(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+) -> Option<Value> {
+    let (store, doc) = (store?, doc_uuid(document_id)?);
+    match store.get_artifact(doc, kind).await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(document_id, kind, error = %error, "typed artifact read failed");
+            None
         }
-    }
-    #[cfg(not(feature = "postgres"))]
-    {
-        let _ = (document_id, kind);
-        None
     }
 }
 
 /// Delete every typed artifact for a document (deletion parity with the
 /// legacy per-family KV key deletes).
-pub async fn typed_artifact_delete_all(document_id: &str) {
-    #[cfg(feature = "postgres")]
-    {
-        let (Some(pool), Some(doc)) = (sidecar_pool(), doc_uuid(document_id)) else {
-            return;
-        };
-        if let Err(e) = sqlx::query("DELETE FROM public.document_artifacts WHERE document_id = $1")
-            .bind(doc)
-            .execute(pool)
-            .await
-        {
-            log_write_failure(
-                artifacts_prefer_relational(),
-                "artifact_delete_all",
-                document_id,
-                "*",
-                &e.to_string(),
-            );
-        }
+pub async fn typed_artifact_delete_all(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
+        return;
+    };
+    if let Err(error) = store.delete_artifacts(doc).await {
+        log_write_failure(
+            artifacts_prefer_relational(),
+            "artifact_delete_all",
+            document_id,
+            "*",
+            &error.to_string(),
+        );
     }
-    #[cfg(not(feature = "postgres"))]
-    let _ = document_id;
 }
 
 #[cfg(test)]
@@ -351,10 +345,22 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_KV_FAMILY_ARTIFACT");
         assert!(checkpoints_prefer_relational());
         assert!(artifacts_prefer_relational());
-        typed_checkpoint_put("doc", CHECKPOINT_KIND_CRASH, &serde_json::json!({"a": 1})).await;
-        typed_artifact_put("doc", ARTIFACT_KIND_LINEAGE, &serde_json::json!({"b": 2})).await;
-        typed_checkpoint_delete("doc", CHECKPOINT_KIND_CRASH).await;
-        typed_artifact_delete_all("doc").await;
+        typed_checkpoint_put(
+            None,
+            "doc",
+            CHECKPOINT_KIND_CRASH,
+            &serde_json::json!({"a": 1}),
+        )
+        .await;
+        typed_artifact_put(
+            None,
+            "doc",
+            ARTIFACT_KIND_LINEAGE,
+            &serde_json::json!({"b": 2}),
+        )
+        .await;
+        typed_checkpoint_delete(None, "doc", CHECKPOINT_KIND_CRASH).await;
+        typed_artifact_delete_all(None, "doc").await;
 
         std::env::set_var("EDGEQUAKE_KV_FAMILY_CHECKPOINT", "kv");
         std::env::set_var("EDGEQUAKE_KV_FAMILY_ARTIFACT", "kv");
@@ -362,5 +368,37 @@ mod tests {
         assert!(!artifacts_prefer_relational());
         std::env::remove_var("EDGEQUAKE_KV_FAMILY_CHECKPOINT");
         std::env::remove_var("EDGEQUAKE_KV_FAMILY_ARTIFACT");
+    }
+
+    #[cfg(feature = "postgres")]
+    #[tokio::test]
+    async fn sidecar_store_replacement_drops_previous_arc_owner() {
+        use crate::services::postgres_checkpoint_artifact_store::PostgresCheckpointArtifactStore;
+
+        let registry = SidecarStoreRegistry::new();
+        let first = Arc::new(PostgresCheckpointArtifactStore::new(
+            sqlx::postgres::PgPoolOptions::new()
+                .connect_lazy("postgres://localhost/edgequake")
+                .expect("lazy first pool"),
+        ));
+        let first_weak = Arc::downgrade(&first);
+        registry
+            .replace(Arc::clone(&first)
+                as Arc<dyn edgequake_storage::contracts::CheckpointArtifactStore>);
+        drop(first);
+        assert!(first_weak.upgrade().is_some());
+
+        let second = Arc::new(PostgresCheckpointArtifactStore::new(
+            sqlx::postgres::PgPoolOptions::new()
+                .connect_lazy("postgres://localhost/edgequake")
+                .expect("lazy second pool"),
+        ));
+        registry
+            .replace(Arc::clone(&second)
+                as Arc<dyn edgequake_storage::contracts::CheckpointArtifactStore>);
+        assert!(
+            first_weak.upgrade().is_none(),
+            "re-registering a second runtime must release the previous Arc"
+        );
     }
 }

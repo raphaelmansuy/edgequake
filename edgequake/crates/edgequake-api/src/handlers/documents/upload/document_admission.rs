@@ -363,7 +363,13 @@ pub async fn admit_document_for_processing(
     }
 
     if let Some(ref manifest) = input.multimodal_manifest {
-        let _ = persist_manifest(&*state.storage.kv_storage, &document_id, manifest).await;
+        let _ = persist_manifest(
+            &*state.storage.kv_storage,
+            state.operational_stores.checkpoint_artifacts.as_deref(),
+            &document_id,
+            manifest,
+        )
+        .await;
         let summary = MultimodalSummary::from_records(
             &manifest
                 .items

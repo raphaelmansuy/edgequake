@@ -59,8 +59,13 @@ describe("document status domain", () => {
       documentStageRank("embedding"),
     );
     expect(documentStageRank("embedding")).toBeLessThan(
+      documentStageRank("projecting"),
+    );
+    expect(documentStageRank("projecting")).toBeLessThan(
       documentStageRank("completed"),
     );
+    expect(normalizeStatus("projecting")).toBe("projecting");
+    expect(isProcessingStatus("projecting")).toBe(true);
   });
 
   it("honors cancelRequested dual-SSOT over in-flight stage", () => {

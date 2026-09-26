@@ -602,6 +602,7 @@ async fn process_pdf_upload_parts(
                 // KV already shows converting (dual-SSOT drift → Task not found).
                 crate::services::task_document_sync::touch_relational_document_track_status_best_effort(
                     document_id,
+                    state.optional_pg_pool(),
                     None,
                     "processing",
                 )
@@ -669,7 +670,7 @@ async fn process_pdf_upload_parts(
                     .await;
                 }
                 crate::services::task_document_sync::touch_relational_document_track_status_best_effort(
-                    document_id,
+                    document_id, state.optional_pg_pool(),
                     Some(enqueue.track_id.as_str()),
                     "processing",
                 )

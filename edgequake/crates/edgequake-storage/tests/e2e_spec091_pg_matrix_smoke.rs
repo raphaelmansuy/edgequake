@@ -46,7 +46,7 @@ async fn e2e_spec091_pg_matrix_smoke_typed_crud() {
     let index = edgequake_storage::PgChunkEmbeddingIndex::new(pool.clone(), "matrix-smoke-model");
     let row = EmbeddingRow {
         chunk_id: cid.into(),
-        workspace_id: WorkspaceId(ws),
+        workspace_id: WorkspaceId::new(ws),
         dimensions: dim as i32,
         embedding: w3::make_embedding(dim, 42),
     };
@@ -59,7 +59,13 @@ async fn e2e_spec091_pg_matrix_smoke_typed_crud() {
     let hits = index
         .search(&VectorQuery {
             model_id: ModelId(Uuid::nil()),
-            workspace_id: Some(WorkspaceId(ws)),
+            model_revision: "test-current".into(),
+            workspace_id: Some(WorkspaceId::new(ws)),
+            document_ids: None,
+            tenant_id: None,
+            modalities: None,
+            filter_ids: None,
+            vector_type: None,
             embedding: row.embedding.clone(),
             limit: 1,
         })
@@ -69,7 +75,7 @@ async fn e2e_spec091_pg_matrix_smoke_typed_crud() {
     assert_eq!(hits[0].chunk_id.0, cid);
 
     let deleted = index
-        .delete_for_workspace(WorkspaceId(ws))
+        .delete_for_workspace(WorkspaceId::new(ws))
         .await
         .expect("typed delete");
     assert_eq!(deleted, 1);

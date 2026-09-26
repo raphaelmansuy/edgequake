@@ -14,6 +14,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "postgres")]
+use sha2::{Digest as _, Sha256};
 use uuid::Uuid;
 
 use edgequake_audit::{AuditEventType, AuditResult};
@@ -184,7 +186,7 @@ pub async fn purge_document_list_surfaces(
             // SPEC-091 W2: typed ingestion_dedup delete parity.
             #[cfg(feature = "postgres")]
             crate::services::ingestion_dedup_store::dual_delete_all(
-                state.pg_pool.as_ref(),
+                state.optional_pg_pool(),
                 workspace_id,
                 content_hash,
             )
@@ -214,7 +216,7 @@ pub async fn purge_document_list_surfaces(
         // Scoped SQL delete (fail-closed on error — never warn-and-leave ghosts).
         for id in identity_variants(document_id, key_prefix, key_id_mismatch) {
             relational_rows_deleted += crate::document_read_model::delete_relational_document(
-                state.pg_pool.as_ref(),
+                state.optional_pg_pool(),
                 id,
                 tenant_ctx,
             )
@@ -266,13 +268,16 @@ pub async fn purge_document_list_surfaces(
             // the metadata-prefix delete above; the typed rows need explicit
             // deletes for documents whose `documents` row removal does not
             // cascade (identity variants, missing row).
-            crate::services::relational_sidecar_store::typed_artifact_delete_all(id).await;
+            let store = state.operational_stores.checkpoint_artifacts.as_deref();
+            crate::services::relational_sidecar_store::typed_artifact_delete_all(store, id).await;
             crate::services::relational_sidecar_store::typed_checkpoint_delete(
+                store,
                 id,
                 crate::services::relational_sidecar_store::CHECKPOINT_KIND_CRASH,
             )
             .await;
             crate::services::relational_sidecar_store::typed_checkpoint_delete(
+                store,
                 id,
                 crate::services::relational_sidecar_store::CHECKPOINT_KIND_SNAPSHOT,
             )
@@ -346,9 +351,13 @@ pub async fn reset_deleting_status(
     }
 
     // SPEC-098 LAW-098-9: mirror delete_failed to SQL list column.
-    crate::services::touch_sql_delete_failed(document_id).await;
+    #[cfg(feature = "postgres")]
+    let pool = state.optional_pg_pool();
+    #[cfg(not(feature = "postgres"))]
+    let pool = None;
+    crate::services::touch_sql_delete_failed(pool, document_id).await;
     if key_prefix != document_id {
-        crate::services::touch_sql_delete_failed(key_prefix).await;
+        crate::services::touch_sql_delete_failed(pool, key_prefix).await;
     }
 
     if let Some(track_id) = deletion_track_id {
@@ -357,6 +366,238 @@ pub async fn reset_deleting_status(
             .progress_broadcaster
             .deletion_failed(document_id, track_id, reason);
     }
+}
+
+#[cfg(feature = "postgres")]
+async fn tombstone_document_required(
+    state: &AppState,
+    data: &DeletionTaskData,
+    metadata: Option<&serde_json::Value>,
+) -> ApiResult<Vec<Uuid>> {
+    // Memory AppState has no pg_pool: keep the pre-SPEC-149 non-authoritative path.
+    if state.pg_pool.is_none() {
+        return Ok(Vec::new());
+    }
+    let committer = state.lifecycle_committer.as_ref().ok_or_else(|| {
+        ApiError::Internal(
+            "P0 deletion requires lifecycle_committer; refuse physical cleanup without tombstone"
+                .into(),
+        )
+    })?;
+    let tenant_id = Uuid::parse_str(&data.tenant_id)
+        .map_err(|error| ApiError::BadRequest(format!("invalid deletion tenant_id: {error}")))?;
+    let workspace_id = Uuid::parse_str(&data.workspace_id)
+        .map_err(|error| ApiError::BadRequest(format!("invalid deletion workspace_id: {error}")))?;
+    let document_id = Uuid::parse_str(&data.document_id)
+        .map_err(|error| ApiError::BadRequest(format!("invalid deletion document_id: {error}")))?;
+
+    let metadata_revision = metadata.and_then(|value| {
+        ["provider_access_revision", "object_revision"]
+            .iter()
+            .find_map(|key| value.get(key).and_then(serde_json::Value::as_u64))
+    });
+    let expected_revision = if let Some(revision) = metadata_revision {
+        revision
+    } else {
+        let reader = state.document_reader.as_ref().ok_or_else(|| {
+            ApiError::Internal(
+                "P0 deletion requires document_reader when metadata revision is absent".into(),
+            )
+        })?;
+        let scope = edgequake_storage::contracts::AccessScope::new(
+            edgequake_storage::contracts::TenantId::new(tenant_id),
+            edgequake_storage::contracts::WorkspaceId::new(workspace_id),
+        );
+        let views = reader
+            .get_many(
+                &scope,
+                &[edgequake_storage::contracts::DocumentId::new(document_id)],
+            )
+            .await
+            .map_err(edgequake_storage::StorageError::from)
+            .map_err(ApiError::from)?;
+        match views.into_iter().next().flatten() {
+            Some(view) if view.deleted => {
+                return load_existing_cleanup_bindings(state, document_id).await;
+            }
+            Some(view) => view.revision,
+            None => 0,
+        }
+    };
+    let idempotency_key = format!("delete:{document_id}:{expected_revision}");
+    let canonical = serde_json::to_vec(&serde_json::json!({
+        "tenant_id": tenant_id,
+        "workspace_id": workspace_id,
+        "document_id": document_id,
+        "expected_revision": expected_revision,
+        "idempotency_key": idempotency_key,
+    }))
+    .map_err(|error| ApiError::Internal(format!("encode tombstone command: {error}")))?;
+    let command = edgequake_storage::contracts::DeleteDocument {
+        scope: edgequake_storage::contracts::AccessScope::new(
+            edgequake_storage::contracts::TenantId::new(tenant_id),
+            edgequake_storage::contracts::WorkspaceId::new(workspace_id),
+        ),
+        document_id: edgequake_storage::contracts::DocumentId::new(document_id),
+        expected_revision,
+        idempotency_key,
+        command_digest: Sha256::digest(canonical).into(),
+    };
+    let receipt = committer
+        .tombstone_document(&command)
+        .await
+        .map_err(edgequake_storage::StorageError::from)
+        .map_err(ApiError::from)?;
+    if receipt.target_binding_ids.is_empty() {
+        return Err(ApiError::Internal(
+            "tombstone receipt recorded zero target bindings; refuse default-store cleanup".into(),
+        ));
+    }
+    Ok(receipt.target_binding_ids)
+}
+
+#[cfg(feature = "postgres")]
+async fn load_existing_cleanup_bindings(
+    state: &AppState,
+    document_id: Uuid,
+) -> ApiResult<Vec<Uuid>> {
+    let pool = state
+        .pg_pool
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("tombstone resume requires a PostgreSQL pool".into()))?;
+    let ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT DISTINCT binding_id FROM public.projection_cleanup_intents \
+         WHERE document_id = $1 ORDER BY binding_id",
+    )
+    .bind(document_id)
+    .fetch_all(pool)
+    .await
+    .map_err(edgequake_storage::StorageError::from)
+    .map_err(ApiError::from)?;
+    if ids.is_empty() {
+        return Err(ApiError::Conflict("document is already tombstoned".into()));
+    }
+    Ok(ids)
+}
+
+async fn projection_owns_cleanup(state: &AppState, document_id: &str) -> ApiResult<bool> {
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (state, document_id);
+        return Ok(false);
+    }
+    #[cfg(feature = "postgres")]
+    {
+        if state.projection_worker.is_none() {
+            return Ok(false);
+        }
+        let Some(pool) = state.optional_pg_pool() else {
+            return Ok(false);
+        };
+        let Ok(document_id) = Uuid::parse_str(document_id) else {
+            return Ok(false);
+        };
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM public.projection_event_items i \
+             JOIN public.projection_events e ON e.event_id = i.event_id \
+             WHERE e.object_id = $1 AND e.operation = 'delete'",
+        )
+        .bind(document_id)
+        .fetch_one(pool)
+        .await
+        .map_err(edgequake_storage::StorageError::from)
+        .map_err(ApiError::from)?;
+        Ok(count > 0)
+    }
+}
+
+async fn wait_for_delete_deliveries(state: &AppState, document_id: &str) -> ApiResult<()> {
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (state, document_id);
+        return Ok(());
+    }
+    #[cfg(feature = "postgres")]
+    {
+        let pool = state.optional_pg_pool().ok_or_else(|| {
+            ApiError::Internal("projection cleanup requires a PostgreSQL pool".into())
+        })?;
+        let document_id = Uuid::parse_str(document_id)
+            .map_err(|error| ApiError::BadRequest(format!("invalid document id: {error}")))?;
+        for _ in 0..60 {
+            let states: Vec<String> = sqlx::query_scalar(
+                "SELECT d.state FROM public.projection_deliveries d \
+                 JOIN public.projection_events e ON e.event_id = d.event_id \
+                 WHERE e.object_id = $1 AND e.operation = 'delete'",
+            )
+            .bind(document_id)
+            .fetch_all(pool)
+            .await
+            .map_err(edgequake_storage::StorageError::from)
+            .map_err(ApiError::from)?;
+            if states.iter().any(|state| state == "quarantined") {
+                return Err(ApiError::Internal(
+                    "projection delete delivery was quarantined".into(),
+                ));
+            }
+            if !states.is_empty() && states.iter().all(|state| state == "applied") {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        Err(ApiError::Internal(
+            "projection delete deliveries did not acknowledge before purge".into(),
+        ))
+    }
+}
+
+#[cfg(not(feature = "postgres"))]
+async fn tombstone_document_required(
+    _state: &AppState,
+    _data: &DeletionTaskData,
+    _metadata: Option<&serde_json::Value>,
+) -> ApiResult<Vec<Uuid>> {
+    // Memory / non-postgres builds use an explicit non-authoritative path.
+    Ok(Vec::new())
+}
+
+#[cfg(feature = "postgres")]
+async fn vector_cleanup_targets(state: &AppState, binding_ids: &[Uuid]) -> ApiResult<Vec<Uuid>> {
+    if state.pg_pool.is_none() {
+        return Ok(Vec::new());
+    }
+    if binding_ids.is_empty() {
+        return Err(ApiError::Internal(
+            "exact-binding vector cleanup refused empty target list".into(),
+        ));
+    }
+    let pool = state
+        .pg_pool
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("lifecycle committer has no PostgreSQL pool".into()))?;
+    let vector_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT binding_id FROM public.data_bindings \
+         WHERE binding_id = ANY($1) \
+           AND role IN ('vector', 'vector_projection', 'embedding') \
+           AND state IN ('active', 'draining') \
+         ORDER BY binding_id",
+    )
+    .bind(binding_ids)
+    .fetch_all(pool)
+    .await
+    .map_err(edgequake_storage::StorageError::from)
+    .map_err(ApiError::from)?;
+    if vector_ids.is_empty() {
+        return Err(ApiError::Internal(
+            "tombstone targets contain no vector bindings; refuse default-store cleanup".into(),
+        ));
+    }
+    Ok(vector_ids)
+}
+
+#[cfg(not(feature = "postgres"))]
+async fn vector_cleanup_targets(_state: &AppState, _binding_ids: &[Uuid]) -> ApiResult<Vec<Uuid>> {
+    Ok(Vec::new())
 }
 
 /// Run the authoritative cascade for a document (graph → vectors → KV → relational).
@@ -372,14 +613,14 @@ pub async fn perform_document_deletion(
         .metadata_key
         .clone()
         .unwrap_or_else(|| metadata_key_for_document(&actual_key_prefix));
-    let has_metadata = state
+    let metadata = state
         .storage
         .kv_storage
         .get_by_id(&metadata_key)
         .await
         .ok()
-        .flatten()
-        .is_some();
+        .flatten();
+    let has_metadata = metadata.is_some();
     let content_key = format!("{}-content", actual_key_prefix);
     let has_content = data.has_content
         || state
@@ -436,6 +677,20 @@ pub async fn perform_document_deletion(
         }
     }
 
+    // SPEC-149: durable logical deletion precedes every physical provider
+    // mutation. A conflict or unavailable authority fails closed.
+    let target_binding_ids = tombstone_document_required(state, data, metadata.as_ref()).await?;
+    let projection_owned = projection_owns_cleanup(state, &document_id).await?;
+    if projection_owned {
+        wait_for_delete_deliveries(state, &document_id).await?;
+    }
+    #[cfg(feature = "postgres")]
+    let vector_target_bindings = vector_cleanup_targets(state, &target_binding_ids).await?;
+    #[cfg(not(feature = "postgres"))]
+    let vector_target_bindings: Vec<Uuid> = Vec::new();
+    let cleanup_vectors = !vector_target_bindings.is_empty() || cfg!(not(feature = "postgres"));
+    let _ = &vector_target_bindings; // retained for exact-binding cleanup evidence/logging
+
     // Keep the running deletion task itself (DRY with wipe keep-self). Matching
     // on document_id alone used to cancel+delete this row mid-cascade.
     // In-flight ingest siblings are cancelled; Failed/Indexed/Cancelled stay
@@ -450,7 +705,7 @@ pub async fn perform_document_deletion(
     .await;
 
     let workspace_vector_storage =
-        get_workspace_vector_storage_for_delete(state, &workspace_id_for_storage).await;
+        get_workspace_vector_storage_for_delete(state, &workspace_id_for_storage).await?;
 
     let chunks_deleted = chunk_ids.len();
     let mut embeddings_deleted = 0usize;
@@ -468,7 +723,7 @@ pub async fn perform_document_deletion(
     let mut relationships_removed = 0usize;
     let mut relationships_updated = 0usize;
 
-    if !graph_already_done {
+    if !graph_already_done && !projection_owned {
         state.tasks.progress_broadcaster.deletion_phase(
             &document_id,
             &deletion_track_id,
@@ -647,7 +902,7 @@ pub async fn perform_document_deletion(
     }
 
     let vectors_already_done = checkpoint.as_deref() == Some(CHECKPOINT_VECTORS_DONE);
-    if !vectors_already_done {
+    if !vectors_already_done && cleanup_vectors && !projection_owned {
         state.tasks.progress_broadcaster.deletion_phase(
             &document_id,
             &deletion_track_id,
@@ -691,6 +946,14 @@ pub async fn perform_document_deletion(
                 .delete_by_document(&actual_key_prefix)
                 .await;
         }
+        write_deletion_checkpoint(state, &metadata_key, has_metadata, CHECKPOINT_VECTORS_DONE)
+            .await;
+    } else if !vectors_already_done {
+        tracing::debug!(
+            document_id = %document_id,
+            target_bindings = ?target_binding_ids,
+            "Skipping chunk vector cleanup because the tombstone targeted no vector binding"
+        );
         write_deletion_checkpoint(state, &metadata_key, has_metadata, CHECKPOINT_VECTORS_DONE)
             .await;
     }
@@ -857,7 +1120,11 @@ pub async fn reconcile_stuck_deleting_documents(state: &AppState, max: usize) ->
     };
     use edgequake_tasks::{Task, TaskType};
 
-    let Ok(entries) = load_all_document_metadata_entries(state.storage.kv_storage.as_ref()).await
+    let Ok(entries) = load_all_document_metadata_entries(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+    )
+    .await
     else {
         return 0;
     };

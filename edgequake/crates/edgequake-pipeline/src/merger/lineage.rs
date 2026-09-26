@@ -35,13 +35,15 @@ pub fn require_citation(chunk_ids: &[String]) -> Result<(), String> {
 }
 
 /// Mirror chunk lineage into graph node properties for read-path compatibility.
+///
+/// Delegates to [`edgequake_storage::insert_chunk_lineage_properties`] so the
+/// merger and SPEC-149 projection share one mirror rule (`source_ids` ==
+/// `source_chunk_ids`, plus derived `source_document_ids`).
 pub fn insert_chunk_lineage_properties(
     properties: &mut HashMap<String, Value>,
     chunk_ids: &[String],
 ) {
-    let json = Value::Array(chunk_ids.iter().cloned().map(Value::String).collect());
-    properties.insert("source_chunk_ids".to_string(), json.clone());
-    properties.insert("source_ids".to_string(), json);
+    edgequake_storage::insert_chunk_lineage_properties(properties, chunk_ids);
 }
 
 /// Derive document id from EdgeQuake chunk id convention (`{doc}-chunk-N`).

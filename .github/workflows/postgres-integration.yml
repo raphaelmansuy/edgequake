@@ -131,15 +131,42 @@ jobs:
       - name: Run database migrations
         working-directory: edgequake
         run: |
-          echo "Running database migrations..."
-
-          # Run all SQL migration files in order
-          for file in migrations/*.sql; do
-            echo "Applying migration: $file"
-            PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -f "$file" || true
-          done
-
+          echo "Running database migrations via sqlx (fail closed)…"
+          export DATABASE_URL="postgres://edgequake_test:test_password_123@localhost:5432/edgequake_test"
+          # Prefer sqlx migrate run (checksum-faithful). Fall back to ordered psql without || true.
+          if command -v sqlx >/dev/null; then
+            sqlx migrate run --source migrations
+          else
+            for file in $(ls migrations/[0-9]*.sql | sort); do
+              echo "Applying migration: $file"
+              PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test -v ON_ERROR_STOP=1 -f "$file"
+            done
+          fi
           echo "Migrations complete!"
+
+      - name: Run SPEC-149 provider-access projection tests
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          DATABASE_URL: postgres://edgequake_test:test_password_123@localhost:5432/edgequake_test
+        run: |
+          cargo test --package edgequake-storage --features postgres \
+            --test e2e_spec149_projection_replay \
+            --test e2e_spec149_ingestion_committer \
+            -- --test-threads=1
+
+      - name: Run SPEC-091 serving fence open e2e
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          DATABASE_URL: postgres://edgequake_test:test_password_123@localhost:5432/edgequake_test
+        run: |
+          cargo test --package edgequake-storage --features postgres \
+            --test e2e_spec091_serving_fence_open \
+            -- --test-threads=1
+          cargo test --package edgequake-storage --features postgres,provider-access-fault \
+            --test e2e_spec149_process_kill \
+            -- --test-threads=1
 
       - name: Grant permissions to app_user
         run: |

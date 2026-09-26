@@ -548,7 +548,7 @@ async fn e2e_spec111_15_chunk_vs_fleet_retirable_distinct() {
     let _ = EmbeddingFamily::Entity;
     let _ = (
         ModelId(Uuid::nil()),
-        WorkspaceId(Uuid::nil()),
+        WorkspaceId::new(Uuid::nil()),
         FleetEmbeddingKey::Entity(Uuid::nil()),
     );
     let _ = std::mem::size_of::<FleetEmbeddingRow>();

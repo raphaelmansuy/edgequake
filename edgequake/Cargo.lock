@@ -339,9 +339,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.17.1"
+version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4342d8937fc7e5dd9b1c60292261c0670c882a2cd1719cfc11b1af41731e32ad"
+checksum = "b281d307588d634de920874890732659e2e7672f72b5e10e81badc1a8a83621e"
 dependencies = [
  "aws-lc-sys",
  "untrusted 0.7.1",
@@ -350,9 +350,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.42.0"
+version = "0.45.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d9ceb1da931507a12f4fccea479dccd00da1943e1b4ae72d8e502d707361444"
+checksum = "9bff6c3b54fad79a2e60b8102caf565819711497c1f5f092f49508e2f5c31b27"
 dependencies = [
  "cc",
  "cmake",
@@ -1807,11 +1807,13 @@ name = "edgequake"
 version = "0.26.10"
 dependencies = [
  "anyhow",
+ "axum",
  "chrono",
  "criterion",
  "edgequake-api",
  "edgequake-core",
  "edgequake-llm",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-pdf",
  "edgequake-pipeline",
@@ -1845,6 +1847,7 @@ dependencies = [
  "edgequake-auth",
  "edgequake-core",
  "edgequake-llm",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-pdf",
  "edgequake-pdf2md",
@@ -1985,6 +1988,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "edgequake-migrate-manifest"
+version = "0.26.10"
+dependencies = [
+ "serde",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
 name = "edgequake-observability"
 version = "0.26.10"
 dependencies = [
@@ -2062,6 +2075,7 @@ dependencies = [
  "edgequake-llm",
  "edgequake-observability",
  "edgequake-storage",
+ "edgequake-storage-contracts",
  "futures",
  "parking_lot",
  "regex",
@@ -2086,6 +2100,7 @@ dependencies = [
  "chrono",
  "edgequake-core",
  "edgequake-llm",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-pipeline",
  "edgequake-storage",
@@ -2129,18 +2144,35 @@ version = "0.26.10"
 dependencies = [
  "async-trait",
  "chrono",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
+ "edgequake-storage-contracts",
  "proptest",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-test",
  "tracing",
  "tracing-subscriber",
  "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
+name = "edgequake-storage-contracts"
+version = "0.26.10"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
  "uuid",
 ]
 
@@ -3381,6 +3413,7 @@ version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]
@@ -5071,9 +5104,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.41"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b92b125634d9b795e7beca796cc790df15a7fb38323bf3196fda83292d06b1f"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "aws-lc-rs",
  "once_cell",
@@ -5157,9 +5190,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
 dependencies = [
  "aws-lc-rs",
  "ring",

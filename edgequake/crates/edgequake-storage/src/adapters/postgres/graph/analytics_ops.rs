@@ -289,29 +289,9 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        // SPEC-084 / LAW-9 / GH-331 + IMP-031-08 + SPEC-089: child "Node" +
-        // MATERIALIZED probe-first GIN. GIN-only on `source_ids`.
-        let probes_cte = super::helpers::source_ids_count_probes_cte_sql();
-        let sql = format!(
-            r#"
-            /* DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES */
-            WITH {probes_cte},
-            hits AS MATERIALIZED (
-              SELECT pr.prefix, pr.ord, v.id
-              FROM probes pr
-              INNER JOIN {graph}."Node" v
-                ON ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
-                   @> to_jsonb(pr.chunk_id)
-            )
-            SELECT p.prefix, count(DISTINCT h.id)::BIGINT AS cnt
-            FROM prefixes p
-            LEFT JOIN hits h ON h.prefix = p.prefix
-            GROUP BY p.prefix, p.ord
-            ORDER BY p.ord
-            "#,
-            probes_cte = probes_cte.trim(),
-            graph = self.graph_name,
-        );
+        // SPEC-084 / LAW-9 / GH-331 + IMP-031-08 + SPEC-089 + SPEC-149: child "Node" +
+        // MATERIALIZED probe-first GIN on both indexed lineage arrays.
+        let sql = super::helpers::node_counts_by_source_prefixes_sql(&self.graph_name);
 
         let mut timed = super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
         let rows: std::result::Result<Vec<(String, i64)>, sqlx::Error> = sqlx::query_as(&sql)

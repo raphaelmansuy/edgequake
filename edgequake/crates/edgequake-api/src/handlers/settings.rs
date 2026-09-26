@@ -210,7 +210,7 @@ pub async fn get_effective_config(
     State(app_state): State<AppState>,
 ) -> Result<Json<EffectiveConfigResponse>, ApiError> {
     #[cfg(feature = "postgres")]
-    let snapshot = if let Some(pool) = app_state.pg_pool.as_ref() {
+    let snapshot = if let Some(pool) = app_state.optional_pg_pool() {
         app_state
             .server_config
             .snapshot_with_postgres(Some(pool))

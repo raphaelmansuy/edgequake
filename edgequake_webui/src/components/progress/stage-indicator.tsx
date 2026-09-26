@@ -54,6 +54,7 @@ const STAGE_LABELS: Record<IngestionStage, string> = {
   summarizing: 'Summarizing',
   embedding: 'Embedding',
   storing: 'Storing',
+  projecting: 'Projecting',
   completed: 'Completed',
   failed: 'Failed',
   // Legacy aliases
@@ -311,6 +312,7 @@ export function createDefaultStages(currentStage?: IngestionStage): Stage[] {
     'merging',
     'summarizing',
     'indexing',
+    'projecting',
   ];
 
   const currentIndex = currentStage ? allStages.indexOf(currentStage) : -1;

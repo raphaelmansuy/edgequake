@@ -589,6 +589,7 @@ impl DocumentTaskProcessor {
 
             crate::services::enrich_processed_text_with_mm_chunks(
                 self.kv_storage.as_ref(),
+                self.checkpoint_store(),
                 &document_id,
                 doc_metadata.as_ref(),
                 preprocess_result.content,

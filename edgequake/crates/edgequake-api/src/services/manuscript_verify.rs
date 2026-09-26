@@ -318,81 +318,140 @@ async fn refine_page(
 
 /// Verify one page section; returns the replacement section text.
 ///
+/// Per-page verify result used when reassembling in document order.
+struct PageVerifyResult {
+    text: String,
+    judged: bool,
+    low: bool,
+    refined: bool,
+    score: Option<f32>,
+    fail_reason: Option<String>,
+}
+
 /// Section shape: `<!-- edgequake-page:N -->\n<content>`. The marker line is
 /// preserved verbatim; only the content is refined/replaced.
-async fn verify_one_page(
+async fn verify_one_page_result(
     provider: &dyn LLMProvider,
     assets_root: &Path,
     page_num: usize,
     section_text: &str,
     min_score: f32,
-    outcome: &mut VerifyOutcome,
-    scores: &mut Vec<f32>,
-) -> String {
+) -> PageVerifyResult {
     let (marker_line, content) = match section_text.find('\n') {
         Some(idx) => section_text.split_at(idx + 1),
         None => (section_text, ""),
     };
     let png = page_png_path(assets_root, page_num);
     if !png.exists() {
-        // No pixels → cannot verify (fail-open; never block ingestion).
         warn!(
             page = page_num,
             "SPEC-134 verify: page PNG missing — fail open"
         );
-        record_fail_open(outcome, "page_png_missing");
-        return section_text.to_string();
+        return PageVerifyResult {
+            text: section_text.to_string(),
+            judged: false,
+            low: false,
+            refined: false,
+            score: None,
+            fail_reason: Some("page_png_missing".into()),
+        };
     }
     let verdict = match judge_page_with_retry(provider, &png, content).await {
         Ok(v) => v,
         Err(e) => {
             warn!(page = page_num, error = %e, "SPEC-134 verify: judge failed — fail open");
-            record_fail_open(outcome, classify_verify_error(&e));
-            return section_text.to_string();
+            return PageVerifyResult {
+                text: section_text.to_string(),
+                judged: false,
+                low: false,
+                refined: false,
+                score: None,
+                fail_reason: Some(classify_verify_error(&e).to_string()),
+            };
         }
     };
-    outcome.pages_judged += 1;
     if verdict.grounded_score >= min_score {
-        scores.push(verdict.grounded_score);
-        return section_text.to_string();
+        return PageVerifyResult {
+            text: section_text.to_string(),
+            judged: true,
+            low: false,
+            refined: false,
+            score: Some(verdict.grounded_score),
+            fail_reason: None,
+        };
     }
-    // Low grounding: one refine pass with the verdict (never a loop).
-    outcome.pages_low_grounding += 1;
     let refined = match refine_page(provider, &png, content, &verdict).await {
         Ok(r) => r,
         Err(e) => {
             warn!(page = page_num, error = %e, "SPEC-134 verify: refine failed — fail open");
-            record_fail_open(outcome, "refine_call_failed");
-            scores.push(verdict.grounded_score);
-            return format!(
-                "{marker_line}{GROUNDING_LOW_MARKER_PREFIX} score={:.2} -->\n{}",
-                verdict.grounded_score, content
-            );
+            return PageVerifyResult {
+                text: format!(
+                    "{marker_line}{GROUNDING_LOW_MARKER_PREFIX} score={:.2} -->\n{}",
+                    verdict.grounded_score, content
+                ),
+                judged: true,
+                low: true,
+                refined: false,
+                score: Some(verdict.grounded_score),
+                fail_reason: Some("refine_call_failed".into()),
+            };
         }
     };
-    outcome.pages_refined += 1;
-    // Re-judge the refinement once to get the final score.
-    let (final_score, keep_marker) = match judge_page_with_retry(provider, &png, &refined).await {
-        Ok(v2) => (v2.grounded_score, v2.grounded_score < min_score),
-        Err(e) => {
-            warn!(page = page_num, error = %e, "SPEC-134 verify: re-judge failed — fail open");
-            record_fail_open(outcome, classify_verify_error(&e));
-            // The first verdict proved the original was low; keep the honesty
-            // marker with that score even though the refined text is accepted.
-            (verdict.grounded_score, true)
-        }
-    };
-    scores.push(final_score);
-    if keep_marker {
+    let (final_score, keep_marker, fail_reason) =
+        match judge_page_with_retry(provider, &png, &refined).await {
+            Ok(v2) => (v2.grounded_score, v2.grounded_score < min_score, None),
+            Err(e) => {
+                warn!(page = page_num, error = %e, "SPEC-134 verify: re-judge failed — fail open");
+                (
+                    verdict.grounded_score,
+                    true,
+                    Some(classify_verify_error(&e).to_string()),
+                )
+            }
+        };
+    let text = if keep_marker {
         format!(
             "{marker_line}{GROUNDING_LOW_MARKER_PREFIX} score={final_score:.2} -->\n\n{refined}\n\n"
         )
     } else {
         format!("{marker_line}\n{refined}\n\n")
+    };
+    PageVerifyResult {
+        text,
+        judged: true,
+        low: true,
+        refined: true,
+        score: Some(final_score),
+        fail_reason,
+    }
+}
+
+/// Heartbeat while verifying/escalating: `(done, total, physical_page)`.
+pub type ManuscriptPageProgressHook = Arc<dyn Fn(usize, usize, usize) + Send + Sync>;
+
+const VERIFY_CONCURRENCY: usize = 2;
+const ESCALATE_CONCURRENCY: usize = 2;
+
+/// Shared knobs for bounded page work (verify + escalate).
+#[derive(Debug, Clone)]
+pub struct PageWorkLimits {
+    pub concurrency: usize,
+    pub per_call_timeout: Duration,
+}
+
+impl Default for PageWorkLimits {
+    fn default() -> Self {
+        Self {
+            concurrency: VERIFY_CONCURRENCY,
+            per_call_timeout: PER_CALL_TIMEOUT,
+        }
     }
 }
 
 /// Run the grounding verify pass over manuscript-class conversion markdown.
+///
+/// `allowed_pages` (1-indexed) scopes work to authoritative manuscript pages in
+/// mixed documents. When `None`, every marked page is eligible.
 ///
 /// Returns the input unchanged (with `ran: false`) for print documents, when
 /// disabled via env, or when no page markers are present.
@@ -401,6 +460,18 @@ pub async fn verify_manuscript_markdown(
     modality: PageModality,
     assets_root: Option<&Path>,
     provider: Arc<dyn LLMProvider>,
+) -> VerifyOutcome {
+    verify_manuscript_markdown_scoped(markdown, modality, assets_root, provider, None, None).await
+}
+
+/// Scoped verify with optional allowed-page set and per-page progress heartbeats.
+pub async fn verify_manuscript_markdown_scoped(
+    markdown: &str,
+    modality: PageModality,
+    assets_root: Option<&Path>,
+    provider: Arc<dyn LLMProvider>,
+    allowed_pages: Option<&[usize]>,
+    progress: Option<&ManuscriptPageProgressHook>,
 ) -> VerifyOutcome {
     let mut outcome = VerifyOutcome {
         markdown: markdown.to_string(),
@@ -421,33 +492,103 @@ pub async fn verify_manuscript_markdown(
     if sections.is_empty() {
         return outcome;
     }
+
+    let allowed: Option<std::collections::HashSet<usize>> =
+        allowed_pages.map(|p| p.iter().copied().collect());
+
+    // Collect work items preserving section index for ordered rebuild.
+    let mut work: Vec<(usize, usize, String)> = Vec::new();
+    for (idx, section) in sections.iter().enumerate() {
+        if let Some(ref set) = allowed {
+            if !set.contains(&section.page_num) {
+                continue;
+            }
+        }
+        work.push((
+            idx,
+            section.page_num,
+            markdown[section.range.clone()].to_string(),
+        ));
+    }
+
+    let work_total = work.len();
+    let mut results: Vec<Option<PageVerifyResult>> = (0..sections.len()).map(|_| None).collect();
+
+    if let Some(root) = assets_root {
+        let root = root.to_path_buf();
+        use futures::stream::{self, StreamExt};
+        let mut stream = stream::iter(work.into_iter().enumerate())
+            .map(|(done_idx, (section_idx, page_num, section_text))| {
+                let provider = Arc::clone(&provider);
+                let root = root.clone();
+                async move {
+                    let result = verify_one_page_result(
+                        provider.as_ref(),
+                        &root,
+                        page_num,
+                        &section_text,
+                        min_score,
+                    )
+                    .await;
+                    (done_idx, section_idx, page_num, result)
+                }
+            })
+            .buffer_unordered(VERIFY_CONCURRENCY);
+
+        let mut completed = 0usize;
+        while let Some((done_idx, section_idx, page_num, result)) = stream.next().await {
+            let _ = done_idx;
+            completed += 1;
+            if let Some(hook) = progress {
+                hook(completed, work_total, page_num);
+            }
+            results[section_idx] = Some(result);
+        }
+    } else {
+        for (section_idx, page_num, _) in &work {
+            let _ = page_num;
+            results[*section_idx] = Some(PageVerifyResult {
+                text: markdown[sections[*section_idx].range.clone()].to_string(),
+                judged: false,
+                low: false,
+                refined: false,
+                score: None,
+                fail_reason: Some("page_png_missing".into()),
+            });
+            if let Some(hook) = progress {
+                hook(1, work_total.max(1), *page_num);
+            }
+        }
+        record_fail_open(&mut outcome, "page_png_missing");
+    }
+
     let mut scores: Vec<f32> = Vec::new();
-    // Verify sequentially (concurrency 1) — judge cost stays predictable and
-    // local providers are not thrashed.
     let mut rebuilt = String::with_capacity(markdown.len() + 256);
     let prefix_end = sections.first().map(|s| s.range.start).unwrap_or(0);
     rebuilt.push_str(&markdown[..prefix_end]);
-    for section in &sections {
+    for (idx, section) in sections.iter().enumerate() {
         let section_text = &markdown[section.range.clone()];
-        let new_text = match assets_root {
-            Some(root) => {
-                verify_one_page(
-                    provider.as_ref(),
-                    root,
-                    section.page_num,
-                    section_text,
-                    min_score,
-                    &mut outcome,
-                    &mut scores,
-                )
-                .await
+        match results[idx].take() {
+            Some(r) => {
+                if r.judged {
+                    outcome.pages_judged += 1;
+                }
+                if r.low {
+                    outcome.pages_low_grounding += 1;
+                }
+                if r.refined {
+                    outcome.pages_refined += 1;
+                }
+                if let Some(s) = r.score {
+                    scores.push(s);
+                }
+                if let Some(reason) = r.fail_reason.as_deref() {
+                    record_fail_open(&mut outcome, reason);
+                }
+                rebuilt.push_str(&r.text);
             }
-            None => {
-                record_fail_open(&mut outcome, "page_png_missing");
-                section_text.to_string()
-            }
-        };
-        rebuilt.push_str(&new_text);
+            None => rebuilt.push_str(section_text),
+        }
     }
     outcome.markdown = rebuilt;
     if !scores.is_empty() {
@@ -519,11 +660,55 @@ fn strip_markdown_images(md: &str) -> String {
 /// re-prompts with the modality-routed system prompt; callers pass a stronger
 /// model when configured. Runs before the grounding verify pass so recovered
 /// content is verified like everything else.
+/// Re-OCR pages whose body is only the empty-vision placeholder.
+///
+/// `allowed_pages` scopes retries to authoritative manuscript pages in mixed
+/// documents (print pages must not be re-OCR'd because of stitch placeholders).
 pub async fn escalate_empty_pages(
     markdown: &str,
     assets_root: &Path,
     provider: Arc<dyn LLMProvider>,
     modality: PageModality,
+) -> EscalationOutcome {
+    escalate_empty_pages_scoped(markdown, assets_root, provider, modality, None, None).await
+}
+
+/// Scoped empty-page escalation with optional allowed-page set and heartbeats.
+pub async fn escalate_empty_pages_scoped(
+    markdown: &str,
+    assets_root: &Path,
+    provider: Arc<dyn LLMProvider>,
+    modality: PageModality,
+    allowed_pages: Option<&[usize]>,
+    progress: Option<&ManuscriptPageProgressHook>,
+) -> EscalationOutcome {
+    escalate_empty_pages_bounded(
+        markdown,
+        assets_root,
+        provider,
+        modality,
+        allowed_pages,
+        progress,
+        PageWorkLimits {
+            concurrency: ESCALATE_CONCURRENCY,
+            per_call_timeout: PER_CALL_TIMEOUT,
+        },
+        None,
+    )
+    .await
+}
+
+/// Bounded empty-page escalation with injectable limits and optional cancel.
+#[allow(clippy::too_many_arguments)]
+pub async fn escalate_empty_pages_bounded(
+    markdown: &str,
+    assets_root: &Path,
+    provider: Arc<dyn LLMProvider>,
+    modality: PageModality,
+    allowed_pages: Option<&[usize]>,
+    progress: Option<&ManuscriptPageProgressHook>,
+    limits: PageWorkLimits,
+    cancel: Option<&tokio_util::sync::CancellationToken>,
 ) -> EscalationOutcome {
     let mut outcome = EscalationOutcome {
         markdown: markdown.to_string(),
@@ -537,54 +722,149 @@ pub async fn escalate_empty_pages(
     if sections.is_empty() {
         return outcome;
     }
+    let allowed: Option<std::collections::HashSet<usize>> =
+        allowed_pages.map(|p| p.iter().copied().collect());
+
+    let mut candidates: Vec<(usize, usize, String, String)> = Vec::new();
+    for (idx, section) in sections.iter().enumerate() {
+        if let Some(ref set) = allowed {
+            if !set.contains(&section.page_num) {
+                continue;
+            }
+        }
+        let section_text = &markdown[section.range.clone()];
+        let (marker_line, body) = match section_text.find('\n') {
+            Some(i) => section_text.split_at(i + 1),
+            None => (section_text, ""),
+        };
+        if section_needs_empty_escalation(body) {
+            candidates.push((
+                idx,
+                section.page_num,
+                marker_line.to_string(),
+                section_text.to_string(),
+            ));
+        }
+    }
+    let work_total = candidates.len();
+    if work_total == 0 {
+        return outcome;
+    }
+
+    let mut results: Vec<Option<(EscalationPageStatus, String)>> =
+        (0..sections.len()).map(|_| None).collect();
+    let root = assets_root.to_path_buf();
+    let concurrency = limits.concurrency.max(1);
+    use futures::stream::{self, StreamExt};
+    let mut stream = stream::iter(candidates.into_iter().enumerate())
+        .map(
+            |(done_idx, (section_idx, page_num, marker_line, section_text))| {
+                let provider = Arc::clone(&provider);
+                let root = root.clone();
+                let cancel = cancel.cloned();
+                let timeout = limits.per_call_timeout;
+                async move {
+                    if cancel.as_ref().is_some_and(|c| c.is_cancelled()) {
+                        return (
+                            done_idx,
+                            section_idx,
+                            page_num,
+                            EscalationPageStatus::Skipped,
+                            section_text,
+                        );
+                    }
+                    let png = page_png_path(&root, page_num);
+                    if !png.exists() {
+                        return (
+                            done_idx,
+                            section_idx,
+                            page_num,
+                            EscalationPageStatus::Skipped,
+                            section_text,
+                        );
+                    }
+                    match reocr_page_with_timeout(provider.as_ref(), &png, modality, timeout).await
+                    {
+                        Ok(content) => {
+                            let rebuilt = format!("{marker_line}\n{content}\n\n");
+                            (
+                                done_idx,
+                                section_idx,
+                                page_num,
+                                EscalationPageStatus::Recovered,
+                                rebuilt,
+                            )
+                        }
+                        Err(e) => {
+                            warn!(
+                                page = page_num,
+                                error = %e,
+                                "SPEC-134 escalation: empty-page re-OCR failed — placeholder kept"
+                            );
+                            (
+                                done_idx,
+                                section_idx,
+                                page_num,
+                                EscalationPageStatus::Failed,
+                                section_text,
+                            )
+                        }
+                    }
+                }
+            },
+        )
+        .buffer_unordered(concurrency);
+
+    let mut completed = 0usize;
+    while let Some((_done_idx, section_idx, page_num, status, text)) = stream.next().await {
+        completed += 1;
+        match status {
+            EscalationPageStatus::Recovered => outcome.pages_escalated.push(page_num),
+            EscalationPageStatus::Failed => outcome.pages_failed.push(page_num),
+            EscalationPageStatus::Skipped => {}
+        }
+        results[section_idx] = Some((status, text));
+        if let Some(hook) = progress {
+            hook(completed, work_total, page_num);
+        }
+        if cancel.is_some_and(|c| c.is_cancelled()) {
+            break;
+        }
+    }
+
+    outcome.pages_failed.sort_unstable();
+    outcome.pages_failed.dedup();
+    outcome.pages_escalated.sort_unstable();
+    outcome.pages_escalated.dedup();
+
     let mut rebuilt = String::with_capacity(markdown.len() + 256);
     let prefix_end = sections.first().map(|s| s.range.start).unwrap_or(0);
     rebuilt.push_str(&markdown[..prefix_end]);
-    for section in &sections {
+    for (idx, section) in sections.iter().enumerate() {
         let section_text = &markdown[section.range.clone()];
-        let (marker_line, body) = match section_text.find('\n') {
-            Some(idx) => section_text.split_at(idx + 1),
-            None => (section_text, ""),
-        };
-        if !section_needs_empty_escalation(body) {
-            rebuilt.push_str(section_text);
-            continue;
-        }
-        let png = page_png_path(assets_root, section.page_num);
-        if !png.exists() {
-            // No pixels to escalate against — keep the honest placeholder.
-            rebuilt.push_str(section_text);
-            continue;
-        }
-        match reocr_page(provider.as_ref(), &png, modality).await {
-            Ok(content) => {
-                outcome.pages_escalated.push(section.page_num);
-                rebuilt.push_str(marker_line);
-                rebuilt.push('\n');
-                rebuilt.push_str(&content);
-                rebuilt.push_str("\n\n");
-            }
-            Err(e) => {
-                warn!(
-                    page = section.page_num,
-                    error = %e,
-                    "SPEC-134 escalation: empty-page re-OCR failed — placeholder kept"
-                );
-                outcome.pages_failed.push(section.page_num);
-                rebuilt.push_str(section_text);
-            }
+        match results[idx].take() {
+            Some((_, text)) => rebuilt.push_str(&text),
+            None => rebuilt.push_str(section_text),
         }
     }
     outcome.markdown = rebuilt;
     outcome
 }
 
+#[derive(Debug, Clone, Copy)]
+enum EscalationPageStatus {
+    Recovered,
+    Failed,
+    Skipped,
+}
+
 /// Single-page re-transcription call for escalation (DRY with the verify
 /// pass's refine: same image load, same timeout, same prompt SSOT).
-async fn reocr_page(
+async fn reocr_page_with_timeout(
     provider: &dyn LLMProvider,
     png_path: &Path,
     modality: PageModality,
+    timeout: Duration,
 ) -> Result<String, String> {
     let image =
         load_page_image(png_path).map_err(|e| format!("read {}: {e}", png_path.display()))?;
@@ -601,7 +881,7 @@ async fn reocr_page(
             vec![image],
         ),
     ];
-    let response = tokio::time::timeout(PER_CALL_TIMEOUT, provider.chat(&messages, Some(&opts)))
+    let response = tokio::time::timeout(timeout, provider.chat(&messages, Some(&opts)))
         .await
         .map_err(|_| "escalation call timed out".to_string())?
         .map_err(|e| format!("escalation call failed: {e}"))?;
@@ -967,6 +1247,59 @@ mod tests {
         assert!(out
             .markdown
             .contains("# Recovered from crop-defeated placeholder"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn verify_scoped_skips_print_pages_in_mixed_doc() {
+        let dir = std::env::temp_dir().join(format!("mv-{}", uuid::Uuid::new_v4()));
+        write_tiny_png(&dir, 2);
+        let mock = MockProvider::new();
+        // Only page 2 should be judged.
+        mock.add_response(r#"{"grounded_score": 0.95, "invented": [], "missing": []}"#)
+            .await;
+        let md =
+            "<!-- edgequake-page:1 -->\nprint content\n\n<!-- edgequake-page:2 -->\nms content\n";
+        let out = verify_manuscript_markdown_scoped(
+            md,
+            PageModality::Mixed,
+            Some(dir.as_path()),
+            Arc::new(mock),
+            Some(&[2usize]),
+            None,
+        )
+        .await;
+        assert!(out.ran);
+        assert_eq!(out.pages_judged, 1);
+        assert!(out.markdown.contains("print content"));
+        assert!(out.markdown.contains("ms content"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn escalate_scoped_skips_print_placeholders() {
+        let dir = std::env::temp_dir().join(format!("esc-{}", uuid::Uuid::new_v4()));
+        write_tiny_png(&dir, 1);
+        write_tiny_png(&dir, 2);
+        let mock = MockProvider::new();
+        mock.add_response("# Recovered manuscript page").await;
+        let placeholder = edgequake_pdf::EMPTY_VISION_PAGE_PLACEHOLDER;
+        let md = format!(
+            "<!-- edgequake-page:1 -->\n\n{placeholder}\n\n<!-- edgequake-page:2 -->\n\n{placeholder}\n"
+        );
+        let out = escalate_empty_pages_scoped(
+            &md,
+            &dir,
+            Arc::new(mock),
+            PageModality::Mixed,
+            Some(&[2usize]),
+            None,
+        )
+        .await;
+        assert_eq!(out.pages_escalated, vec![2]);
+        assert!(out.markdown.contains("# Recovered manuscript page"));
+        // Print page 1 placeholder must remain (not re-OCR'd).
+        assert!(out.markdown.contains("<!-- edgequake-page:1 -->"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

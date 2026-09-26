@@ -86,22 +86,47 @@ fn contract_legacy_source_prefix_not_unconditional() {
 }
 
 #[test]
-fn contract_modern_source_prefix_helper_skips_unindexed_source_chunk_ids() {
+fn contract_modern_source_prefix_helper_probes_indexed_lineage_arrays() {
     let helper = include_str!("../src/adapters/postgres/graph/helpers/source_lineage_sql.rs");
-    // Extract modern fn body loosely: between modern fn and legacy fn.
+    // Modern fn body only: from its signature to the first top-level `}`.
     let start = helper
         .find("fn jsonb_matches_doc_source_prefix_modern")
         .expect("modern helper");
-    let end = helper
-        .find("fn jsonb_matches_doc_source_prefix_legacy")
-        .expect("legacy helper");
+    let end = start
+        + helper[start..]
+            .find("\n}\n")
+            .expect("modern helper body end");
     let modern = &helper[start..end];
+    // SPEC-149: source_chunk_ids has its own GIN (idx_*_source_chunk_ids_gin);
+    // probing it is required for durable-committer documents that omit source_ids.
     assert!(
-        modern.contains("source_ids"),
-        "modern helper must probe source_ids"
+        modern.contains("INDEXED_LINEAGE_ARRAY_KEYS"),
+        "modern helper must iterate the shared indexed lineage keys"
+    );
+    assert_eq!(
+        edgequake_storage::INDEXED_LINEAGE_ARRAY_KEYS,
+        ["source_ids", "source_chunk_ids"],
+        "both GIN-indexed lineage arrays must be probed"
     );
     assert!(
-        !modern.contains("source_chunk_ids"),
-        "modern helper must not OR unindexed source_chunk_ids (Seq Scan / timeout)"
+        !modern.contains("LIKE"),
+        "modern helper must stay GIN-only (no LIKE)"
     );
+}
+
+/// Migration 157 and runtime DDL must bound the same four lineage GIN indexes.
+#[cfg(feature = "postgres")]
+#[test]
+fn contract_lineage_gin_pending_limit_matches_migration_157() {
+    let migration = include_str!("../../../migrations/157_graph_lineage_gin_pending_limit.sql");
+    let support = include_str!("../../../migrations/support/157/apply.sql");
+    assert_eq!(migration, support, "support/157/apply.sql must mirror M157");
+    let limit = format!(
+        "gin_pending_list_limit = {}",
+        edgequake_storage::LINEAGE_GIN_PENDING_LIST_LIMIT_KB
+    );
+    assert!(migration.contains(&limit), "M157 must set {limit}");
+    for index in edgequake_storage::LINEAGE_GIN_INDEXES {
+        assert!(migration.contains(index), "M157 must bound {index}");
+    }
 }

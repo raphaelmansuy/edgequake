@@ -157,6 +157,8 @@ pub struct VisionConversionConfig {
     pub pages: Option<edgequake_pdf2md::PageSelection>,
     /// SPEC-109: desired vision reasoning effort (clamped at provider wrap).
     pub reasoning_effort: Option<String>,
+    /// Per-page VLM API timeout forwarded to pdf2md `api_timeout_secs`.
+    pub api_timeout_secs: Option<u64>,
 }
 
 impl std::fmt::Debug for VisionConversionConfig {
@@ -179,6 +181,7 @@ impl std::fmt::Debug for VisionConversionConfig {
             )
             .field("pages", &self.pages)
             .field("reasoning_effort", &self.reasoning_effort)
+            .field("api_timeout_secs", &self.api_timeout_secs)
             .finish()
     }
 }

@@ -83,7 +83,8 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        # SPEC-150: AGE + pgvector required (M078 Node/EDGE class).
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
         env:
           POSTGRES_DB: edgequake_mig_guard
           POSTGRES_USER: edgequake_guard

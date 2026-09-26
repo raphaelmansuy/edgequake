@@ -5,12 +5,14 @@ members = [
     "crates/edgequake-audit",
     "crates/edgequake-auth",
     "crates/edgequake-core",
+    "crates/edgequake-migrate-manifest",
     "crates/edgequake-observability",
     "crates/edgequake-pdf",
     "crates/edgequake-pipeline",
     "crates/edgequake-query",
     "crates/edgequake-rate-limiter",
     "crates/edgequake-storage",
+    "crates/edgequake-storage-contracts",
     "crates/edgequake-tasks",
 ]
 
@@ -54,7 +56,16 @@ path = "examples/spec115_mistral_ingest.rs"
 [features]
 default = ["postgres", "vision", "otel"]
 otel = ["edgequake-observability/otel", "edgequake-api/otel"]
-postgres = ["edgequake-api/postgres", "edgequake-storage/postgres"]
+postgres = [
+    "edgequake-api/postgres",
+    "edgequake-storage/postgres",
+    "dep:sqlx",
+    "sqlx/postgres",
+]
+qdrant = ["edgequake-api/qdrant", "edgequake-storage/qdrant"]
+neo4j = ["edgequake-api/neo4j", "edgequake-storage/neo4j"]
+sqlite = ["edgequake-api/sqlite", "edgequake-storage/sqlite"]
+p3 = ["sqlite", "neo4j", "qdrant"]
 vision = ["edgequake-api/vision"]
 
 [dependencies]
@@ -64,17 +75,19 @@ edgequake-llm = { workspace = true }
 edgequake-pipeline = { workspace = true }
 edgequake-query = { workspace = true }
 edgequake-api = { workspace = true }
+edgequake-migrate-manifest = { workspace = true }
 edgequake-observability = { workspace = true, features = ["metrics", "otel"] }
 edgequake-tasks = { workspace = true }
 edgequake-pdf = { workspace = true }
 tokio = { workspace = true }
+axum = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 num_cpus = { workspace = true }
-sqlx = { workspace = true }
+sqlx = { workspace = true, optional = true }
 chrono = { workspace = true }
 
 [dev-dependencies]
@@ -151,7 +164,6 @@ utoipa-swagger-ui = { version = "8.0", features = ["axum"] }
 sqlx = { version = "0.8", features = [
     "runtime-tokio",
     "tls-rustls-ring-webpki",
-    "postgres",
     "chrono",
     "json",
     "uuid",
@@ -176,6 +188,7 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
+edgequake-migrate-manifest = { path = "crates/edgequake-migrate-manifest" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
 # SSOT with pdf2md 0.9.11 (llm ≥0.10.8 / OTEL 0.32 — no 0.6.x diamond).
 # SPEC-113/extract: Ollama think:false for effort=none (crates.io 0.10.7+).
@@ -185,6 +198,7 @@ edgequake-llm = "0.10.8"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
+edgequake-storage-contracts = { path = "crates/edgequake-storage-contracts" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 edgequake-observability = { path = "crates/edgequake-observability" }
 edgeparse-core = "0.2.5"

@@ -89,9 +89,17 @@ impl DocumentTaskProcessor {
             self.resolve_lineage_sink().await,
             text_embedder,
             #[cfg(feature = "postgres")]
-            crate::services::resolve_relational_chunk_repo(self.pg_pool.as_ref()),
+            crate::services::resolve_relational_chunk_repo(self.optional_pg_pool()),
             #[cfg(not(feature = "postgres"))]
             crate::services::resolve_relational_chunk_repo(None),
+            #[cfg(feature = "postgres")]
+            self.app_state
+                .as_ref()
+                .and_then(|state| state.ingestion_committer.clone()),
+            #[cfg(feature = "postgres")]
+            self.app_state
+                .as_ref()
+                .and_then(|state| state.document_reader.clone()),
             #[cfg(feature = "postgres")]
             self.pg_pool.clone(),
             &data.doc_id,

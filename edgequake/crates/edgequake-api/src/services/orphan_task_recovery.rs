@@ -186,6 +186,7 @@ pub async fn recover_orphaned_tasks(
                     Ok(_) => {
                         if let Err(e) = sync_document_failed_on_orphan_heartbeat(
                             Arc::clone(&kv_storage),
+                            None,
                             &task,
                             &error_msg,
                         )

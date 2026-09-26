@@ -47,6 +47,7 @@ const ALLOWLIST: &[&str] = &[
     "edgequake-api/src/services/document_deletion.rs",
     "edgequake-api/src/services/document_body_loader.rs",
     "edgequake-api/src/services/document_metadata_scan.rs",
+    "edgequake-api/src/services/list_run_enrich.rs",
     "edgequake-api/src/services/ingestion_persist.rs",
     "edgequake-api/src/services/injection_process.rs",
     "edgequake-api/src/services/multimodal/analyzer.rs",

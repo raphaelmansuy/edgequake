@@ -20,7 +20,8 @@ use crate::error::ApiError;
 use crate::handlers::auth::ApiAuthenticated;
 use crate::services::record_compliance_event_runtime;
 use crate::state::{
-    ApiSecurityConfig, AuthRuntime, ComplianceRuntime, PostgresRuntime, StorageRuntime,
+    ApiSecurityConfig, AuthRuntime, ComplianceRuntime, OperationalStores, PostgresRuntime,
+    StorageRuntime,
 };
 
 use super::{
@@ -50,6 +51,7 @@ pub async fn login(
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
     State(compliance): State<ComplianceRuntime>,
+    State(stores): State<OperationalStores>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
     info!("Login attempt for user: {}", request.username);
@@ -78,9 +80,15 @@ pub async fn login(
         }
     };
 
-    let mut record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user.user_id)
-        .await?
-        .ok_or_else(|| ApiError::Internal("User record missing after lookup".into()))?;
+    let mut record = get_record_by_id(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &user.user_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::Internal("User record missing after lookup".into()))?;
 
     crate::services::login_lockout::ensure_login_allowed(&record)?;
 
@@ -108,6 +116,7 @@ pub async fn login(
             &storage,
             Some(&pg_runtime),
             &security,
+            stores.identity.as_deref(),
             &auth.config,
             &mut record,
         )
@@ -123,6 +132,7 @@ pub async fn login(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.identity.as_deref(),
         &mut record,
     )
     .await?;
@@ -156,6 +166,7 @@ pub async fn login(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &refresh_record,
     )
     .await?;
@@ -202,12 +213,14 @@ pub async fn refresh_token(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     Json(request): Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, ApiError> {
     let record = crate::services::session_storage::load_refresh_token(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &request.refresh_token,
     )
     .await?
@@ -229,13 +242,19 @@ pub async fn refresh_token(
         ));
     }
 
-    let user = get_user_by_id(&storage, Some(&pg_runtime), &security, &record.user_id)
-        .await?
-        .ok_or(ApiError::auth_unauthorized(
-            "refresh",
-            "user_not_found",
-            None,
-        ))?;
+    let user = get_user_by_id(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &record.user_id,
+    )
+    .await?
+    .ok_or(ApiError::auth_unauthorized(
+        "refresh",
+        "user_not_found",
+        None,
+    ))?;
 
     let user_uuid = Uuid::parse_str(&user.user_id)
         .map_err(|_| ApiError::Internal("Invalid user ID format".to_string()))?;
@@ -268,12 +287,14 @@ pub async fn refresh_token(
         (status = 401, description = "Invalid token")
     )
 )]
+#[allow(clippy::too_many_arguments)] // Axum extractor fan-in
 pub async fn logout(
     State(auth): State<AuthRuntime>,
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
     State(compliance): State<ComplianceRuntime>,
+    State(stores): State<OperationalStores>,
     headers: HeaderMap,
     Json(request): Json<RefreshTokenRequest>,
 ) -> Result<StatusCode, ApiError> {
@@ -281,6 +302,7 @@ pub async fn logout(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &request.refresh_token,
     )
     .await?
@@ -290,6 +312,7 @@ pub async fn logout(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &request.refresh_token,
     )
     .await?;
@@ -337,11 +360,18 @@ pub async fn get_me(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
 ) -> Result<Json<GetMeResponse>, ApiError> {
-    let user_record = get_record_by_id(&storage, Some(&pg_runtime), &security, &user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))?;
+    let user_record = get_record_by_id(
+        &storage,
+        Some(&pg_runtime),
+        &security,
+        stores.identity.as_deref(),
+        &user_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))?;
 
     if !user_record.is_active {
         return Err(ApiError::forbidden_reason("account_inactive"));

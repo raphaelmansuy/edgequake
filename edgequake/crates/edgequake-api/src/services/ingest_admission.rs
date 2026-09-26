@@ -47,7 +47,7 @@ pub async fn provision_relational_document_shell(
     shell: &RelationalDocumentShell,
 ) -> ApiResult<()> {
     #[cfg(feature = "postgres")]
-    if let Some(pool) = state.pg_pool.as_ref() {
+    if let Some(pool) = state.optional_pg_pool() {
         let document_id = Uuid::parse_str(document_id)
             .map_err(|e| crate::error::ApiError::Internal(format!("invalid document id: {e}")))?;
         let metadata = serde_json::json!({
@@ -94,8 +94,11 @@ pub async fn provision_relational_document_shell(
 /// Allocate a document ID — uuidv7 on PG18 when capabilities allow (SPEC-042-E E-03).
 #[cfg(feature = "postgres")]
 pub async fn allocate_new_document_id(state: &AppState) -> String {
-    allocate_document_id_from_pool(state.pg_pool.as_ref(), state.postgres_capabilities.as_ref())
-        .await
+    allocate_document_id_from_pool(
+        state.optional_pg_pool(),
+        state.postgres_capabilities.as_ref(),
+    )
+    .await
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -106,7 +109,7 @@ pub async fn allocate_new_document_id(_state: &AppState) -> String {
 /// Allocate using optional pool + capabilities (handlers without full AppState).
 #[cfg(feature = "postgres")]
 pub async fn allocate_document_id_from_pool(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     caps: Option<&edgequake_storage::adapters::postgres::PostgresCapabilities>,
 ) -> String {
     if let (Some(pool), Some(caps)) = (pool, caps) {
@@ -139,9 +142,13 @@ pub async fn resolve_pdf_ingest_document_id(
     }
 
     let pdf_id_str = pdf_id.to_string();
-    if let Some(doc_id) =
-        find_kv_document_id_for_pdf(state.storage.kv_storage.as_ref(), &pdf_id_str, tenant_ctx)
-            .await
+    if let Some(doc_id) = find_kv_document_id_for_pdf(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        &pdf_id_str,
+        tenant_ctx,
+    )
+    .await
     {
         return Ok(doc_id);
     }
@@ -186,8 +193,22 @@ pub async fn resolve_worker_pdf_document_id(
 
     let pdf_id_str = req.pdf_id.to_string();
     if let Some(tenant_ctx) = req.tenant_ctx {
-        if let Some(doc_id) =
-            find_kv_document_id_for_pdf(req.kv_storage.as_ref(), &pdf_id_str, tenant_ctx).await
+        if let Some(doc_id) = find_kv_document_id_for_pdf(
+            req.kv_storage.as_ref(),
+            {
+                #[cfg(feature = "postgres")]
+                {
+                    req.pg_pool
+                }
+                #[cfg(not(feature = "postgres"))]
+                {
+                    crate::services::no_pg_pool()
+                }
+            },
+            &pdf_id_str,
+            tenant_ctx,
+        )
+        .await
         {
             persist_pdf_task_document_id(req.task, &doc_id, req.task_storage).await?;
             return Ok(doc_id);

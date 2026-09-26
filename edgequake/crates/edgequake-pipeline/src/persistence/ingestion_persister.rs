@@ -15,6 +15,7 @@ use edgequake_storage::{
     chunk_text_authority_writes_relational, compensation, traits::ChunkRepository,
     traits::KVStorage, GraphStorage, TextEmbedder, VectorStorage,
 };
+use edgequake_storage_contracts::IngestionCommitter;
 
 use crate::merger::{
     KnowledgeGraphMerger, MergeProgressCallback, MergeStats, MergerConfig, RelationalEntitySink,
@@ -99,6 +100,21 @@ impl DefaultIngestionPersister {
         self
     }
 
+    /// SPEC-149: attach the atomic authority committer.
+    pub fn with_ingestion_committer(
+        mut self,
+        committer: Option<Arc<dyn IngestionCommitter>>,
+    ) -> Self {
+        self.config = self.config.with_ingestion_committer(committer);
+        self
+    }
+
+    /// SPEC-149: explicit durable authority (preferred over Option-pair builders).
+    pub fn with_ingestion_authority(mut self, authority: IngestionAuthority) -> Self {
+        self.config = self.config.with_ingestion_authority(authority);
+        self
+    }
+
     /// SPEC-091 W3: attach typed embedding index.
     pub fn with_typed_embedding_index(
         mut self,
@@ -157,6 +173,8 @@ pub struct IngestionPersistContext {
     pub source_type: Option<String>,
     /// Optional vector metadata path label (e.g. `"injection"`).
     pub source_file_path: Option<String>,
+    /// Durable ingest generation. Legacy/memory callers default to generation 1.
+    pub ingest_generation: Option<u64>,
 }
 
 impl IngestionPersistContext {
@@ -171,6 +189,7 @@ impl IngestionPersistContext {
             workspace_id,
             source_type: None,
             source_file_path: None,
+            ingest_generation: None,
         }
     }
 
@@ -182,6 +201,11 @@ impl IngestionPersistContext {
     ) -> Self {
         self.source_type = source_type;
         self.source_file_path = source_file_path;
+        self
+    }
+
+    pub fn with_ingest_generation(mut self, generation: u64) -> Self {
+        self.ingest_generation = Some(generation);
         self
     }
 }
@@ -219,6 +243,52 @@ impl Default for ChunkVectorBuildOptions {
     }
 }
 
+/// How relational chunk/authority persistence is selected for this persist call.
+///
+/// P0 postgres serving must use [`Self::DurableCommitter`]. Memory/unit tests may
+/// use [`Self::LegacyRepository`]. Mixing "optional committer" with silent
+/// fallback is forbidden: an incomplete durable wiring fails closed.
+#[derive(Clone)]
+pub enum IngestionAuthority {
+    /// Direct `ChunkRepository::insert_batch` (memory / non-authority tests).
+    LegacyRepository(Arc<dyn ChunkRepository>),
+    /// Atomic SPEC-149 ingestion committer (required for postgres product serving).
+    DurableCommitter {
+        committer: Arc<dyn IngestionCommitter>,
+        /// Spine repository still required for typed embedding FK resolution.
+        relational_chunks: Arc<dyn ChunkRepository>,
+        /// Resolved embedding model identity — never read from env in the hot path.
+        embedding_model_id: String,
+    },
+}
+
+impl IngestionAuthority {
+    pub fn relational_chunks(&self) -> Arc<dyn ChunkRepository> {
+        match self {
+            Self::LegacyRepository(repo) => Arc::clone(repo),
+            Self::DurableCommitter {
+                relational_chunks, ..
+            } => Arc::clone(relational_chunks),
+        }
+    }
+
+    pub fn as_durable_committer(&self) -> Option<&Arc<dyn IngestionCommitter>> {
+        match self {
+            Self::DurableCommitter { committer, .. } => Some(committer),
+            Self::LegacyRepository(_) => None,
+        }
+    }
+
+    pub fn embedding_model_id(&self) -> Option<&str> {
+        match self {
+            Self::DurableCommitter {
+                embedding_model_id, ..
+            } => Some(embedding_model_id.as_str()),
+            Self::LegacyRepository(_) => None,
+        }
+    }
+}
+
 /// Merger + relational sink configuration (shared by all callers).
 #[derive(Clone)]
 pub struct IngestionPersistConfig {
@@ -227,8 +297,15 @@ pub struct IngestionPersistConfig {
     pub llm_provider: Option<Arc<dyn LLMProvider>>,
     /// When set, chunk text is written to KV before vector upsert (SPEC-024 2.5 SSOT).
     pub kv_storage: Option<Arc<dyn KVStorage>>,
+    /// SPEC-091 / SPEC-149: explicit authority strategy (no silent Option fallback).
+    pub ingestion_authority: Option<IngestionAuthority>,
     /// SPEC-091 W1: relational chunk authority writer (`chunks` table).
+    /// Prefer [`Self::ingestion_authority`]; retained for gradual call-site migration.
     pub relational_chunks: Option<Arc<dyn ChunkRepository>>,
+    /// SPEC-149: atomic authority for chunks, immutable facts, embeddings,
+    /// contribution provenance, and projection event append.
+    /// Prefer [`Self::ingestion_authority`]; retained for gradual call-site migration.
+    pub ingestion_committer: Option<Arc<dyn IngestionCommitter>>,
     /// SPEC-091 W3: typed chunk embedding index (`chunk_embeddings` table).
     /// Wired only on postgres contexts; dual-write runs during rollout
     /// (warn-only) and becomes authoritative under `chunk_embeddings` backend.
@@ -261,7 +338,9 @@ impl IngestionPersistConfig {
             relational_sink,
             llm_provider,
             kv_storage: None,
+            ingestion_authority: None,
             relational_chunks: None,
+            ingestion_committer: None,
             typed_embedding_index: None,
             fleet_embedding_index: None,
             merge_progress: None,
@@ -286,7 +365,49 @@ impl IngestionPersistConfig {
         mut self,
         relational_chunks: Option<Arc<dyn ChunkRepository>>,
     ) -> Self {
-        self.relational_chunks = relational_chunks;
+        self.relational_chunks = relational_chunks.clone();
+        if let Some(repo) = relational_chunks {
+            if self.ingestion_authority.is_none() && self.ingestion_committer.is_none() {
+                self.ingestion_authority = Some(IngestionAuthority::LegacyRepository(repo));
+            }
+        }
+        self
+    }
+
+    pub fn with_ingestion_committer(
+        mut self,
+        committer: Option<Arc<dyn IngestionCommitter>>,
+    ) -> Self {
+        self.ingestion_committer = committer.clone();
+        if let (Some(committer), Some(repo)) = (committer, self.relational_chunks.clone()) {
+            let embedding_model_id = std::env::var("EDGEQUAKE_EMBEDDING_MODEL")
+                .unwrap_or_else(|_| "text-embedding-3-small".into());
+            self.ingestion_authority = Some(IngestionAuthority::DurableCommitter {
+                committer,
+                relational_chunks: repo,
+                embedding_model_id,
+            });
+        }
+        self
+    }
+
+    /// Explicit authority wiring for P0 postgres (preferred over Option pairs).
+    pub fn with_ingestion_authority(mut self, authority: IngestionAuthority) -> Self {
+        match &authority {
+            IngestionAuthority::LegacyRepository(repo) => {
+                self.relational_chunks = Some(Arc::clone(repo));
+                self.ingestion_committer = None;
+            }
+            IngestionAuthority::DurableCommitter {
+                committer,
+                relational_chunks,
+                ..
+            } => {
+                self.relational_chunks = Some(Arc::clone(relational_chunks));
+                self.ingestion_committer = Some(Arc::clone(committer));
+            }
+        }
+        self.ingestion_authority = Some(authority);
         self
     }
 
@@ -325,6 +446,8 @@ impl IngestionPersistConfig {
 pub struct IngestionPersistOutput {
     pub chunk_vector_ids: Vec<String>,
     pub merge_stats: MergeStats,
+    /// Durable P0 accepted the batch; graph and vector mutation belong to the worker.
+    pub awaiting_projection: bool,
 }
 
 /// Build batched chunk vector upsert entries from a processing result.
@@ -409,6 +532,62 @@ async fn persist_processing_result_impl(
     }
 
     let authority = chunk_text_authority_from_env();
+    let committed_relational = if chunk_text_authority_writes_relational(authority) {
+        match config.ingestion_authority.as_ref() {
+            Some(IngestionAuthority::DurableCommitter {
+                committer,
+                embedding_model_id,
+                ..
+            }) => {
+                let chunks = super::relational_chunk_writer::build_relational_chunks(ctx, result)
+                    .map_err(crate::error::PipelineError::StorageError)?;
+                let generation = ctx.ingest_generation.ok_or_else(|| {
+                    crate::error::PipelineError::StorageError(
+                        edgequake_storage::error::StorageError::InvalidData(
+                            "durable ingest requires IngestionPersistContext.ingest_generation"
+                                .into(),
+                        ),
+                    )
+                })?;
+                let command = super::relational_chunk_writer::build_prepared_ingestion_batch(
+                    ctx,
+                    result,
+                    &chunks,
+                    embedding_model_id,
+                    generation,
+                )
+                .map_err(crate::error::PipelineError::StorageError)?;
+                let stage_start = Instant::now();
+                committer
+                    .commit_batch(&command)
+                    .await
+                    .map_err(edgequake_storage::StorageError::from)
+                    .map_err(crate::error::PipelineError::StorageError)?;
+                record_ingest_stage_duration(
+                    "relational_commit_batch",
+                    stage_start.elapsed().as_secs_f64(),
+                );
+                true
+            }
+            Some(IngestionAuthority::LegacyRepository(_)) => false,
+            None => {
+                // Leftover public Option fields must not silently commit.
+                if config.ingestion_committer.is_some() {
+                    return Err(crate::error::PipelineError::StorageError(
+                        edgequake_storage::error::StorageError::InvalidData(
+                            "ingestion_committer set without IngestionAuthority::DurableCommitter; \
+                             use with_ingestion_authority"
+                                .into(),
+                        ),
+                    ));
+                }
+                false
+            }
+        }
+    } else {
+        false
+    };
+
     let mut chunk_kv_ids: Vec<String> = Vec::new();
     if chunk_text_authority_writes_kv(authority) {
         if let Some(kv) = &config.kv_storage {
@@ -428,7 +607,7 @@ async fn persist_processing_result_impl(
         }
     }
 
-    if chunk_text_authority_writes_relational(authority) {
+    if chunk_text_authority_writes_relational(authority) && !committed_relational {
         if let Some(repo) = &config.relational_chunks {
             let stage_start = Instant::now();
             super::relational_chunk_writer::persist_relational_chunks(repo.as_ref(), ctx, result)
@@ -439,6 +618,14 @@ async fn persist_processing_result_impl(
                 stage_start.elapsed().as_secs_f64(),
             );
         }
+    }
+
+    if committed_relational {
+        return Ok(IngestionPersistOutput {
+            chunk_vector_ids: Vec::new(),
+            merge_stats: MergeStats::default(),
+            awaiting_projection: true,
+        });
     }
 
     let chunk_vectors = build_chunk_vector_batch(result, ctx, chunk_options);
@@ -605,7 +792,7 @@ async fn persist_processing_result_impl(
                 if let (Some(repo), Some(doc_uuid)) = (&config.relational_chunks, doc_uuid) {
                     if let Err(e) = repo
                         .set_serving_state(
-                            edgequake_storage::traits::domain::DocumentId(doc_uuid),
+                            edgequake_storage::traits::domain::DocumentId::new(doc_uuid),
                             edgequake_storage::serving_fence::SERVING_STATE_READY,
                         )
                         .await
@@ -646,6 +833,7 @@ async fn persist_processing_result_impl(
             Ok(IngestionPersistOutput {
                 chunk_vector_ids,
                 merge_stats: stats,
+                awaiting_projection: false,
             })
         }
         Ok(stats) => {
@@ -663,7 +851,9 @@ async fn persist_processing_result_impl(
                 graph_storage.as_ref(),
                 vector_storage.as_ref(),
                 config.kv_storage.as_deref(),
-                config.relational_chunks.as_deref(),
+                (!committed_relational)
+                    .then_some(config.relational_chunks.as_deref())
+                    .flatten(),
                 config.outbox.as_deref(),
                 authority,
                 ctx,
@@ -684,7 +874,9 @@ async fn persist_processing_result_impl(
                 graph_storage.as_ref(),
                 vector_storage.as_ref(),
                 config.kv_storage.as_deref(),
-                config.relational_chunks.as_deref(),
+                (!committed_relational)
+                    .then_some(config.relational_chunks.as_deref())
+                    .flatten(),
                 config.outbox.as_deref(),
                 authority,
                 ctx,
@@ -740,7 +932,7 @@ async fn compensate_merge_failure(
             if let Err(e) = repo
                 .delete_for_document(
                     &mut edgequake_storage::traits::domain::UnitOfWork::default(),
-                    edgequake_storage::traits::domain::DocumentId(doc_uuid),
+                    edgequake_storage::traits::domain::DocumentId::new(doc_uuid),
                 )
                 .await
             {
@@ -1170,7 +1362,7 @@ mod tests {
         );
 
         let left = chunks
-            .load_for_document(DocumentId(doc_id))
+            .load_for_document(DocumentId::new(doc_id))
             .await
             .expect("load compensated chunks");
         assert!(
@@ -1195,5 +1387,70 @@ mod tests {
             b.merger_config.use_llm_summarization
         );
         assert!(!a.merger_config.use_llm_summarization);
+    }
+
+    struct AcceptingCommitter;
+
+    #[async_trait::async_trait]
+    impl edgequake_storage::contracts::IngestionCommitter for AcceptingCommitter {
+        async fn commit_batch(
+            &self,
+            command: &edgequake_storage::contracts::PreparedIngestionBatch,
+        ) -> edgequake_storage::contracts::AccessResult<edgequake_storage::contracts::CommitReceipt>
+        {
+            Ok(edgequake_storage::contracts::CommitReceipt {
+                request_key: command.idempotency_key.clone(),
+                command_digest: command.canonical_digest,
+                document_generation: command.ingest_generation,
+                committed: Vec::new(),
+                manifest_id: uuid::Uuid::nil(),
+                durable_commit_token: "test".into(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn durable_commit_does_not_write_graph_or_vectors() {
+        std::env::set_var("EDGEQUAKE_CHUNK_TEXT_AUTHORITY", "relational");
+        std::env::set_var("EDGEQUAKE_VECTOR_BACKEND", "legacy_tables");
+        let graph = Arc::new(MemoryGraphStorage::new("durable-owner"));
+        let vector = Arc::new(MemoryVectorStorage::new("durable-owner", 4));
+        vector.initialize().await.unwrap();
+        let chunks = Arc::new(edgequake_storage::MemoryChunkRepository::new());
+        let config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings::default(),
+            Arc::new(crate::merger::NoopEntitySink),
+            None,
+        )
+        .with_ingestion_authority(IngestionAuthority::DurableCommitter {
+            committer: Arc::new(AcceptingCommitter),
+            relational_chunks: chunks,
+            embedding_model_id: "test-model".into(),
+        });
+        let document_id = uuid::Uuid::new_v4();
+        let tenant_id = uuid::Uuid::new_v4();
+        let workspace_id = uuid::Uuid::new_v4();
+        let output = persist_processing_result(
+            graph.clone(),
+            vector,
+            &config,
+            &IngestionPersistContext::new(
+                document_id.to_string(),
+                Some(tenant_id.to_string()),
+                Some(workspace_id.to_string()),
+            )
+            .with_ingest_generation(1),
+            &sample_result(),
+            ChunkVectorBuildOptions::STANDARD,
+        )
+        .await
+        .expect("durable accept");
+        assert!(output.awaiting_projection);
+        assert_eq!(output.merge_stats.entities_created, 0);
+        let node_id = edgequake_storage::canonical_graph_node_id(workspace_id, "Sarah Chen");
+        assert!(graph.get_node(&node_id).await.unwrap().is_none());
+        std::env::remove_var("EDGEQUAKE_VECTOR_BACKEND");
+        std::env::remove_var("EDGEQUAKE_CHUNK_TEXT_AUTHORITY");
     }
 }

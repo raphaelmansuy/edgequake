@@ -45,6 +45,7 @@ pub async fn list_injections_paged(
     if crate::services::injection_relational::injections_prefer_relational() {
         if let Some((rows, total)) = crate::services::injection_relational::typed_injection_list(
             workspace_id,
+            None,
             limit as i64,
             offset as i64,
         )

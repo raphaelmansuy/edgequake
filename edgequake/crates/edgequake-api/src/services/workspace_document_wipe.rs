@@ -91,7 +91,7 @@ async fn clear_vectors_fail_closed(state: &AppState, workspace_uuid: Uuid) -> Ap
                 .unwrap_or_else(|_| "text-embedding-3-small".to_string());
             let chunk_index = edgequake_storage::PgChunkEmbeddingIndex::new(pool.clone(), &model);
             let fleet = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), &model);
-            let ws = edgequake_storage::traits::domain::WorkspaceId(workspace_uuid);
+            let ws = edgequake_storage::traits::domain::WorkspaceId::new(workspace_uuid);
             use edgequake_storage::embedding_family::EmbeddingFamily;
             use edgequake_storage::traits::domain::{EmbeddingIndex, FleetEmbeddingIndex};
             typed_n += chunk_index.delete_for_workspace(ws).await.map_err(|e| {
@@ -117,7 +117,7 @@ async fn clear_vectors_fail_closed(state: &AppState, workspace_uuid: Uuid) -> Ap
 /// SPEC-091 RM1: set-based chunk delete for a workspace (O(1) SQL, not O(docs)).
 #[cfg(feature = "postgres")]
 async fn delete_chunks_for_workspace(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_uuid: Uuid,
 ) -> ApiResult<u64> {
     let Some(pool) = pool else {
@@ -228,14 +228,15 @@ pub async fn run_workspace_wipe_phases(
                 {
                     // RM-AC-05: O(families) set deletes — chunks cascade via FK from documents.
                     let chunks_deleted =
-                        delete_chunks_for_workspace(state.pg_pool.as_ref(), workspace_uuid).await?;
+                        delete_chunks_for_workspace(state.optional_pg_pool(), workspace_uuid)
+                            .await?;
                     data.total_chunks_deleted = data
                         .total_chunks_deleted
                         .saturating_add(chunks_deleted as usize);
 
                     let relational_deleted =
                         crate::document_read_model::delete_relational_documents_for_workspace(
-                            state.pg_pool.as_ref(),
+                            state.optional_pg_pool(),
                             &tenant_ctx,
                         )
                         .await?;
@@ -256,6 +257,7 @@ pub async fn run_workspace_wipe_phases(
                 // Post-125 Absent KV relation → empty plan / no-op.
                 let kv_plan = plan_workspace_document_kv_deletion(
                     state.storage.kv_storage.as_ref(),
+                    state.optional_pg_pool(),
                     &data.workspace_id,
                 )
                 .await?;
@@ -304,7 +306,7 @@ pub async fn count_planned_wipe_documents(
     tenant_ctx: &TenantContext,
 ) -> ApiResult<usize> {
     #[cfg(feature = "postgres")]
-    if let Some(pool) = state.pg_pool.as_ref() {
+    if let Some(pool) = state.optional_pg_pool() {
         if let Some(ws) = tenant_ctx
             .workspace_id
             .as_ref()
@@ -325,9 +327,12 @@ pub async fn count_planned_wipe_documents(
             return Ok(n.max(0) as usize);
         }
     }
-    let scoped =
-        load_scoped_document_metadata_entries(state.storage.kv_storage.as_ref(), tenant_ctx)
-            .await?;
+    let scoped = load_scoped_document_metadata_entries(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        tenant_ctx,
+    )
+    .await?;
     Ok(scoped.len())
 }
 

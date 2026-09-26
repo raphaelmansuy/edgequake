@@ -23,15 +23,26 @@ pub mod fleet_embedding_backfill;
 pub mod fleet_provenance_stamp;
 #[cfg(feature = "postgres")]
 pub mod lease;
+pub mod relational_cutover;
 #[cfg(feature = "postgres")]
 pub mod runner;
+pub mod vector_provider_cutover;
 #[cfg(feature = "postgres")]
 pub mod verify;
 
 pub use adaptive::AdaptiveBatchSizer;
+pub use relational_cutover::{
+    validate_authority_mode, RelationalAuthorityMode, RelationalWatermark,
+};
 #[cfg(feature = "postgres")]
 pub use runner::{
-    run_engine, spawn_for_serving, BackfillJob, BatchOutcome, MigrationEngineConfig, VerifyReport,
+    run_drain_foreground, run_engine, spawn_for_serving, BackfillJob, BatchOutcome,
+    MigrationEngineConfig, VerifyReport,
+};
+#[cfg(feature = "postgres")]
+pub use vector_provider_cutover::PgVectorCutoverStore;
+pub use vector_provider_cutover::{
+    ensure_caught_up, BindingCompleteness, CutoverState, VectorCutoverStore, VectorProviderCutover,
 };
 
 pub const MIGRATION_MODE_ENV: &str = "EDGEQUAKE_MIGRATION_MODE";

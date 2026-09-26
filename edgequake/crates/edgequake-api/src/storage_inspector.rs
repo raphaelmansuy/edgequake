@@ -41,6 +41,11 @@ use tracing::{info, warn};
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 
+#[cfg(feature = "postgres")]
+mod inv_c_batches;
+#[cfg(feature = "postgres")]
+mod inv_c_drift;
+
 /// Configuration for the storage inspector.
 #[derive(Debug, Clone)]
 pub struct InspectorConfig {
@@ -266,18 +271,23 @@ impl StorageInspector {
     }
 
     /// Full inspection: schema + invariants + repair recommendations.
+    ///
+    /// INV-C uses the startup budget (2s, list-path statement kill
+    /// `SOURCE_COUNT_STATEMENT_TIMEOUT_MS`) because boot awaits this call.
     pub async fn inspect(&self) -> InspectorReport {
-        let start = Instant::now();
-        let mut report = InspectorReport::new();
-
         #[cfg(feature = "postgres")]
         {
-            self.check_schema_drift(&mut report).await;
-            self.check_invariants(&mut report).await;
-            self.build_repair_recommendations(&mut report);
+            return self
+                .inspect_with(inv_c_batches::InvCLimits {
+                    wall: inv_c_batches::INV_C_STARTUP_BUDGET,
+                    statement_timeout_ms: edgequake_storage::SOURCE_COUNT_STATEMENT_TIMEOUT_MS,
+                })
+                .await;
         }
         #[cfg(not(feature = "postgres"))]
         {
+            let start = Instant::now();
+            let mut report = InspectorReport::new();
             report.schema_issues.push(SchemaDriftIssue {
                 check_name: "postgres_feature".to_string(),
                 severity: Severity::Info,
@@ -286,8 +296,24 @@ impl StorageInspector {
                         .to_string(),
                 details: None,
             });
+            report.duration_ms = start.elapsed().as_millis() as u64;
+            Self::emit_drift_metrics(&report);
+            report
         }
+    }
 
+    /// Same inspection with an explicit INV-C budget.
+    ///
+    /// The hourly monitor passes [`inv_c_batches::INV_C_MONITOR_BUDGET`]: under
+    /// ingest the 300ms kill cancels full batches, and the startup wall then
+    /// skips the rest of the sample.
+    #[cfg(feature = "postgres")]
+    async fn inspect_with(&self, inv_c: inv_c_batches::InvCLimits) -> InspectorReport {
+        let start = Instant::now();
+        let mut report = InspectorReport::new();
+        self.check_schema_drift(&mut report).await;
+        self.check_invariants(&mut report, inv_c).await;
+        self.build_repair_recommendations(&mut report);
         report.duration_ms = start.elapsed().as_millis() as u64;
         Self::emit_drift_metrics(&report);
         report
@@ -380,7 +406,12 @@ impl StorageInspector {
             ticker.tick().await;
             loop {
                 ticker.tick().await;
-                let report = self.inspect().await;
+                let report = self
+                    .inspect_with(inv_c_batches::InvCLimits {
+                        wall: inv_c_batches::INV_C_MONITOR_BUDGET,
+                        statement_timeout_ms: inv_c_batches::INV_C_MONITOR_STATEMENT_TIMEOUT_MS,
+                    })
+                    .await;
                 if report.has_critical {
                     let critical_details: Vec<String> = report
                         .schema_issues
@@ -703,7 +734,11 @@ impl StorageInspector {
         }
     }
 
-    async fn check_invariants(&self, report: &mut InspectorReport) {
+    async fn check_invariants(
+        &self,
+        report: &mut InspectorReport,
+        inv_c: inv_c_batches::InvCLimits,
+    ) {
         self.check_inv01_orphaned_chunk_vectors(report).await;
         self.check_inv03_indexed_docs_without_chunks(report).await;
         self.check_inv04_cqrs_sync_lag(report).await;
@@ -712,7 +747,7 @@ impl StorageInspector {
         // SPEC-021 P-B1: per-doc entity_count drift vs the authoritative AGE
         // graph. Replaces the planned R-DRY-03 invariant that compared against
         // the dead relational column (which would fire on every doc).
-        self.check_inv_c_per_doc_entity_drift(report).await;
+        self.check_inv_c_per_doc_entity_drift(report, inv_c).await;
         // SPEC-021 P-D3: silent CQRS no-op detection.
         self.check_inv04b_silent_sync_noop(report).await;
         // SPEC-021 P-B3: orphan entity vectors + orphan workspace tables.
@@ -1148,6 +1183,10 @@ impl StorageInspector {
     /// work. Inspector reports; SPEC-054 reconcile remains the healer.
     /// Age filter avoids racing the #385 early-admit window (seconds).
     ///
+    /// Documents that already have a `document_batch` projection event are
+    /// excluded: after durable commit the live work is the projection worker,
+    /// not a task row (SPEC-149 awaiting_projection).
+    ///
     /// Dual-read: when the KV sidecar exists, prefer KV status/`updated_at`
     /// (SPEC-120 list SSOT) so a lagging `public.documents` row does not
     /// false-positive, and KV-only in-flight metadata is still visible.
@@ -1253,6 +1292,11 @@ impl StorageInspector {
                               d.updated_at
                           ) > INTERVAL '{minutes} minutes'
                       AND {docs_live}
+                      AND NOT EXISTS (
+                          SELECT 1 FROM public.projection_events pe
+                          WHERE pe.object_id = d.id
+                            AND pe.object_kind = 'document_batch'
+                      )
                     UNION
                     SELECT {kv_doc_id} AS id,
                            CASE WHEN k.value->>'updated_at' ~ '^[0-9]{{4}}-'
@@ -1269,6 +1313,11 @@ impl StorageInspector {
                       AND NOW() - (k.value->>'updated_at')::timestamptz
                           > INTERVAL '{minutes} minutes'
                       AND {kv_live}
+                      AND NOT EXISTS (
+                          SELECT 1 FROM public.projection_events pe
+                          WHERE pe.object_id::text = {kv_doc_id}
+                            AND pe.object_kind = 'document_batch'
+                      )
                 ) orphans
                 GROUP BY id
                 ORDER BY MIN(aged_at) ASC NULLS LAST
@@ -1283,6 +1332,11 @@ impl StorageInspector {
                 WHERE lower(d.status) IN ({inflight_statuses})
                   AND NOW() - d.updated_at > INTERVAL '{minutes} minutes'
                   AND {docs_live}
+                  AND NOT EXISTS (
+                      SELECT 1 FROM public.projection_events pe
+                      WHERE pe.object_id = d.id
+                        AND pe.object_kind = 'document_batch'
+                  )
                 ORDER BY d.updated_at ASC
                 LIMIT 20
                 "#
@@ -1330,13 +1384,18 @@ impl StorageInspector {
     /// KV chunk-key count — but the relational `documents.entity_count` column
     /// was never refreshed (file 16 §3), so the invariant would fire on every
     /// document. The authoritative per-doc entity count is the AGE graph;
-    /// this invariant samples documents and compares their relational
-    /// `entity_count` against AGE GIN `@>` counts (SPEC-089 Wave 3 / F-336-11),
-    /// flagging CRITICAL drift so the admin endpoint (P-D2) can surface it.
+    /// this invariant samples documents and checks their relational
+    /// `entity_count` (mentions) against AGE GIN `@>` distinct-node counts
+    /// (SPEC-089 Wave 3 / F-336-11) with the rule in [`inv_c_drift`], so the
+    /// admin endpoint (P-D2) surfaces empty or impossible document graphs.
     ///
     /// Skips docs in `processing`/`pending` state (mid-ingestion, E16) and
     /// docs with 0 chunks (legitimately 0 entities, E15).
-    async fn check_inv_c_per_doc_entity_drift(&self, report: &mut InspectorReport) {
+    async fn check_inv_c_per_doc_entity_drift(
+        &self,
+        report: &mut InspectorReport,
+        inv_c: inv_c_batches::InvCLimits,
+    ) {
         // Bail unless AGE is available — invariant is meaningless without it.
         let age_ok: bool =
             sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
@@ -1350,14 +1409,14 @@ impl StorageInspector {
         // Sample up to 50 terminal-state documents with chunks (E17: rotate
         // by ordering on id so each run sees a different slice).
         let sample_sql = r#"
-            SELECT id::text, chunk_count, entity_count
+            SELECT id::text, chunk_count, entity_count, status
             FROM public.documents
             WHERE status IN ('indexed', 'completed', 'partial_failure', 'failed')
               AND COALESCE(chunk_count, 0) > 0
             ORDER BY id
             LIMIT 50
         "#;
-        let rows = match sqlx::query_as::<_, (String, i32, i32)>(sample_sql)
+        let rows = match sqlx::query_as::<_, (String, i32, i32, String)>(sample_sql)
             .fetch_all(self.pool.as_ref())
             .await
         {
@@ -1383,11 +1442,11 @@ impl StorageInspector {
         // analytics_ops) instead of 50× Cypher STARTS WITH SeqScans.
         let prefixes: Vec<String> = rows
             .iter()
-            .map(|(doc_id, _, _)| format!("{doc_id}-chunk-"))
+            .map(|(doc_id, _, _, _)| format!("{doc_id}-chunk-"))
             .collect();
         let max_chunks = rows
             .iter()
-            .map(|(_, c, _)| (*c).max(0) as usize)
+            .map(|(_, c, _, _)| (*c).max(0) as usize)
             .max()
             .unwrap_or(0);
         let probe_limit = if max_chunks == 0 {
@@ -1397,16 +1456,35 @@ impl StorageInspector {
         };
 
         let age_counts = match self
-            .inv_c_gin_node_counts_by_prefixes(&prefixes, probe_limit)
+            .inv_c_gin_node_counts_by_prefixes(&prefixes, probe_limit, inv_c)
             .await
         {
-            Ok(m) => m,
+            Ok(result) => {
+                if result.skipped > 0 {
+                    report.add_schema_issue(SchemaDriftIssue {
+                        check_name: "inv_c_partial".to_string(),
+                        severity: Severity::Info,
+                        description: format!(
+                            "INV-C partial — {}/{total} sampled documents not evaluated \
+                             (count timeout or budget)",
+                            result.skipped
+                        ),
+                        details: Some(
+                            "Single-document GIN counts exceeded the SPEC-089 statement budget"
+                                .to_string(),
+                        ),
+                    });
+                }
+                result.counts
+            }
             Err(e) => {
                 // SPEC-107 / LAW-I2: timeout/42P01/etc must not masquerade as healthy.
+                // A timed-out sample is not schema drift — emit Info so operators
+                // still see the skip without flipping has_warning / has_critical.
                 warn!(error = %e, "INV-C: batched GIN entity count failed — skipping");
                 report.add_schema_issue(SchemaDriftIssue {
-                    check_name: "inv_c_gin_batch".to_string(),
-                    severity: Severity::Warning,
+                    check_name: "inv_c_skipped".to_string(),
+                    severity: Severity::Info,
                     description: format!("INV-C skipped — batched GIN entity count failed: {e}"),
                     details: Some(
                         "Often 57014 under load (SPEC-089) or missing GIN; drift not evaluated"
@@ -1417,23 +1495,29 @@ impl StorageInspector {
             }
         };
 
+        let mut evaluated = 0usize;
         let mut drifted = 0usize;
         let mut samples = Vec::new();
-        for (doc_id, _chunk_count, pg_entity_count) in &rows {
+        for (doc_id, _chunk_count, pg_entity_count, status) in &rows {
             let prefix = format!("{doc_id}-chunk-");
             let Some(age_count) = age_counts.get(&prefix).copied() else {
                 continue; // hiccup — skip, do not false-positive (E8)
             };
-            if age_count as i32 != *pg_entity_count {
+            evaluated += 1;
+            let pg = i64::from(*pg_entity_count);
+            if let Some(kind) = inv_c_drift::entity_count_drift(status, pg, age_count) {
                 drifted += 1;
                 if samples.len() < 5 {
-                    samples.push(format!("{doc_id}: pg={pg_entity_count} age={age_count}"));
+                    samples.push(format!(
+                        "{doc_id}: {} (mentions={pg} age={age_count})",
+                        kind.label()
+                    ));
                 }
             }
         }
 
         if drifted > 0 {
-            let drift_rate = drifted as f64 / total as f64;
+            let drift_rate = drifted as f64 / evaluated as f64;
             let severity = if drift_rate > 0.20 {
                 Severity::Critical
             } else {
@@ -1443,7 +1527,8 @@ impl StorageInspector {
                 invariant_id: "INV-C".to_string(),
                 severity,
                 description: format!(
-                    "{drifted}/{total} sampled documents have entity_count drift vs AGE ({:.1}%)",
+                    "{drifted}/{evaluated} evaluated documents have entity lineage drift vs AGE \
+                     ({:.1}%)",
                     drift_rate * 100.0
                 ),
                 count: drifted,
@@ -1454,42 +1539,40 @@ impl StorageInspector {
 
     /// Batched GIN `@>` entity counts for INV-C (SPEC-089 / SPEC-107 R2).
     ///
-    /// LAW-H1: prefixes are processed in chunks of
+    /// LAW-H1: prefixes start in chunks of
     /// [`edgequake_storage::SOURCE_PREFIX_BATCH_LIMIT`] (same SSOT as
-    /// `analytics_ops`). Mid-batch failure keeps earlier batches (EC-07).
+    /// `analytics_ops`); timed-out chunks are halved (see [`inv_c_batches`]).
+    /// Mid-batch failure keeps earlier batches (EC-07).
     async fn inv_c_gin_node_counts_by_prefixes(
         &self,
         prefixes: &[String],
         probe_limit: usize,
-    ) -> Result<std::collections::HashMap<String, i64>, String> {
-        use std::collections::HashMap;
-
-        if prefixes.is_empty() {
-            return Ok(HashMap::new());
-        }
-
+        limits: inv_c_batches::InvCLimits,
+    ) -> Result<inv_c_batches::AdaptiveCounts, String> {
         let batch_limit = edgequake_storage::SOURCE_PREFIX_BATCH_LIMIT;
-        let mut out = HashMap::with_capacity(prefixes.len());
-        for (batch_index, batch) in prefixes.chunks(batch_limit).enumerate() {
-            match self
-                .inv_c_gin_node_counts_one_batch(batch, probe_limit)
-                .await
-            {
-                Ok(partial) => out.extend(partial),
-                Err(e) if !out.is_empty() => {
-                    tracing::warn!(
-                        error = %e,
-                        batch_index,
-                        kept = out.len(),
-                        batch_limit,
-                        "SPEC-107 R2: INV-C mid-batch failure — returning partial map"
-                    );
-                    return Ok(out);
-                }
-                Err(e) => return Err(e),
-            }
+        let statement_timeout_ms = limits.statement_timeout_ms;
+        let result = inv_c_batches::count_adaptively(
+            prefixes,
+            batch_limit,
+            limits.wall,
+            |batch| async move {
+                self.inv_c_gin_node_counts_one_batch(&batch, probe_limit, statement_timeout_ms)
+                    .await
+            },
+        )
+        .await?;
+        if result.splits > 0 || result.skipped > 0 {
+            tracing::warn!(
+                counted = result.counts.len(),
+                skipped = result.skipped,
+                splits = result.splits,
+                batch_limit,
+                wall_ms = limits.wall.as_millis() as u64,
+                statement_timeout_ms,
+                "SPEC-107 R2: INV-C count batches split on statement timeout"
+            );
         }
-        Ok(out)
+        Ok(result)
     }
 
     /// One ≤[`SOURCE_PREFIX_BATCH_LIMIT`] GIN count round-trip (SPEC-107 R2).
@@ -1497,7 +1580,9 @@ impl StorageInspector {
         &self,
         prefixes: &[String],
         probe_limit: usize,
-    ) -> Result<std::collections::HashMap<String, i64>, String> {
+        timeout_ms: u32,
+    ) -> Result<std::collections::HashMap<String, i64>, inv_c_batches::BatchError> {
+        use inv_c_batches::BatchError;
         use sqlx::Acquire;
         use std::collections::HashMap;
 
@@ -1509,49 +1594,21 @@ impl StorageInspector {
             return Ok(HashMap::new());
         }
 
-        let timeout_ms = edgequake_storage::SOURCE_COUNT_STATEMENT_TIMEOUT_MS;
-        let graph = &self.config.graph_name;
-        // Keep CTE shape aligned with analytics_ops DATA-AGE-GRAPH-NODE-COUNTS-…
-        let sql = format!(
-            r#"
-            /* DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES */
-            WITH prefixes AS MATERIALIZED (
-              SELECT prefix, ord
-              FROM unnest($1::text[]) WITH ORDINALITY AS t(prefix, ord)
-            ),
-            probes AS MATERIALIZED (
-              SELECT p.prefix, p.ord, (p.prefix || gs.i::text) AS chunk_id
-              FROM prefixes p
-              CROSS JOIN generate_series(0, $2::int - 1) AS gs(i)
-            ),
-            hits AS MATERIALIZED (
-              SELECT pr.prefix, pr.ord, v.id
-              FROM probes pr
-              INNER JOIN {graph}."Node" v
-                ON ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
-                   @> to_jsonb(pr.chunk_id)
-            )
-            SELECT p.prefix, count(DISTINCT h.id)::BIGINT AS cnt
-            FROM prefixes p
-            LEFT JOIN hits h ON h.prefix = p.prefix
-            GROUP BY p.prefix, p.ord
-            ORDER BY p.ord
-            "#
-        );
+        let sql = edgequake_storage::node_counts_by_source_prefixes_sql(&self.config.graph_name);
 
         let mut conn = self
             .pool
             .acquire()
             .await
-            .map_err(|e| format!("INV-C acquire: {e}"))?;
+            .map_err(|e| BatchError::Failed(format!("INV-C acquire: {e}")))?;
         let mut tx = conn
             .begin()
             .await
-            .map_err(|e| format!("INV-C begin: {e}"))?;
+            .map_err(|e| BatchError::Failed(format!("INV-C begin: {e}")))?;
         sqlx::query(&format!("SET LOCAL statement_timeout = '{timeout_ms}ms'"))
             .execute(&mut *tx)
             .await
-            .map_err(|e| format!("INV-C statement_timeout: {e}"))?;
+            .map_err(|e| BatchError::Failed(format!("INV-C statement_timeout: {e}")))?;
 
         let rows: Vec<(String, i64)> = match sqlx::query_as(&sql)
             .bind(prefixes)
@@ -1562,12 +1619,12 @@ impl StorageInspector {
             Ok(r) => {
                 tx.commit()
                     .await
-                    .map_err(|e| format!("INV-C commit: {e}"))?;
+                    .map_err(|e| BatchError::Failed(format!("INV-C commit: {e}")))?;
                 r
             }
             Err(e) => {
                 let _ = tx.rollback().await;
-                return Err(format!("INV-C GIN count failed: {e}"));
+                return Err(inv_c_batches::classify_count_error(&e));
             }
         };
 
@@ -2171,5 +2228,22 @@ mod spec104_tests {
             50usize.div_ceil(edgequake_storage::SOURCE_PREFIX_BATCH_LIMIT),
             2
         );
+    }
+
+    /// INV-C skip at Info must stay visible without flipping has_warning.
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn inv_c_skipped_info_does_not_set_has_warning() {
+        let mut report = InspectorReport::new();
+        report.add_schema_issue(SchemaDriftIssue {
+            check_name: "inv_c_skipped".to_string(),
+            severity: Severity::Info,
+            description: "INV-C skipped — batched GIN entity count failed: timeout".to_string(),
+            details: None,
+        });
+        assert_eq!(report.schema_issues.len(), 1);
+        assert!(!report.has_warning);
+        assert!(!report.has_critical);
+        assert_eq!(report.schema_issues[0].severity, Severity::Info);
     }
 }

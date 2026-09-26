@@ -321,9 +321,7 @@ impl PdfDocumentStorage for MemoryPdfStorage {
                 if stats.total_tokens.is_some() {
                     rec.total_tokens = stats.total_tokens;
                 }
-                if stats.error_message.is_some() {
-                    rec.error_message = stats.error_message.map(|s| s.to_string());
-                }
+                rec.error_message = stats.error_message.map(|s| s.to_string());
                 // SPEC-129: memory parity with postgres CHECK projection.
                 rec.status = crate::relational_documents_status_for_write(stats.status);
             }

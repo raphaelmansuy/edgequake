@@ -64,9 +64,12 @@ pub async fn get_ingestion_progress(
         return Err(ApiError::NotFound(format!("Track not found: {}", track_id)));
     }
 
-    let metadata_values =
-        load_scoped_document_metadata_for_progress(state.storage.kv_storage.as_ref(), &tenant_ctx)
-            .await?;
+    let metadata_values = load_scoped_document_metadata_for_progress(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await?;
 
     find_progress_for_track(&metadata_values, &track_id)
         .map(Json)
@@ -92,9 +95,12 @@ pub async fn post_ingestion_progress_batch(
         return Ok(Json(vec![]));
     }
 
-    let metadata_values =
-        load_scoped_document_metadata_for_progress(state.storage.kv_storage.as_ref(), &tenant_ctx)
-            .await?;
+    let metadata_values = load_scoped_document_metadata_for_progress(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await?;
 
     let mut out = Vec::new();
     for track_id in body.track_ids {
@@ -125,7 +131,7 @@ mod tests {
 
     #[test]
     fn find_progress_matches_task_id_when_track_differs() {
-        // Legacy rows: track_id=upload_*, task_id=insert-*
+        // Legacy rows: track_id=upload_*, state.optional_pg_pool(), task_id=insert-*
         let values = vec![json!({
             "id": "doc-2",
             "track_id": "upload_20260722000000_deadbeef",

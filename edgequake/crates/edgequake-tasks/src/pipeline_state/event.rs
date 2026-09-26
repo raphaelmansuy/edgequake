@@ -4,6 +4,32 @@
 
 use serde::Serialize;
 
+/// Typed PDF page-progress payload (avoids positional arg drift).
+///
+/// Distinguishes physical page identity (`page_num`) from document-global
+/// completion count (`completed_pages`).
+#[derive(Debug, Clone, Serialize)]
+pub struct PdfPageProgressPayload {
+    /// PDF document being processed.
+    pub pdf_id: String,
+    /// Task tracking ID.
+    pub task_id: String,
+    /// Current page number (1-based physical identity for display).
+    pub page_num: u32,
+    /// Total physical pages in PDF (document-global, not group-selected).
+    pub total_pages: u32,
+    /// Unique physical pages that have reached a terminal state.
+    pub completed_pages: u32,
+    /// Processing phase: "extraction", "rendering", etc.
+    pub phase: String,
+    /// Length of markdown generated for this page.
+    pub markdown_len: usize,
+    /// Whether page extraction succeeded.
+    pub success: bool,
+    /// Error message if extraction failed.
+    pub error: Option<String>,
+}
+
 /// Events emitted by the pipeline for real-time updates.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "data")]
@@ -92,10 +118,12 @@ pub enum PipelineEvent {
         pdf_id: String,
         /// Task tracking ID.
         task_id: String,
-        /// Current page number (1-based for display).
+        /// Current page number (1-based physical identity for display).
         page_num: u32,
-        /// Total pages in PDF.
+        /// Total physical pages in PDF (document-global, not group-selected).
         total_pages: u32,
+        /// Unique physical pages that have reached a terminal state.
+        completed_pages: u32,
         /// Processing phase: "extraction", "rendering", etc.
         phase: String,
         /// Length of markdown generated for this page.

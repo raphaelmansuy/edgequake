@@ -1,0 +1,45 @@
+{
+  "measurements": [
+    {
+      "pg": 16,
+      "T_fresh_s": 2.31,
+      "ledger_max": 159,
+      "rc": 0
+    },
+    {
+      "pg": 17,
+      "T_fresh_s": 1.2,
+      "ledger_max": 159,
+      "rc": 0
+    },
+    {
+      "pg": 18,
+      "T_fresh_s": 1.13,
+      "ledger_max": 159,
+      "rc": 0
+    }
+  ],
+  "T_upgrade_proxy_s": {
+    "16": {
+      "min": 8,
+      "max": 19,
+      "avg": 10.81,
+      "n": 32
+    },
+    "18": {
+      "min": 6,
+      "max": 9,
+      "avg": 7.75,
+      "n": 12
+    },
+    "17": {
+      "min": 6,
+      "max": 10,
+      "avg": 7.75,
+      "n": 12
+    }
+  },
+  "squash_decision": "no_squash",
+  "rationale": "T_fresh < 180s on all majors (measured twice if needed). No 000_baseline squash.",
+  "threshold_s": 180
+}

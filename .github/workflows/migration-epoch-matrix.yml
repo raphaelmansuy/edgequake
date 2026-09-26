@@ -1,0 +1,83 @@
+name: SPEC-150 migration epoch matrix
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # nightly UTC
+  workflow_dispatch:
+  push:
+    paths:
+      - "edgequake/migrations/**"
+      - "scripts/spec150/**"
+      - "scripts/spec150_epoch_matrix.sh"
+      - ".github/workflows/migration-epoch-matrix.yml"
+  pull_request:
+    paths:
+      - "edgequake/migrations/**"
+      - "scripts/spec150/**"
+      - "scripts/spec150_epoch_matrix.sh"
+
+concurrency:
+  group: spec150-epoch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  epoch-matrix:
+    name: PG${{ matrix.pg }} (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [16, 17, 18]
+        mode: [quick]
+        include:
+          - pg: 16
+            mode: full
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # need all tags for git archive replay
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
+
+      - name: Install sqlx-cli + tools
+        run: |
+          cargo install sqlx-cli --no-default-features --features postgres --locked 2>&1 | tail -5
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-client
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: spec150-pg${{ matrix.pg }}
+
+      - name: Build HEAD binary
+        working-directory: edgequake
+        run: cargo build -p edgequake --features postgres
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/.cargo-target
+
+      - name: Run epoch matrix
+        env:
+          PG: ${{ matrix.pg }}
+          QUICK: ${{ matrix.mode == 'quick' && '1' || '0' }}
+          HEAD_BIN: ${{ github.workspace }}/.cargo-target/debug/edgequake
+          CARGO_TARGET_DIR: ${{ github.workspace }}/.cargo-target
+          # Deterministic ledger replay (GHCR image boots are optional / noisy in CI).
+          FORCE_REPLAY: "1"
+          # Schema dump equivalence is proven locally; CI only asserts ledger_max.
+          SKIP_SCHEMA_DIFF: "1"
+        run: |
+          chmod +x scripts/spec150_epoch_matrix.sh
+          ./scripts/spec150_epoch_matrix.sh
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec150-pg${{ matrix.pg }}-${{ matrix.mode }}
+          path: specs/150-reliable-migration-system/reports/
+          if-no-files-found: warn

@@ -110,6 +110,7 @@ pub async fn execute_query(
     if let Some(ref filter) = request.document_filter {
         if let Some(allowed_ids) = super::document_filter_resolver::resolve_document_filter(
             state.storage.kv_storage.as_ref(),
+            state.optional_pg_pool(),
             filter,
             &data_tenant_id,
             &tenant_ctx.workspace_id,

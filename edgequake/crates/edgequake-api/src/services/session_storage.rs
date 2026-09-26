@@ -6,6 +6,8 @@
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use edgequake_storage::contracts::{ApiKey, RefreshToken, SessionStore};
+
 use crate::error::ApiError;
 use crate::handlers::auth::{ApiKeyRecord, RefreshTokenRecord};
 use crate::services::identity_storage::IdentityPolicy;
@@ -157,13 +159,17 @@ async fn revoke_refresh_token_pg(
     .await
 }
 
-/// Persist refresh token — PG SSOT when pool + policy; optional KV mirror.
+/// Persist refresh token — the session port when present; KV when it is absent.
 pub(crate) async fn persist_refresh_token(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     record: &RefreshTokenRecord,
 ) -> Result<(), ApiError> {
+    if let Some(store) = sessions {
+        return persist_refresh_token_port(store, record).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -192,8 +198,12 @@ pub(crate) async fn load_refresh_token(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     token: &str,
 ) -> Result<Option<RefreshTokenRecord>, ApiError> {
+    if let Some(store) = sessions {
+        return load_refresh_token_port(store, token).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -221,8 +231,12 @@ pub(crate) async fn revoke_refresh_token(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     token: &str,
 ) -> Result<bool, ApiError> {
+    if let Some(store) = sessions {
+        return revoke_refresh_token_port(store, token).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -427,12 +441,15 @@ async fn revoke_api_key_pg(
     pool: &sqlx::PgPool,
     security: &ApiSecurityConfig,
     key_id: &str,
+    owner_user_id: &str,
 ) -> Result<Option<ApiKeyRecord>, ApiError> {
     use crate::services::tenant_isolation::{with_optional_pg_rls, PgIsolationScope};
     use edgequake_storage::StorageError;
 
     let key_uuid = Uuid::parse_str(key_id)
         .map_err(|_| ApiError::Internal("invalid key_id for api key revoke".into()))?;
+    let owner_uuid = Uuid::parse_str(owner_user_id)
+        .map_err(|_| ApiError::BadRequest("API key owner must be a UUID".into()))?;
     let scope = Some(PgIsolationScope::default_identity(None));
 
     with_optional_pg_rls(pool, security, scope, move |conn| {
@@ -441,12 +458,13 @@ async fn revoke_api_key_pg(
                 r#"
                 UPDATE api_keys
                 SET is_active = false
-                WHERE key_id = $1
+                WHERE key_id = $1 AND user_id = $2
                 RETURNING key_id, user_id, key_hash, key_prefix, name, scopes,
                           is_active, created_at, last_used_at, expires_at
                 "#,
             )
             .bind(key_uuid)
+            .bind(owner_uuid)
             .fetch_optional(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("api key PG revoke: {e}")))?;
@@ -475,8 +493,10 @@ async fn find_api_keys_by_prefix_kv(
 async fn revoke_api_key_kv(
     storage: &StorageRuntime,
     key_id: &str,
+    owner_user_id: &str,
 ) -> Result<Option<ApiKeyRecord>, ApiError> {
-    crate::services::auth_memory_store::revoke_api_key(&storage.auth_memory, key_id).await
+    crate::services::auth_memory_store::revoke_api_key(&storage.auth_memory, key_id, owner_user_id)
+        .await
 }
 
 /// Persist API key record — PG SSOT when pool + policy; optional KV mirror.
@@ -484,8 +504,12 @@ pub(crate) async fn persist_api_key(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     record: &ApiKeyRecord,
 ) -> Result<(), ApiError> {
+    if let Some(store) = sessions {
+        return persist_api_key_port(store, record).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -525,8 +549,12 @@ pub(crate) async fn list_api_keys_for_user(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     user_id: &str,
 ) -> Result<Vec<ApiKeyRecord>, ApiError> {
+    if let Some(store) = sessions {
+        return list_api_keys_port(store, user_id).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -554,8 +582,12 @@ pub(crate) async fn find_active_api_keys_by_prefix(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     prefix: &str,
 ) -> Result<Vec<ApiKeyRecord>, ApiError> {
+    if let Some(store) = sessions {
+        return find_api_keys_by_prefix_port(store, prefix).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -583,8 +615,13 @@ pub(crate) async fn revoke_api_key(
     storage: &StorageRuntime,
     pg_runtime: Option<&PostgresRuntime>,
     security: &ApiSecurityConfig,
+    sessions: Option<&dyn SessionStore>,
     key_id: &str,
+    owner_user_id: &str,
 ) -> Result<Option<ApiKeyRecord>, ApiError> {
+    if let Some(store) = sessions {
+        return revoke_api_key_port(store, key_id, owner_user_id).await;
+    }
     #[cfg(feature = "postgres")]
     {
         let pool = pg_runtime.and_then(|pg| pg.pool.as_ref());
@@ -592,20 +629,138 @@ pub(crate) async fn revoke_api_key(
 
         if policy.pg_primary {
             if let Some(pool) = pool {
-                let record = revoke_api_key_pg(pool, security, key_id).await?;
+                let record = revoke_api_key_pg(pool, security, key_id, owner_user_id).await?;
                 return Ok(record);
             }
             return Ok(None);
         }
 
-        revoke_api_key_kv(storage, key_id).await
+        revoke_api_key_kv(storage, key_id, owner_user_id).await
     }
 
     #[cfg(not(feature = "postgres"))]
     {
         let _ = (pg_runtime, security);
-        revoke_api_key_kv(storage, key_id).await
+        revoke_api_key_kv(storage, key_id, owner_user_id).await
     }
+}
+
+fn session_error(error: edgequake_storage::contracts::AccessError) -> ApiError {
+    ApiError::Internal(format!("session store: {error}"))
+}
+
+fn parse_uuid(value: &str, label: &str) -> Result<Uuid, ApiError> {
+    Uuid::parse_str(value).map_err(|_| ApiError::Internal(format!("invalid {label}")))
+}
+
+async fn persist_refresh_token_port(
+    store: &dyn SessionStore,
+    record: &RefreshTokenRecord,
+) -> Result<(), ApiError> {
+    let token = RefreshToken {
+        token_id: Uuid::new_v4(),
+        user_id: parse_uuid(&record.user_id, "user_id for refresh token")?,
+        token_hash: refresh_token_lookup_hash(&record.token),
+        expires_at: record.expires_at,
+        revoked: record.revoked,
+        created_at: record.created_at,
+    };
+    store.put_refresh_token(&token).await.map_err(session_error)
+}
+
+async fn load_refresh_token_port(
+    store: &dyn SessionStore,
+    token: &str,
+) -> Result<Option<RefreshTokenRecord>, ApiError> {
+    let found = store
+        .get_refresh_token(&refresh_token_lookup_hash(token))
+        .await
+        .map_err(session_error)?;
+    Ok(found.map(|row| RefreshTokenRecord {
+        token: token.to_string(),
+        user_id: row.user_id.to_string(),
+        created_at: row.created_at,
+        expires_at: row.expires_at,
+        revoked: row.revoked,
+    }))
+}
+
+async fn revoke_refresh_token_port(
+    store: &dyn SessionStore,
+    token: &str,
+) -> Result<bool, ApiError> {
+    store
+        .revoke_refresh_token(&refresh_token_lookup_hash(token))
+        .await
+        .map_err(session_error)
+}
+
+fn api_key_to_record(key: ApiKey) -> ApiKeyRecord {
+    ApiKeyRecord {
+        key_id: key.key_id.to_string(),
+        user_id: key.user_id.to_string(),
+        key_hash: key.key_hash,
+        prefix: key.prefix,
+        name: key.name,
+        scopes: key.scopes,
+        is_active: key.is_active,
+        created_at: key.created_at,
+        expires_at: key.expires_at,
+        last_used_at: key.last_used_at,
+    }
+}
+
+async fn persist_api_key_port(
+    store: &dyn SessionStore,
+    record: &ApiKeyRecord,
+) -> Result<(), ApiError> {
+    let key = ApiKey {
+        key_id: parse_uuid(&record.key_id, "key_id for api key")?,
+        user_id: parse_uuid(&record.user_id, "user_id for api key")?,
+        key_hash: record.key_hash.clone(),
+        prefix: record.prefix.clone(),
+        name: record.name.clone(),
+        scopes: record.scopes.clone(),
+        is_active: record.is_active,
+        created_at: record.created_at,
+        last_used_at: record.last_used_at,
+        expires_at: record.expires_at,
+    };
+    store.put_api_key(&key).await.map_err(session_error)
+}
+
+async fn list_api_keys_port(
+    store: &dyn SessionStore,
+    user_id: &str,
+) -> Result<Vec<ApiKeyRecord>, ApiError> {
+    let user_id = parse_uuid(user_id, "user_id for api key list")?;
+    let keys = store.list_api_keys(user_id).await.map_err(session_error)?;
+    Ok(keys.into_iter().map(api_key_to_record).collect())
+}
+
+async fn find_api_keys_by_prefix_port(
+    store: &dyn SessionStore,
+    prefix: &str,
+) -> Result<Vec<ApiKeyRecord>, ApiError> {
+    let keys = store
+        .find_api_keys_by_prefix(prefix)
+        .await
+        .map_err(session_error)?;
+    Ok(keys.into_iter().map(api_key_to_record).collect())
+}
+
+async fn revoke_api_key_port(
+    store: &dyn SessionStore,
+    key_id: &str,
+    owner_user_id: &str,
+) -> Result<Option<ApiKeyRecord>, ApiError> {
+    let key_id = parse_uuid(key_id, "key_id for api key revoke")?;
+    let owner = parse_uuid(owner_user_id, "API key owner")?;
+    let revoked = store
+        .revoke_api_key(owner, key_id)
+        .await
+        .map_err(session_error)?;
+    Ok(revoked.map(api_key_to_record))
 }
 
 #[cfg(test)]

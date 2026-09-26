@@ -43,6 +43,7 @@ reqwest = { version = "0.12", features = ["json"] }
 serde_json.workspace = true
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-core = { path = "../edgequake-core" }
+edgequake-migrate-manifest = { workspace = true }
 async-trait.workspace = true
 chrono = { workspace = true }
 uuid.workspace = true

@@ -332,11 +332,12 @@ pub fn append_mm_chunks_to_text(text: &str, chunks: &[MultimodalChunk]) -> Strin
 /// Load KV manifest, persist structured mm chunks, append text sections when enabled.
 pub async fn enrich_processed_text_with_mm_chunks(
     kv: &dyn KVStorage,
+    store: Option<&dyn edgequake_storage::contracts::CheckpointArtifactStore>,
     document_id: &str,
     metadata: Option<&Value>,
     text: String,
 ) -> String {
-    enrich_processed_text_with_mm_report(kv, document_id, metadata, text)
+    enrich_processed_text_with_mm_report(kv, store, document_id, metadata, text)
         .await
         .text
 }
@@ -344,6 +345,7 @@ pub async fn enrich_processed_text_with_mm_chunks(
 /// Same as [`enrich_processed_text_with_mm_chunks`] plus whether a sidecar was concatenated.
 pub async fn enrich_processed_text_with_mm_report(
     kv: &dyn KVStorage,
+    store: Option<&dyn edgequake_storage::contracts::CheckpointArtifactStore>,
     document_id: &str,
     metadata: Option<&Value>,
     text: String,
@@ -354,7 +356,7 @@ pub async fn enrich_processed_text_with_mm_report(
             sidecar_appended: false,
         };
     }
-    let Some(manifest) = load_manifest(kv, document_id).await else {
+    let Some(manifest) = load_manifest(kv, store, document_id).await else {
         return MmTextEnrichment {
             text,
             sidecar_appended: false,
@@ -375,7 +377,9 @@ pub async fn enrich_processed_text_with_mm_report(
         }
     };
     if !chunks.is_empty() {
-        if let Err(e) = super::chunks_store::persist_mm_chunks(kv, document_id, &chunks).await {
+        if let Err(e) =
+            super::chunks_store::persist_mm_chunks(kv, store, document_id, &chunks).await
+        {
             tracing::warn!(document_id = %document_id, error = %e, "failed to persist multimodal chunk sidecar metadata");
         }
     }

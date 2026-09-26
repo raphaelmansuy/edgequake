@@ -18,6 +18,24 @@
 #     docker compose -f docker-compose.prebuilt.yml up -d
 
 services:
+  # SPEC-150: schema migrate before API
+  migrate:
+    image: ghcr.io/raphaelmansuy/edgequake:${EDGEQUAKE_VERSION:-latest}
+    container_name: edgequake-migrate
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      - EDGEQUAKE_MIGRATE_CLI=1
+      - EDGEQUAKE_LLM_PROVIDER=mock
+      - EDGEQUAKE_EMBEDDING_PROVIDER=mock
+      - EDGEQUAKE_ALLOW_MOCK_PROVIDER=1
+    command: ["edgequake", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edgequake-network
+
   # ── EdgeQuake API ─────────────────────────────────────────────────────────
   # Pulled from GHCR — no build step needed.
   # Multi-arch: linux/amd64 and linux/arm64 (Apple Silicon, AWS Graviton).
@@ -31,6 +49,7 @@ services:
       - EDGEQUAKE_HOST=0.0.0.0
       - EDGEQUAKE_PORT=8080
       - DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      - EDGEQUAKE_SCHEMA_GATE=${EDGEQUAKE_SCHEMA_GATE:-wait}
       # LLM provider — default: ollama (no API key cost)
       - EDGEQUAKE_LLM_PROVIDER=${EDGEQUAKE_LLM_PROVIDER:-ollama}
       - EDGEQUAKE_EMBEDDING_PROVIDER=${EDGEQUAKE_EMBEDDING_PROVIDER:-}
@@ -67,6 +86,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - edgequake-network
     healthcheck:

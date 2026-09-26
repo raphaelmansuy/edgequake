@@ -69,10 +69,37 @@ impl ReadPathDbPermit {
 
     /// Wait up to `timeout` for a permit; on deadline return `read_path_busy`.
     pub async fn acquire(&self, timeout: Duration) -> ApiResult<OwnedSemaphorePermit> {
+        let wait_started = Instant::now();
         match tokio::time::timeout(timeout, self.semaphore.clone().acquire_owned()).await {
-            Ok(Ok(permit)) => Ok(permit),
-            Ok(Err(_)) => Err(ApiError::read_path_busy(timeout.as_millis() as u64)),
-            Err(_) => Err(ApiError::read_path_busy(timeout.as_millis() as u64)),
+            Ok(Ok(permit)) => {
+                let waited_ms = wait_started.elapsed().as_millis() as u64;
+                if waited_ms >= 50 {
+                    info!(
+                        waited_ms,
+                        max_concurrent = self.max_concurrent,
+                        available = self.semaphore.available_permits(),
+                        "Read-path permit acquired after wait"
+                    );
+                }
+                Ok(permit)
+            }
+            Ok(Err(_)) => {
+                warn!(
+                    timeout_ms = timeout.as_millis() as u64,
+                    max_concurrent = self.max_concurrent,
+                    "Read-path permit closed — returning read_path_busy"
+                );
+                Err(ApiError::read_path_busy(timeout.as_millis() as u64))
+            }
+            Err(_) => {
+                warn!(
+                    timeout_ms = timeout.as_millis() as u64,
+                    max_concurrent = self.max_concurrent,
+                    available = self.semaphore.available_permits(),
+                    "Read-path permit wait exceeded — returning read_path_busy"
+                );
+                Err(ApiError::read_path_busy(timeout.as_millis() as u64))
+            }
         }
     }
 }
@@ -140,6 +167,7 @@ where
         Err(_) => {
             warn!(
                 timeout_ms = retry_after_ms,
+                reason = "work_deadline",
                 "Interactive read path exceeded deadline"
             );
             Err(ApiError::read_path_busy(retry_after_ms))

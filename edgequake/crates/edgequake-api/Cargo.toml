@@ -10,7 +10,19 @@ description = "REST API server for EdgeQuake"
 [features]
 default = ["otel"]
 otel = ["edgequake-observability/otel"]
-postgres = ["edgequake-storage/postgres", "edgequake-core/postgres", "dep:sqlx"]
+postgres = [
+    "edgequake-storage/postgres",
+    "edgequake-core/postgres",
+    "edgequake-tasks/postgres",
+    "dep:sqlx",
+    "sqlx/postgres",
+]
+# SPEC-149: compile projection fault barriers into AppState for HTTP E2E04/E2E05.
+provider-access-fault = ["edgequake-storage/provider-access-fault"]
+sqlite = ["edgequake-storage/sqlite"]
+qdrant = ["edgequake-storage/qdrant"]
+neo4j = ["edgequake-storage/neo4j"]
+p3 = ["sqlite", "neo4j", "qdrant"]
 # SPEC-021 P-E3: enables the EdgeQuake orchestrator for contract tests.
 # Forwarded to edgequake-core so `#[cfg(feature = "pipeline")]` test gates work.
 pipeline = ["edgequake-core/pipeline"]
@@ -19,12 +31,13 @@ vision = []
 
 [dependencies]
 edgequake-core = { path = "../edgequake-core" }
+edgequake-migrate-manifest = { workspace = true }
 edgequake-pdf = { workspace = true }
 edgequake-storage = { path = "../edgequake-storage", features = ["observability"] }
 edgequake-llm = { workspace = true }
 edgequake-pipeline = { path = "../edgequake-pipeline" }
 edgequake-query = { path = "../edgequake-query" }
-edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres", "openapi"] }
+edgequake-tasks = { path = "../edgequake-tasks", features = ["openapi"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }
@@ -79,6 +92,7 @@ async-stream = "0.3"
 tempfile = "3"
 
 [dev-dependencies]
+edgequake-migrate-manifest = { workspace = true }
 edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 # SPEC-021 P-E3: enable the orchestrator (pipeline) for the ingest→delete
 # contract test. The `pipeline` feature is also added to the api crate so

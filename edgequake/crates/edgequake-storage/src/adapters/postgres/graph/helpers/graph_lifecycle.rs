@@ -145,6 +145,7 @@ impl PostgresAGEGraphStorage {
         // DDL path: statement_timeout=0 + short lock_timeout (not query 15s).
         Self::setup_age_ddl_session(&mut conn).await?;
 
+        let lineage_gin = super::source_lineage_sql::lineage_gin_storage_clause();
         let index_queries = [
             // ── "Node" label indexes (child table — contains all node rows) ──────────
             // REMOVED: idx_node_prop_node_id (agtype_access_operator form, 0 scans)
@@ -201,8 +202,9 @@ impl PostgresAGEGraphStorage {
                 format!(
                     r#"CREATE INDEX IF NOT EXISTS idx_node_source_ids_gin 
                        ON {}."Node" 
-                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_ids') jsonb_ops)"#,
-                    self.graph_name
+                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_ids') jsonb_ops)
+                       {}"#,
+                    self.graph_name, lineage_gin
                 ),
             ),
             // SPEC-091 RM3: citation contract — GIN on source_chunk_ids
@@ -211,8 +213,9 @@ impl PostgresAGEGraphStorage {
                 format!(
                     r#"CREATE INDEX IF NOT EXISTS idx_node_source_chunk_ids_gin
                        ON {}."Node"
-                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_chunk_ids') jsonb_ops)"#,
-                    self.graph_name
+                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_chunk_ids') jsonb_ops)
+                       {}"#,
+                    self.graph_name, lineage_gin
                 ),
             ),
             // ── "EDGE" label indexes ────────────────────────────────────────────────
@@ -259,8 +262,9 @@ impl PostgresAGEGraphStorage {
                 format!(
                     r#"CREATE INDEX IF NOT EXISTS idx_edge_source_ids_gin 
                        ON {}."EDGE" 
-                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_ids') jsonb_ops)"#,
-                    self.graph_name
+                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_ids') jsonb_ops)
+                       {}"#,
+                    self.graph_name, lineage_gin
                 ),
             ),
             (
@@ -268,8 +272,9 @@ impl PostgresAGEGraphStorage {
                 format!(
                     r#"CREATE INDEX IF NOT EXISTS idx_edge_source_chunk_ids_gin
                        ON {}."EDGE"
-                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_chunk_ids') jsonb_ops)"#,
-                    self.graph_name
+                       USING gin ((ag_catalog.agtype_to_json(properties)::jsonb -> 'source_chunk_ids') jsonb_ops)
+                       {}"#,
+                    self.graph_name, lineage_gin
                 ),
             ),
             // SPEC-119 / GH-375: Symptom F singular citation btrees (delete/reprocess discovery).
@@ -385,6 +390,11 @@ impl PostgresAGEGraphStorage {
                 indexes_created,
                 indexes_skipped
             );
+        }
+
+        // Tuning only: a lock_timeout here must not block graph readiness.
+        if let Err(e) = self.ensure_lineage_gin_pending_limit(&mut conn).await {
+            tracing::warn!(graph = %self.graph_name, error = %e, "SPEC-149: lineage GIN pending-limit skipped");
         }
 
         // SPEC-062: denormalized text id columns — avoid per-row agtype_to_json on hot paths.

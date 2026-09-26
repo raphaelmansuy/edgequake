@@ -532,6 +532,7 @@ pub async fn delete_workspace(
     // (suffix scan + per-doc chunk prefix — avoids full `keys()` universe scan).
     let (documents_deleted, chunks_deleted) = match plan_workspace_document_kv_deletion(
         state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
         &workspace_id_str,
     )
     .await

@@ -233,7 +233,7 @@ impl ApiError {
             Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::ConfigError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Storage(error) => storage_error_status(error),
             Self::Llm(_) => StatusCode::BAD_GATEWAY,
             Self::Pipeline(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Parse { status, .. } => *status,
@@ -394,7 +394,7 @@ impl ApiError {
             Self::NotImplemented { .. } => "NOT_IMPLEMENTED",
             Self::Internal(_) => "INTERNAL_ERROR",
             Self::ConfigError(_) => "CONFIG_ERROR",
-            Self::Storage(_) => "STORAGE_ERROR",
+            Self::Storage(error) => storage_error_code(error),
             Self::Llm(_) => "LLM_ERROR",
             Self::Pipeline(_) => "PIPELINE_ERROR",
             Self::Parse { code, .. } => code,
@@ -453,9 +453,22 @@ impl IntoResponse for ApiError {
             );
         }
 
-        let mut error = ErrorResponse::new(self.code(), self.to_string());
+        let public_message = match &self {
+            Self::Storage(error) => storage_error_public_message(error),
+            _ => self.to_string(),
+        };
+        let mut error = ErrorResponse::new(self.code(), public_message);
         error.status = Some(status.as_u16());
-        error.details = Some(event.into_api_details());
+        error.details = Some(match &self {
+            Self::Storage(storage_error) => json!({
+                "request_id": request_id,
+                "error_code": self.code(),
+                "source": "storage",
+                "category": storage_error_category(storage_error),
+                "retryable": storage_error_retryable(storage_error),
+            }),
+            _ => event.into_api_details(),
+        });
 
         if let Self::ServiceUnavailable {
             retry_after_secs, ..
@@ -616,6 +629,95 @@ fn storage_error_category(e: &edgequake_storage::error::StorageError) -> &'stati
         StorageError::NotInitialized => "not_initialized",
         StorageError::InvalidConfig(_) => "invalid_config",
         StorageError::InvalidData(_) => "invalid_data",
+        StorageError::UnsupportedCapability(_) => "unsupported_capability",
+        StorageError::Unavailable(_) => "unavailable",
+        StorageError::DeadlineExceeded(_) => "deadline_exceeded",
+        StorageError::RateLimited(_) => "rate_limited",
+        StorageError::SerializationRetry(_) => "serialization_retry",
+        StorageError::UnknownOutcome(_) => "unknown_outcome",
+        StorageError::ForbiddenScope(_) => "forbidden_scope",
+    }
+}
+
+fn storage_error_status(e: &edgequake_storage::error::StorageError) -> StatusCode {
+    use edgequake_storage::error::StorageError;
+    match e {
+        StorageError::NotFound(_) => StatusCode::NOT_FOUND,
+        StorageError::AlreadyExists(_)
+        | StorageError::Conflict(_)
+        | StorageError::SerializationRetry(_) => StatusCode::CONFLICT,
+        StorageError::InvalidQuery(_) => StatusCode::BAD_REQUEST,
+        StorageError::InvalidInput(_)
+        | StorageError::Serialization(_)
+        | StorageError::InvalidConfig(_)
+        | StorageError::InvalidData(_)
+        | StorageError::UnsupportedCapability(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        StorageError::ForbiddenScope(_) => StatusCode::FORBIDDEN,
+        StorageError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+        StorageError::DeadlineExceeded(_) => StatusCode::GATEWAY_TIMEOUT,
+        StorageError::Connection(_)
+        | StorageError::Unavailable(_)
+        | StorageError::UnknownOutcome(_) => StatusCode::SERVICE_UNAVAILABLE,
+        StorageError::Transaction(_)
+        | StorageError::Database(_)
+        | StorageError::Io(_)
+        | StorageError::NotInitialized => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+fn storage_error_code(e: &edgequake_storage::error::StorageError) -> &'static str {
+    use edgequake_storage::error::StorageError;
+    match e {
+        StorageError::NotFound(_) => "STORAGE_NOT_FOUND",
+        StorageError::AlreadyExists(_) => "STORAGE_ALREADY_EXISTS",
+        StorageError::Conflict(_) | StorageError::SerializationRetry(_) => "STORAGE_CONFLICT",
+        StorageError::InvalidQuery(_) => "STORAGE_INVALID_QUERY",
+        StorageError::InvalidInput(_)
+        | StorageError::Serialization(_)
+        | StorageError::InvalidConfig(_)
+        | StorageError::InvalidData(_) => "STORAGE_INVALID_INPUT",
+        StorageError::UnsupportedCapability(_) => "STORAGE_UNSUPPORTED_CAPABILITY",
+        StorageError::ForbiddenScope(_) => "STORAGE_FORBIDDEN_SCOPE",
+        StorageError::RateLimited(_) => "STORAGE_RATE_LIMITED",
+        StorageError::DeadlineExceeded(_) => "STORAGE_DEADLINE_EXCEEDED",
+        StorageError::Connection(_) | StorageError::Unavailable(_) => "STORAGE_UNAVAILABLE",
+        StorageError::UnknownOutcome(_) => "STORAGE_UNKNOWN_OUTCOME",
+        StorageError::Transaction(_)
+        | StorageError::Database(_)
+        | StorageError::Io(_)
+        | StorageError::NotInitialized => "STORAGE_ERROR",
+    }
+}
+
+fn storage_error_public_message(e: &edgequake_storage::error::StorageError) -> String {
+    use edgequake_storage::error::StorageError;
+    match e {
+        StorageError::NotFound(_) => "Storage resource not found.".into(),
+        StorageError::AlreadyExists(_) => "Storage resource already exists.".into(),
+        StorageError::Conflict(_) | StorageError::SerializationRetry(_) => {
+            "Storage conflict; retry the operation.".into()
+        }
+        StorageError::InvalidQuery(_)
+        | StorageError::InvalidInput(_)
+        | StorageError::Serialization(_)
+        | StorageError::InvalidConfig(_)
+        | StorageError::InvalidData(_) => "Storage request is invalid.".into(),
+        StorageError::UnsupportedCapability(_) => {
+            "The storage backend does not support this operation.".into()
+        }
+        StorageError::ForbiddenScope(_) => "Storage scope is forbidden.".into(),
+        StorageError::RateLimited(_) => "Storage request rate limited.".into(),
+        StorageError::DeadlineExceeded(_) => "Storage operation timed out.".into(),
+        StorageError::Connection(_) | StorageError::Unavailable(_) => {
+            "Storage is temporarily unavailable.".into()
+        }
+        StorageError::UnknownOutcome(_) => {
+            "Storage operation outcome is unknown; verify before retrying.".into()
+        }
+        StorageError::Transaction(_)
+        | StorageError::Database(_)
+        | StorageError::Io(_)
+        | StorageError::NotInitialized => "Storage operation failed.".into(),
     }
 }
 
@@ -623,7 +725,14 @@ fn storage_error_retryable(e: &edgequake_storage::error::StorageError) -> bool {
     use edgequake_storage::error::StorageError;
     matches!(
         e,
-        StorageError::Connection(_) | StorageError::Database(_) | StorageError::Transaction(_)
+        StorageError::Connection(_)
+            | StorageError::Unavailable(_)
+            | StorageError::DeadlineExceeded(_)
+            | StorageError::RateLimited(_)
+            | StorageError::SerializationRetry(_)
+            | StorageError::UnknownOutcome(_)
+            | StorageError::Database(_)
+            | StorageError::Transaction(_)
     )
 }
 
@@ -985,8 +1094,8 @@ mod tests {
         use edgequake_storage::error::StorageError;
         let storage_err = StorageError::NotFound("doc".to_string());
         let api_err = ApiError::Storage(storage_err);
-        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(api_err.code(), "STORAGE_ERROR");
+        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+        assert_eq!(api_err.code(), "STORAGE_NOT_FOUND");
     }
 
     #[test]
@@ -1043,7 +1152,7 @@ mod tests {
         assert_eq!(event.source.as_deref(), Some("storage"));
         assert_eq!(event.details["kind"], "storage");
         assert_eq!(event.details["category"], "not_found");
-        assert!(event.http_status >= 500);
+        assert_eq!(event.http_status, 404);
     }
 
     #[test]
@@ -1053,6 +1162,54 @@ mod tests {
         assert!(err.is_retryable());
         assert_eq!(err.diagnostic_details()["category"], "connection");
         assert_eq!(err.diagnostic_details()["retryable"], true);
+    }
+
+    #[test]
+    fn test_storage_typed_error_http_mapping() {
+        use edgequake_storage::error::StorageError;
+        let cases = [
+            (
+                StorageError::AlreadyExists("private SQL detail".into()),
+                StatusCode::CONFLICT,
+                "STORAGE_ALREADY_EXISTS",
+            ),
+            (
+                StorageError::Unavailable("private connection detail".into()),
+                StatusCode::SERVICE_UNAVAILABLE,
+                "STORAGE_UNAVAILABLE",
+            ),
+            (
+                StorageError::DeadlineExceeded("private SQL detail".into()),
+                StatusCode::GATEWAY_TIMEOUT,
+                "STORAGE_DEADLINE_EXCEEDED",
+            ),
+            (
+                StorageError::RateLimited("private SQL detail".into()),
+                StatusCode::TOO_MANY_REQUESTS,
+                "STORAGE_RATE_LIMITED",
+            ),
+            (
+                StorageError::UnsupportedCapability("private backend detail".into()),
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "STORAGE_UNSUPPORTED_CAPABILITY",
+            ),
+            (
+                StorageError::ForbiddenScope("private scope detail".into()),
+                StatusCode::FORBIDDEN,
+                "STORAGE_FORBIDDEN_SCOPE",
+            ),
+        ];
+
+        for (storage_error, expected_status, expected_code) in cases {
+            let api_error = ApiError::Storage(storage_error);
+            assert_eq!(api_error.status_code(), expected_status);
+            assert_eq!(api_error.code(), expected_code);
+            assert!(!storage_error_public_message(match &api_error {
+                ApiError::Storage(error) => error,
+                _ => unreachable!(),
+            })
+            .contains("private"));
+        }
     }
 
     #[test]

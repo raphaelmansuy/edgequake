@@ -160,7 +160,7 @@ pub async fn include_extracted_pdf_assets(
             });
         let mut figure_map = figures_by_page(&figures);
         let (region_figs, region_tables) =
-            write_caption_region_assets(&pdf.pdf_data, &assets_root, &figure_map)
+            write_caption_region_assets(&pdf.pdf_data, &assets_root, &figure_map, Some(&pages))
                 .await
                 .unwrap_or_else(|e| {
                     tracing::warn!(%document_id, error = %e, "Caption region extract skipped");

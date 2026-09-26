@@ -190,9 +190,13 @@ pub(crate) async fn find_active_api_keys_by_prefix(
 pub(crate) async fn revoke_api_key(
     store: &AuthMemoryStore,
     key_id: &str,
+    owner_user_id: &str,
 ) -> Result<Option<ApiKeyRecord>, ApiError> {
     let mut state = store.inner.write().await;
     if let Some(record) = state.api_keys.get_mut(key_id) {
+        if record.user_id != owner_user_id {
+            return Ok(None);
+        }
         record.is_active = false;
         return Ok(Some(record.clone()));
     }

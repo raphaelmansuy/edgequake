@@ -107,7 +107,7 @@ pub async fn write_injection_status(
         .upsert(&[(meta_key.to_string(), meta.clone())])
         .await;
     // SPEC-091 Wave B6: typed dual-write (warn-only).
-    crate::services::injection_relational::typed_injection_upsert(&meta).await;
+    crate::services::injection_relational::typed_injection_upsert(&meta, None).await;
 }
 
 /// Process injection content through the resilient pipeline + shared persister.
@@ -123,6 +123,12 @@ pub async fn run_injection_pipeline(
     lineage_sink: Arc<dyn edgequake_pipeline::LineageSink>,
     text_embedder: Option<Arc<dyn edgequake_storage::TextEmbedder>>,
     relational_chunks: Option<Arc<dyn edgequake_storage::traits::domain::ChunkRepository>>,
+    #[cfg(feature = "postgres")] ingestion_committer: Option<
+        Arc<dyn edgequake_storage::contracts::IngestionCommitter>,
+    >,
+    #[cfg(feature = "postgres")] document_reader: Option<
+        Arc<dyn edgequake_storage::contracts::DocumentReader>,
+    >,
     #[cfg(feature = "postgres")] typed_embedding_pool: Option<sqlx::PgPool>,
     doc_id: &str,
     content: &str,
@@ -146,6 +152,10 @@ pub async fn run_injection_pipeline(
         lineage_sink,
         text_embedder,
         relational_chunks,
+        #[cfg(feature = "postgres")]
+        ingestion_committer,
+        #[cfg(feature = "postgres")]
+        document_reader,
         #[cfg(feature = "postgres")]
         typed_embedding_pool,
         PersistIngestionParams {

@@ -248,26 +248,29 @@ impl PostgresAGEGraphStorage {
         let props_expr = "ag_catalog.agtype_to_json(v.properties)";
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
 
-        // SPEC-071 / IMP-031-08: probe-first MATERIALIZED CTEs force
-        // idx_node_source_ids_gin Bitmap Index Scan per probe (~100ms @ 200k nodes).
+        // SPEC-071 / IMP-031-08 / SPEC-149: probe-first MATERIALIZED CTEs force
+        // Bitmap Index Scan on both source_ids and source_chunk_ids GIN indexes.
         let probes_cte = super::helpers::source_ids_probes_cte_sql();
+        let hits_cte = super::helpers::lineage_hits_cte_sql(
+            "v.properties",
+            &format!(
+                r#"FROM probes pr INNER JOIN {graph}."Node" v"#,
+                graph = self.graph_name
+            ),
+            props_expr,
+            "",
+        );
         let modern_sql = format!(
             r#"
             WITH {probes_cte},
-            hits AS MATERIALIZED (
-              SELECT v.properties
-              FROM probes pr
-              INNER JOIN {graph}."Node" v
-                ON (({props})::jsonb -> 'source_ids') @> to_jsonb(pr.probe_id)
-            )
+            {hits_cte}
             SELECT ag_catalog.agtype_to_json(h.properties) AS props
             FROM hits h
             WHERE {tenant_where}
             LIMIT 5000
             "#,
             probes_cte = probes_cte.trim(),
-            props = props_expr,
-            graph = self.graph_name,
+            hits_cte = hits_cte.trim(),
             tenant_where = tenant_where_hits,
         );
 
@@ -401,21 +404,30 @@ impl PostgresAGEGraphStorage {
             super::helpers::prop_only_endpoint("e", "target")
         };
 
-        // SPEC-071 / IMP-031-08: MATERIALIZED probe-first → GIN on source_ids.
+        // SPEC-071 / IMP-031-08 / SPEC-149: MATERIALIZED probe-first → both GIN indexes.
         let probes_cte = super::helpers::source_ids_probes_cte_sql();
+        let edge_extra_where = format!(
+            "WHERE {src} IS NOT NULL AND {tgt} IS NOT NULL",
+            src = src_expr,
+            tgt = tgt_expr
+        );
+        let hits_cte = super::helpers::lineage_hits_cte_sql(
+            &format!(
+                "e.properties, {src} AS source_id, {tgt} AS target_id",
+                src = src_expr,
+                tgt = tgt_expr
+            ),
+            &format!(
+                r#"FROM probes pr INNER JOIN {graph}."EDGE" e"#,
+                graph = self.graph_name
+            ),
+            props_expr,
+            &edge_extra_where,
+        );
         let modern_sql = format!(
             r#"
             WITH {probes_cte},
-            hits AS MATERIALIZED (
-              SELECT e.properties,
-                     {src} AS source_id,
-                     {tgt} AS target_id
-              FROM probes pr
-              INNER JOIN {graph}."EDGE" e
-                ON (({props})::jsonb -> 'source_ids') @> to_jsonb(pr.probe_id)
-              WHERE {src} IS NOT NULL
-                AND {tgt} IS NOT NULL
-            )
+            {hits_cte}
             SELECT
                 ag_catalog.agtype_to_json(h.properties) AS props,
                 h.source_id,
@@ -425,11 +437,8 @@ impl PostgresAGEGraphStorage {
             LIMIT 5000
             "#,
             probes_cte = probes_cte.trim(),
-            props = props_expr,
-            graph = self.graph_name,
+            hits_cte = hits_cte.trim(),
             tenant_where = tenant_where_hits,
-            src = src_expr,
-            tgt = tgt_expr,
         );
 
         let timeout_ms = super::helpers::SOURCE_DISCOVERY_STATEMENT_TIMEOUT_MS;
@@ -673,9 +682,15 @@ mod source_prefix_clause_tests {
                 "doc-abc",
             );
         assert!(modern.contains("@>") || modern.contains("jsonb_build_array"));
+        for key in crate::lineage_canon::INDEXED_LINEAGE_ARRAY_KEYS {
+            assert!(
+                modern.contains(&format!("->'{key}') @>")),
+                "modern clause must GIN-probe indexed lineage key {key}: {modern}"
+            );
+        }
         assert!(
-            !modern.contains("source_chunk_ids"),
-            "modern clause must stay GIN-only on source_ids: {modern}"
+            !modern.contains("LIKE") && !modern.contains("jsonb_array_elements_text"),
+            "modern clause must stay GIN-only on the indexed lineage arrays: {modern}"
         );
     }
 

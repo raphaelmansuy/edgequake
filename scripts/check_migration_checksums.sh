@@ -83,6 +83,17 @@ while IFS= read -r -d '' sqlfile; do
   fi
 done < <(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' -print0 | sort -z)
 
+# SPEC-150: also require support/**/*.sql to be locked.
+while IFS= read -r -d '' sqlfile; do
+  rel="${sqlfile#"$MIGRATIONS_DIR"/}"
+  if ! grep -q "[[:space:]]${rel}$" "$LOCKFILE" 2>/dev/null; then
+    echo "UNLOCKED: $rel (support SQL not recorded in checksums.lock)"
+    echo "  Run: ./scripts/update_migration_checksums.sh to add it."
+    NEW_FILES=$((NEW_FILES + 1))
+    FAILED=$((FAILED + 1))
+  fi
+done < <(find "$MIGRATIONS_DIR/support" -type f -name '*.sql' -print0 2>/dev/null | sort -z)
+
 # --- SPEC-090 F-090-21: migration numbers must be unique (parallel-branch hazard) ---
 # Historical gaps (e.g. missing 018) are allowed; duplicates are not.
 UNIQUE_FAIL=0

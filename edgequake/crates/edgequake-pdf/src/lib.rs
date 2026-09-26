@@ -104,8 +104,8 @@ pub use vision_markdown::{
     assemble_vision_markdown, assemble_vision_markdown_with_figures,
     assemble_vision_markdown_with_options, assemble_vision_markdown_with_overrides,
     assemble_vision_markdown_with_policy, enrich_markdown_with_viewer_assets,
-    inject_on_disk_region_assets, normalize_vision_pages, page_numbers_from_markdown,
-    stitch_page_markdown_in_order, VisionPageSlice,
+    inject_on_disk_region_assets, normalize_selected_vision_pages, normalize_vision_pages,
+    page_numbers_from_markdown, stitch_page_markdown_in_order, VisionPageSlice,
 };
 pub use vision_prompts::{
     grounding_judge_user_prompt, grounding_refine_user_prompt, pass_a_system_prompt_for,

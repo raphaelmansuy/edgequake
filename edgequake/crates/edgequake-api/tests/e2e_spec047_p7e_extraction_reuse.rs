@@ -32,19 +32,19 @@ async fn e2e_p7e_soft_reprocess_reuses_snapshot_after_success_clear() {
     let result = sample_result(doc, 12);
 
     // Simulate mid-flight checkpoint + successful finalize promote.
-    save_pipeline_checkpoint(&kv, doc, &result, "ws", "openai", "ollama", text)
+    save_pipeline_checkpoint(&kv, None, doc, &result, "ws", "openai", "ollama", text)
         .await
         .unwrap();
-    save_extraction_snapshot(&kv, doc, &result, "ws", "openai", "ollama", text)
+    save_extraction_snapshot(&kv, None, doc, &result, "ws", "openai", "ollama", text)
         .await
         .unwrap();
-    clear_pipeline_checkpoint(&kv, doc).await;
+    clear_pipeline_checkpoint(&kv, None, doc).await;
 
     let plan = plan_extraction_reuse(
-        load_pipeline_checkpoint(&kv, doc, "ws", "openai", "ollama", text)
+        load_pipeline_checkpoint(&kv, None, doc, "ws", "openai", "ollama", text)
             .await
             .is_some(),
-        load_extraction_snapshot(&kv, doc, "ws", "openai", "ollama", text)
+        load_extraction_snapshot(&kv, None, doc, "ws", "openai", "ollama", text)
             .await
             .is_some(),
         false,
@@ -55,7 +55,7 @@ async fn e2e_p7e_soft_reprocess_reuses_snapshot_after_success_clear() {
         ExtractionReusePlan::Reuse(ExtractionReuseKind::DurableSnapshot)
     );
 
-    let snap = load_extraction_snapshot(&kv, doc, "ws", "openai", "ollama", text)
+    let snap = load_extraction_snapshot(&kv, None, doc, "ws", "openai", "ollama", text)
         .await
         .expect("snapshot");
     assert_eq!(snap.stats.entity_count, 12);
@@ -68,10 +68,10 @@ async fn e2e_p7e_merge_only_requires_snapshot() {
     let text = "merge only body";
 
     let plan_missing = plan_extraction_reuse(
-        load_pipeline_checkpoint(&kv, doc, "ws", "openai", "ollama", text)
+        load_pipeline_checkpoint(&kv, None, doc, "ws", "openai", "ollama", text)
             .await
             .is_some(),
-        load_extraction_snapshot(&kv, doc, "ws", "openai", "ollama", text)
+        load_extraction_snapshot(&kv, None, doc, "ws", "openai", "ollama", text)
             .await
             .is_some(),
         false,
@@ -81,6 +81,7 @@ async fn e2e_p7e_merge_only_requires_snapshot() {
 
     save_extraction_snapshot(
         &kv,
+        None,
         doc,
         &sample_result(doc, 3),
         "ws",
@@ -93,7 +94,7 @@ async fn e2e_p7e_merge_only_requires_snapshot() {
 
     let plan_ok = plan_extraction_reuse(
         false,
-        load_extraction_snapshot(&kv, doc, "ws", "openai", "ollama", text)
+        load_extraction_snapshot(&kv, None, doc, "ws", "openai", "ollama", text)
             .await
             .is_some(),
         false,
@@ -104,5 +105,5 @@ async fn e2e_p7e_merge_only_requires_snapshot() {
         ExtractionReusePlan::Reuse(ExtractionReuseKind::DurableSnapshot)
     );
 
-    clear_extraction_snapshot(&kv, doc).await;
+    clear_extraction_snapshot(&kv, None, doc).await;
 }

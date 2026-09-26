@@ -247,8 +247,12 @@ pub async fn cancel_task(
     // SPEC-002: Update document status for this track_id within tenant/workspace scope.
     // SPEC-027 pass 11: scoped metadata scan — never cancel cross-tenant documents.
     let mut doc_updated = false;
-    if let Ok(scoped_entries) =
-        load_scoped_document_metadata_entries(state.storage.kv_storage.as_ref(), &tenant_ctx).await
+    if let Ok(scoped_entries) = load_scoped_document_metadata_entries(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await
     {
         for (key, value) in scoped_entries {
             if let Some(obj) = value.as_object() {
@@ -296,7 +300,7 @@ pub async fn cancel_task(
         .map(|t| t.workspace_id.to_string())
         .unwrap_or_else(|| "default".to_string());
     let vector =
-        crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key).await;
+        crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key).await?;
     let applied = cancel_track_with_doc_and_pdf_chain(
         &state.tasks.storage,
         &state.tasks.cancellation_registry,

@@ -1,0 +1,225 @@
+# SPEC-150 epoch table — schema-distinct release points
+
+[[epoch]]
+tag = "v0.2.0"
+mode = "replay"
+pg_majors = [16]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.5.1"
+mode = "replay"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.5.5"
+mode = "replay"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.7.0"
+mode = "replay"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.8.0"
+mode = "replay"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.9.5"
+mode = "replay"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.9.7"
+mode = "replay"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.10.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.10.6"
+mode = "image"
+pg_majors = [16]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.11.0"
+mode = "image"
+pg_majors = [16]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.11.1"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.11.3"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.12.6"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.12.7"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.13.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.13.2"
+mode = "image"
+pg_majors = [16]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.13.3"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.14.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.16.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.17.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.19.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.20.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.20.1"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.21.0"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.21.1"
+mode = "image"
+pg_majors = [16]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.22.0"
+mode = "image"
+pg_majors = [16]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.23.0"
+mode = "image"
+pg_majors = [16,17,18]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.24.0"
+mode = "image"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.24.2"
+mode = "image"
+pg_majors = [16,17,18]
+key = true
+replay = true
+
+[[epoch]]
+tag = "v0.24.4"
+mode = "image"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.25.0"
+mode = "image"
+pg_majors = [16,17,18]
+key = false
+replay = true
+
+[[epoch]]
+tag = "v0.26.0"
+mode = "image"
+pg_majors = [16,17,18]
+key = true
+replay = true

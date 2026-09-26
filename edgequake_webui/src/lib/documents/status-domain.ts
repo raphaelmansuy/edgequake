@@ -17,6 +17,7 @@ export const DOCUMENT_STATUSES = [
   "embedding",
   "re_embedding",
   "storing",
+  "projecting",
   "processing",
   "indexing",
   "extracting",
@@ -56,6 +57,7 @@ const PROCESSING_STATUSES = new Set<DocumentStatus>([
   "embedding",
   "re_embedding",
   "storing",
+  "projecting",
   "indexing",
   "stopping",
   "cancelling",
@@ -133,6 +135,8 @@ export function documentStageRank(
     case "storing":
     case "indexing":
       return 100;
+    case "projecting":
+      return 105;
     case "completed":
     case "indexed":
     case "partial_success":
@@ -143,7 +147,7 @@ export function documentStageRank(
     case "dead_letter":
       return 110;
     case "deleting":
-      return 105;
+      return 108;
     default:
       return 0;
   }

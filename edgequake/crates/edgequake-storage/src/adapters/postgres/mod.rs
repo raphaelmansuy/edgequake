@@ -33,6 +33,7 @@
 mod age_csv_loader;
 mod ann_exact_reorder_policy;
 mod binary_quantize_policy;
+mod binding_registry;
 mod capabilities;
 pub mod chunk_embedding_index;
 pub(crate) mod chunk_repository;
@@ -48,6 +49,7 @@ mod graph;
 mod hnsw_manifest;
 mod hnsw_runtime_policy;
 mod id_allocation;
+mod ingestion_committer;
 pub mod ingestion_dedup;
 mod kv;
 mod kv_relation_state;
@@ -65,6 +67,9 @@ mod row_count_stats;
 mod scale_gates;
 mod schema;
 pub(crate) mod serving_fence_query;
+pub(crate) mod serving_fence_writer;
+pub(crate) mod serving_state_sql;
+mod standalone_embedding_store;
 mod statement_timeout;
 pub(crate) mod typed_embedding_dims;
 pub mod vector;
@@ -80,6 +85,7 @@ pub use binary_quantize_policy::{
     build_binary_hnsw_index_sql, build_binary_rerank_select_sql, BinaryQuantizePolicy,
     DEFAULT_BINARY_CANDIDATE_K,
 };
+pub use binding_registry::PgBindingRegistry;
 pub use capabilities::{
     age_copy_loader_min_rows, age_rls_requested, age_supports_copy_loader, age_supports_rls,
     extension_version_at_least, pgvector_meets_cve_floor, AnnIndexPolicy, DocumentIdGenerator,
@@ -112,7 +118,8 @@ pub use filtered_diskann_label_policy::{
 };
 pub use fleet_embedding_index::PgFleetEmbeddingIndex;
 pub use graph::{
-    interactive_statement_timeout_ms, PostgresAGEGraphStorage, LAST_SOURCE_PREFIX_COUNT_LEN,
+    interactive_statement_timeout_ms, node_counts_by_source_prefixes_sql, PostgresAGEGraphStorage,
+    LAST_SOURCE_PREFIX_COUNT_LEN, LINEAGE_GIN_INDEXES, LINEAGE_GIN_PENDING_LIST_LIMIT_KB,
     SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT, SOURCE_PREFIX_DISCOVERY_CALLS,
 };
 pub use hnsw_manifest::{check_hnsw_index_manifest, HnswIndexManifest, HnswManifestDrift};
@@ -121,6 +128,7 @@ pub use hnsw_runtime_policy::{
     parse_hnsw_iterative_scan_mode, parse_partial_by_workspace_env, HnswRuntimePolicy,
 };
 pub use id_allocation::{allocate_document_id, is_uuidv7};
+pub use ingestion_committer::PgIngestionCommitter;
 pub use kv::PostgresKVStorage;
 pub use kv_relation_state::{KvRelationPresence, KvRelationState};
 pub use mm_asset_storage_impl::PostgresMmAssetStorage;
@@ -141,12 +149,20 @@ pub use rls::{
     release_rls_connection, set_tenant_context, set_tenant_context_on_conn,
     with_acquired_tenant_context, with_rls_transaction, RlsQueryBuilder, RlsTxFuture,
 };
+pub use serving_fence_writer::{
+    document_batch_deliveries_settled, open_serving_fence_when_deliveries_settled,
+    open_settled_serving_fences_bounded, serving_fence_open_changed, PgServingFenceOpener,
+};
 
 // SPEC-046 OPS-P2.16: `RlsContext` is no longer re-exported from `postgres::`.
 // Use `acquire_rls_connection` / `with_acquired_tenant_context` (SEC-014 SSOT).
 // The type remains in `rls` for transitional `#[deprecated]` compile errors.
 pub use scale_gates::{partition_allowed, quantization_allowed, ScaleGateEvidence};
-pub use serving_fence_query::{apply_serving_fence, serving_fence_filtered_total};
+pub use serving_fence_query::{
+    apply_serving_fence, serving_fence_filtered_total, serving_fence_opened_total,
+    PgVisibilityRepository,
+};
+pub use standalone_embedding_store::{PgStandaloneEmbeddingStore, StandaloneEmbeddingCapabilities};
 pub use vector::{
     allow_vector_table_rebuild, fts_language_from_env, sanitize_fts_language, PgVectorStorage,
     DEFAULT_FTS_LANGUAGE, FTS_LANGUAGE_ENV,

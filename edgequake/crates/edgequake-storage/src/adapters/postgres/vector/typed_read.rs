@@ -2,10 +2,10 @@
 //!
 //! When `EDGEQUAKE_VECTOR_BACKEND=chunk_embeddings`, chunk-family vector queries
 //! (metadata filter carries a `workspace_id`) are served from the typed
-//! `chunk_embeddings` table instead of the legacy `eq_*_vectors` rows. On any
-//! typed-path error the caller falls back to the legacy path and increments
-//! [`vector_backend_fallback_total`] (rollout observability, mirrors
-//! `chunk_text_dual_read`). Entity/relationship namespaces never take this path.
+//! `chunk_embeddings` table instead of the legacy `eq_*_vectors` rows.
+//! Typed-path errors propagate to callers; they are never converted to an empty
+//! result or a query against retired legacy tables. Entity/relationship
+//! namespaces never take this path.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -13,13 +13,15 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::error::StorageError;
-use crate::traits::domain::{EmbeddingIndex, ModelId, ScoredChunk, VectorQuery, WorkspaceId};
-use crate::traits::VectorSearchResult;
+use crate::traits::domain::{
+    EmbeddingIndex, ModelId, ScoredChunk, TenantId, VectorQuery, WorkspaceId,
+};
+use crate::traits::{MetadataFilter, VectorSearchResult};
 
 static VECTOR_BACKEND_FALLBACK_TOTAL: AtomicU64 = AtomicU64::new(0);
 static VECTOR_BACKEND_TYPED_HIT_TOTAL: AtomicU64 = AtomicU64::new(0);
 
-/// Typed-path errors that fell back to the legacy `eq_*_vectors` query.
+/// Historical typed-to-legacy fallback counter retained for rollout telemetry.
 pub fn vector_backend_fallback_total() -> u64 {
     VECTOR_BACKEND_FALLBACK_TOTAL.load(Ordering::Relaxed)
 }
@@ -29,8 +31,7 @@ pub fn vector_backend_typed_hit_total() -> u64 {
     VECTOR_BACKEND_TYPED_HIT_TOTAL.load(Ordering::Relaxed)
 }
 
-/// Record one typed→legacy fallback (called by `storage_impl` on typed-path
-/// error; public so e2e can exercise the counter contract directly).
+/// Record one typed→legacy fallback from an explicit rollback path.
 pub fn record_fallback() {
     VECTOR_BACKEND_FALLBACK_TOTAL.fetch_add(1, Ordering::Relaxed);
 }
@@ -113,25 +114,111 @@ async fn scored_to_legacy_results(
 /// Returns `Ok(Some(results))` when the typed path is authoritative for this
 /// query (backend flag on + workspace resolvable), `Ok(None)` when the query
 /// is not workspace-scoped (legacy path should run), and `Err` on typed-path
-/// failure (caller logs + increments fallback + runs legacy).
+/// failure (caller must propagate it).
 pub async fn try_typed_chunk_query(
     pool: &PgPool,
     index: &crate::adapters::postgres::chunk_embedding_index::PgChunkEmbeddingIndex,
     query_embedding: &[f32],
     top_k: usize,
     workspace_key: &str,
+    filter_ids: Option<&[String]>,
+    metadata_filter: &MetadataFilter,
 ) -> Result<Option<Vec<VectorSearchResult>>, StorageError> {
     let Some(ws_uuid) = resolve_workspace_uuid(pool, workspace_key).await? else {
         return Ok(None);
     };
-    let req = VectorQuery {
-        model_id: ModelId(Uuid::nil()),
-        workspace_id: Some(WorkspaceId(ws_uuid)),
-        embedding: query_embedding.to_vec(),
-        limit: top_k as u32,
+    let Some(req) =
+        build_typed_vector_query(ws_uuid, query_embedding, top_k, filter_ids, metadata_filter)
+    else {
+        return Ok(Some(Vec::new()));
     };
     let scored = index.search(&req).await?;
     let results = scored_to_legacy_results(pool, scored).await?;
+    let results = super::super::serving_fence_query::apply_serving_fence(pool, results).await?;
     record_typed_hit();
     Ok(Some(results))
+}
+
+/// Build the typed request without weakening any caller-supplied filter.
+///
+/// Typed relational identifiers are UUIDs. A non-UUID tenant filter, or a
+/// non-empty document filter containing no UUIDs, is therefore an
+/// authoritative no-match rather than permission to omit the predicate.
+fn build_typed_vector_query(
+    workspace_id: Uuid,
+    query_embedding: &[f32],
+    top_k: usize,
+    filter_ids: Option<&[String]>,
+    metadata_filter: &MetadataFilter,
+) -> Option<VectorQuery> {
+    let document_ids = metadata_filter.document_ids.as_ref().map(|ids| {
+        ids.iter()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect::<Vec<_>>()
+    });
+    if metadata_filter
+        .document_ids
+        .as_ref()
+        .is_some_and(|ids| !ids.is_empty())
+        && document_ids.as_ref().is_some_and(Vec::is_empty)
+    {
+        return None;
+    }
+
+    let tenant_id = match metadata_filter.tenant_id.as_deref() {
+        Some(id) => Some(TenantId::new(Uuid::parse_str(id).ok()?)),
+        None => None,
+    };
+
+    Some(VectorQuery {
+        model_id: ModelId(Uuid::nil()),
+        model_revision: "legacy-current".into(),
+        workspace_id: Some(WorkspaceId::new(workspace_id)),
+        document_ids,
+        tenant_id,
+        modalities: metadata_filter.modalities.clone(),
+        filter_ids: filter_ids.map(<[String]>::to_vec),
+        vector_type: metadata_filter.vector_type.clone(),
+        embedding: query_embedding.to_vec(),
+        limit: top_k as u32,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_query_preserves_document_and_id_filters() {
+        let workspace = Uuid::new_v4();
+        let document = Uuid::new_v4();
+        let tenant = Uuid::new_v4();
+        let filter_ids = vec!["legacy-chunk-7".to_string()];
+        let metadata = MetadataFilter {
+            document_ids: Some(vec![document.to_string()]),
+            tenant_id: Some(tenant.to_string()),
+            workspace_id: Some(workspace.to_string()),
+            vector_type: Some("chunk".into()),
+            modalities: Some(vec!["table".into()]),
+        };
+
+        let query =
+            build_typed_vector_query(workspace, &[0.1, 0.2], 5, Some(&filter_ids), &metadata)
+                .expect("valid typed filter");
+
+        assert_eq!(query.document_ids, Some(vec![document]));
+        assert_eq!(query.tenant_id, Some(TenantId::new(tenant)));
+        assert_eq!(query.modalities, Some(vec!["table".to_string()]));
+        assert_eq!(query.filter_ids, Some(filter_ids));
+        assert_eq!(query.vector_type.as_deref(), Some("chunk"));
+    }
+
+    #[test]
+    fn invalid_typed_scope_is_no_match() {
+        let metadata = MetadataFilter {
+            tenant_id: Some("not-a-uuid".into()),
+            ..Default::default()
+        };
+        assert!(build_typed_vector_query(Uuid::new_v4(), &[0.1], 1, None, &metadata).is_none());
+    }
 }

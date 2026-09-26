@@ -282,7 +282,8 @@ pub async fn cancel_pdf_processing(
         let mut cancelled_track_id = None;
         let workspace_key = workspace_id.to_string();
         let vector =
-            crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key).await;
+            crate::services::get_workspace_vector_storage_for_delete(&state, &workspace_key)
+                .await?;
         for applied in &cancel_results {
             if applied.cancelled {
                 if cancelled_track_id.is_none() {
@@ -291,6 +292,7 @@ pub async fn cancel_pdf_processing(
                 if let Some(ref cancelled_task) = applied.task {
                     if let Err(e) = sync_doc_cancelled_for_task(
                         Arc::clone(&state.storage.kv_storage),
+                        state.optional_pg_pool(),
                         cancelled_task,
                         "Task cancelled by user",
                     )
@@ -329,6 +331,7 @@ pub async fn cancel_pdf_processing(
             let doc_id = document_uuid.to_string();
             if let Err(e) = sync_doc_cancelled_by_document_id(
                 Arc::clone(&state.storage.kv_storage),
+                state.optional_pg_pool(),
                 &doc_id,
                 "Task cancelled by user",
             )

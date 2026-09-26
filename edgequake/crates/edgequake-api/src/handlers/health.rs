@@ -461,7 +461,7 @@ async fn get_schema_health(state: &AppState) -> Option<SchemaHealth> {
 
 #[cfg(feature = "postgres")]
 async fn get_schema_health_inner(state: &AppState) -> Option<SchemaHealth> {
-    let pool = state.pg_pool.as_ref()?;
+    let pool = state.optional_pg_pool()?;
 
     // WHY: Global ops table — see `services/health_schema.rs` (no tenant RLS).
     let stats = crate::services::health_schema::fetch_sqlx_migration_stats(pool).await?;
@@ -623,7 +623,7 @@ pub async fn readiness_check(State(state): State<AppState>) -> impl IntoResponse
             .map(crate::store_contention::role_utils_from_bundle)
             .and_then(|roles| crate::store_contention::max_role_pool_utilization(&roles))
             .or_else(|| {
-                state.pg_pool.as_ref().and_then(|pool| {
+                state.optional_pg_pool().and_then(|pool| {
                     crate::store_contention::pool_utilization(
                         pool.size(),
                         pool.num_idle().min(u32::MAX as usize) as u32,

@@ -101,8 +101,12 @@ pub(crate) async fn run_reprocess_failed(
     );
 
     // P-G7 + SPEC-027: batch scoped metadata (suffix index + tenant filter).
-    let scoped_metadata =
-        load_scoped_document_metadata(state.storage.kv_storage.as_ref(), &tenant_ctx).await?;
+    let scoped_metadata = load_scoped_document_metadata(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await?;
 
     let mut docs_to_reprocess = Vec::new();
     let mut requeued_ids = Vec::new();

@@ -1,0 +1,66 @@
+services:
+  postgres:
+    build:
+      context: ../../edgequake/docker
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_DB: ${PROVIDER_ACCESS_DB_NAME:?PROVIDER_ACCESS_DB_NAME is required}
+      POSTGRES_USER: provider_access
+      POSTGRES_PASSWORD: ${PROVIDER_ACCESS_POSTGRES_PASSWORD:?PROVIDER_ACCESS_POSTGRES_PASSWORD is required}
+      POSTGRES_HOST_AUTH_METHOD: md5
+      RUN_ID: ${RUN_ID:?RUN_ID is required}
+    ports:
+      - "127.0.0.1::5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U provider_access -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # J17 stub: explicitly targeted by the runner only for Qdrant profiles.
+  qdrant:
+    image: qdrant/qdrant:v1.19.0
+    profiles: ["p1", "p2", "p3"]
+    ports:
+      - "127.0.0.1::6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # J19 single-node Query API fixture for P2 graph profiles.
+  neo4j:
+    image: neo4j:2026.07.1-community
+    profiles: ["p1", "p2", "p3"]
+    environment:
+      NEO4J_AUTH: neo4j/provider-access-test
+    ports:
+      - "127.0.0.1::7474"
+      - "127.0.0.1::7687"
+    volumes:
+      - neo4j_data:/data
+
+  # P3 relational authority is an application-owned SQLite file. This holder
+  # makes the compose-managed volume explicit for rehearsal and cleanup.
+  sqlite-authority:
+    image: alpine:3.22
+    profiles: ["p3"]
+    command: ["sh", "-c", "touch /data/authority.db && sleep infinity"]
+    volumes:
+      - sqlite_data:/data
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/authority.db"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  neo4j_data:
+  sqlite_data:

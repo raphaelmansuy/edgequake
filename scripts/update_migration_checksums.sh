@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
 # scripts/update_migration_checksums.sh
 #
-# PURPOSE: Regenerate edgequake/migrations/checksums.lock from the current
-# on-disk migration files.
+# PURPOSE: Append-only update of edgequake/migrations/checksums.lock.
 #
-# Run this script ONLY when:
-#   1. Adding a brand-new migration file (append its entry).
-#   2. Reverting a broken migration file to its canonical content.
+# SPEC-150 WP-6: existing lock lines are IMMUTABLE. This script only:
+#   1. Appends checksums for new numbered `NNN_*.sql` files.
+#   2. Appends checksums for new `support/**/*.sql` files.
 #
-# NEVER run this to "fix" a checksum mismatch caused by editing a deployed
-# migration file. That would bless the mutation and hide the bug.
+# It REFUSES to change an existing line (exit 1).
 #
 # Usage:
-#   ./scripts/update_migration_checksums.sh          # regenerate full lockfile
-#   ./scripts/update_migration_checksums.sh --dry-run  # show what would change
+#   ./scripts/update_migration_checksums.sh
+#   ./scripts/update_migration_checksums.sh --dry-run
 
 set -euo pipefail
 
@@ -26,39 +24,74 @@ for arg in "$@"; do
   [[ "$arg" == "--dry-run" ]] && DRY_RUN=1
 done
 
-HEADER="# Migration Immutability Lockfile
-# Updated: $(date -u +%Y-%m-%d)
-#
-# PURPOSE: Every line records the SHA-384 of a migration file at the time it was
-# declared stable. This file is the source of truth for the migration-guard CI
-# workflow and the local check script.
-#
-# RULES:
-#   - Never modify an existing line once the migration has been deployed.
-#   - When a NEW migration file is added, append its checksum here as part of the
-#     same PR that adds the migration file.
-#   - The check script (scripts/check_migration_checksums.sh) will fail CI if
-#     any on-disk file diverges from the checksum recorded here.
-#
-# FORMAT: <sha384>  <filename>   (two spaces, same as sha384sum output)
-#"
+if [[ ! -f "$LOCKFILE" ]]; then
+  echo "ERROR: $LOCKFILE missing — create an initial lock manually once."
+  exit 1
+fi
 
-NEW_CONTENT="$HEADER"$'\n'
+hash_file() {
+  sha384sum "$1" | awk '{print $1}'
+}
+
+lock_hash_for() {
+  # $1 = filename or relative path as stored in lock
+  local file="$1"
+  awk -v f="$file" '$2 == f { print $1; exit }' "$LOCKFILE"
+}
+
+NEW_LINES=()
+DRIFT=0
+
+consider() {
+  local filepath="$1"
+  local key="$2"
+  local hash
+  hash=$(hash_file "$filepath")
+  local existing
+  existing=$(lock_hash_for "$key" || true)
+  if [[ -n "$existing" ]]; then
+    if [[ "$existing" != "$hash" ]]; then
+      echo "REFUSE: $key hash changed (lock is append-only)"
+      echo "  lock: $existing"
+      echo "  file: $hash"
+      DRIFT=1
+    fi
+  else
+    NEW_LINES+=("$hash  $key")
+  fi
+}
 
 while IFS= read -r -d '' sqlfile; do
-  filename=$(basename "$sqlfile")
-  hash=$(sha384sum "$sqlfile" | awk '{print $1}')
-  NEW_CONTENT+="$hash  $filename"$'\n'
+  consider "$sqlfile" "$(basename "$sqlfile")"
 done < <(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' -print0 | sort -z)
 
-if [[ $DRY_RUN -eq 1 ]]; then
-  echo "--- DRY RUN: would write to $LOCKFILE ---"
-  echo "$NEW_CONTENT"
+if [[ -d "$MIGRATIONS_DIR/support" ]]; then
+  while IFS= read -r -d '' sqlfile; do
+    rel="${sqlfile#"$MIGRATIONS_DIR"/}"
+    consider "$sqlfile" "$rel"
+  done < <(find "$MIGRATIONS_DIR/support" -type f -name '*.sql' -print0 | sort -z)
+fi
+
+if [[ $DRIFT -ne 0 ]]; then
+  echo ""
+  echo "Aborting: existing lock entries must not change (SPEC-150 LAW-150-4)."
+  exit 1
+fi
+
+if [[ ${#NEW_LINES[@]} -eq 0 ]]; then
+  echo "No new migration/support files to append."
   exit 0
 fi
 
-echo "$NEW_CONTENT" > "$LOCKFILE"
-echo "Updated $LOCKFILE"
-echo "Files: $(grep -c '\.sql$' "$LOCKFILE") migrations recorded."
-echo ""
-echo "Remember: commit checksums.lock together with any new migration file."
+echo "Appending ${#NEW_LINES[@]} new entr(y/ies):"
+for line in "${NEW_LINES[@]}"; do
+  echo "  $line"
+done
+
+if [[ $DRY_RUN -eq 1 ]]; then
+  echo "(dry-run — lockfile unchanged)"
+  exit 0
+fi
+
+printf '%s\n' "${NEW_LINES[@]}" >> "$LOCKFILE"
+echo "Updated $LOCKFILE (append-only)."

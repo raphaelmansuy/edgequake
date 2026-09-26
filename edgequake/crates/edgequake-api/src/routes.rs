@@ -151,7 +151,30 @@ fn create_router_inner(state: AppState) -> Router {
         // API v2 endpoints (SPEC-027 IMP-025)
         .nest("/api/v2", api_v2)
         .merge(mcp)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            install_operational_ports,
+        ))
         .with_state(state)
+}
+
+/// MCP Streamable HTTP + OAuth discovery (root-level for client ergonomics).
+async fn install_operational_ports(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    #[cfg(feature = "postgres")]
+    let pool = state
+        .pg_pool
+        .as_ref()
+        .map(|pool| std::sync::Arc::new(pool.clone()));
+    let ports = crate::services::relational_sidecar_store::InstalledPorts::new(
+        #[cfg(feature = "postgres")]
+        pool,
+        state.operational_stores.checkpoint_artifacts.clone(),
+    );
+    crate::services::relational_sidecar_store::with_ports(ports, next.run(request)).await
 }
 
 /// MCP Streamable HTTP + OAuth discovery (root-level for client ergonomics).

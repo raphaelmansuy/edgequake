@@ -53,7 +53,7 @@ pub async fn recover_orphaned_staging_admissions(
     kv_storage: Arc<dyn KVStorage>,
     task_storage: SharedTaskStorage,
     min_age: Option<Duration>,
-    #[cfg(feature = "postgres")] pg_pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pg_pool: crate::services::OptionalPgPool<'_>,
 ) -> Result<OrphanStagingRecoveryReport, String> {
     info!("Checking for orphaned staging admission shells…");
     let now = Utc::now();

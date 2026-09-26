@@ -13,9 +13,8 @@ use uuid::Uuid;
 
 use super::runner::{BackfillJob, BatchOutcome, VerifyReport};
 use super::verify;
-use crate::adapters::postgres::chunk_repository::{
-    insert_chunks_batch, upsert_serving_states, ChunkInsertRow,
-};
+use crate::adapters::postgres::chunk_repository::{insert_chunks_batch, ChunkInsertRow};
+use crate::adapters::postgres::serving_state_sql::upsert_for_ids;
 use crate::error::StorageError;
 use crate::kv_key_schema::kv_keys;
 
@@ -226,7 +225,7 @@ impl BackfillJob for ChunkTextBackfillJob {
         let inserted_ids = insert_chunks_batch(&mut **tx, &inserts).await?;
         let written = inserted_ids.len() as i64;
         // Legacy chunks already have vectors + graph projections → serve-ready.
-        upsert_serving_states(
+        upsert_for_ids(
             &mut **tx,
             &inserted_ids,
             crate::serving_fence::SERVING_STATE_READY,

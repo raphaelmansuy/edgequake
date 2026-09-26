@@ -125,6 +125,35 @@ pub enum CompletedHealOutcome {
     NotApplicable,
 }
 
+/// Promote `projecting` → completed when SPEC-149 deliveries have applied.
+pub async fn try_heal_projecting_applied(
+    state: &AppState,
+    document_id: &str,
+    metadata: &Value,
+) -> ApiResult<CompletedHealOutcome> {
+    if !super::task_document_sync::metadata_is_projecting(metadata) {
+        return Ok(CompletedHealOutcome::NotApplicable);
+    }
+    match super::task_document_sync::sync_doc_projecting_when_applied(
+        Arc::clone(&state.storage.kv_storage),
+        state.optional_pg_pool(),
+        document_id,
+    )
+    .await
+    {
+        Ok(true) => Ok(CompletedHealOutcome::Healed),
+        Ok(false) => Ok(CompletedHealOutcome::NotApplicable),
+        Err(e) => {
+            warn!(
+                document_id = %document_id,
+                error = %e,
+                "SPEC-149: projecting→completed promote failed"
+            );
+            Err(ApiError::Internal(e))
+        }
+    }
+}
+
 /// If the document has a Cancelled task and no active work, sync metadata to cancelled.
 ///
 /// DRY SSOT used by orphan reconcile and `recover-stuck` so cancelled zombies are
@@ -152,6 +181,7 @@ pub async fn try_heal_cancelled_orphan(
 
     match super::task_document_sync::sync_doc_cancelled_by_document_id(
         Arc::clone(&state.storage.kv_storage),
+        state.optional_pg_pool(),
         document_id,
         "Task cancelled — reconciled orphan mid-pipeline metadata",
     )
@@ -187,6 +217,7 @@ pub async fn try_heal_completed_orphan(
     }
     match super::task_document_sync::sync_doc_completed_orphan(
         Arc::clone(&state.storage.kv_storage),
+        state.optional_pg_pool(),
         document_id,
     )
     .await
@@ -661,6 +692,31 @@ async fn ensure_one_orphan(
         }
     }
 
+    // SPEC-149: projecting waits for delivery apply — promote when settled.
+    match try_heal_projecting_applied(state, document_id, metadata).await {
+        Ok(CompletedHealOutcome::Healed) => {
+            report.completed_synced += 1;
+            report.document_ids.push(document_id.to_string());
+            return;
+        }
+        Ok(CompletedHealOutcome::NotApplicable) => {
+            if super::task_document_sync::metadata_is_projecting(metadata) {
+                // Still awaiting apply — do not re-enqueue a recovery task.
+                report.skipped_not_eligible += 1;
+                return;
+            }
+        }
+        Err(e) => {
+            report.errors += 1;
+            warn!(
+                document_id = %document_id,
+                error = %e,
+                "SPEC-149: projecting promote failed"
+            );
+            return;
+        }
+    }
+
     // Force re-index / task loss can leave processing+converting with finished
     // stage_message + entity counts. Promote to completed instead of re-converting.
     if mid_pipeline {
@@ -704,6 +760,7 @@ async fn ensure_one_orphan(
             if mid_pipeline {
                 match super::task_document_sync::sync_doc_failed_no_active_task(
                     Arc::clone(&state.storage.kv_storage),
+                    state.optional_pg_pool(),
                     document_id,
                     "Pipeline interrupted — no active task",
                 )
@@ -813,10 +870,34 @@ pub async fn reconcile_pending_documents_missing_tasks(
     );
 
     let mut report = ReconcilePendingReport::default();
+
+    // SPEC-091: one bounded fence open for settled document_batch docs still
+    // non-ready. List and promote must not write serving state.
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        let limit = i64::try_from(max_documents).unwrap_or(32).max(1);
+        match edgequake_storage::open_settled_serving_fences_bounded(pool, limit).await {
+            Ok(touched) if touched > 0 => {
+                info!(
+                    chunks_touched = touched,
+                    limit, "SPEC-091: reconcile opened settled serving fences"
+                );
+            }
+            Ok(_) => {}
+            Err(e) => {
+                report.errors += 1;
+                warn!(error = %e, "SPEC-091: bounded serving fence open failed");
+            }
+        }
+    }
+
     // Suffix scan returns keys; we filter status before loading content.
-    let entries = load_all_document_metadata_entries(state.storage.kv_storage.as_ref())
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let entries = load_all_document_metadata_entries(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+    )
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     for (_key, value) in entries {
         if report.enqueued

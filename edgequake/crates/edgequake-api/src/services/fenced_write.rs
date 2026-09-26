@@ -23,7 +23,7 @@ fn record_stale_fence() {
 /// A runtime without a PostgreSQL pool uses epoch zero.
 pub async fn read_fence_epoch(
     document_id: &str,
-    #[cfg(feature = "postgres")] pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pool: crate::services::OptionalPgPool<'_>,
 ) -> Result<FenceEpoch, FenceError> {
     #[cfg(feature = "postgres")]
     if let Some(pool) = pool {
@@ -47,7 +47,7 @@ pub async fn read_fence_epoch(
 /// Only call this when delete, wipe, or reprocess supersedes prior writers.
 pub async fn bump_fence_epoch(
     document_id: &str,
-    #[cfg(feature = "postgres")] pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pool: crate::services::OptionalPgPool<'_>,
 ) -> Result<FenceEpoch, FenceError> {
     #[cfg(feature = "postgres")]
     if let Some(pool) = pool {
@@ -83,7 +83,7 @@ pub async fn begin_document_run(
     stage_rank: u16,
     stage_message: &str,
     stage_progress: f64,
-    #[cfg(feature = "postgres")] pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pool: crate::services::OptionalPgPool<'_>,
 ) -> Result<FenceEpoch, FenceError> {
     #[cfg(feature = "postgres")]
     if let Some(pool) = pool {
@@ -135,7 +135,7 @@ pub async fn bind_document_run_track(
     epoch: FenceEpoch,
     expected_track_id: &str,
     task_track_id: &str,
-    #[cfg(feature = "postgres")] pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pool: crate::services::OptionalPgPool<'_>,
 ) -> Result<(), FenceError> {
     #[cfg(feature = "postgres")]
     if let Some(pool) = pool {
@@ -181,7 +181,7 @@ pub async fn bind_document_run_track(
 pub async fn assert_fence(
     held: FenceEpoch,
     document_id: &str,
-    #[cfg(feature = "postgres")] pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pool: crate::services::OptionalPgPool<'_>,
 ) -> Result<(), FenceError> {
     let actual = read_fence_epoch(
         document_id,

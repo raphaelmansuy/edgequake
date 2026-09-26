@@ -13,6 +13,7 @@ mod w3;
 
 use edgequake_storage::adapters::postgres::vector::typed_read;
 use edgequake_storage::traits::domain::{EmbeddingIndex, EmbeddingRow, ModelId, WorkspaceId};
+use edgequake_storage::MetadataFilter;
 use postgres_test_config::{contract_pg_pool, require_or_skip_postgres};
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -41,7 +42,7 @@ async fn e2e_spec091_typed_query_matches_legacy_result_set() {
         embeddings.push(emb.clone());
         rows.push(EmbeddingRow {
             chunk_id: cid.into(),
-            workspace_id: WorkspaceId(ws),
+            workspace_id: WorkspaceId::new(ws),
             dimensions: DIM as i32,
             embedding: emb,
         });
@@ -51,6 +52,16 @@ async fn e2e_spec091_typed_query_matches_legacy_result_set() {
         .upsert_batch(ModelId(Uuid::nil()), &rows)
         .await
         .expect("upsert");
+    let chunk_ids: Vec<Uuid> = rows.iter().map(|row| row.chunk_id.0).collect();
+    sqlx::query(
+        "INSERT INTO public.chunk_serving_state (chunk_id, state) \
+         SELECT chunk_id, 'ready' FROM unnest($1::uuid[]) AS chunk_id \
+         ON CONFLICT (chunk_id) DO UPDATE SET state = EXCLUDED.state",
+    )
+    .bind(&chunk_ids)
+    .execute(&pool)
+    .await
+    .expect("mark typed chunks ready");
 
     // Legacy result set = the chunk string ids for this doc (top-K by cosine).
     let query_emb = w3::make_embedding(DIM, 700); // exact match of chunk 0
@@ -58,10 +69,18 @@ async fn e2e_spec091_typed_query_matches_legacy_result_set() {
 
     // Typed path via the dual-read translator (the storage_impl entry point
     // resolves the workspace + converts to legacy shape).
-    let results = typed_read::try_typed_chunk_query(&pool, &index, &query_emb, 3, &ws.to_string())
-        .await
-        .expect("typed query")
-        .expect("workspace-scoped query");
+    let results = typed_read::try_typed_chunk_query(
+        &pool,
+        &index,
+        &query_emb,
+        3,
+        &ws.to_string(),
+        None,
+        &MetadataFilter::default(),
+    )
+    .await
+    .expect("typed query")
+    .expect("workspace-scoped query");
 
     // Top hit is the exact match; its id is the legacy chunk key (shape parity).
     assert_eq!(results[0].id, format!("{doc}-chunk-0"));
@@ -106,7 +125,7 @@ async fn e2e_spec091_fallback_counter_increments_on_typed_failure() {
             ModelId(Uuid::nil()),
             &[EmbeddingRow {
                 chunk_id: cid.into(),
-                workspace_id: WorkspaceId(ws),
+                workspace_id: WorkspaceId::new(ws),
                 dimensions: DIM as i32,
                 embedding: w3::make_embedding(DIM, 1),
             }],
@@ -125,6 +144,8 @@ async fn e2e_spec091_fallback_counter_increments_on_typed_failure() {
             &w3::make_embedding(DIM, 1),
             3,
             &ws.to_string(),
+            None,
+            &MetadataFilter::default(),
         )
         .await;
         sqlx::query("ALTER TABLE chunk_embeddings__w3_hold RENAME TO chunk_embeddings")

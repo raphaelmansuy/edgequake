@@ -141,6 +141,15 @@ impl GraphStorageReadOps for FailingGraphStorage {
         Ok(vec![])
     }
 
+    async fn get_edges_for_node_set(
+        &self,
+        _node_ids: &[String],
+        _tenant_id: Option<&str>,
+        _workspace_id: Option<&str>,
+    ) -> Result<Vec<GraphEdge>, StorageError> {
+        Ok(vec![])
+    }
+
     async fn get_knowledge_graph(
         &self,
         _start_node: &str,
@@ -224,6 +233,14 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         )))
     }
 
+    async fn upsert_nodes_batch_with_mode(
+        &self,
+        nodes: &[(String, HashMap<String, serde_json::Value>)],
+        _mode: edgequake_storage::GraphPropertyWriteMode,
+    ) -> Result<(), StorageError> {
+        self.upsert_nodes_batch(nodes).await
+    }
+
     async fn delete_node(&self, _node_id: &str) -> Result<(), StorageError> {
         Ok(())
     }
@@ -235,6 +252,15 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         _workspace_id: &str,
     ) -> Result<bool, StorageError> {
         Ok(false)
+    }
+
+    async fn delete_nodes_scoped_batch(
+        &self,
+        _node_ids: &[String],
+        _tenant_id: &str,
+        _workspace_id: &str,
+    ) -> Result<usize, StorageError> {
+        Ok(0)
     }
 
     async fn upsert_edge(
@@ -255,7 +281,22 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         Ok(())
     }
 
+    async fn upsert_edges_batch_with_mode(
+        &self,
+        edges: &[(String, String, HashMap<String, serde_json::Value>)],
+        _mode: edgequake_storage::GraphPropertyWriteMode,
+    ) -> Result<(), StorageError> {
+        self.upsert_edges_batch(edges).await
+    }
+
     async fn delete_edge(&self, _source: &str, _target: &str) -> Result<(), StorageError> {
+        Ok(())
+    }
+
+    async fn delete_edges_batch(
+        &self,
+        _edges: &[(String, String, String)],
+    ) -> Result<(), StorageError> {
         Ok(())
     }
 
@@ -269,8 +310,24 @@ impl GraphStorageMutateOps for FailingGraphStorage {
         Ok(false)
     }
 
+    async fn delete_edges_scoped_batch(
+        &self,
+        _edges: &[(String, String)],
+        _tenant_id: &str,
+        _workspace_id: &str,
+    ) -> Result<usize, StorageError> {
+        Ok(0)
+    }
+
     async fn clear(&self) -> Result<(), StorageError> {
         Ok(())
+    }
+
+    async fn clear_workspace(
+        &self,
+        _workspace_id: &uuid::Uuid,
+    ) -> Result<(usize, usize), StorageError> {
+        Ok((0, 0))
     }
 }
 
@@ -351,6 +408,12 @@ impl GraphStorageAnalyticsOps for FailingGraphStorage {
 /// leaving zero orphaned chunk embeddings.
 #[tokio::test]
 async fn test_merge_failure_compensates_chunk_vectors() {
+    // WHY: this test proves the legacy-vector compensation saga (vectors written
+    // into MemoryVectorStorage before graph merge). Typed authority skips those
+    // writes by default; the typed path is covered by
+    // typed_merge_failure_compensates_relational_chunks (SPEC-383).
+    std::env::set_var("EDGEQUAKE_VECTOR_BACKEND", "legacy_tables");
+
     let kv = Arc::new(MemoryKVStorage::new("sc2"));
     let vector_store: Arc<dyn VectorStorage> = Arc::new(MemoryVectorStorage::new("sc2", EMBED_DIM));
     let failing_graph = Arc::new(FailingGraphStorage::new(vector_store.clone()));
@@ -422,9 +485,10 @@ async fn test_insert_batch_preserves_order_and_aggregates_errors() {
         );
     eq.initialize().await.expect("initialize should succeed");
 
-    // A document over the 10MB hard limit forces a deterministic failure before
+    // A document over the upload hard limit forces a deterministic failure before
     // any provider/storage call, without needing a flaky external error.
-    let oversized = "x".repeat(11 * 1024 * 1024);
+    // Derive from the real constant — do not hard-code a stale MiB figure.
+    let oversized = "x".repeat(edgequake_core::MAX_UPLOAD_BYTES + 1);
 
     let results = eq
         .insert_batch(vec![

@@ -613,7 +613,7 @@ async fn list_migration_jobs_postgres(
     state: &AppState,
     mode_str: String,
 ) -> Result<Json<MigrationJobsResponse>, ApiError> {
-    let Some(pool) = state.pg_pool.as_ref() else {
+    let Some(pool) = state.optional_pg_pool() else {
         return Ok(Json(MigrationJobsResponse {
             mode: mode_str,
             jobs: vec![],
@@ -699,7 +699,7 @@ pub struct MigrationJobControlResponse {
 
 #[cfg(feature = "postgres")]
 fn migration_pool(state: &AppState) -> Result<&sqlx::PgPool, ApiError> {
-    state.pg_pool.as_ref().ok_or_else(|| {
+    state.optional_pg_pool().ok_or_else(|| {
         ApiError::BadRequest("No PostgreSQL pool — migration ledger unavailable".into())
     })
 }

@@ -25,9 +25,10 @@ pub fn metadata_key_for_document(document_id: &str) -> String {
 /// Load metadata JSON values for a workspace via wsdoc index with suffix-scan fallback.
 pub async fn load_workspace_metadata_values(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    let listed = list_workspace_metadata_keys_detailed(kv_storage, workspace_id).await?;
+    let listed = list_workspace_metadata_keys_detailed(kv_storage, pool, workspace_id).await?;
     // LAW-111-9: authoritative empty = empty workspace (no global suffix resurrect).
     if listed.authoritative {
         if listed.keys.is_empty() {
@@ -41,7 +42,7 @@ pub async fn load_workspace_metadata_values(
         return Ok(values.into_iter().flatten().collect());
     }
 
-    Ok(load_all_document_metadata(kv_storage)
+    Ok(load_all_document_metadata(kv_storage, pool)
         .await?
         .into_iter()
         .filter(|v| {
@@ -60,8 +61,9 @@ pub async fn load_workspace_metadata_values(
 /// migration 125 and would otherwise make orphan reconcile a no-op.
 pub async fn load_all_document_metadata_entries(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
 ) -> ApiResult<Vec<(String, serde_json::Value)>> {
-    let keys = load_all_document_metadata_keys(kv_storage).await?;
+    let keys = load_all_document_metadata_keys(kv_storage, pool).await?;
     if keys.is_empty() {
         return Ok(vec![]);
     }
@@ -76,6 +78,7 @@ pub async fn load_all_document_metadata_entries(
 /// Key enumeration for unscoped metadata scans (typed shell → KV fallback).
 async fn load_all_document_metadata_keys(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
 ) -> ApiResult<Vec<String>> {
     #[cfg(feature = "postgres")]
     {
@@ -83,7 +86,7 @@ async fn load_all_document_metadata_keys(
             kv_family_mode_from_env, KvFamilyMode, KV_FAMILY_METADATA,
         };
         if kv_family_mode_from_env(KV_FAMILY_METADATA) == KvFamilyMode::Relational {
-            if let Some(pool) = crate::services::relational_sidecar_store::sidecar_pool() {
+            if let Some(pool) = pool {
                 // Bound the janitor scan; reconcile already stamps max_documents.
                 match edgequake_storage::adapters::postgres::document_shell::shell_metadata_keys(
                     pool,
@@ -111,8 +114,9 @@ async fn load_all_document_metadata_keys(
 /// Load all document metadata values via indexed suffix scan (unscoped).
 pub async fn load_all_document_metadata(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    Ok(load_all_document_metadata_entries(kv_storage)
+    Ok(load_all_document_metadata_entries(kv_storage, pool)
         .await?
         .into_iter()
         .map(|(_, value)| value)
@@ -144,10 +148,11 @@ pub struct ScopedMetadataLoad {
 /// HTTP paths — this unlimited variant is for internal/admin scans.
 pub async fn load_scoped_document_metadata_entries(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> ApiResult<Vec<(String, serde_json::Value)>> {
     if let Some(workspace_id) = tenant_ctx.workspace_id.as_deref() {
-        let listed = list_workspace_metadata_keys_detailed(kv_storage, workspace_id).await?;
+        let listed = list_workspace_metadata_keys_detailed(kv_storage, pool, workspace_id).await?;
         // LAW-111-9: authoritative empty membership = empty workspace.
         // Do not resurrect dual-write KV residue via global suffix scan (#366).
         if listed.authoritative || !listed.keys.is_empty() {
@@ -173,15 +178,20 @@ pub async fn load_scoped_document_metadata_entries(
 /// `LIMIT` on index/suffix scan), not after loading every JSON blob into memory.
 pub async fn load_scoped_document_metadata_entries_limited(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
     max_entries: usize,
 ) -> ApiResult<ScopedMetadataLoad> {
     let max_entries = max_entries.max(1);
 
     if let Some(workspace_id) = tenant_ctx.workspace_id.as_deref() {
-        let listed =
-            list_workspace_metadata_keys_limited_detailed(kv_storage, workspace_id, max_entries)
-                .await?;
+        let listed = list_workspace_metadata_keys_limited_detailed(
+            kv_storage,
+            pool,
+            workspace_id,
+            max_entries,
+        )
+        .await?;
         // LAW-111-9: authoritative empty membership = empty workspace (#366).
         if listed.authoritative || !listed.keys.is_empty() {
             return fetch_scoped_entries(kv_storage, tenant_ctx, listed.keys, listed.truncated)
@@ -220,9 +230,10 @@ async fn fetch_scoped_entries(
 /// Load `(key, metadata)` for a workspace using `wsdoc:` index prefix scan.
 pub async fn load_workspace_metadata_entries_by_index(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> ApiResult<Vec<(String, serde_json::Value)>> {
-    let metadata_keys = list_workspace_metadata_keys(kv_storage, workspace_id).await?;
+    let metadata_keys = list_workspace_metadata_keys(kv_storage, pool, workspace_id).await?;
     if metadata_keys.is_empty() {
         return Ok(vec![]);
     }
@@ -237,10 +248,11 @@ pub async fn load_workspace_metadata_entries_by_index(
 /// Load document metadata scoped to tenant/workspace.
 pub async fn load_scoped_document_metadata(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> ApiResult<Vec<serde_json::Value>> {
     Ok(
-        load_scoped_document_metadata_entries(kv_storage, tenant_ctx)
+        load_scoped_document_metadata_entries(kv_storage, pool, tenant_ctx)
             .await?
             .into_iter()
             .map(|(_, value)| value)
@@ -254,37 +266,35 @@ pub async fn load_scoped_document_metadata(
 /// skips staging keys, so interactive list/track/progress must merge these explicitly.
 async fn load_staging_metadata_entries(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> ApiResult<Vec<(String, serde_json::Value)>> {
     // SPEC-091 Wave C: enumerate staging shells from `documents` in relational
     // mode (synthesized legacy keys; value fetch below already dispatches
     // typed-first). KV scan remains the dual-write fallback.
     #[cfg(feature = "postgres")]
-    let typed_keys: Option<Vec<String>> =
-        match crate::services::relational_sidecar_store::sidecar_pool() {
-            Some(pool)
-                if edgequake_storage::kv_family_cutover::kv_family_mode_from_env(
-                    edgequake_storage::kv_family_cutover::KV_FAMILY_METADATA,
-                ) == edgequake_storage::kv_family_cutover::KvFamilyMode::Relational =>
-            {
-                match edgequake_storage::adapters::postgres::document_shell::shell_staging_keys(
-                    pool,
-                )
+    let typed_keys: Option<Vec<String>> = match pool {
+        Some(pool)
+            if edgequake_storage::kv_family_cutover::kv_family_mode_from_env(
+                edgequake_storage::kv_family_cutover::KV_FAMILY_METADATA,
+            ) == edgequake_storage::kv_family_cutover::KvFamilyMode::Relational =>
+        {
+            match edgequake_storage::adapters::postgres::document_shell::shell_staging_keys(pool)
                 .await
-                {
-                    Ok(keys) => Some(
-                        keys.into_iter()
-                            .filter(|k| k.ends_with(DOCUMENT_METADATA_SUFFIX))
-                            .collect(),
-                    ),
-                    Err(e) => {
-                        tracing::warn!(error = %e, "typed staging scan failed — falling back to KV");
-                        None
-                    }
+            {
+                Ok(keys) => Some(
+                    keys.into_iter()
+                        .filter(|k| k.ends_with(DOCUMENT_METADATA_SUFFIX))
+                        .collect(),
+                ),
+                Err(e) => {
+                    tracing::warn!(error = %e, "typed staging scan failed — falling back to KV");
+                    None
                 }
             }
-            _ => None,
-        };
+        }
+        _ => None,
+    };
     #[cfg(not(feature = "postgres"))]
     let typed_keys: Option<Vec<String>> = None;
 
@@ -326,10 +336,11 @@ async fn load_staging_metadata_entries(
 /// Used by documents list (after limited final load) so in-flight MD appears in ActiveRuns.
 pub async fn merge_staging_metadata_entries(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
     mut entries: Vec<(String, serde_json::Value)>,
 ) -> ApiResult<Vec<(String, serde_json::Value)>> {
-    let staging = load_staging_metadata_entries(kv_storage, tenant_ctx).await?;
+    let staging = load_staging_metadata_entries(kv_storage, pool, tenant_ctx).await?;
     if staging.is_empty() {
         return Ok(entries);
     }
@@ -356,6 +367,7 @@ pub async fn merge_staging_metadata_entries(
 /// Merge staging metadata into final value list (prefer final on id collision).
 pub async fn merge_staging_metadata_values(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
     values: Vec<serde_json::Value>,
 ) -> ApiResult<Vec<serde_json::Value>> {
@@ -371,7 +383,7 @@ pub async fn merge_staging_metadata_values(
         })
         .collect();
     Ok(
-        merge_staging_metadata_entries(kv_storage, tenant_ctx, entries)
+        merge_staging_metadata_entries(kv_storage, pool, tenant_ctx, entries)
             .await?
             .into_iter()
             .map(|(_, v)| v)
@@ -384,10 +396,11 @@ pub async fn merge_staging_metadata_values(
 /// Thin wrapper over [`merge_staging_metadata_values`] — one merge implementation (no third loader).
 pub async fn load_scoped_document_metadata_for_progress(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    let values = load_scoped_document_metadata(kv_storage, tenant_ctx).await?;
-    merge_staging_metadata_values(kv_storage, tenant_ctx, values).await
+    let values = load_scoped_document_metadata(kv_storage, pool, tenant_ctx).await?;
+    merge_staging_metadata_values(kv_storage, pool, tenant_ctx, values).await
 }
 
 /// KV keys to remove when cascade-deleting a workspace's documents.
@@ -405,10 +418,12 @@ pub struct WorkspaceDocumentDeletePlan {
 /// how residual dual-write KV keys are discovered after typed rows are gone.
 pub async fn plan_workspace_document_kv_deletion(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> ApiResult<WorkspaceDocumentDeletePlan> {
     let listed = crate::services::workspace_document_index::list_workspace_metadata_keys_detailed(
         kv_storage,
+        pool,
         workspace_id,
     )
     .await?;
@@ -422,7 +437,7 @@ pub async fn plan_workspace_document_kv_deletion(
     }
 
     // Empty membership (authoritative or not): still scan residual KV for wipe.
-    plan_workspace_document_kv_deletion_suffix_fallback(kv_storage, workspace_id).await
+    plan_workspace_document_kv_deletion_suffix_fallback(kv_storage, pool, workspace_id).await
 }
 
 async fn build_delete_plan_for_doc_ids(
@@ -453,9 +468,10 @@ async fn build_delete_plan_for_doc_ids(
 /// Legacy suffix-scan delete planner (fallback when wsdoc index is empty).
 async fn plan_workspace_document_kv_deletion_suffix_fallback(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> ApiResult<WorkspaceDocumentDeletePlan> {
-    let entries = load_all_document_metadata_entries(kv_storage).await?;
+    let entries = load_all_document_metadata_entries(kv_storage, pool).await?;
     let mut plan = WorkspaceDocumentDeletePlan::default();
 
     for (metadata_key, metadata) in entries {
@@ -526,6 +542,7 @@ fn parse_workspace_document_record(value: &serde_json::Value) -> Option<Workspac
 /// Load documents belonging to a workspace via index prefix scan + slug-aware fallback.
 pub async fn load_workspace_documents(
     kv_storage: &(dyn KVStorage + Send + Sync),
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &uuid::Uuid,
     workspace_slug: &str,
 ) -> ApiResult<Vec<WorkspaceDocumentRecord>> {
@@ -535,7 +552,8 @@ pub async fn load_workspace_documents(
 
     // Index path: O(workspace docs) when wsdoc pointers exist (post migration 047 / write hooks).
     if workspace_slug != "default" {
-        let listed = list_workspace_metadata_keys_detailed(kv_storage, &workspace_id_str).await?;
+        let listed =
+            list_workspace_metadata_keys_detailed(kv_storage, pool, &workspace_id_str).await?;
         // LAW-111-9: authoritative empty = empty workspace (#366).
         if listed.authoritative {
             if listed.keys.is_empty() {
@@ -559,7 +577,7 @@ pub async fn load_workspace_documents(
     }
 
     // Fallback: global suffix scan + slug-aware filter (legacy default alias, pre-backfill).
-    let values = load_all_document_metadata(kv_storage).await?;
+    let values = load_all_document_metadata(kv_storage, pool).await?;
     let mut docs = Vec::new();
 
     for value in values {
@@ -674,7 +692,7 @@ mod tests {
         .await
         .unwrap();
 
-        let plan = plan_workspace_document_kv_deletion(kv.as_ref(), &ws_target)
+        let plan = plan_workspace_document_kv_deletion(kv.as_ref(), None, &ws_target)
             .await
             .unwrap();
 
@@ -717,7 +735,7 @@ mod tests {
             .await
             .unwrap();
 
-        let plan = plan_workspace_document_kv_deletion(kv.as_ref(), &ws_target)
+        let plan = plan_workspace_document_kv_deletion(kv.as_ref(), None, &ws_target)
             .await
             .unwrap();
 
@@ -751,7 +769,7 @@ mod tests {
             .await
             .unwrap();
 
-        let docs = load_workspace_documents(kv.as_ref(), &ws_id, "custom-slug")
+        let docs = load_workspace_documents(kv.as_ref(), None, &ws_id, "custom-slug")
             .await
             .unwrap();
         assert_eq!(docs.len(), 1);
@@ -797,15 +815,16 @@ mod tests {
         .await
         .unwrap();
 
-        let docs = load_workspace_documents(kv.as_ref(), &ws_id, "not-default")
+        let docs = load_workspace_documents(kv.as_ref(), None, &ws_id, "not-default")
             .await
             .unwrap();
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].doc_id, "doc-in-ws");
 
-        let default_docs = load_workspace_documents(kv.as_ref(), &uuid::Uuid::new_v4(), "default")
-            .await
-            .unwrap();
+        let default_docs =
+            load_workspace_documents(kv.as_ref(), None, &uuid::Uuid::new_v4(), "default")
+                .await
+                .unwrap();
         assert_eq!(default_docs.len(), 1);
         assert_eq!(default_docs[0].doc_id, "doc-legacy-default");
     }
@@ -835,7 +854,7 @@ mod tests {
         kv.upsert(&upserts).await.unwrap();
 
         let loaded =
-            load_scoped_document_metadata_entries_limited(kv.as_ref(), &ctx(&tenant, &ws), 2)
+            load_scoped_document_metadata_entries_limited(kv.as_ref(), None, &ctx(&tenant, &ws), 2)
                 .await
                 .unwrap();
         assert!(loaded.truncated);
@@ -866,7 +885,7 @@ mod tests {
         kv.upsert(&upserts).await.unwrap();
 
         let loaded =
-            load_scoped_document_metadata_entries_limited(kv.as_ref(), &ctx(&tenant, &ws), 2)
+            load_scoped_document_metadata_entries_limited(kv.as_ref(), None, &ctx(&tenant, &ws), 2)
                 .await
                 .unwrap();
         assert!(!loaded.truncated, "exact fill must not report truncated");
@@ -898,6 +917,7 @@ mod tests {
 
         let loaded = load_scoped_document_metadata_entries_limited(
             kv.as_ref(),
+            None,
             &ctx(&tenant, &ws),
             0, // clamped to 1
         )

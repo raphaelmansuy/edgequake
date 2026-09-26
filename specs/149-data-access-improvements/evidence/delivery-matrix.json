@@ -1,0 +1,649 @@
+{
+  "schema_version": 1,
+  "status": "P0 production-correct hot path closed; full R1 E2E01-07 and six-profile DoD open; P1-P4 product-unavailable",
+  "dependency_policy": "conservative merge order; independent prototypes may precede gates",
+  "profiles": {
+    "P0": [
+      "postgres",
+      "age",
+      "pgvector-colocated"
+    ],
+    "P1": [
+      "postgres",
+      "age",
+      "qdrant"
+    ],
+    "P2a": [
+      "postgres",
+      "neo4j",
+      "pgvector-colocated"
+    ],
+    "P2b": [
+      "postgres",
+      "neo4j",
+      "qdrant"
+    ],
+    "P3": [
+      "sqlite",
+      "neo4j",
+      "qdrant"
+    ],
+    "P4": [
+      "sqlite",
+      "neo4j",
+      "pgvector-standalone"
+    ]
+  },
+  "releases": [
+    {
+      "id": "R0",
+      "required_profiles": [
+        "P0"
+      ],
+      "required_steps": [
+        "J01",
+        "J02",
+        "J03",
+        "J04",
+        "J05"
+      ],
+      "full_scenarios": []
+    },
+    {
+      "id": "R1",
+      "required_profiles": [
+        "P0"
+      ],
+      "required_steps": [
+        "J01",
+        "J02",
+        "J03",
+        "J04",
+        "J05",
+        "J06",
+        "J07",
+        "J08",
+        "J09",
+        "J10",
+        "J11",
+        "J12",
+        "J13",
+        "J14",
+        "J15",
+        "J16"
+      ],
+      "full_scenarios": [
+        "PROVIDER-ACCESS-E2E01",
+        "PROVIDER-ACCESS-E2E02",
+        "PROVIDER-ACCESS-E2E03",
+        "PROVIDER-ACCESS-E2E04",
+        "PROVIDER-ACCESS-E2E05",
+        "PROVIDER-ACCESS-E2E06",
+        "PROVIDER-ACCESS-E2E07",
+        "PROVIDER-ACCESS-E2E09",
+        "PROVIDER-ACCESS-E2E10",
+        "PROVIDER-ACCESS-E2E11",
+        "PROVIDER-ACCESS-E2E12",
+        "PROVIDER-ACCESS-E2E13"
+      ]
+    },
+    {
+      "id": "R2",
+      "required_profiles": [
+        "P0",
+        "P1"
+      ],
+      "required_steps": [
+        "J01",
+        "J02",
+        "J03",
+        "J04",
+        "J05",
+        "J06",
+        "J07",
+        "J08",
+        "J09",
+        "J10",
+        "J11",
+        "J12",
+        "J13",
+        "J14",
+        "J15",
+        "J16",
+        "J17",
+        "J18"
+      ],
+      "full_scenarios": [
+        "PROVIDER-ACCESS-E2E01",
+        "PROVIDER-ACCESS-E2E02",
+        "PROVIDER-ACCESS-E2E03",
+        "PROVIDER-ACCESS-E2E04",
+        "PROVIDER-ACCESS-E2E05",
+        "PROVIDER-ACCESS-E2E06",
+        "PROVIDER-ACCESS-E2E07",
+        "PROVIDER-ACCESS-E2E08",
+        "PROVIDER-ACCESS-E2E09",
+        "PROVIDER-ACCESS-E2E10",
+        "PROVIDER-ACCESS-E2E11",
+        "PROVIDER-ACCESS-E2E12",
+        "PROVIDER-ACCESS-E2E13"
+      ]
+    },
+    {
+      "id": "R3",
+      "required_profiles": [
+        "P0",
+        "P1",
+        "P2a",
+        "P2b"
+      ],
+      "required_steps": [
+        "J01",
+        "J02",
+        "J03",
+        "J04",
+        "J05",
+        "J06",
+        "J07",
+        "J08",
+        "J09",
+        "J10",
+        "J11",
+        "J12",
+        "J13",
+        "J14",
+        "J15",
+        "J16",
+        "J17",
+        "J18",
+        "J19",
+        "J20"
+      ],
+      "full_scenarios": [
+        "PROVIDER-ACCESS-E2E01",
+        "PROVIDER-ACCESS-E2E02",
+        "PROVIDER-ACCESS-E2E03",
+        "PROVIDER-ACCESS-E2E04",
+        "PROVIDER-ACCESS-E2E05",
+        "PROVIDER-ACCESS-E2E06",
+        "PROVIDER-ACCESS-E2E07",
+        "PROVIDER-ACCESS-E2E08",
+        "PROVIDER-ACCESS-E2E09",
+        "PROVIDER-ACCESS-E2E10",
+        "PROVIDER-ACCESS-E2E11",
+        "PROVIDER-ACCESS-E2E12",
+        "PROVIDER-ACCESS-E2E13"
+      ]
+    },
+    {
+      "id": "R4",
+      "required_profiles": [
+        "P0",
+        "P1",
+        "P2a",
+        "P2b",
+        "P3",
+        "P4"
+      ],
+      "required_steps": [
+        "J01",
+        "J02",
+        "J03",
+        "J04",
+        "J05",
+        "J06",
+        "J07",
+        "J08",
+        "J09",
+        "J10",
+        "J11",
+        "J12",
+        "J13",
+        "J14",
+        "J15",
+        "J16",
+        "J17",
+        "J18",
+        "J19",
+        "J20",
+        "J21",
+        "J22",
+        "J23",
+        "J24"
+      ],
+      "full_scenarios": [
+        "PROVIDER-ACCESS-E2E01",
+        "PROVIDER-ACCESS-E2E02",
+        "PROVIDER-ACCESS-E2E03",
+        "PROVIDER-ACCESS-E2E04",
+        "PROVIDER-ACCESS-E2E05",
+        "PROVIDER-ACCESS-E2E06",
+        "PROVIDER-ACCESS-E2E07",
+        "PROVIDER-ACCESS-E2E08",
+        "PROVIDER-ACCESS-E2E09",
+        "PROVIDER-ACCESS-E2E10",
+        "PROVIDER-ACCESS-E2E11",
+        "PROVIDER-ACCESS-E2E12",
+        "PROVIDER-ACCESS-E2E13",
+        "PROVIDER-ACCESS-E2E14",
+        "PROVIDER-ACCESS-E2E15"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "J01",
+      "work": "W0",
+      "release": "R0",
+      "depends_on": []
+    },
+    {
+      "id": "J02",
+      "work": "W0",
+      "release": "R0",
+      "depends_on": [
+        "J01"
+      ]
+    },
+    {
+      "id": "J03",
+      "work": "W1",
+      "release": "R0",
+      "depends_on": [
+        "J02"
+      ]
+    },
+    {
+      "id": "J04",
+      "work": "W1",
+      "release": "R0",
+      "depends_on": [
+        "J03"
+      ]
+    },
+    {
+      "id": "J05",
+      "work": "W1",
+      "release": "R0",
+      "depends_on": [
+        "J04"
+      ]
+    },
+    {
+      "id": "J06",
+      "work": "W2",
+      "release": "R1",
+      "depends_on": [
+        "J05"
+      ]
+    },
+    {
+      "id": "J07",
+      "work": "W2",
+      "release": "R1",
+      "depends_on": [
+        "J06"
+      ]
+    },
+    {
+      "id": "J08",
+      "work": "W3",
+      "release": "R1",
+      "depends_on": [
+        "J07"
+      ]
+    },
+    {
+      "id": "J09",
+      "work": "W3",
+      "release": "R1",
+      "depends_on": [
+        "J08"
+      ]
+    },
+    {
+      "id": "J10",
+      "work": "W3",
+      "release": "R1",
+      "depends_on": [
+        "J09"
+      ]
+    },
+    {
+      "id": "J11",
+      "work": "W4",
+      "release": "R1",
+      "depends_on": [
+        "J10"
+      ]
+    },
+    {
+      "id": "J12",
+      "work": "W4",
+      "release": "R1",
+      "depends_on": [
+        "J11"
+      ]
+    },
+    {
+      "id": "J13",
+      "work": "W5",
+      "release": "R1",
+      "depends_on": [
+        "J12"
+      ]
+    },
+    {
+      "id": "J14",
+      "work": "W5",
+      "release": "R1",
+      "depends_on": [
+        "J13"
+      ]
+    },
+    {
+      "id": "J15",
+      "work": "W6",
+      "release": "R1",
+      "depends_on": [
+        "J14"
+      ]
+    },
+    {
+      "id": "J16",
+      "work": "W6",
+      "release": "R1",
+      "depends_on": [
+        "J15"
+      ]
+    },
+    {
+      "id": "J17",
+      "work": "W7",
+      "release": "R2",
+      "depends_on": [
+        "J16"
+      ]
+    },
+    {
+      "id": "J18",
+      "work": "W7",
+      "release": "R2",
+      "depends_on": [
+        "J17"
+      ]
+    },
+    {
+      "id": "J19",
+      "work": "W8",
+      "release": "R3",
+      "depends_on": [
+        "J18"
+      ]
+    },
+    {
+      "id": "J20",
+      "work": "W8",
+      "release": "R3",
+      "depends_on": [
+        "J19"
+      ]
+    },
+    {
+      "id": "J21",
+      "work": "W9",
+      "release": "R4",
+      "depends_on": [
+        "J20"
+      ]
+    },
+    {
+      "id": "J22",
+      "work": "W9",
+      "release": "R4",
+      "depends_on": [
+        "J21"
+      ]
+    },
+    {
+      "id": "J23",
+      "work": "W9",
+      "release": "R4",
+      "depends_on": [
+        "J22"
+      ]
+    },
+    {
+      "id": "J24",
+      "work": "W9",
+      "release": "R4",
+      "depends_on": [
+        "J23"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "PROVIDER-ACCESS-E2E01",
+      "first_full_release": "R1",
+      "baseline_release": "R0",
+      "work": [
+        "W0",
+        "W2"
+      ],
+      "tests": [
+        "T09",
+        "T19",
+        "T20"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E02",
+      "first_full_release": "R1",
+      "baseline_release": "R0",
+      "work": [
+        "W1",
+        "W4",
+        "W6"
+      ],
+      "tests": [
+        "T01",
+        "T02"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E03",
+      "first_full_release": "R1",
+      "baseline_release": "R0",
+      "work": [
+        "W1",
+        "W5"
+      ],
+      "tests": [
+        "T01",
+        "T06",
+        "T13"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E04",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W3",
+        "W4"
+      ],
+      "tests": [
+        "T03",
+        "T04",
+        "T08"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E05",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W4",
+        "W6"
+      ],
+      "tests": [
+        "T04",
+        "T05",
+        "T10",
+        "T14"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E06",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W4",
+        "W5",
+        "W6"
+      ],
+      "tests": [
+        "T02",
+        "T05",
+        "T10"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E07",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W4"
+      ],
+      "tests": [
+        "T06",
+        "T14"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E08",
+      "first_full_release": "R2",
+      "baseline_release": null,
+      "work": [
+        "W4",
+        "W7",
+        "W8",
+        "W9"
+      ],
+      "tests": [
+        "T11",
+        "T17"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E09",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W5",
+        "W6"
+      ],
+      "tests": [
+        "T08",
+        "T12",
+        "T15"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E10",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W3",
+        "W9"
+      ],
+      "tests": [
+        "T01",
+        "T16"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E11",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W5"
+      ],
+      "tests": [
+        "T07",
+        "T13"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E12",
+      "first_full_release": "R1",
+      "baseline_release": "R0",
+      "work": [
+        "W2",
+        "W9"
+      ],
+      "tests": [
+        "T09",
+        "T19",
+        "T20"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E13",
+      "first_full_release": "R1",
+      "baseline_release": null,
+      "work": [
+        "W4",
+        "W9"
+      ],
+      "tests": [
+        "T04",
+        "T18"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E14",
+      "first_full_release": "R4",
+      "baseline_release": null,
+      "work": [
+        "W9"
+      ],
+      "tests": [
+        "T01",
+        "T16",
+        "T18"
+      ],
+      "profile_rule": "all certified profiles; provider-specific fault mechanisms are parameterized"
+    },
+    {
+      "id": "PROVIDER-ACCESS-E2E15",
+      "first_full_release": "R4",
+      "baseline_release": null,
+      "work": [
+        "W9"
+      ],
+      "tests": [
+        "T03",
+        "T08",
+        "T11",
+        "T16",
+        "T20"
+      ],
+      "profile_rule": "P3 and P4; migration source P0"
+    }
+  ]
+}

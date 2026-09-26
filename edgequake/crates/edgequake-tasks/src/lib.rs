@@ -122,7 +122,9 @@ pub use ingestion_reliability::{
     is_typed_timeout_message, IngestionFailureClass,
 };
 pub use lease::{lease_expires_at, task_lease_ttl_from_env};
-pub use pipeline_state::{PipelineEvent, PipelineMessage, PipelineState, PipelineStatusSnapshot};
+pub use pipeline_state::{
+    PdfPageProgressPayload, PipelineEvent, PipelineMessage, PipelineState, PipelineStatusSnapshot,
+};
 pub use progress::{PdfUploadProgress, PhaseError, PhaseProgress, PhaseStatus, PipelinePhase};
 #[cfg(feature = "postgres")]
 pub use provider_budget::PostgresProviderBudget;

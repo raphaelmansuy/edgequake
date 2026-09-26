@@ -261,6 +261,7 @@ async fn try_kv_storage_stats(
     // SPEC-027 phase 10: wsdoc index prefix scan with suffix-scan fallback.
     let metadata_values = load_workspace_metadata_values(
         state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
         &workspace_id.to_string(),
     )
     .await
