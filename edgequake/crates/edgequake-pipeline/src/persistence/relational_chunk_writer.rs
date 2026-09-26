@@ -14,11 +14,11 @@ use sha2::{Digest as _, Sha256};
 use uuid::Uuid;
 
 use crate::extractor::{ExtractedEntity, ExtractedRelationship};
-use crate::pipeline::ProcessingResult;
 use crate::pipeline::helpers::mention_merge::{
     merge_entity_type_vote, merge_importance, merge_relationship_weight, prefer_filled_option,
     prefer_longer_description, seed_entity_type_votes, union_chunk_ids,
 };
+use crate::pipeline::ProcessingResult;
 
 use super::document_id_resolve::{
     is_injection_composite_document_id, resolve_relational_document_id,
@@ -128,8 +128,13 @@ pub fn build_prepared_ingestion_batch(
         .map(|chunk| prepared_json_record(chunk, revision))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let (facts, contributions) =
-        build_canonical_fact_records(document_id.into_uuid(), tenant_id, workspace_id, result, revision)?;
+    let (facts, contributions) = build_canonical_fact_records(
+        document_id.into_uuid(),
+        tenant_id,
+        workspace_id,
+        result,
+        revision,
+    )?;
 
     let embeddings = chunks
         .iter()

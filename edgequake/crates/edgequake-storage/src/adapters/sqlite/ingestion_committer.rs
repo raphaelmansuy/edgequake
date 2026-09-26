@@ -1,11 +1,14 @@
 //! SQLite transactional authority committer.
 
+use crate::projection_manifest::{
+    logical_key_for_payload, role_completion_proof, EventManifestItem,
+};
 use async_trait::async_trait;
 use edgequake_storage_contracts::{
     checked_i64, decode_commit_receipt, physical_revision_id, validate_prepared_ingestion_batch,
-    AccessError, AccessResult, CommitReceipt, CommittedRevision, CursorPage, DeleteDocument,
-    DeleteReceipt, DocumentId, DocumentPageRequest, DocumentReader, DocumentView,
-    IngestionCommitter, LifecycleCommitter, PreparedIngestionBatch, PreparedRecord, AccessScope,
+    AccessError, AccessResult, AccessScope, CommitReceipt, CommittedRevision, CursorPage,
+    DeleteDocument, DeleteReceipt, DocumentId, DocumentPageRequest, DocumentReader, DocumentView,
+    IngestionCommitter, LifecycleCommitter, PreparedIngestionBatch, PreparedRecord,
 };
 use sqlx::{Connection, Sqlite, SqlitePool, Transaction};
 use uuid::Uuid;
@@ -113,10 +116,17 @@ impl IngestionCommitter for SqliteIngestionCommitter {
         .await
         .map_err(database_error)?;
 
+        ensure_sqlite_p0_bindings(
+            &mut tx,
+            &command.scope.tenant().to_string(),
+            &command.scope.workspace().to_string(),
+        )
+        .await?;
         let delivery_count = sqlx::query(
             "INSERT OR IGNORE INTO projection_deliveries (event_id,binding_id,state) \
              SELECT ?,binding_id,'pending' FROM data_bindings \
-             WHERE tenant_id=? AND workspace_id=? AND state='active'",
+             WHERE tenant_id=? AND workspace_id=? AND state IN ('active','draining') \
+               AND role IN ('graph','vector')",
         )
         .bind(event_id.to_string())
         .bind(command.scope.tenant().to_string())
@@ -125,21 +135,18 @@ impl IngestionCommitter for SqliteIngestionCommitter {
         .await
         .map_err(database_error)?
         .rows_affected();
-
-        let active_bindings: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM data_bindings \
-             WHERE tenant_id=? AND workspace_id=? AND state='active'",
-        )
-        .bind(command.scope.tenant().to_string())
-        .bind(command.scope.workspace().to_string())
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(database_error)?;
-        if active_bindings > 0 && delivery_count == 0 {
-            return Err(AccessError::Conflict(
-                "active bindings exist but no projection deliveries were created".into(),
+        if delivery_count < 2 {
+            return Err(AccessError::Unavailable(
+                "durable ingest refused: scope is missing graph or vector bindings".into(),
             ));
         }
+        write_sqlite_manifest(
+            &mut tx,
+            event_id,
+            &manifest_items("graph", "graph_contribution", &command.contributions),
+            &manifest_items("vector", "embedding", &command.embeddings),
+        )
+        .await?;
 
         let receipt = build_receipt(command, event_id);
         let receipt_bytes = serde_json::to_vec(&receipt)
@@ -268,6 +275,75 @@ impl LifecycleCommitter for SqliteIngestionCommitter {
         .filter_map(|raw| Uuid::parse_str(&raw).ok())
         .collect::<Vec<_>>();
 
+        let event_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO projection_events \
+             (event_id,tenant_id,workspace_id,object_kind,object_id,object_revision, \
+              schema_version,operation,manifest_ref,digest) \
+             VALUES (?,?,?,?,?,?,1,'delete',?,?)",
+        )
+        .bind(event_id.to_string())
+        .bind(command.scope.tenant().to_string())
+        .bind(command.scope.workspace().to_string())
+        .bind("document")
+        .bind(command.document_id.to_string())
+        .bind(tombstone_revision_i64)
+        .bind(format!("cleanup://{cleanup_manifest_id}"))
+        .bind(command.command_digest.to_vec())
+        .execute(&mut *tx)
+        .await
+        .map_err(database_error)?;
+        for binding_id in &target_binding_ids {
+            sqlx::query(
+                "INSERT INTO projection_cleanup_intents \
+                 (cleanup_manifest_id,binding_id,tenant_id,workspace_id,document_id,tombstone_revision) \
+                 VALUES (?,?,?,?,?,?)",
+            )
+            .bind(cleanup_manifest_id.to_string())
+            .bind(binding_id.to_string())
+            .bind(command.scope.tenant().to_string())
+            .bind(command.scope.workspace().to_string())
+            .bind(command.document_id.to_string())
+            .bind(tombstone_revision_i64)
+            .execute(&mut *tx)
+            .await
+            .map_err(database_error)?;
+            sqlx::query(
+                "INSERT INTO projection_deliveries (event_id,binding_id,state) VALUES (?,?, 'pending')",
+            )
+            .bind(event_id.to_string())
+            .bind(binding_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(database_error)?;
+        }
+        let contributions = sqlx::query_as::<_, (String, i64, Vec<u8>, Vec<u8>)>(
+            "SELECT contribution_id, source_generation, payload_digest, payload \
+             FROM graph_contributions WHERE tenant_id=? AND workspace_id=? AND source_document_id=?",
+        )
+        .bind(command.scope.tenant().to_string())
+        .bind(command.scope.workspace().to_string())
+        .bind(command.document_id.to_string())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(database_error)?;
+        let graph_items = contributions
+            .into_iter()
+            .filter_map(|(id, revision, digest, payload)| {
+                let record_id = Uuid::parse_str(&id).ok()?;
+                let digest: [u8; 32] = digest.try_into().ok()?;
+                Some(EventManifestItem {
+                    role: "graph".into(),
+                    item_kind: "graph_contribution".into(),
+                    record_id,
+                    record_revision: revision.max(1),
+                    digest,
+                    logical_key: logical_key_for_payload(&payload, record_id),
+                })
+            })
+            .collect::<Vec<_>>();
+        write_sqlite_manifest(&mut tx, event_id, &graph_items, &[]).await?;
+
         let receipt = DeleteReceipt {
             scope: command.scope,
             document_id: command.document_id,
@@ -309,34 +385,49 @@ impl DocumentReader for SqliteIngestionCommitter {
         scope: &AccessScope,
         ids: &[DocumentId],
     ) -> AccessResult<Vec<Option<DocumentView>>> {
-        let mut out = Vec::with_capacity(ids.len());
-        for document_id in ids {
-            let row = sqlx::query_as::<_, (i64, String, Vec<u8>)>(
-                "SELECT revision, state, digest FROM object_revisions \
-                 WHERE tenant_id=? AND workspace_id=? AND kind='document' AND logical_id=? \
-                 ORDER BY revision DESC LIMIT 1",
-            )
-            .bind(scope.tenant().to_string())
-            .bind(scope.workspace().to_string())
-            .bind(document_id.to_string())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(database_error)?;
-            out.push(row.map(|(revision, state, digest)| {
-                let mut digest_arr = [0u8; 32];
-                if digest.len() == 32 {
-                    digest_arr.copy_from_slice(&digest);
-                }
-                DocumentView {
-                    scope: *scope,
-                    document_id: *document_id,
-                    revision: u64::try_from(revision.max(0)).unwrap_or(0),
-                    digest: digest_arr,
-                    deleted: state == "tombstoned",
-                }
-            }));
+        if ids.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(out)
+        if ids.len() > 100 {
+            return Err(AccessError::InvalidInput(
+                "document get_many accepts at most 100 ids".into(),
+            ));
+        }
+        let wanted: Vec<String> = ids.iter().map(ToString::to_string).collect();
+        let filter = serde_json::to_string(&wanted)
+            .map_err(|error| AccessError::InvalidInput(format!("document id filter: {error}")))?;
+        let rows = sqlx::query_as::<_, (String, i64, String, Vec<u8>)>(
+            "SELECT logical_id, revision, state, digest FROM object_revisions r \
+             WHERE tenant_id = ?1 AND workspace_id = ?2 AND kind = 'document' \
+               AND logical_id IN (SELECT value FROM json_each(?3)) \
+               AND revision = ( \
+                 SELECT MAX(r2.revision) FROM object_revisions r2 \
+                 WHERE r2.tenant_id = r.tenant_id \
+                   AND r2.workspace_id = r.workspace_id \
+                   AND r2.kind = 'document' \
+                   AND r2.logical_id = r.logical_id \
+               )",
+        )
+        .bind(scope.tenant().to_string())
+        .bind(scope.workspace().to_string())
+        .bind(filter)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(database_error)?;
+        let mut by_id = std::collections::HashMap::new();
+        for (logical_id, revision, state, digest) in rows {
+            let document_id = Uuid::parse_str(&logical_id).map_err(|_| {
+                AccessError::CorruptData("document logical id is not a UUID".into())
+            })?;
+            by_id.insert(
+                document_id,
+                document_view(scope, document_id, revision, &state, digest)?,
+            );
+        }
+        Ok(ids
+            .iter()
+            .map(|id| by_id.get(&id.into_uuid()).cloned())
+            .collect())
     }
 
     async fn list(
@@ -345,12 +436,14 @@ impl DocumentReader for SqliteIngestionCommitter {
         request: &DocumentPageRequest,
     ) -> AccessResult<CursorPage<DocumentView>> {
         let limit = request.limit.clamp(1, 100) as i64;
-        let cursor = request
-            .cursor
-            .as_deref()
-            .and_then(|raw| Uuid::parse_str(raw).ok())
-            .map(|id| id.to_string())
-            .unwrap_or_default();
+        let cursor = match request.cursor.as_deref() {
+            None => String::new(),
+            Some(raw) => Uuid::parse_str(raw)
+                .map_err(|_| {
+                    AccessError::InvalidInput("document page cursor is not a UUID".into())
+                })?
+                .to_string(),
+        };
         let rows = sqlx::query_as::<_, (String, i64, String, Vec<u8>)>(
             "SELECT logical_id, revision, state, digest FROM object_revisions \
              WHERE tenant_id=? AND workspace_id=? AND kind='document' \
@@ -371,25 +464,23 @@ impl DocumentReader for SqliteIngestionCommitter {
         .await
         .map_err(database_error)?;
 
-        let mut next_cursor = None;
+        let ids: Vec<String> = rows
+            .iter()
+            .map(|(logical_id, _, _, _)| logical_id.clone())
+            .collect();
+        let next_cursor = edgequake_storage_contracts::last_included_cursor(limit as usize, &ids);
         let mut items = Vec::new();
-        for (idx, (logical_id, revision, state, digest)) in rows.into_iter().enumerate() {
-            if idx as i64 >= limit {
-                next_cursor = Some(logical_id);
-                break;
-            }
-            let Ok(document_id) = Uuid::parse_str(&logical_id) else {
-                continue;
-            };
-            let mut digest_arr = [0u8; 32];
-            if digest.len() == 32 {
-                digest_arr.copy_from_slice(&digest);
-            }
+        for (logical_id, revision, state, digest) in rows.into_iter().take(limit as usize) {
+            let document_id = Uuid::parse_str(&logical_id)
+                .map_err(|_| AccessError::CorruptData("document id is not a UUID".into()))?;
+            let digest: [u8; 32] = digest
+                .try_into()
+                .map_err(|_| AccessError::CorruptData("document digest is not 32 bytes".into()))?;
             items.push(DocumentView {
                 scope: *scope,
                 document_id: DocumentId::new(document_id),
                 revision: u64::try_from(revision.max(0)).unwrap_or(0),
-                digest: digest_arr,
+                digest,
                 deleted: state == "tombstoned",
             });
         }
@@ -633,6 +724,92 @@ async fn insert_contributions(
     Ok(())
 }
 
+fn manifest_items(
+    role: &str,
+    item_kind: &str,
+    records: &[PreparedRecord],
+) -> Vec<EventManifestItem> {
+    records
+        .iter()
+        .map(|record| EventManifestItem {
+            role: role.to_string(),
+            item_kind: item_kind.to_string(),
+            record_id: record.id,
+            record_revision: i64::try_from(record.revision).unwrap_or(1),
+            digest: record.digest,
+            logical_key: logical_key_for_payload(&record.payload, record.id),
+        })
+        .collect()
+}
+
+fn sqlite_binding_id(tenant: &str, workspace: &str, role: &str) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_OID,
+        format!("p0:{tenant}:{workspace}:{role}").as_bytes(),
+    )
+}
+
+async fn ensure_sqlite_p0_bindings(
+    tx: &mut Transaction<'_, Sqlite>,
+    tenant: &str,
+    workspace: &str,
+) -> AccessResult<()> {
+    for role in ["graph", "vector"] {
+        sqlx::query(
+            "INSERT OR IGNORE INTO data_bindings \
+             (binding_id,tenant_id,workspace_id,role,generation,state) \
+             VALUES (?,?,?,?,1,'active')",
+        )
+        .bind(sqlite_binding_id(tenant, workspace, role).to_string())
+        .bind(tenant)
+        .bind(workspace)
+        .bind(role)
+        .execute(&mut **tx)
+        .await
+        .map_err(database_error)?;
+    }
+    Ok(())
+}
+
+async fn write_sqlite_manifest(
+    tx: &mut Transaction<'_, Sqlite>,
+    event_id: Uuid,
+    graph_items: &[EventManifestItem],
+    vector_items: &[EventManifestItem],
+) -> AccessResult<()> {
+    for (role, items) in [("graph", graph_items), ("vector", vector_items)] {
+        for (ordinal, item) in items.iter().enumerate() {
+            sqlx::query(
+                "INSERT OR IGNORE INTO projection_event_items \
+                 (event_id,role,ordinal,item_kind,record_id,record_revision,digest,logical_key) \
+                 VALUES (?,?,?,?,?,?,?,?)",
+            )
+            .bind(event_id.to_string())
+            .bind(role)
+            .bind(ordinal as i64)
+            .bind(&item.item_kind)
+            .bind(item.record_id.to_string())
+            .bind(item.record_revision)
+            .bind(item.digest.to_vec())
+            .bind(&item.logical_key)
+            .execute(&mut **tx)
+            .await
+            .map_err(database_error)?;
+        }
+        sqlx::query(
+            "INSERT OR IGNORE INTO projection_event_role_proofs (event_id,role,expected_digest) \
+             VALUES (?,?,?)",
+        )
+        .bind(event_id.to_string())
+        .bind(role)
+        .bind(role_completion_proof(items).to_vec())
+        .execute(&mut **tx)
+        .await
+        .map_err(database_error)?;
+    }
+    Ok(())
+}
+
 fn build_receipt(command: &PreparedIngestionBatch, event_id: Uuid) -> CommitReceipt {
     CommitReceipt {
         request_key: command.idempotency_key.clone(),
@@ -652,6 +829,25 @@ fn build_receipt(command: &PreparedIngestionBatch, event_id: Uuid) -> CommitRece
         manifest_id: event_id,
         durable_commit_token: format!("sqlite:{event_id}"),
     }
+}
+
+fn document_view(
+    scope: &AccessScope,
+    logical_id: Uuid,
+    revision: i64,
+    state: &str,
+    digest: Vec<u8>,
+) -> AccessResult<DocumentView> {
+    let digest: [u8; 32] = digest
+        .try_into()
+        .map_err(|_| AccessError::CorruptData("document digest is not 32 bytes".into()))?;
+    Ok(DocumentView {
+        scope: *scope,
+        document_id: DocumentId::new(logical_id),
+        revision: u64::try_from(revision.max(0)).unwrap_or(0),
+        digest,
+        deleted: state == "tombstoned",
+    })
 }
 
 fn database_error(error: sqlx::Error) -> AccessError {

@@ -48,6 +48,7 @@ pub(super) async fn collect_workspace_documents(
 ) -> Result<Vec<DocumentInfo>, ApiError> {
     load_workspace_documents(
         state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
         workspace_id,
         workspace_slug,
     )

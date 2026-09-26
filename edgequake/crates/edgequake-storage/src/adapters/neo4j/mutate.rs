@@ -405,6 +405,32 @@ impl GraphStorageMutateOps for Neo4jClient {
             .map_err(StorageError::from)
     }
 
+    async fn delete_nodes_scoped_batch(
+        &self,
+        node_ids: &[String],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> StorageResult<usize> {
+        use edgequake_storage_contracts::{TenantId, WorkspaceId};
+        if node_ids.is_empty() {
+            return Ok(0);
+        }
+        let tenant = Uuid::parse_str(tenant_id)
+            .map_err(|_| StorageError::InvalidInput("invalid tenant UUID".into()))?;
+        let workspace = Uuid::parse_str(workspace_id)
+            .map_err(|_| StorageError::InvalidInput("invalid workspace UUID".into()))?;
+        let scope = AccessScope::new(TenantId::new(tenant), WorkspaceId::new(workspace));
+        let mut physical = Vec::with_capacity(node_ids.len());
+        for id in node_ids {
+            physical.push(Uuid::parse_str(id).map_err(|_| {
+                StorageError::InvalidInput("invalid physical revision UUID".into())
+            })?);
+        }
+        self.delete_entity_revisions(&scope, &physical)
+            .await
+            .map_err(StorageError::from)
+    }
+
     async fn upsert_edge(
         &self,
         source: &str,
@@ -455,6 +481,15 @@ impl GraphStorageMutateOps for Neo4jClient {
         _tenant_id: &str,
         _workspace_id: &str,
     ) -> StorageResult<bool> {
+        Err(exact_edge_delete_required())
+    }
+
+    async fn delete_edges_scoped_batch(
+        &self,
+        _edges: &[(String, String)],
+        _tenant_id: &str,
+        _workspace_id: &str,
+    ) -> StorageResult<usize> {
         Err(exact_edge_delete_required())
     }
 

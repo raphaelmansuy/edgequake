@@ -38,13 +38,16 @@ fn patch_metadata_deleting(obj: &mut serde_json::Map<String, serde_json::Value>)
 /// Best-effort SQL status touch that **logs loudly** on failure (admit path).
 ///
 /// Non-UUID ids cannot live in `documents.id` (uuid PK) — skip without error.
-async fn touch_sql_deleting(document_id: &str) -> ApiResult<()> {
+async fn touch_sql_deleting(
+    pool: crate::services::OptionalPgPool<'_>,
+    document_id: &str,
+) -> ApiResult<()> {
     #[cfg(feature = "postgres")]
     {
-        let Some(pool) = crate::services::relational_sidecar_store::sidecar_pool() else {
+        let Some(pool) = pool else {
             tracing::debug!(
                 document_id = %document_id,
-                "admit_documents_deleting: no sidecar pool — SQL status skipped"
+                "admit_documents_deleting: no pool — SQL status skipped"
             );
             return Ok(());
         };
@@ -61,7 +64,7 @@ async fn touch_sql_deleting(document_id: &str) -> ApiResult<()> {
             "UPDATE public.documents SET status = 'deleting', updated_at = NOW() WHERE id = $1",
         )
         .bind(doc_uuid)
-        .execute(pool.as_ref())
+        .execute(pool)
         .await
         {
             Ok(result) => {
@@ -86,7 +89,7 @@ async fn touch_sql_deleting(document_id: &str) -> ApiResult<()> {
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = document_id;
+        let _ = (pool, document_id);
         Ok(())
     }
 }
@@ -119,13 +122,14 @@ pub async fn admit_document_deleting(
         }
     }
 
+    let pool = state.optional_pg_pool();
     // Prefer document_id for SQL PK; fall back to key_prefix if id is non-UUID.
     if Uuid::parse_str(document_id).is_ok() {
-        touch_sql_deleting(document_id).await?;
+        touch_sql_deleting(pool, document_id).await?;
     } else if Uuid::parse_str(key_prefix).is_ok() {
-        touch_sql_deleting(key_prefix).await?;
+        touch_sql_deleting(pool, key_prefix).await?;
     } else {
-        let _ = touch_sql_deleting(document_id).await;
+        let _ = touch_sql_deleting(pool, document_id).await;
     }
     Ok(())
 }
@@ -158,10 +162,10 @@ pub async fn admit_documents_deleting(
 }
 
 /// Mirror `delete_failed` to SQL when resetting a stuck delete (LAW-098-9 parity).
-pub async fn touch_sql_delete_failed(document_id: &str) {
+pub async fn touch_sql_delete_failed(pool: crate::services::OptionalPgPool<'_>, document_id: &str) {
     #[cfg(feature = "postgres")]
     {
-        let Some(pool) = crate::services::relational_sidecar_store::sidecar_pool() else {
+        let Some(pool) = pool else {
             return;
         };
         let Ok(doc_uuid) = Uuid::parse_str(document_id) else {
@@ -171,7 +175,7 @@ pub async fn touch_sql_delete_failed(document_id: &str) {
             "UPDATE public.documents SET status = 'delete_failed', updated_at = NOW() WHERE id = $1",
         )
         .bind(doc_uuid)
-        .execute(pool.as_ref())
+        .execute(pool)
         .await
         {
             tracing::warn!(

@@ -18,10 +18,11 @@ use edgequake_storage::{PdfDocument, PdfDocumentStorage};
 /// Find a workspace-visible KV document id linked to `pdf_id`, if any.
 pub async fn find_kv_document_id_for_pdf(
     kv_storage: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
     pdf_id: &str,
     tenant_ctx: &TenantContext,
 ) -> Option<String> {
-    let scoped = load_scoped_document_metadata(kv_storage, tenant_ctx)
+    let scoped = load_scoped_document_metadata(kv_storage, pool, tenant_ctx)
         .await
         .ok()?;
 
@@ -52,11 +53,14 @@ pub async fn workspace_has_visible_document_for_pdf(
     }
 
     let pdf_id_str = pdf.pdf_id.to_string();
-    Ok(
-        find_kv_document_id_for_pdf(state.storage.kv_storage.as_ref(), &pdf_id_str, tenant_ctx)
-            .await
-            .is_some(),
+    Ok(find_kv_document_id_for_pdf(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+        &pdf_id_str,
+        tenant_ctx,
     )
+    .await
+    .is_some())
 }
 
 /// Remove a PDF row that no longer has a visible workspace document.

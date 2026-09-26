@@ -446,6 +446,8 @@ impl IngestionPersistConfig {
 pub struct IngestionPersistOutput {
     pub chunk_vector_ids: Vec<String>,
     pub merge_stats: MergeStats,
+    /// Durable P0 accepted the batch; graph and vector mutation belong to the worker.
+    pub awaiting_projection: bool,
 }
 
 /// Build batched chunk vector upsert entries from a processing result.
@@ -616,6 +618,14 @@ async fn persist_processing_result_impl(
                 stage_start.elapsed().as_secs_f64(),
             );
         }
+    }
+
+    if committed_relational {
+        return Ok(IngestionPersistOutput {
+            chunk_vector_ids: Vec::new(),
+            merge_stats: MergeStats::default(),
+            awaiting_projection: true,
+        });
     }
 
     let chunk_vectors = build_chunk_vector_batch(result, ctx, chunk_options);
@@ -823,6 +833,7 @@ async fn persist_processing_result_impl(
             Ok(IngestionPersistOutput {
                 chunk_vector_ids,
                 merge_stats: stats,
+                awaiting_projection: false,
             })
         }
         Ok(stats) => {
@@ -1376,5 +1387,70 @@ mod tests {
             b.merger_config.use_llm_summarization
         );
         assert!(!a.merger_config.use_llm_summarization);
+    }
+
+    struct AcceptingCommitter;
+
+    #[async_trait::async_trait]
+    impl edgequake_storage::contracts::IngestionCommitter for AcceptingCommitter {
+        async fn commit_batch(
+            &self,
+            command: &edgequake_storage::contracts::PreparedIngestionBatch,
+        ) -> edgequake_storage::contracts::AccessResult<edgequake_storage::contracts::CommitReceipt>
+        {
+            Ok(edgequake_storage::contracts::CommitReceipt {
+                request_key: command.idempotency_key.clone(),
+                command_digest: command.canonical_digest,
+                document_generation: command.ingest_generation,
+                committed: Vec::new(),
+                manifest_id: uuid::Uuid::nil(),
+                durable_commit_token: "test".into(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn durable_commit_does_not_write_graph_or_vectors() {
+        std::env::set_var("EDGEQUAKE_CHUNK_TEXT_AUTHORITY", "relational");
+        std::env::set_var("EDGEQUAKE_VECTOR_BACKEND", "legacy_tables");
+        let graph = Arc::new(MemoryGraphStorage::new("durable-owner"));
+        let vector = Arc::new(MemoryVectorStorage::new("durable-owner", 4));
+        vector.initialize().await.unwrap();
+        let chunks = Arc::new(edgequake_storage::MemoryChunkRepository::new());
+        let config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings::default(),
+            Arc::new(crate::merger::NoopEntitySink),
+            None,
+        )
+        .with_ingestion_authority(IngestionAuthority::DurableCommitter {
+            committer: Arc::new(AcceptingCommitter),
+            relational_chunks: chunks,
+            embedding_model_id: "test-model".into(),
+        });
+        let document_id = uuid::Uuid::new_v4();
+        let tenant_id = uuid::Uuid::new_v4();
+        let workspace_id = uuid::Uuid::new_v4();
+        let output = persist_processing_result(
+            graph.clone(),
+            vector,
+            &config,
+            &IngestionPersistContext::new(
+                document_id.to_string(),
+                Some(tenant_id.to_string()),
+                Some(workspace_id.to_string()),
+            )
+            .with_ingest_generation(1),
+            &sample_result(),
+            ChunkVectorBuildOptions::STANDARD,
+        )
+        .await
+        .expect("durable accept");
+        assert!(output.awaiting_projection);
+        assert_eq!(output.merge_stats.entities_created, 0);
+        let node_id = edgequake_storage::canonical_graph_node_id(workspace_id, "Sarah Chen");
+        assert!(graph.get_node(&node_id).await.unwrap().is_none());
+        std::env::remove_var("EDGEQUAKE_VECTOR_BACKEND");
+        std::env::remove_var("EDGEQUAKE_CHUNK_TEXT_AUTHORITY");
     }
 }

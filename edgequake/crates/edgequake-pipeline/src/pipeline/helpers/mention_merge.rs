@@ -9,9 +9,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use crate::merger::{
-    add_type_vote, merge_type_into_entity, resolve_majority_type, WeightPolicy,
-};
+use crate::merger::{add_type_vote, merge_type_into_entity, resolve_majority_type, WeightPolicy};
 
 /// Prefer the longer description string.
 pub fn prefer_longer_description(existing: &mut String, incoming: &str) {
@@ -21,7 +19,10 @@ pub fn prefer_longer_description(existing: &mut String, incoming: &str) {
 }
 
 /// True when `incoming` should replace the embed-text description segment.
-pub fn incoming_description_is_longer(existing_embed_text: &str, incoming_description: &str) -> bool {
+pub fn incoming_description_is_longer(
+    existing_embed_text: &str,
+    incoming_description: &str,
+) -> bool {
     let existing_len = existing_embed_text
         .split_once('\n')
         .map(|(_, d)| d.len())
@@ -47,13 +48,12 @@ pub fn merge_entity_type_vote(
 }
 
 /// Seed a fresh type ballot with an importance-weighted vote only.
-pub fn seed_entity_type_votes(incoming_type: &str, importance: f32) -> (String, HashMap<String, f64>) {
+pub fn seed_entity_type_votes(
+    incoming_type: &str,
+    importance: f32,
+) -> (String, HashMap<String, f64>) {
     let mut type_votes = HashMap::new();
-    add_type_vote(
-        &mut type_votes,
-        incoming_type,
-        importance.clamp(0.05, 1.0),
-    );
+    add_type_vote(&mut type_votes, incoming_type, importance.clamp(0.05, 1.0));
     let entity_type = resolve_majority_type(&type_votes, incoming_type);
     (entity_type, type_votes)
 }
@@ -82,7 +82,10 @@ pub fn union_chunk_ids(into: &mut BTreeSet<String>, extraction_chunk: &str, extr
 
 /// Prefer a filled optional string over empty/None.
 pub fn prefer_filled_option(existing: &mut Option<String>, incoming: &Option<String>) {
-    let needs_fill = existing.as_ref().map(|value| value.is_empty()).unwrap_or(true);
+    let needs_fill = existing
+        .as_ref()
+        .map(|value| value.is_empty())
+        .unwrap_or(true);
     if needs_fill {
         if let Some(value) = incoming {
             if !value.is_empty() {

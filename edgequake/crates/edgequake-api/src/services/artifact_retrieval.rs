@@ -102,7 +102,12 @@ async fn retrieve_document_artifact(
         .keys_with_prefix(&chunk_prefix)
         .await?;
 
-    let manifest = load_manifest(state.storage.kv_storage.as_ref(), document_id).await;
+    let manifest = load_manifest(
+        state.storage.kv_storage.as_ref(),
+        state.operational_stores.checkpoint_artifacts.as_deref(),
+        document_id,
+    )
+    .await;
     let multimodal_item_count = manifest.as_ref().map(|m| m.items.len()).unwrap_or(0);
 
     let meta_obj = metadata.as_object();
@@ -366,13 +371,17 @@ async fn retrieve_figure_artifact(
 ) -> ApiResult<ContextArtifactResponse> {
     verify_document_access(state.storage.kv_storage.as_ref(), document_id, tenant_ctx).await?;
 
-    let manifest = load_manifest(state.storage.kv_storage.as_ref(), document_id)
-        .await
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "No multimodal manifest for document '{document_id}'"
-            ))
-        })?;
+    let manifest = load_manifest(
+        state.storage.kv_storage.as_ref(),
+        state.operational_stores.checkpoint_artifacts.as_deref(),
+        document_id,
+    )
+    .await
+    .ok_or_else(|| {
+        ApiError::NotFound(format!(
+            "No multimodal manifest for document '{document_id}'"
+        ))
+    })?;
 
     let item = manifest
         .items
@@ -398,14 +407,18 @@ async fn retrieve_figure_artifact(
             message: None,
         });
 
-    let analyzed_text = load_mm_chunks(state.storage.kv_storage.as_ref(), document_id)
-        .await
-        .and_then(|chunks| {
-            chunks
-                .into_iter()
-                .find(|c| c.item_id == item_id)
-                .map(|c| c.text)
-        });
+    let analyzed_text = load_mm_chunks(
+        state.storage.kv_storage.as_ref(),
+        state.operational_stores.checkpoint_artifacts.as_deref(),
+        document_id,
+    )
+    .await
+    .and_then(|chunks| {
+        chunks
+            .into_iter()
+            .find(|c| c.item_id == item_id)
+            .map(|c| c.text)
+    });
 
     Ok(ContextArtifactResponse {
         artifact_type: "figure".into(),

@@ -46,7 +46,7 @@ pub async fn bootstrap_auth_identity_if_needed(
 
     #[cfg(feature = "postgres")]
     {
-        let Some(pool) = state.pg_pool.as_ref() else {
+        let Some(pool) = state.optional_pg_pool() else {
             return Ok(());
         };
 

@@ -64,7 +64,7 @@ pub async fn postgres_workspace_metrics(
     state: &AppState,
     workspace_id: Uuid,
 ) -> Option<(usize, u64, usize, usize)> {
-    state.pg_pool.as_ref()?;
+    state.optional_pg_pool()?;
 
     let stats = state
         .workspace_service
@@ -124,7 +124,7 @@ fn normalize_relational_status(status: &str) -> String {
 /// a legacy workspace id.
 #[cfg(feature = "postgres")]
 pub async fn list_relational_document_summaries(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> Result<Vec<DocumentSummary>, crate::error::ApiError> {
     use crate::error::ApiError;
@@ -257,7 +257,7 @@ pub struct RelationalDocumentScope {
 /// Look up a document in the relational `documents` table under tenant scope.
 #[cfg(feature = "postgres")]
 pub async fn relational_document_scope(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     document_id: &str,
     tenant_ctx: &TenantContext,
 ) -> Result<Option<RelationalDocumentScope>, crate::error::ApiError> {
@@ -322,7 +322,7 @@ pub async fn relational_document_scope<P>(
 /// Returns rows affected (0 = already absent — success for idempotent purge).
 #[cfg(feature = "postgres")]
 pub async fn delete_relational_document(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     document_id: &str,
     tenant_ctx: &TenantContext,
 ) -> Result<u64, crate::error::ApiError> {
@@ -381,7 +381,7 @@ pub async fn delete_relational_document<P>(
 /// Delete all relational `documents` rows for the request workspace (bulk delete SSOT).
 #[cfg(feature = "postgres")]
 pub async fn delete_relational_documents_for_workspace(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> Result<u64, crate::error::ApiError> {
     use crate::error::ApiError;

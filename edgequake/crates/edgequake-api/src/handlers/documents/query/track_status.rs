@@ -8,7 +8,7 @@ use crate::services::document_metadata_scan::load_scoped_document_metadata_for_p
 use crate::services::tenant_guard::{
     empty_track_status, has_full_tenant_context, warn_missing_tenant_context,
 };
-use crate::state::{StorageRuntime, TaskRuntime};
+use crate::state::{PostgresRuntime, StorageRuntime, TaskRuntime};
 
 use crate::handlers::documents_types::*;
 
@@ -29,6 +29,7 @@ use crate::handlers::documents_types::*;
 )]
 pub async fn get_track_status(
     State(storage): State<StorageRuntime>,
+    State(pg_runtime): State<PostgresRuntime>,
     State(tasks): State<TaskRuntime>,
     tenant_ctx: TenantContext,
     axum::extract::Path(track_id): axum::extract::Path<String>,
@@ -39,9 +40,14 @@ pub async fn get_track_status(
     }
 
     // SPEC-027 + SPEC-086: include staging in-flight docs (same SSOT as progress).
-    let metadata_values =
-        load_scoped_document_metadata_for_progress(storage.kv_storage.as_ref(), &tenant_ctx)
-            .await?;
+    // The pool is required: without it, relational membership is skipped and a
+    // finished batch looks missing after the KV cutover.
+    let metadata_values = load_scoped_document_metadata_for_progress(
+        storage.kv_storage.as_ref(),
+        pg_runtime.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await?;
 
     let mut track_docs: Vec<DocumentSummary> = Vec::new();
     let mut created_times: Vec<String> = Vec::new();

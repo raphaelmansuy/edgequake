@@ -18,6 +18,10 @@ pub use binding::{
 pub use error::{AccessError, AccessResult};
 pub use graph::{EdgeDirection, IncidentEdgesRequest, ScopedGraphRead, VersionedEdge};
 pub use ids::{DocumentId, EmbeddingKey, GraphEdgeKey, GraphNodeKey, TenantId, WorkspaceId};
+pub use ingestion_validate::{
+    checked_i64, decode_commit_receipt, last_included_cursor, payload_digest, physical_revision_id,
+    validate_prepared_ingestion_batch, ValidatedBatch, MAX_BATCH_RECORDS,
+};
 pub use operational::{
     ApiKey, CheckpointArtifactStore, IdentityStore, IdentityUser, RefreshToken, SessionStore,
     WorkspaceRecord, WorkspaceStore,
@@ -26,10 +30,6 @@ pub use projection::{
     all_contributors_serving, AckDelivery, ClaimDeliveries, DeliveryState, ProjectionDelivery,
     ProjectionEvent, ProjectionLedger, ProjectionOperation, QuarantineDelivery, RenewDelivery,
     VisibilityKey, VisibilityLifecycle, VisibilityRepository, VisibilityState,
-};
-pub use ingestion_validate::{
-    checked_i64, decode_commit_receipt, physical_revision_id, validate_prepared_ingestion_batch,
-    ValidatedBatch, MAX_BATCH_RECORDS,
 };
 pub use relational::{
     CommitReceipt, CommittedRevision, CursorPage, DeleteDocument, DeleteReceipt, Digest,

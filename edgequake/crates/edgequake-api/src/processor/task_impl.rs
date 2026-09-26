@@ -17,82 +17,86 @@ impl TaskProcessor for DocumentTaskProcessor {
         cancel_token: CancellationToken,
         fairness: Option<edgequake_tasks::FairnessPermit>,
     ) -> TaskResult<serde_json::Value> {
-        match task.task_type {
-            TaskType::Insert | TaskType::Upload => {
-                let data: TextInsertData =
-                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
-                        edgequake_tasks::TaskError::InvalidPayload(format!(
-                            "Invalid TextInsertData: {}",
-                            e
-                        ))
-                    })?;
-                self.process_text_insert(task, data, cancel_token, fairness)
-                    .await
+        let ports = self.installed_operational_ports();
+        crate::services::relational_sidecar_store::with_ports(ports, async {
+            match task.task_type {
+                TaskType::Insert | TaskType::Upload => {
+                    let data: TextInsertData = serde_json::from_value(task.task_data.clone())
+                        .map_err(|e| {
+                            edgequake_tasks::TaskError::InvalidPayload(format!(
+                                "Invalid TextInsertData: {}",
+                                e
+                            ))
+                        })?;
+                    self.process_text_insert(task, data, cancel_token, fairness)
+                        .await
+                }
+                TaskType::Scan => Err(edgequake_tasks::TaskError::UnsupportedOperation(
+                    "Directory scanning not yet implemented".to_string(),
+                )),
+                TaskType::Reindex => Err(edgequake_tasks::TaskError::UnsupportedOperation(
+                    "Reindexing not yet implemented".to_string(),
+                )),
+                TaskType::PdfProcessing => {
+                    let _hold = fairness;
+                    let data: edgequake_tasks::PdfProcessingData =
+                        serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                            edgequake_tasks::TaskError::InvalidPayload(format!(
+                                "Invalid PdfProcessingData: {}",
+                                e
+                            ))
+                        })?;
+                    self.process_pdf_processing(task, data, cancel_token).await
+                }
+                TaskType::KnowledgeInjection => {
+                    let _hold = fairness;
+                    let data: KnowledgeInjectionData =
+                        serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                            edgequake_tasks::TaskError::InvalidPayload(format!(
+                                "Invalid KnowledgeInjectionData: {}",
+                                e
+                            ))
+                        })?;
+                    self.process_knowledge_injection(task, data, cancel_token)
+                        .await
+                }
+                TaskType::Deletion => {
+                    let _hold = fairness;
+                    let data: edgequake_tasks::DeletionTaskData =
+                        serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                            edgequake_tasks::TaskError::InvalidPayload(format!(
+                                "Invalid DeletionTaskData: {}",
+                                e
+                            ))
+                        })?;
+                    self.process_document_deletion(task, data, cancel_token)
+                        .await
+                }
+                TaskType::BatchDeletion => {
+                    let _hold = fairness;
+                    let data: edgequake_tasks::BatchDeletionTaskData =
+                        serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                            edgequake_tasks::TaskError::InvalidPayload(format!(
+                                "Invalid BatchDeletionTaskData: {}",
+                                e
+                            ))
+                        })?;
+                    self.process_batch_deletion(task, data, cancel_token).await
+                }
+                TaskType::WorkspaceWipe => {
+                    let _hold = fairness;
+                    let data: edgequake_tasks::WorkspaceWipeTaskData =
+                        serde_json::from_value(task.task_data.clone()).map_err(|e| {
+                            edgequake_tasks::TaskError::InvalidPayload(format!(
+                                "Invalid WorkspaceWipeTaskData: {}",
+                                e
+                            ))
+                        })?;
+                    self.process_workspace_wipe(task, data, cancel_token).await
+                }
             }
-            TaskType::Scan => Err(edgequake_tasks::TaskError::UnsupportedOperation(
-                "Directory scanning not yet implemented".to_string(),
-            )),
-            TaskType::Reindex => Err(edgequake_tasks::TaskError::UnsupportedOperation(
-                "Reindexing not yet implemented".to_string(),
-            )),
-            TaskType::PdfProcessing => {
-                let _hold = fairness;
-                let data: edgequake_tasks::PdfProcessingData =
-                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
-                        edgequake_tasks::TaskError::InvalidPayload(format!(
-                            "Invalid PdfProcessingData: {}",
-                            e
-                        ))
-                    })?;
-                self.process_pdf_processing(task, data, cancel_token).await
-            }
-            TaskType::KnowledgeInjection => {
-                let _hold = fairness;
-                let data: KnowledgeInjectionData = serde_json::from_value(task.task_data.clone())
-                    .map_err(|e| {
-                    edgequake_tasks::TaskError::InvalidPayload(format!(
-                        "Invalid KnowledgeInjectionData: {}",
-                        e
-                    ))
-                })?;
-                self.process_knowledge_injection(task, data, cancel_token)
-                    .await
-            }
-            TaskType::Deletion => {
-                let _hold = fairness;
-                let data: edgequake_tasks::DeletionTaskData =
-                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
-                        edgequake_tasks::TaskError::InvalidPayload(format!(
-                            "Invalid DeletionTaskData: {}",
-                            e
-                        ))
-                    })?;
-                self.process_document_deletion(task, data, cancel_token)
-                    .await
-            }
-            TaskType::BatchDeletion => {
-                let _hold = fairness;
-                let data: edgequake_tasks::BatchDeletionTaskData =
-                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
-                        edgequake_tasks::TaskError::InvalidPayload(format!(
-                            "Invalid BatchDeletionTaskData: {}",
-                            e
-                        ))
-                    })?;
-                self.process_batch_deletion(task, data, cancel_token).await
-            }
-            TaskType::WorkspaceWipe => {
-                let _hold = fairness;
-                let data: edgequake_tasks::WorkspaceWipeTaskData =
-                    serde_json::from_value(task.task_data.clone()).map_err(|e| {
-                        edgequake_tasks::TaskError::InvalidPayload(format!(
-                            "Invalid WorkspaceWipeTaskData: {}",
-                            e
-                        ))
-                    })?;
-                self.process_workspace_wipe(task, data, cancel_token).await
-            }
-        }
+        })
+        .await
     }
 
     /// Called when a task has permanently failed (retries exhausted or circuit breaker tripped).

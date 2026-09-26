@@ -860,14 +860,6 @@ enum EscalationPageStatus {
 
 /// Single-page re-transcription call for escalation (DRY with the verify
 /// pass's refine: same image load, same timeout, same prompt SSOT).
-async fn reocr_page(
-    provider: &dyn LLMProvider,
-    png_path: &Path,
-    modality: PageModality,
-) -> Result<String, String> {
-    reocr_page_with_timeout(provider, png_path, modality, PER_CALL_TIMEOUT).await
-}
-
 async fn reocr_page_with_timeout(
     provider: &dyn LLMProvider,
     png_path: &Path,

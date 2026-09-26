@@ -59,7 +59,7 @@ async fn load_document_metadata(state: &AppState, document_id: &str) -> ApiResul
     let metadata_key = metadata_key_for_document(document_id);
 
     #[cfg(feature = "postgres")]
-    if let Some(pool) = state.pg_pool.as_ref() {
+    if let Some(pool) = state.optional_pg_pool() {
         if let Some(value) =
             edgequake_storage::adapters::postgres::document_shell::shell_value_by_key(
                 pool,

@@ -2,6 +2,7 @@
 
 use crate::error::{AccessError, AccessResult};
 use crate::relational::{CommitReceipt, PreparedIngestionBatch, PreparedRecord};
+use sha2::{Digest as _, Sha256};
 use uuid::Uuid;
 
 /// Hard cap shared by every authority adapter.
@@ -40,9 +41,8 @@ pub fn validate_prepared_ingestion_batch(
     checked_i64(command.ingest_generation, "ingest generation")?;
     // Reject widths Postgres INT columns cannot store so SQLite cannot admit
     // values that would fail on P0.
-    let _schema_i32 = i32::try_from(command.schema_version).map_err(|_| {
-        AccessError::InvalidInput("schema version exceeds i32".into())
-    })?;
+    let _schema_i32 = i32::try_from(command.schema_version)
+        .map_err(|_| AccessError::InvalidInput("schema version exceeds i32".into()))?;
     let batch_ordinal = i32::try_from(command.batch_ordinal)
         .map_err(|_| AccessError::InvalidInput("batch ordinal exceeds i32".into()))?;
     let expected_revision = command
@@ -80,6 +80,12 @@ pub fn validate_prepared_ingestion_batch(
                 )));
             }
             checked_i64(record.revision, "record revision")?;
+            if record.digest != payload_digest(&record.payload) {
+                return Err(AccessError::InvalidInput(format!(
+                    "{kind} {} digest does not match its payload",
+                    record.id
+                )));
+            }
             if !logical_keys.insert((kind, record.id, record.revision)) {
                 let conflict = records.iter().find(|prior| {
                     prior.id == record.id
@@ -108,6 +114,20 @@ pub fn validate_prepared_ingestion_batch(
         expected_revision,
         expected_count,
     })
+}
+
+/// SHA-256 of the exact persisted payload bytes.
+pub fn payload_digest(payload: &[u8]) -> [u8; 32] {
+    Sha256::digest(payload).into()
+}
+
+/// Cursor is the last returned id. The extra lookahead row is not the cursor.
+pub fn last_included_cursor(limit: usize, ids: &[impl ToString]) -> Option<String> {
+    if limit == 0 || ids.len() <= limit {
+        None
+    } else {
+        ids.get(limit - 1).map(|id| id.to_string())
+    }
 }
 
 /// Convert a non-negative `u64` into a signed integer for BIGINT / INTEGER binds.
@@ -186,12 +206,14 @@ mod tests {
         }
     }
 
-    fn record(id: Uuid, revision: u64, digest: [u8; 32]) -> PreparedRecord {
+    fn record(id: Uuid, revision: u64, marker: [u8; 32]) -> PreparedRecord {
+        let mut payload = b"payload".to_vec();
+        payload.extend_from_slice(&marker);
         PreparedRecord {
             id,
             revision,
-            digest,
-            payload: b"payload".to_vec(),
+            digest: payload_digest(&payload),
+            payload,
         }
     }
 
@@ -216,7 +238,9 @@ mod tests {
         let mut command = base_command();
         command.facts.push(record(Uuid::new_v4(), 0, [2; 32]));
         let err = validate_prepared_ingestion_batch(&command).unwrap_err();
-        assert!(err.to_string().contains("revision must be greater than zero"));
+        assert!(err
+            .to_string()
+            .contains("revision must be greater than zero"));
     }
 
     #[test]
@@ -250,6 +274,23 @@ mod tests {
             .collect();
         let err = validate_prepared_ingestion_batch(&command).unwrap_err();
         assert!(err.to_string().contains("maximum is"));
+    }
+
+    #[test]
+    fn page_cursor_is_the_last_included_id() {
+        let ids = ["a", "b", "c"];
+        assert_eq!(last_included_cursor(2, &ids).as_deref(), Some("b"));
+        assert_eq!(last_included_cursor(3, &ids), None);
+    }
+
+    #[test]
+    fn rejects_payload_digest_mismatch() {
+        let mut command = base_command();
+        let mut fact = record(Uuid::new_v4(), 1, [2; 32]);
+        fact.digest = [0; 32];
+        command.facts.push(fact);
+        let err = validate_prepared_ingestion_batch(&command).unwrap_err();
+        assert!(err.to_string().contains("does not match its payload"));
     }
 
     #[test]

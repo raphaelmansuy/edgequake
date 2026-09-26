@@ -42,9 +42,10 @@ pub struct CostSummaryTotals {
 /// Load billable document cost rows scoped to tenant/workspace (legacy alias SSOT).
 pub async fn load_scoped_document_cost_rows(
     kv_storage: &Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
     tenant_ctx: &TenantContext,
 ) -> ApiResult<Vec<DocumentCostRow>> {
-    let values = load_scoped_document_metadata(kv_storage.as_ref(), tenant_ctx).await?;
+    let values = load_scoped_document_metadata(kv_storage.as_ref(), pool, tenant_ctx).await?;
     Ok(values
         .iter()
         .filter_map(|value| parse_cost_row(value, tenant_ctx))

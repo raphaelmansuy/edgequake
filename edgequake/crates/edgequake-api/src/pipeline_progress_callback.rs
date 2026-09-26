@@ -321,9 +321,7 @@ impl PipelineProgressCallback {
         let total = self.total_pages.load(Ordering::Relaxed).max(1);
         let completed = self.completed_pages.load(Ordering::Relaxed).min(total);
         let msg = stage_message.into();
-        let message = if matches!(band, ConvertingProgressBand::Complete) {
-            msg
-        } else if msg.contains(" — ") {
+        let message = if matches!(band, ConvertingProgressBand::Complete) || msg.contains(" — ") {
             msg
         } else {
             format!("{completed}/{total} — {msg}")
@@ -465,6 +463,7 @@ impl PipelineProgressCallback {
         }
     }
 
+    #[allow(clippy::too_many_arguments)] // maps onto PdfPageProgressPayload fields
     fn emit_pdf_progress(
         &self,
         page_num: u32,

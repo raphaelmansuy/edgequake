@@ -9,7 +9,7 @@ use tracing::{info, warn};
 
 use crate::{
     GraphProjectionApplier, ProjectionWorkLedger, ProjectionWorker, ProjectionWorkerConfig,
-    VectorProjectionApplier,
+    ServingFenceOpener, VectorProjectionApplier,
 };
 
 /// Cancellable projection replay runtime owned by `AppState`.
@@ -29,8 +29,37 @@ impl ProjectionWorkerRuntime {
         config: ProjectionWorkerConfig,
         poll_interval: Duration,
     ) -> Self {
+        Self::spawn_with_serving_fence(
+            owner_token,
+            ledger,
+            graph,
+            vector,
+            config,
+            poll_interval,
+            None,
+        )
+    }
+
+    /// Like [`spawn`], and opens the SPEC-091 serving fence after settled
+    /// `document_batch` projection acks when `serving_fence` is set.
+    pub fn spawn_with_serving_fence(
+        owner_token: uuid::Uuid,
+        ledger: Arc<dyn ProjectionWorkLedger>,
+        graph: Arc<dyn GraphProjectionApplier>,
+        vector: Arc<dyn VectorProjectionApplier>,
+        config: ProjectionWorkerConfig,
+        poll_interval: Duration,
+        serving_fence: Option<Arc<dyn ServingFenceOpener>>,
+    ) -> Self {
         let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
-        let worker = ProjectionWorker::new(owner_token, ledger, graph, vector, config);
+        let worker = ProjectionWorker::with_serving_fence(
+            owner_token,
+            ledger,
+            graph,
+            vector,
+            config,
+            serving_fence,
+        );
         let join = tokio::spawn(async move {
             let mut interval = tokio::time::interval(poll_interval);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

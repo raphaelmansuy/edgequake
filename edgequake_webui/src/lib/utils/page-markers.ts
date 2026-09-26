@@ -57,16 +57,22 @@ export function hasPageMarkers(markdown: string | null | undefined): boolean {
  * Replace each `<!-- edgequake-page:N -->` with a DOM anchor.
  * Duplicate page numbers keep a single `id` (first wins); later duplicates
  * get `data-eq-page` without id to avoid invalid HTML.
+ *
+ * The extra newline terminates the CommonMark HTML block. The marker regex
+ * does not consume the newline after the comment, so the anchor plus that
+ * leftover newline is a blank line. Without it, the next source line (a
+ * figure image, heading, or list) is swallowed into the anchor's html token
+ * and never rendered.
  */
 export function injectPageAnchors(markdown: string): string {
   const seenIds = new Set<number>();
   return markdown.replace(PAGE_MARKER_RE, (_full, pageStr: string) => {
     const n = parseInt(pageStr, 10);
     if (!Number.isFinite(n) || n < 1) return '';
-    if (seenIds.has(n)) {
-      return `<div data-eq-page="${n}" class="eq-page-anchor" aria-hidden="true">&#8203;</div>`;
-    }
+    const anchor = seenIds.has(n)
+      ? `<div data-eq-page="${n}" class="eq-page-anchor" aria-hidden="true">&#8203;</div>`
+      : pageAnchorHtml(n);
     seenIds.add(n);
-    return pageAnchorHtml(n);
+    return `${anchor}\n`;
   });
 }

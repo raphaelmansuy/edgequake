@@ -349,7 +349,7 @@ impl DocumentTaskProcessor {
         }
 
         #[cfg(feature = "postgres")]
-        if let Some(pool) = self.pg_pool.as_ref() {
+        if let Some(pool) = self.optional_pg_pool() {
             if let Err(e) = sqlx::query(
                 r#"
                 UPDATE public.documents

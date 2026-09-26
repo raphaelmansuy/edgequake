@@ -155,7 +155,7 @@ async fn fresh_migrate_applies_150_provider_access_ledger() {
 }
 
 #[tokio::test]
-async fn five_identical_commits_return_one_durable_receipt() {
+async fn twenty_identical_commits_return_one_durable_receipt() {
     let Some((_config, pool, tenant_id, workspace_id)) = setup("spec149_concurrent").await else {
         return;
     };

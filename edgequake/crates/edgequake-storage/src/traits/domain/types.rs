@@ -25,7 +25,6 @@ impl From<Uuid> for ChunkId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelId(pub Uuid);
 
-
 /// Authoritative chunk row for relational insert.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chunk {

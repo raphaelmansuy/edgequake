@@ -24,6 +24,7 @@ use crate::serving_fence::serving_fence_enabled_from_env;
 use crate::traits::VectorSearchResult;
 
 static FENCE_FILTERED_TOTAL: AtomicU64 = AtomicU64::new(0);
+static FENCE_OPENED_TOTAL: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone)]
 pub struct PgVisibilityRepository {
@@ -165,6 +166,18 @@ ORDER BY r.ordinal
 /// Results hidden by the serving fence since process start (SRE signal).
 pub fn serving_fence_filtered_total() -> u64 {
     FENCE_FILTERED_TOTAL.load(Ordering::Relaxed)
+}
+
+/// Chunks marked `ready` by the single serving-fence writer since process start.
+pub fn serving_fence_opened_total() -> u64 {
+    FENCE_OPENED_TOTAL.load(Ordering::Relaxed)
+}
+
+/// Record rows touched when opening the fence (call only from the storage writer).
+pub(crate) fn record_serving_fence_opened(rows: u64) {
+    if rows > 0 {
+        FENCE_OPENED_TOTAL.fetch_add(rows, Ordering::Relaxed);
+    }
 }
 
 /// Post-filter `results` by serving readiness. No-op when the fence is off.

@@ -60,12 +60,20 @@ fn e2e_107_r2_inv_c_chunks_by_batch_limit() {
         src.contains("inv_c_gin_node_counts_one_batch"),
         "INV-C must split into one_batch round-trips"
     );
+    let batches = include_str!("../src/storage_inspector/inv_c_batches.rs");
     assert!(
-        src.contains("prefixes.chunks(batch_limit)"),
-        "INV-C must chunk prefixes (not one-shot ≤50)"
+        batches.contains("let mut limit = batch_limit.max(1);")
+            && batches.contains("&prefixes[cursor..(cursor + limit).min(prefixes.len())]"),
+        "INV-C must chunk prefixes at SOURCE_PREFIX_BATCH_LIMIT (not one-shot ≤50)"
     );
     assert!(
-        src.contains("DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES"),
+        batches.contains("\"57014\"") && batches.contains("limit = batch.len() / 2;"),
+        "INV-C must halve only statement-timeout batches (SPEC-149)"
+    );
+    assert!(
+        src.contains("edgequake_storage::node_counts_by_source_prefixes_sql(")
+            && edgequake_storage::node_counts_by_source_prefixes_sql("g")
+                .contains("DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES"),
         "INV-C SQL must keep the shared dataop marker"
     );
     let read = include_str!("../src/document_read_model.rs");
@@ -106,8 +114,20 @@ fn e2e_104_03_source_inv03_dual_presence() {
         "INV-03 must cover terminal indexed|completed (SPEC-107)"
     );
     assert!(
-        src.contains("inv_c_gin_batch"),
-        "INV-C skip must emit fail-visible schema issue (SPEC-107 LAW-I2)"
+        src.contains("INV-C: batched GIN entity count failed — skipping"),
+        "INV-C GIN failure must stay log-visible (SPEC-107 LAW-I2)"
+    );
+    assert!(
+        src.contains("\"inv_c_skipped\""),
+        "INV-C skip must emit Info-level inv_c_skipped (visible, not drift)"
+    );
+    assert!(
+        src.contains("Severity::Info"),
+        "INV-C skip must use Severity::Info so has_warning stays false"
+    );
+    assert!(
+        !src.contains("\"inv_c_gin_batch\""),
+        "a timed-out INV-C sample must not use the old Warning inv_c_gin_batch name"
     );
     assert!(
         src.contains("chunk_embeddings"),
@@ -141,6 +161,32 @@ fn e2e_384_source_inv07_inflight_without_task() {
     assert!(
         src.contains("inflight_orphan_minutes"),
         "INV-07 must age-filter past the early-admit window"
+    );
+    assert!(
+        src.contains("object_kind = 'document_batch'"),
+        "INV-07 must exclude docs that already have a document_batch projection event"
+    );
+}
+
+#[test]
+fn one_serving_writer_list_stays_read_only() {
+    let list = include_str!("../src/services/list_run_enrich.rs");
+    assert!(
+        !list.contains("open_serving_fence_when_deliveries_settled"),
+        "GET /documents must not mutate chunk_serving_state"
+    );
+    assert!(
+        list.contains("chunk_serving_state"),
+        "list must still read chunk_serving_state for query_ready"
+    );
+    let reconcile = include_str!("../src/services/pending_doc_task_reconcile.rs");
+    assert!(
+        reconcile.contains("open_settled_serving_fences_bounded"),
+        "reconcile must use one bounded fence open"
+    );
+    assert!(
+        !reconcile.contains("try_heal_serving_fence_indexed"),
+        "per-document fence heal must be removed"
     );
 }
 
@@ -182,6 +228,28 @@ fn e2e_104_05_source_gin_check_all_graphs() {
         src.contains("ag_catalog.ag_graph"),
         "must discover eq_*_graph from ag_catalog"
     );
+}
+
+/// SPEC-149: INV-C must count with the storage SSOT (both lineage GIN arms),
+/// never a hand-copied CTE that can drift from `analytics_ops`.
+#[test]
+fn e2e_149_inv_c_uses_storage_count_sql_ssot() {
+    let src = include_str!("../src/storage_inspector.rs");
+    assert!(
+        src.contains("edgequake_storage::node_counts_by_source_prefixes_sql("),
+        "INV-C must build its count SQL from edgequake_storage"
+    );
+    assert!(
+        !src.contains("-> 'source_ids')") && !src.contains("-> 'source_chunk_ids')"),
+        "INV-C must not inline lineage GIN predicates"
+    );
+    let sql = edgequake_storage::node_counts_by_source_prefixes_sql("g");
+    for key in edgequake_storage::INDEXED_LINEAGE_ARRAY_KEYS {
+        assert!(
+            sql.contains(&format!("-> '{key}') @>")),
+            "shared count SQL must GIN-probe {key}: {sql}"
+        );
+    }
 }
 
 #[test]

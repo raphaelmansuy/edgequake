@@ -11,6 +11,8 @@ use crate::StorageError;
 
 const MIGRATION: &str = include_str!("../../../migrations_sqlite/001_provider_access.sql");
 const MIGRATION_002: &str = include_str!("../../../migrations_sqlite/002_graph_contributions.sql");
+const MIGRATION_003: &str =
+    include_str!("../../../migrations_sqlite/003_projection_event_manifests.sql");
 
 pub async fn connect_sqlite(path: impl AsRef<str>) -> Result<SqlitePool, StorageError> {
     validate_sqlite_deployment(path.as_ref())?;
@@ -49,6 +51,10 @@ pub async fn connect_sqlite(path: impl AsRef<str>) -> Result<SqlitePool, Storage
         .await
         .map_err(sqlite_error)?;
     sqlx::raw_sql(MIGRATION_002)
+        .execute(&pool)
+        .await
+        .map_err(sqlite_error)?;
+    sqlx::raw_sql(MIGRATION_003)
         .execute(&pool)
         .await
         .map_err(sqlite_error)?;

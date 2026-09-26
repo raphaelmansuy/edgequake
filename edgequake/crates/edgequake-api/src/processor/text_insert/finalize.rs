@@ -63,7 +63,7 @@ impl DocumentTaskProcessor {
             // SPEC-091 W2: typed ingestion_dedup promote (dual write).
             #[cfg(feature = "postgres")]
             crate::services::ingestion_dedup_store::dual_promote(
-                self.pg_pool.as_ref(),
+                self.optional_pg_pool(),
                 &ws,
                 hash,
                 &document_id,
@@ -152,6 +152,7 @@ impl DocumentTaskProcessor {
                     } else {
                         // SPEC-091 Wave B5: typed artifact dual-write (warn-only).
                         crate::services::relational_sidecar_store::typed_artifact_put(
+                            self.checkpoint_store(),
                             &document_id,
                             crate::services::relational_sidecar_store::ARTIFACT_KIND_LINEAGE,
                             &lineage_json,
@@ -204,6 +205,7 @@ impl DocumentTaskProcessor {
             let prepared = &persisted.prepared;
             if let Err(e) = super::pipeline_checkpoint::save_extraction_snapshot(
                 &self.kv_storage,
+                self.checkpoint_store(),
                 &document_id,
                 &result,
                 &prepared.data.workspace_id,
@@ -219,8 +221,12 @@ impl DocumentTaskProcessor {
                     "P7e: failed to save extraction snapshot (non-fatal)"
                 );
             }
-            super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id)
-                .await;
+            super::pipeline_checkpoint::clear_pipeline_checkpoint(
+                &self.kv_storage,
+                self.checkpoint_store(),
+                &document_id,
+            )
+            .await;
         }
 
         // Log success

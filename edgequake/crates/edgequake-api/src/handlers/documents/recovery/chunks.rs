@@ -432,7 +432,7 @@ pub async fn list_failed_chunks(
 
     #[cfg(feature = "postgres")]
     let failed_chunks: Vec<FailedChunkInfo> = {
-        if let Some(pool) = state.pg_pool.as_ref() {
+        if let Some(pool) = state.optional_pg_pool() {
             match edgequake_storage::failed_chunks::postgres::list_failed_chunks(pool, &document_id)
                 .await
             {

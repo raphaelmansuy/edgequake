@@ -1579,10 +1579,7 @@ Figure 1: COLLEAGUE.SKILL architecture for automated person-grounded skill gener
         let normalized = normalize_selected_vision_pages(&pages, &selected, "");
         assert_eq!(normalized.len(), 3);
         assert_eq!(
-            normalized
-                .iter()
-                .map(|p| p.page_num)
-                .collect::<Vec<_>>(),
+            normalized.iter().map(|p| p.page_num).collect::<Vec<_>>(),
             vec![1, 2, 5]
         );
         assert!(normalized[0].markdown.is_empty());
@@ -1636,11 +1633,8 @@ Figure 1: COLLEAGUE.SKILL architecture for automated person-grounded skill gener
             None,
         );
         // Simulate the old bug: full-document normalize would inject placeholders.
-        let buggy_ms = assemble_vision_markdown(
-            &normalize_vision_pages(&ms_slices, 25, ""),
-            false,
-            None,
-        );
+        let buggy_ms =
+            assemble_vision_markdown(&normalize_vision_pages(&ms_slices, 25, ""), false, None);
         let buggy = stitch_page_markdown_in_order(&[print_md.clone(), buggy_ms]);
         // Without prefer_page_section, page 1 would be placeholder — with it, print wins.
         assert!(buggy.contains("print-1"));

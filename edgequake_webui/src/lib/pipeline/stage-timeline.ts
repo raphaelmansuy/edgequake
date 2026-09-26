@@ -283,12 +283,12 @@ export function formatStepDetailLine(detail?: StageStepDetail): string | null {
     const unit = detail.unit ? ` ${detail.unit}` : "";
     const pct =
       typeof detail.progress01 === "number"
-        ? ` · ${Math.round(detail.progress01 * 100)}%`
+        ? ` · ${Math.round(Math.min(1, Math.max(0, detail.progress01)) * 100)}%`
         : "";
     return `${detail.current}/${detail.total}${unit}${pct}`;
   }
   if (typeof detail.progress01 === "number" && detail.progress01 > 0) {
-    return `${Math.round(detail.progress01 * 100)}%`;
+    return `${Math.round(Math.min(1, Math.max(0, detail.progress01)) * 100)}%`;
   }
   if (detail.message && detail.message.trim()) {
     // Prefer short message without repeating stage label noise

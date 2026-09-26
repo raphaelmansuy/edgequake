@@ -73,7 +73,7 @@ pub async fn count_workspace_documents_for_quota(
     kv: &dyn KVStorage,
     workspace_id: &str,
 ) -> ApiResult<usize> {
-    let committed = list_workspace_metadata_keys(kv, workspace_id)
+    let committed = list_workspace_metadata_keys(kv, None, workspace_id)
         .await
         .map_err(|e| ApiError::Internal(format!("quota wsdoc scan failed: {e}")))?;
     let staging = count_staging_docs_for_workspace(kv, workspace_id).await?;

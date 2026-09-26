@@ -56,6 +56,28 @@ pub fn require_or_skip_postgres(namespace_prefix: &str) -> Option<PostgresConfig
     None
 }
 
+/// Like [`require_or_skip_postgres`], but forces an exact namespace string.
+///
+/// Used by process-kill parent/child pairs that must share one AGE graph.
+pub fn require_or_skip_postgres_exact(namespace: &str) -> Option<PostgresConfig> {
+    let Some(mut cfg) = contract_postgres_config("spec149_kill") else {
+        let strict = env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
+            .ok()
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        if strict {
+            panic!(
+                "EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 but DATABASE_URL/POSTGRES_PASSWORD missing \
+                 (also checked /tmp/edgequake-db-url)"
+            );
+        }
+        eprintln!("SKIP: no DATABASE_URL / POSTGRES_PASSWORD");
+        return None;
+    };
+    cfg.namespace = namespace.to_string();
+    Some(cfg)
+}
+
 /// Build a postgres config when `DATABASE_URL` or `POSTGRES_PASSWORD` is set; otherwise `None`.
 ///
 /// The resolved database is redirected to a dedicated scratch test database
@@ -254,6 +276,12 @@ async fn repair_test_db_migration_checksums(pool: &sqlx::PgPool) {
             131,
             "d6bc6c00b753f8599248dda86ce5d314e147491bcbb9932273c43afcbfc84a5d51c6a797387dfffeeca00588dc02c896",
             "1b42205577666dc31fa346c42eb8e787c78208b6438da2822245ec61d65f3d538df8f985b132b7e3a3930b7272c87a14",
+        ),
+        // SPEC-149: migration 150 lost a trailing blank line after it was applied.
+        (
+            150,
+            "44a80b5981ab8f7bff59cb9d4e45c54cf921bca584724e9ba05707b07281cc1ffa56c7eede83a8a4fb0378fb6dd26e55",
+            "4392854c4daf5bcf8204f178dd1ad6c0b9cfdc094d5a120b4880a1f99ed254b5ced55829c18de21b13efa4c2402c9c6a",
         ),
     ];
     let Ok(exists): Result<bool, _> =

@@ -28,6 +28,7 @@ pub fn is_active_processing_status(status: &str) -> bool {
             | "merging"
             | "summarizing"
             | "storing"
+            | "projecting"
     )
 }
 

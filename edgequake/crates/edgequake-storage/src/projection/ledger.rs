@@ -22,23 +22,52 @@ pub trait ProjectionWorkLedger: Send + Sync {
 
     async fn renew_work(&self, request: &RenewDelivery) -> AccessResult<()>;
 
+    /// One fenced renew for many deliveries. Returns pairs that still match.
+    async fn renew_work_batch(&self, requests: &[RenewDelivery])
+        -> AccessResult<Vec<(Uuid, Uuid)>>;
+
     async fn acknowledge(&self, request: &AckDelivery) -> AccessResult<ProjectionDelivery>;
+
+    /// One fenced ack + visibility insert for many deliveries.
+    /// Returns pairs that were applied.
+    async fn acknowledge_batch(&self, requests: &[AckDelivery]) -> AccessResult<Vec<(Uuid, Uuid)>>;
 
     async fn quarantine_work(
         &self,
         request: &QuarantineDelivery,
     ) -> AccessResult<ProjectionDelivery>;
+
+    /// Return a leased delivery to the retry queue without waiting for expiry.
+    async fn release_for_retry(&self, request: &RenewDelivery, backoff_ms: u64)
+        -> AccessResult<()>;
 }
 
 /// PostgreSQL implementation of the durable delivery ledger.
+///
+/// By default an ack that settles a `document_batch` also opens its SPEC-091
+/// serving fence in the same transaction, so "applied" and "servable" commit
+/// together.
 #[derive(Clone)]
 pub struct PgProjectionLedger {
     pool: PgPool,
+    open_serving_fence: bool,
 }
 
 impl PgProjectionLedger {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            open_serving_fence: true,
+        }
+    }
+
+    /// Ack without opening the serving fence: reproduces a settled-but-unservable
+    /// document so reconcile heal paths can be tested.
+    pub fn without_serving_fence_open(pool: PgPool) -> Self {
+        Self {
+            pool,
+            open_serving_fence: false,
+        }
     }
 
     pub fn pool(&self) -> &PgPool {
@@ -75,8 +104,52 @@ impl ProjectionWorkLedger for PgProjectionLedger {
         Ok(())
     }
 
+    async fn renew_work_batch(
+        &self,
+        requests: &[RenewDelivery],
+    ) -> AccessResult<Vec<(Uuid, Uuid)>> {
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+        let owner = requests[0].owner_token;
+        let lease_duration_ms = requests[0].lease_duration_ms;
+        validate_lease_duration(lease_duration_ms)?;
+        for request in requests {
+            if request.owner_token != owner {
+                return Err(AccessError::InvalidInput(
+                    "renew_work_batch requires a single owner_token".into(),
+                ));
+            }
+            if request.lease_duration_ms != lease_duration_ms {
+                return Err(AccessError::InvalidInput(
+                    "renew_work_batch requires a single lease_duration_ms".into(),
+                ));
+            }
+        }
+        let event_ids: Vec<Uuid> = requests.iter().map(|r| r.event_id).collect();
+        let binding_ids: Vec<Uuid> = requests.iter().map(|r| r.binding_id).collect();
+        let mut epochs = Vec::with_capacity(requests.len());
+        for request in requests {
+            epochs.push(checked_epoch(request.epoch)?);
+        }
+        let rows = sqlx::query_as::<_, (Uuid, Uuid)>(RENEW_BATCH_SQL)
+            .bind(&event_ids)
+            .bind(&binding_ids)
+            .bind(&epochs)
+            .bind(lease_ms(lease_duration_ms)?)
+            .bind(owner)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(database_error)?;
+        Ok(rows)
+    }
+
     async fn acknowledge(&self, request: &AckDelivery) -> AccessResult<ProjectionDelivery> {
-        acknowledge(&self.pool, request).await
+        acknowledge(&self.pool, request, self.open_serving_fence).await
+    }
+
+    async fn acknowledge_batch(&self, requests: &[AckDelivery]) -> AccessResult<Vec<(Uuid, Uuid)>> {
+        acknowledge_batch(&self.pool, requests, self.open_serving_fence).await
     }
 
     async fn quarantine_work(
@@ -84,6 +157,29 @@ impl ProjectionWorkLedger for PgProjectionLedger {
         request: &QuarantineDelivery,
     ) -> AccessResult<ProjectionDelivery> {
         quarantine(&self.pool, request).await
+    }
+
+    async fn release_for_retry(
+        &self,
+        request: &RenewDelivery,
+        backoff_ms: u64,
+    ) -> AccessResult<()> {
+        let backoff = i64::try_from(backoff_ms.min(MAX_LEASE_MS))
+            .map_err(|_| AccessError::InvalidInput("retry backoff exceeds i64".into()))?;
+        let updated = sqlx::query(RELEASE_FOR_RETRY_SQL)
+            .bind(request.event_id)
+            .bind(request.binding_id)
+            .bind(request.owner_token)
+            .bind(checked_epoch(request.epoch)?)
+            .bind(backoff)
+            .execute(&self.pool)
+            .await
+            .map_err(database_error)?
+            .rows_affected();
+        if updated == 0 {
+            return Err(lost_ownership());
+        }
+        Ok(())
     }
 }
 
@@ -114,7 +210,7 @@ impl ProjectionLedgerContract for PgProjectionLedger {
     }
 
     async fn ack(&self, request: &AckDelivery) -> AccessResult<ProjectionDelivery> {
-        acknowledge(&self.pool, request).await
+        acknowledge(&self.pool, request, self.open_serving_fence).await
     }
 
     async fn quarantine(&self, request: &QuarantineDelivery) -> AccessResult<ProjectionDelivery> {
@@ -122,7 +218,11 @@ impl ProjectionLedgerContract for PgProjectionLedger {
     }
 }
 
-async fn acknowledge(pool: &PgPool, request: &AckDelivery) -> AccessResult<ProjectionDelivery> {
+async fn acknowledge(
+    pool: &PgPool,
+    request: &AckDelivery,
+    open_serving_fence: bool,
+) -> AccessResult<ProjectionDelivery> {
     let mut tx = pool.begin().await.map_err(database_error)?;
     let acknowledged = sqlx::query_scalar::<_, Uuid>(ACK_AND_VISIBILITY_SQL)
         .bind(request.event_id)
@@ -130,6 +230,7 @@ async fn acknowledge(pool: &PgPool, request: &AckDelivery) -> AccessResult<Proje
         .bind(request.owner_token)
         .bind(checked_epoch(request.epoch)?)
         .bind(&request.completion_proof)
+        .bind(&request.provider_receipt)
         .fetch_optional(&mut *tx)
         .await
         .map_err(database_error)?;
@@ -140,10 +241,88 @@ async fn acknowledge(pool: &PgPool, request: &AckDelivery) -> AccessResult<Proje
     }
 
     let mut delivery = load_delivery(&mut tx, request.event_id, request.binding_id).await?;
+    let fence_rows =
+        open_fences_if_enabled(&mut tx, &[request.event_id], open_serving_fence).await?;
     tx.commit().await.map_err(database_error)?;
-    delivery.provider_receipt = Some(request.provider_receipt.clone());
+    record_fence_rows(fence_rows);
     delivery.completion_proof = Some(request.completion_proof.clone());
     Ok(delivery)
+}
+
+async fn open_fences_if_enabled(
+    tx: &mut Transaction<'_, Postgres>,
+    acked_event_ids: &[Uuid],
+    enabled: bool,
+) -> AccessResult<u64> {
+    if !enabled {
+        return Ok(0);
+    }
+    crate::adapters::postgres::serving_fence_writer::open_fences_for_acked_events(
+        tx,
+        acked_event_ids,
+    )
+    .await
+    .map_err(AccessError::from)
+}
+
+fn record_fence_rows(rows: u64) {
+    if rows == 0 {
+        return;
+    }
+    crate::adapters::postgres::serving_fence_query::record_serving_fence_opened(rows);
+    tracing::info!(
+        chunks_touched = rows,
+        "SPEC-091: opened serving fence in the projection ack transaction"
+    );
+}
+
+async fn acknowledge_batch(
+    pool: &PgPool,
+    requests: &[AckDelivery],
+    open_serving_fence: bool,
+) -> AccessResult<Vec<(Uuid, Uuid)>> {
+    if requests.is_empty() {
+        return Ok(Vec::new());
+    }
+    let owner = requests[0].owner_token;
+    for request in requests {
+        if request.owner_token != owner {
+            return Err(AccessError::InvalidInput(
+                "acknowledge_batch requires a single owner_token".into(),
+            ));
+        }
+    }
+    let event_ids: Vec<Uuid> = requests.iter().map(|r| r.event_id).collect();
+    let binding_ids: Vec<Uuid> = requests.iter().map(|r| r.binding_id).collect();
+    let mut epochs = Vec::with_capacity(requests.len());
+    for request in requests {
+        epochs.push(checked_epoch(request.epoch)?);
+    }
+    let receipts: Vec<Vec<u8>> = requests
+        .iter()
+        .map(|r| r.completion_proof.clone())
+        .collect();
+    let provider_receipts: Vec<String> = requests
+        .iter()
+        .map(|r| r.provider_receipt.clone())
+        .collect();
+
+    let mut tx = pool.begin().await.map_err(database_error)?;
+    let rows = sqlx::query_as::<_, (Uuid, Uuid)>(ACK_BATCH_AND_VISIBILITY_SQL)
+        .bind(&event_ids)
+        .bind(&binding_ids)
+        .bind(&epochs)
+        .bind(&receipts)
+        .bind(&provider_receipts)
+        .bind(owner)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(database_error)?;
+    let acked_events: Vec<Uuid> = rows.iter().map(|(event_id, _)| *event_id).collect();
+    let fence_rows = open_fences_if_enabled(&mut tx, &acked_events, open_serving_fence).await?;
+    tx.commit().await.map_err(database_error)?;
+    record_fence_rows(fence_rows);
+    Ok(rows)
 }
 
 async fn quarantine(
@@ -229,11 +408,15 @@ fn parse_state(value: &str) -> AccessResult<DeliveryState> {
     }
 }
 
-fn parse_operation(value: &str) -> ProjectionOperation {
+fn parse_operation(value: &str) -> AccessResult<ProjectionOperation> {
     if value == "delete" || value.starts_with("delete:") {
-        ProjectionOperation::Delete
+        Ok(ProjectionOperation::Delete)
+    } else if value == "upsert" || value.starts_with("ingest_batch:") {
+        Ok(ProjectionOperation::Upsert)
     } else {
-        ProjectionOperation::Upsert
+        Err(AccessError::CorruptData(format!(
+            "unknown projection operation '{value}'"
+        )))
     }
 }
 
@@ -248,6 +431,7 @@ struct DeliveryRow {
     epoch: i64,
     attempts: i32,
     receipt: Option<Vec<u8>>,
+    provider_receipt: Option<String>,
 }
 
 impl DeliveryRow {
@@ -263,7 +447,7 @@ impl DeliveryRow {
                 .map_err(|_| AccessError::CorruptData("negative delivery attempts".into()))?,
             due_at: self.next_attempt_at,
             lease_expires_at: self.lease_until,
-            provider_receipt: None,
+            provider_receipt: self.provider_receipt,
             completion_proof: self.receipt,
         })
     }
@@ -280,6 +464,7 @@ struct ClaimedRow {
     epoch: i64,
     attempts: i32,
     receipt: Option<Vec<u8>>,
+    provider_receipt: Option<String>,
     tenant_id: Uuid,
     workspace_id: Uuid,
     object_kind: String,
@@ -297,6 +482,7 @@ struct ClaimedRow {
     binding_physical_index: String,
     binding_model_descriptor: Option<String>,
     binding_state: String,
+    expected_digest: Option<Vec<u8>>,
 }
 
 impl ClaimedRow {
@@ -319,7 +505,7 @@ impl ClaimedRow {
             object_id: self.object_id,
             object_revision: u64::try_from(self.object_revision)
                 .map_err(|_| AccessError::CorruptData("invalid projection revision".into()))?,
-            operation: parse_operation(&self.operation),
+            operation: parse_operation(&self.operation)?,
             payload_reference: self.manifest_ref,
             payload_digest: digest,
         };
@@ -335,6 +521,7 @@ impl ClaimedRow {
             epoch: self.epoch,
             attempts: self.attempts,
             receipt: self.receipt,
+            provider_receipt: self.provider_receipt,
         }
         .try_into_delivery()?;
         let binding = edgequake_storage_contracts::DataBindingDescriptor {
@@ -349,10 +536,17 @@ impl ClaimedRow {
             generation: binding_generation,
             state: edgequake_storage_contracts::BindingState::parse(&self.binding_state)?,
         };
+        let expected_completion_proof = match self.expected_digest {
+            Some(bytes) => bytes.try_into().map_err(|_| {
+                AccessError::CorruptData("projection role proof is not 32 bytes".into())
+            })?,
+            None => [0u8; 32],
+        };
         Ok(ProjectionWorkItem {
             event,
             delivery,
             binding,
+            expected_completion_proof,
         })
     }
 }
@@ -378,16 +572,23 @@ claimed AS (
     RETURNING d.*
 )
 SELECT c.event_id, c.binding_id, c.state, c.next_attempt_at, c.lease_until,
-       c.lease_owner, c.epoch, c.attempts, c.receipt,
+       c.lease_owner, c.epoch, c.attempts, c.receipt, c.provider_receipt,
        e.tenant_id, e.workspace_id, e.object_kind, e.object_id,
        e.object_revision, e.schema_version, e.operation, e.manifest_ref, e.digest,
        b.role AS binding_role, b.generation AS binding_generation,
        b.provider AS binding_provider, b.config_ref AS binding_config_ref,
        b.layout AS binding_layout, b.physical_index AS binding_physical_index,
-       b.model_descriptor AS binding_model_descriptor, b.state AS binding_state
+       b.model_descriptor AS binding_model_descriptor, b.state AS binding_state,
+       p.expected_digest
 FROM claimed c
 JOIN public.projection_events e ON e.event_id = c.event_id
 JOIN public.data_bindings b ON b.binding_id = c.binding_id
+LEFT JOIN public.projection_event_role_proofs p
+  ON p.event_id = c.event_id
+ AND p.role = CASE
+        WHEN b.role IN ('graph', 'graph_projection') THEN 'graph'
+        ELSE 'vector'
+     END
 ORDER BY c.next_attempt_at, c.event_id, c.binding_id
 "#;
 
@@ -417,13 +618,24 @@ WHERE event_id = $1 AND binding_id = $2
   AND state = 'leased' AND lease_owner = $3 AND epoch = $4
   AND lease_until > now()
 RETURNING event_id, binding_id, state, next_attempt_at, lease_until,
-          lease_owner, epoch, attempts, receipt
+          lease_owner, epoch, attempts, receipt, provider_receipt
+"#;
+
+const RENEW_BATCH_SQL: &str = r#"
+UPDATE public.projection_deliveries AS d
+SET lease_until = now() + ($4 * interval '1 millisecond')
+FROM UNNEST($1::uuid[], $2::uuid[], $3::bigint[]) AS t(event_id, binding_id, epoch)
+WHERE d.event_id = t.event_id AND d.binding_id = t.binding_id
+  AND d.state = 'leased' AND d.lease_owner = $5 AND d.epoch = t.epoch
+  AND d.lease_until > now()
+RETURNING d.event_id, d.binding_id
 "#;
 
 const ACK_AND_VISIBILITY_SQL: &str = r#"
 WITH acknowledged AS (
     UPDATE public.projection_deliveries
-    SET state = 'applied', lease_owner = NULL, lease_until = NULL, receipt = $5
+    SET state = 'applied', lease_owner = NULL, lease_until = NULL,
+        receipt = $5, provider_receipt = $6
     WHERE event_id = $1 AND binding_id = $2
       AND state = 'leased' AND lease_owner = $3 AND epoch = $4
       AND lease_until > now()
@@ -449,6 +661,44 @@ visible AS (
 SELECT object_id FROM visible
 "#;
 
+const ACK_BATCH_AND_VISIBILITY_SQL: &str = r#"
+WITH input AS (
+    SELECT * FROM UNNEST(
+        $1::uuid[], $2::uuid[], $3::bigint[], $4::bytea[], $5::text[]
+    ) AS t(event_id, binding_id, epoch, receipt, provider_receipt)
+),
+acknowledged AS (
+    UPDATE public.projection_deliveries AS d
+    SET state = 'applied', lease_owner = NULL, lease_until = NULL,
+        receipt = i.receipt, provider_receipt = i.provider_receipt
+    FROM input i
+    WHERE d.event_id = i.event_id AND d.binding_id = i.binding_id
+      AND d.state = 'leased' AND d.lease_owner = $6 AND d.epoch = i.epoch
+      AND d.lease_until > now()
+    RETURNING d.event_id, d.binding_id, i.receipt AS completion_receipt
+),
+visible AS (
+    INSERT INTO public.projection_visibility (
+        tenant_id, workspace_id, object_kind, object_id, object_revision,
+        binding_id, completion_receipt, verified_generation
+    )
+    SELECT e.tenant_id, e.workspace_id, e.object_kind, e.object_id,
+           e.object_revision, a.binding_id, a.completion_receipt, b.generation
+    FROM acknowledged a
+    JOIN public.projection_events e ON e.event_id = a.event_id
+    JOIN public.data_bindings b ON b.binding_id = a.binding_id
+    ON CONFLICT (
+        tenant_id, workspace_id, object_kind, object_id, object_revision, binding_id
+    ) DO UPDATE SET
+        completion_receipt = EXCLUDED.completion_receipt,
+        verified_generation = EXCLUDED.verified_generation
+    RETURNING object_id
+)
+SELECT a.event_id, a.binding_id
+FROM acknowledged a
+WHERE (SELECT count(*) FROM visible) >= 0
+"#;
+
 const QUARANTINE_SQL: &str = r#"
 UPDATE public.projection_deliveries
 SET state = 'quarantined', lease_owner = NULL, lease_until = NULL, receipt = $5
@@ -456,14 +706,24 @@ WHERE event_id = $1 AND binding_id = $2
   AND state = 'leased' AND lease_owner = $3 AND epoch = $4
   AND lease_until > now()
 RETURNING event_id, binding_id, state, next_attempt_at, lease_until,
-          lease_owner, epoch, attempts, receipt
+          lease_owner, epoch, attempts, receipt, provider_receipt
 "#;
 
 const LOAD_DELIVERY_SQL: &str = r#"
 SELECT event_id, binding_id, state, next_attempt_at, lease_until,
-       lease_owner, epoch, attempts, receipt
+       lease_owner, epoch, attempts, receipt, provider_receipt
 FROM public.projection_deliveries
 WHERE event_id = $1 AND binding_id = $2
+"#;
+
+const RELEASE_FOR_RETRY_SQL: &str = r#"
+UPDATE public.projection_deliveries
+SET state = 'retry',
+    lease_owner = NULL,
+    lease_until = NULL,
+    next_attempt_at = now() + ($5 * interval '1 millisecond')
+WHERE event_id = $1 AND binding_id = $2
+  AND state = 'leased' AND lease_owner = $3 AND epoch = $4
 "#;
 
 #[cfg(test)]
@@ -491,5 +751,9 @@ mod tests {
             assert!(statement.contains("epoch = $4"));
             assert!(statement.contains("state = 'leased'"));
         }
+        assert!(RENEW_BATCH_SQL.contains("d.epoch = t.epoch"));
+        assert!(RENEW_BATCH_SQL.contains("UNNEST"));
+        assert!(ACK_BATCH_AND_VISIBILITY_SQL.contains("d.epoch = i.epoch"));
+        assert!(ACK_BATCH_AND_VISIBILITY_SQL.contains("UNNEST"));
     }
 }

@@ -186,7 +186,7 @@ pub async fn purge_document_list_surfaces(
             // SPEC-091 W2: typed ingestion_dedup delete parity.
             #[cfg(feature = "postgres")]
             crate::services::ingestion_dedup_store::dual_delete_all(
-                state.pg_pool.as_ref(),
+                state.optional_pg_pool(),
                 workspace_id,
                 content_hash,
             )
@@ -216,7 +216,7 @@ pub async fn purge_document_list_surfaces(
         // Scoped SQL delete (fail-closed on error — never warn-and-leave ghosts).
         for id in identity_variants(document_id, key_prefix, key_id_mismatch) {
             relational_rows_deleted += crate::document_read_model::delete_relational_document(
-                state.pg_pool.as_ref(),
+                state.optional_pg_pool(),
                 id,
                 tenant_ctx,
             )
@@ -268,13 +268,16 @@ pub async fn purge_document_list_surfaces(
             // the metadata-prefix delete above; the typed rows need explicit
             // deletes for documents whose `documents` row removal does not
             // cascade (identity variants, missing row).
-            crate::services::relational_sidecar_store::typed_artifact_delete_all(id).await;
+            let store = state.operational_stores.checkpoint_artifacts.as_deref();
+            crate::services::relational_sidecar_store::typed_artifact_delete_all(store, id).await;
             crate::services::relational_sidecar_store::typed_checkpoint_delete(
+                store,
                 id,
                 crate::services::relational_sidecar_store::CHECKPOINT_KIND_CRASH,
             )
             .await;
             crate::services::relational_sidecar_store::typed_checkpoint_delete(
+                store,
                 id,
                 crate::services::relational_sidecar_store::CHECKPOINT_KIND_SNAPSHOT,
             )
@@ -348,9 +351,13 @@ pub async fn reset_deleting_status(
     }
 
     // SPEC-098 LAW-098-9: mirror delete_failed to SQL list column.
-    crate::services::touch_sql_delete_failed(document_id).await;
+    #[cfg(feature = "postgres")]
+    let pool = state.optional_pg_pool();
+    #[cfg(not(feature = "postgres"))]
+    let pool = None;
+    crate::services::touch_sql_delete_failed(pool, document_id).await;
     if key_prefix != document_id {
-        crate::services::touch_sql_delete_failed(key_prefix).await;
+        crate::services::touch_sql_delete_failed(pool, key_prefix).await;
     }
 
     if let Some(track_id) = deletion_track_id {
@@ -411,9 +418,7 @@ async fn tombstone_document_required(
             .map_err(ApiError::from)?;
         match views.into_iter().next().flatten() {
             Some(view) if view.deleted => {
-                return Err(ApiError::Conflict(
-                    "document is already tombstoned".into(),
-                ));
+                return load_existing_cleanup_bindings(state, document_id).await;
             }
             Some(view) => view.revision,
             None => 0,
@@ -449,6 +454,101 @@ async fn tombstone_document_required(
         ));
     }
     Ok(receipt.target_binding_ids)
+}
+
+#[cfg(feature = "postgres")]
+async fn load_existing_cleanup_bindings(
+    state: &AppState,
+    document_id: Uuid,
+) -> ApiResult<Vec<Uuid>> {
+    let pool = state
+        .pg_pool
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("tombstone resume requires a PostgreSQL pool".into()))?;
+    let ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT DISTINCT binding_id FROM public.projection_cleanup_intents \
+         WHERE document_id = $1 ORDER BY binding_id",
+    )
+    .bind(document_id)
+    .fetch_all(pool)
+    .await
+    .map_err(edgequake_storage::StorageError::from)
+    .map_err(ApiError::from)?;
+    if ids.is_empty() {
+        return Err(ApiError::Conflict("document is already tombstoned".into()));
+    }
+    Ok(ids)
+}
+
+async fn projection_owns_cleanup(state: &AppState, document_id: &str) -> ApiResult<bool> {
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (state, document_id);
+        return Ok(false);
+    }
+    #[cfg(feature = "postgres")]
+    {
+        if state.projection_worker.is_none() {
+            return Ok(false);
+        }
+        let Some(pool) = state.optional_pg_pool() else {
+            return Ok(false);
+        };
+        let Ok(document_id) = Uuid::parse_str(document_id) else {
+            return Ok(false);
+        };
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM public.projection_event_items i \
+             JOIN public.projection_events e ON e.event_id = i.event_id \
+             WHERE e.object_id = $1 AND e.operation = 'delete'",
+        )
+        .bind(document_id)
+        .fetch_one(pool)
+        .await
+        .map_err(edgequake_storage::StorageError::from)
+        .map_err(ApiError::from)?;
+        Ok(count > 0)
+    }
+}
+
+async fn wait_for_delete_deliveries(state: &AppState, document_id: &str) -> ApiResult<()> {
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (state, document_id);
+        return Ok(());
+    }
+    #[cfg(feature = "postgres")]
+    {
+        let pool = state.optional_pg_pool().ok_or_else(|| {
+            ApiError::Internal("projection cleanup requires a PostgreSQL pool".into())
+        })?;
+        let document_id = Uuid::parse_str(document_id)
+            .map_err(|error| ApiError::BadRequest(format!("invalid document id: {error}")))?;
+        for _ in 0..60 {
+            let states: Vec<String> = sqlx::query_scalar(
+                "SELECT d.state FROM public.projection_deliveries d \
+                 JOIN public.projection_events e ON e.event_id = d.event_id \
+                 WHERE e.object_id = $1 AND e.operation = 'delete'",
+            )
+            .bind(document_id)
+            .fetch_all(pool)
+            .await
+            .map_err(edgequake_storage::StorageError::from)
+            .map_err(ApiError::from)?;
+            if states.iter().any(|state| state == "quarantined") {
+                return Err(ApiError::Internal(
+                    "projection delete delivery was quarantined".into(),
+                ));
+            }
+            if !states.is_empty() && states.iter().all(|state| state == "applied") {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        Err(ApiError::Internal(
+            "projection delete deliveries did not acknowledge before purge".into(),
+        ))
+    }
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -580,6 +680,10 @@ pub async fn perform_document_deletion(
     // SPEC-149: durable logical deletion precedes every physical provider
     // mutation. A conflict or unavailable authority fails closed.
     let target_binding_ids = tombstone_document_required(state, data, metadata.as_ref()).await?;
+    let projection_owned = projection_owns_cleanup(state, &document_id).await?;
+    if projection_owned {
+        wait_for_delete_deliveries(state, &document_id).await?;
+    }
     #[cfg(feature = "postgres")]
     let vector_target_bindings = vector_cleanup_targets(state, &target_binding_ids).await?;
     #[cfg(not(feature = "postgres"))]
@@ -619,7 +723,7 @@ pub async fn perform_document_deletion(
     let mut relationships_removed = 0usize;
     let mut relationships_updated = 0usize;
 
-    if !graph_already_done {
+    if !graph_already_done && !projection_owned {
         state.tasks.progress_broadcaster.deletion_phase(
             &document_id,
             &deletion_track_id,
@@ -798,7 +902,7 @@ pub async fn perform_document_deletion(
     }
 
     let vectors_already_done = checkpoint.as_deref() == Some(CHECKPOINT_VECTORS_DONE);
-    if !vectors_already_done && cleanup_vectors {
+    if !vectors_already_done && cleanup_vectors && !projection_owned {
         state.tasks.progress_broadcaster.deletion_phase(
             &document_id,
             &deletion_track_id,
@@ -1016,7 +1120,11 @@ pub async fn reconcile_stuck_deleting_documents(state: &AppState, max: usize) ->
     };
     use edgequake_tasks::{Task, TaskType};
 
-    let Ok(entries) = load_all_document_metadata_entries(state.storage.kv_storage.as_ref()).await
+    let Ok(entries) = load_all_document_metadata_entries(
+        state.storage.kv_storage.as_ref(),
+        state.optional_pg_pool(),
+    )
+    .await
     else {
         return 0;
     };

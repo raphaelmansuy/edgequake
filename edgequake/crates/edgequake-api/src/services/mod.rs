@@ -73,6 +73,7 @@ pub mod multimodal_context;
 pub mod multimodal_markdown;
 pub mod oidc_flow;
 pub mod oidc_pending;
+pub mod optional_pg_pool;
 pub mod orphan_index_retract;
 pub mod orphan_staging_recovery;
 pub mod orphan_task_recovery;
@@ -329,10 +330,10 @@ pub use task_cancel::{
     is_cancel_error_message, TaskCancelApplyResult,
 };
 pub use task_document_sync::{
-    extract_document_id_from_task, looks_like_completed_orphan, resolve_document_id_for_task,
-    sync_doc_cancelled_by_document_id, sync_doc_cancelled_for_task, sync_doc_completed_orphan,
-    sync_doc_failed_no_active_task, sync_document_failed_on_orphan_heartbeat,
-    touch_relational_document_status_best_effort,
+    extract_document_id_from_task, looks_like_completed_orphan, metadata_is_projecting,
+    resolve_document_id_for_task, sync_doc_cancelled_by_document_id, sync_doc_cancelled_for_task,
+    sync_doc_completed_orphan, sync_doc_failed_no_active_task, sync_doc_projecting_when_applied,
+    sync_document_failed_on_orphan_heartbeat, touch_relational_document_status_best_effort,
     touch_relational_document_track_status_best_effort,
 };
 pub use text_insert_content::{
@@ -371,3 +372,5 @@ pub use workspace_document_wipe::{
 pub use workspace_wipe_admission::{
     find_active_workspace_wipe_track_id, workspace_wipe_in_flight, WorkspaceWipeAdmissionRegistry,
 };
+
+pub use optional_pg_pool::{no_pg_pool, OptionalPgPool};

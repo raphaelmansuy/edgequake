@@ -90,7 +90,7 @@ pub async fn resolve_relational_sink(state: &AppState) -> Arc<dyn RelationalEnti
 /// Authority flag (`EDGEQUAKE_CHUNK_TEXT_AUTHORITY`) still gates whether it is used.
 #[cfg(feature = "postgres")]
 pub fn resolve_relational_chunk_repo(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
 ) -> Option<Arc<dyn ChunkRepository>> {
     pool.map(|pool| {
         Arc::new(edgequake_storage::PostgresChunkRepository::new(
@@ -135,8 +135,8 @@ pub fn resolve_relational_chunk_repo(_pool: Option<&()>) -> Option<Arc<dyn Chunk
 }
 
 #[cfg(feature = "postgres")]
-fn relational_chunk_pool(state: &AppState) -> Option<&sqlx::PgPool> {
-    state.pg_pool.as_ref()
+fn relational_chunk_pool(state: &AppState) -> crate::services::OptionalPgPool<'_> {
+    state.optional_pg_pool()
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -333,8 +333,7 @@ pub async fn persist_with_providers_progress_and_embedder(
             (Some(_), None) => {
                 return Err(edgequake_pipeline::error::PipelineError::StorageError(
                     edgequake_storage::StorageError::InvalidData(
-                        "durable ingest requires relational_chunks with ingestion_committer"
-                            .into(),
+                        "durable ingest requires relational_chunks with ingestion_committer".into(),
                     ),
                 ));
             }

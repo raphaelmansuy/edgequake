@@ -110,7 +110,8 @@ impl ChunkRepository for MemoryChunkRepository {
         if let Some(cur) = cursor {
             items.retain(|c| {
                 c.document_id.into_uuid() > cur.document_id.into_uuid()
-                    || (c.document_id.into_uuid() == cur.document_id.into_uuid() && c.chunk_index > cur.chunk_index)
+                    || (c.document_id.into_uuid() == cur.document_id.into_uuid()
+                        && c.chunk_index > cur.chunk_index)
             });
         }
         let limit = limit as usize;
@@ -161,10 +162,15 @@ impl ChunkRepository for MemoryChunkRepository {
         drop(chunks);
 
         let mut states = self.serving_states.write().map_err(map_lock_err)?;
+        let mut changed = 0u64;
         for id in &chunk_ids {
-            states.insert(*id, state.to_string());
+            let previous = states.get(id).map(String::as_str);
+            if previous != Some(state) {
+                states.insert(*id, state.to_string());
+                changed += 1;
+            }
         }
-        Ok(chunk_ids.len() as u64)
+        Ok(changed)
     }
 }
 
@@ -211,5 +217,38 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(second.skipped, 1);
+    }
+
+    #[tokio::test]
+    async fn set_serving_state_counts_only_changed_rows() {
+        let repo = MemoryChunkRepository::new();
+        let document_id = DocumentId::new(Uuid::new_v4());
+        let chunk = Chunk {
+            id: ChunkId::new(Uuid::new_v4()),
+            document_id,
+            tenant_id: Some(TenantId::new(Uuid::new_v4())),
+            workspace_id: Some(WorkspaceId::new(Uuid::new_v4())),
+            chunk_index: 0,
+            content: "hello".into(),
+            start_offset: Some(0),
+            end_offset: Some(5),
+            token_count: Some(1),
+            metadata: serde_json::json!({}),
+            page_start: None,
+            page_end: None,
+        };
+        repo.insert_batch(&mut UnitOfWork::default(), std::slice::from_ref(&chunk))
+            .await
+            .unwrap();
+
+        let first = repo.set_serving_state(document_id, "ready").await.unwrap();
+        assert_eq!(first, 1);
+        let second = repo.set_serving_state(document_id, "ready").await.unwrap();
+        assert_eq!(second, 0);
+        let third = repo
+            .set_serving_state(document_id, "embedded")
+            .await
+            .unwrap();
+        assert_eq!(third, 1);
     }
 }

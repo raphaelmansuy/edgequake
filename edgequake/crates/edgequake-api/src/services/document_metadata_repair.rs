@@ -44,7 +44,7 @@ async fn load_relational_titles(_pool: &()) -> Result<HashMap<String, String>, (
 /// Repair all document metadata blobs so JSON `id` matches the KV key.
 pub async fn repair_all_document_metadata(
     kv: Arc<dyn KVStorage>,
-    #[cfg(feature = "postgres")] pg_pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pg_pool: crate::services::OptionalPgPool<'_>,
 ) -> crate::error::ApiResult<MetadataRepairReport> {
     let keys = kv
         .keys_with_suffix(DOCUMENT_METADATA_SUFFIX)

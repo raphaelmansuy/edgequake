@@ -18,6 +18,8 @@ neo4j = ["dep:reqwest"]
 p3 = ["sqlite", "neo4j", "qdrant"]
 # Enable all storage backends
 full = ["postgres", "sqlite", "qdrant", "neo4j"]
+# Test-only crash barriers (PROVIDER-ACCESS-E2E04). Never enable on release binaries.
+provider-access-fault = []
 
 [dependencies]
 async-trait = { workspace = true }
@@ -48,3 +50,8 @@ uuid = { version = "1.19", features = ["v4"] }
 sqlx = { workspace = true, features = ["migrate"] }
 tracing-subscriber = { workspace = true }
 tempfile = "3.10"
+
+[[test]]
+name = "e2e_spec149_process_kill"
+path = "tests/e2e_spec149_process_kill.rs"
+required-features = ["postgres", "provider-access-fault"]

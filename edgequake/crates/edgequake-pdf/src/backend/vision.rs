@@ -16,9 +16,7 @@ use crate::error::PdfConversionError;
 use crate::page_assets::{write_page_png_assets, PageAssetRenderConfig};
 use crate::reasoning_effort_inject::ReasoningEffortInjectProvider;
 use crate::region_assets::{tables_by_page, write_caption_region_assets};
-use crate::vision_markdown::{
-    normalize_selected_vision_pages, VisionPageSlice,
-};
+use crate::vision_markdown::{normalize_selected_vision_pages, VisionPageSlice};
 
 /// Expand a [`PageSelection`] to 1-indexed physical page numbers.
 fn selected_page_numbers_1indexed(selection: &PageSelection, physical_total: usize) -> Vec<usize> {
@@ -175,13 +173,11 @@ impl PdfConverter for VisionPdfConverter {
                 // Physical total from pdf2md stats; asset work must only touch
                 // this group's selected pages (mixed 13/12 must not do 25+25).
                 let physical_total = output.stats.total_pages.max(1);
-                let page_numbers =
-                    selected_page_numbers_1indexed(&page_selection, physical_total);
+                let page_numbers = selected_page_numbers_1indexed(&page_selection, physical_total);
                 let asset_started = std::time::Instant::now();
                 info!(
                     selected_pages = page_numbers.len(),
-                    physical_total,
-                    "Vision asset pipeline scoped to selected pages"
+                    physical_total, "Vision asset pipeline scoped to selected pages"
                 );
                 let render = PageAssetRenderConfig {
                     dpi: vision.dpi.unwrap_or(150),
@@ -501,11 +497,8 @@ impl PdfConverter for VisionPdfConverter {
         let selected_pages = selected_page_numbers_1indexed(&page_selection, physical_total);
         // Only normalize pages owned by this convert group — placeholders for
         // out-of-group pages used to overwrite real content at stitch time.
-        let normalized = normalize_selected_vision_pages(
-            &page_slices,
-            &selected_pages,
-            output.markdown.trim(),
-        );
+        let normalized =
+            normalize_selected_vision_pages(&page_slices, &selected_pages, output.markdown.trim());
         let id_prefix = config
             .page_drawing_assets
             .as_ref()

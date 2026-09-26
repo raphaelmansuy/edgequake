@@ -132,7 +132,12 @@ pub async fn get_cost_summary(
         return Ok(Json(empty_cost_summary()));
     }
 
-    let rows = load_scoped_document_cost_rows(&state.storage.kv_storage, &tenant_ctx).await?;
+    let rows = load_scoped_document_cost_rows(
+        &state.storage.kv_storage,
+        state.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await?;
     let totals = aggregate_cost_summary(&rows);
 
     let total_tokens = totals.total_input_tokens + totals.total_output_tokens;
@@ -304,7 +309,12 @@ pub async fn get_cost_history(
     }
 
     let granularity = params.granularity.as_deref().unwrap_or("day");
-    let rows = load_scoped_document_cost_rows(&state.storage.kv_storage, &tenant_ctx).await?;
+    let rows = load_scoped_document_cost_rows(
+        &state.storage.kv_storage,
+        state.optional_pg_pool(),
+        &tenant_ctx,
+    )
+    .await?;
     let history = aggregate_cost_history(&rows, granularity);
 
     Ok(Json(history))

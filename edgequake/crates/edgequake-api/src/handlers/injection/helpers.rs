@@ -23,7 +23,12 @@ pub(crate) async fn load_injection_meta(
 ) -> ApiResult<serde_json::Value> {
     let meta_key = crate::services::injection_meta_key(workspace_id, injection_id);
     let val = if crate::services::injection_relational::injections_prefer_relational() {
-        match crate::services::injection_relational::typed_injection_get(injection_id).await {
+        match crate::services::injection_relational::typed_injection_get(
+            injection_id,
+            state.optional_pg_pool(),
+        )
+        .await
+        {
             Some(v) => Some(v),
             None => state.storage.kv_storage.get_by_id(&meta_key).await?,
         }

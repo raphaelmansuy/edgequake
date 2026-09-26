@@ -113,9 +113,15 @@ async fn resolve_or_create_oidc_user(
     if let Some(existing) =
         find_user_by_login(storage, Some(&pg_runtime), security, &identity.email).await?
     {
-        let mut record = get_record_by_id(storage, Some(&pg_runtime), security, &existing.user_id)
-            .await?
-            .ok_or_else(|| ApiError::Internal("user record missing".into()))?;
+        let mut record = get_record_by_id(
+            storage,
+            Some(&pg_runtime),
+            security,
+            state.operational_stores.identity.as_deref(),
+            &existing.user_id,
+        )
+        .await?
+        .ok_or_else(|| ApiError::Internal("user record missing".into()))?;
         crate::services::login_lockout::ensure_login_allowed(&record)?;
         if !record.is_active {
             return Err(ApiError::forbidden_reason("account_inactive"));
@@ -124,7 +130,14 @@ async fn resolve_or_create_oidc_user(
             .metadata
             .insert("oidc_subject".into(), serde_json::json!(identity.subject));
         record.updated_at = Utc::now();
-        persist_user_record(storage, Some(&pg_runtime), security, &record).await?;
+        persist_user_record(
+            storage,
+            Some(&pg_runtime),
+            security,
+            state.operational_stores.identity.as_deref(),
+            &record,
+        )
+        .await?;
         return Ok(record);
     }
 
@@ -158,7 +171,14 @@ async fn resolve_or_create_oidc_user(
         ]),
     };
 
-    persist_user_record(storage, Some(&pg_runtime), security, &record).await?;
+    persist_user_record(
+        storage,
+        Some(&pg_runtime),
+        security,
+        state.operational_stores.identity.as_deref(),
+        &record,
+    )
+    .await?;
     Ok(record)
 }
 
@@ -177,6 +197,7 @@ async fn issue_login_tokens(
         storage,
         Some(&pg_runtime),
         security,
+        state.operational_stores.identity.as_deref(),
         record,
     )
     .await?;
@@ -207,6 +228,7 @@ async fn issue_login_tokens(
         storage,
         Some(&pg_runtime),
         security,
+        state.operational_stores.sessions.as_deref(),
         &refresh_record,
     )
     .await?;

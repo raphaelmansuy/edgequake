@@ -141,6 +141,30 @@ jobs:
 
           echo "Migrations complete!"
 
+      - name: Run SPEC-149 provider-access projection tests
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          DATABASE_URL: postgres://edgequake_test:test_password_123@localhost:5432/edgequake_test
+        run: |
+          cargo test --package edgequake-storage --features postgres \
+            --test e2e_spec149_projection_replay \
+            --test e2e_spec149_ingestion_committer \
+            -- --test-threads=1
+
+      - name: Run SPEC-091 serving fence open e2e
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          DATABASE_URL: postgres://edgequake_test:test_password_123@localhost:5432/edgequake_test
+        run: |
+          cargo test --package edgequake-storage --features postgres \
+            --test e2e_spec091_serving_fence_open \
+            -- --test-threads=1
+          cargo test --package edgequake-storage --features postgres,provider-access-fault \
+            --test e2e_spec149_process_kill \
+            -- --test-threads=1
+
       - name: Grant permissions to app_user
         run: |
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'

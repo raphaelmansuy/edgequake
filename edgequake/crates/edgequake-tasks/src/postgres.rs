@@ -221,9 +221,7 @@ impl TaskStorage for PostgresTaskStorage {
             .bind(track_ids)
             .fetch_all(&*self.pool)
             .await
-            .map_err(|e| {
-                TaskError::StorageError(format!("Failed to batch-fetch tasks: {}", e))
-            })?;
+            .map_err(|e| TaskError::StorageError(format!("Failed to batch-fetch tasks: {}", e)))?;
         for row in rows {
             let task = task_from_row(&row)?;
             out.insert(task.track_id.clone(), task);

@@ -109,13 +109,7 @@ impl PgBindingRegistry {
                 binding_id, tenant_id, workspace_id, role, provider, config_ref,
                 layout, physical_index, model_descriptor, generation, state
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (binding_id) DO UPDATE SET
-                state = EXCLUDED.state,
-                provider = EXCLUDED.provider,
-                config_ref = EXCLUDED.config_ref,
-                layout = EXCLUDED.layout,
-                physical_index = EXCLUDED.physical_index
-            WHERE public.data_bindings.state IN ('active', 'draining')
+            ON CONFLICT (binding_id) DO NOTHING
             "#,
         )
         .bind(descriptor.binding_id)

@@ -328,13 +328,8 @@ impl AppState {
             edgequake_storage::PgQuarantineSink::new(admin_pool.clone()),
         ));
 
-        // SPEC-091 Wave B3+B4/B5: one pool serves every relational KV-family
-        // cutover (wsdoc membership, checkpoints, artifacts) via the shared
-        // sidecar registry.
-        let sidecar_pool = Arc::new(admin_pool.clone());
-        crate::services::workspace_document_index::register_membership_pool(Arc::clone(
-            &sidecar_pool,
-        ));
+        // Checkpoint/artifact store is held on OperationalStores and passed
+        // explicitly into helpers. Do not register a process-global sidecar.
         let checkpoint_artifact_store: Arc<
             dyn edgequake_storage::contracts::CheckpointArtifactStore,
         > = Arc::new(
@@ -342,9 +337,6 @@ impl AppState {
                 admin_pool.clone(),
             ),
         );
-        crate::services::relational_sidecar_store::register_sidecar_store(Arc::clone(
-            &checkpoint_artifact_store,
-        ));
 
         // SPEC-090 F-090-32: HNSW shape manifest drift (log + metric).
         if let Err(e) = edgequake_storage::check_hnsw_index_manifest(&admin_pool).await {
@@ -504,23 +496,9 @@ impl AppState {
             kv_query.seed_relation_from_dropped(posture.kv_store_dropped);
         }
 
-        // SPEC-091 IW3 (GAP-091-18): compensation-quarantine drain with real applier.
-        crate::services::compensation_drain_applier::spawn_compensation_drain_applier(
-            admin_pool.clone(),
-            Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
-            Arc::clone(&vector_storage),
-            Arc::clone(&graph_storage),
-        );
-
-        // SPEC-091 RM0: outbox drain (default on) — mark processed / TTL; compensate dispatch.
-        crate::services::outbox_drain_applier::spawn_outbox_drain_applier(
-            admin_pool.clone(),
-            Arc::clone(&vector_storage),
-            Arc::clone(&graph_storage),
-        );
-
         // SPEC-149 R1: durable replay uses real AGE/typed-pgvector appliers.
         // Noop appliers are test-only and must never acknowledge production work.
+        // Spawn first so SPEC-091 drains can yield provider writes to this worker.
         let projection_worker = {
             let model = std::env::var("EDGEQUAKE_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "text-embedding-3-small".to_string());
@@ -541,6 +519,7 @@ impl AppState {
                     Some(fleet_index),
                     admin_pool.clone(),
                 ));
+            // The ledger ack opens the SPEC-091 fence in the same transaction.
             Some(Arc::new(edgequake_storage::ProjectionWorkerRuntime::spawn(
                 uuid::Uuid::new_v4(),
                 Arc::clone(&projection_ledger),
@@ -550,6 +529,30 @@ impl AppState {
                 std::time::Duration::from_millis(500),
             )))
         };
+
+        // SPEC-091 IW3: compensation drain mutates graph/vector. Skip it when the
+        // projection worker is the sole provider writer (always on P0 postgres boot).
+        if projection_worker.is_none() {
+            crate::services::compensation_drain_applier::spawn_compensation_drain_applier(
+                admin_pool.clone(),
+                Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
+                Arc::clone(&vector_storage),
+                Arc::clone(&graph_storage),
+            );
+        } else {
+            tracing::info!(
+                "SPEC-149: skipping compensation drain applier; ProjectionWorker owns graph/vector writes"
+            );
+        }
+
+        // SPEC-091 RM0: outbox drain stays for milestone ack / TTL. Compensate is
+        // ack-only while the projection worker owns provider writes.
+        crate::services::outbox_drain_applier::spawn_outbox_drain_applier_with_mode(
+            admin_pool.clone(),
+            Arc::clone(&vector_storage),
+            Arc::clone(&graph_storage),
+            projection_worker.is_some(),
+        );
 
         // Log provider and dimension configuration for debugging
         tracing::info!(

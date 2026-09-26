@@ -11,9 +11,7 @@ mod emitters;
 mod event;
 mod pdf_tracking;
 
-pub use event::{
-    PdfPageProgressPayload, PipelineEvent, PipelineMessage, PipelineStatusSnapshot,
-};
+pub use event::{PdfPageProgressPayload, PipelineEvent, PipelineMessage, PipelineStatusSnapshot};
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -506,7 +504,7 @@ mod tests {
             task_id: "task-ser".to_string(),
             page_num: 7,
             total_pages: 15,
-                completed_pages: 0,
+            completed_pages: 0,
             phase: "rendering".to_string(),
             markdown_len: 4096,
             success: true,

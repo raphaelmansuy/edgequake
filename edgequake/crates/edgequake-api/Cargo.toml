@@ -17,6 +17,8 @@ postgres = [
     "dep:sqlx",
     "sqlx/postgres",
 ]
+# SPEC-149: compile projection fault barriers into AppState for HTTP E2E04/E2E05.
+provider-access-fault = ["edgequake-storage/provider-access-fault"]
 sqlite = ["edgequake-storage/sqlite"]
 qdrant = ["edgequake-storage/qdrant"]
 neo4j = ["edgequake-storage/neo4j"]

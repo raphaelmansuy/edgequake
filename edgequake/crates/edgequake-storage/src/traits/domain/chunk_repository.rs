@@ -46,6 +46,10 @@ pub trait ChunkRepository: Send + Sync {
 
     /// W4 serving lifecycle: set `chunk_serving_state.state` for every chunk of
     /// a document.
+    ///
+    /// Returns the number of chunks whose previous state differed from `state`
+    /// (no-op updates must return `0`). Postgres and memory adapters share this
+    /// meaning so callers can treat the count as a change signal.
     async fn set_serving_state(
         &self,
         document_id: DocumentId,

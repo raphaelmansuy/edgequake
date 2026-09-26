@@ -46,6 +46,8 @@ pub struct ProjectionWorkItem {
     pub event: ProjectionEvent,
     pub delivery: ProjectionDelivery,
     pub binding: DataBindingDescriptor,
+    /// Role-specific digest the applier must reproduce from the event manifest.
+    pub expected_completion_proof: [u8; 32],
 }
 
 impl ProjectionWorkItem {

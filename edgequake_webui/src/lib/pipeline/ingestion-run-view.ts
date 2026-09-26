@@ -8,6 +8,7 @@ import type { IngestionProgress, IngestionStage } from "@/types/ingestion";
 import {
   getDocumentDisplayStatus,
   isProcessingStatus,
+  normalizeProgress01,
 } from "@/lib/documents/status-domain";
 import { bareDocumentId } from "@/lib/documents/reprocess-cache";
 import {
@@ -116,6 +117,7 @@ export function mapWireStageToPhase(
   ) {
     return "extract";
   }
+  // embedding / storing / projecting / indexing → materialize
   return "materialize";
 }
 
@@ -132,6 +134,7 @@ const STAGE_LABELS: Record<string, string> = {
   summarizing: "Summarizing",
   embedding: "Generating Embeddings",
   storing: "Storing",
+  projecting: "Applying Projections",
   completed: "Completed",
   failed: "Failed",
   pending: "Queued",
@@ -209,6 +212,7 @@ export const SERVER_STAGE_ORDER: IngestionRunStage[] = [
   "summarizing",
   "embedding",
   "storing",
+  "projecting",
   "completed",
 ];
 
@@ -631,9 +635,7 @@ export function buildIngestionRunViewFromProgress(
   const progress01 = cancelTerminal
     ? undefined
     : typeof pct === "number"
-      ? pct > 1
-        ? pct / 100
-        : pct
+      ? normalizeProgress01(pct)
       : undefined;
   const cancelledAtStage = cancelTerminal
     ? resolveCancelledAtStage(

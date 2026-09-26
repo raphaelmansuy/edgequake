@@ -94,3 +94,40 @@ python3 specs/149-data-access-improvements/scripts/validate_spec.py → PASS
 
 Cert runner recovery suite ID: SPEC149-P0-HOTPATH-REPLAY (not PROVIDER-ACCESS-E2E04).
 Evidence owner: evidence/implementation-status.md
+
+---
+2026-09-22 explicit access ports:
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --test-threads=1
+e2e_spec149_ingestion_committer: 9 passed, 0 failed, 0 ignored
+e2e_spec149_projection_replay: 7 passed, 0 failed, 0 ignored
+  (includes shared_node + shared_edge retain proofs)
+python3 specs/149-data-access-improvements/scripts/validate_spec.py → PASS
+  (E02/E16 hashes re-audited after removing production sidecar registration)
+Evidence owner: evidence/implementation-status.md (hot path remains Open)
+
+---
+2026-09-22 P0 crash/replay (E2E04 B1–B3):
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --features "postgres,provider-access-fault" --test-threads=1
+e2e_spec149_ingestion_committer: 9 passed, 0 failed, 0 ignored (B1 + 20 identical waiters)
+e2e_spec149_process_kill: 2 passed, 0 failed, 0 ignored (B2 + B3 SIGKILL)
+e2e_spec149_projection_replay: 7 passed, 0 failed, 0 ignored
+Cert runner recovery suite ID: PROVIDER-ACCESS-E2E04 (B1–B3 barriers only; not full HTTP E2E01–15)
+Evidence owner: evidence/implementation-status.md (P0 crash/replay Closed; HTTP/P1–P4 Open)
+
+---
+2026-09-22 P0 single writer + wired e2e + batch budget:
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --test-threads=1
+e2e_spec149_projection_replay: 8 passed, 0 failed, 0 ignored
+  batch budget batch_size=4: n=3→1, n=4→1, n=5→2 graph/vector apply calls
+provider_access_e2e: 4 passed, 0 failed, 0 ignored
+  (E2E01 health + P0 wiring drain + P3 fail-closed)
+P0 boot: compensation drain skipped; outbox compensate ack-only with ProjectionWorker
+Evidence owner: evidence/implementation-status.md (single writer / wiring / batch Closed; HTTP still Open)
+
+---
+2026-09-22 physical role-batch apply:
+EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 --test-threads=1
+e2e_spec149_projection_replay: 8 passed, 0 failed, 0 ignored
+  apply_batch_entries + provider_batch_writes == ceil(n/4) for n=3,4,5 (graph and vector)
+  shared_node + shared_edge retain still pass
+Evidence owner: evidence/implementation-status.md (physical batch apply Closed; HTTP/P1–P4 Open)

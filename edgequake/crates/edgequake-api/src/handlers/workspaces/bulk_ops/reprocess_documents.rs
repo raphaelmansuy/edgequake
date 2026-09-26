@@ -128,8 +128,14 @@ pub(crate) async fn run_reprocess_all_documents(
             break;
         }
 
-        // Skip if not including completed and already completed
-        if !request.include_completed && doc.status.as_deref() == Some("completed") {
+        // Skip if not including completed and already finished.
+        // Relational rows store terminal success as `indexed`.
+        if !request.include_completed
+            && doc
+                .status
+                .as_deref()
+                .is_some_and(crate::services::reprocess_admission::is_reprocess_completed_status)
+        {
             documents_skipped += 1;
             *skip_reasons.entry("completed_excluded").or_insert(0) += 1;
             continue;

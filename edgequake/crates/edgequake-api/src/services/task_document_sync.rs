@@ -25,27 +25,34 @@ pub fn extract_document_id_from_task(task: &Task) -> Option<String> {
 }
 
 /// Resolve document id: task payload → `documents.track_id` / metadata track_id.
-pub async fn resolve_document_id_for_task(kv: &dyn KVStorage, task: &Task) -> Option<String> {
+pub async fn resolve_document_id_for_task(
+    kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
+    task: &Task,
+) -> Option<String> {
     if let Some(id) = extract_document_id_from_task(task) {
         return Some(id);
     }
-    if let Some(id) = document_id_by_track_id(&task.track_id).await {
+    if let Some(id) = document_id_by_track_id(pool, &task.track_id).await {
         return Some(id);
     }
     // Last resort: workspace-scoped metadata scan for matching track_id / pdf_id.
-    find_document_id_in_kv_by_correlation(kv, task).await
+    find_document_id_in_kv_by_correlation(kv, pool, task).await
 }
 
 #[cfg(feature = "postgres")]
-async fn document_id_by_track_id(track_id: &str) -> Option<String> {
-    let pool = crate::services::relational_sidecar_store::sidecar_pool()?;
+async fn document_id_by_track_id(
+    pool: crate::services::OptionalPgPool<'_>,
+    track_id: &str,
+) -> Option<String> {
+    let pool = pool?;
     match sqlx::query_scalar::<_, String>(
         "SELECT id::text FROM public.documents \
          WHERE track_id = $1 OR metadata->>'track_id' = $1 \
          LIMIT 1",
     )
     .bind(track_id)
-    .fetch_optional(pool.as_ref())
+    .fetch_optional(pool)
     .await
     {
         Ok(row) => row,
@@ -61,15 +68,23 @@ async fn document_id_by_track_id(track_id: &str) -> Option<String> {
 }
 
 #[cfg(not(feature = "postgres"))]
-async fn document_id_by_track_id(_track_id: &str) -> Option<String> {
+async fn document_id_by_track_id(
+    _pool: crate::services::OptionalPgPool<'_>,
+    _track_id: &str,
+) -> Option<String> {
     None
 }
 
-async fn find_document_id_in_kv_by_correlation(kv: &dyn KVStorage, task: &Task) -> Option<String> {
+async fn find_document_id_in_kv_by_correlation(
+    kv: &dyn KVStorage,
+    pool: crate::services::OptionalPgPool<'_>,
+    task: &Task,
+) -> Option<String> {
     let pdf_id = task.pdf_id().map(|u| u.to_string());
-    let entries = crate::services::document_metadata_scan::load_all_document_metadata_entries(kv)
-        .await
-        .ok()?;
+    let entries =
+        crate::services::document_metadata_scan::load_all_document_metadata_entries(kv, pool)
+            .await
+            .ok()?;
     for (_key, value) in entries {
         let Some(obj) = value.as_object() else {
             continue;
@@ -97,8 +112,12 @@ async fn find_document_id_in_kv_by_correlation(kv: &dyn KVStorage, task: &Task) 
 }
 
 /// Best-effort `public.documents.status` touch (list column SSOT).
-pub async fn touch_relational_document_status_best_effort(document_id: &str, status: &str) {
-    touch_relational_document_track_status_best_effort(document_id, None, status).await;
+pub async fn touch_relational_document_status_best_effort(
+    document_id: &str,
+    pool: crate::services::OptionalPgPool<'_>,
+    status: &str,
+) {
+    touch_relational_document_track_status_best_effort(document_id, pool, None, status).await;
 }
 
 /// Best-effort sync of `public.documents.track_id` + `status` (dual-write with KV).
@@ -107,12 +126,13 @@ pub async fn touch_relational_document_status_best_effort(document_id: &str, sta
 /// before the new task id is known; pass `Some(id)` after enqueue.
 pub async fn touch_relational_document_track_status_best_effort(
     document_id: &str,
+    pool: crate::services::OptionalPgPool<'_>,
     track_id: Option<&str>,
     status: &str,
 ) {
     #[cfg(feature = "postgres")]
     {
-        let Some(pool) = crate::services::relational_sidecar_store::sidecar_pool() else {
+        let Some(pool) = pool else {
             return;
         };
         let Ok(doc_uuid) = Uuid::parse_str(document_id) else {
@@ -129,7 +149,7 @@ pub async fn touch_relational_document_track_status_best_effort(
             .bind(doc_uuid)
             .bind(tid)
             .bind(&pg_status)
-            .execute(pool.as_ref())
+            .execute(pool)
             .await
         } else {
             sqlx::query(
@@ -139,7 +159,7 @@ pub async fn touch_relational_document_track_status_best_effort(
             )
             .bind(doc_uuid)
             .bind(&pg_status)
-            .execute(pool.as_ref())
+            .execute(pool)
             .await
         };
         if let Err(e) = result {
@@ -154,7 +174,7 @@ pub async fn touch_relational_document_track_status_best_effort(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (document_id, track_id, status);
+        let _ = (document_id, pool, track_id, status);
     }
 }
 
@@ -164,18 +184,20 @@ pub async fn touch_relational_document_track_status_best_effort(
 /// already terminal-cancelled. Used by HTTP/WS/PDF/pipeline cancel paths.
 pub async fn sync_doc_cancelled_for_task(
     kv: Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
     task: &Task,
     message: &str,
 ) -> Result<bool, String> {
-    let Some(document_id) = resolve_document_id_for_task(kv.as_ref(), task).await else {
+    let Some(document_id) = resolve_document_id_for_task(kv.as_ref(), pool, task).await else {
         return Ok(false);
     };
-    sync_doc_cancelled_by_document_id(kv, &document_id, message).await
+    sync_doc_cancelled_by_document_id(kv, pool, &document_id, message).await
 }
 
 /// Sync a document metadata row to cancelled by document id.
 pub async fn sync_doc_cancelled_by_document_id(
     kv: Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
     document_id: &str,
     message: &str,
 ) -> Result<bool, String> {
@@ -193,7 +215,7 @@ pub async fn sync_doc_cancelled_by_document_id(
     let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
     if status.eq_ignore_ascii_case("cancelled") {
         // Still touch relational in case KV was cancelled but column lagged.
-        touch_relational_document_status_best_effort(document_id, "cancelled").await;
+        touch_relational_document_status_best_effort(document_id, pool, "cancelled").await;
         return Ok(false);
     }
 
@@ -201,7 +223,7 @@ pub async fn sync_doc_cancelled_by_document_id(
     crate::services::upsert_metadata_kv_with_index(kv.as_ref(), &metadata_key, json!(obj))
         .await
         .map_err(|e| e.to_string())?;
-    touch_relational_document_status_best_effort(document_id, "cancelled").await;
+    touch_relational_document_status_best_effort(document_id, pool, "cancelled").await;
 
     tracing::info!(
         document_id = %document_id,
@@ -213,6 +235,7 @@ pub async fn sync_doc_cancelled_by_document_id(
 /// Mark a mid-pipeline orphan document failed (no live Pending/Processing task).
 pub async fn sync_doc_failed_no_active_task(
     kv: Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
     document_id: &str,
     message: &str,
 ) -> Result<bool, String> {
@@ -237,13 +260,23 @@ pub async fn sync_doc_failed_no_active_task(
     crate::services::upsert_metadata_kv_with_index(kv.as_ref(), &metadata_key, json!(obj))
         .await
         .map_err(|e| e.to_string())?;
-    touch_relational_document_status_best_effort(document_id, "failed").await;
+    touch_relational_document_status_best_effort(document_id, pool, "failed").await;
 
     tracing::warn!(
         document_id = %document_id,
         "Marked document failed — pipeline interrupted with no active task"
     );
     Ok(true)
+}
+
+/// True when document metadata `status` or `current_stage` is `projecting`.
+pub fn metadata_is_projecting(metadata: &serde_json::Value) -> bool {
+    ["status", "current_stage"].iter().any(|key| {
+        metadata
+            .get(key)
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s.eq_ignore_ascii_case("projecting"))
+    })
 }
 
 /// True when mid-pipeline metadata already carries terminal-success evidence.
@@ -255,6 +288,10 @@ pub fn looks_like_completed_orphan(metadata: &serde_json::Value) -> bool {
         return false;
     };
     let status = obj.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    // SPEC-149: projecting waits for delivery apply — never promote via orphan heal.
+    if metadata_is_projecting(metadata) {
+        return false;
+    }
     if crate::document_metadata::is_terminal_success_status(status)
         || is_terminal_failure_status(status)
     {
@@ -299,6 +336,7 @@ fn graph_counts_from_metadata(obj: &serde_json::Map<String, serde_json::Value>) 
 /// Preserves existing completion `stage_message` / counts when present.
 pub async fn sync_doc_completed_orphan(
     kv: Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
     document_id: &str,
 ) -> Result<bool, String> {
     let Some((metadata_key, existing)) =
@@ -356,7 +394,7 @@ pub async fn sync_doc_completed_orphan(
     crate::services::upsert_metadata_kv_with_index(kv.as_ref(), &metadata_key, json!(obj))
         .await
         .map_err(|e| e.to_string())?;
-    touch_relational_document_status_best_effort(document_id, "completed").await;
+    touch_relational_document_status_best_effort(document_id, pool, "completed").await;
 
     tracing::info!(
         document_id = %document_id,
@@ -366,13 +404,123 @@ pub async fn sync_doc_completed_orphan(
     Ok(true)
 }
 
+/// Promote `projecting` → `completed` once SPEC-149 deliveries have applied.
+///
+/// WHY: Durable commit returns `awaiting_projection` and leaves the document on
+/// `projecting`. Without this promote, the UI keeps the last Embedding snapshot
+/// forever after deliveries are already applied.
+pub async fn sync_doc_projecting_when_applied(
+    kv: Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
+    document_id: &str,
+) -> Result<bool, String> {
+    let Some((metadata_key, existing)) =
+        crate::services::load_staging_first_metadata(kv.as_ref(), document_id).await?
+    else {
+        return Ok(false);
+    };
+
+    if !metadata_is_projecting(&existing) {
+        return Ok(false);
+    }
+    let Some(mut obj) = existing.as_object().cloned() else {
+        return Ok(false);
+    };
+
+    #[cfg(feature = "postgres")]
+    {
+        let Some(pool) = pool else {
+            return Ok(false);
+        };
+        let Ok(doc_uuid) = uuid::Uuid::parse_str(document_id) else {
+            return Ok(false);
+        };
+        if !edgequake_storage::document_batch_deliveries_settled(pool, doc_uuid)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            return Ok(false);
+        }
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = pool;
+        return Ok(false);
+    }
+
+    let (entity_count, chunk_count, relationship_count) = graph_counts_from_metadata(&obj);
+    let existing_msg = obj
+        .get("stage_message")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let stage_message = existing_msg.unwrap_or_else(|| {
+        crate::services::format_ingest_completion_stage_message(
+            chunk_count,
+            entity_count,
+            relationship_count,
+        )
+    });
+
+    obj.insert("status".to_string(), json!("completed"));
+    obj.insert("current_stage".to_string(), json!("completed"));
+    obj.insert("stage_message".to_string(), json!(stage_message));
+    obj.insert("stage_progress".to_string(), json!(1.0));
+    obj.remove("error_message");
+    obj.remove("failure_class");
+    obj.remove("failure_code");
+    obj.remove("recommended_action");
+    if obj
+        .get("processed_at")
+        .and_then(|v| v.as_str())
+        .is_none_or(|s| s.trim().is_empty())
+    {
+        obj.insert(
+            "processed_at".to_string(),
+            json!(chrono::Utc::now().to_rfc3339()),
+        );
+    }
+    obj.insert(
+        "updated_at".to_string(),
+        json!(chrono::Utc::now().to_rfc3339()),
+    );
+
+    crate::services::upsert_metadata_kv_with_index(kv.as_ref(), &metadata_key, json!(obj))
+        .await
+        .map_err(|e| e.to_string())?;
+    touch_relational_document_status_best_effort(document_id, pool, "completed").await;
+
+    // Clear any stale error left by COALESCE stats writes from prior attempts.
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = pool {
+        if let Ok(doc_uuid) = uuid::Uuid::parse_str(document_id) {
+            let _ = sqlx::query(
+                "UPDATE public.documents SET error_message = NULL, status = 'indexed', updated_at = NOW() \
+                 WHERE id = $1",
+            )
+            .bind(doc_uuid)
+            .execute(pool)
+            .await;
+        }
+    }
+
+    tracing::info!(
+        document_id = %document_id,
+        entity_count,
+        "Promoted projecting → completed after projection deliveries applied"
+    );
+    Ok(true)
+}
+
 /// Mark document metadata `failed` when a task dies from heartbeat loss.
 pub async fn sync_document_failed_on_orphan_heartbeat(
     kv: Arc<dyn KVStorage>,
+    pool: crate::services::OptionalPgPool<'_>,
     task: &Task,
     error_msg: &str,
 ) -> Result<(), String> {
-    let Some(document_id) = resolve_document_id_for_task(kv.as_ref(), task).await else {
+    let Some(document_id) = resolve_document_id_for_task(kv.as_ref(), pool, task).await else {
         return Ok(());
     };
 
@@ -411,7 +559,7 @@ pub async fn sync_document_failed_on_orphan_heartbeat(
     crate::services::upsert_metadata_kv_with_index(kv.as_ref(), &metadata_key, json!(obj))
         .await
         .map_err(|e| e.to_string())?;
-    touch_relational_document_status_best_effort(&document_id, "failed").await;
+    touch_relational_document_status_best_effort(&document_id, pool, "failed").await;
 
     tracing::warn!(
         task_id = %task.track_id,
@@ -519,9 +667,10 @@ mod tests {
             json!({ "metadata": { "document_id": doc_id } }),
         );
 
-        let updated = sync_doc_cancelled_for_task(Arc::clone(&kv), &task, "Task cancelled by user")
-            .await
-            .unwrap();
+        let updated =
+            sync_doc_cancelled_for_task(Arc::clone(&kv), None, &task, "Task cancelled by user")
+                .await
+                .unwrap();
         assert!(updated);
 
         let stored = kv.get_by_id(&meta_key).await.unwrap().unwrap();
@@ -552,6 +701,7 @@ mod tests {
 
         let updated = sync_doc_failed_no_active_task(
             Arc::clone(&kv),
+            None,
             doc_id,
             "Pipeline interrupted — no active task",
         )
@@ -586,6 +736,70 @@ mod tests {
         assert!(!looks_like_completed_orphan(&meta));
     }
 
+    #[test]
+    fn looks_like_completed_orphan_rejects_projecting() {
+        let meta = json!({
+            "status": "projecting",
+            "current_stage": "projecting",
+            "stage_message": "Processed 19 chunks, extracted 410 entities and 252 relationships",
+            "entity_count": 410,
+            "chunk_count": 19,
+            "processed_at": "2026-09-22T10:15:12Z",
+        });
+        assert!(!looks_like_completed_orphan(&meta));
+    }
+
+    #[test]
+    fn metadata_is_projecting_checks_status_or_stage_case_insensitively() {
+        assert!(metadata_is_projecting(&json!({"status": "Projecting"})));
+        assert!(metadata_is_projecting(
+            &json!({"status": "processing", "current_stage": "projecting"})
+        ));
+        assert!(!metadata_is_projecting(
+            &json!({"status": "completed", "current_stage": "completed"})
+        ));
+        assert!(!metadata_is_projecting(&json!({})));
+        assert!(!metadata_is_projecting(&json!("projecting")));
+    }
+
+    #[tokio::test]
+    async fn sync_doc_projecting_when_applied_promotes_without_pool() {
+        use edgequake_storage::kv_keys;
+        use edgequake_storage::MemoryKVStorage;
+
+        // Without postgres pool the helper must no-op (cannot verify deliveries).
+        let kv: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("projecting-promote-test"));
+        let doc_id = "projecting-doc";
+        let meta_key = kv_keys::doc_metadata(doc_id);
+        crate::services::upsert_metadata_kv_with_index(
+            kv.as_ref(),
+            &meta_key,
+            json!({
+                "id": doc_id,
+                "status": "projecting",
+                "current_stage": "projecting",
+                "stage_message": "Processed 19 chunks, extracted 410 entities and 252 relationships",
+                "entity_count": 410,
+                "chunk_count": 19,
+                "relationship_count": 252,
+                "error_message": "duplicate fact logical revision leftover",
+            }),
+        )
+        .await
+        .unwrap();
+
+        let updated = sync_doc_projecting_when_applied(Arc::clone(&kv), None, doc_id)
+            .await
+            .unwrap();
+        assert!(!updated);
+        let stored = kv.get_by_id(&meta_key).await.unwrap().unwrap();
+        assert_eq!(stored["status"], "projecting");
+        assert_eq!(
+            stored["error_message"],
+            "duplicate fact logical revision leftover"
+        );
+    }
+
     #[tokio::test]
     async fn sync_doc_completed_orphan_promotes_zombie() {
         use edgequake_storage::kv_keys;
@@ -613,7 +827,7 @@ mod tests {
         .await
         .unwrap();
 
-        let updated = sync_doc_completed_orphan(Arc::clone(&kv), doc_id)
+        let updated = sync_doc_completed_orphan(Arc::clone(&kv), None, doc_id)
             .await
             .unwrap();
         assert!(updated);

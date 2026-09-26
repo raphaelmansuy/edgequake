@@ -70,3 +70,11 @@ Next available: `106_*`
 | 092 | `support/092/apply.sql` | eq_* denorm columns/triggers (SPEC-069); sqlx `092_*.sql` is marker-only |
 
 See SPEC-070: `specs/001-benchmark/001-edgquake-improvements/070-db-ops-excellence.md`.
+
+### Operator re-run scripts (manual; not run at boot)
+
+| Version | support path | Purpose |
+|---------|--------------|---------|
+| 156 | `support/156/{preflight,apply,verify}.sql` | SPEC-149 missing-only `source_ids`/`source_document_ids` backfill |
+| 157 | `support/157/{apply,verify}.sql` | SPEC-149 lineage GIN pending-list flush + `gin_pending_list_limit = 256` |
+| 158 | `support/158/{apply,verify}.sql` | SPEC-149 missing-only repair: bare document-id token for live documents orphaned in `source_document_ids` |

@@ -77,6 +77,15 @@ pub trait GraphStorageMutateOps: Send + Sync {
         workspace_id: &str,
     ) -> Result<bool>;
 
+    /// Batch scoped node delete: one storage round-trip with tenant/workspace fence
+    /// plus `id = ANY`. Unscoped [`delete_nodes_batch`] stays unused on this path.
+    async fn delete_nodes_scoped_batch(
+        &self,
+        node_ids: &[String],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize>;
+
     async fn upsert_edge(
         &self,
         source: &str,
@@ -117,6 +126,15 @@ pub trait GraphStorageMutateOps: Send + Sync {
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<bool>;
+
+    /// Batch scoped edge delete: one storage round-trip with tenant/workspace fence
+    /// plus endpoint pairs via `ANY`.
+    async fn delete_edges_scoped_batch(
+        &self,
+        edges: &[(String, String)],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize>;
 
     async fn clear(&self) -> Result<()>;
 

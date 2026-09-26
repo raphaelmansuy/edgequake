@@ -33,10 +33,10 @@ fn doc_status(injection_status: &str) -> &'static str {
 
 /// Typed upsert from the canonical metadata JSON (warn-only).
 /// Skips rows with non-UUID injection/workspace ids — KV stays authoritative.
-pub async fn typed_injection_upsert(meta: &Value) {
+pub async fn typed_injection_upsert(meta: &Value, pool: crate::services::OptionalPgPool<'_>) {
     #[cfg(feature = "postgres")]
     {
-        let Some(pool) = crate::services::relational_sidecar_store::sidecar_pool() else {
+        let Some(pool) = pool else {
             return;
         };
         let (Some(id), Some(ws)) = (
@@ -75,7 +75,7 @@ pub async fn typed_injection_upsert(meta: &Value) {
         .bind(content)
         .bind(status)
         .bind(stored)
-        .execute(pool.as_ref())
+        .execute(pool)
         .await;
         if let Err(e) = result {
             if injections_prefer_relational() {
@@ -86,21 +86,26 @@ pub async fn typed_injection_upsert(meta: &Value) {
         }
     }
     #[cfg(not(feature = "postgres"))]
-    let _ = meta;
+    {
+        let _ = (meta, pool);
+    }
 }
 
 /// Typed read of one injection's metadata JSON (None → KV fallback).
-pub async fn typed_injection_get(injection_id: &str) -> Option<Value> {
+pub async fn typed_injection_get(
+    injection_id: &str,
+    pool: crate::services::OptionalPgPool<'_>,
+) -> Option<Value> {
     #[cfg(feature = "postgres")]
     {
-        let pool = crate::services::relational_sidecar_store::sidecar_pool()?;
+        let pool = pool?;
         let id = uuid::Uuid::parse_str(injection_id).ok()?;
         match sqlx::query_scalar::<_, Value>(
             "SELECT metadata FROM public.documents \
              WHERE id = $1 AND metadata->>'source_type' = 'injection'",
         )
         .bind(id)
-        .fetch_optional(pool.as_ref())
+        .fetch_optional(pool)
         .await
         {
             Ok(v) => v,
@@ -112,7 +117,7 @@ pub async fn typed_injection_get(injection_id: &str) -> Option<Value> {
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = injection_id;
+        let _ = (injection_id, pool);
         None
     }
 }
@@ -120,12 +125,13 @@ pub async fn typed_injection_get(injection_id: &str) -> Option<Value> {
 /// Typed list for a workspace: (metadata JSONs, total). None → KV fallback.
 pub async fn typed_injection_list(
     workspace_id: &str,
+    pool: crate::services::OptionalPgPool<'_>,
     limit: i64,
     offset: i64,
 ) -> Option<(Vec<Value>, i64)> {
     #[cfg(feature = "postgres")]
     {
-        let pool = crate::services::relational_sidecar_store::sidecar_pool()?;
+        let pool = pool?;
         let ws = uuid::Uuid::parse_str(workspace_id).ok()?;
         let rows = sqlx::query_scalar::<_, Value>(
             "SELECT metadata FROM public.documents \
@@ -135,14 +141,14 @@ pub async fn typed_injection_list(
         .bind(ws)
         .bind(limit)
         .bind(offset)
-        .fetch_all(pool.as_ref())
+        .fetch_all(pool)
         .await;
         let total = sqlx::query_scalar::<_, i64>(
             "SELECT count(*) FROM public.documents \
              WHERE workspace_id = $1 AND metadata->>'source_type' = 'injection'",
         )
         .bind(ws)
-        .fetch_one(pool.as_ref())
+        .fetch_one(pool)
         .await;
         match (rows, total) {
             (Ok(items), Ok(total)) => Some((items, total)),
@@ -154,26 +160,23 @@ pub async fn typed_injection_list(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (workspace_id, limit, offset);
+        let _ = (workspace_id, pool, limit, offset);
         None
     }
 }
 
 /// Typed delete (paired with the caller's KV sweep).
-pub async fn typed_injection_delete(injection_id: &str) {
+pub async fn typed_injection_delete(injection_id: &str, pool: crate::services::OptionalPgPool<'_>) {
     #[cfg(feature = "postgres")]
     {
-        let (Some(pool), Ok(id)) = (
-            crate::services::relational_sidecar_store::sidecar_pool(),
-            uuid::Uuid::parse_str(injection_id),
-        ) else {
+        let (Some(pool), Ok(id)) = (pool, uuid::Uuid::parse_str(injection_id)) else {
             return;
         };
         if let Err(e) = sqlx::query(
             "DELETE FROM public.documents WHERE id = $1 AND metadata->>'source_type' = 'injection'",
         )
         .bind(id)
-        .execute(pool.as_ref())
+        .execute(pool)
         .await
         {
             if injections_prefer_relational() {
@@ -184,7 +187,9 @@ pub async fn typed_injection_delete(injection_id: &str) {
         }
     }
     #[cfg(not(feature = "postgres"))]
-    let _ = injection_id;
+    {
+        let _ = (injection_id, pool);
+    }
 }
 
 #[cfg(test)]
@@ -206,10 +211,10 @@ mod tests {
     async fn typed_accessors_inert_without_pool() {
         std::env::remove_var("EDGEQUAKE_KV_FAMILY_INJECTION");
         assert!(injections_prefer_relational());
-        typed_injection_upsert(&serde_json::json!({"id": "x", "workspace_id": "y"})).await;
-        assert!(typed_injection_get("not-a-uuid").await.is_none());
-        assert!(typed_injection_list("ws", 10, 0).await.is_none());
-        typed_injection_delete("not-a-uuid").await;
+        typed_injection_upsert(&serde_json::json!({"id": "x", "workspace_id": "y"}), None).await;
+        assert!(typed_injection_get("not-a-uuid", None).await.is_none());
+        assert!(typed_injection_list("ws", None, 10, 0).await.is_none());
+        typed_injection_delete("not-a-uuid", None).await;
 
         std::env::set_var("EDGEQUAKE_KV_FAMILY_INJECTION", "kv");
         assert!(!injections_prefer_relational());

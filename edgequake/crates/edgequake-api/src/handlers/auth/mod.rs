@@ -42,6 +42,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::ApiError;
 use crate::state::{AppState, StorageRuntime};
 use edgequake_auth::{Role, User};
+use edgequake_storage::contracts::{IdentityStore, IdentityUser, TenantId};
 
 // ============================================================================
 // Constants (shared across sub-modules — identity SSOT: services/identity_storage.rs)
@@ -170,11 +171,14 @@ pub(super) async fn get_user_by_id(
     storage: &StorageRuntime,
     pg_runtime: Option<&crate::state::PostgresRuntime>,
     security: &crate::state::ApiSecurityConfig,
+    identity: Option<&dyn IdentityStore>,
     user_id: &str,
 ) -> Result<Option<User>, ApiError> {
-    Ok(get_record_by_id(storage, pg_runtime, security, user_id)
-        .await?
-        .map(|r| r.to_user()))
+    Ok(
+        get_record_by_id(storage, pg_runtime, security, identity, user_id)
+            .await?
+            .map(|r| r.to_user()),
+    )
 }
 
 /// Get user record with identity SSOT routing.
@@ -182,8 +186,12 @@ pub(super) async fn get_record_by_id(
     storage: &StorageRuntime,
     pg_runtime: Option<&crate::state::PostgresRuntime>,
     security: &crate::state::ApiSecurityConfig,
+    identity: Option<&dyn IdentityStore>,
     user_id: &str,
 ) -> Result<Option<UserRecord>, ApiError> {
+    if let Some(store) = identity {
+        return load_user_from_identity(store, user_id).await;
+    }
     #[cfg(feature = "postgres")]
     {
         return crate::services::identity_storage::load_user_record(
@@ -203,8 +211,12 @@ pub(crate) async fn persist_user_record(
     storage: &StorageRuntime,
     pg_runtime: Option<&crate::state::PostgresRuntime>,
     security: &crate::state::ApiSecurityConfig,
+    identity: Option<&dyn IdentityStore>,
     record: &UserRecord,
 ) -> Result<(), ApiError> {
+    if let Some(store) = identity {
+        return persist_user_through_identity(store, record).await;
+    }
     #[cfg(feature = "postgres")]
     {
         return crate::services::identity_storage::persist_user_record(
@@ -217,6 +229,71 @@ pub(crate) async fn persist_user_record(
         let _ = (storage, pg_runtime, security, record);
         Ok(())
     }
+}
+
+async fn load_user_from_identity(
+    store: &dyn IdentityStore,
+    user_id: &str,
+) -> Result<Option<UserRecord>, ApiError> {
+    let user_id =
+        uuid::Uuid::parse_str(user_id).map_err(|_| ApiError::Internal("invalid user id".into()))?;
+    let (tenant_id, _) = crate::services::identity_storage::default_identity_scope();
+    let user = store
+        .get_user(TenantId::new(tenant_id), user_id)
+        .await
+        .map_err(|error| ApiError::Internal(format!("identity store: {error}")))?;
+    Ok(user.map(identity_user_to_record))
+}
+
+async fn persist_user_through_identity(
+    store: &dyn IdentityStore,
+    record: &UserRecord,
+) -> Result<(), ApiError> {
+    let (tenant_id, _) = crate::services::identity_storage::default_identity_scope();
+    let user = record_to_identity(record)?;
+    store
+        .upsert_user(TenantId::new(tenant_id), &user)
+        .await
+        .map_err(|error| ApiError::Internal(format!("identity store: {error}")))
+}
+
+fn identity_user_to_record(user: IdentityUser) -> UserRecord {
+    let metadata = match user.metadata {
+        serde_json::Value::Object(map) => map.into_iter().collect(),
+        _ => std::collections::HashMap::new(),
+    };
+    UserRecord {
+        user_id: user.user_id.to_string(),
+        username: user.username,
+        email: user.email,
+        password_hash: user.password_hash,
+        role: user.role,
+        is_active: user.is_active,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        last_login_at: user.last_login_at,
+        failed_login_attempts: user.failed_login_attempts,
+        locked_until: user.locked_until,
+        metadata,
+    }
+}
+
+fn record_to_identity(record: &UserRecord) -> Result<IdentityUser, ApiError> {
+    Ok(IdentityUser {
+        user_id: uuid::Uuid::parse_str(&record.user_id)
+            .map_err(|_| ApiError::Internal("invalid user id".into()))?,
+        username: record.username.clone(),
+        email: record.email.clone(),
+        password_hash: record.password_hash.clone(),
+        role: record.role.clone(),
+        is_active: record.is_active,
+        failed_login_attempts: record.failed_login_attempts,
+        locked_until: record.locked_until,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        last_login_at: record.last_login_at,
+        metadata: serde_json::Value::Object(record.metadata.clone().into_iter().collect()),
+    })
 }
 
 impl From<&UserRecord> for crate::handlers::auth_types::UserInfo {

@@ -136,6 +136,24 @@ impl<S: VectorCutoverStore> VectorProviderCutover<S> {
     }
 }
 
+pub fn ensure_visibility_identities_equivalent(
+    source: &[String],
+    target: &[String],
+) -> AccessResult<()> {
+    let mut source = source.to_vec();
+    let mut target = target.to_vec();
+    source.sort();
+    target.sort();
+    if source != target {
+        return Err(AccessError::Conflict(format!(
+            "cutover visibility sets differ: source={}, target={}",
+            source.len(),
+            target.len()
+        )));
+    }
+    Ok(())
+}
+
 pub fn ensure_caught_up(
     source: BindingCompleteness,
     target: BindingCompleteness,
@@ -272,6 +290,9 @@ mod postgres {
             let source = completeness_tx(&mut tx, source_binding_id).await?;
             let target = completeness_tx(&mut tx, target_binding_id).await?;
             ensure_caught_up(source, target)?;
+            let source_ids = visibility_identities(&mut tx, source_binding_id).await?;
+            let target_ids = visibility_identities(&mut tx, target_binding_id).await?;
+            ensure_visibility_identities_equivalent(&source_ids, &target_ids)?;
 
             sqlx::query(
                 "UPDATE public.data_bindings SET state = 'draining' WHERE binding_id = $1 AND state = 'active'",
@@ -383,6 +404,25 @@ mod postgres {
         .await
         .map_err(database_error)?;
         checked_completeness(visible, incomplete)
+    }
+
+    async fn visibility_identities(
+        tx: &mut Transaction<'_, Postgres>,
+        binding_id: Uuid,
+    ) -> AccessResult<Vec<String>> {
+        sqlx::query_scalar(
+            r#"
+            SELECT object_id::text || ':' || object_revision::text || ':' ||
+                   encode(completion_receipt, 'hex')
+            FROM public.projection_visibility
+            WHERE binding_id = $1
+            ORDER BY 1
+            "#,
+        )
+        .bind(binding_id)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(database_error)
     }
 
     fn checked_completeness(visible: i64, incomplete: i64) -> AccessResult<BindingCompleteness> {
@@ -531,5 +571,13 @@ mod tests {
 
         assert!(matches!(error, AccessError::Conflict(_)));
         assert!(cutover.store.transitions.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn equal_counts_with_different_revisions_are_not_equivalent() {
+        let source = vec!["a:1:aa".into(), "b:2:bb".into()];
+        let target = vec!["a:1:aa".into(), "c:2:bb".into()];
+        assert!(ensure_visibility_identities_equivalent(&source, &target).is_err());
+        assert!(ensure_visibility_identities_equivalent(&source, &source).is_ok());
     }
 }

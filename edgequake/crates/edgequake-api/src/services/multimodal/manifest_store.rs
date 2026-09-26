@@ -1,5 +1,7 @@
 //! Virtual sidecar manifest persistence in KV.
 
+use edgequake_storage::contracts::CheckpointArtifactStore;
+
 use edgequake_storage::traits::KVStorage;
 use serde_json::Value;
 
@@ -15,6 +17,7 @@ pub fn manifest_key(document_id: &str) -> String {
 /// Persist manifest blob to KV (+ typed artifact dual-write, SPEC-091 Wave B5).
 pub async fn persist_manifest(
     kv: &dyn KVStorage,
+    store: Option<&dyn CheckpointArtifactStore>,
     document_id: &str,
     manifest: &MultimodalManifest,
 ) -> Result<(), String> {
@@ -24,6 +27,7 @@ pub async fn persist_manifest(
         .await
         .map_err(|e| e.to_string())?;
     crate::services::relational_sidecar_store::typed_artifact_put(
+        store,
         document_id,
         crate::services::relational_sidecar_store::ARTIFACT_KIND_MM_MANIFEST,
         &value,
@@ -33,9 +37,14 @@ pub async fn persist_manifest(
 }
 
 /// Load manifest (typed-first when the artifact family is cut over; KV fallback).
-pub async fn load_manifest(kv: &dyn KVStorage, document_id: &str) -> Option<MultimodalManifest> {
+pub async fn load_manifest(
+    kv: &dyn KVStorage,
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) -> Option<MultimodalManifest> {
     let value = if crate::services::relational_sidecar_store::artifacts_prefer_relational() {
         match crate::services::relational_sidecar_store::typed_artifact_get(
+            store,
             document_id,
             crate::services::relational_sidecar_store::ARTIFACT_KIND_MM_MANIFEST,
         )

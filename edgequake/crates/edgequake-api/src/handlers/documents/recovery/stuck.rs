@@ -73,7 +73,7 @@ pub(crate) async fn run_recover_stuck(
         std::sync::Arc::clone(&state.tasks.storage),
         Some(staging_age),
         #[cfg(feature = "postgres")]
-        state.pg_pool.as_ref(),
+        state.optional_pg_pool(),
     )
     .await
     {
@@ -95,6 +95,7 @@ pub(crate) async fn run_recover_stuck(
     let scoped_metadata =
         crate::services::document_metadata_scan::load_scoped_document_metadata_for_progress(
             state.storage.kv_storage.as_ref(),
+            state.optional_pg_pool(),
             &tenant_ctx,
         )
         .await?;

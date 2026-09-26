@@ -32,7 +32,8 @@ pub async fn cancel_track_with_doc_and_pdf_chain(
     if applied.cancelled {
         if let Some(ref task) = applied.task {
             if let Err(e) =
-                sync_doc_cancelled_for_task(Arc::clone(&kv), task, "Task cancelled by user").await
+                sync_doc_cancelled_for_task(Arc::clone(&kv), None, task, "Task cancelled by user")
+                    .await
             {
                 tracing::warn!(
                     track_id = %track_id,
@@ -52,6 +53,7 @@ pub async fn cancel_track_with_doc_and_pdf_chain(
                             if let Some(ref linked_task) = linked_applied.task {
                                 let _ = sync_doc_cancelled_for_task(
                                     Arc::clone(&kv),
+                                    None,
                                     linked_task,
                                     "Task cancelled by user",
                                 )

@@ -148,6 +148,7 @@ pub async fn get_pipeline_activity(
         // SPEC-086: staging-aware so in-flight MD counts in queued/working.
         let metadata_values = load_scoped_document_metadata_for_progress(
             state.storage.kv_storage.as_ref(),
+            state.optional_pg_pool(),
             &tenant_ctx,
         )
         .await?;
@@ -225,6 +226,7 @@ pub async fn cancel_pipeline(
             if let Some(ref task) = applied.task {
                 if let Err(e) = sync_doc_cancelled_for_task(
                     Arc::clone(&state.storage.kv_storage),
+                    state.optional_pg_pool(),
                     task,
                     "Task cancelled by user",
                 )
@@ -384,7 +386,7 @@ pub async fn get_queue_metrics(
         .map(crate::store_contention::role_utils_from_bundle)
         .and_then(|roles| crate::store_contention::max_role_pool_utilization(&roles))
         .or_else(|| {
-            state.pg_pool.as_ref().and_then(|pool| {
+            state.optional_pg_pool().and_then(|pool| {
                 crate::store_contention::pool_utilization(
                     pool.size(),
                     pool.num_idle().min(u32::MAX as usize) as u32,

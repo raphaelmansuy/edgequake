@@ -1,7 +1,7 @@
 {
   "commit": "c8a5af76f3dc7c1bbfa124514c13a18e5afdb86b",
-  "audited_on": "2026-09-20",
-  "method": "Static source audit plus 2026-09-20 P0 hot-path re-audit hashes for feat/149-data-access-improvements. Line numbers are 1-based. Baseline commit records the original audit; hashes reflect current tree.",
+  "audited_on": "2026-09-22",
+  "method": "Static source audit. Baseline commit records the original audit. Hashes and line numbers were re-audited on 2026-09-22 after EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 replay (7) and ingestion (9) suites passed with zero failures and zero skips (serial). Explicit pool/store ports removed production sidecar registration; OptionalPgPool keeps non-postgres builds compiling.",
   "entries": [
     {
       "id": "E01",
@@ -13,16 +13,16 @@
     {
       "id": "E02",
       "path": "edgequake/crates/edgequake-api/src/state/postgres.rs",
-      "line": 394,
+      "line": 386,
       "needle": "let materialized =",
-      "sha256": "7d994577102233ebeba6381bcf2ffbc397a9e4fd9816dd6186c095f92e073a07"
+      "sha256": "67db0123e0b70cfe80dab5a26d4a51c1d9b2119843f4524199693b1860d3a812"
     },
     {
       "id": "E03",
       "path": "edgequake/crates/edgequake-api/src/state/postgres_runtime.rs",
       "line": 12,
       "needle": "pub pool: Option<PgPool>",
-      "sha256": "9f6b82ce0ad373f5a8e2318597ec8e524e532bc26c1179092355694196783f18"
+      "sha256": "8c46027d30176bd0e58812f2c5438bebf7ffdcaf7cf05d224897f0fa7f53f861"
     },
     {
       "id": "E04",
@@ -34,16 +34,16 @@
     {
       "id": "E05",
       "path": "edgequake/crates/edgequake-storage/src/traits/domain/types.rs",
-      "line": 98,
+      "line": 92,
       "needle": "pub struct UnitOfWork",
-      "sha256": "c49484a36bf6d5272893f9171323a3b6983e8396cba43ca9f7d6dc63268abdd1"
+      "sha256": "b18fbdece04b339e88929dd54933ccd8b42b2c2e120896103ef274e29eee3c25"
     },
     {
       "id": "E06",
       "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/chunk_repository.rs",
       "line": 497,
       "needle": "_tx: &mut UnitOfWork",
-      "sha256": "5c19b2b7b1a3446a71bc068a690ac389a962bde449120dfc5f17e90035388be6"
+      "sha256": "a958db5de740394562bb21e65ad7917352671fa0b1df50915a378da5f74a36c2"
     },
     {
       "id": "E07",
@@ -92,28 +92,28 @@
       "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/vector/storage_impl.rs",
       "line": 714,
       "needle": "async fn query_filtered",
-      "sha256": "b87f9aa6ad8b6c34d935ea1552c69834bb586a15cfb923e32b58ac156c28402d"
+      "sha256": "ea46a83d016fd9204a8efef41041bdf0a6e8c4a51d99ca903efa9af740a9a01e"
     },
     {
       "id": "E14",
       "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/vector/typed_read.rs",
       "line": 118,
       "needle": "pub async fn try_typed_chunk_query",
-      "sha256": "15df4293511b37d566d0727cad79bc940305132e493bf2937a1ed4e4d7c52794"
+      "sha256": "52ff96023e3034b66d0fd465b585a9c1dbaa7d451fef44acaa861d21d83d963c"
     },
     {
       "id": "E15",
       "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/chunk_embedding_index.rs",
       "line": 175,
       "needle": "async fn search",
-      "sha256": "ecf06d111e624d01e5d4b8149636c2ce35afcb7a6f6bfee2f08222d768f46b4a"
+      "sha256": "0efc2a6bd5a11c0ad8c0cf5046dba2336c1064c54c4f79812d98744deabdd04a"
     },
     {
       "id": "E16",
       "path": "edgequake/crates/edgequake-api/src/services/relational_sidecar_store.rs",
       "line": 58,
       "needle": "static SIDECAR_STORE",
-      "sha256": "82159b6abd67a5fb837163931020944a32dc353955a66a1d7eb9b3078bfdef8f"
+      "sha256": "a016bb2758a2407eb04f4efebfad1c5f70dcc04c881a7d0f546c32036bb2a1a3"
     },
     {
       "id": "E17",
@@ -167,9 +167,9 @@
     {
       "id": "E24",
       "path": "edgequake/crates/edgequake-storage/src/traits/domain/types.rs",
-      "line": 105,
+      "line": 99,
       "needle": "pub struct VectorQuery",
-      "sha256": "c49484a36bf6d5272893f9171323a3b6983e8396cba43ca9f7d6dc63268abdd1"
+      "sha256": "b18fbdece04b339e88929dd54933ccd8b42b2c2e120896103ef274e29eee3c25"
     },
     {
       "id": "E25",
@@ -218,7 +218,7 @@
       "path": "edgequake/crates/edgequake-storage/src/adapters/postgres/chunk_embedding_index.rs",
       "line": 119,
       "needle": "_model: ModelId",
-      "sha256": "ecf06d111e624d01e5d4b8149636c2ce35afcb7a6f6bfee2f08222d768f46b4a"
+      "sha256": "0efc2a6bd5a11c0ad8c0cf5046dba2336c1064c54c4f79812d98744deabdd04a"
     },
     {
       "id": "E32",

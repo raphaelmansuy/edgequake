@@ -633,7 +633,7 @@ impl DocumentTaskProcessor {
                 tenant_ctx: Some(&tenant_ctx),
                 workspace_service: self.workspace_service.as_deref(),
                 #[cfg(feature = "postgres")]
-                pg_pool: self.pg_pool.as_ref(),
+                pg_pool: self.optional_pg_pool(),
                 #[cfg(feature = "postgres")]
                 postgres_capabilities: self.postgres_capabilities.as_ref(),
             },

@@ -92,7 +92,7 @@ pub async fn ensure_postgres_user_exists(
             let guest_id = crate::services::identity_storage::shared_guest_user_id(tenant_id);
 
             #[cfg(feature = "postgres")]
-            if let Some(pool) = state.pg_pool.as_ref() {
+            if let Some(pool) = state.optional_pg_pool() {
                 crate::services::identity_storage::ensure_shared_guest_user_in_postgres(
                     pool,
                     &state.security,

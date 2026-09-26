@@ -462,6 +462,75 @@ impl PostgresAGEGraphStorage {
         Ok(!rows.is_empty())
     }
 
+    /// Tenant-scoped batch edge delete — one statement with endpoint pairs + fence.
+    pub(super) async fn pg_delete_edges_scoped_batch(
+        &self,
+        edges: &[(String, String)],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize> {
+        if edges.is_empty() {
+            return Ok(0);
+        }
+        let mut unique: Vec<(String, String)> = edges.to_vec();
+        unique.sort();
+        unique.dedup();
+
+        if !super::native_graph_writes_enabled() {
+            let mut deleted = 0usize;
+            for (source, target) in &unique {
+                if self
+                    .pg_delete_edge_scoped(source, target, tenant_id, workspace_id)
+                    .await?
+                {
+                    deleted += 1;
+                }
+            }
+            return Ok(deleted);
+        }
+
+        let sources: Vec<String> = unique.iter().map(|(s, _)| s.clone()).collect();
+        let targets: Vec<String> = unique.iter().map(|(_, t)| t.clone()).collect();
+
+        let pool = self.pool.get().await?;
+        let mut conn = pool.acquire().await.map_err(|e| {
+            StorageError::Connection(format!("Failed to acquire connection: {}", e))
+        })?;
+        let graph = &self.graph_name;
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let src_e = if eq_present {
+            super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt_e = if eq_present {
+            super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::helpers::prop_only_endpoint("e", "target")
+        };
+        let del = format!(
+            r#"/* DATA-AGE-GRAPH-DELETE-EDGES-SCOPED-BATCH */
+               DELETE FROM {graph}."EDGE" e
+               WHERE ({src_e}, {tgt_e}) IN (
+                   SELECT * FROM UNNEST($1::text[], $2::text[]) AS t(src, tgt)
+               )
+                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'tenant_id', '') = $3
+                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'workspace_id', '') = $4
+               RETURNING 1"#
+        );
+        let rows = sqlx::query(&del)
+            .bind(&sources)
+            .bind(&targets)
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("native scoped batch edge delete failed: {e}"))
+            })?;
+        Ok(rows.len())
+    }
+
     pub(super) async fn pg_get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>> {
         self.pg_get_incident_edges_batch(&[node_id.to_string()], None, None)
             .await

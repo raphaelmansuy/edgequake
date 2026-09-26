@@ -186,6 +186,7 @@ pub async fn chat_completion(
         if let Some(allowed_ids) =
             crate::handlers::query::document_filter_resolver::resolve_document_filter(
                 state.storage.kv_storage.as_ref(),
+                state.optional_pg_pool(),
                 filter,
                 &tenant_filter,
                 &ws_id_str,

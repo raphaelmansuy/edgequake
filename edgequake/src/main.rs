@@ -479,6 +479,7 @@ async fn recover_orphaned_documents(
 async fn periodic_orphan_check(
     task_storage: Arc<dyn TaskStorage>,
     kv_storage: Arc<dyn edgequake_storage::traits::KVStorage>,
+    #[cfg(feature = "postgres")] pg_pool: Option<&sqlx::PgPool>,
 ) -> Result<()> {
     let filter = TaskFilter {
         status: Some(TaskStatus::Processing),
@@ -540,10 +541,15 @@ async fn periodic_orphan_check(
                         task.track_id,
                         humanize_duration(age)
                     );
-                    // SPEC-045 SRE-I01: sync document KV so UI does not show processing
+                    // SPEC-045 SRE-I01: sync document KV + relational status so UI
+                    // does not stay on processing after heartbeat loss.
                     if let Err(e) =
                         edgequake_api::services::sync_document_failed_on_orphan_heartbeat(
                             Arc::clone(&kv_storage),
+                            #[cfg(feature = "postgres")]
+                            pg_pool,
+                            #[cfg(not(feature = "postgres"))]
+                            None,
                             &task,
                             &error_msg,
                         )
@@ -1077,7 +1083,7 @@ fn tokio_worker_stack_size() -> usize {
 async fn async_main() -> Result<()> {
     #[cfg(feature = "postgres")]
     {
-        return async_main_postgres().await;
+        async_main_postgres().await
     }
     #[cfg(not(feature = "postgres"))]
     {
@@ -1583,6 +1589,7 @@ async fn async_main_postgres() -> Result<()> {
     // and prevents stale data from being reloaded.
     edgequake_api::processor::pipeline_checkpoint::cleanup_stale_checkpoints(
         &state.storage.kv_storage,
+        state.operational_stores.checkpoint_artifacts.as_deref(),
     )
     .await;
 
@@ -1690,6 +1697,8 @@ async fn async_main_postgres() -> Result<()> {
     let periodic_task_storage = Arc::clone(&state.tasks.storage) as Arc<dyn TaskStorage>;
     let periodic_kv_storage =
         Arc::clone(&state.storage.kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>;
+    #[cfg(feature = "postgres")]
+    let periodic_pg_pool = state.pg_pool.clone();
     tokio::spawn(async move {
         // WHY 5 minutes: Frequent enough to catch dead-heartbeat tasks within
         // ~15 minutes (10 min threshold + up to 5 min wait for the next check).
@@ -1700,6 +1709,8 @@ async fn async_main_postgres() -> Result<()> {
             if let Err(e) = periodic_orphan_check(
                 Arc::clone(&periodic_task_storage),
                 Arc::clone(&periodic_kv_storage),
+                #[cfg(feature = "postgres")]
+                periodic_pg_pool.as_ref(),
             )
             .await
             {

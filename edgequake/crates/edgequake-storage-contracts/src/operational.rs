@@ -73,7 +73,11 @@ pub trait SessionStore: Send + Sync {
     async fn put_api_key(&self, key: &ApiKey) -> AccessResult<()>;
     async fn list_api_keys(&self, user_id: Uuid) -> AccessResult<Vec<ApiKey>>;
     async fn find_api_keys_by_prefix(&self, prefix: &str) -> AccessResult<Vec<ApiKey>>;
-    async fn revoke_api_key(&self, key_id: Uuid) -> AccessResult<Option<ApiKey>>;
+    async fn revoke_api_key(
+        &self,
+        owner_user_id: Uuid,
+        key_id: Uuid,
+    ) -> AccessResult<Option<ApiKey>>;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

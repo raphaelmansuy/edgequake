@@ -14,6 +14,7 @@ mod cypher_format;
 mod eq_id_sql;
 mod escape;
 mod graph_lifecycle;
+mod lineage_gin_tuning;
 mod session;
 mod source_lineage_sql;
 mod vertex_filter;
@@ -29,13 +30,16 @@ pub(in crate::adapters::postgres::graph) use eq_id_sql::{
 };
 
 pub(in crate::adapters::postgres::graph) use source_lineage_sql::{
-    jsonb_matches_doc_source_prefix_legacy, normalize_doc_chunk_prefix, source_count_probe_limit,
-    source_ids_count_probes_cte_sql, source_ids_probes_cte_sql, SOURCE_CHUNK_PROBE_LIMIT,
+    jsonb_matches_doc_source_prefix_legacy, lineage_hits_cte_sql, normalize_doc_chunk_prefix,
+    source_count_probe_limit, source_ids_probes_cte_sql, SOURCE_CHUNK_PROBE_LIMIT,
     SOURCE_DISCOVERY_STATEMENT_TIMEOUT_MS, WORKSPACE_STATS_STATEMENT_TIMEOUT_MS,
 };
 
 /// SPEC-089 / SPEC-107 R2: public SSOT for GIN node-count batch + timeout bounds.
-pub use source_lineage_sql::{SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT};
+pub use source_lineage_sql::{
+    node_counts_by_source_prefixes_sql, LINEAGE_GIN_INDEXES, LINEAGE_GIN_PENDING_LIST_LIMIT_KB,
+    SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT,
+};
 
 #[cfg(test)]
 pub(in crate::adapters::postgres::graph) use source_lineage_sql::jsonb_matches_doc_source_prefix_modern;

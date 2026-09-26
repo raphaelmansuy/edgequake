@@ -214,7 +214,7 @@ async fn collect_setup_status(state: &AppState) -> Result<SetupStatusResponse, A
 async fn count_login_users(state: &AppState) -> Result<bool, ApiError> {
     #[cfg(feature = "postgres")]
     {
-        if let Some(pool) = state.pg_pool.as_ref() {
+        if let Some(pool) = state.optional_pg_pool() {
             let n = crate::services::identity_storage::count_login_capable_users_pg(
                 pool,
                 &state.security,
@@ -301,7 +301,14 @@ async fn create_first_run_admin(
             capabilities: state.postgres_capabilities.clone(),
         };
 
-        persist_user_record(&state.storage, Some(&pg_runtime), &state.security, &record).await?;
+        persist_user_record(
+            &state.storage,
+            Some(&pg_runtime),
+            &state.security,
+            state.operational_stores.identity.as_deref(),
+            &record,
+        )
+        .await?;
 
         info!(username = %username, "SPEC-101: created first-run admin via /setup/initialize");
         Ok(Some(username.to_string()))

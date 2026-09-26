@@ -16,7 +16,9 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::handlers::auth::ApiAuthenticated;
-use crate::state::{ApiSecurityConfig, AuthRuntime, PostgresRuntime, StorageRuntime};
+use crate::state::{
+    ApiSecurityConfig, AuthRuntime, OperationalStores, PostgresRuntime, StorageRuntime,
+};
 
 use super::{ApiKeyRecord, RequestAuthContext};
 pub use crate::handlers::auth_types::{
@@ -44,6 +46,7 @@ pub async fn create_api_key(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
@@ -85,6 +88,7 @@ pub async fn create_api_key(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &record,
     )
     .await?;
@@ -134,6 +138,7 @@ pub async fn list_api_keys(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
+    State(stores): State<OperationalStores>,
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
@@ -144,6 +149,7 @@ pub async fn list_api_keys(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &user_id,
     )
     .await?;
@@ -200,14 +206,17 @@ pub async fn revoke_api_key(
     State(storage): State<StorageRuntime>,
     State(pg_runtime): State<PostgresRuntime>,
     State(security): State<ApiSecurityConfig>,
-    ApiAuthenticated(_auth): ApiAuthenticated,
+    State(stores): State<OperationalStores>,
+    ApiAuthenticated(auth): ApiAuthenticated,
     Path(key_id): Path<String>,
 ) -> Result<Json<RevokeApiKeyResponse>, ApiError> {
     crate::services::session_storage::revoke_api_key(
         &storage,
         Some(&pg_runtime),
         &security,
+        stores.sessions.as_deref(),
         &key_id,
+        &auth.user_id,
     )
     .await?
     .ok_or_else(|| ApiError::NotFound(format!("API key not found: {}", key_id)))?;

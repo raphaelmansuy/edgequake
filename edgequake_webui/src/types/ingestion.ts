@@ -53,6 +53,7 @@ export type IngestionStage =
   | "summarizing" // Description summarization
   | "embedding" // Vector generation
   | "storing" // Persist to storage
+  | "projecting" // SPEC-149: awaiting projection delivery apply
   | "completed" // Successfully finished
   | "failed" // Error state
   // Legacy aliases for backward compatibility

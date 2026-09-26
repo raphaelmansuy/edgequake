@@ -49,7 +49,7 @@ pub async fn get_operation(
     let task = get_task_for_context(&state, &id, &tenant_ctx).await?;
     let mut response = TaskResponse::from(task);
     #[cfg(feature = "postgres")]
-    if let (Some(pool), Some(doc_id)) = (state.pg_pool.as_ref(), response.document_id.as_deref()) {
+    if let (Some(pool), Some(doc_id)) = (state.optional_pg_pool(), response.document_id.as_deref()) {
         response.document =
             crate::services::operation_document::load_operation_document_projection(pool, doc_id)
                 .await;
@@ -180,7 +180,7 @@ pub async fn get_operation_events(
 
 #[cfg(feature = "postgres")]
 async fn load_task_events(state: &AppState, id: &str) -> ApiResult<Vec<Value>> {
-    let Some(pool) = state.pg_pool.as_ref() else {
+    let Some(pool) = state.optional_pg_pool() else {
         return Ok(Vec::new());
     };
 

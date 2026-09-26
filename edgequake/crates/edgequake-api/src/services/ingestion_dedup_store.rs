@@ -35,7 +35,7 @@ pub async fn lookup_durable(
     #[cfg(feature = "postgres")]
     {
         if reads_relational() {
-            if let Some(pool) = state.pg_pool.as_ref() {
+            if let Some(pool) = state.optional_pg_pool() {
                 return dedup_rel::lookup_document(
                     pool,
                     workspace_id,
@@ -61,7 +61,7 @@ pub async fn lookup_staging(
     #[cfg(feature = "postgres")]
     {
         if reads_relational() {
-            if let Some(pool) = state.pg_pool.as_ref() {
+            if let Some(pool) = state.optional_pg_pool() {
                 return dedup_rel::lookup_document(
                     pool,
                     workspace_id,
@@ -92,7 +92,7 @@ pub async fn reserve_staging(
     // and propagate failures.
     #[cfg(feature = "postgres")]
     if reads_relational() {
-        if let Some(pool) = state.pg_pool.as_ref() {
+        if let Some(pool) = state.optional_pg_pool() {
             dedup_rel::upsert_reservation(
                 pool,
                 workspace_id,
@@ -118,7 +118,7 @@ pub async fn reserve_staging(
         .upsert(&[(key, json!(document_id))])
         .await?;
     #[cfg(feature = "postgres")]
-    if let Some(pool) = state.pg_pool.as_ref() {
+    if let Some(pool) = state.optional_pg_pool() {
         if let Err(e) = dedup_rel::upsert_reservation(
             pool,
             workspace_id,
@@ -139,7 +139,7 @@ pub async fn reserve_staging(
 /// (KV promote stays in `staging_admission::promote_staging_to_final`).
 #[cfg(feature = "postgres")]
 pub async fn dual_promote(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
     content_hash: &str,
     document_id: &str,
@@ -158,7 +158,7 @@ pub async fn dual_promote(
 /// Staging release/rollback: drop the typed staging row.
 #[cfg(feature = "postgres")]
 pub async fn dual_release_staging(
-    pool: Option<&sqlx::PgPool>,
+    pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
     content_hash: &str,
 ) {
@@ -178,7 +178,11 @@ pub async fn dual_release_staging(
 
 /// Recycle / delete parity: drop every typed reservation for the hash.
 #[cfg(feature = "postgres")]
-pub async fn dual_delete_all(pool: Option<&sqlx::PgPool>, workspace_id: &str, content_hash: &str) {
+pub async fn dual_delete_all(
+    pool: crate::services::OptionalPgPool<'_>,
+    workspace_id: &str,
+    content_hash: &str,
+) {
     if let Some(pool) = pool {
         if let Err(e) = dedup_rel::delete_all_versions(pool, workspace_id, content_hash).await {
             warn_dedup("delete-all", e);

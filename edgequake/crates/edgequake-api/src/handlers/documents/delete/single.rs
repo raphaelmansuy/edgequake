@@ -67,7 +67,8 @@ async fn resolve_kv_key_prefix(document_id: &str, state: &AppState) -> (String, 
         }
     }
 
-    if let Ok(entries) = load_all_document_metadata_entries(state.storage.kv_storage.as_ref()).await
+    if let Ok(entries) =
+        load_all_document_metadata_entries(state.storage.kv_storage.as_ref(), None).await
     {
         for (key, val) in entries {
             let canonical = canonical_document_id(&key, &val);
@@ -186,7 +187,7 @@ async fn delete_staging_shell_sync(
     // SPEC-091 W2: typed ingestion_dedup staging rollback.
     #[cfg(feature = "postgres")]
     crate::services::ingestion_dedup_store::dual_release_staging(
-        state.pg_pool.as_ref(),
+        state.optional_pg_pool(),
         &workspace_id,
         &content_hash,
     )
@@ -304,7 +305,7 @@ pub async fn delete_document(
 
     #[cfg(feature = "postgres")]
     let relational_scope =
-        relational_document_scope(state.pg_pool.as_ref(), &document_id, &tenant_ctx).await?;
+        relational_document_scope(state.optional_pg_pool(), &document_id, &tenant_ctx).await?;
     #[cfg(not(feature = "postgres"))]
     let relational_scope: Option<crate::document_read_model::RelationalDocumentScope> = None;
 

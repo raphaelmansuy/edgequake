@@ -111,12 +111,17 @@ impl SessionStore for PostgresSessionStore {
         .map_err(database_error)
     }
 
-    async fn revoke_api_key(&self, key_id: Uuid) -> AccessResult<Option<ApiKey>> {
+    async fn revoke_api_key(
+        &self,
+        owner_user_id: Uuid,
+        key_id: Uuid,
+    ) -> AccessResult<Option<ApiKey>> {
         sqlx::query_as::<_, ApiKeyRow>(
-            "UPDATE api_keys SET is_active=FALSE WHERE key_id=$1 \
+            "UPDATE api_keys SET is_active=FALSE WHERE key_id=$1 AND user_id=$2 \
              RETURNING key_id,user_id,key_hash,key_prefix,name,scopes,is_active,created_at,last_used_at,expires_at",
         )
         .bind(key_id)
+        .bind(owner_user_id)
         .fetch_optional(&self.pool)
         .await
         .map(|row| row.map(Into::into))

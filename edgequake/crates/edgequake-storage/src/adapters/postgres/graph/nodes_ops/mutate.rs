@@ -375,6 +375,102 @@ impl PostgresAGEGraphStorage {
         Ok(true)
     }
 
+    /// Tenant-scoped batch delete — one statement with `id = ANY` + fence.
+    pub(in crate::adapters::postgres::graph) async fn pg_delete_nodes_scoped_batch(
+        &self,
+        node_ids: &[String],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize> {
+        if node_ids.is_empty() {
+            return Ok(0);
+        }
+        let mut unique = node_ids.to_vec();
+        unique.sort();
+        unique.dedup();
+
+        if !super::super::native_graph_writes_enabled() {
+            let mut deleted = 0usize;
+            for id in &unique {
+                if self
+                    .pg_delete_node_scoped(id, tenant_id, workspace_id)
+                    .await?
+                {
+                    deleted += 1;
+                }
+            }
+            return Ok(deleted);
+        }
+
+        let pool = self.pool.get().await?;
+        let graph = &self.graph_name;
+        let mut conn = pool
+            .acquire()
+            .await
+            .map_err(|e| StorageError::Connection(format!("Failed to acquire connection: {e}")))?;
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let src = if eq_present {
+            super::super::helpers::coalesce_endpoint("e", "source")
+        } else {
+            super::super::helpers::prop_only_endpoint("e", "source")
+        };
+        let tgt = if eq_present {
+            super::super::helpers::coalesce_endpoint("e", "target")
+        } else {
+            super::super::helpers::prop_only_endpoint("e", "target")
+        };
+        let node_key = if eq_present {
+            super::super::helpers::coalesce_endpoint("n", "node")
+        } else {
+            super::super::helpers::prop_only_endpoint("n", "node")
+        };
+        let tenant_prop = "COALESCE(ag_catalog.agtype_to_json(n.properties)->>'tenant_id', '')";
+        let workspace_prop =
+            "COALESCE(ag_catalog.agtype_to_json(n.properties)->>'workspace_id', '')";
+
+        let del_edges = format!(
+            r#"/* DATA-AGE-GRAPH-DELETE-NODES-SCOPED-BATCH detach */
+               WITH doomed AS (
+                 SELECT {node_key} AS nid
+                 FROM {graph}."Node" n
+                 WHERE {node_key} = ANY($1::text[])
+                   AND {tenant_prop} = $2
+                   AND {workspace_prop} = $3
+               )
+               DELETE FROM {graph}."EDGE" e
+               WHERE {src} IN (SELECT nid FROM doomed)
+                  OR {tgt} IN (SELECT nid FROM doomed)"#
+        );
+        sqlx::query(&del_edges)
+            .bind(&unique)
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("native scoped batch edge detach failed: {e}"))
+            })?;
+
+        let del_nodes = format!(
+            r#"/* DATA-AGE-GRAPH-DELETE-NODES-SCOPED-BATCH */
+               DELETE FROM {graph}."Node" n
+               WHERE {node_key} = ANY($1::text[])
+                 AND {tenant_prop} = $2
+                 AND {workspace_prop} = $3
+               RETURNING 1"#
+        );
+        let rows = sqlx::query(&del_nodes)
+            .bind(&unique)
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("native scoped batch node delete failed: {e}"))
+            })?;
+        Ok(rows.len())
+    }
+
     /// SPEC-034 IMP-01: Native SQL batch node upsert — O(log G) per node.
     ///
     /// # WHY: Replace Cypher MERGE GIN scan with native SQL btree lookup

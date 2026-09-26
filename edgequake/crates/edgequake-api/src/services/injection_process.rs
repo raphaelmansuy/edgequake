@@ -107,7 +107,7 @@ pub async fn write_injection_status(
         .upsert(&[(meta_key.to_string(), meta.clone())])
         .await;
     // SPEC-091 Wave B6: typed dual-write (warn-only).
-    crate::services::injection_relational::typed_injection_upsert(&meta).await;
+    crate::services::injection_relational::typed_injection_upsert(&meta, None).await;
 }
 
 /// Process injection content through the resilient pipeline + shared persister.

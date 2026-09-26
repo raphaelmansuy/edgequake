@@ -85,6 +85,7 @@ pub(crate) async fn validate_stored_api_key(
         &state.storage,
         pg_runtime,
         &state.security,
+        state.operational_stores.sessions.as_deref(),
         &presented_prefix,
     )
     .await?;

@@ -267,6 +267,7 @@ pub async fn chat_completion_stream(
             let tenant_filter = Some(data_tenant_id.clone());
             match crate::handlers::query::document_filter_resolver::resolve_document_filter(
                 state_clone.storage.kv_storage.as_ref(),
+                state_clone.optional_pg_pool(),
                 filter,
                 &tenant_filter,
                 &ws_id_str,

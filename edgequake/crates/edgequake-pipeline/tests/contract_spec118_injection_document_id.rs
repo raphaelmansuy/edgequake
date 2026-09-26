@@ -46,7 +46,7 @@ fn contract_spec118_issue376_composite_resolves() {
     assert_eq!(raw.len(), 85);
     let id = resolve_relational_document_id(raw).expect("resolve");
     assert_eq!(
-        id.0,
+        id.into_uuid(),
         Uuid::parse_str("3fc4a415-33e7-4a38-88d9-86ae6b8bb36e").unwrap()
     );
 }

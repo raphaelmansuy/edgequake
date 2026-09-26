@@ -57,6 +57,54 @@ impl SidecarStoreRegistry {
 
 static SIDECAR_STORE: SidecarStoreRegistry = SidecarStoreRegistry::new();
 
+tokio::task_local! {
+    static INSTALLED_PORTS: InstalledPorts;
+}
+
+/// Ports for the current request or task. Explicit values win over the process registry.
+#[derive(Clone, Default)]
+pub struct InstalledPorts {
+    #[cfg(feature = "postgres")]
+    pool: Option<Arc<sqlx::PgPool>>,
+    store: Option<Arc<dyn CheckpointArtifactStore>>,
+}
+
+impl InstalledPorts {
+    pub fn new(
+        #[cfg(feature = "postgres")] pool: Option<Arc<sqlx::PgPool>>,
+        store: Option<Arc<dyn CheckpointArtifactStore>>,
+    ) -> Self {
+        Self {
+            #[cfg(feature = "postgres")]
+            pool,
+            store,
+        }
+    }
+}
+
+/// Run `future` with operational ports visible to sidecar readers.
+pub async fn with_ports<F, T>(ports: InstalledPorts, future: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    INSTALLED_PORTS.scope(ports, future).await
+}
+
+fn installed_store() -> Option<Arc<dyn CheckpointArtifactStore>> {
+    INSTALLED_PORTS
+        .try_with(|ports| ports.store.clone())
+        .ok()
+        .flatten()
+}
+
+#[cfg(feature = "postgres")]
+fn installed_pool() -> Option<Arc<sqlx::PgPool>> {
+    INSTALLED_PORTS
+        .try_with(|ports| ports.pool.clone())
+        .ok()
+        .flatten()
+}
+
 #[cfg(feature = "postgres")]
 static LEGACY_SIDECAR_POOL: RwLock<Option<Arc<sqlx::PgPool>>> = RwLock::new(None);
 
@@ -88,6 +136,9 @@ pub fn register_sidecar_pool(pool: impl Into<Arc<sqlx::PgPool>>) {
 /// Compatibility accessor for relational groups not yet extracted in J21.
 #[cfg(feature = "postgres")]
 pub fn sidecar_pool() -> Option<Arc<sqlx::PgPool>> {
+    if let Some(pool) = installed_pool() {
+        return Some(pool);
+    }
     LEGACY_SIDECAR_POOL
         .read()
         .expect("legacy sidecar pool lock")
@@ -96,6 +147,9 @@ pub fn sidecar_pool() -> Option<Arc<sqlx::PgPool>> {
 }
 
 pub fn sidecar_store() -> Option<Arc<dyn CheckpointArtifactStore>> {
+    if let Some(store) = installed_store() {
+        return Some(store);
+    }
     SIDECAR_STORE.get()
 }
 
@@ -133,15 +187,23 @@ fn doc_uuid(document_id: &str) -> Option<uuid::Uuid> {
 
 // ── pipeline_checkpoints ────────────────────────────────────────────────────
 
-/// True when a typed checkpoint write can land (pool installed + UUID doc id).
-pub fn typed_checkpoint_writable(document_id: &str) -> bool {
-    sidecar_store().is_some() && doc_uuid(document_id).is_some()
+/// True when a typed checkpoint write can land (store present + UUID doc id).
+pub fn typed_checkpoint_writable(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) -> bool {
+    store.is_some() && doc_uuid(document_id).is_some()
 }
 
-/// Typed upsert (warn-only). No-op without a pool or for non-UUID ids.
+/// Typed upsert (warn-only). No-op without a store or for non-UUID ids.
 /// Returns whether the row was written successfully.
-pub async fn typed_checkpoint_put(document_id: &str, kind: &str, payload: &Value) -> bool {
-    let (Some(store), Some(doc)) = (sidecar_store(), doc_uuid(document_id)) else {
+pub async fn typed_checkpoint_put(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+    payload: &Value,
+) -> bool {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
         return false;
     };
     match store.put_checkpoint(doc, kind, payload).await {
@@ -159,9 +221,13 @@ pub async fn typed_checkpoint_put(document_id: &str, kind: &str, payload: &Value
     }
 }
 
-/// Typed read. `None` on miss, error, no pool, or non-UUID id (→ KV fallback).
-pub async fn typed_checkpoint_get(document_id: &str, kind: &str) -> Option<Value> {
-    let (store, doc) = (sidecar_store()?, doc_uuid(document_id)?);
+/// Typed read. `None` on miss, error, no store, or non-UUID id (→ KV fallback).
+pub async fn typed_checkpoint_get(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+) -> Option<Value> {
+    let (store, doc) = (store?, doc_uuid(document_id)?);
     match store.get_checkpoint(doc, kind).await {
         Ok(value) => value,
         Err(error) => {
@@ -172,8 +238,12 @@ pub async fn typed_checkpoint_get(document_id: &str, kind: &str) -> Option<Value
 }
 
 /// Typed delete (warn-only), paired with the caller's KV delete.
-pub async fn typed_checkpoint_delete(document_id: &str, kind: &str) {
-    let (Some(store), Some(doc)) = (sidecar_store(), doc_uuid(document_id)) else {
+pub async fn typed_checkpoint_delete(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+) {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
         return;
     };
     if let Err(error) = store.delete_checkpoint(doc, kind).await {
@@ -188,8 +258,11 @@ pub async fn typed_checkpoint_delete(document_id: &str, kind: &str) {
 }
 
 /// Startup sweep mirroring `cleanup_stale_checkpoints` for typed rows.
-pub async fn cleanup_stale_typed_checkpoints(max_age_secs: u64) {
-    let Some(store) = sidecar_store() else { return };
+pub async fn cleanup_stale_typed_checkpoints(
+    store: Option<&dyn CheckpointArtifactStore>,
+    max_age_secs: u64,
+) {
+    let Some(store) = store else { return };
     match store.cleanup_stale_checkpoints(max_age_secs).await {
         Ok(cleaned) if cleaned > 0 => tracing::info!(
             cleaned,
@@ -202,9 +275,14 @@ pub async fn cleanup_stale_typed_checkpoints(max_age_secs: u64) {
 
 // ── document_artifacts ──────────────────────────────────────────────────────
 
-/// Typed upsert (warn-only). No-op without a pool or for non-UUID ids.
-pub async fn typed_artifact_put(document_id: &str, kind: &str, payload: &Value) {
-    let (Some(store), Some(doc)) = (sidecar_store(), doc_uuid(document_id)) else {
+/// Typed upsert (warn-only). No-op without a store or for non-UUID ids.
+pub async fn typed_artifact_put(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+    payload: &Value,
+) {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
         return;
     };
     if let Err(error) = store.put_artifact(doc, kind, payload).await {
@@ -218,9 +296,13 @@ pub async fn typed_artifact_put(document_id: &str, kind: &str, payload: &Value) 
     }
 }
 
-/// Typed read. `None` on miss, error, no pool, or non-UUID id (→ KV fallback).
-pub async fn typed_artifact_get(document_id: &str, kind: &str) -> Option<Value> {
-    let (store, doc) = (sidecar_store()?, doc_uuid(document_id)?);
+/// Typed read. `None` on miss, error, no store, or non-UUID id (→ KV fallback).
+pub async fn typed_artifact_get(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+    kind: &str,
+) -> Option<Value> {
+    let (store, doc) = (store?, doc_uuid(document_id)?);
     match store.get_artifact(doc, kind).await {
         Ok(value) => value,
         Err(error) => {
@@ -232,8 +314,11 @@ pub async fn typed_artifact_get(document_id: &str, kind: &str) -> Option<Value> 
 
 /// Delete every typed artifact for a document (deletion parity with the
 /// legacy per-family KV key deletes).
-pub async fn typed_artifact_delete_all(document_id: &str) {
-    let (Some(store), Some(doc)) = (sidecar_store(), doc_uuid(document_id)) else {
+pub async fn typed_artifact_delete_all(
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) {
+    let (Some(store), Some(doc)) = (store, doc_uuid(document_id)) else {
         return;
     };
     if let Err(error) = store.delete_artifacts(doc).await {
@@ -260,10 +345,22 @@ mod tests {
         std::env::remove_var("EDGEQUAKE_KV_FAMILY_ARTIFACT");
         assert!(checkpoints_prefer_relational());
         assert!(artifacts_prefer_relational());
-        typed_checkpoint_put("doc", CHECKPOINT_KIND_CRASH, &serde_json::json!({"a": 1})).await;
-        typed_artifact_put("doc", ARTIFACT_KIND_LINEAGE, &serde_json::json!({"b": 2})).await;
-        typed_checkpoint_delete("doc", CHECKPOINT_KIND_CRASH).await;
-        typed_artifact_delete_all("doc").await;
+        typed_checkpoint_put(
+            None,
+            "doc",
+            CHECKPOINT_KIND_CRASH,
+            &serde_json::json!({"a": 1}),
+        )
+        .await;
+        typed_artifact_put(
+            None,
+            "doc",
+            ARTIFACT_KIND_LINEAGE,
+            &serde_json::json!({"b": 2}),
+        )
+        .await;
+        typed_checkpoint_delete(None, "doc", CHECKPOINT_KIND_CRASH).await;
+        typed_artifact_delete_all(None, "doc").await;
 
         std::env::set_var("EDGEQUAKE_KV_FAMILY_CHECKPOINT", "kv");
         std::env::set_var("EDGEQUAKE_KV_FAMILY_ARTIFACT", "kv");

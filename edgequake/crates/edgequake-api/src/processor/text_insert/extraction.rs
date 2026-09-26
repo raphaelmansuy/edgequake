@@ -54,10 +54,18 @@ impl DocumentTaskProcessor {
                 document_id = %document_id,
                 "Fresh extraction requested — clearing KG pipeline checkpoint + extraction snapshot"
             );
-            super::pipeline_checkpoint::clear_pipeline_checkpoint(&self.kv_storage, &document_id)
-                .await;
-            super::pipeline_checkpoint::clear_extraction_snapshot(&self.kv_storage, &document_id)
-                .await;
+            super::pipeline_checkpoint::clear_pipeline_checkpoint(
+                &self.kv_storage,
+                self.checkpoint_store(),
+                &document_id,
+            )
+            .await;
+            super::pipeline_checkpoint::clear_extraction_snapshot(
+                &self.kv_storage,
+                self.checkpoint_store(),
+                &document_id,
+            )
+            .await;
             super::pipeline_checkpoint::clear_partial_chunk_checkpoint(
                 &self.kv_storage,
                 &document_id,
@@ -67,6 +75,7 @@ impl DocumentTaskProcessor {
 
         let checkpoint_result = super::pipeline_checkpoint::load_pipeline_checkpoint(
             &self.kv_storage,
+            self.checkpoint_store(),
             &document_id,
             &data.workspace_id,
             &provider_lineage.extraction_provider,
@@ -79,6 +88,7 @@ impl DocumentTaskProcessor {
         let snapshot_result = if checkpoint_result.is_none() && !force_fresh_extraction {
             super::pipeline_checkpoint::load_extraction_snapshot(
                 &self.kv_storage,
+                self.checkpoint_store(),
                 &document_id,
                 &data.workspace_id,
                 &provider_lineage.extraction_provider,
@@ -249,6 +259,7 @@ impl DocumentTaskProcessor {
                         if crate::services::task_cancel::is_cancel_error_message(&error_msg) {
                             let _ = crate::services::sync_doc_cancelled_by_document_id(
                                 Arc::clone(&self.kv_storage),
+                                self.optional_pg_pool(),
                                 &document_id,
                                 &error_msg,
                             )
@@ -298,7 +309,7 @@ impl DocumentTaskProcessor {
                             // SPEC-091 W2: typed ingestion_dedup staging release.
                             #[cfg(feature = "postgres")]
                             crate::services::ingestion_dedup_store::dual_release_staging(
-                                self.pg_pool.as_ref(),
+                                self.optional_pg_pool(),
                                 ws,
                                 hash,
                             )
@@ -318,6 +329,7 @@ impl DocumentTaskProcessor {
                 // Embeddings are stripped (SPEC-047 P5) — re-embedded on resume.
                 if let Err(e) = super::pipeline_checkpoint::save_pipeline_checkpoint(
                     &self.kv_storage,
+                    self.checkpoint_store(),
                     &document_id,
                     &fresh_result,
                     &data.workspace_id,
@@ -382,7 +394,12 @@ impl DocumentTaskProcessor {
 
         // Phase 4k: inject mm entity + association edges when sidecar chunks persisted.
         let mm_metas: Vec<edgequake_pipeline::MmChunkSidecarMeta> = if let Some(mm_chunks) =
-            crate::services::load_mm_chunks(self.kv_storage.as_ref(), &document_id).await
+            crate::services::load_mm_chunks(
+                self.kv_storage.as_ref(),
+                self.checkpoint_store(),
+                &document_id,
+            )
+            .await
         {
             mm_chunks
                 .iter()

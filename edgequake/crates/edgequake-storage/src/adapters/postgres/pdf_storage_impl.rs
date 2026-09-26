@@ -63,6 +63,10 @@ impl PostgresPdfStorage {
         );
         if let Some(msg) = stats.error_message {
             patch.insert("error_message".into(), serde_json::json!(msg));
+        } else {
+            // Non-failure stats writes must clear a stale error_message so the
+            // UI cannot keep a prior persist failure after a successful commit.
+            patch.insert("error_message".into(), serde_json::Value::Null);
         }
         serde_json::Value::Object(patch)
     }
@@ -660,7 +664,7 @@ impl PdfDocumentStorage for PostgresPdfStorage {
                 input_tokens       = COALESCE($6, input_tokens),
                 output_tokens      = COALESCE($7, output_tokens),
                 total_tokens       = COALESCE($8, total_tokens),
-                error_message      = COALESCE($9, error_message),
+                error_message      = $9,
                 status             = $10,
                 updated_at         = NOW()
             WHERE id = $1

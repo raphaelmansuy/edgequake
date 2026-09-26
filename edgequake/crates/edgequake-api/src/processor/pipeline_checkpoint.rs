@@ -47,6 +47,7 @@
 use std::sync::Arc;
 
 use edgequake_pipeline::ProcessingResult;
+use edgequake_storage::contracts::CheckpointArtifactStore;
 use edgequake_storage::traits::KVStorage;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -185,6 +186,7 @@ pub fn plan_extraction_reuse(
 #[allow(clippy::too_many_arguments)]
 pub async fn save_pipeline_checkpoint(
     kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
     document_id: &str,
     result: &ProcessingResult,
     workspace_id: &str,
@@ -228,6 +230,7 @@ pub async fn save_pipeline_checkpoint(
     // Non-UUID / no-pool paths keep KV so unit tests and degraded boots still resume.
     let relational = crate::services::relational_sidecar_store::checkpoints_prefer_relational();
     let wrote_typed = crate::services::relational_sidecar_store::typed_checkpoint_put(
+        store,
         document_id,
         crate::services::relational_sidecar_store::CHECKPOINT_KIND_CRASH,
         &value,
@@ -267,6 +270,7 @@ pub async fn save_pipeline_checkpoint(
 /// Any validation failure logs a warning and returns `None`.
 pub async fn load_pipeline_checkpoint(
     kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
     document_id: &str,
     workspace_id: &str,
     extraction_provider: &str,
@@ -275,6 +279,7 @@ pub async fn load_pipeline_checkpoint(
 ) -> Option<ProcessingResult> {
     load_validated_checkpoint_blob(
         kv,
+        store,
         &checkpoint_key(document_id),
         crate::services::relational_sidecar_store::CHECKPOINT_KIND_CRASH,
         document_id,
@@ -291,9 +296,14 @@ pub async fn load_pipeline_checkpoint(
 /// Clear a pipeline checkpoint after successful processing.
 ///
 /// Called when all storage stages complete successfully, freeing KV space.
-pub async fn clear_pipeline_checkpoint(kv: &Arc<dyn KVStorage>, document_id: &str) {
+pub async fn clear_pipeline_checkpoint(
+    kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) {
     let key = checkpoint_key(document_id);
     crate::services::relational_sidecar_store::typed_checkpoint_delete(
+        store,
         document_id,
         crate::services::relational_sidecar_store::CHECKPOINT_KIND_CRASH,
     )
@@ -315,6 +325,7 @@ pub async fn clear_pipeline_checkpoint(kv: &Arc<dyn KVStorage>, document_id: &st
 #[allow(clippy::too_many_arguments)]
 pub async fn save_extraction_snapshot(
     kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
     document_id: &str,
     result: &ProcessingResult,
     workspace_id: &str,
@@ -352,6 +363,7 @@ pub async fn save_extraction_snapshot(
     // SPEC-091 WP1: relational + successful typed write → KV write-stop.
     let relational = crate::services::relational_sidecar_store::checkpoints_prefer_relational();
     let wrote_typed = crate::services::relational_sidecar_store::typed_checkpoint_put(
+        store,
         document_id,
         crate::services::relational_sidecar_store::CHECKPOINT_KIND_SNAPSHOT,
         &value,
@@ -380,6 +392,7 @@ pub async fn save_extraction_snapshot(
 /// Load durable extraction snapshot (SPEC-047 P7e). Same validation as checkpoint.
 pub async fn load_extraction_snapshot(
     kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
     document_id: &str,
     workspace_id: &str,
     extraction_provider: &str,
@@ -388,6 +401,7 @@ pub async fn load_extraction_snapshot(
 ) -> Option<ProcessingResult> {
     load_validated_checkpoint_blob(
         kv,
+        store,
         &extraction_snapshot_key(document_id),
         crate::services::relational_sidecar_store::CHECKPOINT_KIND_SNAPSHOT,
         document_id,
@@ -402,9 +416,14 @@ pub async fn load_extraction_snapshot(
 }
 
 /// Clear durable extraction snapshot (Full reprocess / content wipe).
-pub async fn clear_extraction_snapshot(kv: &Arc<dyn KVStorage>, document_id: &str) {
+pub async fn clear_extraction_snapshot(
+    kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
+    document_id: &str,
+) {
     let key = extraction_snapshot_key(document_id);
     crate::services::relational_sidecar_store::typed_checkpoint_delete(
+        store,
         document_id,
         crate::services::relational_sidecar_store::CHECKPOINT_KIND_SNAPSHOT,
     )
@@ -423,6 +442,7 @@ pub async fn clear_extraction_snapshot(kv: &Arc<dyn KVStorage>, document_id: &st
 #[allow(clippy::too_many_arguments)]
 async fn load_validated_checkpoint_blob(
     kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
     key: &str,
     sidecar_kind: &str,
     document_id: &str,
@@ -436,6 +456,7 @@ async fn load_validated_checkpoint_blob(
     // SPEC-091 Wave B4: flag-gated typed read first; KV fallback on any gap.
     let value = if crate::services::relational_sidecar_store::checkpoints_prefer_relational() {
         match crate::services::relational_sidecar_store::typed_checkpoint_get(
+            store,
             document_id,
             sidecar_kind,
         )
@@ -489,6 +510,7 @@ async fn load_validated_checkpoint_blob(
             );
             let _ = kv.delete(&[key.to_string()]).await;
             crate::services::relational_sidecar_store::typed_checkpoint_delete(
+                store,
                 document_id,
                 sidecar_kind,
             )
@@ -505,6 +527,7 @@ async fn load_validated_checkpoint_blob(
         );
         let _ = kv.delete(&[key.to_string()]).await;
         crate::services::relational_sidecar_store::typed_checkpoint_delete(
+            store,
             document_id,
             sidecar_kind,
         )
@@ -522,6 +545,7 @@ async fn load_validated_checkpoint_blob(
         );
         let _ = kv.delete(&[key.to_string()]).await;
         crate::services::relational_sidecar_store::typed_checkpoint_delete(
+            store,
             document_id,
             sidecar_kind,
         )
@@ -538,6 +562,7 @@ async fn load_validated_checkpoint_blob(
         );
         let _ = kv.delete(&[key.to_string()]).await;
         crate::services::relational_sidecar_store::typed_checkpoint_delete(
+            store,
             document_id,
             sidecar_kind,
         )
@@ -560,6 +585,7 @@ async fn load_validated_checkpoint_blob(
         );
         let _ = kv.delete(&[key.to_string()]).await;
         crate::services::relational_sidecar_store::typed_checkpoint_delete(
+            store,
             document_id,
             sidecar_kind,
         )
@@ -584,9 +610,13 @@ async fn load_validated_checkpoint_blob(
 /// Scans KV storage for checkpoint keys older than `CHECKPOINT_MAX_AGE_SECS`
 /// and removes them. This prevents unbounded storage growth from crashed
 /// processing runs that never completed.
-pub async fn cleanup_stale_checkpoints(kv: &Arc<dyn KVStorage>) {
-    // SPEC-091 Wave B4: typed sweep mirrors the KV sweep (no-op without pool).
+pub async fn cleanup_stale_checkpoints(
+    kv: &Arc<dyn KVStorage>,
+    store: Option<&dyn CheckpointArtifactStore>,
+) {
+    // SPEC-091 Wave B4: typed sweep mirrors the KV sweep (no-op without store).
     crate::services::relational_sidecar_store::cleanup_stale_typed_checkpoints(
+        store,
         CHECKPOINT_MAX_AGE_SECS,
     )
     .await;
@@ -882,6 +912,7 @@ mod tests {
 
         save_pipeline_checkpoint(
             &kv,
+            None,
             "doc-slim",
             &result,
             "ws",
@@ -892,9 +923,10 @@ mod tests {
         .await
         .unwrap();
 
-        let loaded = load_pipeline_checkpoint(&kv, "doc-slim", "ws", "mock", "mock", "hello world")
-            .await
-            .expect("checkpoint should load");
+        let loaded =
+            load_pipeline_checkpoint(&kv, None, "doc-slim", "ws", "mock", "mock", "hello world")
+                .await
+                .expect("checkpoint should load");
         assert!(
             loaded.needs_reembed(),
             "slim checkpoint must require re-embed"
@@ -926,6 +958,7 @@ mod tests {
         // Save checkpoint
         save_pipeline_checkpoint(
             &kv,
+            None,
             "doc-42",
             &result,
             "workspace-A",
@@ -939,6 +972,7 @@ mod tests {
         // Load checkpoint — should succeed
         let loaded = load_pipeline_checkpoint(
             &kv,
+            None,
             "doc-42",
             "workspace-A",
             "openai",
@@ -968,13 +1002,15 @@ mod tests {
             lineage: None,
         };
 
-        save_pipeline_checkpoint(&kv, "doc-1", &result, "ws-A", "openai", "ollama", "text")
-            .await
-            .unwrap();
+        save_pipeline_checkpoint(
+            &kv, None, "doc-1", &result, "ws-A", "openai", "ollama", "text",
+        )
+        .await
+        .unwrap();
 
         // Load with different workspace — should return None
         let loaded =
-            load_pipeline_checkpoint(&kv, "doc-1", "ws-B", "openai", "ollama", "text").await;
+            load_pipeline_checkpoint(&kv, None, "doc-1", "ws-B", "openai", "ollama", "text").await;
         assert!(loaded.is_none());
     }
 
@@ -993,13 +1029,15 @@ mod tests {
             lineage: None,
         };
 
-        save_pipeline_checkpoint(&kv, "doc-2", &result, "ws", "openai", "ollama", "text")
-            .await
-            .unwrap();
+        save_pipeline_checkpoint(
+            &kv, None, "doc-2", &result, "ws", "openai", "ollama", "text",
+        )
+        .await
+        .unwrap();
 
         // Load with different provider — should return None
         let loaded =
-            load_pipeline_checkpoint(&kv, "doc-2", "ws", "anthropic", "ollama", "text").await;
+            load_pipeline_checkpoint(&kv, None, "doc-2", "ws", "anthropic", "ollama", "text").await;
         assert!(loaded.is_none());
     }
 
@@ -1020,6 +1058,7 @@ mod tests {
 
         save_pipeline_checkpoint(
             &kv,
+            None,
             "doc-3",
             &result,
             "ws",
@@ -1031,8 +1070,16 @@ mod tests {
         .unwrap();
 
         // Load with different content — should return None
-        let loaded =
-            load_pipeline_checkpoint(&kv, "doc-3", "ws", "openai", "ollama", "modified text").await;
+        let loaded = load_pipeline_checkpoint(
+            &kv,
+            None,
+            "doc-3",
+            "ws",
+            "openai",
+            "ollama",
+            "modified text",
+        )
+        .await;
         assert!(loaded.is_none());
     }
 
@@ -1051,19 +1098,23 @@ mod tests {
             lineage: None,
         };
 
-        save_pipeline_checkpoint(&kv, "doc-4", &result, "ws", "openai", "ollama", "text")
-            .await
-            .unwrap();
+        save_pipeline_checkpoint(
+            &kv, None, "doc-4", &result, "ws", "openai", "ollama", "text",
+        )
+        .await
+        .unwrap();
 
         // Verify it exists
-        let loaded = load_pipeline_checkpoint(&kv, "doc-4", "ws", "openai", "ollama", "text").await;
+        let loaded =
+            load_pipeline_checkpoint(&kv, None, "doc-4", "ws", "openai", "ollama", "text").await;
         assert!(loaded.is_some());
 
         // Clear it
-        clear_pipeline_checkpoint(&kv, "doc-4").await;
+        clear_pipeline_checkpoint(&kv, None, "doc-4").await;
 
         // Verify it's gone
-        let loaded = load_pipeline_checkpoint(&kv, "doc-4", "ws", "openai", "ollama", "text").await;
+        let loaded =
+            load_pipeline_checkpoint(&kv, None, "doc-4", "ws", "openai", "ollama", "text").await;
         assert!(loaded.is_none());
     }
 
@@ -1081,7 +1132,8 @@ mod tests {
 
         // Load should return None and clean up corrupt entry
         let loaded =
-            load_pipeline_checkpoint(&kv, "doc-corrupt", "ws", "openai", "ollama", "text").await;
+            load_pipeline_checkpoint(&kv, None, "doc-corrupt", "ws", "openai", "ollama", "text")
+                .await;
         assert!(loaded.is_none());
     }
 
@@ -1091,9 +1143,16 @@ mod tests {
 
         let kv: Arc<dyn KVStorage> = Arc::new(MemoryKVStorage::new("test"));
 
-        let loaded =
-            load_pipeline_checkpoint(&kv, "nonexistent-doc", "ws", "openai", "ollama", "text")
-                .await;
+        let loaded = load_pipeline_checkpoint(
+            &kv,
+            None,
+            "nonexistent-doc",
+            "ws",
+            "openai",
+            "ollama",
+            "text",
+        )
+        .await;
         assert!(loaded.is_none());
     }
 
@@ -1146,27 +1205,32 @@ mod tests {
         };
         let text = "durable snapshot source text";
 
-        save_pipeline_checkpoint(&kv, "doc-p7e", &result, "ws", "openai", "ollama", text)
-            .await
-            .unwrap();
-        save_extraction_snapshot(&kv, "doc-p7e", &result, "ws", "openai", "ollama", text)
-            .await
-            .unwrap();
-        clear_pipeline_checkpoint(&kv, "doc-p7e").await;
+        save_pipeline_checkpoint(
+            &kv, None, "doc-p7e", &result, "ws", "openai", "ollama", text,
+        )
+        .await
+        .unwrap();
+        save_extraction_snapshot(
+            &kv, None, "doc-p7e", &result, "ws", "openai", "ollama", text,
+        )
+        .await
+        .unwrap();
+        clear_pipeline_checkpoint(&kv, None, "doc-p7e").await;
 
         assert!(
-            load_pipeline_checkpoint(&kv, "doc-p7e", "ws", "openai", "ollama", text)
+            load_pipeline_checkpoint(&kv, None, "doc-p7e", "ws", "openai", "ollama", text)
                 .await
                 .is_none(),
             "crash checkpoint must be cleared"
         );
-        let snap = load_extraction_snapshot(&kv, "doc-p7e", "ws", "openai", "ollama", text).await;
+        let snap =
+            load_extraction_snapshot(&kv, None, "doc-p7e", "ws", "openai", "ollama", text).await;
         assert!(snap.is_some(), "P7e durable snapshot must survive");
         assert_eq!(snap.unwrap().stats.entity_count, 2);
 
-        clear_extraction_snapshot(&kv, "doc-p7e").await;
+        clear_extraction_snapshot(&kv, None, "doc-p7e").await;
         assert!(
-            load_extraction_snapshot(&kv, "doc-p7e", "ws", "openai", "ollama", text)
+            load_extraction_snapshot(&kv, None, "doc-p7e", "ws", "openai", "ollama", text)
                 .await
                 .is_none()
         );

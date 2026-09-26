@@ -252,7 +252,10 @@ pub use scan_ops::SOURCE_PREFIX_DISCOVERY_CALLS;
 pub use helpers::interactive_statement_timeout_ms;
 
 /// SPEC-089 / SPEC-107 R2: GIN node-count batch size + statement_timeout SSOT.
-pub use helpers::{SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT};
+pub use helpers::{
+    node_counts_by_source_prefixes_sql, LINEAGE_GIN_INDEXES, LINEAGE_GIN_PENDING_LIST_LIMIT_KB,
+    SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT,
+};
 
 /// SPEC-034 IMP-01: Check whether the native SQL write path is enabled.
 ///

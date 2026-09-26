@@ -110,36 +110,6 @@ where
     .map_err(|e| StorageError::Database(format!("chunks batch insert failed: {e}")))
 }
 
-/// Upsert `chunk_serving_state` rows (migration 109). Used by the W1 write path
-/// (mark `ready` after vectors+graph persisted) and the W1 backfill (legacy
-/// chunks are already fully projected → `ready`).
-pub(crate) async fn upsert_serving_states<'e, E>(
-    executor: E,
-    chunk_ids: &[Uuid],
-    state: &str,
-) -> Result<(), StorageError>
-where
-    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
-{
-    if chunk_ids.is_empty() {
-        return Ok(());
-    }
-    sqlx::query(
-        r#"
-        INSERT INTO public.chunk_serving_state (chunk_id, state)
-        SELECT id, $2 FROM unnest($1::uuid[]) AS id
-        ON CONFLICT (chunk_id) DO UPDATE
-        SET state = EXCLUDED.state, updated_at = now()
-        "#,
-    )
-    .bind(chunk_ids)
-    .bind(state)
-    .execute(executor)
-    .await
-    .map_err(|e| StorageError::Database(format!("chunk_serving_state upsert failed: {e}")))?;
-    Ok(())
-}
-
 impl PostgresChunkRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -672,20 +642,8 @@ impl ChunkRepository for PostgresChunkRepository {
         document_id: DocumentId,
         state: &str,
     ) -> Result<u64, StorageError> {
-        let result = sqlx::query(
-            r#"
-            INSERT INTO public.chunk_serving_state (chunk_id, state)
-            SELECT id, $2 FROM chunks WHERE document_id = $1
-            ON CONFLICT (chunk_id) DO UPDATE
-            SET state = EXCLUDED.state, updated_at = now()
-            "#,
-        )
-        .bind(document_id.into_uuid())
-        .bind(state)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| StorageError::Database(format!("set_serving_state failed: {e}")))?;
-        Ok(result.rows_affected())
+        super::serving_state_sql::upsert_for_document(&self.pool, document_id.into_uuid(), state)
+            .await
     }
 }
 

@@ -11,13 +11,22 @@ pub use projection_ledger::SqliteProjectionLedger;
 #[cfg(test)]
 mod tests {
     use edgequake_storage_contracts::{
-        AccessError, AccessScope, AckDelivery, ClaimDeliveries, DeleteDocument, DocumentId,
-        DocumentReader, IngestionCommitter, LifecycleCommitter, PreparedIngestionBatch,
+        payload_digest, AccessError, AccessScope, AckDelivery, ClaimDeliveries, DeleteDocument,
+        DocumentId, DocumentReader, IngestionCommitter, LifecycleCommitter, PreparedIngestionBatch,
         PreparedRecord, ProjectionLedger, TenantId, WorkspaceId,
     };
     use uuid::Uuid;
 
     use super::*;
+
+    fn stamped(id: Uuid, revision: u64, payload: Vec<u8>) -> PreparedRecord {
+        PreparedRecord {
+            id,
+            revision,
+            digest: payload_digest(&payload),
+            payload,
+        }
+    }
 
     fn command(tenant: Uuid, workspace: Uuid, document: Uuid) -> PreparedIngestionBatch {
         PreparedIngestionBatch {
@@ -29,12 +38,7 @@ mod tests {
             idempotency_key: "sqlite-commit-1".into(),
             schema_version: 1,
             canonical_digest: [7; 32],
-            chunks: vec![PreparedRecord {
-                id: Uuid::new_v4(),
-                revision: 1,
-                digest: [8; 32],
-                payload: b"chunk".to_vec(),
-            }],
+            chunks: vec![stamped(Uuid::new_v4(), 1, b"chunk".to_vec())],
             facts: Vec::new(),
             contributions: Vec::new(),
             embeddings: Vec::new(),
@@ -64,10 +68,7 @@ mod tests {
             .unwrap();
         assert_eq!(count, 2);
         let views = committer
-            .get_many(
-                &command.scope,
-                &[command.document_id],
-            )
+            .get_many(&command.scope, &[command.document_id])
             .await
             .unwrap();
         assert_eq!(views[0].as_ref().unwrap().revision, 1);
@@ -87,18 +88,8 @@ mod tests {
         let mut command = command(tenant, workspace, document);
         command.chunks.clear();
         command.facts = vec![
-            PreparedRecord {
-                id: fact_id,
-                revision: 1,
-                digest: [1; 32],
-                payload: b"a".to_vec(),
-            },
-            PreparedRecord {
-                id: fact_id,
-                revision: 1,
-                digest: [1; 32],
-                payload: b"a".to_vec(),
-            },
+            stamped(fact_id, 1, b"a".to_vec()),
+            stamped(fact_id, 1, b"a".to_vec()),
         ];
         let err = SqliteIngestionCommitter::new(pool.clone())
             .commit_batch(&command)
@@ -127,22 +118,20 @@ mod tests {
         let contrib_id = Uuid::new_v4();
         let fact_id = Uuid::new_v4();
         first.chunks.clear();
-        first.facts = vec![PreparedRecord {
-            id: fact_id,
-            revision: 1,
-            digest: [2; 32],
-            payload: serde_json::to_vec(&serde_json::json!({"kind":"node"})).unwrap(),
-        }];
-        first.contributions = vec![PreparedRecord {
-            id: contrib_id,
-            revision: 1,
-            digest: [3; 32],
-            payload: serde_json::to_vec(&serde_json::json!({
+        first.facts = vec![stamped(
+            fact_id,
+            1,
+            serde_json::to_vec(&serde_json::json!({"kind":"node"})).unwrap(),
+        )];
+        first.contributions = vec![stamped(
+            contrib_id,
+            1,
+            serde_json::to_vec(&serde_json::json!({
                 "fact_id": fact_id,
                 "fact_revision": 1
             }))
             .unwrap(),
-        }];
+        )];
         committer.commit_batch(&first).await.unwrap();
 
         let contrib_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM graph_contributions")
@@ -157,16 +146,16 @@ mod tests {
         second.idempotency_key = "sqlite-commit-2".into();
         second.canonical_digest = [9; 32];
         second.facts[0].revision = 2;
-        second.facts[0].digest = [4; 32];
+        second.facts[0].digest = payload_digest(&second.facts[0].payload);
         let contrib2 = Uuid::new_v4();
         second.contributions[0].id = contrib2;
         second.contributions[0].revision = 2;
-        second.contributions[0].digest = [5; 32];
         second.contributions[0].payload = serde_json::to_vec(&serde_json::json!({
             "fact_id": fact_id,
             "fact_revision": 2
         }))
         .unwrap();
+        second.contributions[0].digest = payload_digest(&second.contributions[0].payload);
         committer.commit_batch(&second).await.unwrap();
 
         let views = committer
@@ -213,6 +202,38 @@ mod tests {
             .unwrap();
         assert!(views[0].as_ref().unwrap().deleted);
         assert_eq!(views[0].as_ref().unwrap().revision, 2);
+    }
+
+    #[tokio::test]
+    async fn get_many_rejects_a_truncated_digest() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = connect_sqlite(temp.path().join("short-digest.db").to_string_lossy())
+            .await
+            .unwrap();
+        let tenant = Uuid::new_v4();
+        let workspace = Uuid::new_v4();
+        let document = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO object_revisions \
+             (tenant_id,workspace_id,kind,logical_id,revision,state,physical_id,digest,payload) \
+             VALUES (?,?, 'document', ?, 1, 'published', ?, ?, ?)",
+        )
+        .bind(tenant.to_string())
+        .bind(workspace.to_string())
+        .bind(document.to_string())
+        .bind(Uuid::new_v4().to_string())
+        .bind(vec![1u8, 2, 3])
+        .bind(Vec::<u8>::new())
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let scope = AccessScope::new(TenantId::new(tenant), WorkspaceId::new(workspace));
+        let error = SqliteIngestionCommitter::new(pool)
+            .get_many(&scope, &[DocumentId::new(document)])
+            .await
+            .expect_err("short digest");
+        assert!(matches!(error, AccessError::CorruptData(_)));
     }
 
     #[tokio::test]

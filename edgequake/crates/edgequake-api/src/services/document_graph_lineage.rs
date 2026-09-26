@@ -5,6 +5,14 @@
 //! Document-scoped **relationships** are edges whose **both endpoints** belong
 //! to the document's extracted entity set — even when edge properties lack
 //! `source_ids` after graph merge (nodes retain provenance; edges often do not).
+//!
+//! # SPEC-149 primary path
+//!
+//! New-data-layer documents are discovered via AGE GIN probes on
+//! `source_ids` **and** `source_chunk_ids` (projection canonicalizes both).
+//! `chunk_entity_links` / `chunk_relation_links` remain a legacy-only fallback
+//! for pre-projection merger writes; durable committer ingest does not populate
+//! those tables.
 
 use std::sync::Arc;
 
@@ -95,7 +103,7 @@ pub async fn build_document_graph_lineage(
     graph: &Arc<dyn GraphStorage>,
     tenant_ctx: &TenantContext,
     document_id: &str,
-    #[cfg(feature = "postgres")] pg_pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pg_pool: crate::services::OptionalPgPool<'_>,
 ) -> ApiResult<DocumentGraphLineageBuild> {
     let scope = DocumentSourceScope::from_document_id(document_id.to_string());
 
@@ -137,7 +145,7 @@ async fn merge_chunk_link_lineage_fallback(
     tenant_ctx: &TenantContext,
     document_id: &str,
     graph: &Arc<dyn GraphStorage>,
-    #[cfg(feature = "postgres")] pg_pool: Option<&sqlx::PgPool>,
+    #[cfg(feature = "postgres")] pg_pool: crate::services::OptionalPgPool<'_>,
 ) -> (Vec<EntitySummaryResponse>, Vec<RelationshipSummaryResponse>) {
     #[cfg(feature = "postgres")]
     {

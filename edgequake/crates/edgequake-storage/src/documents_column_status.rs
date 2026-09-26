@@ -23,8 +23,9 @@ pub fn normalize_documents_column_status(raw: &str) -> String {
         "queued" => "pending".to_string(),
         "partial_success" => "partial_failure".to_string(),
         // Pipeline stage slugs and anything else → generic processing.
+        // `projecting` is post-commit SPEC-149 replay — column CHECK has no projecting.
         "uploading" | "converting" | "preprocessing" | "gleaning" | "merging" | "summarizing"
-        | "storing" | "re_embedding" => "processing".to_string(),
+        | "storing" | "re_embedding" | "projecting" => "processing".to_string(),
         _ => "processing".to_string(),
     }
 }
@@ -81,12 +82,20 @@ mod tests {
             normalize_documents_column_status("Re_Embedding"),
             "processing"
         );
+        assert_eq!(
+            normalize_documents_column_status("projecting"),
+            "processing"
+        );
     }
 
     #[test]
     fn relational_documents_status_for_write_projects_check_safe() {
         assert_eq!(
             relational_documents_status_for_write("re_embedding"),
+            "processing"
+        );
+        assert_eq!(
+            relational_documents_status_for_write("projecting"),
             "processing"
         );
         assert_eq!(

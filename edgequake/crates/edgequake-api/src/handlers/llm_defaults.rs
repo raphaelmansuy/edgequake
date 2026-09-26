@@ -90,7 +90,7 @@ pub struct UpdateLlmDefaultsResponse {
 async fn snapshot_from_state(app_state: &AppState) -> ServerConfigSnapshot {
     #[cfg(feature = "postgres")]
     {
-        if let Some(pool) = app_state.pg_pool.as_ref() {
+        if let Some(pool) = app_state.optional_pg_pool() {
             return app_state
                 .server_config
                 .snapshot_with_postgres(Some(pool))
@@ -163,7 +163,7 @@ pub async fn update_llm_defaults(
     Json(request): Json<UpdateLlmDefaultsRequest>,
 ) -> ApiResult<Json<UpdateLlmDefaultsResponse>> {
     #[cfg(feature = "postgres")]
-    if let Some(pool) = app_state.pg_pool.as_ref() {
+    if let Some(pool) = app_state.optional_pg_pool() {
         let current = snapshot_from_state(&app_state).await;
         let mut saved = current.llm_defaults.clone();
 

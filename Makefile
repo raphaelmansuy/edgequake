@@ -3220,6 +3220,27 @@ test-postgres-storage: test-postgres-start ## Run PostgreSQL storage integration
 		cargo test --package edgequake-storage --test postgres_integration --features postgres -- --test-threads=1
 	@echo "$(GREEN)✓ PostgreSQL storage tests complete$(RESET)"
 
+test-postgres-serving: test-postgres-start ## Run SPEC-091 serving-fence + SPEC-149 projection e2e on disposable test DB
+	@echo "$(BLUE)Running serving-fence / projection Postgres e2e...$(RESET)"
+	@_PORT="$${POSTGRES_TEST_PORT:-5433}"; \
+	cd $(BACKEND_DIR) && \
+		POSTGRES_HOST=localhost \
+		POSTGRES_PORT="$$_PORT" \
+		POSTGRES_DB=edgequake_test \
+		POSTGRES_USER=edgequake_test \
+		POSTGRES_PASSWORD=test_password_123 \
+		DATABASE_URL="postgresql://edgequake_test:test_password_123@localhost:$$_PORT/edgequake_test" \
+		EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 \
+		cargo test --package edgequake-storage --features postgres \
+			--test e2e_spec091_serving_fence_open \
+			--test e2e_spec149_projection_replay \
+			--test e2e_spec091_wave_d \
+			-- --test-threads=1 && \
+		cargo test --package edgequake-storage --features postgres,provider-access-fault \
+			--test e2e_spec149_process_kill \
+			-- --test-threads=1
+	@echo "$(GREEN)✓ Serving-fence / projection Postgres e2e complete$(RESET)"
+
 test-postgres-conversation: test-postgres-start ## Run PostgreSQL conversation integration tests
 	@echo "$(BLUE)Running PostgreSQL conversation integration tests...$(RESET)"
 	@cd $(BACKEND_DIR) && \

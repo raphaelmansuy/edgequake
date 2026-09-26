@@ -108,6 +108,7 @@ pub mod kv_family_cutover;
 pub mod kv_key_schema;
 #[cfg(feature = "postgres")]
 pub mod legacy_store_census;
+pub mod lineage_canon;
 pub mod metadata_filter_sql;
 pub mod mm_asset_storage;
 pub mod namespace_tables;
@@ -119,6 +120,7 @@ pub mod page_layout_storage;
 pub mod pdf_storage;
 #[cfg(feature = "postgres")]
 pub mod projection;
+pub mod projection_manifest;
 pub mod scorecard;
 pub mod serving_fence;
 pub mod storage_op_metrics;
@@ -202,6 +204,12 @@ pub use migration_engine::{
 };
 
 // Re-export PDF storage types
+/// Lineage SSOT helpers (no provider I/O) — available without the postgres feature.
+pub use lineage_canon::{
+    apply_retained_sources, canonicalize_source_lineage, document_ids_from_properties,
+    insert_chunk_lineage_properties, retained_lineage, sources_from_contributions,
+    union_source_properties, RetainedLineage, INDEXED_LINEAGE_ARRAY_KEYS,
+};
 pub use mm_asset_storage::{
     asset_id_from_path, classify_mm_asset_path, guess_mm_asset_content_type, normalize_mm_asset_id,
     normalize_mm_asset_path, validate_mm_asset_data, DocumentMmAsset, DocumentMmAssetStorage,
@@ -226,8 +234,9 @@ pub use projection::{
     scoped_graph_node_id, AgeGraphProjectionApplier, GraphProjectionApplier, PgProjectionLedger,
     PgvectorProjectionApplier, ProjectionLedger, ProjectionRunReport, ProjectionTarget,
     ProjectionWorkLedger, ProjectionWorker, ProjectionWorkerConfig, ProjectionWorkerCounters,
-    ProjectionWorkerRuntime, VectorProjectionApplier,
+    ProjectionWorkerRuntime, ServingFenceOpener, VectorProjectionApplier,
 };
+pub use projection_manifest::canonical_graph_node_id;
 
 pub use conversation_storage::ConversationStorage;
 pub use conversation_types::{ConversationRow, FolderRow, MessageRow};
@@ -319,22 +328,26 @@ pub use adapters::postgres::{
     build_diskann_labels_index_sql, build_filtered_diskann_label_select_sql,
     build_postfilter_diskann_select_sql, check_hnsw_index_manifest, check_pool_budget,
     diskann_optin_recipe_statements, diskann_query_tuning_statements, diskann_rescore_for_list,
-    enforce_pool_budget, ensure_admission_document_row, ensure_admission_document_row_with_track,
-    evaluate_pool_budget, hnsw_ef_construction_from_env, hnsw_partial_by_workspace_enabled,
-    interactive_statement_timeout_ms, parse_hnsw_iterative_scan_mode, partition_allowed,
+    document_batch_deliveries_settled, enforce_pool_budget, ensure_admission_document_row,
+    ensure_admission_document_row_with_track, evaluate_pool_budget, hnsw_ef_construction_from_env,
+    hnsw_partial_by_workspace_enabled, interactive_statement_timeout_ms,
+    node_counts_by_source_prefixes_sql, open_serving_fence_when_deliveries_settled,
+    open_settled_serving_fences_bounded, parse_hnsw_iterative_scan_mode, partition_allowed,
     pool_instance_count_from_env, pool_role_max_connections,
     pool_role_max_connections_with_queue_floor, quantization_allowed, resolve_pool_max_connections,
+    serving_fence_filtered_total, serving_fence_open_changed, serving_fence_opened_total,
     session_application_name, with_session_hygiene, with_session_hygiene_labeled,
     AnnExactReorderPolicy, BinaryQuantizePolicy, BudgetMode, FilteredDiskannLabelPolicy,
     HnswIndexManifest, HnswRuntimePolicy, PgBindingRegistry, PgChunkEmbeddingIndex,
     PgFleetEmbeddingIndex, PgIngestionCommitter, PgPoolBundle, PgQuarantineSink,
-    PgStandaloneEmbeddingStore, PgVectorStorage, PgVisibilityRepository, PgWorkspaceVectorRegistry,
-    PoolBudgetReport, PoolRole, PostgresAGEGraphStorage, PostgresChunkRepository, PostgresConfig,
-    PostgresConversationStorage, PostgresKVStorage, PostgresMmAssetStorage,
-    PostgresOriginalStorage, PostgresPageLayoutStorage, PostgresPdfStorage, PostgresPool,
-    ScaleGateEvidence, StandaloneEmbeddingCapabilities, VectorIndexType, VectorStorageMode,
-    WorkspaceLabelMap, DEFAULT_ANN_REORDER_CANDIDATE_K, DEFAULT_BINARY_CANDIDATE_K,
-    DISKANN_OPTIN_RESCORE, DISKANN_OPTIN_SEARCH_LIST, LAST_SOURCE_PREFIX_COUNT_LEN,
+    PgServingFenceOpener, PgStandaloneEmbeddingStore, PgVectorStorage, PgVisibilityRepository,
+    PgWorkspaceVectorRegistry, PoolBudgetReport, PoolRole, PostgresAGEGraphStorage,
+    PostgresChunkRepository, PostgresConfig, PostgresConversationStorage, PostgresKVStorage,
+    PostgresMmAssetStorage, PostgresOriginalStorage, PostgresPageLayoutStorage, PostgresPdfStorage,
+    PostgresPool, ScaleGateEvidence, StandaloneEmbeddingCapabilities, VectorIndexType,
+    VectorStorageMode, WorkspaceLabelMap, DEFAULT_ANN_REORDER_CANDIDATE_K,
+    DEFAULT_BINARY_CANDIDATE_K, DISKANN_OPTIN_RESCORE, DISKANN_OPTIN_SEARCH_LIST,
+    LAST_SOURCE_PREFIX_COUNT_LEN, LINEAGE_GIN_INDEXES, LINEAGE_GIN_PENDING_LIST_LIMIT_KB,
     MAX_WORKSPACE_LABELS, SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT,
     SOURCE_PREFIX_DISCOVERY_CALLS,
 };

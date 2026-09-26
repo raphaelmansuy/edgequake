@@ -69,7 +69,7 @@ pub async fn put_injection(
         .upsert(&[(meta_key.clone(), meta.clone())])
         .await?;
     // SPEC-091 Wave B6: typed dual-write (warn-only).
-    crate::services::injection_relational::typed_injection_upsert(&meta).await;
+    crate::services::injection_relational::typed_injection_upsert(&meta, None).await;
 
     info!(
         workspace_id = %workspace_id,
@@ -231,7 +231,7 @@ pub async fn delete_injection(
         let _ = state.storage.kv_storage.delete(&kv_ids_to_delete).await;
     }
     // SPEC-091 Wave B6: typed row parity (warn-only).
-    crate::services::injection_relational::typed_injection_delete(&injection_id).await;
+    crate::services::injection_relational::typed_injection_delete(&injection_id, None).await;
 
     info!(
         injection_id = %injection_id,
@@ -333,7 +333,8 @@ pub async fn update_injection(
         .upsert(&[(meta_key.clone(), meta.clone())])
         .await?;
     // SPEC-091 Wave B6: typed dual-write (warn-only).
-    crate::services::injection_relational::typed_injection_upsert(&meta).await;
+    crate::services::injection_relational::typed_injection_upsert(&meta, state.optional_pg_pool())
+        .await;
 
     info!(injection_id = %injection_id, content_changed, new_version, "Updated injection entry");
 

@@ -225,6 +225,18 @@ pub struct AppState {
 // ── Operational Methods ───────────────────────────────────────────────────
 
 impl AppState {
+    /// Explicit Postgres pool port for document/checkpoint SQL helpers.
+    #[inline]
+    pub fn optional_pg_pool(&self) -> crate::services::OptionalPgPool<'_> {
+        #[cfg(feature = "postgres")]
+        {
+            self.pg_pool.as_ref()
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            None
+        }
+    }
     /// SPEC-006 SSOT accessor — handlers must use this instead of ad-hoc `default()` / `from_env()`.
     #[inline]
     pub fn resource_budget(&self) -> &ResourceBudgetConfig {

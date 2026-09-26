@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { marked, type Token, type Tokens } from 'marked';
 import {
   hasPageMarkers,
   injectPageAnchors,
@@ -10,6 +11,24 @@ import {
   pageAnchorHtml,
   parsePageMarker,
 } from '../page-markers';
+
+/** Walk lexer output for image tokens (they live inside paragraphs). */
+function imageHrefs(tokens: Token[]): string[] {
+  const hrefs: string[] = [];
+  const walk = (list: Token[] | undefined) => {
+    if (!list) return;
+    for (const token of list) {
+      if (token.type === 'image') {
+        hrefs.push((token as Tokens.Image).href);
+      }
+      if ('tokens' in token && Array.isArray(token.tokens)) {
+        walk(token.tokens);
+      }
+    }
+  };
+  walk(tokens);
+  return hrefs;
+}
 
 describe('parsePageMarker', () => {
   it('parses canonical marker', () => {
@@ -70,6 +89,16 @@ describe('injectPageAnchors', () => {
 
   it('pageAnchorHtml clamps to >= 1', () => {
     expect(pageAnchorHtml(0)).toContain('data-eq-page="1"');
+  });
+
+  it('keeps a figure on the next line as an image token', () => {
+    const src = '<!-- edgequake-page:3 -->\n![Page 3](assets/page-0003-fig-02.png)\n';
+    const out = injectPageAnchors(src);
+    expect(out).toContain('id="eq-md-page-3"');
+    const tokens = marked.lexer(out, { gfm: true, breaks: true });
+    expect(imageHrefs(tokens)).toEqual(['assets/page-0003-fig-02.png']);
+    const html = tokens.find((token) => token.type === 'html');
+    expect(html?.raw ?? '').not.toContain('![');
   });
 });
 

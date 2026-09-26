@@ -192,9 +192,8 @@ TESTS_SELECTED=1
 if [[ "$SUITE" == "smoke" ]]; then
   ACTUAL_TEST_IDS="PROVIDER-ACCESS-E2E01-SMOKE"
 else
-  # Reduced production-correct hot-path proof — not full PROVIDER-ACCESS-E2E04
-  # (B1/B2/B3 process-kill matrix remains open).
-  ACTUAL_TEST_IDS="SPEC149-P0-HOTPATH-REPLAY"
+  # P0 E2E04 B1–B3 crash/replay barriers only (not full HTTP E2E01–15).
+  ACTUAL_TEST_IDS="PROVIDER-ACCESS-E2E04"
 fi
 write_manifest
 
@@ -263,15 +262,18 @@ if [[ "$SUITE" == "smoke" ]]; then
   TEST_COMMAND=(cargo test -p edgequake-api --features postgres \
     --test provider_access_e2e -- --nocapture)
 else
-  TEST_COMMAND=(cargo test -p edgequake-storage --features postgres \
-    --test e2e_spec149_projection_replay --test e2e_spec149_ingestion_committer \
+  # E2E04 B1–B3: ingestion rollback + process-kill replay (requires fault feature).
+  TEST_COMMAND=(cargo test -p edgequake-storage \
+    --features "postgres,provider-access-fault" \
+    --test e2e_spec149_ingestion_committer \
+    --test e2e_spec149_process_kill \
     -- --nocapture --test-threads=1)
 fi
 if (
   cd "$ROOT_DIR/edgequake"
   "${TEST_COMMAND[@]}"
 ) 2>&1 | tee "$TEST_LOG"; then
-  # Derive counts from cargo summary lines when present; never invent E2E04.
+  # Derive counts from cargo summary lines when present.
   PASSED_LINE="$(rg -o '([0-9]+) passed' "$TEST_LOG" | tail -1 || true)"
   FAILED_LINE="$(rg -o '([0-9]+) failed' "$TEST_LOG" | tail -1 || true)"
   TESTS_PASSED="${PASSED_LINE%% *}"

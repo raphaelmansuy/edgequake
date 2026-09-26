@@ -53,7 +53,8 @@ impl IdentityStore for PostgresIdentityStore {
                  is_active=EXCLUDED.is_active, \
                  failed_login_attempts=EXCLUDED.failed_login_attempts, \
                  locked_until=EXCLUDED.locked_until, updated_at=EXCLUDED.updated_at, \
-                 last_login_at=EXCLUDED.last_login_at",
+                 last_login_at=EXCLUDED.last_login_at \
+             WHERE users.tenant_id = EXCLUDED.tenant_id",
         )
         .bind(user.user_id)
         .bind(tenant_id.into_uuid())
@@ -70,7 +71,22 @@ impl IdentityStore for PostgresIdentityStore {
         .execute(&self.pool)
         .await
         .map_err(database_error)?;
-        Ok(())
+        let updated =
+            sqlx::query_scalar::<_, bool>("SELECT tenant_id = $2 FROM users WHERE user_id = $1")
+                .bind(user.user_id)
+                .bind(tenant_id.into_uuid())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(database_error)?;
+        match updated {
+            Some(true) => Ok(()),
+            Some(false) => Err(AccessError::Conflict(
+                "user_id already belongs to another tenant".into(),
+            )),
+            None => Err(AccessError::Unavailable(
+                "identity upsert did not persist a user row".into(),
+            )),
+        }
     }
 
     async fn membership_active(&self, scope: &AccessScope, user_id: Uuid) -> AccessResult<bool> {

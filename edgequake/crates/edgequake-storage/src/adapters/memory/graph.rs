@@ -872,6 +872,43 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
         Ok(true)
     }
 
+    async fn delete_nodes_scoped_batch(
+        &self,
+        node_ids: &[String],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize> {
+        if node_ids.is_empty() {
+            return Ok(0);
+        }
+        let mut unique = node_ids.to_vec();
+        unique.sort();
+        unique.dedup();
+        let matching: Vec<String> = {
+            let nodes = self.nodes.read().map_err(super::lock::map_lock_err)?;
+            unique
+                .into_iter()
+                .filter(|id| {
+                    nodes.get(id).is_some_and(|props| {
+                        props
+                            .get("tenant_id")
+                            .and_then(|v| v.as_str())
+                            .is_some_and(|t| t == tenant_id)
+                            && props
+                                .get("workspace_id")
+                                .and_then(|v| v.as_str())
+                                .is_some_and(|w| w == workspace_id)
+                    })
+                })
+                .collect()
+        };
+        let deleted = matching.len();
+        if !matching.is_empty() {
+            self.delete_nodes_batch(&matching).await?;
+        }
+        Ok(deleted)
+    }
+
     async fn upsert_edge(
         &self,
         source: &str,
@@ -976,6 +1013,45 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
         }
         self.delete_edge(source, target).await?;
         Ok(true)
+    }
+
+    async fn delete_edges_scoped_batch(
+        &self,
+        edges: &[(String, String)],
+        tenant_id: &str,
+        workspace_id: &str,
+    ) -> Result<usize> {
+        if edges.is_empty() {
+            return Ok(0);
+        }
+        let mut unique: Vec<(String, String)> = edges.to_vec();
+        unique.sort();
+        unique.dedup();
+        let matching: Vec<(String, String)> = {
+            let edge_store = self.edges.read().map_err(super::lock::map_lock_err)?;
+            unique
+                .into_iter()
+                .filter(|(source, target)| {
+                    Self::find_edge_by_endpoints(&edge_store, source, target).is_some_and(
+                        |(_, props)| {
+                            props
+                                .get("tenant_id")
+                                .and_then(|v| v.as_str())
+                                .is_some_and(|t| t == tenant_id)
+                                && props
+                                    .get("workspace_id")
+                                    .and_then(|v| v.as_str())
+                                    .is_some_and(|w| w == workspace_id)
+                        },
+                    )
+                })
+                .collect()
+        };
+        let deleted = matching.len();
+        for (source, target) in matching {
+            self.delete_edge(&source, &target).await?;
+        }
+        Ok(deleted)
     }
 
     async fn clear(&self) -> Result<()> {

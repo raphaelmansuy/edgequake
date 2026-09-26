@@ -57,6 +57,7 @@ pub(super) async fn cached_kv_get(
     {
         let doc_id = key.trim_end_matches("-lineage");
         match crate::services::relational_sidecar_store::typed_artifact_get(
+            None,
             doc_id,
             crate::services::relational_sidecar_store::ARTIFACT_KIND_LINEAGE,
         )

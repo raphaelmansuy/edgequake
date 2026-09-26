@@ -180,7 +180,7 @@ async fn run_multimodal_analyze_stage_outcome_inner(
     }
 
     if let (Some(doc_id), Some(kv)) = (document_id, kv_storage.as_ref()) {
-        if let Err(e) = persist_manifest(kv.as_ref(), doc_id, &outcome.manifest).await {
+        if let Err(e) = persist_manifest(kv.as_ref(), None, doc_id, &outcome.manifest).await {
             warn!(document_id = %doc_id, error = %e, "failed to persist multimodal manifest");
         } else {
             let total = outcome.summary.success + outcome.summary.skipped + outcome.summary.failed;

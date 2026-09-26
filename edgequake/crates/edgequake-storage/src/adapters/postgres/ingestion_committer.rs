@@ -2,17 +2,21 @@
 
 use async_trait::async_trait;
 use edgequake_storage_contracts::{
-    checked_i64, decode_commit_receipt, physical_revision_id, require_active_roles,
-    validate_prepared_ingestion_batch, AccessError, AccessResult, AccessScope, BindingRole,
-    BindingState, CommitReceipt, CommittedRevision, CursorPage, DeleteDocument, DeleteReceipt,
-    DocumentId, DocumentPageRequest, DocumentReader, DocumentView, IngestionCommitter,
-    LifecycleCommitter, PreparedIngestionBatch, PreparedRecord, P0_REQUIRED_ROLES,
+    checked_i64, decode_commit_receipt, last_included_cursor, physical_revision_id,
+    require_active_roles, validate_prepared_ingestion_batch, AccessError, AccessResult,
+    AccessScope, BindingRole, BindingState, CommitReceipt, CommittedRevision, CursorPage,
+    DeleteDocument, DeleteReceipt, DocumentId, DocumentPageRequest, DocumentReader, DocumentView,
+    IngestionCommitter, LifecycleCommitter, PreparedIngestionBatch, PreparedRecord,
+    P0_REQUIRED_ROLES,
 };
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use super::chunk_repository::{
     ensure_document_parent_in_transaction, insert_prepared_chunks_in_transaction,
+};
+use crate::projection_manifest::{
+    logical_key_for_payload, role_completion_proof, EventManifestItem,
 };
 
 const COMMIT_OPERATION: &str = "ingestion.commit_batch";
@@ -217,8 +221,8 @@ impl LifecycleCommitter for PgIngestionCommitter {
             return Ok(receipt);
         }
 
-        let current_revision = sqlx::query_scalar::<_, i64>(
-            "SELECT revision FROM public.object_revisions \
+        let current = sqlx::query_as::<_, (i64, String)>(
+            "SELECT revision, state FROM public.object_revisions \
              WHERE tenant_id = $1 AND workspace_id = $2 \
                AND kind = 'document' AND logical_id = $3 \
              ORDER BY revision DESC LIMIT 1 FOR UPDATE",
@@ -228,8 +232,58 @@ impl LifecycleCommitter for PgIngestionCommitter {
         .bind(document_id)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(|error| classify_sqlx("lock document revision", error))?
-        .unwrap_or(0);
+        .map_err(|error| classify_sqlx("lock document revision", error))?;
+        let (current_revision, current_state) = current.unwrap_or((0, "absent".into()));
+        if let Some((digest, receipt)) = sqlx::query_as::<_, (Vec<u8>, Vec<u8>)>(
+            "SELECT digest, receipt FROM public.mutation_requests \
+             WHERE tenant_id = $1 AND workspace_id = $2 \
+               AND operation = $3 AND idempotency_key = $4",
+        )
+        .bind(tenant_id)
+        .bind(workspace_id)
+        .bind(DELETE_OPERATION)
+        .bind(&command.idempotency_key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|error| classify_sqlx("reread tombstone receipt", error))?
+        {
+            if digest != command.command_digest {
+                return Err(AccessError::Conflict(
+                    "tombstone idempotency key was reused with another digest".into(),
+                ));
+            }
+            let receipt = serde_json::from_slice(&receipt).map_err(|error| {
+                AccessError::CorruptData(format!("decode tombstone receipt: {error}"))
+            })?;
+            tx.rollback()
+                .await
+                .map_err(|error| classify_sqlx("close tombstone replay", error))?;
+            return Ok(receipt);
+        }
+        if current_state == "tombstoned" {
+            if let Some(receipt) = sqlx::query_scalar::<_, Vec<u8>>(
+                "SELECT receipt FROM public.mutation_requests \
+                 WHERE tenant_id = $1 AND workspace_id = $2 AND operation = $3 \
+                   AND receipt::jsonb->>'document_id' = $4 \
+                 ORDER BY created_at DESC LIMIT 1",
+            )
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .bind(DELETE_OPERATION)
+            .bind(document_id.to_string())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|error| classify_sqlx("load existing tombstone receipt", error))?
+            {
+                let receipt = serde_json::from_slice(&receipt).map_err(|error| {
+                    AccessError::CorruptData(format!("decode tombstone receipt: {error}"))
+                })?;
+                tx.rollback()
+                    .await
+                    .map_err(|error| classify_sqlx("close tombstone resume", error))?;
+                return Ok(receipt);
+            }
+        }
         if current_revision != expected_revision {
             return Err(AccessError::Conflict(format!(
                 "document revision changed: expected {expected_revision}, current {current_revision}"
@@ -285,6 +339,8 @@ impl LifecycleCommitter for PgIngestionCommitter {
         .execute(&mut *tx)
         .await
         .map_err(|error| classify_sqlx("append tombstone event", error))?;
+
+        insert_tombstone_manifest(&mut tx, event_id, tenant_id, workspace_id, document_id).await?;
 
         for binding_id in &target_binding_ids {
             sqlx::query(
@@ -352,41 +408,43 @@ impl DocumentReader for PgIngestionCommitter {
         scope: &AccessScope,
         ids: &[DocumentId],
     ) -> AccessResult<Vec<Option<DocumentView>>> {
-        let mut out = Vec::with_capacity(ids.len());
-        for document_id in ids {
-            let row = sqlx::query_as::<_, (i64, String, Vec<u8>)>(
-                r#"
-                SELECT revision, state, digest
-                FROM public.object_revisions
-                WHERE tenant_id = $1
-                  AND workspace_id = $2
-                  AND kind = 'document'
-                  AND logical_id = $3
-                ORDER BY revision DESC
-                LIMIT 1
-                "#,
-            )
-            .bind(scope.tenant().into_uuid())
-            .bind(scope.workspace().into_uuid())
-            .bind(document_id.into_uuid())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|error| classify_sqlx("read document revision", error))?;
-            out.push(row.map(|(revision, state, digest)| {
-                let mut digest_arr = [0u8; 32];
-                if digest.len() == 32 {
-                    digest_arr.copy_from_slice(&digest);
-                }
-                DocumentView {
-                    scope: *scope,
-                    document_id: *document_id,
-                    revision: u64::try_from(revision.max(0)).unwrap_or(0),
-                    digest: digest_arr,
-                    deleted: state == "tombstoned",
-                }
-            }));
+        if ids.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(out)
+        if ids.len() > 100 {
+            return Err(AccessError::InvalidInput(
+                "document get_many accepts at most 100 ids".into(),
+            ));
+        }
+        let wanted: Vec<Uuid> = ids.iter().map(|id| id.into_uuid()).collect();
+        let rows = sqlx::query_as::<_, (Uuid, i64, String, Vec<u8>)>(
+            r#"
+            SELECT DISTINCT ON (logical_id) logical_id, revision, state, digest
+            FROM public.object_revisions
+            WHERE tenant_id = $1
+              AND workspace_id = $2
+              AND kind = 'document'
+              AND logical_id = ANY($3)
+            ORDER BY logical_id, revision DESC
+            "#,
+        )
+        .bind(scope.tenant().into_uuid())
+        .bind(scope.workspace().into_uuid())
+        .bind(&wanted)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| classify_sqlx("read document revisions", error))?;
+        let mut by_id = std::collections::HashMap::new();
+        for (logical_id, revision, state, digest) in rows {
+            by_id.insert(
+                logical_id,
+                document_view(scope, logical_id, revision, &state, digest)?,
+            );
+        }
+        Ok(ids
+            .iter()
+            .map(|id| by_id.get(&id.into_uuid()).cloned())
+            .collect())
     }
 
     async fn list(
@@ -395,10 +453,12 @@ impl DocumentReader for PgIngestionCommitter {
         request: &DocumentPageRequest,
     ) -> AccessResult<CursorPage<DocumentView>> {
         let limit = i64::from(request.limit.clamp(1, 100));
-        let cursor = request
-            .cursor
-            .as_deref()
-            .and_then(|raw| Uuid::parse_str(raw).ok());
+        let cursor = match request.cursor.as_deref() {
+            None => None,
+            Some(raw) => Some(Uuid::parse_str(raw).map_err(|_| {
+                AccessError::InvalidInput("document page cursor is not a UUID".into())
+            })?),
+        };
         let rows = sqlx::query_as::<_, (Uuid, i64, String, Vec<u8>)>(
             r#"
             SELECT logical_id, revision, state, digest
@@ -427,24 +487,14 @@ impl DocumentReader for PgIngestionCommitter {
         .await
         .map_err(|error| classify_sqlx("list document revisions", error))?;
 
-        let mut next_cursor = None;
+        let ids: Vec<String> = rows
+            .iter()
+            .map(|(logical_id, _, _, _)| logical_id.to_string())
+            .collect();
+        let next_cursor = last_included_cursor(limit as usize, &ids);
         let mut items = Vec::new();
-        for (idx, (logical_id, revision, state, digest)) in rows.into_iter().enumerate() {
-            if idx as i64 >= limit {
-                next_cursor = Some(logical_id.to_string());
-                break;
-            }
-            let mut digest_arr = [0u8; 32];
-            if digest.len() == 32 {
-                digest_arr.copy_from_slice(&digest);
-            }
-            items.push(DocumentView {
-                scope: *scope,
-                document_id: DocumentId::new(logical_id),
-                revision: u64::try_from(revision.max(0)).unwrap_or(0),
-                digest: digest_arr,
-                deleted: state == "tombstoned",
-            });
+        for (logical_id, revision, state, digest) in rows.into_iter().take(limit as usize) {
+            items.push(document_view(scope, logical_id, revision, &state, digest)?);
         }
         Ok(CursorPage { items, next_cursor })
     }
@@ -874,7 +924,7 @@ async fn append_event_and_deliveries(
         INSERT INTO public.projection_deliveries (event_id, binding_id, state)
         SELECT $1, binding_id, 'pending'
         FROM public.data_bindings
-        WHERE tenant_id = $2 AND workspace_id = $3 AND state = 'active'
+        WHERE tenant_id = $2 AND workspace_id = $3 AND state IN ('active', 'draining')
           AND role = ANY($4::text[])
         ON CONFLICT (event_id, binding_id) DO NOTHING
         "#,
@@ -912,6 +962,9 @@ async fn append_event_and_deliveries(
             P0_REQUIRED_ROLES.len()
         )));
     }
+    let graph_items = manifest_items("graph", "graph_contribution", &command.contributions);
+    let vector_items = manifest_items("vector", "embedding", &command.embeddings);
+    write_event_manifest(tx, event_id, &graph_items, &vector_items).await?;
     Ok(event_id)
 }
 
@@ -933,11 +986,7 @@ async fn ensure_p0_bindings_in_transaction(
                 binding_id, tenant_id, workspace_id, role, provider, config_ref,
                 layout, physical_index, model_descriptor, generation, state
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (binding_id) DO UPDATE SET
-                state = CASE
-                    WHEN public.data_bindings.state = 'retired' THEN public.data_bindings.state
-                    ELSE EXCLUDED.state
-                END
+            ON CONFLICT (binding_id) DO NOTHING
             "#,
         )
         .bind(descriptor.binding_id)
@@ -963,7 +1012,7 @@ async fn ensure_p0_bindings_in_transaction(
         r#"
         SELECT binding_id, role, state
         FROM public.data_bindings
-        WHERE tenant_id = $1 AND workspace_id = $2 AND state = 'active'
+        WHERE tenant_id = $1 AND workspace_id = $2 AND state IN ('active', 'draining')
           AND role = ANY($3::text[])
         "#,
     )
@@ -980,7 +1029,7 @@ async fn ensure_p0_bindings_in_transaction(
     .map_err(|error| classify_sqlx("verify P0 data bindings", error))?;
 
     let mut descriptors = Vec::new();
-    for (binding_id, role, state) in active {
+    for (binding_id, role, _state) in active {
         descriptors.push(edgequake_storage_contracts::DataBindingDescriptor {
             binding_id,
             scope,
@@ -991,9 +1040,10 @@ async fn ensure_p0_bindings_in_transaction(
             physical_index: String::new(),
             model_descriptor: None,
             generation: 1,
-            state: BindingState::parse(&state)?,
+            state: BindingState::Active,
         });
     }
+    // Draining bindings still receive deliveries; treat them as present for admission.
     require_active_roles(&descriptors, P0_REQUIRED_ROLES)?;
     Ok(())
 }
@@ -1058,6 +1108,177 @@ fn build_receipt(command: &PreparedIngestionBatch, manifest_id: Uuid) -> CommitR
         manifest_id,
         durable_commit_token: format!("postgres:{manifest_id}"),
     }
+}
+
+fn document_view(
+    scope: &AccessScope,
+    logical_id: Uuid,
+    revision: i64,
+    state: &str,
+    digest: Vec<u8>,
+) -> AccessResult<DocumentView> {
+    let digest: [u8; 32] = digest
+        .try_into()
+        .map_err(|_| AccessError::CorruptData("document digest is not 32 bytes".into()))?;
+    Ok(DocumentView {
+        scope: *scope,
+        document_id: DocumentId::new(logical_id),
+        revision: u64::try_from(revision.max(0)).unwrap_or(0),
+        digest,
+        deleted: state == "tombstoned",
+    })
+}
+
+fn manifest_items(
+    role: &str,
+    item_kind: &str,
+    records: &[PreparedRecord],
+) -> Vec<EventManifestItem> {
+    records
+        .iter()
+        .map(|record| EventManifestItem {
+            role: role.to_string(),
+            item_kind: item_kind.to_string(),
+            record_id: record.id,
+            record_revision: i64::try_from(record.revision).unwrap_or(1),
+            digest: record.digest,
+            logical_key: logical_key_for_payload(&record.payload, record.id),
+        })
+        .collect()
+}
+
+async fn write_event_manifest(
+    tx: &mut Transaction<'_, Postgres>,
+    event_id: Uuid,
+    graph_items: &[EventManifestItem],
+    vector_items: &[EventManifestItem],
+) -> AccessResult<()> {
+    for (role, items) in [("graph", graph_items), ("vector", vector_items)] {
+        for (ordinal, item) in items.iter().enumerate() {
+            let ordinal = i32::try_from(ordinal)
+                .map_err(|_| AccessError::InvalidInput("manifest ordinal exceeds i32".into()))?;
+            sqlx::query(
+                "INSERT INTO public.projection_event_items (
+                     event_id, role, ordinal, item_kind, record_id,
+                     record_revision, digest, logical_key
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 ON CONFLICT (event_id, role, ordinal) DO NOTHING",
+            )
+            .bind(event_id)
+            .bind(role)
+            .bind(ordinal)
+            .bind(&item.item_kind)
+            .bind(item.record_id)
+            .bind(item.record_revision)
+            .bind(item.digest.as_slice())
+            .bind(&item.logical_key)
+            .execute(&mut **tx)
+            .await
+            .map_err(|error| classify_sqlx("insert projection manifest item", error))?;
+        }
+        let proof = role_completion_proof(items);
+        let inserted = sqlx::query_scalar::<_, Vec<u8>>(
+            "INSERT INTO public.projection_event_role_proofs (event_id, role, expected_digest)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (event_id, role) DO NOTHING
+             RETURNING expected_digest",
+        )
+        .bind(event_id)
+        .bind(role)
+        .bind(proof.as_slice())
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|error| classify_sqlx("insert projection role proof", error))?;
+        let stored = if let Some(stored) = inserted {
+            stored
+        } else {
+            sqlx::query_scalar(
+                "SELECT expected_digest FROM public.projection_event_role_proofs \
+                 WHERE event_id = $1 AND role = $2",
+            )
+            .bind(event_id)
+            .bind(role)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(|error| classify_sqlx("read projection role proof", error))?
+        };
+        if stored.as_slice() != proof {
+            return Err(AccessError::Conflict(format!(
+                "projection role proof for {role} does not match the event manifest"
+            )));
+        }
+    }
+    Ok(())
+}
+
+async fn insert_tombstone_manifest(
+    tx: &mut Transaction<'_, Postgres>,
+    event_id: Uuid,
+    tenant_id: Uuid,
+    workspace_id: Uuid,
+    document_id: Uuid,
+) -> AccessResult<()> {
+    let contributions = sqlx::query_as::<_, (Uuid, i64, Vec<u8>, serde_json::Value)>(
+        "SELECT contribution_id, source_generation, payload_digest, payload \
+         FROM public.graph_contributions \
+         WHERE tenant_id = $1 AND workspace_id = $2 AND source_document_id = $3 \
+         ORDER BY contribution_id",
+    )
+    .bind(tenant_id)
+    .bind(workspace_id)
+    .bind(document_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|error| classify_sqlx("load tombstone graph membership", error))?;
+    let graph_items = contributions
+        .into_iter()
+        .map(|(id, revision, digest, payload)| {
+            let digest: [u8; 32] = digest.try_into().map_err(|_| {
+                AccessError::CorruptData("contribution digest is not 32 bytes".into())
+            })?;
+            Ok(EventManifestItem {
+                role: "graph".into(),
+                item_kind: "graph_contribution".into(),
+                record_id: id,
+                record_revision: revision.max(1),
+                digest,
+                logical_key: logical_key_for_payload(
+                    &serde_json::to_vec(&payload).unwrap_or_default(),
+                    id,
+                ),
+            })
+        })
+        .collect::<AccessResult<Vec<_>>>()?;
+    let embeddings = sqlx::query_as::<_, (Uuid, i64, Vec<u8>)>(
+        "SELECT m.subject_id, m.content_revision, m.digest \
+         FROM public.embedding_manifests m \
+         JOIN public.chunks c ON c.id = m.subject_id \
+         WHERE m.tenant_id = $1 AND m.workspace_id = $2 AND c.document_id = $3 \
+         ORDER BY m.subject_id, m.content_revision",
+    )
+    .bind(tenant_id)
+    .bind(workspace_id)
+    .bind(document_id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|error| classify_sqlx("load tombstone vector membership", error))?;
+    let vector_items = embeddings
+        .into_iter()
+        .map(|(id, revision, digest)| {
+            let digest: [u8; 32] = digest
+                .try_into()
+                .map_err(|_| AccessError::CorruptData("embedding digest is not 32 bytes".into()))?;
+            Ok(EventManifestItem {
+                role: "vector".into(),
+                item_kind: "embedding".into(),
+                record_id: id,
+                record_revision: revision.max(1),
+                digest,
+                logical_key: id.to_string(),
+            })
+        })
+        .collect::<AccessResult<Vec<_>>>()?;
+    write_event_manifest(tx, event_id, &graph_items, &vector_items).await
 }
 
 fn classify_sqlx(context: &str, error: sqlx::Error) -> AccessError {
