@@ -1,18 +1,35 @@
+{{- /*
+  SPEC-150 WP-7 migrate Job.
+
+  External DB (postgres.enabled=false):
+    Helm pre-install/pre-upgrade hook so schema lands before API pods start.
+
+  Bundled DB (postgres.enabled=true):
+    Non-hook Job named with Release.Revision — Postgres does not exist during
+    pre-install. API pods use SCHEMA_GATE=wait until migrate finishes.
+*/ -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
+  {{- if .Values.postgres.enabled }}
+  name: {{ .Release.Name }}-migrate-r{{ .Release.Revision }}
+  {{- else }}
   name: {{ .Release.Name }}-migrate
+  {{- end }}
   namespace: {{ include "edgequake.namespace" . }}
   labels:
     {{- include "edgequake.labels" . | nindent 4 }}
     app.kubernetes.io/component: migrate
+  {{- if not .Values.postgres.enabled }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  {{- end }}
 spec:
   ttlSecondsAfterFinished: 600
   backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds | default 1800 }}
   template:
     metadata:
       labels:
@@ -20,6 +37,7 @@ spec:
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: Never
+      {{- if .Values.postgres.enabled }}
       initContainers:
         - name: wait-for-postgres
           image: {{ include "edgequake.postgres.image" . }}
@@ -30,6 +48,7 @@ spec:
               until pg_isready -h edgequake-postgres -U {{ .Values.postgres.auth.username }} -d {{ .Values.postgres.auth.database }}; do
                 sleep 2
               done
+      {{- end }}
       containers:
         - name: migrate
           image: {{ include "edgequake.api.image" . }}
@@ -44,3 +63,6 @@ spec:
             - secretRef:
                 name: {{ .Values.api.langfuse.existingSecret }}
             {{- end }}
+          env:
+            - name: EDGEQUAKE_MIGRATE_CLI
+              value: "1"

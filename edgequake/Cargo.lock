@@ -1807,11 +1807,13 @@ name = "edgequake"
 version = "0.26.10"
 dependencies = [
  "anyhow",
+ "axum",
  "chrono",
  "criterion",
  "edgequake-api",
  "edgequake-core",
  "edgequake-llm",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-pdf",
  "edgequake-pipeline",
@@ -1845,6 +1847,7 @@ dependencies = [
  "edgequake-auth",
  "edgequake-core",
  "edgequake-llm",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-pdf",
  "edgequake-pdf2md",
@@ -1985,6 +1988,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "edgequake-migrate-manifest"
+version = "0.26.10"
+dependencies = [
+ "serde",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
 name = "edgequake-observability"
 version = "0.26.10"
 dependencies = [
@@ -2087,6 +2100,7 @@ dependencies = [
  "chrono",
  "edgequake-core",
  "edgequake-llm",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-pipeline",
  "edgequake-storage",
@@ -2130,6 +2144,7 @@ version = "0.26.10"
 dependencies = [
  "async-trait",
  "chrono",
+ "edgequake-migrate-manifest",
  "edgequake-observability",
  "edgequake-storage-contracts",
  "proptest",

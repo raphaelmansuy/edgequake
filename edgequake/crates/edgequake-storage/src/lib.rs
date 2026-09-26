@@ -198,6 +198,13 @@ pub use graph_metrics::{
 };
 #[cfg(feature = "postgres")]
 pub use migration_engine::PgVectorCutoverStore;
+#[cfg(feature = "postgres")]
+pub use migration_engine::{
+    ensure_caught_up, run_drain_foreground, run_engine, spawn_for_serving, BackfillJob,
+    BindingCompleteness, CutoverState, MigrationEngineConfig, MigrationJobProgress, MigrationMode,
+    VectorCutoverStore, VectorProviderCutover, MIGRATION_MODE_ENV,
+};
+#[cfg(not(feature = "postgres"))]
 pub use migration_engine::{
     ensure_caught_up, BindingCompleteness, CutoverState, MigrationJobProgress, MigrationMode,
     VectorCutoverStore, VectorProviderCutover, MIGRATION_MODE_ENV,

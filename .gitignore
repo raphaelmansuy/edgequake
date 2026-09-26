@@ -183,3 +183,6 @@ ehthumbs.db
 .edgecrab-artifacts/
 specs/93-migration-assessment/reports/*/pre-upgrade.dump
 .freebuff/
+
+# Local cargo target override (SPEC-150 builds)
+.cargo-target/

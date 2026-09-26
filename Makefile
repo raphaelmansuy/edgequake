@@ -1161,10 +1161,10 @@ export DATABASE_URL
 #     DATABASE_URL="$$_EFF_DB_URL" cargo run ...
 LOAD_EFF_DB_URL = _EFF_DB_URL=$$(cat /tmp/edgequake-db-url 2>/dev/null); [ -z "$$_EFF_DB_URL" ] && _EFF_DB_URL="$(DATABASE_URL)"
 
-# LAW-MIG / SPEC-111: versions with known broken→fixed checksum repair modules.
-# Twin of `KNOWN_CHECKSUM_REPAIR_VERSIONS` in migration_bootstrap/checksum_repair.rs.
-# Scoped allowlist so local migrate works even when DEV_AUTH_ENABLED=true (DEV_MODE=false).
-KNOWN_CHECKSUM_REPAIR_VERSIONS := 71,78,118,121,125,131
+# SPEC-150: checksum fossils live in edgequake/migrations/manifest.toml (SSOT).
+# VISIBLE_MIGRATE_STEP no longer passes a hard-coded EDGEQUAKE_ALLOW_CHECKSUM_REPAIR
+# list — known fossils auto-accept. Emergency unknown-hash override remains available:
+#   EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=<version> cargo run -- migrate
 
 # SPEC-091 Doc 17 (LD-15): explicit, visible schema apply before any server
 # start. The server binary never auto-migrates — boot refuses (exit 78) when
@@ -1173,19 +1173,17 @@ KNOWN_CHECKSUM_REPAIR_VERSIONS := 71,78,118,121,125,131
 # only drops remain (so make_dev can start). Confirm with --confirm-drop when
 # drop-readiness is GREEN. A hard failure here still aborts before the server.
 #
-# LAW-MIG-3: pass scoped checksum-repair allowlist (+ DEV_MODE for local friction).
-# Production images leave both unset and fail loud (X-02).
+# SPEC-150: known fossils auto-accept; leave EDGEQUAKE_ALLOW_CHECKSUM_REPAIR unset.
 VISIBLE_MIGRATE_STEP = \
 	echo "$(YELLOW)→ edgequake migrate — applying database schema (explicit step, SPEC-091 LD-15)$(RESET)"; \
 	( cd $(BACKEND_DIR) && \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
-		EDGEQUAKE_ALLOW_CHECKSUM_REPAIR="$(KNOWN_CHECKSUM_REPAIR_VERSIONS)" \
 		cargo run -- migrate ) || { \
 		echo "$(RED)✗ edgequake migrate failed — server not started.$(RESET)"; \
 		echo "  Preview impact first: (cd $(BACKEND_DIR) && DATABASE_URL=\"$$_EFF_DB_URL\" cargo run -- migrate dry-run)"; \
-		echo "  If checksum drift: EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=$(KNOWN_CHECKSUM_REPAIR_VERSIONS) cargo run -- migrate"; \
-		echo "  Spec: specs/111-issues/10-migration-immutability.md"; \
+		echo "  Unknown checksum drift: EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=<version> cargo run -- migrate"; \
+		echo "  Spec: specs/150-reliable-migration-system/11-ops-runbook.md"; \
 		echo "  If only an irreversible drop remains, soft-exit is expected — check WARN above."; \
 		echo "  When fleet/KV drop-readiness is GREEN: cargo run -- migrate --confirm-drop"; \
 		exit 1; \
@@ -2477,7 +2475,8 @@ QUICKSTART_COMPOSE := $(ROOT_DIR)/docker-compose.quickstart.yml
 	spec091-upgrade-soak spec091-gates \
 	spec93-migration-assessment spec93-migration-assessment-pg16 \
 	spec93-migration-assessment-pg17 spec93-migration-assessment-pg18 \
-	spec137-migrate-025-026-proof spec139-migrate-engine-proof
+	spec137-migrate-025-026-proof spec139-migrate-engine-proof \
+	spec150-matrix spec150-matrix-quick
 
 # SPEC-091: v0.22.0 GHCR → HEAD smoke soak (tiny corpus; migrations 106–141 + confirm-drop).
 # Formal realism matrix: make spec93-migration-assessment (see specs/93-migration-assessment/).
@@ -2503,6 +2502,16 @@ spec93-migration-assessment-pg17: ## SPEC-93: realism soak on PG17 only
 spec93-migration-assessment-pg18: ## SPEC-93: realism soak on PG18 only
 	@chmod +x $(ROOT_DIR)/scripts/spec93_migration_assessment.sh
 	@SPEC93_PG_PROFILE=pg18 $(ROOT_DIR)/scripts/spec93_migration_assessment.sh
+
+# SPEC-150: epoch upgrade matrix (any past schema epoch → HEAD) on PG16/17/18.
+# Reports: specs/150-reliable-migration-system/reports/pg{16,17,18}/
+spec150-matrix: ## SPEC-150: full epoch matrix (PG=16|17|18|all)
+	@chmod +x $(ROOT_DIR)/scripts/spec150_epoch_matrix.sh
+	@PG=$(or $(PG),all) $(ROOT_DIR)/scripts/spec150_epoch_matrix.sh
+
+spec150-matrix-quick: ## SPEC-150: key epochs only on all PG majors
+	@chmod +x $(ROOT_DIR)/scripts/spec150_epoch_matrix.sh
+	@QUICK=1 PG=$(or $(PG),all) $(ROOT_DIR)/scripts/spec150_epoch_matrix.sh
 
 # SPEC-091 IW0–IW5 local gate (mirrors .github/workflows/spec091-data-layer.yml::spec091-data-layer).
 # Requires DATABASE_URL pointing at a Postgres with pgvector + AGE (make postgres-start).

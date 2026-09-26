@@ -85,8 +85,8 @@ fn e2e_105_07_source_defer_142_helpers() {
         "boot/migrate soft-allow must use pending_ok_to_serve (LAW-L5)"
     );
     assert!(
-        src.contains("LEGACY_CUTOVER_ASSERT_VERSION"),
-        "142 must be named SSOT constant"
+        src.contains("legacy_cutover_assert_version"),
+        "142 must be named SSOT via legacy_cutover_assert_version() (manifest)"
     );
     assert!(
         src.contains("defer_legacy_cutover_assert"),

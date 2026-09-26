@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **SPEC-150 — Reliable migration system** — Manifest SSOT
+  (`edgequake/migrations/manifest.toml` + `edgequake-migrate-manifest`), fossil
+  checksum auto-accept on `edgequake migrate` (unknown → exit **65**;
+  `dev_only` never auto), advisory lock + class timeouts (busy → exit **75**),
+  migration **159** (`migration_run` / `_step` / `schema_compat`),
+  `migrate drain`, serve verify-only + `EDGEQUAKE_SCHEMA_GATE=wait|fail`
+  (lite `/live` / `/ready`), Helm pre-hook / revision Job + compose migrate
+  services, epoch matrix (`make spec150-matrix`) proven **56/56** on PG16/17/18
+  (replay mode, 2026-09-26). Squash: **no** (`T_fresh` ≪ 180s). Spec:
+  [`specs/150-reliable-migration-system/`](specs/150-reliable-migration-system/).
+  Ops: [`edgequake/docs/migrations.md`](edgequake/docs/migrations.md).
+
+### Changed
+- Serving no longer runs checksum repair or background m040/m139/m140/m141
+  support DDL unless `EDGEQUAKE_SERVE_RECONCILE=1` / explicit automatic mode.
+- `checksums.lock` update script is append-only; lock covers `support/**`.
+- `migration_bootstrap` split into focused modules (`mod.rs` thin re-exports).
+
 ## [0.26.5] — 2026-09-02
 
 Patch: **SPEC-145** Langfuse truncated observation I/O — generation / LLM

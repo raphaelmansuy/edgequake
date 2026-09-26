@@ -6,7 +6,7 @@
 use sqlx::PgPool;
 use tracing::info;
 
-use super::super::checksum_repair::{allow_checksum_repair, refuse_silent_repair_message};
+use super::super::checksum_repair::authorize_checksum_rewrite;
 use super::super::MIGRATION_121_VERSION;
 
 /// SHA-384 of v0.24.1 broken M121 (no conflict-key dedup).
@@ -40,11 +40,13 @@ pub async fn repair_migration_121_checksum_if_needed(pool: &PgPool) -> Result<bo
         return Ok(false);
     }
 
-    if !allow_checksum_repair(MIGRATION_121_VERSION) {
-        return Err(sqlx::Error::Protocol(refuse_silent_repair_message(
-            MIGRATION_121_VERSION,
-            "v0.24.1 broken injection upsert",
-        )));
+    // SPEC-150: known production fossils auto-accept; else scoped env.
+    if let Err(msg) = authorize_checksum_rewrite(
+        MIGRATION_121_VERSION,
+        &current,
+        "v0.24.1 broken injection upsert",
+    ) {
+        return Err(sqlx::Error::Protocol(msg));
     }
 
     sqlx::query(
@@ -61,7 +63,7 @@ pub async fn repair_migration_121_checksum_if_needed(pool: &PgPool) -> Result<bo
         step = "migration_121_checksum_repair",
         from = M121_CHECKSUM_BROKEN_V0241,
         to = M121_CHECKSUM_FIXED_V0242,
-        "Repaired migration 121 checksum (SPEC-110; DEV_MODE)"
+        "Repaired migration 121 checksum (SPEC-110; fossil/allow)"
     );
 
     Ok(true)
@@ -82,8 +84,8 @@ mod tests {
     fn contract_checksum_drift_uses_shared_allow_helper() {
         let src = include_str!("m121.rs");
         assert!(
-            src.contains("allow_checksum_repair(MIGRATION_121_VERSION)")
-                && src.contains("refuse_silent_repair_message"),
+            src.contains("authorize_checksum_rewrite(MIGRATION_121_VERSION)")
+                && src.contains("authorize_checksum_rewrite"),
             "LAW-MIG / X-02: m121 must use shared checksum_repair helper"
         );
     }

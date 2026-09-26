@@ -1,0 +1,3 @@
+# SPEC-150 schema-diff allowlist (justified exceptions only).
+# Format: one regex per line matching a unified-diff hunk that is known-OK.
+# Empty file = zero tolerance (preferred).

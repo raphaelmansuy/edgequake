@@ -5,6 +5,7 @@ members = [
     "crates/edgequake-audit",
     "crates/edgequake-auth",
     "crates/edgequake-core",
+    "crates/edgequake-migrate-manifest",
     "crates/edgequake-observability",
     "crates/edgequake-pdf",
     "crates/edgequake-pipeline",
@@ -74,10 +75,12 @@ edgequake-llm = { workspace = true }
 edgequake-pipeline = { workspace = true }
 edgequake-query = { workspace = true }
 edgequake-api = { workspace = true }
+edgequake-migrate-manifest = { workspace = true }
 edgequake-observability = { workspace = true, features = ["metrics", "otel"] }
 edgequake-tasks = { workspace = true }
 edgequake-pdf = { workspace = true }
 tokio = { workspace = true }
+axum = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
@@ -185,6 +188,7 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 edgequake-api = { path = "crates/edgequake-api" }
 edgequake-auth = { path = "crates/edgequake-auth" }
 edgequake-core = { path = "crates/edgequake-core" }
+edgequake-migrate-manifest = { path = "crates/edgequake-migrate-manifest" }
 edgequake-pdf = { path = "crates/edgequake-pdf" }
 # SSOT with pdf2md 0.9.11 (llm ≥0.10.8 / OTEL 0.32 — no 0.6.x diamond).
 # SPEC-113/extract: Ollama think:false for effort=none (crates.io 0.10.7+).

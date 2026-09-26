@@ -58,10 +58,18 @@ NNN_descriptive_name.sql
   descriptive_name: snake_case, describes what changed
 ```
 
-Current max: `105_pdf_blob_cutover.sql`  
-Next available: `106_*`
+Current max: `159_spec150_migration_run.sql`  
+Next available: `160_*` (converge migrations only if epoch matrix finds schema drift)
 
-### Every-boot reconcile SSOT (not checksum-locked)
+Manifest SSOT (phases, fossils, irreversible drops): `manifest.toml` (SPEC-150).  
+Checksum lock is **append-only** (`scripts/update_migration_checksums.sh`); includes `support/**`.
+
+### Serving vs migrate (SPEC-150)
+
+- **Writes:** `edgequake migrate` only (expand → drain → contract).
+- **Serve:** verify-only; `EDGEQUAKE_SCHEMA_GATE=wait|fail`. See `docs/migrations.md`.
+
+### Every-boot reconcile SSOT (CLI / explicit automatic only — not silent serve)
 
 | Version | support path | Purpose |
 |---------|--------------|---------|

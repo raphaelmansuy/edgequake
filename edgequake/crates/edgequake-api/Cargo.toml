@@ -31,6 +31,7 @@ vision = []
 
 [dependencies]
 edgequake-core = { path = "../edgequake-core" }
+edgequake-migrate-manifest = { workspace = true }
 edgequake-pdf = { workspace = true }
 edgequake-storage = { path = "../edgequake-storage", features = ["observability"] }
 edgequake-llm = { workspace = true }
@@ -91,6 +92,7 @@ async-stream = "0.3"
 tempfile = "3"
 
 [dev-dependencies]
+edgequake-migrate-manifest = { workspace = true }
 edgequake-tasks = { path = "../edgequake-tasks", features = ["postgres"] }
 # SPEC-021 P-E3: enable the orchestrator (pipeline) for the ingest→delete
 # contract test. The `pipeline` feature is also added to the api crate so

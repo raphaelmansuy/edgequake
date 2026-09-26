@@ -228,7 +228,9 @@ mod tests {
     #[test]
     fn monitor_budget_outlasts_startup_and_the_list_path_kill() {
         assert!(INV_C_MONITOR_BUDGET > INV_C_STARTUP_BUDGET);
-        assert!(INV_C_MONITOR_STATEMENT_TIMEOUT_MS > 300);
+        const {
+            assert!(INV_C_MONITOR_STATEMENT_TIMEOUT_MS > 300);
+        }
         // Five halvings from 32 must still leave time to count the sample.
         let five_kills = Duration::from_millis(u64::from(INV_C_MONITOR_STATEMENT_TIMEOUT_MS) * 5);
         assert!(INV_C_MONITOR_BUDGET > five_kills + Duration::from_secs(10));

@@ -1,33 +1,29 @@
-//! Checksum repair authorization (LAW-MIG / SPEC-083 X-02 / SPEC-090 §8.3).
+//! Checksum repair authorization (LAW-MIG / SPEC-083 X-02 / SPEC-090 §8.3 / SPEC-150).
 //!
 //! # First principles
 //!
 //! 1. **Applied migration SQL is immutable.** Edit → new version. Never patch a
 //!    shipped `NNN_*.sql` body to “fix” field DBs (sqlx stores SHA-384 in
 //!    `_sqlx_migrations`; byte drift aborts migrate).
-//! 2. **Exception = bookkeeping only.** When a shipped body *must* change for
-//!    source/LAW-C3 parity and the migration already applied (effect done),
-//!    rewrite the stored checksum via an allowlisted repair module — never
-//!    silently, never by re-running the SQL.
-//! 3. **Authorization is narrow.** Prefer
-//!    `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=71,78,118,121,125,131` over blanket
-//!    `EDGEQUAKE_DEV_MODE` (which also disables auth). Local `make_dev` migrate
-//!    sets the allowlist; production leaves both unset (fail loud).
+//! 2. **Known fossils are data.** When a historically applied body matches a
+//!    fossil listed in `edgequake/migrations/manifest.toml`, `edgequake migrate`
+//!    rewrites the stored checksum to the current hash **without env**.
+//! 3. **Unknown mismatch fails closed.** `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` remains
+//!    a scoped emergency override. `EDGEQUAKE_DEV_MODE` does **not** auto-allow
+//!    unknown hashes (auth bleed).
 
-/// Env: comma-separated migration versions allowed for one-shot checksum rewrite.
+use edgequake_migrate_manifest as manifest;
+
+/// Env: comma-separated migration versions allowed for one-shot checksum rewrite
+/// of **unknown** (non-fossil) mismatches.
 pub const ALLOW_CHECKSUM_REPAIR_ENV: &str = "EDGEQUAKE_ALLOW_CHECKSUM_REPAIR";
 
-/// Versions that have a known broken→fixed repair module (Makefile SSOT twin).
+/// Versions that have at least one production fossil in the manifest.
 ///
-/// When adding a repair module, append here **and** update
-/// `KNOWN_CHECKSUM_REPAIR_VERSIONS` in the root `Makefile`.
-pub const KNOWN_CHECKSUM_REPAIR_VERSIONS: &[i64] = &[71, 78, 118, 121, 125, 131];
-
-fn env_truthy(name: &str) -> bool {
-    matches!(
-        std::env::var(name).map(|v| v == "1" || v.eq_ignore_ascii_case("true")),
-        Ok(true)
-    )
+/// Prefer calling this over any hard-coded integer array — SPEC-150 SSOT is
+/// `edgequake/migrations/manifest.toml`.
+pub fn known_checksum_repair_versions() -> Vec<i64> {
+    manifest::known_checksum_repair_versions()
 }
 
 /// Parse `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` (comma/space separated i64 versions).
@@ -43,30 +39,71 @@ pub fn parse_allow_checksum_repair_list(raw: &str) -> Vec<i64> {
         .collect()
 }
 
-/// Authorize rewriting `_sqlx_migrations.checksum` for `version`.
+/// Authorize rewriting `_sqlx_migrations.checksum` for an **unknown** mismatch.
+///
+/// Known production fossils are accepted separately by [`authorize_checksum_rewrite`]
+/// and do not consult this function.
 ///
 /// Order:
-/// 1. `EDGEQUAKE_DEV_MODE=1|true` → allow (local frictionless / legacy path)
-/// 2. `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` contains `version` → allow (scoped)
-/// 3. else deny (production default)
+/// 1. `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` contains `version` → allow (scoped emergency)
+/// 2. else deny
+///
+/// `EDGEQUAKE_DEV_MODE` deliberately does **not** authorize unknown hashes
+/// (SPEC-150 WP-2).
 pub fn allow_checksum_repair(version: i64) -> bool {
-    if env_truthy("EDGEQUAKE_DEV_MODE") {
-        return true;
-    }
     match std::env::var(ALLOW_CHECKSUM_REPAIR_ENV) {
         Ok(raw) => parse_allow_checksum_repair_list(&raw).contains(&version),
         Err(_) => false,
     }
 }
 
+/// Authorize a checksum rewrite for `version` given the currently stored hex.
+///
+/// - Known production fossil → Ok (auto-accept, no env)
+/// - Emergency allowlist → Ok
+/// - Else → Err(refuse message)
+pub fn authorize_checksum_rewrite(
+    version: i64,
+    stored_hex: &str,
+    reason: &str,
+) -> Result<(), String> {
+    if is_known_production_fossil(version, stored_hex) {
+        return Ok(());
+    }
+    if allow_checksum_repair(version) {
+        return Ok(());
+    }
+    Err(refuse_silent_repair_message(version, reason))
+}
+
+/// True when `stored_hex` is a known production fossil for `version`.
+pub fn is_known_production_fossil(version: i64, stored_hex: &str) -> bool {
+    manifest::load().is_known_production_fossil(version, stored_hex)
+}
+
+/// True when `stored_hex` is any known fossil (including `dev_only`).
+pub fn is_known_fossil(version: i64, stored_hex: &str) -> bool {
+    manifest::load().is_known_fossil(version, stored_hex)
+}
+
 /// Fail-loud protocol message shared by repair modules.
 pub fn refuse_silent_repair_message(version: i64, reason: &str) -> String {
+    let known = manifest::load().production_fossils(version);
+    let known_fmt = if known.is_empty() {
+        "(none listed in manifest)".to_string()
+    } else {
+        known
+            .iter()
+            .map(|h| format!("{}…", &h[..h.len().min(24)]))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     format!(
         "Migration {version} checksum drift detected ({reason}). \
          Refusing silent repair without authorization. \
-         Local: make_dev passes EDGEQUAKE_ALLOW_CHECKSUM_REPAIR / DEV_MODE. \
-         Controlled upgrade: {ALLOW_CHECKSUM_REPAIR_ENV}={version} once, then unset. \
-         Spec: specs/111-issues/10-migration-immutability.md."
+         Known production fossils: {known_fmt}. \
+         Controlled emergency: {ALLOW_CHECKSUM_REPAIR_ENV}={version} once, then unset. \
+         Spec: specs/150-reliable-migration-system/01-first-principles.md (LAW-150-4)."
     )
 }
 
@@ -86,18 +123,29 @@ mod tests {
     }
 
     #[test]
-    fn known_versions_are_sorted_unique() {
-        let mut sorted = KNOWN_CHECKSUM_REPAIR_VERSIONS.to_vec();
+    fn known_versions_come_from_manifest_sorted_unique() {
+        let vs = known_checksum_repair_versions();
+        let mut sorted = vs.clone();
         sorted.sort_unstable();
         sorted.dedup();
-        assert_eq!(sorted, KNOWN_CHECKSUM_REPAIR_VERSIONS);
+        assert_eq!(sorted, vs);
+        assert!(vs.contains(&1), "001 fossil must be registered");
+        assert!(vs.contains(&19), "019 fossil must be registered");
+        assert!(!vs.contains(&150), "150 is dev_only");
     }
 
     #[test]
-    fn refuse_message_names_scoped_env() {
+    fn refuse_message_names_scoped_env_and_manifest() {
         let msg = refuse_silent_repair_message(125, "SPEC-111 cast");
         assert!(msg.contains("EDGEQUAKE_ALLOW_CHECKSUM_REPAIR"));
         assert!(msg.contains("125"));
-        assert!(msg.contains("10-migration-immutability"));
+        assert!(msg.contains("LAW-150-4"));
+    }
+
+    #[test]
+    fn dev_mode_does_not_authorize_unknown() {
+        std::env::remove_var(ALLOW_CHECKSUM_REPAIR_ENV);
+        // 999 has no fossil and no allowlist entry.
+        assert!(!allow_checksum_repair(999));
     }
 }

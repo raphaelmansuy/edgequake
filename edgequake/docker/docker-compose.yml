@@ -1,4 +1,26 @@
 services:
+  # SPEC-150: schema migrate before API (never auto-apply on serve)
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        ENABLE_OTEL: ${ENABLE_OTEL:-true}
+    container_name: edgequake-migrate
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
+      - EDGEQUAKE_MIGRATE_CLI=1
+      - EDGEQUAKE_LLM_PROVIDER=mock
+      - EDGEQUAKE_EMBEDDING_PROVIDER=mock
+      - EDGEQUAKE_ALLOW_MOCK_PROVIDER=1
+    command: ["edgequake", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edgequake-network
+
   # EdgeQuake API Server
   # Multi-platform: supports linux/amd64 (Intel/AMD), linux/arm64 (Apple Silicon, ARM servers)
   # macOS:   docker compose up  (Docker Desktop auto-selects arm64 on M-series, amd64 on Intel)
@@ -22,7 +44,8 @@ services:
       - EDGEQUAKE_HOST=0.0.0.0
       - EDGEQUAKE_PORT=8080
       - DATABASE_URL=postgres://edgequake:${POSTGRES_PASSWORD:-edgequake_secret}@postgres:5432/edgequake
-      # ── LLM / Embedding provider selection ─────────────────────────────────
+      # SPEC-150: wait for migrate Job instead of exit 78
+      - EDGEQUAKE_SCHEMA_GATE=${EDGEQUAKE_SCHEMA_GATE:-wait}
       # The provider is resolved in this order (first non-empty variable wins):
       #   EDGEQUAKE_DEFAULT_LLM_PROVIDER → EDGEQUAKE_LLM_PROVIDER → "ollama"
       #
@@ -97,6 +120,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - edgequake-network
     healthcheck:

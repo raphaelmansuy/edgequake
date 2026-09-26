@@ -148,28 +148,56 @@ fn hostname_fallback() -> String {
 }
 
 /// Boot entry point. Registers job descriptors, then:
-/// - `off`: returns immediately (no ledger writes).
-/// - `verify`: ensures job rows + logs estimates (pending visible on API/SQL).
-/// - `automatic`: additionally spawns the runner task (resumable, leased).
+/// - `off` / `verify` (default): returns immediately — **no ledger writes** on serve
+///   (SPEC-150 WP-4). Use `edgequake migrate drain` for foreground data movement.
+/// - `automatic`: spawns the runner task (resumable, leased) — dedicated worker only.
 pub fn spawn_for_serving(
     pool: &PgPool,
     kv_table: String,
     vectors_table: String,
 ) -> Option<tokio::task::JoinHandle<()>> {
     let mode = MigrationMode::from_env();
-    if matches!(mode, MigrationMode::Off) {
+    // SPEC-150 WP-4: serving never writes. Only explicit automatic opts in.
+    if !matches!(mode, MigrationMode::Automatic) {
         tracing::debug!(
             env = MIGRATION_MODE_ENV,
-            "SPEC-091 migration engine disabled"
+            ?mode,
+            "SPEC-150: migration engine not spawned on serve (need EDGEQUAKE_MIGRATION_MODE=automatic)"
         );
         return None;
     }
 
+    let jobs = default_backfill_jobs(kv_table, vectors_table);
+    let config = MigrationEngineConfig::from_env();
+    let pool = pool.clone();
+
+    Some(tokio::spawn(async move {
+        if let Err(e) = run_engine(pool, jobs, config, mode).await {
+            tracing::error!(error = %e, "SPEC-091 migration engine terminated with error");
+        }
+    }))
+}
+
+/// SPEC-150: foreground drain used by `edgequake migrate drain`.
+pub async fn run_drain_foreground(
+    pool: PgPool,
+    kv_table: String,
+    vectors_table: String,
+) -> Result<(), StorageError> {
+    let jobs = default_backfill_jobs(kv_table, vectors_table);
+    let config = MigrationEngineConfig::from_env();
+    run_engine(pool, jobs, config, MigrationMode::Automatic).await
+}
+
+fn default_backfill_jobs(
+    kv_table: String,
+    vectors_table: String,
+) -> Vec<std::sync::Arc<dyn BackfillJob>> {
     let model = std::env::var("EDGEQUAKE_EMBEDDING_MODEL")
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "text-embedding-3-small".to_string());
-    let jobs: Vec<std::sync::Arc<dyn BackfillJob>> = vec![
+    vec![
         std::sync::Arc::new(super::chunk_text_backfill::ChunkTextBackfillJob::new(
             kv_table,
         )),
@@ -184,15 +212,7 @@ pub fn spawn_for_serving(
         ),
         std::sync::Arc::new(super::fleet_embedding_backfill::FleetEmbeddingBackfillJob::new(model)),
         std::sync::Arc::new(super::fleet_provenance_stamp::FleetProvenanceStampJob::new()),
-    ];
-    let config = MigrationEngineConfig::from_env();
-    let pool = pool.clone();
-
-    Some(tokio::spawn(async move {
-        if let Err(e) = run_engine(pool, jobs, config, mode).await {
-            tracing::error!(error = %e, "SPEC-091 migration engine terminated with error");
-        }
-    }))
+    ]
 }
 
 pub async fn run_engine(

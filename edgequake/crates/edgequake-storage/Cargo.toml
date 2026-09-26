@@ -32,6 +32,7 @@ uuid = { workspace = true }
 sha2 = "0.10"
 unicode-normalization = "0.1"
 edgequake-storage-contracts = { workspace = true }
+edgequake-migrate-manifest = { workspace = true }
 
 # Optional PostgreSQL dependencies
 sqlx = { workspace = true, optional = true }

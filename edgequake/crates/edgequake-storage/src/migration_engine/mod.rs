@@ -36,7 +36,8 @@ pub use relational_cutover::{
 };
 #[cfg(feature = "postgres")]
 pub use runner::{
-    run_engine, spawn_for_serving, BackfillJob, BatchOutcome, MigrationEngineConfig, VerifyReport,
+    run_drain_foreground, run_engine, spawn_for_serving, BackfillJob, BatchOutcome,
+    MigrationEngineConfig, VerifyReport,
 };
 #[cfg(feature = "postgres")]
 pub use vector_provider_cutover::PgVectorCutoverStore;

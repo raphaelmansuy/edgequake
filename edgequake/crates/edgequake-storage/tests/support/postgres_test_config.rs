@@ -253,37 +253,11 @@ async fn repair_stale_spec149_migration_collision(pool: &sqlx::PgPool) {
         .await;
 }
 
-/// Update `_sqlx_migrations.checksum` for known broken→fixed pairs so the
-/// isolated `{db}_test` scratch database can continue after SPEC-110/111
-/// in-place migration edits. No-op when the table or version is absent.
+/// Update `_sqlx_migrations.checksum` for known fossils so the isolated
+/// `{db}_test` scratch database can continue after in-place migration edits.
+/// Fossils (incl. `dev_only`) come from `edgequake/migrations/manifest.toml`;
+/// current hashes come from `checksums.lock`.
 async fn repair_test_db_migration_checksums(pool: &sqlx::PgPool) {
-    // (version, broken_hex, fixed_hex)
-    const REPAIRS: &[(i64, &str, &str)] = &[
-        // SPEC-111 #362
-        (
-            125,
-            "67b73fd0f683dd5cae06213ae59c75c2f8fea214074e8b250997aa77efc90a1fa01c14764f9fdb968b0e73685136b2f6",
-            "9ae99858a9c88ec9b0a195447d6f7e2601fb4423f0d846314b6aa06d337ad9e74e9a8998ae7359fba65df694d5b1eeec",
-        ),
-        // SPEC-111 #364
-        // SPEC-111 first body (provenance + exact-name fallback)
-        (
-            131,
-            "461fa2a7c560513df711f954edd4f24444c91cd0385a70189e41cecdebaf2f53cca49c932122b0d002407a6c7fc0dbe8",
-            "1b42205577666dc31fa346c42eb8e787c78208b6438da2822245ec61d65f3d538df8f985b132b7e3a3930b7272c87a14",
-        ),
-        (
-            131,
-            "d6bc6c00b753f8599248dda86ce5d314e147491bcbb9932273c43afcbfc84a5d51c6a797387dfffeeca00588dc02c896",
-            "1b42205577666dc31fa346c42eb8e787c78208b6438da2822245ec61d65f3d538df8f985b132b7e3a3930b7272c87a14",
-        ),
-        // SPEC-149: migration 150 lost a trailing blank line after it was applied.
-        (
-            150,
-            "44a80b5981ab8f7bff59cb9d4e45c54cf921bca584724e9ba05707b07281cc1ffa56c7eede83a8a4fb0378fb6dd26e55",
-            "4392854c4daf5bcf8204f178dd1ad6c0b9cfdc094d5a120b4880a1f99ed254b5ced55829c18de21b13efa4c2402c9c6a",
-        ),
-    ];
     let Ok(exists): Result<bool, _> =
         sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NOT NULL")
             .fetch_one(pool)
@@ -294,18 +268,45 @@ async fn repair_test_db_migration_checksums(pool: &sqlx::PgPool) {
     if !exists {
         return;
     }
-    for &(version, broken, fixed) in REPAIRS {
-        let _ = sqlx::query(
-            "UPDATE _sqlx_migrations SET checksum = decode($1, 'hex') \
-             WHERE version = $2 AND success = true \
-               AND encode(checksum, 'hex') = $3",
-        )
-        .bind(fixed)
-        .bind(version)
-        .bind(broken)
-        .execute(pool)
-        .await;
+
+    let current_by_version = load_checksums_lock_by_version();
+    let manifest = edgequake_migrate_manifest::load();
+    for entry in &manifest.migration {
+        let Some(fixed) = current_by_version.get(&entry.version) else {
+            continue;
+        };
+        for fossil in &entry.fossils {
+            let _ = sqlx::query(
+                "UPDATE _sqlx_migrations SET checksum = decode($1, 'hex') \
+                 WHERE version = $2 AND success = true \
+                   AND encode(checksum, 'hex') = $3",
+            )
+            .bind(fixed.as_str())
+            .bind(entry.version)
+            .bind(fossil.sha384.as_str())
+            .execute(pool)
+            .await;
+        }
     }
+}
+
+fn load_checksums_lock_by_version() -> std::collections::HashMap<i64, String> {
+    let lock = include_str!("../../../../migrations/checksums.lock");
+    let mut map = std::collections::HashMap::new();
+    for line in lock.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let Some(hash) = parts.next() else { continue };
+        let Some(file) = parts.next() else { continue };
+        let digits: String = file.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(v) = digits.parse::<i64>() {
+            map.insert(v, hash.to_ascii_lowercase());
+        }
+    }
+    map
 }
 
 fn isolated_namespace(namespace_prefix: &str) -> String {
