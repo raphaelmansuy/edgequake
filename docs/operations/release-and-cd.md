@@ -4,11 +4,11 @@ title: "Release & CD Cycle"
 
 # Release & CD Cycle
 
-> **Product: v0.26.5** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.27.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 >
-> Upgrade: [upgrade-to-0.26.5.md](upgrade-to-0.26.5.md) (SPEC-145 Langfuse complete I/O). Prior: [upgrade-to-0.26.4.md](upgrade-to-0.26.4.md) (SPEC-144 Next 16.3.3, lists, distroless).
+> Upgrade: [upgrade-to-0.27.0.md](upgrade-to-0.27.0.md) (SPEC-149/150 schema 149→159, migrate≠serve). Prior: [upgrade-to-0.26.5.md](upgrade-to-0.26.5.md) (SPEC-145 Langfuse complete I/O).
 >
-> **SPEC-001 Acc (this cut):** attested existing [`publish/latest`](../../specs/001-benchmark/e2e/artifacts/publish/latest/) (`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run; **PDF geometry not re-scored**.
+> **SPEC-001 Acc (this cut):** attested existing [`publish/latest`](../../specs/001-benchmark/e2e/artifacts/publish/latest/) (`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run against schema 159; **PDF geometry not re-scored**.
 >
 > **crates.io deps:** `edgequake-llm` **0.10.8**, `edgequake-pdf2md` **0.9.11**, `edgeparse-core` **0.2.5**, `edgequake-sdk` **0.4.0** (workspace crates remain GHCR-only).
 

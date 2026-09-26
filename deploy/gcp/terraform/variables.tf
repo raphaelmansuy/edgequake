@@ -44,7 +44,7 @@ variable "data_disk_gb" {
 variable "edgequake_version" {
   type        = string
   description = "GHCR tag pin (LAW-148-4). Never latest."
-  default     = "0.26.5"
+  default     = "0.27.0"
 }
 
 variable "hostname" {

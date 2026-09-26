@@ -15974,7 +15974,7 @@ export interface operations {
                 q?: string;
                 /** @description Max results (default 20, max 50) */
                 page_size?: number;
-                /** @description Status filter: 'completed' (default) or 'all' */
+                /** @description Status filter: 'completed' (default; includes indexed) or 'all' */
                 status?: string;
             };
             header?: never;

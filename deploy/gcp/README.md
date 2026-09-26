@@ -1,6 +1,6 @@
 # EdgeQuake on GCP — cheapest host (SPEC-148 Option A)
 
-GCE VM **`elitizon-db`** (shared AGE + pgvector host) + Docker Compose (GHCR v0.26.5) in project `saas-app-001`.  
+GCE VM **`elitizon-db`** (shared AGE + pgvector host) + Docker Compose (GHCR v0.27.0) in project `saas-app-001`.  
 Caddy is the only public listener: **:80 always redirects to HTTPS**.
 
 GCP objects (bucket, secrets, WIF, SAs, IP) use the **`edgequake-*`** prefix — not the spec number `eq148`. VPC is **`edgequake-host-vpc`** (leftover Option B already owns `edgequake-vpc`).
@@ -77,7 +77,7 @@ The workflow file must be on `edgequake-main`. WIF accepts only `refs/heads/edge
 Or on the VM:
 
 ```bash
-sudo /opt/edgequake/scripts/install-release.sh 0.26.5
+sudo /opt/edgequake/scripts/install-release.sh 0.27.0
 ```
 
 `deploy.sh` is LD-15: `migrate dry-run` → `migrate` → `up` → HTTP 301 gate → `/health` → `\dx` (vector + age).

@@ -11,6 +11,22 @@ fn read_crate_src(rel: &str) -> String {
     std::fs::read_to_string(manifest.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"))
 }
 
+/// SPEC-150 split `migration_bootstrap` into modules; wiring proofs scan the
+/// surface (re-exports + support constants + reconcile hooks + apply).
+fn read_migration_bootstrap_surface() -> String {
+    [
+        "src/state/migration_bootstrap/mod.rs",
+        "src/state/migration_bootstrap/support_sql.rs",
+        "src/state/migration_bootstrap/reconcile/mod.rs",
+        "src/state/migration_bootstrap/apply.rs",
+        "src/state/migration_bootstrap/readiness.rs",
+    ]
+    .into_iter()
+    .map(read_crate_src)
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
 #[test]
 fn spec027_auth_validation_service_exists() {
     let src = read_crate_src("src/services/auth_validation.rs");
@@ -322,7 +338,7 @@ fn spec027_security_config_on_app_state() {
 
 #[test]
 fn spec027_migration_046_startup_reconcile_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("MIGRATION_046_VERSION"));
     assert!(bootstrap.contains("reconcile_migration_046"));
     assert!(bootstrap.contains("migration_046"));
@@ -950,7 +966,7 @@ fn spec027_rls_acquire_ssot_phase37() {
 
 #[test]
 fn spec027_migration_050_pg_rls_ssot_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_050"));
     assert!(bootstrap.contains("migration_050"));
     assert!(bootstrap.contains("MIGRATION_050_VERSION"));
@@ -997,7 +1013,7 @@ fn spec027_pg_identity_ssot_phase38() {
 
 #[test]
 fn spec027_migration_051_pg_identity_primary_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_051"));
     assert!(bootstrap.contains("migration_051"));
     assert!(bootstrap.contains("MIGRATION_051_VERSION"));
@@ -1027,7 +1043,7 @@ fn spec027_session_storage_pg_phase39() {
 
 #[test]
 fn spec027_migration_052_session_artifacts_ssot_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_052"));
     assert!(bootstrap.contains("migration_052"));
     assert!(bootstrap.contains("MIGRATION_052_VERSION"));
@@ -1110,7 +1126,7 @@ fn spec027_auth_secure_by_default_phase44() {
 
 #[test]
 fn spec027_migration_055_auth_secure_default_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_055"));
     assert!(bootstrap.contains("migration_055"));
     assert!(bootstrap.contains("MIGRATION_055_VERSION"));
@@ -1171,7 +1187,7 @@ fn spec027_auth_kv_store_consolidated_phase45() {
 
 #[test]
 fn spec027_migration_056_auth_kv_store_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_056"));
     assert!(bootstrap.contains("migration_056"));
     assert!(bootstrap.contains("MIGRATION_056_VERSION"));
@@ -1196,7 +1212,7 @@ fn spec027_health_schema_ops_phase46() {
 
 #[test]
 fn spec027_migration_057_kv_mirror_deprecated_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_057"));
     assert!(bootstrap.contains("migration_057"));
     assert!(bootstrap.contains("MIGRATION_057_VERSION"));
@@ -1220,7 +1236,7 @@ fn spec027_identity_policy_ignores_kv_mirror_phase47() {
 
 #[test]
 fn spec027_migration_058_kv_mirror_ignored_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_058"));
     assert!(bootstrap.contains("migration_058"));
     assert!(bootstrap.contains("MIGRATION_058_VERSION"));
@@ -1254,7 +1270,7 @@ fn spec027_pg_only_auth_branch_phase48() {
 
 #[test]
 fn spec027_migration_059_pg_only_auth_branch_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_059"));
     assert!(bootstrap.contains("migration_059"));
     assert!(bootstrap.contains("MIGRATION_059_VERSION"));
@@ -1289,7 +1305,7 @@ fn spec027_oauth2_oidc_not_builtin_phase49() {
 
 #[test]
 fn spec027_migration_060_oauth_oidc_honesty_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_060"));
     assert!(bootstrap.contains("migration_060"));
     assert!(bootstrap.contains("MIGRATION_060_VERSION"));
@@ -1319,7 +1335,7 @@ fn spec027_user_management_isolated_from_auth_kv_phase50() {
 
 #[test]
 fn spec027_migration_061_auth_kv_handler_isolation_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_061"));
     assert!(bootstrap.contains("migration_061"));
     assert!(bootstrap.contains("MIGRATION_061_VERSION"));
@@ -1345,7 +1361,7 @@ fn spec027_auth_handlers_isolated_from_auth_kv_phase51() {
 
 #[test]
 fn spec027_migration_062_auth_mod_isolation_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_062"));
     assert!(bootstrap.contains("migration_062"));
     assert!(bootstrap.contains("MIGRATION_062_VERSION"));
@@ -1494,7 +1510,7 @@ fn spec027_oauth2_oidc_builtin_wiring_phase54() {
     let middleware = read_crate_src("src/middleware.rs");
     assert!(middleware.contains("/auth/oidc/login"));
     assert!(middleware.contains("/auth/oidc/callback"));
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_064"));
     assert!(bootstrap.contains("migration_064"));
     assert!(bootstrap.contains("MIGRATION_064_VERSION"));
@@ -1567,7 +1583,7 @@ fn spec027_auth_session_api_keys_use_session_storage_phase52() {
 
 #[test]
 fn spec027_migration_063_auth_service_layer_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_063"));
     assert!(bootstrap.contains("migration_063"));
     assert!(bootstrap.contains("MIGRATION_063_VERSION"));
@@ -1580,7 +1596,7 @@ fn spec027_migration_063_auth_service_layer_wired() {
 
 #[test]
 fn spec027_migration_054_identity_pg_rls_envelope_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_054"));
     assert!(bootstrap.contains("migration_054"));
     assert!(bootstrap.contains("MIGRATION_054_VERSION"));
@@ -1593,7 +1609,7 @@ fn spec027_migration_054_identity_pg_rls_envelope_wired() {
 
 #[test]
 fn spec027_migration_053_pg_auth_kv_reads_removed_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_053"));
     assert!(bootstrap.contains("migration_053"));
     assert!(bootstrap.contains("MIGRATION_053_VERSION"));
@@ -1606,7 +1622,7 @@ fn spec027_migration_053_pg_auth_kv_reads_removed_wired() {
 
 #[test]
 fn spec027_migration_049_membership_ssot_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_049"));
     assert!(bootstrap.contains("migration_049"));
     assert!(bootstrap.contains("MIGRATION_049_VERSION"));
@@ -1627,7 +1643,7 @@ fn spec027_sec010_constant_time_env_api_keys() {
 
 #[test]
 fn spec027_migration_048_identity_ssot_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_048"));
     assert!(bootstrap.contains("migration_048"));
     assert!(bootstrap.contains("MIGRATION_048_VERSION"));
@@ -1836,7 +1852,7 @@ fn spec027_workspace_document_index_ssot() {
 
 #[test]
 fn spec027_migration_047_startup_reconcile_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("reconcile_migration_047"));
     assert!(bootstrap.contains("migration_047"));
     assert!(bootstrap.contains("MIGRATION_047_VERSION"));
@@ -1972,7 +1988,7 @@ fn spec027_document_task_cleanup_extracted() {
 
 #[test]
 fn spec027_migration_bootstrap_ready_gate_wired() {
-    let bootstrap = read_crate_src("src/state/migration_bootstrap/mod.rs");
+    let bootstrap = read_migration_bootstrap_surface();
     assert!(bootstrap.contains("is_ready_for_traffic"));
     assert!(bootstrap.contains("run_postgres_migrations"));
 }

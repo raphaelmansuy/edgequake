@@ -6,7 +6,7 @@ set -euo pipefail
 PREFIX="${STACK_PREFIX:-edgequake}"
 PROJECT="${STACK_PROJECT:-}"
 ORIGIN="${STACK_PUBLIC_ORIGIN:-}"
-VERSION="${STACK_VERSION:-0.26.5}"
+VERSION="${STACK_VERSION:-0.27.0}"
 HOSTNAME="${STACK_HOSTNAME:-}"
 ACME_EMAIL="${STACK_ACME_EMAIL:-}"
 INSTALL_ROOT="${STACK_INSTALL_ROOT:-/opt/${PREFIX}}"
@@ -51,7 +51,7 @@ BOOTSTRAP_ADMIN_PASSWORD="$(access_secret "${PREFIX}-bootstrap-admin-password")"
 MASTER_API_KEY="$(access_secret "${PREFIX}-master-api-key")"
 OPENAI_API_KEY="$(access_secret "${PREFIX}-openai-api-key" || true)"
 MISTRAL_API_KEY="$(access_secret "${PREFIX}-mistral-api-key" || true)"
-# Placeholder version is "UNSET" (Terraform). v0.26.5 forbids mock as the server
+# Placeholder version is "UNSET" (Terraform). v0.27.0 forbids mock as the server
 # default unless EDGEQUAKE_ALLOW_MOCK_PROVIDER=1 (test hatch; LAW-148 smoke only).
 LLM_PROVIDER="mock"
 ALLOW_MOCK="1"

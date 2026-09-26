@@ -4,7 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-09-26
+
+Minor: **SPEC-149** provider-access / P0 projection authority + **SPEC-150**
+reliable migration lifecycle. Schema train moves **149 → 159**. Serve no longer
+applies migrations; operators must run `edgequake migrate` (or the compose /
+Helm migrate Job) before `/ready` is 200. Upgrade:
+[`docs/operations/upgrade-to-0.27.0.md`](docs/operations/upgrade-to-0.27.0.md).
+
+**Deps (crates.io):** unchanged (`edgequake-llm` **0.10.8**, `edgequake-pdf2md`
+**0.9.11**, `edgeparse-core` **0.2.5**; `edgequake-sdk` **0.4.0**).
+
+**SPEC-001 Acc:** attested from existing
+[`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run
+against schema 159; **PDF geometry not re-scored** (same honesty pattern as
+0.26.4/0.26.5).
+
 ### Added
+- **SPEC-149 — Provider-access / P0 projection authority** — Typed
+  ingestion committer + lifecycle tombstone, deterministic P0 graph/vector
+  `data_bindings`, projection ledger / deliveries / cleanup intents,
+  serving fence (`chunk_serving_state=ready`), HTTP lineage certification,
+  WebUI `projecting` stage. Migrations **150–158**. Spec:
+  [`specs/149-data-access-improvements/`](specs/149-data-access-improvements/).
 - **SPEC-150 — Reliable migration system** — Manifest SSOT
   (`edgequake/migrations/manifest.toml` + `edgequake-migrate-manifest`), fossil
   checksum auto-accept on `edgequake migrate` (unknown → exit **65**;
@@ -22,6 +45,13 @@ All notable changes to this project will be documented in this file.
   support DDL unless `EDGEQUAKE_SERVE_RECONCILE=1` / explicit automatic mode.
 - `checksums.lock` update script is append-only; lock covers `support/**`.
 - `migration_bootstrap` split into focused modules (`mod.rs` thin re-exports).
+- Tombstone ensures P0 bindings before locking cleanup targets (parity with
+  durable ingest; avoids empty-binding refuse on fresh workspaces).
+
+### Fixed
+- CI: SPEC-018 observability proof, rustls advisory policy, epoch matrix
+  `FORCE_REPLAY` / `SKIP_SCHEMA_DIFF` flaps, SPEC-091 typed seeds + KV
+  allowlist for `list_run_enrich`.
 
 ## [0.26.5] — 2026-09-02
 
