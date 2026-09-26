@@ -290,6 +290,12 @@ impl LifecycleCommitter for PgIngestionCommitter {
             )));
         }
 
+        // Same as durable ingest: provision P0 graph/vector bindings before
+        // locking targets. Legacy KV-only seeds (and fresh workspaces with no
+        // prior commit) otherwise tombstone with zero bindings and the API
+        // refuses physical cleanup (SPEC-098 / LAW-098-12 CI flake on clean DB).
+        ensure_p0_bindings_in_transaction(&mut tx, tenant_id, workspace_id).await?;
+
         let cleanup_manifest_id = Uuid::new_v4();
         let event_id = Uuid::new_v4();
         sqlx::query(
