@@ -66,6 +66,17 @@ pub async fn setup_scope(prefix: &str) -> Option<(PostgresConfig, sqlx::PgPool, 
     .execute(&pool)
     .await
     .expect("seed workspace");
+    // Scratch DBs accumulate pending/leased leftovers across CI jobs. Global
+    // claim + poison-quarantines-the-batch would otherwise fail an unrelated
+    // document's drain (seen as quarantined=N on the first projection test).
+    let _ = sqlx::query(
+        "UPDATE projection_deliveries \
+         SET state = 'quarantined', lease_owner = NULL, lease_until = NULL, \
+             receipt = convert_to('spec149 fixture reset', 'UTF8') \
+         WHERE state IN ('pending', 'leased', 'retry')",
+    )
+    .execute(&pool)
+    .await;
     Some((config, pool, tenant_id, workspace_id))
 }
 
@@ -211,11 +222,23 @@ pub async fn drain_document(worker: &ProjectionWorker, pool: &sqlx::PgPool, docu
         .fetch_one(pool)
         .await
         .expect("count quarantined for document");
-        assert_eq!(
-            quarantined_mine, 0,
-            "replay must not quarantine this document's P0 payloads (worker report quarantined={})",
-            report.quarantined
-        );
+        if quarantined_mine > 0 {
+            let reasons: Vec<(Uuid, Option<String>)> = sqlx::query_as(
+                "SELECT d.binding_id, convert_from(d.receipt, 'UTF8') \
+                 FROM projection_deliveries d \
+                 JOIN projection_events e USING (event_id) \
+                 WHERE e.object_id = $1 AND d.state = 'quarantined'",
+            )
+            .bind(document_id)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+            panic!(
+                "replay must not quarantine this document's P0 payloads \
+                 (worker report quarantined={}, document quarantined={quarantined_mine}, reasons={reasons:?})",
+                report.quarantined
+            );
+        }
         if report.claimed > 0 {
             saw_progress = true;
         }

@@ -66,6 +66,8 @@ jobs:
           QUICK: ${{ matrix.mode == 'quick' && '1' || '0' }}
           HEAD_BIN: ${{ github.workspace }}/.cargo-target/debug/edgequake
           CARGO_TARGET_DIR: ${{ github.workspace }}/.cargo-target
+          # Deterministic ledger replay (GHCR image boots are optional / noisy in CI).
+          FORCE_REPLAY: "1"
         run: |
           chmod +x scripts/spec150_epoch_matrix.sh
           ./scripts/spec150_epoch_matrix.sh

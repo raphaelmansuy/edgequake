@@ -106,6 +106,15 @@ async fn e2e_spec091_typed_only_ingest_and_query() {
         )
         .await
         .expect("typed chunk upsert");
+    // SPEC-149 typed reads apply the serving fence; direct upserts must open it.
+    sqlx::query(
+        "INSERT INTO public.chunk_serving_state (chunk_id, state) VALUES ($1, 'ready') \
+         ON CONFLICT (chunk_id) DO UPDATE SET state = EXCLUDED.state",
+    )
+    .bind(chunk_id)
+    .execute(&pool)
+    .await
+    .expect("mark typed chunk serving-ready");
 
     let entity_name = format!("ENTITY_{}", Uuid::new_v4().as_simple());
     let entity_id: Uuid = sqlx::query_scalar(

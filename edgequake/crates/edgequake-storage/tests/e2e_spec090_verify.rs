@@ -786,9 +786,14 @@ async fn e2e_spec090_verify_boot_migrate_split_contract() {
     let bootstrap = fs::read_to_string("crates/edgequake-api/src/state/migration_bootstrap/mod.rs")
         .or_else(|_| fs::read_to_string("../edgequake-api/src/state/migration_bootstrap/mod.rs"))
         .expect("migration_bootstrap");
-    assert!(bootstrap.contains("EDGEQUAKE_ALLOW_BOOT_MIGRATE"));
     assert!(bootstrap.contains("bootstrap_for_serving"));
     assert!(bootstrap.contains("migrate_cli_mode"));
+
+    // SPEC-150: allow-boot escape lives on the migrate/ledger path, not serve.
+    let ledger = fs::read_to_string("crates/edgequake-api/src/state/migration_bootstrap/ledger.rs")
+        .or_else(|_| fs::read_to_string("../edgequake-api/src/state/migration_bootstrap/ledger.rs"))
+        .expect("migration_bootstrap/ledger");
+    assert!(ledger.contains("EDGEQUAKE_ALLOW_BOOT_MIGRATE"));
 
     let reconcile =
         fs::read_to_string("crates/edgequake-api/src/state/migration_bootstrap/reconcile/mod.rs")
