@@ -211,6 +211,15 @@ run_one() {
     DATABASE_URL="$url" "$bin" migrate >"$report_dir/${tag}-migrate.log" 2>&1
     local rc=$?
     if [[ $rc -ne 0 ]]; then
+      # Transient docker networking (connection refused) — one retry.
+      if grep -qiE 'connection refused|could not connect|server closed' "$report_dir/${tag}-migrate.log"; then
+        echo "  migrate retry after transient DB error…" >&2
+        sleep 3
+        DATABASE_URL="$url" "$bin" migrate >>"$report_dir/${tag}-migrate.log" 2>&1
+        rc=$?
+      fi
+    fi
+    if [[ $rc -ne 0 ]]; then
       # Soft-exit (irreversible pending) prints a soft message and exits 0.
       # Any non-zero is a hard failure.
       status="migrate_fail"

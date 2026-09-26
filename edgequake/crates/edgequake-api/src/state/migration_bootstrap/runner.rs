@@ -64,16 +64,20 @@ pub fn statement_timeout_for_class(lock_class: &str) -> &'static str {
 }
 
 /// Acquire the migrate run advisory lock, or return a Protocol error after deadline.
+///
+/// The lock is session-scoped: the guard holds the acquiring connection until
+/// [`MigrateLockGuard::release`] so unlock cannot land on a different pool checkout.
 pub async fn acquire_migrate_run_lock(
     pool: &PgPool,
     cfg: &RunnerConfig,
 ) -> Result<MigrateLockGuard, sqlx::Error> {
     let deadline = Instant::now() + cfg.lock_deadline;
     let mut attempt = 0u32;
+    let mut conn = pool.acquire().await?;
     loop {
         let got: bool =
             sqlx::query_scalar(&format!("SELECT pg_try_advisory_lock({RUN_LOCK_KEY_SQL})"))
-                .fetch_one(pool)
+                .fetch_one(&mut *conn)
                 .await?;
         if got {
             info!(
@@ -81,9 +85,11 @@ pub async fn acquire_migrate_run_lock(
                 attempt,
                 "Acquired edgequake.migrate.run advisory lock"
             );
-            return Ok(MigrateLockGuard { pool: pool.clone() });
+            return Ok(MigrateLockGuard { conn: Some(conn) });
         }
         if Instant::now() >= deadline {
+            // Drop the idle checkout before returning so we do not pin a pool slot.
+            drop(conn);
             return Err(sqlx::Error::Protocol(format!(
                 "MIGRATE_LOCK_BUSY: another edgequake migrate holds the run lock \
                  past {deadline_secs}s (EDGEQUAKE_MIGRATE_LOCK_DEADLINE). \
@@ -97,16 +103,25 @@ pub async fn acquire_migrate_run_lock(
     }
 }
 
-/// RAII unlock for the migrate run advisory lock.
+/// RAII unlock for the migrate run advisory lock (same session as acquire).
 pub struct MigrateLockGuard {
-    pool: PgPool,
+    conn: Option<sqlx::pool::PoolConnection<sqlx::Postgres>>,
 }
 
 impl MigrateLockGuard {
-    pub async fn release(self) {
-        let _ = sqlx::query(&format!("SELECT pg_advisory_unlock({RUN_LOCK_KEY_SQL})"))
-            .execute(&self.pool)
-            .await;
+    pub async fn release(mut self) {
+        if let Some(mut conn) = self.conn.take() {
+            let _ = sqlx::query(&format!("SELECT pg_advisory_unlock({RUN_LOCK_KEY_SQL})"))
+                .execute(&mut *conn)
+                .await;
+        }
+    }
+}
+
+impl Drop for MigrateLockGuard {
+    fn drop(&mut self) {
+        // Best-effort: dropping the connection releases session advisory locks.
+        self.conn.take();
     }
 }
 
