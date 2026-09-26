@@ -30,7 +30,7 @@ services:
     environment:
       DATABASE_URL: postgres://edgequake:${POSTGRES_PASSWORD}@postgres:5432/edgequake
       EDGEQUAKE_MIGRATE_CLI: "1"
-    command: ["edgequake", "migrate"]
+    command: ["migrate"]
     depends_on:
       postgres:
         condition: service_healthy

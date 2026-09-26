@@ -14,7 +14,7 @@ services:
       - EDGEQUAKE_LLM_PROVIDER=mock
       - EDGEQUAKE_EMBEDDING_PROVIDER=mock
       - EDGEQUAKE_ALLOW_MOCK_PROVIDER=1
-    command: ["edgequake", "migrate"]
+    command: ["migrate"]
     depends_on:
       postgres:
         condition: service_healthy
