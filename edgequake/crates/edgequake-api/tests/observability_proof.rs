@@ -180,15 +180,16 @@ async fn spec018_storage_error_includes_category_in_details() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["code"], "STORAGE_ERROR");
+    assert_eq!(json["code"], "STORAGE_UNAVAILABLE");
     let details = &json["details"];
     assert_eq!(details["request_id"], "proof-storage");
-    assert_eq!(details["diagnostics"]["category"], "connection");
+    assert_eq!(details["source"], "storage");
+    assert_eq!(details["category"], "connection");
     assert_eq!(details["retryable"], true);
 }
 
