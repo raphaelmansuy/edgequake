@@ -1,12 +1,12 @@
 ---
 title: "EdgeQuake — Guide d'intégration IT"
-version: "0.26.4"
+version: "0.26.9"
 audience: "Équipes d'exploitation, DBA, supervision, sécurité opérationnelle"
 ---
 
 # EdgeQuake — Guide d'intégration IT
 
-> **Produit** : EdgeQuake v0.26.4 · **Schéma base** : migrations jusqu'à **149**
+> **Produit** : EdgeQuake v0.26.9 · **Schéma base** : migrations jusqu'à **149**
 > **Documents liés** : [Déploiement technique](01-deploiement-technique.md) · [Deep dive architecture & algorithme](03-deep-dive-architecture-algorithme.md)
 
 Ce guide s'adresse aux équipes IT qui **exploitent** EdgeQuake au quotidien. Il
@@ -564,8 +564,11 @@ sans migration de schéma (`migrate dry-run` renvoie « aucune migration en atte
 
 | Version cible            | Document                                                                                                                                              |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  **0.26.4** _(courante)_  | [../operations/upgrade-to-0.26.4.md](../operations/upgrade-to-0.26.4.md) — SPEC-144 Next 16.3.3, listes, distroless, **sans nouvelle migration** |
-| **0.26.3**  | [../operations/upgrade-to-0.26.3.md](../operations/upgrade-to-0.26.3.md) — SPEC-139 moteur mid-cutover, **sans nouvelle migration** |
+| **0.26.9** _(courante)_   | **Pas de note de mise à jour dédiée** — SPEC-148 hébergement GCP (Terraform + Compose), SPEC-149 progression temps réel (WebSocket `subscribe`, SSE authentifié). **Sans nouvelle migration** ; schéma **149** inchangé depuis 0.26.0 |
+| 0.26.7 – 0.26.8           | **Pas de note de mise à jour dédiée** — correctifs intermédiaires, **sans nouvelle migration** |
+| 0.26.5                    | [../operations/upgrade-to-0.26.5.md](../operations/upgrade-to-0.26.5.md) — SPEC-145 traces Langfuse complètes (`EDGEQUAKE_LANGFUSE_IO_MAX_BYTES`), **sans nouvelle migration** |
+| 0.26.4                    | [../operations/upgrade-to-0.26.4.md](../operations/upgrade-to-0.26.4.md) — SPEC-144 Next 16.3.3, listes, distroless, **sans nouvelle migration** |
+| 0.26.3                    | [../operations/upgrade-to-0.26.3.md](../operations/upgrade-to-0.26.3.md) — SPEC-139 moteur mid-cutover, **sans nouvelle migration** |
 | 0.26.2                   | [../operations/upgrade-to-0.26.2.md](../operations/upgrade-to-0.26.2.md) — Langfuse 3.1, K8s, SSE, **sans nouvelle migration**                         |
 | 0.26.1                   | [../operations/upgrade-to-0.26.1.md](../operations/upgrade-to-0.26.1.md) — patch CLI migrate, **sans nouvelle migration**                             |
 | 0.26.0                   | [../operations/upgrade-to-0.26.0.md](../operations/upgrade-to-0.26.0.md) — **migration 149**                                                          |
@@ -724,6 +727,24 @@ curl -X POST http://API:8080/api/v1/admin/entities/reconcile      # réconciliat
 ```
 
 Ne lancer `repair` qu'après lecture du rapport d'inspection et sauvegarde récente.
+
+### 7.7 « Connection Lost — Real-time updates unavailable » dans l'interface
+
+Bandeau affiché quand la connexion WebSocket de progression est absente. Le
+traitement lui-même n'est **pas** affecté : l'ingestion continue côté serveur, seule
+la progression en direct est perdue. Vérifier dans l'ordre :
+
+| # | Contrôle | Commande / vérification | Cause si KO |
+|---|---|---|---|
+| 1 | Le proxy relaie l'`Upgrade` | `curl -i -H 'Connection: Upgrade' -H 'Upgrade: websocket' https://UI/ws/pipeline/progress` → `101` attendu | Proxy sans `proxy_set_header Upgrade` (doc 01 §6.3) |
+| 2 | Le jeton passe | En mode authentifié, le navigateur transmet le jeton en query string (`?token=…`) — un WAF qui dépouille les query strings des routes `/ws/*` provoque un 401 | Filtrage WAF (doc 01 §6.5) |
+| 3 | L'URL d'API est joignable **depuis le poste** | `EDGEQUAKE_API_URL` résolvable côté navigateur, pas seulement depuis le conteneur | Flux F5, doc 01 §6.2 |
+| 4 | Le délai d'inactivité du proxy | `proxy_read_timeout` ≥ 600 s | Coupure silencieuse sur ingestion longue |
+| 5 | La progression côté serveur avance | `curl -s http://API:8080/api/v1/tasks/{track_id} \| jq .status` | Si `processing` progresse, le défaut est purement côté transport |
+
+Un bandeau **transitoire** juste après une connexion ou un rafraîchissement de jeton
+est normal : depuis SPEC-149 la connexion est reconstruite avec les nouvelles
+informations d'authentification, puis les abonnements sont rétablis par l'interface.
 
 ---
 

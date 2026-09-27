@@ -1,12 +1,12 @@
 ---
 title: "EdgeQuake — Deep dive architecture & algorithme"
-version: "0.26.4"
+version: "0.26.9"
 audience: "Architectes, développeurs, data scientists"
 ---
 
 # EdgeQuake — Deep dive architecture & algorithme
 
-> **Produit** : EdgeQuake v0.26.4 · **Base algorithmique** : LightRAG ([arXiv:2410.05779](https://arxiv.org/abs/2410.05779))
+> **Produit** : EdgeQuake v0.26.9 · **Base algorithmique** : LightRAG ([arXiv:2410.05779](https://arxiv.org/abs/2410.05779))
 > **Documents liés** : [Déploiement technique](01-deploiement-technique.md) · [Intégration IT](02-integration-it.md)
 
 Ce document explique **comment EdgeQuake fonctionne à l'intérieur** : le découpage du
@@ -103,7 +103,7 @@ un corpus vivant.
 | Implémentation Rust asynchrone | Débit et empreinte mémoire (voir §7.1) |
 | 6 modes de requête au lieu de 3 | `naive`, `mix`, `bypass` en plus de `local`/`global`/`hybrid` |
 | Reprise adaptative sur troncature | Gestion du `finish_reason = "length"` avec escalade de budget de tokens |
-| Analyseur hybride tuple + JSON | Robustesse aux sorties LLM malformées |
+| Analyseur JSON tolérant (assainissement, récupération de troncature) | Robustesse aux sorties LLM malformées |
 | Multi-tenant *fail-closed* | Cloisonnement au niveau du stockage |
 | Marche PPR par défaut | Personalized PageRank au lieu d'un simple BFS |
 | Pipeline PDF vision | Conversion multimodale avec repli texte |
@@ -282,62 +282,79 @@ remplissage du budget) et `mm_sidecar_appended`.
 
 ### 3.3 Étape 2 — Extraction d'entités par LLM
 
-Modules : `extractor/`, `prompts/entity_extraction.rs`, `prompts/parser.rs`.
+Modules : `extractor/llm.rs`, `prompts/json_prompts.rs`, `prompts/parser/json_parser.rs`,
+`prompts/entity_type_policy.rs`.
 
-Chaque chunk est soumis au LLM avec une consigne de spécialiste en graphe de
-connaissances. La sortie attendue est un **format tuple délimité** :
+Chaque chunk est soumis au LLM avec un prompt système **stable** (identique pour tous
+les chunks d'un workspace, donc mis en cache par les fournisseurs qui le supportent) et
+un prompt utilisateur contenant le texte du chunk. La sortie attendue est un objet
+**JSON** :
 
-```
-entity<|#|>SARAH_CHEN<|#|>PERSON<|#|>Chercheuse principale au Quantum Lab
-entity<|#|>NEURAL_NETWORK<|#|>CONCEPT<|#|>Architecture d'apprentissage automatique
-relation<|#|>SARAH_CHEN<|#|>NEURAL_NETWORK<|#|>recherche<|#|>Sarah travaille sur les réseaux de neurones
-<|COMPLETE|>
-```
-
-**Pourquoi des tuples et non du JSON ?**
-
-| Critère | Tuples | JSON |
-|---|---|---|
-| Traitement en flux | Ligne par ligne | Structure complète requise |
-| Récupération partielle | Les lignes valides sont conservées | Tout ou rien |
-| Échappement | Aucun caractère spécial | Guillemets, antislashs |
-| Fiabilité LLM | Éprouvé | Sorties malformées fréquentes |
-
-Ce choix est directement dicté par le comportement réel des LLM : une réponse tronquée
-en JSON est **entièrement perdue**, alors qu'une réponse tronquée en tuples conserve
-toutes les lignes complètes.
-
-Un analyseur hybride (`HybridExtractionParser`) tente d'abord les tuples, puis bascule
-sur JSON si le résultat est vide.
-
-### 3.4 Gestion adaptative du budget de tokens
-
-Problème réel : la densité d'entités varie fortement d'un chunk à l'autre. Un budget
-fixe tronque les chunks denses et gaspille sur les chunks pauvres.
-
-```rust
-let base_max_tokens = if chunk_size_bytes < 25_000 {
-    4096
-} else if chunk_size_bytes < 75_000 {
-    8192
-} else if chunk_size_bytes < 125_000 {
-    12288
-} else {
-    16384
-};
+```json
+{
+  "entities": [
+    {"name": "Sarah Chen", "type": "PERSON", "description": "Chercheuse principale au Quantum Lab"}
+  ],
+  "relationships": [
+    {"source": "Sarah Chen", "target": "Neural Network", "type": "RESEARCHES", "description": "Sarah travaille sur les réseaux de neurones"}
+  ]
+}
 ```
 
-**Escalade sur troncature détectée** (`finish_reason = "length"`, ou échec d'analyse
-en fin de sortie) :
+Le prompt système injecte le **vocabulaire du workspace** — types d'entités, types de
+relations, arêtes typées — en mode strict ou guidé, et l'analyseur **impose** ce
+vocabulaire sur la sortie (remappage des types inconnus vers `OTHER` / `RELATED_TO` en
+strict). Le détail de ce mécanisme, qui constitue l'application de l'ontologie, fait
+l'objet du [document 06](06-algorithme-extraction-ontologie.md) ; la construction du
+vocabulaire lui-même, du [document 05](05-ontologie-guide-construction.md).
 
-| Tentative | Budget |
+**Robustesse aux sorties malformées** — l'analyseur (`JsonExtractionParser`) enchaîne :
+
+| Étape | Traitement |
 |---|---|
-| 1 | `base_max_tokens` |
-| 2 | × 2 |
-| 3 | × 4, plafonné à 32 768 |
+| Extraction | JSON isolé d'une réponse enveloppée (fences ```` ```json ````, préambule) |
+| Assainissement | Caractères de contrôle, commentaires, virgules terminales, guillemets simples |
+| Récupération de troncature | Suffixes `}`, `]}`, `}]}`… essayés jusqu'à obtenir un JSON valide ; les entités complètes sont conservées, la ligne coupée est perdue |
+| Échec fermé | Une réponse sans JSON est une **erreur d'extraction** (chunk marqué en échec, rejouable), jamais un chunk « vide » |
 
-Métrique associée : `edgequake_extract_retry_total`. Une hausse durable signale un
-corpus plus dense que prévu ou un modèle sous-dimensionné.
+> **Note de révision** — les éditions précédentes de ce document décrivaient un format
+> de sortie tuple `entity<|#|>…`. Ce format existe dans le code (`SotaExtractor`,
+> `HybridExtractionParser`) mais n'est instancié par **aucun** chemin de production en
+> v0.26.5 ; l'ingestion utilise exclusivement `LLMExtractor` (JSON). Le §7.3 est
+> corrigé en conséquence.
+
+### 3.4 Budget de sortie, délais et reprises
+
+Modules : `extractor/completion_options.rs`, `pipeline/extraction.rs`, `pipeline/config.rs`.
+
+Le budget de sortie de l'appel d'extraction est **fixe** : 16 384 tokens de complétion
+(`extraction_completion_options_with_effort`), avec un effort de raisonnement résolu
+selon le fournisseur (les modèles « pensants » locaux sont forcés en mode sans
+raisonnement pour l'extraction). La protection contre les réponses trop longues est
+assurée en amont par les **plafonds de quantité** du prompt (40 entités / 100 lignes
+par chunk, SPEC-117) et en aval par la récupération de troncature de l'analyseur (§3.3).
+
+Chaque chunk est extrait sous **délai** (`EDGEQUAKE_CHUNK_TIMEOUT_SECS`, défaut 180 s ;
+600 s recommandés pour un LLM auto-hébergé) et avec **reprise classée** :
+
+| Classe d'erreur | Détection (sous-chaînes du message) | Budget de tentatives |
+|---|---|---|
+| Transitoire | `timeout`, `provider_unavailable`, `circuit`, surcharge locale | `EDGEQUAKE_CHUNK_MAX_RETRIES` (défaut **3**, max 20) |
+| Analyse | `invalid json`, `parse`, `schema`, `empty response` | plafonné à **2** |
+| Permanente | `cancelled`, `enforce` | **1** (pas de reprise) |
+
+Le délai entre tentatives est exponentiel (`EDGEQUAKE_CHUNK_RETRY_DELAY_MS` × 2ⁿ,
+plafonné à 60 s ; base relevée à 5 s en cas de surcharge d'un fournisseur local).
+Chaque reprise incrémente `edgequake_extract_retry_total{reason}` avec `reason ∈
+{timeout, network, parse, permanent}` — une hausse durable de `parse` signale un
+modèle qui ne tient pas le format JSON ; de `timeout`, un délai sous-dimensionné.
+
+Un chunk qui épuise son budget est enregistré dans `failed_chunks` et devient
+rejouable individuellement (`POST /documents/{id}/retry-chunks`, [document 07 §3.4](07-maintenance-graphe-correction-parsing.md)).
+
+> **Note de révision** — l'escalade adaptative de budget (×2, ×4 jusqu'à 32 768
+> tokens) décrite dans les éditions précédentes appartient à `SotaExtractor`, qui n'est
+> pas le chemin de production (voir §3.3).
 
 ### 3.5 Gleaning — extraction en plusieurs passes
 
@@ -793,12 +810,18 @@ crate dédié plutôt qu'en réimplémentant des SDK.
 **Concession** : moins de fonctionnalités spécialisées qu'une base vectorielle ou
 graphe dédiée — acceptable au vu du gain d'exploitation et de cohérence.
 
-### 7.3 Format tuple plutôt que JSON pour l'extraction
+### 7.3 Sortie JSON avec analyseur tolérant, plutôt que format tuple
 
-**Alternative** : sortie structurée JSON, éventuellement contrainte par schéma.
-**Motif** : robustesse à la troncature — une sortie tuple tronquée conserve toutes ses
-lignes complètes, une sortie JSON tronquée est intégralement perdue. Traitement en
-flux possible.
+**Alternative** : format tuple délimité (`entity<|#|>nom<|#|>type<|#|>description`,
+hérité de LightRAG), naturellement robuste à la troncature puisque chaque ligne est
+autonome. Cette voie est implémentée (`SotaExtractor`) mais **non utilisée** en
+production.
+**Motif** : le JSON porte nativement les champs typés (`type` de relation, arêtes
+typées) et se prête au **contrôle de vocabulaire** au moment de l'analyse ; sa
+faiblesse à la troncature est compensée par la récupération de suffixes et l'escalade
+de budget (§3.3–3.4).
+**Concession** : une réponse tronquée au milieu d'un objet perd cet objet ; une réponse
+sans JSON est un échec explicite du chunk, à rejouer.
 
 ### 7.4 L'API ne migre jamais la base
 

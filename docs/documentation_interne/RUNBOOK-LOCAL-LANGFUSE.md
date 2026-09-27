@@ -1,4 +1,4 @@
-# EdgeQuake v0.26.4 — Démarrage local avec Langfuse
+# EdgeQuake v0.26.9 — Démarrage local avec Langfuse
 
 > Validé le 2026-08-26 sur cette machine. Chaîne de traçage prouvée de bout en bout.
 

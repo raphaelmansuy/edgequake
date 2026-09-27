@@ -1,12 +1,12 @@
 ---
 title: "EdgeQuake — Documentation technique de déploiement"
-version: "0.26.4"
+version: "0.26.9"
 audience: "Architectes, ingénieurs infrastructure, RSSI"
 ---
 
 # EdgeQuake — Documentation technique de déploiement
 
-> **Produit** : EdgeQuake v0.26.4 · **Schéma base** : migrations 001 → **149**
+> **Produit** : EdgeQuake v0.26.9 · **Schéma base** : migrations 001 → **149**
 > **Documents liés** : [Intégration IT](02-integration-it.md) · [Deep dive architecture & algorithme](03-deep-dive-architecture-algorithme.md)
 
 ---
@@ -128,8 +128,8 @@ dédié aux requêtes, l'autre dimensionné pour l'ingestion).
 
 | Service    | Image                                      | Tag de référence                                            | Architectures                |
 | ---------- | ------------------------------------------ | ----------------------------------------------------------- | ---------------------------- |
-| API        | `ghcr.io/raphaelmansuy/edgequake`          | `0.26.4`                                                    | `linux/amd64`, `linux/arm64` |
-| Web UI     | `ghcr.io/raphaelmansuy/edgequake-frontend` | `0.26.4`                                                    | `linux/amd64`, `linux/arm64` |
+| API        | `ghcr.io/raphaelmansuy/edgequake`          | `0.26.9`                                                    | `linux/amd64`, `linux/arm64` |
+| Web UI     | `ghcr.io/raphaelmansuy/edgequake-frontend` | `0.26.9`                                                    | `linux/amd64`, `linux/arm64` |
 | PostgreSQL | `ghcr.io/raphaelmansuy/edgequake-postgres` | `0.21.0-pg18` (défaut PG18)<br>`0.21.0-pg17`, `0.21.0-pg16` | `linux/amd64`, `linux/arm64` |
 
 > En environnement fermé, ces trois images doivent être **répliquées dans le registre
@@ -177,7 +177,8 @@ psql "$DATABASE_URL" -c "SELECT extname, extversion FROM pg_extension
 ### 3.4 Schéma de base
 
 - **147 fichiers de migration SQL**, numérotés **001 → 149** (numérotation non
-  contiguë), tous appliqués en v0.26.1.
+  contiguë), tous appliqués depuis v0.26.1 et **inchangés en v0.26.9** (aucune
+  migration ajoutée entre 0.26.1 et 0.26.9).
 - Verrouillage par empreintes : `edgequake/migrations/checksums.lock` — toute
   modification d'une migration déjà publiée est détectée et rejetée en CI.
 - Familles d'objets : documents et chunks, embeddings (pgvector, index HNSW), graphe
@@ -415,9 +416,69 @@ Le proxy en amont doit :
 5. **autoriser la taille des dépôts** — aligner `client_max_body_size` sur
    `EDGEQUAKE_MAX_UPLOAD_BYTES` ;
 6. **restreindre par IP** l'accès à `/metrics`, `/health`, `/ready`, `/live` et à
-   `/api/v1/admin/*` (cf. §7.5).
+   `/api/v1/admin/*` (cf. §7.5) ;
+7. **ne pas journaliser les paramètres de requête** sur `/ws/*` — voir §6.5.
 
-### 6.4 Accès sortant
+### 6.4 Progression temps réel — contrat WebSocket et SSE (SPEC-149)
+
+Depuis la **v0.26.9**, la progression temps réel (ingestion, conversion PDF,
+suppression) repose sur un contrat explicite. Deux routes WebSocket coexistent :
+
+| Route | Usage | Portée |
+|---|---|---|
+| `/ws/pipeline/progress` | Canal **multiplexé** : le client s'abonne explicitement aux traitements qu'il suit | Plusieurs `track_id` sur une seule connexion |
+| `/ws/progress/{track_id}` | Canal dédié à un seul traitement | Un `track_id` |
+
+Sur le canal multiplexé, le client envoie des commandes typées — `subscribe`,
+`unsubscribe`, `cancel`, `ping` — par exemple :
+
+```json
+{ "type": "subscribe", "track_ids": ["insert-92828e49-f82f-414b-a8f7-94f593b5745c"] }
+```
+
+Le serveur **ne diffuse que les traitements explicitement demandés**, et seulement
+après avoir vérifié que le `track_id` appartient bien au contexte tenant/espace de
+travail de la session (`get_task_for_context`). L'acquittement `subscribed`
+n'énumère que les identifiants **acceptés** : un `track_id` appartenant à un autre
+tenant est simplement absent de la réponse, sans fuite d'information. Le
+cloisonnement *fail-closed* de §7.4 s'applique donc aussi au temps réel.
+
+**Conséquences pour l'exploitation :**
+
+- le proxy doit relayer les WebSockets **dans les deux sens** (le client émet, il
+  n'est plus seulement récepteur) ;
+- une session perd ses abonnements à la reconnexion ; c'est l'interface qui les
+  rétablit — un « Connection Lost » transitoire après un rafraîchissement de jeton
+  est le comportement attendu, pas une panne ;
+- les flux **SSE** (`/api/v1/query/stream`, `/documents/pdf/progress/stream/*`) sont
+  désormais consommés avec un en-tête `Authorization` (lecture de flux `fetch`, plus
+  d'`EventSource`). Un WAF qui dépouille les en-têtes d'autorisation sur les réponses
+  `text/event-stream` provoque un **401** au lieu d'un flux.
+
+### 6.5 Authentification du WebSocket — jeton en query string
+
+Quand `EDGEQUAKE_AUTH_ENABLED=true`, la connexion WebSocket est authentifiée par un
+jeton lu **soit** dans l'en-tête `Authorization`, **soit** dans le paramètre de
+requête `?token=…` (l'API navigateur `WebSocket` n'autorise pas d'en-tête
+personnalisé — c'est une contrainte du standard, pas un choix d'EdgeQuake).
+
+> **Action requise** : configurer le reverse proxy pour **ne pas écrire les query
+> strings des routes `/ws/*` dans les journaux d'accès**, et vérifier la même chose
+> côté WAF et côté collecteur de logs. À défaut, des jetons de session valides sont
+> archivés en clair. Exemple nginx :
+>
+> ```nginx
+> location /ws/ {
+>     access_log off;              # ou un format sans $query_string
+>     proxy_pass http://edgequake_api;
+>     proxy_http_version 1.1;
+>     proxy_set_header Upgrade $http_upgrade;
+>     proxy_set_header Connection "upgrade";
+>     proxy_read_timeout 600s;
+> }
+> ```
+
+### 6.6 Accès sortant
 
 En environnement filtré, ouvrir explicitement :
 
@@ -722,7 +783,7 @@ dépassements sont comptés (`edgequake_rate_limit_exceeded_total`) et audités
 
 ```bash
 # 1. Réplication des images vers le registre interne
-for img in edgequake:0.26.4 edgequake-frontend:0.26.4 edgequake-postgres:0.21.0-pg18; do
+for img in edgequake:0.26.9 edgequake-frontend:0.26.9 edgequake-postgres:0.21.0-pg18; do
   docker pull  ghcr.io/raphaelmansuy/$img
   docker tag   ghcr.io/raphaelmansuy/$img registry.intra.{client}/edgequake/$img
   docker push  registry.intra.{client}/edgequake/$img
@@ -749,11 +810,11 @@ psql "$DATABASE_URL" -c "SELECT extname, extversion FROM pg_extension
 ```bash
 # Simulation : liste les migrations en attente, signale les suppressions irréversibles
 docker run --rm -e DATABASE_URL="$DATABASE_URL" \
-  registry.intra.{client}/edgequake/edgequake:0.26.4 migrate dry-run
+  registry.intra.{client}/edgequake/edgequake:0.26.9 migrate dry-run
 
 # Application
 docker run --rm -e DATABASE_URL="$DATABASE_URL" \
-  registry.intra.{client}/edgequake/edgequake:0.26.4 migrate
+  registry.intra.{client}/edgequake/edgequake:0.26.9 migrate
 ```
 
 Sur une installation neuve, une seule exécution de `migrate` suffit.
@@ -791,7 +852,7 @@ Sous Kubernetes, câbler `/live` en _liveness_ et `/ready` en _readiness_ — vo
 
 | #   | Vérification                             | Commande                                                             | Attendu                                              |
 | --- | ---------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
-| R1  | Version déployée                         | `curl -s http://API/version`                                         | `0.26.4`                                             |
+| R1  | Version déployée                         | `curl -s http://API/version`                                         | `0.26.9`                                             |
 | R2  | Vivacité                                 | `curl -s http://API/live`                                            | 200                                                  |
 | R3  | Aptitude au trafic                       | `curl -sf http://API/ready`                                          | **200** (503 = migration, stockage ou file en cause) |
 | R4  | Santé détaillée                          | `curl -s http://API/health \| jq .status`                            | `healthy` (non `degraded`)                           |
