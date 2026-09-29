@@ -3598,6 +3598,36 @@ bench047-install: ## Install SPEC-047 Python harness (editable)
 	@cd tools/bench047 && pip3 install -e . -q
 	@echo "$(GREEN)✓ bench047 installed$(RESET)"
 
+bench153-install: ## Install SPEC-153 workload harness (editable)
+	@cd tools/bench153 && pip3 install -e . -q
+	@echo "$(GREEN)✓ bench153 installed$(RESET)"
+
+bench153-system: bench153-install ## SPEC-153 System cards S1–S4 against local mock API
+	@test -n "$$BENCH153_RUN_DIR" || (echo "Set BENCH153_RUN_DIR=..."; exit 1)
+	@python3 -m bench153.run_system --base-url "$${BENCH153_BASE_URL:-http://127.0.0.1:8080}" --out "$$BENCH153_RUN_DIR/system"
+
+bench153-provider: bench153-install ## SPEC-153 Provider cards on demo (requires BENCH153_API_KEY_FILE)
+	@test -n "$$BENCH153_RUN_DIR" || (echo "Set BENCH153_RUN_DIR=..."; exit 1)
+	@test -n "$$BENCH153_API_KEY_FILE" || (echo "Set BENCH153_API_KEY_FILE=..."; exit 1)
+	@python3 -m bench153.run_provider_demo --out "$$BENCH153_RUN_DIR/provider" --api-key-file "$$BENCH153_API_KEY_FILE"
+
+bench153-provider-highload: bench153-install ## SPEC-153 highload H1–H3 on demo (+ machines.json)
+	@test -n "$$BENCH153_RUN_DIR" || (echo "Set BENCH153_RUN_DIR=..."; exit 1)
+	@test -n "$$BENCH153_API_KEY_FILE" || (echo "Set BENCH153_API_KEY_FILE=..."; exit 1)
+	@python3 -u -m bench153.run_provider_highload --out "$$BENCH153_RUN_DIR" --api-key-file "$$BENCH153_API_KEY_FILE" --profile "$${BENCH153_PROFILE:-push}" $${BENCH153_HIGHLOAD_EXTRA}
+
+bench153-report: bench153-install ## Aggregate + render full business PDF
+	@test -n "$$BENCH153_RUN_DIR" || (echo "Set BENCH153_RUN_DIR=..."; exit 1)
+	@python3 -m bench153.aggregate --run-dir "$$BENCH153_RUN_DIR"
+	@python3 -m bench153.render_pdf --run-dir "$$BENCH153_RUN_DIR"
+	@echo "$(GREEN)✓ PDF: $$BENCH153_RUN_DIR/EdgeQuake-Full-Workload-Report.pdf$(RESET)"
+
+bench153-highload-report: bench153-install ## Charts + EdgeQuake-Higher-User-Workload-Report.pdf
+	@test -n "$$BENCH153_RUN_DIR" || (echo "Set BENCH153_RUN_DIR=..."; exit 1)
+	@python3 -m bench153.render_highload_pdf --run-dir "$$BENCH153_RUN_DIR"
+	@echo "$(GREEN)✓ PDF: $$BENCH153_RUN_DIR/EdgeQuake-Higher-User-Workload-Report.pdf$(RESET)"
+
+
 bench047-doctor: bench047-install ## Check API + Mistral profile for SPEC-047
 	@set -a && [ -f "$(DEV_PORTS_ENV)" ] && . "$(DEV_PORTS_ENV)"; set +a; \
 	EDGEQUAKE_API_URL="$${EDGEQUAKE_API_URL:-$(BACKEND_URL)}" \

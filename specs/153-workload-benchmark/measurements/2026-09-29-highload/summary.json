@@ -1,0 +1,386 @@
+{
+  "spec": "153",
+  "protocol": "07-highload-protocol",
+  "run_id": "2026-09-29-highload",
+  "result": "PASS",
+  "provider": {
+    "spec": "153",
+    "protocol": "07-highload-protocol",
+    "card": "provider_highload",
+    "base_url": "https://demo.edgequake.com",
+    "tenant_id": "00000000-0000-0000-0000-000000000002",
+    "workspace_id": "00000000-0000-0000-0000-000000000003",
+    "slo_total_ms": 25000,
+    "health_version": "0.28.3",
+    "providers_health": {
+      "llm": {
+        "name": "openai",
+        "model": "gpt-5.4-mini"
+      },
+      "embedding": {
+        "name": "openai",
+        "model": "text-embedding-3-small",
+        "dimension": 1536
+      }
+    },
+    "H1_cold_closed": {
+      "levels": [
+        {
+          "concurrency": 8,
+          "n": 12,
+          "wall_s": 31.93,
+          "oracle_ok_rate": 1.0,
+          "attainment": 1.0,
+          "goodput_qps": 0.3758,
+          "error_rate": 0.0,
+          "http_429_count": 0,
+          "tokens_sum": 9428,
+          "tokens_per_s": 295.26,
+          "total_ms_p50": 13612.5,
+          "total_ms_p90": 19189.0,
+          "answer_cache_hit_rate": 0.0,
+          "llm_models": [
+            "mistral-small-latest"
+          ]
+        },
+        {
+          "concurrency": 12,
+          "n": 12,
+          "wall_s": 31.79,
+          "oracle_ok_rate": 1.0,
+          "attainment": 0.75,
+          "goodput_qps": 0.2831,
+          "error_rate": 0.0,
+          "http_429_count": 0,
+          "tokens_sum": 9114,
+          "tokens_per_s": 286.69,
+          "total_ms_p50": 22695.0,
+          "total_ms_p90": 25761.8,
+          "answer_cache_hit_rate": 0.0,
+          "llm_models": [
+            "mistral-small-latest"
+          ]
+        }
+      ],
+      "knee": {
+        "status": "measured",
+        "concurrency": 8,
+        "n": 12,
+        "wall_s": 31.93,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3758,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 9428,
+        "tokens_per_s": 295.26,
+        "total_ms_p50": 13612.5,
+        "total_ms_p90": 19189.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    },
+    "H2_open_loop": {
+      "levels": [
+        {
+          "concurrency": null,
+          "n": 15,
+          "wall_s": 78.63,
+          "oracle_ok_rate": 1.0,
+          "attainment": 0.933,
+          "goodput_qps": 0.1781,
+          "error_rate": 0.0,
+          "http_429_count": 0,
+          "tokens_sum": 10266,
+          "tokens_per_s": 130.57,
+          "total_ms_p50": 15451.0,
+          "total_ms_p90": 20202.6,
+          "answer_cache_hit_rate": 0.0,
+          "llm_models": [
+            "mistral-small-latest"
+          ],
+          "lambda_qps": 0.25,
+          "offered_qps": 0.25,
+          "offered_count": 15,
+          "completed_count": 15
+        },
+        {
+          "concurrency": null,
+          "n": 30,
+          "wall_s": 97.31,
+          "oracle_ok_rate": 1.0,
+          "attainment": 0.4,
+          "goodput_qps": 0.1233,
+          "error_rate": 0.0,
+          "http_429_count": 0,
+          "tokens_sum": 20828,
+          "tokens_per_s": 214.04,
+          "total_ms_p50": 30119.0,
+          "total_ms_p90": 37901.7,
+          "answer_cache_hit_rate": 0.0,
+          "llm_models": [
+            "mistral-small-latest"
+          ],
+          "lambda_qps": 0.5,
+          "offered_qps": 0.5,
+          "offered_count": 30,
+          "completed_count": 30
+        }
+      ],
+      "knee": {
+        "status": "measured",
+        "concurrency": null,
+        "n": 15,
+        "wall_s": 78.63,
+        "oracle_ok_rate": 1.0,
+        "attainment": 0.933,
+        "goodput_qps": 0.1781,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 10266,
+        "tokens_per_s": 130.57,
+        "total_ms_p50": 15451.0,
+        "total_ms_p90": 20202.6,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ],
+        "lambda_qps": 0.25,
+        "offered_qps": 0.25,
+        "offered_count": 15,
+        "completed_count": 15
+      }
+    },
+    "H3_faq_warm": {
+      "levels": [
+        {
+          "concurrency": 16,
+          "n": 16,
+          "wall_s": 17.48,
+          "oracle_ok_rate": 1.0,
+          "attainment": 1.0,
+          "goodput_qps": 0.9152,
+          "error_rate": 0.0,
+          "http_429_count": 0,
+          "tokens_sum": 12642,
+          "tokens_per_s": 723.1,
+          "total_ms_p50": 8969.5,
+          "total_ms_p90": 14701.5,
+          "answer_cache_hit_rate": 1.0,
+          "llm_models": [
+            "mistral-small-latest"
+          ]
+        },
+        {
+          "concurrency": 32,
+          "n": 16,
+          "wall_s": 25.56,
+          "oracle_ok_rate": 1.0,
+          "attainment": 1.0,
+          "goodput_qps": 0.626,
+          "error_rate": 0.0,
+          "http_429_count": 0,
+          "tokens_sum": 12642,
+          "tokens_per_s": 494.61,
+          "total_ms_p50": 9816.0,
+          "total_ms_p90": 22023.0,
+          "answer_cache_hit_rate": 1.0,
+          "llm_models": [
+            "mistral-small-latest"
+          ]
+        }
+      ]
+    },
+    "wall_s": 306.4,
+    "result": "PASS",
+    "quick": false
+  },
+  "machines": {
+    "load_generator": {
+      "hostname": "Raphael-Mac-Book-Pro-Max.local",
+      "cpu_logical": 16,
+      "mem_gb": 128.0
+    },
+    "sut": {
+      "base_url": "https://demo.edgequake.com",
+      "product_version": "0.28.3"
+    }
+  },
+  "H1_cold_closed": {
+    "levels": [
+      {
+        "concurrency": 8,
+        "n": 12,
+        "wall_s": 31.93,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3758,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 9428,
+        "tokens_per_s": 295.26,
+        "total_ms_p50": 13612.5,
+        "total_ms_p90": 19189.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 12,
+        "n": 12,
+        "wall_s": 31.79,
+        "oracle_ok_rate": 1.0,
+        "attainment": 0.75,
+        "goodput_qps": 0.2831,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 9114,
+        "tokens_per_s": 286.69,
+        "total_ms_p50": 22695.0,
+        "total_ms_p90": 25761.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    ],
+    "knee": {
+      "status": "measured",
+      "concurrency": 8,
+      "n": 12,
+      "wall_s": 31.93,
+      "oracle_ok_rate": 1.0,
+      "attainment": 1.0,
+      "goodput_qps": 0.3758,
+      "error_rate": 0.0,
+      "http_429_count": 0,
+      "tokens_sum": 9428,
+      "tokens_per_s": 295.26,
+      "total_ms_p50": 13612.5,
+      "total_ms_p90": 19189.0,
+      "answer_cache_hit_rate": 0.0,
+      "llm_models": [
+        "mistral-small-latest"
+      ]
+    }
+  },
+  "H2_open_loop": {
+    "levels": [
+      {
+        "concurrency": null,
+        "n": 15,
+        "wall_s": 78.63,
+        "oracle_ok_rate": 1.0,
+        "attainment": 0.933,
+        "goodput_qps": 0.1781,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 10266,
+        "tokens_per_s": 130.57,
+        "total_ms_p50": 15451.0,
+        "total_ms_p90": 20202.6,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ],
+        "lambda_qps": 0.25,
+        "offered_qps": 0.25,
+        "offered_count": 15,
+        "completed_count": 15
+      },
+      {
+        "concurrency": null,
+        "n": 30,
+        "wall_s": 97.31,
+        "oracle_ok_rate": 1.0,
+        "attainment": 0.4,
+        "goodput_qps": 0.1233,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 20828,
+        "tokens_per_s": 214.04,
+        "total_ms_p50": 30119.0,
+        "total_ms_p90": 37901.7,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ],
+        "lambda_qps": 0.5,
+        "offered_qps": 0.5,
+        "offered_count": 30,
+        "completed_count": 30
+      }
+    ],
+    "knee": {
+      "status": "measured",
+      "concurrency": null,
+      "n": 15,
+      "wall_s": 78.63,
+      "oracle_ok_rate": 1.0,
+      "attainment": 0.933,
+      "goodput_qps": 0.1781,
+      "error_rate": 0.0,
+      "http_429_count": 0,
+      "tokens_sum": 10266,
+      "tokens_per_s": 130.57,
+      "total_ms_p50": 15451.0,
+      "total_ms_p90": 20202.6,
+      "answer_cache_hit_rate": 0.0,
+      "llm_models": [
+        "mistral-small-latest"
+      ],
+      "lambda_qps": 0.25,
+      "offered_qps": 0.25,
+      "offered_count": 15,
+      "completed_count": 15
+    }
+  },
+  "H3_faq_warm": {
+    "levels": [
+      {
+        "concurrency": 16,
+        "n": 16,
+        "wall_s": 17.48,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.9152,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 12642,
+        "tokens_per_s": 723.1,
+        "total_ms_p50": 8969.5,
+        "total_ms_p90": 14701.5,
+        "answer_cache_hit_rate": 1.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 32,
+        "n": 16,
+        "wall_s": 25.56,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.626,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 12642,
+        "tokens_per_s": 494.61,
+        "total_ms_p50": 9816.0,
+        "total_ms_p90": 22023.0,
+        "answer_cache_hit_rate": 1.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    ]
+  },
+  "base_url": "https://demo.edgequake.com",
+  "tenant_id": "00000000-0000-0000-0000-000000000002",
+  "workspace_id": "00000000-0000-0000-0000-000000000003",
+  "health_version": "0.28.3",
+  "slo_total_ms": 25000
+}

@@ -1,0 +1,315 @@
+{
+  "spec": "153",
+  "run_id": "2026-09-29-full-hybrid",
+  "suite": "hybrid",
+  "system": {
+    "present": true,
+    "result": "PASS",
+    "base_url": "http://127.0.0.1:18080",
+    "cards": [
+      "S1_queue_only",
+      "S2_ingest_short",
+      "S3_ingest_dense",
+      "S4_embed_batch"
+    ],
+    "detail": {
+      "S1_queue_only": {
+        "shape_id": "queue-only-v1",
+        "n": 16,
+        "wall_s": 0.53,
+        "admits_per_s": 30.48,
+        "admit_ms_p50": 33.4,
+        "admit_ms_p90": 43.5,
+        "oracle_ok_rate": 1.0,
+        "note": "Admit-path proxy for L1; full claim_next physics remains SPEC-090"
+      },
+      "S2_ingest_short": {
+        "levels": [
+          {
+            "concurrency": 1,
+            "n": 4,
+            "oracle_ok_rate": 1.0,
+            "wall_s": 134.95,
+            "docs_per_s": 0.0296,
+            "wall_ms_p50": 31263.7,
+            "wall_ms_p90": 40915.0,
+            "embed_est_sum": 352,
+            "embed_est_per_s": 2.61
+          },
+          {
+            "concurrency": 2,
+            "n": 4,
+            "oracle_ok_rate": 1.0,
+            "wall_s": 106.56,
+            "docs_per_s": 0.0375,
+            "wall_ms_p50": 47988.2,
+            "wall_ms_p90": 56280.1,
+            "embed_est_sum": 352,
+            "embed_est_per_s": 3.3
+          }
+        ]
+      },
+      "S3_ingest_dense": {
+        "levels": [
+          {
+            "concurrency": 1,
+            "n": 2,
+            "oracle_ok_rate": 1.0,
+            "wall_s": 133.92,
+            "docs_per_s": 0.0149,
+            "wall_ms_p50": 66961.7,
+            "wall_ms_p90": 67483.9,
+            "embed_est_sum": 9248,
+            "embed_est_per_s": 69.05
+          }
+        ]
+      },
+      "S4_embed_batch": {
+        "shape_id": "embed-batch-v1",
+        "n_strings": 32,
+        "wall_s": 49.7,
+        "oracle_ok": true,
+        "embed_est": 2576,
+        "embed_est_per_s": 51.83,
+        "unit": {
+          "unit_id": "embed-batch-v1-0",
+          "shape_id": "embed-batch-v1",
+          "layers": [
+            "L1",
+            "L3",
+            "L4",
+            "L5",
+            "L6"
+          ],
+          "bench_mode": "system",
+          "document_id": "01a0ed59-2a0a-7ba7-a50b-d72b6d34fe61",
+          "http_status": 202,
+          "doc_status": "completed",
+          "oracle_ok": true,
+          "admit_ms": 46.9,
+          "wall_ms": 49699.1,
+          "sojourn_ms": 49699.1,
+          "embed_est": 2576,
+          "extraction_input_tokens": null,
+          "extraction_output_tokens": null,
+          "embedding_tokens": null,
+          "entity_count": 12,
+          "chunk_count": 2
+        },
+        "trust": "embed_est"
+      }
+    },
+    "llm_mode": "ollama_local",
+    "providers": {
+      "llm": "ollama/gemma4:latest",
+      "embedding": "ollama/embeddinggemma:latest"
+    }
+  },
+  "provider": {
+    "present": true,
+    "result": "PASS",
+    "base_url": "https://demo.edgequake.com",
+    "tenant_id": "00000000-0000-0000-0000-000000000002",
+    "workspace_id": "00000000-0000-0000-0000-000000000003",
+    "cold_levels": [
+      {
+        "concurrency": 1,
+        "n": 6,
+        "wall_s": 75.5,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.0795,
+        "tokens_sum": 5050,
+        "tokens_per_s": 66.89,
+        "total_ms_p50": 10779.5,
+        "total_ms_p90": 15600.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 2,
+        "n": 6,
+        "wall_s": 30.77,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.195,
+        "tokens_sum": 3791,
+        "tokens_per_s": 123.2,
+        "total_ms_p50": 7919.5,
+        "total_ms_p90": 11260.5,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 4,
+        "n": 8,
+        "wall_s": 27.79,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.2879,
+        "tokens_sum": 6604,
+        "tokens_per_s": 237.63,
+        "total_ms_p50": 11639.0,
+        "total_ms_p90": 13481.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 8,
+        "n": 8,
+        "wall_s": 20.97,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3815,
+        "tokens_sum": 5823,
+        "tokens_per_s": 277.69,
+        "total_ms_p50": 15377.0,
+        "total_ms_p90": 18773.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    ],
+    "cold_c1": {
+      "concurrency": 1,
+      "n": 6,
+      "wall_s": 75.5,
+      "oracle_ok_rate": 1.0,
+      "attainment": 1.0,
+      "goodput_qps": 0.0795,
+      "tokens_sum": 5050,
+      "tokens_per_s": 66.89,
+      "total_ms_p50": 10779.5,
+      "total_ms_p90": 15600.0,
+      "answer_cache_hit_rate": 0.0,
+      "llm_models": [
+        "mistral-small-latest"
+      ]
+    },
+    "warm": {
+      "concurrency": 4,
+      "n": 8,
+      "wall_s": 8.92,
+      "oracle_ok_rate": 1.0,
+      "attainment": 1.0,
+      "goodput_qps": 0.8966,
+      "tokens_sum": 6750,
+      "tokens_per_s": 756.49,
+      "total_ms_p50": 2198.0,
+      "total_ms_p90": 3850.3,
+      "answer_cache_hit_rate": 1.0,
+      "llm_models": [
+        "mistral-small-latest"
+      ]
+    },
+    "stream": {
+      "n": 4,
+      "oracle_ok_rate": 1.0,
+      "ttft_ms_p50": 0,
+      "ttft_ms_p90": 0
+    },
+    "knee": {
+      "status": "not_reached_in_range",
+      "tested_max_concurrency": 8,
+      "attainment_at_max": 1.0,
+      "cold_reference_total_ms_p90": 15600.0,
+      "at_max": {
+        "concurrency": 8,
+        "n": 8,
+        "wall_s": 20.97,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3815,
+        "tokens_sum": 5823,
+        "tokens_per_s": 277.69,
+        "total_ms_p50": 15377.0,
+        "total_ms_p90": 18773.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    },
+    "health_version": "0.28.3"
+  },
+  "layer_scorecard": {
+    "L0": {
+      "status": "measured",
+      "evidence": "Demo HTTP query admission",
+      "safe_claim": "API accepted authenticated Q&A traffic for the pinned tenant"
+    },
+    "L1": {
+      "status": "measured",
+      "evidence": "Admit proxy 30.48 admits/s p50=33.4ms",
+      "safe_claim": "Local admit path handled burst uploads (queue physics detail in SPEC-090)"
+    },
+    "L2": {
+      "status": "gap",
+      "evidence": "G-153-VISION / no Provider PDF ingest on shared demo",
+      "safe_claim": "No PDF convert capacity claim"
+    },
+    "L3": {
+      "status": "measured",
+      "evidence": "Included inside local ingest sojourn",
+      "safe_claim": "Chunking completed as part of local mock ingest"
+    },
+    "L4": {
+      "status": "measured",
+      "evidence": "Mock extract inside local ingest",
+      "safe_claim": "Local mock extraction completed; not live LLM capacity"
+    },
+    "L5": {
+      "status": "estimated",
+      "evidence": "embed_est=2576 rate=51.83/s",
+      "safe_claim": "Embedding work reported as estimate (chars/2.5), not provider usage"
+    },
+    "L6": {
+      "status": "measured",
+      "evidence": "Persist included in local ingest sojourn",
+      "safe_claim": "Local merge/persist finished for completed documents"
+    },
+    "L7": {
+      "status": "measured",
+      "evidence": "Cold Q&A total_ms p50=10779.5",
+      "safe_claim": "Demo retrieval participated in successful Q&A"
+    },
+    "L8": {
+      "status": "measured",
+      "evidence": "Cold p90=15600.0ms; warm cache_rate=1.0; ttft_p50=0",
+      "safe_claim": "Fresh demo answers typically seconds-scale; repeats may be cached"
+    }
+  },
+  "business": {
+    "bottom_line": [
+      "On the demo tenant, fresh unique questions completed with success rate 100% and typical server time about 10779.5 ms (upper ~15600.0 ms).",
+      "Repeated questions under concurrency 4 showed answer-cache hit rate 1.0 and typical time 2198.0 ms.",
+      "Local mock ingest (short docs) completed at ~0.0296 docs/s at concurrency 1 (system bench, not live LLM).",
+      "No capacity knee found up to concurrency 8 under the 25s comfort hypothesis for cold unique prompts."
+    ],
+    "allowed_claims": [
+      "Demo Q&A succeeded for sampled unique prompts on the pinned tenant/workspace",
+      "Cold and warm query modes are reported separately",
+      "Local system ingest with mock LLM completed for short/dense shapes",
+      "Embedding rates are labeled estimates"
+    ],
+    "forbidden_claims": [
+      "Do not merge warm cache throughput into cold LLM capacity",
+      "Do not claim Vision/PDF token capacity",
+      "Do not treat health llm_provider=true as a capacity probe",
+      "Do not claim shared-demo Provider ingest capacity (not run)"
+    ]
+  },
+  "gaps": [
+    "G-153-VISION",
+    "G-153-EMBED-USAGE",
+    "G-153-HEALTH-LLM"
+  ],
+  "result": "PASS"
+}

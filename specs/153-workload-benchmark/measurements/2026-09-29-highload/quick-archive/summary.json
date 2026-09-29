@@ -1,0 +1,184 @@
+{
+  "spec": "153",
+  "protocol": "07-highload-protocol",
+  "card": "provider_highload",
+  "base_url": "https://demo.edgequake.com",
+  "tenant_id": "00000000-0000-0000-0000-000000000002",
+  "workspace_id": "00000000-0000-0000-0000-000000000003",
+  "slo_total_ms": 25000,
+  "health_version": "0.28.3",
+  "providers_health": {
+    "llm": {
+      "name": "openai",
+      "model": "gpt-5.4-mini"
+    },
+    "embedding": {
+      "name": "openai",
+      "model": "text-embedding-3-small",
+      "dimension": 1536
+    }
+  },
+  "H1_cold_closed": {
+    "levels": [
+      {
+        "concurrency": 8,
+        "n": 6,
+        "wall_s": 15.91,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3772,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 5314,
+        "tokens_per_s": 334.06,
+        "total_ms_p50": 12300.5,
+        "total_ms_p90": 14135.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 12,
+        "n": 6,
+        "wall_s": 18.04,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3326,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 4481,
+        "tokens_per_s": 248.37,
+        "total_ms_p50": 12994.0,
+        "total_ms_p90": 15569.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    ],
+    "knee": {
+      "status": "not_reached_in_range",
+      "tested_max_concurrency": 12,
+      "attainment_at_max": 1.0,
+      "at_max": {
+        "concurrency": 12,
+        "n": 6,
+        "wall_s": 18.04,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3326,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 4481,
+        "tokens_per_s": 248.37,
+        "total_ms_p50": 12994.0,
+        "total_ms_p90": 15569.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    }
+  },
+  "H2_open_loop": {
+    "levels": [
+      {
+        "concurrency": null,
+        "n": 5,
+        "wall_s": 26.74,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.187,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 3383,
+        "tokens_per_s": 126.52,
+        "total_ms_p50": 7886.0,
+        "total_ms_p90": 10710.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ],
+        "lambda_qps": 0.25,
+        "offered_qps": 0.25,
+        "offered_count": 5,
+        "completed_count": 5
+      },
+      {
+        "concurrency": null,
+        "n": 10,
+        "wall_s": 28.94,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3456,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 7587,
+        "tokens_per_s": 262.18,
+        "total_ms_p50": 8902.5,
+        "total_ms_p90": 11105.9,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ],
+        "lambda_qps": 0.5,
+        "offered_qps": 0.5,
+        "offered_count": 10,
+        "completed_count": 10
+      }
+    ],
+    "knee": {
+      "status": "not_reached_in_range",
+      "tested_max_lambda_qps": 0.5,
+      "attainment_at_max": 1.0,
+      "at_max": {
+        "concurrency": null,
+        "n": 10,
+        "wall_s": 28.94,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3456,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 7587,
+        "tokens_per_s": 262.18,
+        "total_ms_p50": 8902.5,
+        "total_ms_p90": 11105.9,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ],
+        "lambda_qps": 0.5,
+        "offered_qps": 0.5,
+        "offered_count": 10,
+        "completed_count": 10
+      }
+    }
+  },
+  "H3_faq_warm": {
+    "levels": [
+      {
+        "concurrency": 16,
+        "n": 8,
+        "wall_s": 8.22,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.9738,
+        "error_rate": 0.0,
+        "http_429_count": 0,
+        "tokens_sum": 6750,
+        "tokens_per_s": 821.62,
+        "total_ms_p50": 4373.0,
+        "total_ms_p90": 6300.2,
+        "answer_cache_hit_rate": 1.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    ]
+  },
+  "wall_s": 122.2,
+  "result": "PASS",
+  "quick": true
+}

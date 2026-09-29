@@ -1,0 +1,103 @@
+{
+  "spec": "153",
+  "card": "system",
+  "base_url": "http://127.0.0.1:18080",
+  "tenant_id": "server_default",
+  "workspace_id": "server_default",
+  "bench_mode": "system",
+  "llm_mode": "ollama_local",
+  "health_version": "0.28.3",
+  "cards": {
+    "S1_queue_only": {
+      "shape_id": "queue-only-v1",
+      "n": 16,
+      "wall_s": 0.53,
+      "admits_per_s": 30.48,
+      "admit_ms_p50": 33.4,
+      "admit_ms_p90": 43.5,
+      "oracle_ok_rate": 1.0,
+      "note": "Admit-path proxy for L1; full claim_next physics remains SPEC-090"
+    },
+    "S2_ingest_short": {
+      "levels": [
+        {
+          "concurrency": 1,
+          "n": 4,
+          "oracle_ok_rate": 1.0,
+          "wall_s": 134.95,
+          "docs_per_s": 0.0296,
+          "wall_ms_p50": 31263.7,
+          "wall_ms_p90": 40915.0,
+          "embed_est_sum": 352,
+          "embed_est_per_s": 2.61
+        },
+        {
+          "concurrency": 2,
+          "n": 4,
+          "oracle_ok_rate": 1.0,
+          "wall_s": 106.56,
+          "docs_per_s": 0.0375,
+          "wall_ms_p50": 47988.2,
+          "wall_ms_p90": 56280.1,
+          "embed_est_sum": 352,
+          "embed_est_per_s": 3.3
+        }
+      ]
+    },
+    "S3_ingest_dense": {
+      "levels": [
+        {
+          "concurrency": 1,
+          "n": 2,
+          "oracle_ok_rate": 1.0,
+          "wall_s": 133.92,
+          "docs_per_s": 0.0149,
+          "wall_ms_p50": 66961.7,
+          "wall_ms_p90": 67483.9,
+          "embed_est_sum": 9248,
+          "embed_est_per_s": 69.05
+        }
+      ]
+    },
+    "S4_embed_batch": {
+      "shape_id": "embed-batch-v1",
+      "n_strings": 32,
+      "wall_s": 49.7,
+      "oracle_ok": true,
+      "embed_est": 2576,
+      "embed_est_per_s": 51.83,
+      "unit": {
+        "unit_id": "embed-batch-v1-0",
+        "shape_id": "embed-batch-v1",
+        "layers": [
+          "L1",
+          "L3",
+          "L4",
+          "L5",
+          "L6"
+        ],
+        "bench_mode": "system",
+        "document_id": "01a0ed59-2a0a-7ba7-a50b-d72b6d34fe61",
+        "http_status": 202,
+        "doc_status": "completed",
+        "oracle_ok": true,
+        "admit_ms": 46.9,
+        "wall_ms": 49699.1,
+        "sojourn_ms": 49699.1,
+        "embed_est": 2576,
+        "extraction_input_tokens": null,
+        "extraction_output_tokens": null,
+        "embedding_tokens": null,
+        "entity_count": 12,
+        "chunk_count": 2
+      },
+      "trust": "embed_est"
+    }
+  },
+  "result": "PASS",
+  "note": "Workspace path coerces mock\u2192real provider; System card used local Ollama (gemma4 + embeddinggemma) with cloud keys unset.",
+  "providers": {
+    "llm": "ollama/gemma4:latest",
+    "embedding": "ollama/embeddinggemma:latest"
+  }
+}

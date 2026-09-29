@@ -1,0 +1,54 @@
+[
+  {
+    "i": 0,
+    "wall_ms": 8394.5,
+    "total_time_ms": 6639,
+    "generation_time_ms": 3248,
+    "embedding_time_ms": 1415,
+    "keyword_time_ms": 1163,
+    "retrieval_time_ms": 755,
+    "tokens_used": 311,
+    "tokens_per_second": 95.751236,
+    "answer_chars": 4208,
+    "llm": "mistral/mistral-small-latest"
+  },
+  {
+    "i": 1,
+    "wall_ms": 8236.0,
+    "total_time_ms": 6719,
+    "generation_time_ms": 2809,
+    "embedding_time_ms": 1328,
+    "keyword_time_ms": 1240,
+    "retrieval_time_ms": 1161,
+    "tokens_used": 167,
+    "tokens_per_second": 59.451763,
+    "answer_chars": 1596,
+    "llm": "mistral/mistral-small-latest"
+  },
+  {
+    "i": 2,
+    "wall_ms": 12208.1,
+    "total_time_ms": 10293,
+    "generation_time_ms": 6758,
+    "embedding_time_ms": 1372,
+    "keyword_time_ms": 1250,
+    "retrieval_time_ms": 1020,
+    "tokens_used": 863,
+    "tokens_per_second": 127.70051,
+    "answer_chars": 7071,
+    "llm": "mistral/mistral-small-latest"
+  },
+  {
+    "i": 3,
+    "wall_ms": 9447.5,
+    "total_time_ms": 7859,
+    "generation_time_ms": 3878,
+    "embedding_time_ms": 1731,
+    "keyword_time_ms": 1597,
+    "retrieval_time_ms": 758,
+    "tokens_used": 333,
+    "tokens_per_second": 85.869,
+    "answer_chars": 3360,
+    "llm": "mistral/mistral-small-latest"
+  }
+]

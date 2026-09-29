@@ -1,0 +1,133 @@
+{
+  "spec": "153",
+  "card": "provider",
+  "base_url": "https://demo.edgequake.com",
+  "tenant_id": "00000000-0000-0000-0000-000000000002",
+  "workspace_id": "00000000-0000-0000-0000-000000000003",
+  "slo_total_ms": 25000,
+  "health_version": "0.28.3",
+  "providers_health": {
+    "llm": {
+      "name": "openai",
+      "model": "gpt-5.4-mini"
+    },
+    "embedding": {
+      "name": "openai",
+      "model": "text-embedding-3-small",
+      "dimension": 1536
+    }
+  },
+  "P1_cold": {
+    "levels": [
+      {
+        "concurrency": 1,
+        "n": 6,
+        "wall_s": 75.5,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.0795,
+        "tokens_sum": 5050,
+        "tokens_per_s": 66.89,
+        "total_ms_p50": 10779.5,
+        "total_ms_p90": 15600.0,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 2,
+        "n": 6,
+        "wall_s": 30.77,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.195,
+        "tokens_sum": 3791,
+        "tokens_per_s": 123.2,
+        "total_ms_p50": 7919.5,
+        "total_ms_p90": 11260.5,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 4,
+        "n": 8,
+        "wall_s": 27.79,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.2879,
+        "tokens_sum": 6604,
+        "tokens_per_s": 237.63,
+        "total_ms_p50": 11639.0,
+        "total_ms_p90": 13481.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      },
+      {
+        "concurrency": 8,
+        "n": 8,
+        "wall_s": 20.97,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3815,
+        "tokens_sum": 5823,
+        "tokens_per_s": 277.69,
+        "total_ms_p50": 15377.0,
+        "total_ms_p90": 18773.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    ],
+    "knee": {
+      "status": "not_reached_in_range",
+      "tested_max_concurrency": 8,
+      "attainment_at_max": 1.0,
+      "cold_reference_total_ms_p90": 15600.0,
+      "at_max": {
+        "concurrency": 8,
+        "n": 8,
+        "wall_s": 20.97,
+        "oracle_ok_rate": 1.0,
+        "attainment": 1.0,
+        "goodput_qps": 0.3815,
+        "tokens_sum": 5823,
+        "tokens_per_s": 277.69,
+        "total_ms_p50": 15377.0,
+        "total_ms_p90": 18773.8,
+        "answer_cache_hit_rate": 0.0,
+        "llm_models": [
+          "mistral-small-latest"
+        ]
+      }
+    }
+  },
+  "P2_warm": {
+    "concurrency": 4,
+    "n": 8,
+    "wall_s": 8.92,
+    "oracle_ok_rate": 1.0,
+    "attainment": 1.0,
+    "goodput_qps": 0.8966,
+    "tokens_sum": 6750,
+    "tokens_per_s": 756.49,
+    "total_ms_p50": 2198.0,
+    "total_ms_p90": 3850.3,
+    "answer_cache_hit_rate": 1.0,
+    "llm_models": [
+      "mistral-small-latest"
+    ]
+  },
+  "P3_stream": {
+    "n": 4,
+    "oracle_ok_rate": 1.0,
+    "ttft_ms_p50": 0,
+    "ttft_ms_p90": 0
+  },
+  "result": "PASS"
+}

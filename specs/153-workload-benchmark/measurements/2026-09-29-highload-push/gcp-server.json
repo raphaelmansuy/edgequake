@@ -1,0 +1,43 @@
+{
+  "available": true,
+  "vm": {
+    "instance": "elitizon-db",
+    "instance_id": "112371860905373219",
+    "project": "saas-app-001",
+    "zone": "us-central1-a",
+    "machine_type": "e2-medium",
+    "machine_description": "Efficient Instance, 2 vCPU (1/2 shared physical core) and 4 GB RAM",
+    "vcpus": 2,
+    "memory_mb": 4096,
+    "shared_core": true,
+    "cpu_platform": "AMD Rome",
+    "created": "2026-09-18T21:34:21.119-07:00",
+    "provisioning": "STANDARD",
+    "vpc": "edgequake-host-vpc",
+    "subnet": "edgequake-host-subnet",
+    "internal_ip": "10.48.0.2",
+    "external_ip": "34.135.165.171",
+    "labels": {
+      "component": "edgequake",
+      "goog-terraform-provisioned": "true",
+      "spec": "148"
+    },
+    "disks": [
+      {
+        "name": "persistent-disk-0",
+        "boot": true,
+        "size_gb": "20",
+        "type": "pd-balanced"
+      },
+      {
+        "name": "elitizon-db-data",
+        "boot": false,
+        "size_gb": "50",
+        "type": "pd-balanced"
+      }
+    ]
+  },
+  "host": {
+    "containers": []
+  }
+}

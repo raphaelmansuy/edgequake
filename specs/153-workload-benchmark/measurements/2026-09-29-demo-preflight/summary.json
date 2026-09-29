@@ -1,0 +1,43 @@
+{
+  "spec": "153",
+  "run_id": "2026-09-29-demo-preflight",
+  "base_url": "https://demo.edgequake.com",
+  "tenant_id": "00000000-0000-0000-0000-000000000002",
+  "workspace_id": "00000000-0000-0000-0000-000000000003",
+  "bench_mode": "provider",
+  "cache_mode": "cold",
+  "shape_id": "query-chat-v1",
+  "layers": ["L0", "L7"],
+  "load_model": "smoke",
+  "knee": {
+    "concurrency": null,
+    "attainment": null,
+    "status": "not_run",
+    "reason": "Protocol pack + preflight only; knee sweep awaits runner"
+  },
+  "preflight": {
+    "live": "OK",
+    "ready": true,
+    "product_version": "0.28.3",
+    "migration_required": false,
+    "oracle_ok": true
+  },
+  "mcp_l7_smoke": {
+    "tool": "eq_search",
+    "query": "What is text-to-SQL evaluation?",
+    "mode": "mix",
+    "budget": "cheap",
+    "retrieval_id": "ret_7023f21a-b6bc-432f-a9dd-083325613397",
+    "hits": 5,
+    "oracle_ok": true
+  },
+  "species_rates": {
+    "llm_in_per_s": null,
+    "llm_out_per_s": null,
+    "embed_est_per_s": null
+  },
+  "slo": { "status": "hypothesis" },
+  "gaps": ["G-153-VISION", "G-153-EMBED-USAGE", "G-153-HEALTH-LLM"],
+  "result": "PASS",
+  "result_meaning": "Env pin + preflight + L7 MCP smoke complete; knee not claimed"
+}

@@ -1,0 +1,171 @@
+{
+  "spec": "153",
+  "run_id": "2026-09-29-demo-query-knee",
+  "base_url": "https://demo.edgequake.com",
+  "tenant_id": "00000000-0000-0000-0000-000000000002",
+  "workspace_id": "00000000-0000-0000-0000-000000000003",
+  "bench_mode": "provider",
+  "cache_mode": "hosted_default",
+  "shape_id": "query-chat-v1",
+  "layers": [
+    "L0",
+    "L7",
+    "L8"
+  ],
+  "load_model": "closed_loop",
+  "slo": {
+    "status": "hypothesis_applied",
+    "total_time_ms_max": 25000,
+    "oracle_ok_min": 0.99,
+    "attainment_target": 0.9,
+    "note": "Hypothesis thresholds for demo interactive Q&A; not yet a proven product floor"
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "n": 6,
+      "wall_s": 59.23,
+      "oracle_ok_rate": 1.0,
+      "attainment": 1.0,
+      "goodput_qps": 0.1013,
+      "tokens_sum": 6655,
+      "tokens_per_s": 112.36,
+      "total_ms_p50": 10068.0,
+      "total_ms_p90": 14066.5,
+      "total_ms_p99": 17161.2,
+      "wall_ms_p50": 11626.6,
+      "wall_ms_p90": 15624.6,
+      "llm_models": [
+        "mistral-small-latest"
+      ],
+      "llm_providers": [
+        "mistral"
+      ]
+    },
+    {
+      "concurrency": 2,
+      "n": 6,
+      "wall_s": 9.07,
+      "oracle_ok_rate": 1.0,
+      "attainment": 1.0,
+      "goodput_qps": 0.6618,
+      "tokens_sum": 4817,
+      "tokens_per_s": 531.32,
+      "total_ms_p50": 1367.0,
+      "total_ms_p90": 1506.5,
+      "total_ms_p99": 1534.8,
+      "wall_ms_p50": 2977.1,
+      "wall_ms_p90": 3116.1,
+      "llm_models": [
+        "mistral-small-latest"
+      ],
+      "llm_providers": [
+        "mistral"
+      ]
+    },
+    {
+      "concurrency": 4,
+      "n": 8,
+      "wall_s": 8.12,
+      "oracle_ok_rate": 1.0,
+      "attainment": 1.0,
+      "goodput_qps": 0.9858,
+      "tokens_sum": 6729,
+      "tokens_per_s": 829.16,
+      "total_ms_p50": 1834.0,
+      "total_ms_p90": 2868.9,
+      "total_ms_p99": 3059.8,
+      "wall_ms_p50": 3396.7,
+      "wall_ms_p90": 4534.2,
+      "llm_models": [
+        "mistral-small-latest"
+      ],
+      "llm_providers": [
+        "mistral"
+      ]
+    }
+  ],
+  "knee": {
+    "status": "not_reached_in_range",
+    "tested_max_concurrency": 4,
+    "attainment_at_max": 1.0,
+    "interpretation": "No capacity knee found up to C=4 under 25s SLO; C=2/4 polluted by answer cache. Cold reference is C=1 + follow-up.",
+    "cold_reference_total_ms_p90": 9562.8,
+    "cold_reference_gen_tokens_per_s_avg": 92.2
+  },
+  "species_rates": {
+    "llm_tokens_used_per_s_at_knee": 829.16,
+    "note": "API exposes aggregate tokens_used (not split llm_in/llm_out on this path)"
+  },
+  "health": {
+    "version": "0.28.3",
+    "providers_health": {
+      "llm": {
+        "name": "openai",
+        "model": "gpt-5.4-mini"
+      },
+      "embedding": {
+        "name": "openai",
+        "model": "text-embedding-3-small",
+        "dimension": 1536
+      }
+    },
+    "task_queue": {
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "pressure": "normal",
+      "pending_warn_threshold": 100,
+      "pending_critical_threshold": 500
+    }
+  },
+  "result": "PASS",
+  "gaps": [
+    "G-153-VISION",
+    "G-153-EMBED-USAGE",
+    "tokens_used_aggregate_not_split"
+  ],
+  "analysis": {
+    "finding": "C=2 and C=4 windows were dominated by answer-cache short-circuits (generation_time_ms=0). Cold capacity must be read from C=1 + unique-prompt follow-up.",
+    "cold_stream_c1": {
+      "n": 6,
+      "oracle_ok_rate": 1.0,
+      "total_ms_p50": 10068.0,
+      "total_ms_p90": 14066.5,
+      "tokens_per_query_avg": 1109.2,
+      "aggregate_tokens_per_s": 133.88,
+      "llm": "mistral/mistral-small-latest"
+    },
+    "unique_prompt_followup": {
+      "n": 4,
+      "total_ms_p50": 7289.0,
+      "total_ms_p90": 9562.8,
+      "tokens_per_query_avg": 418.5,
+      "gen_tokens_per_s_avg": 92.2,
+      "breakdown_avg_ms": {
+        "embed": 1462.0,
+        "keyword": 1312.0,
+        "retrieve": 924.0,
+        "generate": 4173.0
+      }
+    },
+    "cached_concurrent": {
+      "n": 14,
+      "likely_cache_rate": 1.0,
+      "note": "Useful as cache-hit UX signal, NOT as cold LLM capacity knee"
+    },
+    "business_claims_allowed": [
+      "Demo tenant answers knowledge questions with 100% success in this sample",
+      "Typical cold interactive answer completes in about 7\u201314 seconds server-side",
+      "Roughly 60\u2013130 generated tokens per second during the answer phase (provider-reported)",
+      "Repeated questions can return in ~1\u20133 seconds via answer cache",
+      "Within tested load (up to 4 concurrent), no failures under a 25s latency hypothesis"
+    ],
+    "business_claims_forbidden": [
+      "Do not claim 800+ tokens/s system capacity \u2014 that mixed cache hits",
+      "Do not claim a saturation knee \u2014 attainment never dropped below 90% in this range",
+      "Health JSON LLM (openai) is fleet default; this workspace answered via mistral-small-latest"
+    ]
+  },
+  "result_meaning": "Protocol run complete with honest cache attribution; knee not claimed"
+}

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>EdgeQuake Workload Snapshot — Demo Tenant</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+      @bottom-center {
+        content: "EdgeQuake · SPEC-153 Workload Snapshot · Confidential";
+        font-size: 8pt;
+        color: #64748b;
+      }
+      @bottom-right {
+        content: counter(page);
+        font-size: 8pt;
+        color: #64748b;
+      }
+    }
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #e2e8f0;
+      --soft: #f8fafc;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --warn: #b45309;
+      --warn-soft: #ffedd5;
+      --good: #166534;
+      --good-soft: #dcfce7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Source Sans 3", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      font-size: 10.5pt;
+      line-height: 1.45;
+      margin: 0;
+    }
+    h1, h2, h3 {
+      font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      margin: 0 0 0.4em;
+    }
+    h1 { font-size: 22pt; line-height: 1.15; }
+    h2 { font-size: 13.5pt; margin-top: 1.35em; padding-bottom: 0.25em; border-bottom: 1.5px solid var(--line); }
+    h3 { font-size: 11pt; color: var(--accent); margin-top: 1em; }
+    p { margin: 0 0 0.7em; }
+    .hero {
+      background: linear-gradient(135deg, #0f172a 0%, #134e4a 55%, #0f766e 100%);
+      color: #f8fafc;
+      padding: 22px 24px 20px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    .hero p { color: #cbd5e1; margin: 0; }
+    .hero .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 8.5pt;
+      color: #99f6e4;
+      font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 18px;
+      margin: 14px 0 4px;
+      font-size: 9.5pt;
+    }
+    .meta div { border-top: 1px solid rgba(255,255,255,0.18); padding-top: 6px; }
+    .meta strong { display: block; color: #99f6e4; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+    .callout {
+      background: var(--soft);
+      border-left: 4px solid var(--accent);
+      padding: 10px 12px;
+      margin: 12px 0;
+      border-radius: 0 4px 4px 0;
+    }
+    .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+    .callout.good { border-left-color: var(--good); background: var(--good-soft); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+      font-size: 9.5pt;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--soft);
+      font-weight: 650;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 12px 0 6px;
+    }
+    .kpi {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .kpi .label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 650; }
+    .kpi .value { font-size: 18pt; font-family: Georgia, serif; color: var(--ink); margin-top: 2px; }
+    .kpi .hint { font-size: 8.5pt; color: var(--muted); margin-top: 2px; }
+    ul { margin: 0.3em 0 0.8em 1.1em; padding: 0; }
+    li { margin-bottom: 0.35em; }
+    .footer-note { font-size: 8.5pt; color: var(--muted); margin-top: 18px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8.5pt; }
+    .bar {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .bar > span { display: block; height: 100%; background: var(--accent); }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <div class="eyebrow">SPEC-153 · Workload &amp; capacity snapshot</div>
+    <h1>How the EdgeQuake demo handles real questions</h1>
+    <p style="margin-top:8px;max-width:92%;">A plain-English readout of a live test on the shared demo environment — what users can expect when they ask questions against an existing knowledge workspace.</p>
+    <div class="meta">
+      <div><strong>Environment</strong> https://demo.edgequake.com · product v0.28.3</div>
+      <div><strong>Test date</strong> 29 September 2026</div>
+      <div><strong>Tenant</strong> <span class="mono">00000000-0000-0000-0000-000000000002</span></div>
+      <div><strong>Workspace</strong> <span class="mono">00000000-0000-0000-0000-000000000003</span></div>
+      <div><strong>Answering model</strong> Mistral · mistral-small-latest</div>
+      <div><strong>Embedding model</strong> OpenAI · text-embedding-3-small (1536-d)</div>
+    </div>
+  </section>
+
+  <div class="callout good">
+    <strong>Bottom line.</strong>
+    On this demo tenant, knowledge questions were answered successfully in every sample we ran.
+    A typical <em>new</em> question finishes in about <strong>7–14 seconds</strong>.
+    If the same question is asked again, the system can answer in about <strong>1–3 seconds</strong> by reusing a cached answer.
+    We did <strong>not</strong> find a breaking point (capacity “knee”) up to four people asking at once under a 25-second comfort target.
+  </div>
+
+  <h2>1. What we tested (and why)</h2>
+  <p>
+    EdgeQuake is a knowledge system: documents are turned into a searchable graph, then people ask questions in natural language.
+    Because answers depend on large language models (LLMs), wall-clock “requests per second” alone can mislead.
+    This snapshot follows SPEC-153: measure the <strong>question-and-answer path</strong> on a named tenant, separate <strong>fresh answers</strong> from <strong>cached repeats</strong>, and speak in outcomes a business owner can use.
+  </p>
+  <p>
+    We exercised the live demo API with authenticated calls scoped to the tenant and workspace above.
+    Workload shape: interactive Q&amp;A over the papers already loaded in the workspace (including text-to-SQL and agentic research PDFs).
+  </p>
+
+  <h2>2. Headline numbers</h2>
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="label">Success rate</div>
+      <div class="value">100%</div>
+      <div class="hint">All sampled questions returned a usable answer</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Fresh answer time</div>
+      <div class="value">~7–14 s</div>
+      <div class="hint">Server time for a new question (typical / upper)</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Answer speed (fresh)</div>
+      <div class="value">~90 tok/s</div>
+      <div class="hint">Average generation pace reported by the model path</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Situation</th>
+        <th class="num">Questions</th>
+        <th class="num">Typical time</th>
+        <th class="num">Upper (≈90%)</th>
+        <th>What it means</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Fresh questions (single user)</td>
+        <td class="num">6</td>
+        <td class="num">10.1 s</td>
+        <td class="num">14.1 s</td>
+        <td>Realistic first-ask experience</td>
+      </tr>
+      <tr>
+        <td>New unique prompts (follow-up)</td>
+        <td class="num">4</td>
+        <td class="num">7.3 s</td>
+        <td class="num">9.6 s</td>
+        <td>Confirms cold path without repeats</td>
+      </tr>
+      <tr>
+        <td>Repeated questions (cache)</td>
+        <td class="num">14</td>
+        <td class="num">~1–3 s</td>
+        <td class="num">&lt; 5 s</td>
+        <td>Same question answered from cache — very fast</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>Important nuance.</strong>
+    When we raised concurrency to 2 and 4 users, nearly every response was served from the <em>answer cache</em>
+    (the model did not regenerate). That is excellent for repeat FAQs, but it is <strong>not</strong> the same as proving
+    how many brand-new LLM answers the system can produce at once. We therefore do not publish an inflated “800+ tokens per second capacity” figure from that window.
+  </div>
+
+  <h2>3. Where the seconds go (fresh answer)</h2>
+  <p>On unique follow-up questions, average time inside the service broke down roughly as follows:</p>
+  <table>
+    <thead>
+      <tr><th>Stage</th><th>Plain English</th><th class="num">Avg time</th><th>Share</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Understand the question</td>
+        <td>Embed the query and extract search keywords</td>
+        <td class="num">~2.8 s</td>
+        <td>
+          <div class="bar"><span style="width:35%"></span></div>
+        </td>
+      </tr>
+      <tr>
+        <td>Find evidence</td>
+        <td>Search the graph and documents in the workspace</td>
+        <td class="num">~0.9 s</td>
+        <td>
+          <div class="bar"><span style="width:12%"></span></div>
+        </td>
+      </tr>
+      <tr>
+        <td>Write the answer</td>
+        <td>Language model generates the response</td>
+        <td class="num">~4.2 s</td>
+        <td>
+          <div class="bar"><span style="width:53%"></span></div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    In business terms: more than half of a fresh answer is waiting on the language model.
+    Retrieval in this workspace is comparatively quick. Improving “time to answer” for new questions
+    is mostly an LLM / prompt-budget topic, not a “database is slow” topic — for this corpus size.
+  </p>
+
+  <h2>4. Capacity under light concurrent use</h2>
+  <div class="two-col">
+    <div>
+      <p>
+        We gradually increased simultaneous questioners (1 → 2 → 4) while requiring answers within a
+        <strong>25-second</strong> comfort target and a usable response every time.
+      </p>
+      <p>
+        <strong>Result:</strong> success stayed at 100%. We never hit a “breaking point” in this range.
+        That supports a cautious statement: <em>the demo tenant comfortably handled at least four concurrent
+        interactive asks under today’s conditions</em> — especially when some asks hit cache.
+      </p>
+    </div>
+    <div>
+      <table>
+        <thead>
+          <tr><th>Concurrent users</th><th class="num">Success</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td class="num">100%</td><td>Fresh LLM answers</td></tr>
+          <tr><td>2</td><td class="num">100%</td><td>Mostly cached repeats</td></tr>
+          <tr><td>4</td><td class="num">100%</td><td>Mostly cached repeats</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>5. What this means for stakeholders</h2>
+  <h3>For product / customer success</h3>
+  <ul>
+    <li>Demo Q&amp;A is reliable on this tenant for the loaded research corpus.</li>
+    <li>Set expectations: <strong>first answer ≈ 10 seconds</strong>; <strong>repeat FAQ ≈ a couple of seconds</strong>.</li>
+    <li>This workspace uses <strong>Mistral Small</strong> for answers (not the fleet OpenAI default shown on the public health page).</li>
+  </ul>
+  <h3>For engineering / capacity planning</h3>
+  <ul>
+    <li>Publish cold and warm numbers separately (SPEC-153 rule).</li>
+    <li>A true saturation knee for <em>fresh</em> LLM answers still needs a longer cold-only sweep (and optionally a dedicated bench tenant).</li>
+    <li>Ingest / PDF conversion capacity was intentionally <strong>not</strong> stressed on this shared demo.</li>
+  </ul>
+  <h3>Safe claims you can make today</h3>
+  <ul>
+    <li>Demo knowledge Q&amp;A worked in 100% of sampled asks.</li>
+    <li>Fresh answers typically complete in about 7–14 seconds.</li>
+    <li>Cached repeats are about 1–3 seconds.</li>
+    <li>No failures observed up to four concurrent users under a 25-second target in this run.</li>
+  </ul>
+  <h3>Claims to avoid</h3>
+  <ul>
+    <li>Do not cite “800+ tokens/s system capacity” from the concurrent window — that mixed cache hits.</li>
+    <li>Do not claim a measured maximum capacity ceiling; we did not reach one.</li>
+    <li>Do not equate fleet health “OpenAI” with this workspace’s answer model (Mistral).</li>
+  </ul>
+
+  <h2>6. How to read this next to other EdgeQuake reports</h2>
+  <table>
+    <thead>
+      <tr><th>Report type</th><th>Question it answers</th><th>This snapshot?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Accuracy (SPEC-001)</td><td>Are answers <em>correct</em>?</td><td>No — we checked usefulness/success, not graded accuracy</td></tr>
+      <tr><td>Database physics (SPEC-090 / 063)</td><td>Is Postgres / search infrastructure healthy at scale?</td><td>No — corpus here is demo-sized</td></tr>
+      <tr><td>Workload / tokens (SPEC-153)</td><td>How does Q&amp;A feel and scale for a tenant?</td><td><strong>Yes</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p class="footer-note">
+    Evidence pack: <span class="mono">specs/153-workload-benchmark/measurements/2026-09-29-demo-query-knee/</span>
+    · Protocol: SPEC-153 · Generated for business stakeholders from live measurements on the shared demo.
+    Hosted environment caches could not be force-disabled; cold vs cache attribution uses server timing signals
+    (<span class="mono">generation_time_ms = 0</span> ⇒ answer cache).
+  </p>
+
+</body>
+</html>

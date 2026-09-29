@@ -1,0 +1,23 @@
+[project]
+name = "bench153"
+version = "0.1.0"
+description = "SPEC-153 EdgeQuake workload & token capacity harness"
+requires-python = ">=3.10"
+dependencies = [
+  "matplotlib>=3.8",
+]
+
+[project.scripts]
+bench153-system = "bench153.run_system:main"
+bench153-provider = "bench153.run_provider_demo:main"
+bench153-provider-highload = "bench153.run_provider_highload:main"
+bench153-aggregate = "bench153.aggregate:main"
+bench153-pdf = "bench153.render_pdf:main"
+bench153-highload-pdf = "bench153.render_highload_pdf:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["bench153*"]
