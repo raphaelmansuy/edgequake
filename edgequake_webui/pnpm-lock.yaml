@@ -106,7 +106,7 @@ importers:
         version: 5.0.6(graphology@0.26.0(graphology-types@0.24.8))(react@19.2.3)(sigma@3.0.2(graphology-types@0.24.8))
       '@scalar/api-reference-react':
         specifier: ^0.9.50
-        version: 0.9.50(axios@1.18.1)(change-case@5.4.4)(react@19.2.3)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)
+        version: 0.9.50(axios@1.20.0)(change-case@5.4.4)(react@19.2.3)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)
       '@sigma/edge-curve':
         specifier: ^3.1.0
         version: 3.1.0(sigma@3.0.2(graphology-types@0.24.8))
@@ -123,8 +123,8 @@ importers:
         specifier: ^15.5.13
         version: 15.5.13
       axios:
-        specifier: ^1.18.1
-        version: 1.18.1
+        specifier: ^1.20.0
+        version: 1.20.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2649,8 +2649,8 @@ packages:
     resolution: {integrity: sha512-zBQouZixDTbo3jMGqHKyePxYxr1e5W8UdTmBQ7sNtaA9M2bE32daxxPLS/jojhKOHxQ7LWwPjfiwf/fhaJWzlg==}
     engines: {node: '>=4'}
 
-  axios@1.18.1:
-    resolution: {integrity: sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==}
+  axios@1.20.0:
+    resolution: {integrity: sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -3215,6 +3215,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -6753,10 +6754,10 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@scalar/agent-chat@0.12.14(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)':
+  '@scalar/agent-chat@0.12.14(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)':
     dependencies:
       '@ai-sdk/vue': 3.0.33(vue@3.5.39(typescript@5.9.3))(zod@4.3.6)
-      '@scalar/api-client': 3.13.0(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)
+      '@scalar/api-client': 3.13.0(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)
       '@scalar/components': 0.27.4(tailwindcss@4.1.18)(typescript@5.9.3)
       '@scalar/helpers': 0.9.0
       '@scalar/icons': 0.7.3(typescript@5.9.3)
@@ -6791,7 +6792,7 @@ snapshots:
       - universal-cookie
       - zod
 
-  '@scalar/api-client@3.13.0(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)':
+  '@scalar/api-client@3.13.0(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)':
     dependencies:
       '@headlessui/tailwindcss': 0.2.2(tailwindcss@4.1.18)
       '@headlessui/vue': 1.7.23(vue@3.5.39(typescript@5.9.3))
@@ -6811,7 +6812,7 @@ snapshots:
       '@scalar/use-toasts': 0.10.2(typescript@5.9.3)
       '@scalar/workspace-store': 0.55.1(typescript@5.9.3)
       '@vueuse/core': 13.9.0(vue@3.5.39(typescript@5.9.3))
-      '@vueuse/integrations': 13.9.0(axios@1.18.1)(change-case@5.4.4)(focus-trap@7.8.0)(fuse.js@7.4.2)(vue@3.5.39(typescript@5.9.3))
+      '@vueuse/integrations': 13.9.0(axios@1.20.0)(change-case@5.4.4)(focus-trap@7.8.0)(fuse.js@7.4.2)(vue@3.5.39(typescript@5.9.3))
       focus-trap: 7.8.0
       fuse.js: 7.4.2
       js-base64: 3.8.0
@@ -6839,9 +6840,9 @@ snapshots:
       - typescript
       - universal-cookie
 
-  '@scalar/api-reference-react@0.9.50(axios@1.18.1)(change-case@5.4.4)(react@19.2.3)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)':
+  '@scalar/api-reference-react@0.9.50(axios@1.20.0)(change-case@5.4.4)(react@19.2.3)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)':
     dependencies:
-      '@scalar/api-reference': 1.62.1(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)
+      '@scalar/api-reference': 1.62.1(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)
       '@scalar/types': 0.16.0
       react: 19.2.3
     transitivePeerDependencies:
@@ -6861,11 +6862,11 @@ snapshots:
       - universal-cookie
       - zod
 
-  '@scalar/api-reference@1.62.1(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)':
+  '@scalar/api-reference@1.62.1(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)':
     dependencies:
       '@headlessui/vue': 1.7.23(vue@3.5.39(typescript@5.9.3))
-      '@scalar/agent-chat': 0.12.14(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)
-      '@scalar/api-client': 3.13.0(axios@1.18.1)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)
+      '@scalar/agent-chat': 0.12.14(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)(zod@4.3.6)
+      '@scalar/api-client': 3.13.0(axios@1.20.0)(change-case@5.4.4)(tailwindcss@4.1.18)(typescript@5.9.3)
       '@scalar/blocks': 0.1.1(tailwindcss@4.1.18)(typescript@5.9.3)
       '@scalar/code-highlight': 0.4.0
       '@scalar/components': 0.27.4(tailwindcss@4.1.18)(typescript@5.9.3)
@@ -7719,13 +7720,13 @@ snapshots:
       '@vueuse/shared': 13.9.0(vue@3.5.39(typescript@5.9.3))
       vue: 3.5.39(typescript@5.9.3)
 
-  '@vueuse/integrations@13.9.0(axios@1.18.1)(change-case@5.4.4)(focus-trap@7.8.0)(fuse.js@7.4.2)(vue@3.5.39(typescript@5.9.3))':
+  '@vueuse/integrations@13.9.0(axios@1.20.0)(change-case@5.4.4)(focus-trap@7.8.0)(fuse.js@7.4.2)(vue@3.5.39(typescript@5.9.3))':
     dependencies:
       '@vueuse/core': 13.9.0(vue@3.5.39(typescript@5.9.3))
       '@vueuse/shared': 13.9.0(vue@3.5.39(typescript@5.9.3))
       vue: 3.5.39(typescript@5.9.3)
     optionalDependencies:
-      axios: 1.18.1
+      axios: 1.20.0
       change-case: 5.4.4
       focus-trap: 7.8.0
       fuse.js: 7.4.2
@@ -7871,7 +7872,7 @@ snapshots:
 
   axe-core@4.11.3: {}
 
-  axios@1.18.1:
+  axios@1.20.0:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.6
