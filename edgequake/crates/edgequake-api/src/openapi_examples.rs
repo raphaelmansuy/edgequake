@@ -157,6 +157,13 @@ fn domain_examples() -> HashMap<&'static str, Value> {
                         "attribution_support": "full",
                         "headers": ["HTTP-Referer", "X-OpenRouter-Title", "X-Title"],
                         "body_fields": []
+                    },
+                    {
+                        "id": "orcarouter",
+                        "display_name": "OrcaRouter",
+                        "attribution_support": "full",
+                        "headers": [],
+                        "body_fields": []
                     }
                 ],
                 "ingress_headers": [

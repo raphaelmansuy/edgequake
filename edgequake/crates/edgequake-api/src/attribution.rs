@@ -221,6 +221,7 @@ fn humanize_provider_id(id: &str) -> String {
         "gemini" => "Google Gemini".into(),
         "vertexai" => "Google Vertex AI".into(),
         "openrouter" => "OpenRouter".into(),
+        "orcarouter" => "OrcaRouter".into(),
         "mistral" => "Mistral AI".into(),
         "nvidia" => "NVIDIA NIM".into(),
         "cohere" => "Cohere".into(),

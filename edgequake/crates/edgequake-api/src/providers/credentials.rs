@@ -102,6 +102,7 @@ pub fn llm_provider_credentials_configured_by_name(provider_name: &str) -> bool 
         "nvidia" => env_non_empty("NVIDIA_API_KEY"),
         "cohere" => env_non_empty("COHERE_API_KEY"),
         "jina" => env_non_empty("JINA_API_KEY"),
+        "orcarouter" => env_non_empty("ORCAROUTER_API_KEY"),
         "huggingface" | "hf" => env_non_empty("HF_TOKEN") || env_non_empty("HUGGINGFACE_TOKEN"),
         "vscode-copilot" | "copilot" => true,
         _ => true,
@@ -338,6 +339,16 @@ mod tests {
     #[test]
     fn mock_always_configured() {
         assert!(llm_provider_credentials_configured_by_name("mock"));
+    }
+
+    #[test]
+    fn orcarouter_requires_orca_key_env() {
+        let prev = save_env("ORCAROUTER_API_KEY");
+        std::env::remove_var("ORCAROUTER_API_KEY");
+        assert!(!llm_provider_credentials_configured_by_name("orcarouter"));
+        std::env::set_var("ORCAROUTER_API_KEY", "sk-orca-test");
+        assert!(llm_provider_credentials_configured_by_name("orcarouter"));
+        restore_env("ORCAROUTER_API_KEY", prev);
     }
 
     #[test]
