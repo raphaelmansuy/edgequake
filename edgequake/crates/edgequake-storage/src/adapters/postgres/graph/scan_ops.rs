@@ -20,9 +20,15 @@ impl PostgresAGEGraphStorage {
     }
 
     fn build_node_where_clause_for_discovery(filter: &NodeListFilter) -> String {
+        // enforce_graph_read_scope validates ownership and installs the non-bypass
+        // RLS role before this query. Repeating its JSON scope predicates adds
+        // expensive conversions to every visible row. Keep only domain filters.
+        let mut filter = filter.clone();
+        filter.tenant_id = None;
+        filter.workspace_id = None;
         Self::build_vertex_property_where_mode(
             "v",
-            filter,
+            &filter,
             VertexTenantFilterMode::LegacyNullAsWildcard,
         )
     }
@@ -32,7 +38,10 @@ impl PostgresAGEGraphStorage {
     }
 
     fn build_edge_where_clause_for_discovery(filter: &EdgeListFilter) -> String {
-        Self::build_edge_property_where("e", filter, EdgeTenantFilterMode::LegacyNullAsWildcard)
+        let mut filter = filter.clone();
+        filter.tenant_id = None;
+        filter.workspace_id = None;
+        Self::build_edge_property_where("e", &filter, EdgeTenantFilterMode::LegacyNullAsWildcard)
     }
 
     /// GH-404 residual: list SQL on `"Node"` child (not `_ag_label_vertex`).
@@ -588,43 +597,14 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        // Discovery uses legacy-null workspace match; never require tenant props.
-        // Apply tenant filter on the *hits* CTE (alias h), never on the GIN join —
-        // otherwise the planner starts from idx_node_tenant_id (~30k rows) and
-        // rechecks @> as a Join Filter (4s+ on 200k nodes → statement_timeout).
-        let tenant_where_hits = Self::build_vertex_property_where_mode(
-            "h",
-            filter,
-            VertexTenantFilterMode::LegacyNullAsWildcard,
-        );
         let tenant_where_v = Self::build_node_where_clause_for_discovery(filter);
         let props_expr = "ag_catalog.agtype_to_json(v.properties)";
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
-
-        // SPEC-071 / IMP-031-08 / SPEC-149: probe-first MATERIALIZED CTEs force
-        // Bitmap Index Scan on both source_ids and source_chunk_ids GIN indexes.
-        let probes_cte = super::helpers::source_ids_probes_cte_sql();
-        let hits_cte = super::helpers::lineage_hits_cte_sql(
-            "v.properties",
-            &format!(
-                r#"FROM probes pr INNER JOIN {graph}."Node" v"#,
-                graph = self.graph_name
-            ),
+        let modern_sql = super::helpers::lineage_discovery_sql(
+            &format!("{props_expr} AS props"),
+            &format!(r#"{}."Node" v"#, self.graph_name),
             props_expr,
-            "",
-        );
-        let modern_sql = format!(
-            r#"
-            WITH {probes_cte},
-            {hits_cte}
-            SELECT ag_catalog.agtype_to_json(h.properties) AS props
-            FROM hits h
-            WHERE {tenant_where}
-            LIMIT 5000
-            "#,
-            probes_cte = probes_cte.trim(),
-            hits_cte = hits_cte.trim(),
-            tenant_where = tenant_where_hits,
+            &tenant_where_v,
         );
 
         // SPEC-089 Wave 3 / F-336-08 / LAW-H2: kill discovery CROSS JOIN probes.
@@ -735,12 +715,6 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        // Tenant post-filter on hits CTE (alias h) — same probe-first plan fix as nodes.
-        let tenant_where_hits = Self::build_edge_property_where(
-            "h",
-            filter,
-            EdgeTenantFilterMode::LegacyNullAsWildcard,
-        );
         let tenant_where_e = Self::build_edge_where_clause_for_discovery(filter);
         let props_expr = "ag_catalog.agtype_to_json(e.properties)";
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
@@ -760,41 +734,11 @@ impl PostgresAGEGraphStorage {
             super::helpers::prop_only_endpoint("e", "target")
         };
 
-        // SPEC-071 / IMP-031-08 / SPEC-149: MATERIALIZED probe-first → both GIN indexes.
-        let probes_cte = super::helpers::source_ids_probes_cte_sql();
-        let edge_extra_where = format!(
-            "WHERE {src} IS NOT NULL AND {tgt} IS NOT NULL",
-            src = src_expr,
-            tgt = tgt_expr
-        );
-        let hits_cte = super::helpers::lineage_hits_cte_sql(
-            &format!(
-                "e.properties, {src} AS source_id, {tgt} AS target_id",
-                src = src_expr,
-                tgt = tgt_expr
-            ),
-            &format!(
-                r#"FROM probes pr INNER JOIN {graph}."EDGE" e"#,
-                graph = self.graph_name
-            ),
+        let modern_sql = super::helpers::lineage_discovery_sql(
+            &format!("{props_expr} AS props, {src_expr} AS source_id, {tgt_expr} AS target_id"),
+            &format!(r#"{}."EDGE" e"#, self.graph_name),
             props_expr,
-            &edge_extra_where,
-        );
-        let modern_sql = format!(
-            r#"
-            WITH {probes_cte},
-            {hits_cte}
-            SELECT
-                ag_catalog.agtype_to_json(h.properties) AS props,
-                h.source_id,
-                h.target_id
-            FROM hits h
-            WHERE {tenant_where}
-            LIMIT 5000
-            "#,
-            probes_cte = probes_cte.trim(),
-            hits_cte = hits_cte.trim(),
-            tenant_where = tenant_where_hits,
+            &format!("({tenant_where_e}) AND {src_expr} IS NOT NULL AND {tgt_expr} IS NOT NULL"),
         );
 
         let timeout_ms = super::helpers::SOURCE_DISCOVERY_STATEMENT_TIMEOUT_MS;
@@ -1086,22 +1030,5 @@ mod source_prefix_clause_tests {
         ]);
         assert_eq!(exact, vec!["doc-a".to_string(), "doc-a-chunk-".to_string()]);
         assert_eq!(chunks, vec!["doc-a-chunk-".to_string()]);
-    }
-
-    /// IMP-031-08: source contracts force MATERIALIZED probe-first GIN plan.
-    #[test]
-    fn source_prefix_discovery_sql_is_probe_first_materialized() {
-        let src = include_str!("scan_ops.rs");
-        assert!(
-            src.contains("probes AS MATERIALIZED")
-                && src.contains("hits AS MATERIALIZED")
-                && src.contains("IMP-031-08"),
-            "source-prefix discovery must use MATERIALIZED probe-first CTEs"
-        );
-        // Tenant filter must not sit on the GIN join outer scan of Node.
-        assert!(
-            src.contains("FROM hits h") && src.contains("INNER JOIN {graph}.\"Node\" v"),
-            "tenant filter on hits; GIN join on Node from probes"
-        );
     }
 }

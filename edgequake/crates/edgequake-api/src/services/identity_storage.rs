@@ -261,7 +261,11 @@ pub async fn sync_default_membership_to_postgres(
     ensure_default_tenant_workspace(pool, security).await?;
     let (tenant_id, workspace_id) = default_identity_scope();
     let membership_role = membership_role_from_global_role(global_role);
-    let scope = Some(PgIsolationScope::default_identity(Some(user_id)));
+    let scope = Some(PgIsolationScope::for_membership(
+        tenant_id,
+        workspace_id,
+        user_id,
+    ));
 
     with_optional_pg_rls(pool, security, scope, move |conn| {
         Box::pin(async move {
@@ -368,11 +372,9 @@ pub async fn ensure_shared_guest_user_in_postgres(
     use crate::services::tenant_isolation::{with_optional_pg_rls, PgIsolationScope};
     use edgequake_storage::StorageError;
 
-    let workspace_id = edgequake_core::default_workspace_uuid();
-    let scope = Some(PgIsolationScope::for_membership(
+    let scope = Some(PgIsolationScope::for_identity(
         tenant_id,
-        workspace_id,
-        guest_user_id,
+        Some(guest_user_id),
     ));
     let username = SHARED_GUEST_USERNAME.to_string();
     let email = SHARED_GUEST_EMAIL.to_string();

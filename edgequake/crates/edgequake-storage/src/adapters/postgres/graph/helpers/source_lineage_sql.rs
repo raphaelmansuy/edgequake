@@ -2,7 +2,7 @@
 //!
 //! SSOT for matching AGE node/edge properties against a document chunk prefix.
 //! Two-path design (issue #305/#309):
-//! - **Modern**: GIN-friendly `source_ids @>` exact candidates (indexed).
+//! - **Modern**: one `?|` lookup over exact document/chunk candidates.
 //! - **Legacy**: bounded LIKE/unnest only when modern arrays are absent.
 //!
 //! # SPEC-089 / GH-336
@@ -90,18 +90,8 @@ use super::escape::escape_sql_literal;
 
 pub use crate::lineage_canon::INDEXED_LINEAGE_ARRAY_KEYS;
 
-/// SSOT probe CTE for cascade discovery (IMP-031-08).
-///
-/// # Planner law (2026-07-25 incident)
-///
-/// Putting tenant/workspace predicates on the same join as
-/// `source_ids @> probe` lets Postgres prefer `idx_node_tenant_id` (~30k
-/// rows) then recheck `@>` as a **Join Filter** (~4s @ 200k nodes → 15s
-/// `statement_timeout` on batch delete).
-///
-/// **Probe-first** + **`MATERIALIZED`** forces Nested Loop from probes →
-/// `Bitmap Index Scan on idx_*_source_ids_gin` (~100ms).
-///
+/// Exact document/chunk probes for cascade discovery. The discovery query
+/// aggregates them into one array before applying the label lookup.
 /// `$1` = exact ids, `$2` = chunk prefixes, `$3` = probe series upper bound.
 pub(in crate::adapters::postgres::graph) fn source_ids_probes_cte_sql() -> &'static str {
     r#"
@@ -113,6 +103,30 @@ pub(in crate::adapters::postgres::graph) fn source_ids_probes_cte_sql() -> &'sta
               CROSS JOIN generate_series(0, $3::int - 1) AS gs(i)
             )
     "#
+}
+
+/// One label lookup for all exact source probes, including under FORCE RLS.
+/// Non-leakproof JSON expressions cannot use source GIN indexes ahead of the
+/// security barrier. Joining 257 probes to the label then repeats the tenant
+/// scan 257 times. Aggregate probes once and use jsonb existence-any instead:
+/// a tenant scan runs once; unscoped administration can still use jsonb_ops GIN.
+pub(in crate::adapters::postgres::graph) fn lineage_discovery_sql(
+    select_list: &str,
+    from_label: &str,
+    props: &str,
+    where_clause: &str,
+) -> String {
+    let matches = INDEXED_LINEAGE_ARRAY_KEYS
+        .iter()
+        .map(|key| format!("(({props})::jsonb -> '{key}') ?| p.ids"))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    format!(
+        "WITH {}, probe_ids AS MATERIALIZED (SELECT array_agg(probe_id) AS ids FROM probes) \
+         SELECT {select_list} FROM {from_label} CROSS JOIN probe_ids p \
+         WHERE ({where_clause}) AND ({matches}) LIMIT 5000",
+        source_ids_probes_cte_sql().trim(),
+    )
 }
 
 /// Count-path prefixes CTE: `$1` = `{doc}-chunk-` prefixes, `$2` = series upper.
@@ -137,47 +151,12 @@ pub(in crate::adapters::postgres::graph) fn source_ids_count_probes_cte_sql() ->
     "#
 }
 
-/// Probe-first `hits AS MATERIALIZED (...)` body: UNION of GIN joins on every
-/// indexed lineage array (`source_ids` and `source_chunk_ids`).
-///
-/// `from_join` is the shared `FROM probes pr INNER JOIN {graph}."Label" alias`
-/// prefix without the ON clause. `select_list` is the SELECT column list
-/// (must be identical across UNION arms). `extra_where` is optional
-/// `WHERE …` appended to each arm (may be empty).
-///
-/// WHY UNION (not OR): each arm independently uses
-/// `idx_*_source_ids_gin` / `idx_*_source_chunk_ids_gin`, and hashing the
-/// properties blobs once in the UNION beat an OR + DISTINCT plan ~3× on a
-/// 120k-node live graph (SPEC-149). Counts use OR instead — see
-/// [`lineage_count_hits_cte_sql`].
-pub(in crate::adapters::postgres::graph) fn lineage_hits_cte_sql(
-    select_list: &str,
-    from_join: &str,
-    props: &str,
-    extra_where: &str,
-) -> String {
-    let arms: Vec<String> = INDEXED_LINEAGE_ARRAY_KEYS
-        .iter()
-        .map(|key| {
-            format!(
-                "SELECT {select_list} {from_join} \
-                 ON (({props})::jsonb -> '{key}') @> to_jsonb(pr.probe_id) \
-                 {extra_where}"
-            )
-        })
-        .collect();
-    format!(
-        "hits AS MATERIALIZED (\n              {}\n            )",
-        arms.join("\n              UNION\n              ")
-    )
-}
-
 /// Count-path hits: one probe join whose ON ORs every indexed lineage key.
 ///
 /// `from_join` includes `FROM probes pr INNER JOIN … alias` without ON.
 /// `select_list` must include `pr.prefix, pr.ord` plus a stable row id.
 ///
-/// WHY OR (not UNION like discovery): the parameterized probe join plans as
+/// WHY OR: the parameterized probe join plans as
 /// a `BitmapOr` over both GIN indexes, so each heap row is rechecked once.
 /// UNION arms recheck every mirrored row twice — ~2× the cost on counts,
 /// which select only ids and have no properties blob to dedup.
@@ -256,7 +235,7 @@ pub(in crate::adapters::postgres::graph) fn source_chunk_id_candidates(
 /// WHY (deletion timeout / #305): OR-ing hundreds of `@>` probes with unindexed
 /// LIKE/unnest forces Nested Loop Seq Scan. Keep this helper GIN-only on the
 /// indexed lineage arrays. Discovery hot paths in `scan_ops` use
-/// [`lineage_hits_cte_sql`] (UNION of GIN joins) instead of giant OR trees.
+/// [`lineage_discovery_sql`] to aggregate the probes into one lookup.
 pub(in crate::adapters::postgres::graph) fn jsonb_matches_doc_source_prefix_modern(
     props: &str,
     doc_prefix: &str,
@@ -332,21 +311,6 @@ mod tests {
             sql.contains("doc-abc-chunk-40") || sql.contains("|| '40'"),
             "modern path must probe past chunk 15: {sql}"
         );
-    }
-
-    #[test]
-    fn lineage_hits_cte_unions_both_gin_keys() {
-        let cte = lineage_hits_cte_sql(
-            "v.properties",
-            r#"FROM probes pr INNER JOIN g."Node" v"#,
-            "ag_catalog.agtype_to_json(v.properties)",
-            "",
-        );
-        assert!(cte.contains("hits AS MATERIALIZED"));
-        assert!(cte.contains("UNION"));
-        assert!(cte.contains("-> 'source_ids'"));
-        assert!(cte.contains("-> 'source_chunk_ids'"));
-        assert!(!cte.contains("LIKE"));
     }
 
     #[test]

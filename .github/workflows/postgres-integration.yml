@@ -243,14 +243,17 @@ jobs:
           EQ_TENANT_RLS_REPORT: /tmp/tenant-rls.json
           EQ_TENANT_HTTP_REPORT: /tmp/tenant-http.json
           EQ_TENANT_CATALOG_REPORT: /tmp/tenant-catalog.json
+          EQ_GRAPH_LINEAGE_REPORT: /tmp/graph-lineage.json
         run: |
           set -euo pipefail
           cargo test -p edgequake-api --features postgres \
             --test e2e_tenant_authorization --test e2e_tenant_rls \
+            --test e2e_postgres_anonymous_guest --test e2e_postgres_graph_lineage \
             -- --test-threads=1 --nocapture 2>&1 | tee /tmp/tenant-security.log
           test -s /tmp/tenant-rls.json
           test -s /tmp/tenant-http.json
           test -s /tmp/tenant-catalog.json
+          test -s /tmp/graph-lineage.json
 
       - name: Archive tenant security measurements
         if: always()
@@ -261,6 +264,7 @@ jobs:
             /tmp/tenant-rls.json
             /tmp/tenant-http.json
             /tmp/tenant-catalog.json
+            /tmp/graph-lineage.json
             /tmp/tenant-security.log
 
       - name: Archive DAL provider composition measurements

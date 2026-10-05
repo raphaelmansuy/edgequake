@@ -39,14 +39,20 @@ pub struct PgIsolationScope {
 }
 
 impl PgIsolationScope {
-    /// Default tenant/workspace scope for bootstrap and pre-auth PG operations.
-    pub fn default_identity(user_id: Option<Uuid>) -> Self {
-        let (tenant_id, workspace_id) = crate::services::identity_storage::default_identity_scope();
+    /// Tenant-level identity scope. Users and sessions do not belong to a workspace.
+    /// Keep the non-bypass role and transaction-local tenant/user context without
+    /// inventing a workspace that may be foreign, inactive, or not yet bootstrapped.
+    pub fn for_identity(tenant_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             tenant_id,
-            workspace_id: Some(workspace_id),
+            workspace_id: None,
             user_id,
         }
+    }
+
+    /// Default tenant scope for bootstrap and pre-auth identity/session operations.
+    pub fn default_identity(user_id: Option<Uuid>) -> Self {
+        Self::for_identity(crate::middleware::default_tenant_uuid(), user_id)
     }
 
     /// Build from explicit tenant/workspace/user UUIDs (membership checks).

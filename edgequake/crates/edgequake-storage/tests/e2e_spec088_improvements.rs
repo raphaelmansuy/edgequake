@@ -492,101 +492,6 @@ fn imp_075_07_08_09_api_dual_key_batch_source() {
     );
 }
 
-/// IMP-031-08: cascade source-prefix discovery is probe-first GIN (not tenant-first).
-#[test]
-fn imp_031_08_source_prefix_probe_first_materialized_source() {
-    let src = include_str!("../src/adapters/postgres/graph/scan_ops.rs");
-    assert!(
-        src.contains("probes AS MATERIALIZED")
-            && src.contains("hits AS MATERIALIZED")
-            && src.contains("IMP-031-08"),
-        "find_nodes/edges_by_source_prefixes must force GIN via MATERIALIZED probes"
-    );
-}
-
-/// IMP-031-08: EXPLAIN on production-shaped graph must use GIN, not Join Filter.
-#[tokio::test]
-async fn imp_031_08_e2e_explain_uses_source_ids_gin() {
-    let Some(url) = std::env::var("DATABASE_URL")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .or_else(|| Some("postgres://edgequake:edgequake_secret@localhost:5432/edgequake".into()))
-    else {
-        return;
-    };
-    let pool = match sqlx::postgres::PgPoolOptions::new()
-        .max_connections(1)
-        .connect(&url)
-        .await
-    {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    // Prefer the large default graph when present (incident repro).
-    let graph = "eq_eq_default_graph";
-    let exists: Option<(String,)> =
-        sqlx::query_as("SELECT nspname::text FROM pg_namespace WHERE nspname = $1")
-            .bind(graph)
-            .fetch_optional(&pool)
-            .await
-            .ok()
-            .flatten();
-    if exists.is_none() {
-        return;
-    }
-    let n: i64 = sqlx::query_scalar(&format!(r#"SELECT COUNT(*)::bigint FROM {graph}."Node""#))
-        .fetch_one(&pool)
-        .await
-        .unwrap_or(0);
-    if n < 1000 {
-        // Tiny graphs don't reproduce the tenant-first cliff.
-        return;
-    }
-    let doc = "019f933a-622a-74f5-baae-7a4591fc424f";
-    let sql = format!(
-        r#"
-        EXPLAIN (FORMAT TEXT)
-        WITH probes AS MATERIALIZED (
-          SELECT probe_id FROM unnest(ARRAY[$1]::text[]) AS t(probe_id)
-          UNION
-          SELECT (p.prefix || gs.i::text)
-          FROM unnest(ARRAY[$2]::text[]) AS p(prefix)
-          CROSS JOIN generate_series(0, 255) AS gs(i)
-        ),
-        hits AS MATERIALIZED (
-          SELECT v.properties
-          FROM probes pr
-          INNER JOIN {graph}."Node" v
-            ON ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
-               @> to_jsonb(pr.probe_id)
-        )
-        SELECT ag_catalog.agtype_to_json(h.properties)
-        FROM hits h
-        LIMIT 5000
-        "#
-    );
-    let rows = sqlx::query(&sql)
-        .bind(doc)
-        .bind(format!("{doc}-chunk-"))
-        .fetch_all(&pool)
-        .await
-        .expect("EXPLAIN");
-    let plan: String = rows
-        .iter()
-        .filter_map(|r| r.try_get::<String, _>(0).ok())
-        .collect::<Vec<_>>()
-        .join("\n");
-    let lower = plan.to_lowercase();
-    assert!(
-        lower.contains("idx_node_source_ids_gin") || lower.contains("bitmap index scan"),
-        "probe-first plan must use source_ids GIN:\n{plan}"
-    );
-    assert!(
-        !lower.contains("join filter"),
-        "must not recheck @> as Join Filter (tenant-first cliff):\n{plan}"
-    );
-}
-
 /// IMP-031-08 e2e: find_nodes_by_source_prefixes returns chunk-linked nodes under timeout.
 #[tokio::test]
 async fn imp_031_08_e2e_source_prefix_discovery_finds_nodes() {
@@ -595,6 +500,20 @@ async fn imp_031_08_e2e_source_prefix_discovery_finds_nodes() {
     let Some(config) = postgres_test_config::require_or_skip_postgres("imp031src") else {
         return;
     };
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .connect_with(config.connect_options())
+        .await
+        .expect("fixture pool");
+    let tenant = uuid::Uuid::new_v4();
+    let workspace = uuid::Uuid::new_v4();
+    sqlx::query("INSERT INTO tenants(tenant_id,name,slug) VALUES($1,'discovery fixture',$2)")
+        .bind(tenant)
+        .bind(format!("discovery-{tenant}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO workspaces(workspace_id,tenant_id,name,slug) VALUES($1,$2,'discovery fixture',$3)")
+        .bind(workspace).bind(tenant).bind(format!("discovery-{workspace}")).execute(&pool).await.unwrap();
     let graph = PostgresAGEGraphStorage::new(config);
     graph.initialize().await.expect("graph init");
 
@@ -606,16 +525,19 @@ async fn imp_031_08_e2e_source_prefix_discovery_finds_nodes() {
         "source_ids".into(),
         serde_json::json!([chunk0, format!("{doc}-chunk-1")]),
     );
-    props.insert("tenant_id".into(), serde_json::json!("t-imp031"));
-    props.insert("workspace_id".into(), serde_json::json!("ws-imp031"));
+    props.insert("tenant_id".into(), serde_json::json!(tenant.to_string()));
+    props.insert(
+        "workspace_id".into(),
+        serde_json::json!(workspace.to_string()),
+    );
     graph
         .upsert_nodes_batch(&[(format!("N-{doc}"), props)])
         .await
         .expect("upsert");
 
     let filter = NodeListFilter {
-        tenant_id: Some("t-imp031".into()),
-        workspace_id: Some("ws-imp031".into()),
+        tenant_id: Some(tenant.to_string()),
+        workspace_id: Some(workspace.to_string()),
         ..Default::default()
     };
     let found = graph
@@ -624,7 +546,7 @@ async fn imp_031_08_e2e_source_prefix_discovery_finds_nodes() {
         .expect("find_nodes_by_source_prefixes");
     assert!(
         found.iter().any(|n| n.id == format!("N-{doc}")),
-        "must discover node via GIN source_ids probe for doc {doc}, got {found:?}"
+        "must discover node via source_ids for doc {doc}, got {found:?}"
     );
 }
 

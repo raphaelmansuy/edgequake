@@ -45,12 +45,26 @@ pub async fn boot_with_providers(
     database_url: &str,
     providers: edgequake_api::state::data_access_providers::ProviderOverrides,
 ) -> LiveServer {
+    boot_with_auth(database_url, providers, true).await
+}
+
+/// Exercise the production PostgreSQL path used by auth-disabled browser clients.
+pub async fn boot_anonymous(database_url: &str) -> LiveServer {
+    boot_with_auth(database_url, Default::default(), false).await
+}
+
+async fn boot_with_auth(
+    database_url: &str,
+    providers: edgequake_api::state::data_access_providers::ProviderOverrides,
+    auth_enabled: bool,
+) -> LiveServer {
     prepare_env();
     let mut state = AppState::new_postgres_with_providers(database_url, "", providers)
         .await
         .expect("AppState::new_postgres must succeed");
-    state.auth.config.auth_enabled = true;
-    state.auth.config.dev_mode = false;
+    state.auth.config.auth_enabled = auth_enabled;
+    state.auth.config.allow_anonymous = !auth_enabled;
+    state.auth.config.dev_mode = !auth_enabled;
     state.auth.config.master_api_key = Some(API_KEY.to_string());
     state.security.cors_origins = Some(vec!["http://localhost:3000".into()]);
     let pool = state.pg_pool.as_ref().expect("P0 pool").clone();
