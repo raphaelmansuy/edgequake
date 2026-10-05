@@ -5,14 +5,12 @@
 
 use std::sync::Arc;
 
-use super::config::{AppConfig, SharedConversationService, SharedWorkspaceService, StorageMode};
+use super::config::{AppConfig, StorageMode};
 use super::{ApiSecurityConfig, AppState, AuthRuntime, QueryRuntime, StorageRuntime, TaskRuntime};
 use crate::cache_manager::CacheManager;
 use edgequake_audit::AuditLogger;
 use edgequake_core::env::apply_model_env_aliases;
-use edgequake_core::{ConversationServiceImpl, WorkspaceServiceImpl};
 use edgequake_rate_limiter::{RateLimitConfig as TokenBucketConfig, RateLimiter};
-use edgequake_storage::{traits::KVStorage, PostgresKVStorage};
 impl AppState {
     /// Load path validation configuration from environment.
     ///
@@ -79,6 +77,27 @@ impl AppState {
         database_url: impl Into<String>,
         llm_api_key: impl Into<String>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::new_postgres_with_providers(
+            database_url,
+            llm_api_key,
+            super::data_access_providers::ProviderOverrides::default(),
+        )
+        .await
+    }
+
+    /// Replace independently any relational, vector or graph factory. Factories
+    /// own their clients and provide all ports for their axis, including durable
+    /// projection delivery. PostgreSQL platform infrastructure (migration ledger,
+    /// audit, budgets and remaining SQL helpers) is still required by this constructor.
+    /// Environment-only alternate profiles retain the existing certification gate.
+    pub async fn new_postgres_with_providers(
+        database_url: impl Into<String>,
+        llm_api_key: impl Into<String>,
+        providers: super::data_access_providers::ProviderOverrides,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        use super::data_access_providers::{
+            PostgresProviderResources, ProviderContext, ProviderFactories,
+        };
         use edgequake_llm::ProviderFactory;
 
         // SPEC-149: validate profile, then refuse non-P0 until adapters are
@@ -94,7 +113,7 @@ impl AppState {
             graph_provider = ?data_access.config.graph.provider,
             vector_provider = ?data_access.config.vector.provider,
             binding_id = ?data_access.config.binding_id,
-            "Validated data-access provider profile (product-selected P0 only)"
+            "Validated default data-access infrastructure profile"
         );
 
         apply_model_env_aliases();
@@ -334,16 +353,6 @@ impl AppState {
             edgequake_storage::PgQuarantineSink::new(admin_pool.clone()),
         ));
 
-        // Checkpoint/artifact store is held on OperationalStores and passed
-        // explicitly into helpers. Do not register a process-global sidecar.
-        let checkpoint_artifact_store: Arc<
-            dyn edgequake_storage::contracts::CheckpointArtifactStore,
-        > = Arc::new(
-            crate::services::postgres_checkpoint_artifact_store::PostgresCheckpointArtifactStore::new(
-                admin_pool.clone(),
-            ),
-        );
-
         // SPEC-090 F-090-32: HNSW shape manifest drift (log + metric).
         if let Err(e) = edgequake_storage::check_hnsw_index_manifest(&admin_pool).await {
             tracing::warn!(error = %e, "SPEC-090: HNSW index manifest check failed");
@@ -381,35 +390,58 @@ impl AppState {
             c.max_connections = pool_bundle.query_max;
             PostgresPool::from_existing(query_pool.clone(), c)
         };
-        let kv_storage = Arc::new(PostgresKVStorage::with_pool(
-            ingest_pool.clone(),
-            pg_config.clone(),
-        ));
-        let kv_query = Arc::new(PostgresKVStorage::with_pool(
-            query_pg.clone(),
-            pg_config.clone(),
-        ));
-        let materialized = super::data_access_factory::DataAccessFactory::materialize_p0(
-            &data_access,
-            ingest_pool.clone(),
-            query_pg.clone(),
-            pg_config.clone(),
-            embedding_dim,
-        )
+        let auth_enabled = std::env::var("EDGEQUAKE_AUTH_ENABLED")
+            .map(|v| {
+                !matches!(
+                    v.to_ascii_lowercase().as_str(),
+                    "0" | "false" | "no" | "off"
+                )
+            })
+            .unwrap_or(true);
+        let dev_mode = std::env::var("EDGEQUAKE_DEV_MODE")
+            .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+            .unwrap_or(false);
+        let context = ProviderContext {
+            namespace: pg_config.namespace.clone(),
+            embedding_dimension: embedding_dim,
+            embedding_model: std::env::var("EDGEQUAKE_EMBEDDING_MODEL")
+                .unwrap_or_else(|_| "text-embedding-3-small".into()),
+            provision_defaults: crate::handlers::setup::should_provision_defaults_at_boot(
+                auth_enabled,
+                dev_mode,
+            ),
+        };
+        let materialized = ProviderFactories::postgres(PostgresProviderResources {
+            ingest: ingest_pool,
+            query: query_pg,
+            admin: admin_pool.clone(),
+            queue: queue_pool.clone(),
+            config: pg_config.clone(),
+        })
+        .with_overrides(providers)
+        .materialize(&context)
         .await?;
-        let graph_storage = Arc::clone(&materialized.graph_storage);
-        let graph_query = Arc::clone(&materialized.graph_query);
-        let vector_storage = Arc::clone(&materialized.vector_storage);
-        let vector_query = Arc::clone(&materialized.vector_query);
-        let vector_registry = Arc::clone(&materialized.vector_registry);
-        let ingestion_committer = Arc::clone(&materialized.ingestion_committer);
-        let lifecycle_committer = Arc::clone(&materialized.lifecycle_committer);
-        let document_reader = Arc::clone(&materialized.document_reader);
-        let projection_ledger = Arc::clone(&materialized.projection_ledger);
-        let recreated = materialized.recreated_default_vector;
+        tracing::info!(
+            relational_provider = %materialized.names.relational,
+            vector_provider = %materialized.names.vector,
+            graph_provider = %materialized.names.graph,
+            "Selected data-access factories and matching projection appliers"
+        );
+        let kv_storage = Arc::clone(&materialized.relational.kv_storage);
+        let kv_query = Arc::clone(&materialized.relational.kv_query);
+        let graph_storage = Arc::clone(&materialized.graph.storage);
+        let graph_query = Arc::clone(&materialized.graph.query);
+        let vector_storage = Arc::clone(&materialized.vector.storage);
+        let vector_query = Arc::clone(&materialized.vector.query);
+        let vector_registry = Arc::clone(&materialized.vector.registry);
+        let ingestion_committer = Arc::clone(&materialized.relational.ingestion_committer);
+        let lifecycle_committer = Arc::clone(&materialized.relational.lifecycle_committer);
+        let document_reader = Arc::clone(&materialized.relational.document_reader);
+        let projection_ledger = Arc::clone(&materialized.relational.projection_ledger);
+        let recreated = materialized.vector.recreated_default_vector;
 
         // First principles (SPEC-058 + per-workspace tables):
-        // materialize_p0 reconciles the default table with PreferExisting and
+        // The built-in vector factory reconciles with PreferExisting and
         // binds new workspace tables to the provider dimension.
         if recreated {
             tracing::warn!(
@@ -428,14 +460,22 @@ impl AppState {
 
         // Initialize storage backends to establish connections
         kv_storage.initialize().await?;
+        if !Arc::ptr_eq(&kv_storage, &kv_query) {
+            kv_query.initialize().await?;
+        }
         vector_storage.initialize().await?;
+        if !Arc::ptr_eq(&vector_storage, &vector_query) {
+            vector_query.initialize().await?;
+        }
 
         // SPEC-091 W3/IW2 (fail-fast): when the typed backend is authoritative,
         // `chunk_embeddings` (108) and fleet tables (130) must exist — refuse
         // to boot rather than degrade to 42P01 / empty ANN on first read/write.
-        if edgequake_storage::vector_backend_reads_typed(
-            edgequake_storage::vector_backend_from_env(),
-        ) {
+        if materialized.names.vector == "pgvector"
+            && edgequake_storage::vector_backend_reads_typed(
+                edgequake_storage::vector_backend_from_env(),
+            )
+        {
             let required: &[&str] = &[
                 "chunk_embeddings",
                 "entity_embeddings",
@@ -467,20 +507,27 @@ impl AppState {
             }
         }
         // SPEC-090 F-090-19: fail-closed on graph init unless EDGEQUAKE_ALLOW_NO_GRAPH=1.
-        if let Err(e) = graph_storage.initialize().await {
+        let initialize_graph = async {
+            graph_storage.initialize().await?;
+            if !Arc::ptr_eq(&graph_storage, &graph_query) {
+                graph_query.initialize().await?;
+            }
+            Ok::<(), edgequake_storage::StorageError>(())
+        };
+        if let Err(e) = initialize_graph.await {
             let allow = std::env::var("EDGEQUAKE_ALLOW_NO_GRAPH")
                 .ok()
                 .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false);
             if allow {
                 tracing::warn!(
-                    "Graph storage (Apache AGE) not available: {} \
+                    "Graph storage provider not available: {} \
                      — continuing with EDGEQUAKE_ALLOW_NO_GRAPH=1",
                     e
                 );
             } else {
                 return Err(format!(
-                    "Graph storage (Apache AGE) initialize failed: {e}. \
+                    "Graph storage provider initialize failed: {e}. \
                      Set EDGEQUAKE_ALLOW_NO_GRAPH=1 to start without graph storage."
                 )
                 .into());
@@ -491,50 +538,16 @@ impl AppState {
 
         tracing::info!("PostgreSQL storage backends initialized successfully");
 
-        // SPEC-091 IW3 (LD-14): refuse stale rollback flags against dropped stores.
-        // SPEC-091 Doc 23: seed KV relation Absent cache from the same census (LAW-KVH2).
-        {
-            let posture = edgequake_storage::detect_cutover_posture(&admin_pool)
-                .await
-                .map_err(|e| format!("SPEC-091 cutover posture probe failed: {e}"))?;
-            edgequake_storage::validate_cutover_flags(&posture)?;
-            kv_storage.seed_relation_from_dropped(posture.kv_store_dropped);
-            kv_query.seed_relation_from_dropped(posture.kv_store_dropped);
-        }
-
-        // SPEC-149 R1: durable replay uses real AGE/typed-pgvector appliers.
-        // Noop appliers are test-only and must never acknowledge production work.
-        // Spawn first so SPEC-091 drains can yield provider writes to this worker.
-        let projection_worker = {
-            let model = std::env::var("EDGEQUAKE_EMBEDDING_MODEL")
-                .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-            let chunk_index: Arc<dyn edgequake_storage::traits::domain::EmbeddingIndex> = Arc::new(
-                edgequake_storage::PgChunkEmbeddingIndex::new(admin_pool.clone(), model.clone()),
-            );
-            let fleet_index: Arc<dyn edgequake_storage::traits::FleetEmbeddingIndex> = Arc::new(
-                edgequake_storage::PgFleetEmbeddingIndex::new(admin_pool.clone(), model),
-            );
-            let graph_applier: Arc<dyn edgequake_storage::GraphProjectionApplier> =
-                Arc::new(edgequake_storage::AgeGraphProjectionApplier::new(
-                    Arc::clone(&graph_storage),
-                    admin_pool.clone(),
-                ));
-            let vector_applier: Arc<dyn edgequake_storage::VectorProjectionApplier> =
-                Arc::new(edgequake_storage::PgvectorProjectionApplier::new(
-                    chunk_index,
-                    Some(fleet_index),
-                    admin_pool.clone(),
-                ));
-            // The ledger ack opens the SPEC-091 fence in the same transaction.
-            Some(Arc::new(edgequake_storage::ProjectionWorkerRuntime::spawn(
-                uuid::Uuid::new_v4(),
-                Arc::clone(&projection_ledger),
-                graph_applier,
-                vector_applier,
-                edgequake_storage::ProjectionWorkerConfig::default(),
-                std::time::Duration::from_millis(500),
-            )))
-        };
+        // Selected graph/vector factories supply their own durable delivery
+        // adapters. Reads and replay can no longer select different providers.
+        let projection_worker = Some(Arc::new(edgequake_storage::ProjectionWorkerRuntime::spawn(
+            uuid::Uuid::new_v4(),
+            Arc::clone(&projection_ledger),
+            Arc::clone(&materialized.graph.projection_applier),
+            Arc::clone(&materialized.vector.projection_applier),
+            edgequake_storage::ProjectionWorkerConfig::default(),
+            std::time::Duration::from_millis(500),
+        )));
 
         // SPEC-091 IW3: compensation drain mutates graph/vector. Skip it when the
         // projection worker is the sole provider writer (always on P0 postgres boot).
@@ -564,43 +577,14 @@ impl AppState {
         tracing::info!(
             provider = embedding_provider.name(),
             dimension = embedding_provider.dimension(),
-            storage_type = "postgres",
+            storage_type = %materialized.names.vector,
             namespace = "default",
             recreated = recreated,
             "Vector storage validated successfully"
         );
 
-        // Create workspace service for full persistence
-        let workspace_service_impl = WorkspaceServiceImpl::new(pool.clone());
-
-        // SPEC-101: Skip silent Default seed on secure fresh installs (wizard owns creation).
-        // Escape hatches: EDGEQUAKE_PROVISION_DEFAULTS / EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD /
-        // auth disabled / dev_mode (LAW-101-7).
-        let auth_enabled = std::env::var("EDGEQUAKE_AUTH_ENABLED")
-            .map(|v| {
-                !matches!(
-                    v.to_ascii_lowercase().as_str(),
-                    "0" | "false" | "no" | "off"
-                )
-            })
-            .unwrap_or(true);
-        let dev_mode = std::env::var("EDGEQUAKE_DEV_MODE")
-            .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
-            .unwrap_or(false);
-        if crate::handlers::setup::should_provision_defaults_at_boot(auth_enabled, dev_mode) {
-            workspace_service_impl.ensure_defaults().await?;
-            tracing::info!("Default tenant and workspace ensured in PostgreSQL");
-        } else {
-            tracing::info!(
-                "SPEC-101: skipping silent default tenant/workspace provision (first-run wizard)"
-            );
-        }
-
-        let workspace_service: SharedWorkspaceService = Arc::new(workspace_service_impl);
-
-        // Create conversation service
-        let conversation_service: SharedConversationService =
-            Arc::new(ConversationServiceImpl::new(pool.clone()));
+        let workspace_service = Arc::clone(&materialized.relational.workspace_service);
+        let conversation_service = Arc::clone(&materialized.relational.conversation_service);
 
         let pipeline = super::query_bootstrap::build_ingestion_pipeline(
             Arc::clone(&llm_provider) as Arc<dyn edgequake_llm::traits::LLMProvider>,
@@ -610,11 +594,9 @@ impl AppState {
         // Create task infrastructure (OODA-06: Use PostgreSQL for task persistence)
         // WHY: Tasks must persist across backend restarts so cancel/retry work correctly.
         // Previous bug: MemoryTaskStorage was used, causing tasks to be lost on restart.
-        let task_storage: edgequake_tasks::SharedTaskStorage = Arc::new(
-            edgequake_tasks::postgres::PostgresTaskStorage::new(queue_pool.clone()),
-        );
+        let task_storage = Arc::clone(&materialized.relational.task_storage);
         let task_queue = Arc::new(edgequake_tasks::queue::ChannelTaskQueue::new(100));
-        tracing::info!("✓ Task storage: PostgreSQL queue pool (SPEC-090 F-090-28)");
+        tracing::info!(relational_provider = %materialized.names.relational, "Task storage selected by relational factory");
 
         let engine_impl = super::query_bootstrap::build_production_query_engine(
             Arc::clone(&vector_query),
@@ -636,40 +618,25 @@ impl AppState {
 
         // Create auth services
         // SPEC-158: durable federation store (identities, handoff codes, sessions, providers).
-        let auth = AuthRuntime::from_env().with_federation_store(Arc::new(
-            crate::services::federation::pg_store::PgFederationStore::new(pool.clone()),
-        ));
+        let auth = AuthRuntime::from_env()
+            .with_federation_store(Arc::clone(&materialized.relational.federation_store));
         match auth.reload_providers().await {
             Ok(n) => tracing::info!(providers = n, "SPEC-158 identity providers loaded"),
             Err(e) => tracing::warn!(error = %e, "SPEC-158 identity provider load failed"),
         }
 
-        // Create PDF storage (SPEC-007) - uses the connection pool
-        let pdf_storage: Arc<dyn edgequake_storage::PdfDocumentStorage> =
-            Arc::new(edgequake_storage::PostgresPdfStorage::new(pool.clone()));
-        let original_storage: Arc<dyn edgequake_storage::DocumentOriginalStorage> = Arc::new(
-            edgequake_storage::PostgresOriginalStorage::new(pool.clone()),
-        );
-        let mm_asset_storage: Arc<dyn edgequake_storage::DocumentMmAssetStorage> =
-            Arc::new(edgequake_storage::PostgresMmAssetStorage::new(pool.clone()));
-        let page_layout_storage: Arc<dyn edgequake_storage::DocumentPageLayoutStorage> = Arc::new(
-            edgequake_storage::PostgresPageLayoutStorage::new(pool.clone()),
-        );
-        let page_state_storage: Arc<dyn edgequake_storage::PageStateStorage> = Arc::new(
-            edgequake_storage::PostgresPageStateStorage::new(pool.clone()),
-        );
-
+        let documents = &materialized.relational.documents;
         let storage = StorageRuntime {
             kv_storage: Arc::clone(&kv_storage) as Arc<dyn edgequake_storage::traits::KVStorage>,
             vector_storage: Arc::clone(&vector_storage),
             vector_registry,
             graph_storage: Arc::clone(&graph_storage),
             auth_memory: Arc::new(crate::services::auth_memory_store::AuthMemoryStore::new()),
-            pdf_storage: Some(pdf_storage),
-            original_storage: Some(original_storage),
-            mm_asset_storage: Some(mm_asset_storage),
-            page_layout_storage: Some(page_layout_storage),
-            page_state_storage: Some(page_state_storage),
+            pdf_storage: Some(Arc::clone(&documents.pdf)),
+            original_storage: Some(Arc::clone(&documents.originals)),
+            mm_asset_storage: Some(Arc::clone(&documents.multimodal_assets)),
+            page_layout_storage: Some(Arc::clone(&documents.page_layouts)),
+            page_state_storage: Some(Arc::clone(&documents.page_states)),
             mode: StorageMode::PostgreSQL,
         };
         storage.validate_postgres_adapters()?;
@@ -681,20 +648,7 @@ impl AppState {
         let configured_pool_size = pool_bundle.total_max_connections() as usize;
         crate::read_path::warn_if_local_pool_oversized(configured_pool_size, llm_provider.name());
 
-        let operational_stores = super::OperationalStores {
-            identity: Some(Arc::new(
-                crate::services::postgres_identity_store::PostgresIdentityStore::new(pool.clone()),
-            )),
-            sessions: Some(Arc::new(
-                crate::services::postgres_session_store::PostgresSessionStore::new(pool.clone()),
-            )),
-            workspaces: Some(Arc::new(
-                crate::services::postgres_workspace_store::PostgresWorkspaceStore::new(
-                    pool.clone(),
-                ),
-            )),
-            checkpoint_artifacts: Some(checkpoint_artifact_store),
-        };
+        let operational_stores = materialized.relational.operational.clone();
 
         let app_state = Self {
             storage,
@@ -713,11 +667,9 @@ impl AppState {
             workspace_service,
             conversation_service,
             operational_stores,
-            decision: edgequake_pipeline::extractor::decision::DecisionRuntime::from_env(Arc::new(
-                edgequake_storage::adapters::postgres::decision_store::PostgresDecisionStore::new(
-                    pool.clone(),
-                ),
-            )),
+            decision: edgequake_pipeline::extractor::decision::DecisionRuntime::from_env(
+                Arc::clone(&materialized.relational.decision_store),
+            ),
             config: AppConfig::default(),
             cache_manager: CacheManager::with_defaults(),
             rate_limiter: RateLimiter::new(TokenBucketConfig::default()),

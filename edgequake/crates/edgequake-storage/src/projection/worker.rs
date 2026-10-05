@@ -19,6 +19,11 @@ use super::serving_fence_port::ServingFenceOpener;
 
 #[async_trait]
 pub trait GraphProjectionApplier: Send + Sync {
+    /// Binding identity accepted by this applier. Alternate providers override it.
+    fn provider_name(&self) -> &str {
+        "age"
+    }
+
     /// One provider entry for a claim-role group. Length of receipts matches `items`.
     async fn apply_batch(
         &self,
@@ -39,6 +44,11 @@ pub trait GraphProjectionApplier: Send + Sync {
 
 #[async_trait]
 pub trait VectorProjectionApplier: Send + Sync {
+    /// Binding identity accepted by this applier. Alternate providers override it.
+    fn provider_name(&self) -> &str {
+        "pgvector"
+    }
+
     /// One provider entry for a claim-role group. Length of receipts matches `items`.
     async fn apply_batch(
         &self,
@@ -220,11 +230,15 @@ impl ProjectionWorker {
         self.counters.claim_calls.fetch_add(1, Ordering::Relaxed);
         let items = self
             .ledger
-            .claim_work(&ClaimDeliveries {
-                owner_token: self.owner_token,
-                limit: self.config.batch_size,
-                lease_duration_ms: self.config.lease_duration_ms,
-            })
+            .claim_work_for_providers(
+                &ClaimDeliveries {
+                    owner_token: self.owner_token,
+                    limit: self.config.batch_size,
+                    lease_duration_ms: self.config.lease_duration_ms,
+                },
+                self.graph.provider_name(),
+                self.vector.provider_name(),
+            )
             .await?;
 
         let mut report = ProjectionRunReport {
@@ -289,11 +303,11 @@ impl ProjectionWorker {
             if let Err(error) = match target {
                 ProjectionTarget::Graph => {
                     item.binding.require_graph()?;
-                    item.binding.require_provider("age")
+                    item.binding.require_provider(self.graph.provider_name())
                 }
                 ProjectionTarget::Vector => {
                     item.binding.require_vector()?;
-                    item.binding.require_provider("pgvector")
+                    item.binding.require_provider(self.vector.provider_name())
                 }
             } {
                 self.quarantine(&item, error.to_string(), report).await?;
@@ -696,6 +710,97 @@ mod tests {
             Arc::new(NoopVectorProjectionApplier),
             ProjectionWorkerConfig::default(),
         )
+    }
+
+    struct AlternateGraphApplier;
+
+    #[async_trait]
+    impl GraphProjectionApplier for AlternateGraphApplier {
+        fn provider_name(&self) -> &str {
+            "alternate_graph"
+        }
+
+        async fn apply_batch(
+            &self,
+            items: &[(&ProjectionEvent, &DataBindingDescriptor)],
+        ) -> AccessResult<Vec<ProjectionApplyReceipt>> {
+            NoopGraphProjectionApplier.apply_batch(items).await
+        }
+    }
+
+    #[tokio::test]
+    async fn selected_graph_provider_accepts_its_binding_and_rejects_others() {
+        for (provider, expected_applied, expected_quarantined) in
+            [("alternate_graph", 1, 0), ("age", 0, 1)]
+        {
+            let mut item = work(PROJECTION_SCHEMA_V1);
+            item.binding.provider = provider.into();
+            let ledger = Arc::new(FakeLedger {
+                item: Mutex::new(Some(item)),
+                ack_result: Mutex::new(Some(Ok(delivery(1)))),
+                quarantines: AtomicU64::new(0),
+            });
+            let worker = ProjectionWorker::new(
+                Uuid::from_u128(3),
+                ledger,
+                Arc::new(AlternateGraphApplier),
+                Arc::new(NoopVectorProjectionApplier),
+                ProjectionWorkerConfig::default(),
+            );
+            let report = worker.run_once().await.unwrap();
+            assert_eq!(report.applied, expected_applied);
+            assert_eq!(report.quarantined, expected_quarantined);
+            assert_eq!(
+                worker.counters().snapshot().graph_apply_calls,
+                expected_applied
+            );
+        }
+    }
+
+    struct AlternateVectorApplier;
+
+    #[async_trait]
+    impl VectorProjectionApplier for AlternateVectorApplier {
+        fn provider_name(&self) -> &str {
+            "alternate_vector"
+        }
+
+        async fn apply_batch(
+            &self,
+            items: &[(&ProjectionEvent, &DataBindingDescriptor)],
+        ) -> AccessResult<Vec<ProjectionApplyReceipt>> {
+            NoopVectorProjectionApplier.apply_batch(items).await
+        }
+    }
+
+    #[tokio::test]
+    async fn selected_vector_provider_accepts_its_binding_and_rejects_others() {
+        for (provider, expected_applied, expected_quarantined) in
+            [("alternate_vector", 1, 0), ("pgvector", 0, 1)]
+        {
+            let mut item = work(PROJECTION_SCHEMA_V1);
+            item.binding.role = edgequake_storage_contracts::BindingRole::Vector;
+            item.binding.provider = provider.into();
+            let ledger = Arc::new(FakeLedger {
+                item: Mutex::new(Some(item)),
+                ack_result: Mutex::new(Some(Ok(delivery(1)))),
+                quarantines: AtomicU64::new(0),
+            });
+            let worker = ProjectionWorker::new(
+                Uuid::from_u128(3),
+                ledger,
+                Arc::new(NoopGraphProjectionApplier),
+                Arc::new(AlternateVectorApplier),
+                ProjectionWorkerConfig::default(),
+            );
+            let report = worker.run_once().await.unwrap();
+            assert_eq!(report.applied, expected_applied);
+            assert_eq!(report.quarantined, expected_quarantined);
+            assert_eq!(
+                worker.counters().snapshot().vector_apply_calls,
+                expected_applied
+            );
+        }
     }
 
     struct RecordingOpener {

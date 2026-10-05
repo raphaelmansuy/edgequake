@@ -28,6 +28,8 @@ use tokio::task::JoinHandle;
 use tower::ServiceExt;
 
 #[cfg(feature = "postgres")]
+pub mod dal_provider_measurements;
+#[cfg(feature = "postgres")]
 pub mod provider_access;
 #[cfg(feature = "postgres")]
 pub mod spec013_postgres;

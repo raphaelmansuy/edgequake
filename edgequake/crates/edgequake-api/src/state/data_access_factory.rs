@@ -8,9 +8,7 @@ use edgequake_storage::StorageError;
 use edgequake_storage::{
     contracts::{DocumentReader, IngestionCommitter, LifecycleCommitter},
     traits::{GraphStorage, VectorStorage, WorkspaceVectorRegistry},
-    DimensionEnsureOutcome, DimensionReconcilePolicy, PgIngestionCommitter, PgProjectionLedger,
-    PgVectorStorage, PgWorkspaceVectorRegistry, PostgresAGEGraphStorage, PostgresConfig,
-    PostgresPool, ProjectionWorkLedger,
+    PostgresConfig, PostgresPool, ProjectionWorkLedger,
 };
 #[cfg(feature = "postgres")]
 use std::sync::Arc;
@@ -236,79 +234,39 @@ impl DataAccessFactory {
         embedding_dim: usize,
     ) -> Result<MaterializedP0Runtimes, StorageError> {
         validated.assert_product_serving_allowed()?;
-
-        let graph_storage: Arc<dyn GraphStorage> = Arc::new(PostgresAGEGraphStorage::with_pool(
-            ingest_pool.clone(),
-            pg_config.clone(),
-        ));
-        let graph_query: Arc<dyn GraphStorage> = Arc::new(PostgresAGEGraphStorage::with_pool(
-            query_pool.clone(),
-            pg_config.clone(),
-        ));
-
-        let provisional = PgVectorStorage::with_pool_and_dimension(
-            ingest_pool.clone(),
-            pg_config.clone(),
-            embedding_dim,
-        );
-        let outcome = provisional
-            .reconcile_dimension(embedding_dim, DimensionReconcilePolicy::PreferExisting)
-            .await?;
-        let (vector_storage, recreated_default_vector): (Arc<dyn VectorStorage>, bool) =
-            match outcome {
-                DimensionEnsureOutcome::Matched => (Arc::new(provisional), false),
-                DimensionEnsureOutcome::Recreated => (Arc::new(provisional), true),
-                DimensionEnsureOutcome::KeptExisting { stored, required } => {
-                    tracing::warn!(
-                        stored_dimension = stored,
-                        provider_dimension = required,
-                        "Default vector table kept at stored dimension (PreferExisting)"
-                    );
-                    (
-                        Arc::new(PgVectorStorage::with_pool_and_dimension(
-                            ingest_pool.clone(),
-                            pg_config.clone(),
-                            stored,
-                        )),
-                        false,
-                    )
-                }
-            };
-        let vector_query: Arc<dyn VectorStorage> =
-            Arc::new(PgVectorStorage::with_pool_and_dimension(
-                query_pool,
-                pg_config.clone(),
-                vector_storage.dimension(),
-            ));
-        let vector_registry: Arc<dyn WorkspaceVectorRegistry> =
-            Arc::new(PgWorkspaceVectorRegistry::new(
-                pg_config,
-                ingest_pool.clone(),
-                Arc::clone(&vector_storage),
-                embedding_dim,
-            ));
-
+        use super::data_access_providers::{
+            PostgresProviderResources, ProviderContext, ProviderFactories,
+        };
         let sqlx_pool = ingest_pool.get().await?;
-        let committer = Arc::new(PgIngestionCommitter::new(sqlx_pool.clone()));
-        let ingestion_committer: Arc<dyn IngestionCommitter> = committer.clone();
-        let lifecycle_committer: Arc<dyn LifecycleCommitter> = committer.clone();
-        let document_reader: Arc<dyn DocumentReader> = committer;
-        let projection_ledger: Arc<dyn ProjectionWorkLedger> =
-            Arc::new(PgProjectionLedger::new(sqlx_pool));
-
+        let context = ProviderContext {
+            namespace: pg_config.namespace.clone(),
+            embedding_dimension: embedding_dim,
+            embedding_model: std::env::var("EDGEQUAKE_EMBEDDING_MODEL")
+                .unwrap_or_else(|_| "text-embedding-3-small".into()),
+            provision_defaults: false,
+        };
+        let providers = ProviderFactories::postgres(PostgresProviderResources {
+            ingest: ingest_pool,
+            query: query_pool,
+            admin: sqlx_pool.clone(),
+            queue: sqlx_pool,
+            config: pg_config,
+        })
+        .materialize(&context)
+        .await?;
         Ok(MaterializedP0Runtimes {
             profile_label: "P0".into(),
             config: validated.config.clone(),
-            graph_storage,
-            graph_query,
-            vector_storage,
-            vector_query,
-            vector_registry,
-            ingestion_committer,
-            lifecycle_committer,
-            document_reader,
-            projection_ledger,
-            recreated_default_vector,
+            graph_storage: providers.graph.storage,
+            graph_query: providers.graph.query,
+            vector_storage: providers.vector.storage,
+            vector_query: providers.vector.query,
+            vector_registry: providers.vector.registry,
+            ingestion_committer: providers.relational.ingestion_committer,
+            lifecycle_committer: providers.relational.lifecycle_committer,
+            document_reader: providers.relational.document_reader,
+            projection_ledger: providers.relational.projection_ledger,
+            recreated_default_vector: providers.vector.recreated_default_vector,
         })
     }
 

@@ -22,6 +22,17 @@ const MAX_LEASE_MS: u64 = 86_400_000;
 pub trait ProjectionWorkLedger: Send + Sync {
     async fn claim_work(&self, request: &ClaimDeliveries) -> AccessResult<Vec<ProjectionWorkItem>>;
 
+    /// Shared-queue adapters must select provider bindings before leasing. The
+    /// compatibility default is for existing adapters owning an isolated queue.
+    async fn claim_work_for_providers(
+        &self,
+        request: &ClaimDeliveries,
+        _graph_provider: &str,
+        _vector_provider: &str,
+    ) -> AccessResult<Vec<ProjectionWorkItem>> {
+        self.claim_work(request).await
+    }
+
     async fn renew_work(&self, request: &RenewDelivery) -> AccessResult<()>;
 
     /// One fenced renew for many deliveries. Returns pairs that still match.
@@ -77,9 +88,13 @@ impl PgProjectionLedger {
     }
 }
 
-#[async_trait]
-impl ProjectionWorkLedger for PgProjectionLedger {
-    async fn claim_work(&self, request: &ClaimDeliveries) -> AccessResult<Vec<ProjectionWorkItem>> {
+impl PgProjectionLedger {
+    async fn claim_selected(
+        &self,
+        request: &ClaimDeliveries,
+        graph_provider: Option<&str>,
+        vector_provider: Option<&str>,
+    ) -> AccessResult<Vec<ProjectionWorkItem>> {
         validate_claim(request)?;
         let mut tx = self.pool.begin().await.map_err(database_error)?;
         sqlx::query(RECLAIM_EXPIRED_SQL)
@@ -91,6 +106,8 @@ impl ProjectionWorkLedger for PgProjectionLedger {
             .bind(i64::from(request.limit))
             .bind(request.owner_token)
             .bind(lease_ms(request.lease_duration_ms)?)
+            .bind(graph_provider)
+            .bind(vector_provider)
             .fetch_all(&mut *tx)
             .await
             .map_err(database_error)?;
@@ -99,6 +116,23 @@ impl ProjectionWorkLedger for PgProjectionLedger {
         // method, so callers cannot hold row locks during provider I/O.
         tx.commit().await.map_err(database_error)?;
         rows.into_iter().map(ClaimedRow::try_into_work).collect()
+    }
+}
+
+#[async_trait]
+impl ProjectionWorkLedger for PgProjectionLedger {
+    async fn claim_work(&self, request: &ClaimDeliveries) -> AccessResult<Vec<ProjectionWorkItem>> {
+        self.claim_selected(request, None, None).await
+    }
+
+    async fn claim_work_for_providers(
+        &self,
+        request: &ClaimDeliveries,
+        graph_provider: &str,
+        vector_provider: &str,
+    ) -> AccessResult<Vec<ProjectionWorkItem>> {
+        self.claim_selected(request, Some(graph_provider), Some(vector_provider))
+            .await
     }
 
     async fn renew_work(&self, request: &RenewDelivery) -> AccessResult<()> {
@@ -562,6 +596,12 @@ WITH due AS (
     SELECT event_id, binding_id
     FROM public.projection_deliveries
     WHERE state IN ('pending', 'retry') AND next_attempt_at <= now()
+      AND ($4::text IS NULL OR EXISTS (
+          SELECT 1 FROM public.data_bindings b
+          WHERE b.binding_id = projection_deliveries.binding_id
+            AND ((b.role IN ('graph', 'graph_projection') AND b.provider = $4)
+              OR (b.role IN ('vector', 'vector_projection', 'embedding') AND b.provider = $5))
+      ))
     ORDER BY next_attempt_at, event_id, binding_id
     LIMIT $1
     FOR UPDATE SKIP LOCKED

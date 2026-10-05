@@ -75,6 +75,8 @@ mod compliance_runtime;
 mod config;
 pub mod data_access_config;
 pub mod data_access_factory;
+#[cfg(feature = "postgres")]
+pub mod data_access_providers;
 mod graph_query_runtime;
 mod memory;
 #[cfg(feature = "postgres")]

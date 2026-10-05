@@ -17,7 +17,12 @@ pub struct OperationalStores {
 }
 
 impl OperationalStores {
+    /// Compatibility alias for the original P3 certification gate.
     pub fn required_p3_ports_present(&self) -> bool {
+        self.required_ports_present()
+    }
+
+    pub fn required_ports_present(&self) -> bool {
         self.identity.is_some()
             && self.sessions.is_some()
             && self.workspaces.is_some()

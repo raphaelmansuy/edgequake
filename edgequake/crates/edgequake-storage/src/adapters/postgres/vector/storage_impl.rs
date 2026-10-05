@@ -68,6 +68,7 @@ impl VectorStorage for PgVectorStorage {
     ) -> Result<Vec<VectorSearchResult>> {
         let _timer =
             crate::TimedStorageOp::start_dataop(crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_001);
+        self.validate_query_dimension(query_embedding)?;
         // #405 sibling: typed dense ANN is workspace-scoped via query_filtered.
         // Unfiltered query cannot express a workspace — never SELECT retired eq_*_vectors.
         if crate::vector_backend::vector_backend_reads_typed(crate::vector_backend_from_env()) {
@@ -750,6 +751,7 @@ impl VectorStorage for PgVectorStorage {
         let _timed = crate::TimedStorageOp::start_dataop(
             crate::dataop::DATA_PGVEC_VECTORS_ANN_QUERY_FILTERED_002,
         );
+        self.validate_query_dimension(query_embedding)?;
         // Fast path: if no metadata filter, delegate to standard query.
         // #405 sibling: typed ANN is workspace-scoped — empty filter → empty
         // (never unfiltered legacy SELECT).

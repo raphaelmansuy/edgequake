@@ -986,32 +986,25 @@ async fn ensure_p0_bindings_in_transaction(
     for role in P0_REQUIRED_ROLES {
         let descriptor = PgBindingRegistry::descriptor_for_role(scope, *role);
         // Inline upsert keeps provisioning inside the authority transaction.
-        sqlx::query(
-            r#"
-            INSERT INTO public.data_bindings (
-                binding_id, tenant_id, workspace_id, role, provider, config_ref,
-                layout, physical_index, model_descriptor, generation, state
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (binding_id) DO NOTHING
-            "#,
-        )
-        .bind(descriptor.binding_id)
-        .bind(tenant_id)
-        .bind(workspace_id)
-        .bind(descriptor.role.as_str())
-        .bind(&descriptor.provider)
-        .bind(&descriptor.config_ref)
-        .bind(&descriptor.layout)
-        .bind(&descriptor.physical_index)
-        .bind(descriptor.model_descriptor.as_deref())
-        .bind(
-            i64::try_from(descriptor.generation)
-                .map_err(|_| AccessError::InvalidInput("binding generation exceeds i64".into()))?,
-        )
-        .bind(BindingState::Active.as_str())
-        .execute(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("ensure P0 data binding", error))?;
+        sqlx::query(super::binding_registry::INSERT_DEFAULT_BINDING)
+            .bind(descriptor.binding_id)
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .bind(descriptor.role.as_str())
+            .bind(&descriptor.provider)
+            .bind(&descriptor.config_ref)
+            .bind(&descriptor.layout)
+            .bind(&descriptor.physical_index)
+            .bind(descriptor.model_descriptor.as_deref())
+            .bind(
+                i64::try_from(descriptor.generation).map_err(|_| {
+                    AccessError::InvalidInput("binding generation exceeds i64".into())
+                })?,
+            )
+            .bind(BindingState::Active.as_str())
+            .execute(&mut **tx)
+            .await
+            .map_err(|error| classify_sqlx("ensure P0 data binding", error))?;
     }
 
     let active: Vec<(Uuid, String, String)> = sqlx::query_as(

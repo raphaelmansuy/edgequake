@@ -41,6 +41,9 @@ mod search_tuning;
 mod storage_impl;
 pub mod typed_read;
 
+#[cfg(test)]
+mod query_validation_tests;
+
 pub use fts::{
     fts_language_from_env, sanitize_fts_language, DEFAULT_FTS_LANGUAGE, FTS_LANGUAGE_ENV,
 };
@@ -81,6 +84,18 @@ pub struct PgVectorStorage {
 }
 
 impl PgVectorStorage {
+    /// Reject incompatible embeddings before any typed or legacy query shortcut.
+    pub(crate) fn validate_query_dimension(&self, embedding: &[f32]) -> crate::error::Result<()> {
+        if embedding.len() != self.dimension {
+            return Err(crate::error::StorageError::InvalidQuery(format!(
+                "Query dimension {} does not match storage dimension {}",
+                embedding.len(),
+                self.dimension
+            )));
+        }
+        Ok(())
+    }
+
     /// Single constructor path (STORE-P3-15): all public factories delegate here.
     fn from_parts(pool: PostgresPool, config: PostgresConfig, dimension: usize) -> Self {
         let prefix = config.table_prefix();

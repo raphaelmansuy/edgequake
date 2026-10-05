@@ -219,6 +219,33 @@ jobs:
             /tmp/postgres-index-plans.jsonl
           if-no-files-found: warn
 
+      - name: Verify independently injected DAL providers
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_PROVIDER_ACCESS_E2E: "1"
+          EDGEQUAKE_REQUIRE_PROVIDER_ACCESS: "1"
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          EQ_DAL_PROVIDER_REPORT: /tmp/dal-provider-composition.json
+          EQ_PROJECTION_PROVIDER_PLAN_OUTPUT: /tmp/dal-provider-plans.json
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-api --features postgres --test e2e_dal_provider_composition \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/dal-provider-composition.log
+          cargo test -p edgequake-storage --features postgres --test postgres_projection_provider_plans \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/dal-provider-plans.log
+
+      - name: Archive DAL provider composition measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dal-provider-composition
+          path: |
+            /tmp/dal-provider-composition.json
+            /tmp/dal-provider-composition.log
+            /tmp/dal-provider-plans.json
+            /tmp/dal-provider-plans.log
+          if-no-files-found: warn
+
       - name: Run SPEC-149 provider-access projection tests
         working-directory: edgequake
         env:

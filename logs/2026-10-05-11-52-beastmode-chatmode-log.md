@@ -1,0 +1,4 @@
+Actions: Added and wired three injectable DAL provider factories; verified HTTP routing, scoped durable delivery, crash recovery, query dimensions and migrated index plans; recorded 2151 passing test executions and measurements.
+Decisions: Reused existing narrow ports and centralized built-in construction; retained PostgreSQL platform infrastructure and alternate-profile certification gates; custom fixtures certify composition and chunk upserts.
+Next steps: None for this DAL preparation; certify concrete external providers and their lifecycle behavior when implementing them through ProviderOverrides.
+Lessons/insights: Mock embeddings are fixed at 1536 dimensions; positive retrieval assertions expose false-empty results; shared projection workers must filter provider bindings before leasing.

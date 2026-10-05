@@ -1,0 +1,54 @@
+{
+  "captured_at_utc": "2026-10-05T03:51:54.045645+00:00",
+  "tested_worktree_parent": "3b6585adb44605271e10bc5654cfc8fca17312d8",
+  "server_version": "18.4 (Debian 18.4-1.pgdg12+1)",
+  "extensions": {
+    "plpgsql": "1.0",
+    "uuid-ossp": "1.1",
+    "vector": "0.8.5",
+    "age": "1.8.0",
+    "pg_trgm": "1.6"
+  },
+  "database_scope": "dedicated edgequake_test database; synthetic fixture data only",
+  "schema": "edgequake.dal.provider-composition.v1",
+  "fixture": "two isolated scopes; one document/chunk/node per scope; 1536D mock embeddings; mock LLM",
+  "baseline": {
+    "warmups": 3,
+    "graph_http": {
+      "samples": 21,
+      "p50_ms": 5.421084,
+      "p95_ms": 7.585209,
+      "max_ms": 8.474583
+    },
+    "vector_query_http": {
+      "samples": 21,
+      "p50_ms": 8.215,
+      "p95_ms": 9.358583,
+      "max_ms": 10.152332999999999
+    }
+  },
+  "injected": {
+    "warmups": 3,
+    "graph_http": {
+      "samples": 21,
+      "p50_ms": 1.9875420000000001,
+      "p95_ms": 2.341,
+      "max_ms": 2.345583
+    },
+    "vector_query_http": {
+      "samples": 21,
+      "p50_ms": 3.10525,
+      "p95_ms": 3.615334,
+      "max_ms": 4.552416
+    }
+  },
+  "providers": {
+    "relational": "PostgreSQL authority plus injected memory WorkspaceService",
+    "vector": "MemoryVectorStorage + workspace registry",
+    "graph": "MemoryGraphStorage"
+  },
+  "limitations": "Fixture certifies composition and chunk upserts; not Qdrant/Neo4j/SQLite deployments or alternate lifecycle deletion",
+  "durable_deliveries": 2,
+  "concurrent_provider_workers": 2,
+  "cross_scope_leaks": 0
+}

@@ -15,9 +15,11 @@ use super::fixtures;
 
 pub const API_KEY: &str = "provider-access-e2e-key";
 pub const EMBED_MODEL: &str = "text-embedding-3-small";
-pub const EMBED_DIM: usize = 3;
+// Upstream MockProvider emits 1536 dimensions regardless of the requested size.
+pub const EMBED_DIM: usize = 1536;
 
 pub struct LiveServer {
+    pub state: AppState,
     pub base: String,
     pub pool: sqlx::PgPool,
     pub client: reqwest::Client,
@@ -36,8 +38,15 @@ pub fn prepare_env() {
 }
 
 pub async fn boot(database_url: &str) -> LiveServer {
+    boot_with_providers(database_url, Default::default()).await
+}
+
+pub async fn boot_with_providers(
+    database_url: &str,
+    providers: edgequake_api::state::data_access_providers::ProviderOverrides,
+) -> LiveServer {
     prepare_env();
-    let mut state = AppState::new_postgres(database_url, "")
+    let mut state = AppState::new_postgres_with_providers(database_url, "", providers)
         .await
         .expect("AppState::new_postgres must succeed");
     state.auth.config.auth_enabled = true;
@@ -57,17 +66,27 @@ pub async fn boot(database_url: &str) -> LiveServer {
             enable_compression: false,
             enable_swagger: false,
         },
-        state,
+        state.clone(),
     )
     .build_router();
     let server = tokio::spawn(async move {
         axum::serve(listener, app).await.expect("serve");
     });
     LiveServer {
+        state,
         base: format!("http://{address}"),
         pool,
-        client: reqwest::Client::new(),
+        client: reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+            .expect("bounded HTTP client"),
         _server: server,
+    }
+}
+
+impl Drop for LiveServer {
+    fn drop(&mut self) {
+        self._server.abort();
     }
 }
 
@@ -103,6 +122,9 @@ pub async fn seed_scope(pool: &sqlx::PgPool, tenant_id: Uuid, workspace_id: Uuid
     .execute(pool)
     .await
     .expect("seed workspace");
+    sqlx::query("UPDATE workspaces SET metadata = metadata || jsonb_build_object('embedding_dimension', $2::int, 'embedding_provider', 'mock', 'embedding_model', $3::text, 'llm_provider', 'mock', 'llm_model', 'mock-model') WHERE workspace_id = $1")
+        .bind(workspace_id).bind(EMBED_DIM as i32).bind(EMBED_MODEL)
+        .execute(pool).await.expect("explicit mock workspace configuration");
 }
 
 pub struct SeededDoc {
@@ -120,6 +142,31 @@ pub async fn commit_and_drain(
     content: &str,
     node_logical: &str,
     mark_ready: bool,
+) -> SeededDoc {
+    commit_and_drain_with_embedding(
+        state_pool,
+        committer,
+        tenant_id,
+        workspace_id,
+        content,
+        node_logical,
+        mark_ready,
+        vec![0.1; EMBED_DIM],
+    )
+    .await
+}
+
+/// Same durable fixture with explicit dimensions for real query-provider parity.
+#[allow(clippy::too_many_arguments)]
+pub async fn commit_and_drain_with_embedding(
+    state_pool: &sqlx::PgPool,
+    committer: &Arc<dyn edgequake_storage::contracts::IngestionCommitter>,
+    tenant_id: Uuid,
+    workspace_id: Uuid,
+    content: &str,
+    node_logical: &str,
+    mark_ready: bool,
+    vector: Vec<f32>,
 ) -> SeededDoc {
     let document_id = Uuid::new_v4();
     let chunk_id = Uuid::new_v4();
@@ -142,8 +189,8 @@ pub async fn commit_and_drain(
         "subject_id": chunk_id,
         "workspace_id": workspace_id,
         "model_id": EMBED_MODEL,
-        "dimensions": EMBED_DIM,
-        "embedding": [0.1, 0.2, 0.3],
+        "dimensions": vector.len(),
+        "embedding": vector,
         "legacy_vector_id": format!("{document_id}-chunk-0"),
     });
     let command = PreparedIngestionBatch {
@@ -227,10 +274,11 @@ pub async fn mark_chunk_ready(pool: &sqlx::PgPool, chunk_id: Uuid) {
 
 impl LiveServer {
     pub fn committer(&self) -> Arc<dyn edgequake_storage::contracts::IngestionCommitter> {
-        // Prefer PgIngestionCommitter directly for seed helpers.
-        Arc::new(edgequake_storage::PgIngestionCommitter::new(
-            self.pool.clone(),
-        ))
+        self.state
+            .ingestion_committer
+            .as_ref()
+            .expect("selected relational committer")
+            .clone()
     }
 
     fn authed_get(&self, path: &str, tenant: Uuid, workspace: Uuid) -> reqwest::RequestBuilder {
@@ -308,6 +356,11 @@ impl LiveServer {
             "query": query,
             "mode": "naive",
             "context_only": true,
+            "enable_rerank": false,
+            "llm_provider": "mock",
+            "llm_model": "mock-model",
+            "hl_keywords": ["fixture"],
+            "ll_keywords": ["fixture"],
         });
         if let Some(ids) = document_ids {
             body["document_filter"] = serde_json::json!({ "document_ids": ids });

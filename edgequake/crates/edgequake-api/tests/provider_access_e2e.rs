@@ -439,9 +439,10 @@ async fn provider_access_e2e03_filter_truth_table() {
             Some(5),
         )
         .await;
+    assert!(ok.is_success(), "query a1 must succeed: {ok} {body}");
     assert!(
-        ok.is_success() || matches!(ok.as_u16(), 502 | 503),
-        "query a1 must succeed or fail closed (not empty 200): {ok} {body}"
+        body.contains(fixtures::ALPHA_ONLY),
+        "query must retrieve its projected document"
     );
     assert!(!body.contains("D_A2_CONTENT_SHOULD_NOT_LEAK"));
     assert!(!body.contains(fixtures::PENDING_SECRET));
@@ -861,10 +862,8 @@ async fn provider_access_e2e11_model_identity() {
     let (status, body) = server
         .query_naive(tenant, workspace, "model identity", None, Some(5))
         .await;
-    assert!(
-        status.is_success() || status.as_u16() == 503,
-        "{status} {body}"
-    );
+    assert!(status.is_success(), "{status} {body}");
+    assert!(body.contains("model identity chunk"));
     http_harness::pass("PROVIDER-ACCESS-E2E11");
 }
 
@@ -1032,6 +1031,7 @@ async fn provider_access_e2e13_restore_rebuild() {
 #[cfg(feature = "provider-access-fault")]
 mod kill_http {
     use super::*;
+    use edgequake_storage::contracts::IngestionCommitter;
     use edgequake_storage::projection::fault::{prepare_fault_dir, wait_for_marker};
     use std::path::PathBuf;
     use std::process::{Command, Stdio};
@@ -1065,7 +1065,7 @@ mod kill_http {
             "workspace_id": workspace_id,
             "model_id": http_harness::EMBED_MODEL,
             "dimensions": http_harness::EMBED_DIM,
-            "embedding": [0.1, 0.2, 0.3],
+            "embedding": vec![0.1; http_harness::EMBED_DIM],
             "legacy_vector_id": format!("{document_id}-chunk-0"),
         });
         committer
@@ -1159,6 +1159,10 @@ mod kill_http {
             .get_text("/api/v1/documents", tenant_id, workspace_id)
             .await;
         assert!(status.is_success(), "HTTP after replay: {status} {body}");
+        assert!(
+            body.contains(&document_id.to_string()),
+            "replayed document must be visible: {body}"
+        );
         http_harness::pass("PROVIDER-ACCESS-E2E04");
     }
 
@@ -1230,7 +1234,7 @@ mod kill_http {
             embeddings: vec![prepared_record(r2_chunk, serde_json::json!({
                 "schema": "edgequake.embedding.v1", "family": "chunk", "subject_id": r2_chunk,
                 "workspace_id": workspace_id, "model_id": http_harness::EMBED_MODEL,
-                "dimensions": http_harness::EMBED_DIM, "embedding": [0.4, 0.5, 0.6],
+                "dimensions": http_harness::EMBED_DIM, "embedding": vec![0.4; http_harness::EMBED_DIM],
                 "legacy_vector_id": format!("{r2_doc}-chunk-0"),
             }))],
         }).await.expect("commit r+1");
@@ -1248,7 +1252,7 @@ mod kill_http {
             .await;
         assert!(status.is_success());
         assert!(
-            body.contains(&r2_doc.to_string()) || !body.is_empty(),
+            body.contains(&r2_doc.to_string()),
             "r+1 must be visible: {body}"
         );
         http_harness::pass("PROVIDER-ACCESS-E2E05");
