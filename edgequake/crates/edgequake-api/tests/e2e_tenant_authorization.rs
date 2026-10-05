@@ -13,18 +13,37 @@ use serde_json::json;
 use tenant_security::{request, seed_user, token};
 use uuid::Uuid;
 
-#[tokio::test]
-async fn real_http_principal_membership_role_and_scope_isolation() {
-    let Some(url) = harness::certification_database_url().unwrap() else {
-        return;
-    };
+async fn boot_authorized_server() -> Option<http_harness::LiveServer> {
+    let url = harness::certification_database_url().unwrap()?;
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
     std::env::set_var("EDGEQUAKE_MIGRATE_CLI", "1");
     edgequake_api::state::migration_bootstrap::run_postgres_expandable_migrations(&pool)
         .await
         .unwrap();
     std::env::remove_var("EDGEQUAKE_MIGRATE_CLI");
-    let server = http_harness::boot(&url).await;
+    Some(http_harness::boot(&url).await)
+}
+
+#[tokio::test]
+async fn extreme_catalog_cursors_preserve_admin_visibility() {
+    let Some(server) = boot_authorized_server().await else {
+        return;
+    };
+    let tenant = Uuid::new_v4();
+    let own = Uuid::new_v4();
+    let sibling = Uuid::new_v4();
+    for (workspace, name) in [(own, "cursor-a"), (sibling, "cursor-b")] {
+        http_harness::seed_scope(&server.pool, tenant, workspace, name).await;
+    }
+    workspace_catalog_security::verify_extreme_admin_cursors(&server, tenant, own, sibling).await;
+    eprintln!("TENANT_CATALOG_CURSOR_BOUNDARY_PASS");
+}
+
+#[tokio::test]
+async fn real_http_principal_membership_role_and_scope_isolation() {
+    let Some(server) = boot_authorized_server().await else {
+        return;
+    };
     let tenant = Uuid::new_v4();
     let foreign = Uuid::new_v4();
     let a = Uuid::new_v4();

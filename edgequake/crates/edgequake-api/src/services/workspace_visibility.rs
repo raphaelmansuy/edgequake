@@ -55,6 +55,10 @@ pub async fn visible_workspace_page(
         .count_workspaces(tenant_id)
         .await
         .map_err(internal)?;
+    // Avoid a redundant page query and signed SQL OFFSET overflow beyond the catalog.
+    if offset >= total {
+        return Ok((total, Vec::new()));
+    }
     let items = state
         .workspace_service
         .list_workspaces_page(tenant_id, limit, offset)

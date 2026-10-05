@@ -70,6 +70,10 @@
     {
       "issue": "MCP workspace catalog exposed sibling workspace metadata and tenant-wide totals to workspace-only members",
       "fix": "shared REST/MCP active-membership visibility policy, trusted principal and role, filtering before pagination"
+    },
+    {
+      "issue": "Oversized administrator workspace catalog offsets wrapped to a negative SQL bigint",
+      "fix": "return empty out-of-range pages after authorization and count, before provider pagination"
     }
   ],
   "performance_change": {
@@ -158,5 +162,6 @@
     "relationship_updates": "Scoped relationship lookup and allowlisted fields preserve top-level scope; arbitrary metadata is nested."
   },
   "passing_test_executions": 3009,
-  "catalog_authorization_validation": "local-ci.json#catalog_authorization_postflight"
+  "catalog_authorization_validation": "local-ci.json#catalog_authorization_postflight",
+  "cursor_boundary_validation": "local-ci.json#cursor_boundary_postflight"
 }

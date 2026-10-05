@@ -249,6 +249,44 @@ async fn verify_two_pages(server: &LiveServer, key: &str, scope: Scope) {
     assert_ne!(ids[0], ids[1]);
 }
 
+pub async fn verify_extreme_admin_cursors(
+    server: &LiveServer,
+    tenant: Uuid,
+    own: Uuid,
+    sibling: Uuid,
+) {
+    let scope = (tenant, own);
+    let master = server.state.auth.config.master_api_key.as_deref().unwrap();
+    assert_transport_parity(server, master, scope, &[own, sibling]).await;
+    for path in ["/mcp", "/api/v1/mcp"] {
+        let page = mcp_page(
+            server,
+            master,
+            scope,
+            path,
+            json!({"limit":100,"cursor":usize::MAX.to_string()}),
+            None,
+        )
+        .await;
+        assert_items(&page, &[], 2);
+        assert!(page.get("next_cursor").is_none(), "{page}");
+    }
+    let (status, body) = request(
+        server,
+        master,
+        Method::GET,
+        &format!(
+            "/api/v1/tenants/{tenant}/workspaces?limit=100&offset={}",
+            usize::MAX
+        ),
+        Some((tenant.to_string(), own.to_string())),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_items(&serde_json::from_str(&body).unwrap(), &[], 2);
+}
+
 async fn measure_catalog(server: &LiveServer, key: &str, scope: Scope) {
     let mut samples = Vec::new();
     for i in 0..26 {
