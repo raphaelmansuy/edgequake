@@ -93,16 +93,27 @@ pub async fn seed_workspace(pool: &PgPool, tag: &str) -> Uuid {
 /// Insert a document row; returns its UUID.
 pub async fn seed_document(pool: &PgPool, workspace: Uuid) -> Uuid {
     let doc = Uuid::new_v4();
+    let tenant = workspace_tenant(pool, workspace).await;
     sqlx::query(
-        "INSERT INTO documents (id, workspace_id, title, content, status) \
-         VALUES ($1, $2, 'w3 doc', 'w3 content', 'indexed')",
+        "INSERT INTO documents (id, workspace_id, title, content, status, tenant_id) \
+         VALUES ($1, $2, 'w3 doc', 'w3 content', 'indexed', $3)",
     )
     .bind(doc)
     .bind(workspace)
+    .bind(tenant)
     .execute(pool)
     .await
     .expect("seed document");
     doc
+}
+
+/// Fixture rows use the same tenant/workspace ownership as scoped provider reads.
+pub async fn workspace_tenant(pool: &PgPool, workspace: Uuid) -> Uuid {
+    sqlx::query_scalar("SELECT tenant_id FROM workspaces WHERE workspace_id = $1")
+        .bind(workspace)
+        .fetch_one(pool)
+        .await
+        .expect("workspace has a tenant")
 }
 
 /// Insert a relational chunk row; returns its `chunks.id`.
@@ -114,9 +125,10 @@ pub async fn seed_chunk(
     content: &str,
 ) -> Uuid {
     let id = Uuid::new_v4();
+    let tenant = workspace_tenant(pool, workspace).await;
     sqlx::query(
-        "INSERT INTO chunks (id, document_id, workspace_id, chunk_index, content, metadata) \
-         VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO chunks (id, document_id, workspace_id, chunk_index, content, metadata, tenant_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
     .bind(id)
     .bind(doc)
@@ -124,6 +136,7 @@ pub async fn seed_chunk(
     .bind(chunk_index)
     .bind(content)
     .bind(serde_json::json!({"legacy_chunk_key": format!("{doc}-chunk-{chunk_index}")}))
+    .bind(tenant)
     .execute(pool)
     .await
     .expect("seed chunk");
@@ -273,6 +286,7 @@ pub async fn count_workspace_residue(pool: &PgPool, workspace: Uuid) -> (i64, i6
 /// Bulk-insert relational chunks for one document (batched unnest).
 pub async fn seed_chunks_bulk(pool: &PgPool, doc: Uuid, workspace: Uuid, count: usize) {
     const BATCH: usize = 500;
+    let tenant = workspace_tenant(pool, workspace).await;
     for batch_start in (0..count).step_by(BATCH) {
         let batch_end = (batch_start + BATCH).min(count);
         let n = batch_end - batch_start;
@@ -286,8 +300,8 @@ pub async fn seed_chunks_bulk(pool: &PgPool, doc: Uuid, workspace: Uuid, count: 
             .map(|i| serde_json::json!({"legacy_chunk_key": format!("{doc}-chunk-{i}")}))
             .collect();
         sqlx::query(
-            "INSERT INTO chunks (id, document_id, workspace_id, chunk_index, content, metadata) \
-             SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::int[], $5::text[], $6::jsonb[])",
+            "INSERT INTO chunks (id, document_id, workspace_id, chunk_index, content, metadata, tenant_id) \
+             SELECT t.*, $7 FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::int[], $5::text[], $6::jsonb[]) AS t",
         )
         .bind(&ids)
         .bind(&docs)
@@ -295,6 +309,7 @@ pub async fn seed_chunks_bulk(pool: &PgPool, doc: Uuid, workspace: Uuid, count: 
         .bind(&indexes)
         .bind(&contents)
         .bind(&metadata)
+        .bind(tenant)
         .execute(pool)
         .await
         .expect("seed chunks bulk");

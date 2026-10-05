@@ -7,17 +7,20 @@ import {
   createWorkspace,
   deleteWorkspace,
   openOnBackend,
+  requireLiveBackend,
   settle,
   shot,
   type TestWorkspace,
 } from "./support";
+
+requireLiveBackend();
 
 let workspace: TestWorkspace;
 test.beforeAll(async () => {
   workspace = await createWorkspace("polish", { extraction_mode: "decision", decision_enabled: true });
 });
 test.afterAll(async () => {
-  await deleteWorkspace(workspace.id);
+  if (workspace) await deleteWorkspace(workspace.id);
 });
 test.afterEach(async ({ page }) => {
   await settle(page);

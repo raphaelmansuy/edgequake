@@ -8,10 +8,19 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { expect, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 export const BACKEND = process.env.EQ160_BACKEND ?? "http://127.0.0.1:8095";
 export const TENANT_ID = process.env.EQ160_TENANT ?? "00000000-0000-0000-0000-000000000002";
+
+/** The UI-only CI gate does not provision Ollama or a Decision backend. */
+export function requireLiveBackend(): void {
+  test.skip(
+    process.env.PLAYWRIGHT_SKIP_STACK_CHECK === "1" &&
+      process.env.E2E_LIVE_STACK !== "1" && !process.env.EQ160_BACKEND,
+    "requires the live SPEC-160 backend, Ollama, and Tev1 model",
+  );
+}
 
 const REPO_ROOT = path.resolve(__dirname, "../../../");
 export const SHOTS_DIR = path.join(REPO_ROOT, "specs/160-tev1/e2e/screenshots");

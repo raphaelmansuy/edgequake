@@ -9,6 +9,7 @@
 //!   cargo test -p edgequake-storage --test contract_spec091_no_kv_facade
 
 use std::path::{Path, PathBuf};
+use syn::visit::Visit;
 
 /// Paths relative to `edgequake/crates/` that may still reference `KVStorage`.
 ///
@@ -33,6 +34,10 @@ const ALLOWLIST: &[&str] = &[
     "edgequake-api/src/state/postgres.rs",
     "edgequake-api/src/state/memory.rs",
     "edgequake-api/src/state/query_bootstrap.rs",
+    // Provider composition retains the relational compatibility facade; vector
+    // and graph factories expose their independent domain ports.
+    "edgequake-api/src/state/data_access_providers/mod.rs",
+    "edgequake-api/src/state/data_access_providers/postgres.rs",
     "edgequake-api/src/handlers/health.rs",
     "edgequake-api/src/handlers/injection/crud.rs",
     "edgequake-api/src/handlers/documents/storage_helpers.rs",
@@ -43,11 +48,15 @@ const ALLOWLIST: &[&str] = &[
     "edgequake-api/src/processor/text_insert/extraction.rs",
     "edgequake-api/src/processor/text_insert/persist.rs",
     "edgequake-api/src/processor/pipeline_checkpoint.rs",
+    // SPEC-156 coalesced writer uses the same transitional checkpoint facade.
+    "edgequake-api/src/processor/partial_chunk_checkpoint_writer.rs",
     "edgequake-api/src/processor/pdf_processing.rs",
     "edgequake-api/src/services/document_deletion.rs",
     "edgequake-api/src/services/document_body_loader.rs",
     "edgequake-api/src/services/document_metadata_scan.rs",
     "edgequake-api/src/services/list_run_enrich.rs",
+    // SPEC-155 coalesced progress writer patches legacy document metadata.
+    "edgequake-api/src/services/run_progress_writer.rs",
     "edgequake-api/src/services/ingestion_persist.rs",
     "edgequake-api/src/services/injection_process.rs",
     "edgequake-api/src/services/multimodal/analyzer.rs",
@@ -123,13 +132,7 @@ const ALLOWLIST: &[&str] = &[
     "edgequake-storage/src/kv_key_schema.rs",
 ];
 
-const KV_MARKERS: &[&str] = &[
-    "use edgequake_storage::traits::KVStorage",
-    "dyn KVStorage",
-    "PostgresKVStorage",
-    "MemoryKVStorage",
-    "impl KVStorage for",
-];
+const KV_MARKERS: &[&str] = &["KVStorage", "PostgresKVStorage", "MemoryKVStorage"];
 
 /// Files that reference KV via field access only (`.kv_storage`) — tracked
 /// separately; not counted as facade-import debt.
@@ -167,11 +170,88 @@ fn rel_from_crates(path: &Path, crates_root: &Path) -> String {
 }
 
 fn file_matches_kv_marker(src: &str) -> bool {
-    if KV_MARKERS.iter().any(|m| src.contains(m)) {
-        return true;
+    let file = syn::parse_file(src).expect("parse Rust source for KV facade census");
+    let mut visitor = KvFacadeVisitor::default();
+    visitor.visit_file(&file);
+    visitor.found
+}
+
+fn is_test_only(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("cfg")
+            && attr
+                .parse_args::<syn::Path>()
+                .is_ok_and(|path| path.is_ident("test"))
+    })
+}
+
+#[derive(Default)]
+struct KvFacadeVisitor {
+    found: bool,
+}
+
+impl KvFacadeVisitor {
+    fn visit_tokens(&mut self, tokens: proc_macro2::TokenStream) {
+        for token in tokens {
+            match token {
+                proc_macro2::TokenTree::Ident(ident) => self.visit_ident(&ident),
+                proc_macro2::TokenTree::Group(group) => self.visit_tokens(group.stream()),
+                _ => {}
+            }
+        }
     }
-    // Trait import variants without full path.
-    src.contains("KVStorage") && (src.contains("use ") || src.contains("impl KVStorage"))
+}
+
+impl<'ast> Visit<'ast> for KvFacadeVisitor {
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        if !is_test_only(&item.attrs) {
+            syn::visit::visit_item_mod(self, item);
+        }
+    }
+
+    fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
+        if !is_test_only(&item.attrs) {
+            syn::visit::visit_item_fn(self, item);
+        }
+    }
+
+    fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
+        if !is_test_only(&item.attrs) {
+            syn::visit::visit_item_use(self, item);
+        }
+    }
+
+    fn visit_ident(&mut self, ident: &'ast proc_macro2::Ident) {
+        self.found |= KV_MARKERS.iter().any(|marker| ident == marker);
+    }
+
+    fn visit_macro(&mut self, item: &'ast syn::Macro) {
+        syn::visit::visit_macro(self, item);
+        self.visit_tokens(item.tokens.clone());
+    }
+}
+
+#[test]
+fn census_excludes_test_modules_comments_and_strings() {
+    assert!(!file_matches_kv_marker(
+        r#"// use edgequake_storage::traits::KVStorage;
+        const NOTE: &str = "MemoryKVStorage";
+        #[cfg(test)] mod tests { use edgequake_storage::MemoryKVStorage; }
+        #[cfg(test)] use edgequake_storage::traits::KVStorage;
+        #[cfg(test)] fn helper(kv: &dyn KVStorage) {}"#
+    ));
+}
+
+#[test]
+fn census_detects_production_imports_types_and_macros() {
+    for source in [
+        "use edgequake_storage::traits::{KVStorage as LegacyStore};",
+        "fn load(kv: &dyn KVStorage) {}",
+        "make_store!(nested(MemoryKVStorage));",
+        "#[cfg(feature = \"postgres\")] mod pg { use super::PostgresKVStorage; }",
+    ] {
+        assert!(file_matches_kv_marker(source), "missed {source}");
+    }
 }
 
 #[test]

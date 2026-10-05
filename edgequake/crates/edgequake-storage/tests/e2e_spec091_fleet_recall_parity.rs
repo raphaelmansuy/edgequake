@@ -42,6 +42,7 @@ async fn e2e_spec091_fleet_recall_parity_entity_typed_vs_exact() {
     let _g = w3::w3_lock().lock().await;
     let pool = contract_pg_pool(&cfg).await;
     let ws = w3::seed_workspace(&pool, "fleet-recall").await;
+    let tenant = w3::workspace_tenant(&pool, ws).await;
 
     let index = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), "iw2-recall-model");
 
@@ -50,11 +51,12 @@ async fn e2e_spec091_fleet_recall_parity_entity_typed_vs_exact() {
     for i in 0..CORPUS {
         let name = format!("ENTITY_{i}");
         let eid: Uuid = sqlx::query_scalar(
-            "INSERT INTO entities (name, entity_type, workspace_id) VALUES ($1, 'concept', $2) \
+            "INSERT INTO entities (name, entity_type, workspace_id, tenant_id) VALUES ($1, 'concept', $2, $3) \
              RETURNING id",
         )
         .bind(&name)
         .bind(ws)
+        .bind(tenant)
         .fetch_one(&pool)
         .await
         .expect("seed entity");

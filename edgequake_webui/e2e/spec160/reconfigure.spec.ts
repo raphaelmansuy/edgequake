@@ -7,10 +7,13 @@ import {
   deleteWorkspace,
   getWorkspace,
   openOnBackend,
+  requireLiveBackend,
   settle,
   shot,
   type TestWorkspace,
 } from "./support";
+
+requireLiveBackend();
 
 let workspace: TestWorkspace;
 
@@ -21,7 +24,7 @@ test.afterEach(async ({ page }) => {
   await settle(page);
 });
 test.afterAll(async () => {
-  await deleteWorkspace(workspace.id);
+  if (workspace) await deleteWorkspace(workspace.id);
 });
 
 test.describe("SPEC-160 reconfigure wizard @spec160", () => {

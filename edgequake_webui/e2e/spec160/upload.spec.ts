@@ -9,11 +9,14 @@ import {
   deleteWorkspace,
   listDocuments,
   openOnBackend,
+  requireLiveBackend,
   settle,
   shot,
   waitForHydration,
   type TestWorkspace,
 } from "./support";
+
+requireLiveBackend();
 
 const created: TestWorkspace[] = [];
 async function fresh(label: string, extra: Record<string, unknown> = {}) {

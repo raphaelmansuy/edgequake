@@ -21,14 +21,21 @@ export async function expectScrollable(
   locator: Locator,
 ): Promise<ScrollMetrics> {
   await locator.waitFor({ state: "visible" });
-  const metrics = await locator.evaluate((el) => ({
-    scrollHeight: el.scrollHeight,
-    clientHeight: el.clientHeight,
-  }));
-  expect(
-    metrics.scrollHeight,
-    `expected element to be scrollable (scrollHeight ${metrics.scrollHeight} > clientHeight ${metrics.clientHeight})`,
-  ).toBeGreaterThan(metrics.clientHeight);
+  let metrics: ScrollMetrics = { scrollHeight: 0, clientHeight: 0 };
+  await expect
+    .poll(
+      async () => {
+        metrics = await locator.evaluate((el) => ({
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+        }));
+        return (
+          metrics.clientHeight > 0 && metrics.scrollHeight > metrics.clientHeight
+        );
+      },
+      { message: "expected the rendered container to overflow vertically" },
+    )
+    .toBe(true);
   return metrics;
 }
 

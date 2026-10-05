@@ -50,7 +50,9 @@ export function SystemStatus() {
     enabled: isReachable,
   });
 
-  if (isReadinessLoading && !state) {
+  // Keep the compact status slot while a reachable backend's health details
+  // load; a transient missing response must not expand into a warning card.
+  if ((isReadinessLoading && !state) || (state === 'ready' && isHealthLoading)) {
     return (
       <div className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-muted/20 text-sm text-muted-foreground">
         <Skeleton className="h-3.5 w-3.5 rounded-full" />

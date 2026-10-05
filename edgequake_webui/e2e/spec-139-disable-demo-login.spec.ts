@@ -14,6 +14,7 @@
  */
 
 import { type Page, expect, test } from '@playwright/test';
+import { mockBackendForUiOnly } from './helpers/mock-backend';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,13 +27,23 @@ async function gotoLogin(page: Page): Promise<void> {
 
 test.describe('Spec #139 – Demo login button', () => {
   test.beforeEach(async ({ page }) => {
+    if (process.env.PLAYWRIGHT_SKIP_STACK_CHECK === '1') {
+      await mockBackendForUiOnly(page);
+      await page.route('**/api/v1/setup/status', (route) => route.fulfill({
+        json: { needs_setup: false, auth_enabled: false, has_login_users: true },
+      }));
+      await page.route('**/api/v1/auth/sso/providers', (route) => route.fulfill({
+        json: { providers: [] },
+      }));
+    }
     await gotoLogin(page);
     const hasLoginForm = await page
       .locator('input#username')
-      .isVisible({ timeout: 5_000 })
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
       .catch(() => false);
     if (!hasLoginForm) {
-      test.skip(true, 'Auth disabled — login page tests require auth-enabled build');
+      test.skip(true, 'Login form absent in the configured build or setup state');
     }
   });
 
@@ -73,7 +84,7 @@ test.describe('Spec #139 – Demo login button', () => {
     }
   });
 
-  test('demo button navigates to /graph when clicked', async ({ page }) => {
+  test('demo button navigates to the dashboard when clicked', async ({ page }) => {
     await gotoLogin(page);
 
     const demoButton = page
@@ -88,13 +99,10 @@ test.describe('Spec #139 – Demo login button', () => {
 
     await demoButton.first().click();
 
-    // After clicking we expect a navigation away from /login
-    await page.waitForURL((url) => !url.pathname.includes('/login'), {
+    // SPEC-155 uses the dashboard as the default post-login landing page.
+    await expect(page).toHaveURL((url) => url.pathname === '/', {
       timeout: 10_000,
     });
-
-    // Should land on the /graph page (the app's main view)
-    expect(page.url()).toContain('/graph');
   });
 
   test('"Or" separator is shown alongside the demo button', async ({ page }) => {

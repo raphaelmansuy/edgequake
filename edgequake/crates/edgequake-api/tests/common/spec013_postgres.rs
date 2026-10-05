@@ -293,14 +293,19 @@ pub async fn ollama_live_extract_available() -> bool {
 /// auto-provisioned once per process (see [`super::test_db`]) so tests run fully
 /// isolated from the dev database.
 pub fn database_url() -> Option<String> {
-    let base = env::var("DATABASE_URL").ok().or_else(|| {
-        let password = env::var("POSTGRES_PASSWORD").ok()?;
-        let host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
-        let port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
-        let db = env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string());
-        let user = env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string());
-        Some(format!("postgresql://{user}:{password}@{host}:{port}/{db}"))
-    })?;
+    let base = env::var("DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+        .or_else(|| {
+            let password = env::var("POSTGRES_PASSWORD")
+                .ok()
+                .filter(|value| !value.is_empty())?;
+            let host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
+            let port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
+            let db = env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string());
+            let user = env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string());
+            Some(format!("postgresql://{user}:{password}@{host}:{port}/{db}"))
+        })?;
     Some(super::test_db::isolated_test_url(&base))
 }
 
@@ -460,6 +465,10 @@ async fn build_postgres_router(mut state: AppState) -> axum::Router {
         "SPEC-013 E2E must use PostgreSQL storage, got {:?}",
         state.storage.mode
     );
+    state
+        .initialize_defaults()
+        .await
+        .expect("SPEC-013 server default identity initialization");
     start_worker_pool(&mut state).await;
     let router = Server::new(test_server_config(), state).build_router();
     wait_until_app_ready(&router).await;
@@ -504,11 +513,23 @@ pub async fn create_postgres_mock_app_or_skip() -> Option<axum::Router> {
     configure_postgres_e2e_auth_env();
     configure_postgres_e2e_mock_provider_env();
 
-    let url = try_database_url()?;
-    let state = AppState::new_postgres(url, "")
-        .await
-        .map_err(|e| eprintln!("SKIP: PostgreSQL AppState failed: {e}"))
-        .ok()?;
+    let required = env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
+        .is_ok_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
+    let Some(url) = try_database_url() else {
+        assert!(
+            !required,
+            "SPEC-013 requires a configured PostgreSQL database"
+        );
+        return None;
+    };
+    let state = match AppState::new_postgres(url, "").await {
+        Ok(state) => state,
+        Err(error) => {
+            assert!(!required, "SPEC-013 PostgreSQL AppState failed: {error}");
+            eprintln!("SKIP: PostgreSQL AppState failed: {error}");
+            return None;
+        }
+    };
     Some(build_postgres_router(state).await)
 }
 

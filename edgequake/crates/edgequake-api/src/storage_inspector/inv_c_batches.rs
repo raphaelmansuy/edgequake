@@ -275,11 +275,20 @@ mod tests {
 
     #[tokio::test]
     async fn real_statement_timeout_classifies_as_retryable() {
-        let Ok(url) = std::env::var("DATABASE_URL") else {
+        let Some(url) = std::env::var("DATABASE_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+        else {
+            assert!(
+                !std::env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
+                    .ok()
+                    .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+                "PostgreSQL timeout tests require DATABASE_URL"
+            );
             eprintln!("SKIP: no DATABASE_URL");
             return;
         };
-        let pool = sqlx::PgPool::connect(&url).await.expect("connect");
+        let pool = sqlx::PgPool::connect(url.trim()).await.expect("connect");
         let mut tx = pool.begin().await.expect("begin");
         sqlx::query("SET LOCAL statement_timeout = '10ms'")
             .execute(&mut *tx)

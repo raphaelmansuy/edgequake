@@ -2,6 +2,6 @@
   "tag": "v0.26.0",
   "pg": 18,
   "status": "ok",
-  "duration_s": 8,
-  "ledger_max": 159
+  "duration_s": 4,
+  "ledger_max": 168
 }

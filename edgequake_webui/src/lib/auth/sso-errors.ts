@@ -5,6 +5,7 @@
  */
 
 export const SSO_ERROR_KEYS: Record<string, string> = {
+  invalid_handoff: "auth.sso.errors.invalidHandoff",
   org_unknown: "auth.sso.errors.orgUnknown",
   org_missing: "auth.sso.errors.orgMissing",
   org_ambiguous: "auth.sso.errors.orgAmbiguous",

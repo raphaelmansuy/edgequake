@@ -39,9 +39,14 @@ fn contract_sql_eq_rel_type_arbiter_expr_matches_trigger_shape() {
     );
     let lifecycle = include_str!("../src/adapters/postgres/graph/helpers/graph_lifecycle.rs");
     assert!(
-        lifecycle.contains("NEW.eq_rel_type := UPPER(COALESCE(")
-            && lifecycle.contains("NULLIF(TRIM(")
-            && lifecycle.contains("'RELATED_TO'"),
+        lifecycle.contains("self.ensure_sync_triggers(conn).await?"),
+        "graph lifecycle must provision the shared sync trigger implementation"
+    );
+    let triggers = include_str!("../src/adapters/postgres/graph/helpers/sync_triggers.rs");
+    assert!(
+        triggers.contains("NEW.eq_rel_type := UPPER(COALESCE(")
+            && triggers.contains("NULLIF(TRIM(")
+            && triggers.contains("'RELATED_TO'"),
         "trigger must keep the same UPPER(COALESCE(NULLIF(TRIM))) shape"
     );
 }

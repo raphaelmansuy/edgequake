@@ -1,7 +1,7 @@
 //! SPEC-091 IW5: cross-tenant graph isolation (Postgres AGE).
 //!
 //! Strict list/count APIs must not leak workspace B into workspace A queries.
-//! LegacyNullAsWildcard discovery path is exercised for document cascade compat.
+//! Scoped discovery excludes legacy NULL ownership; maintenance discovery remains explicit.
 //!
 //! Run:
 //!   cargo test -p edgequake-storage --features postgres \
@@ -13,14 +13,15 @@
 mod graph_workspace_contract;
 #[path = "support/postgres_test_config.rs"]
 mod postgres_test_config;
+#[path = "support/spec091_w3.rs"]
+mod w3;
 
 use edgequake_storage::traits::{
     GraphScanOps, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, NodeListFilter,
 };
-use edgequake_storage::PostgresAGEGraphStorage;
-use postgres_test_config::require_or_skip_postgres;
+use edgequake_storage::{PostgresAGEGraphStorage, StorageError};
+use postgres_test_config::{contract_pg_pool, require_or_skip_postgres};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 fn props(map: &[(&str, &str)]) -> HashMap<String, serde_json::Value> {
     graph_workspace_contract::props(map)
@@ -31,18 +32,19 @@ async fn e2e_spec091_cross_tenant_graph_strict_filter_no_leak() {
     let Some(cfg) = require_or_skip_postgres("spec091_graph_leak") else {
         return;
     };
+    let pool = contract_pg_pool(&cfg).await;
     let graph = PostgresAGEGraphStorage::new(cfg);
     graph.initialize().await.expect("graph init");
 
-    let tenant_a = "tenant-a-iw5";
-    let tenant_b = "tenant-b-iw5";
-    let ws_a = Uuid::new_v4();
-    let ws_b = Uuid::new_v4();
+    let ws_a = w3::seed_workspace(&pool, "graph-leak-a").await;
+    let ws_b = w3::seed_workspace(&pool, "graph-leak-b").await;
+    let tenant_a = w3::workspace_tenant(&pool, ws_a).await.to_string();
+    let tenant_b = w3::workspace_tenant(&pool, ws_b).await.to_string();
 
     for (id, ws, tenant) in [
-        ("NODE_A1", ws_a, tenant_a),
-        ("NODE_A2", ws_a, tenant_a),
-        ("NODE_B1", ws_b, tenant_b),
+        ("NODE_A1", ws_a, tenant_a.as_str()),
+        ("NODE_A2", ws_a, tenant_a.as_str()),
+        ("NODE_B1", ws_b, tenant_b.as_str()),
     ] {
         graph
             .upsert_node(
@@ -75,7 +77,7 @@ async fn e2e_spec091_cross_tenant_graph_strict_filter_no_leak() {
     );
 
     let filter_a = NodeListFilter {
-        tenant_id: Some(tenant_a.into()),
+        tenant_id: Some(tenant_a),
         workspace_id: Some(ws_a.to_string()),
         ..Default::default()
     };
@@ -94,7 +96,7 @@ async fn e2e_spec091_cross_tenant_graph_strict_filter_no_leak() {
     );
 
     let filter_b = NodeListFilter {
-        tenant_id: Some(tenant_b.into()),
+        tenant_id: Some(tenant_b),
         workspace_id: Some(ws_b.to_string()),
         ..Default::default()
     };
@@ -107,16 +109,18 @@ async fn e2e_spec091_cross_tenant_graph_strict_filter_no_leak() {
 }
 
 #[tokio::test]
-async fn e2e_spec091_cross_tenant_graph_legacy_null_wildcard_discovery() {
+async fn e2e_spec091_cross_tenant_graph_scoped_discovery_excludes_legacy_null() {
     let Some(cfg) = require_or_skip_postgres("spec091_graph_legacy") else {
         return;
     };
+    let pool = contract_pg_pool(&cfg).await;
     let graph = PostgresAGEGraphStorage::new(cfg);
     graph.initialize().await.expect("graph init");
 
-    let tenant = "tenant-legacy-iw5";
-    let ws_a = Uuid::new_v4();
-    let ws_b = Uuid::new_v4();
+    let ws_a = w3::seed_workspace(&pool, "graph-discovery-a").await;
+    let ws_b = w3::seed_workspace(&pool, "graph-discovery-b").await;
+    let tenant_a = w3::workspace_tenant(&pool, ws_a).await.to_string();
+    let tenant_b = w3::workspace_tenant(&pool, ws_b).await.to_string();
     let doc_a = format!("doc-a-{}", ws_a.as_simple());
 
     // Legacy-null node linked to workspace A document via source_ids.
@@ -125,30 +129,35 @@ async fn e2e_spec091_cross_tenant_graph_legacy_null_wildcard_discovery() {
         "source_ids".into(),
         serde_json::json!([format!("{doc_a}-chunk-0")]),
     );
-    legacy.insert("tenant_id".into(), serde_json::json!(tenant));
+    legacy.insert("tenant_id".into(), serde_json::json!(tenant_a));
     graph
         .upsert_node("LEGACY_FOR_A", legacy)
         .await
         .expect("legacy upsert");
 
-    graph
-        .upsert_node("SCOPED_B", {
-            let mut p = props(&[
-                ("entity_type", "org"),
-                ("tenant_id", tenant),
-                ("workspace_id", &ws_b.to_string()),
-            ]);
-            p.insert(
-                "source_ids".into(),
-                serde_json::json!([format!("{doc_a}-chunk-0")]),
-            );
-            p
-        })
-        .await
-        .expect("scoped b");
+    for (id, workspace, tenant) in [
+        ("SCOPED_A", ws_a, tenant_a.as_str()),
+        ("SCOPED_B", ws_b, tenant_b.as_str()),
+    ] {
+        graph
+            .upsert_node(id, {
+                let mut p = props(&[
+                    ("entity_type", "org"),
+                    ("tenant_id", tenant),
+                    ("workspace_id", &workspace.to_string()),
+                ]);
+                p.insert(
+                    "source_ids".into(),
+                    serde_json::json!([format!("{doc_a}-chunk-0")]),
+                );
+                p
+            })
+            .await
+            .expect("scoped node");
+    }
 
     let filter_a = NodeListFilter {
-        tenant_id: Some(tenant.into()),
+        tenant_id: Some(tenant_a.clone()),
         workspace_id: Some(ws_a.to_string()),
         ..Default::default()
     };
@@ -157,8 +166,12 @@ async fn e2e_spec091_cross_tenant_graph_legacy_null_wildcard_discovery() {
         .await
         .expect("discover a");
     assert!(
-        found_a.iter().any(|n| n.id == "LEGACY_FOR_A"),
-        "LegacyNullAsWildcard: null workspace matches cascade discovery for A"
+        found_a.iter().any(|n| n.id == "SCOPED_A"),
+        "workspace A discovers its owned node"
+    );
+    assert!(
+        !found_a.iter().any(|n| n.id == "LEGACY_FOR_A"),
+        "RLS excludes unowned legacy rows from scoped discovery"
     );
     assert!(
         !found_a.iter().any(|n| n.id == "SCOPED_B"),
@@ -166,7 +179,7 @@ async fn e2e_spec091_cross_tenant_graph_legacy_null_wildcard_discovery() {
     );
 
     let filter_b = NodeListFilter {
-        tenant_id: Some(tenant.into()),
+        tenant_id: Some(tenant_b),
         workspace_id: Some(ws_b.to_string()),
         ..Default::default()
     };
@@ -178,4 +191,24 @@ async fn e2e_spec091_cross_tenant_graph_legacy_null_wildcard_discovery() {
         found_b.iter().any(|n| n.id == "SCOPED_B"),
         "workspace B sees its scoped node"
     );
+    assert_eq!(found_a.len(), 1);
+    assert_eq!(found_b.len(), 1);
+
+    for tenant in ["malformed-tenant".to_owned(), tenant_a] {
+        let foreign = NodeListFilter {
+            tenant_id: Some(tenant),
+            workspace_id: Some(ws_b.to_string()),
+            ..Default::default()
+        };
+        let error = graph
+            .find_nodes_by_source_prefixes(&foreign, std::slice::from_ref(&doc_a))
+            .await
+            .expect_err("invalid tenant/workspace pair must fail closed");
+        assert!(matches!(error, StorageError::InvalidInput(_)));
+    }
+    let maintenance = graph
+        .find_nodes_by_source_prefixes(&NodeListFilter::default(), &[doc_a])
+        .await
+        .expect("explicit unscoped maintenance discovery");
+    assert!(maintenance.iter().any(|node| node.id == "LEGACY_FOR_A"));
 }

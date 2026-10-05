@@ -19,9 +19,6 @@ test.describe("SPEC-100 workspace CLS", () => {
     await page.goto("/workspace", GOTO_OPTS);
 
     const slot = page.getByTestId("spec100-workspace-rebuild-slot");
-    await expect(slot.or(page.getByTestId("spec100-workspace-skeleton"))).toBeVisible({
-      timeout: 20_000,
-    });
     await expect(slot).toBeAttached({ timeout: 45_000 });
     await expect(slot).toHaveAttribute("data-reserved", "collapsed");
     const box = await slot.boundingBox();

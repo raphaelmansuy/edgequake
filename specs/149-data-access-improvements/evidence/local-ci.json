@@ -1,0 +1,2107 @@
+{
+  "source_census": {
+    "parser": "syn 2.0.118",
+    "production_macro_references_checked": true,
+    "test_modules_excluded": true,
+    "exact_new_compatibility_exceptions": 4,
+    "census_regression_cases": 2
+  },
+  "graph_discovery_contract": {
+    "real_tenant_workspace_owners": true,
+    "positive_owner_reads": true,
+    "legacy_null_excluded_from_scoped_reads": true,
+    "malformed_and_mismatched_scopes_rejected": true,
+    "explicit_maintenance_legacy_read_verified": true
+  },
+  "repaired_stale_graph_trigger_contract": {
+    "file": "edgequake/crates/edgequake-storage/tests/contract_spec098_edge_delete_arbiter.rs",
+    "validation": "both normalization assertions retained; lifecycle delegation and shared trigger implementation checked"
+  },
+  "migration_footer_current_run_verified": true,
+  "epoch_reports": {
+    "16": [
+      {
+        "tag": "v0.10.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 22,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.10.6",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.11.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.11.1",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.11.3",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 11,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.12.6",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 6,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.12.7",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 6,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.13.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.13.2",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 11,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.13.3",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 10,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.14.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 16,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.16.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 16,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.17.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 14,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.19.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.2.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 12,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.20.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 14,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.20.1",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 60,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.21.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 7,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.21.1",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 6,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.22.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 5,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.23.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 8,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.24.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.24.2",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 8,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.24.4",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 8,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.25.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 8,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.26.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 9,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.5.1",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 18,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.5.5",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 8,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.7.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 6,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.8.0",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 5,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.9.5",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 7,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.9.7",
+        "pg": 16,
+        "status": "ok",
+        "duration_s": 18,
+        "ledger_max": 168
+      }
+    ],
+    "17": [
+      {
+        "tag": "v0.23.0",
+        "pg": 17,
+        "status": "ok",
+        "duration_s": 4,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.24.2",
+        "pg": 17,
+        "status": "ok",
+        "duration_s": 4,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.26.0",
+        "pg": 17,
+        "status": "ok",
+        "duration_s": 5,
+        "ledger_max": 168
+      }
+    ],
+    "18": [
+      {
+        "tag": "v0.23.0",
+        "pg": 18,
+        "status": "ok",
+        "duration_s": 4,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.24.2",
+        "pg": 18,
+        "status": "ok",
+        "duration_s": 11,
+        "ledger_max": 168
+      },
+      {
+        "tag": "v0.26.0",
+        "pg": 18,
+        "status": "ok",
+        "duration_s": 4,
+        "ledger_max": 168
+      }
+    ]
+  },
+  "schema_version": 1,
+  "run_date": "2026-10-05",
+  "schema_max": 168,
+  "host": "macOS-27.0-arm64-arm-64bit",
+  "rust_toolchain": "1.95.0",
+  "frontend_tooling": {
+    "node": "24.14.1",
+    "bun": "1.4.2",
+    "pnpm": "10.13.1",
+    "ci_node_major": 20
+  },
+  "profile_adjustments": {
+    "debug": 1,
+    "reason": "macOS proc-macro loader rejects stripped SQLx dylibs with debug=0; CI Linux keeps its existing profile"
+  },
+  "gates": {
+    "rust": [
+      {
+        "name": "ci-workspace-clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 475.56,
+        "tests_passed": 0,
+        "log_sha256": "d641e9f9fa7866d7b6587c7d87f34894cc970b82e54f47c319a5f5105254c749"
+      },
+      {
+        "name": "ci-workspace-nextest",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "--workspace",
+          "--lib",
+          "--locked",
+          "--no-fail-fast",
+          "--test-threads=4"
+        ],
+        "exit_code": 0,
+        "seconds": 387.34,
+        "tests_passed": 3755,
+        "log_sha256": "2412c4d5ed496220a1853b384b5e9382867d118b45efff8ab80231686dd91a14"
+      },
+      {
+        "name": "ci-real-statement-timeout",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--lib",
+          "real_statement_timeout_classifies_as_retryable",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 324.9,
+        "tests_passed": 1,
+        "log_sha256": "24545236860c62c48fd078e1c48b785f905452050d7347cc7183150d80938344"
+      },
+      {
+        "name": "ci-prompt-cache",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "-p",
+          "edgequake-api",
+          "--test",
+          "e2e_spec126_prompt_cache",
+          "--locked",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "seconds": 270.63,
+        "tests_passed": 4,
+        "log_sha256": "21133b6374828abd7294a68ba60d0d4af79bf6014ca8418384d704f80a297d36"
+      },
+      {
+        "name": "ci-test-count",
+        "command": [
+          "cargo",
+          "test",
+          "--workspace",
+          "--lib",
+          "--no-default-features",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 526.3,
+        "tests_passed": 3436,
+        "log_sha256": "5d90d1903b8a0c87720e72a5d7df37c501f853bfa3d47cc351aa6d8905aeb75d"
+      },
+      {
+        "name": "ci-inviolable",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-core",
+          "--test",
+          "inviolable_invariants",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 169.21,
+        "tests_passed": 12,
+        "log_sha256": "6cd0127c9fefcee84310fe7e551fd39fed99cb70037a42bdb91301c0d622a6d1"
+      },
+      {
+        "name": "ci-edge-invariants",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-core",
+          "--test",
+          "edge_case_invariants",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 82.77,
+        "tests_passed": 32,
+        "log_sha256": "fd57bcdc509da456b365cb06cf3833a291d9fb3a9de4c8e4ac4fdd5336fc5447"
+      },
+      {
+        "name": "ci-api-invariants",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--test",
+          "integration_invariants",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 173.69,
+        "tests_passed": 7,
+        "log_sha256": "78d80d2d6c691062a03f4a5f2caefd642ae3e2220a3311f64a06bddf03529829"
+      },
+      {
+        "name": "ci-docs",
+        "command": [
+          "cargo",
+          "doc",
+          "--workspace",
+          "--no-deps",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "seconds": 169.18,
+        "tests_passed": 0,
+        "log_sha256": "00486e749dd01ab576d23cbd322effae63199238a702171125f22d5e77a171de"
+      },
+      {
+        "name": "ci-release-libs",
+        "command": [
+          "cargo",
+          "build",
+          "--workspace",
+          "--release",
+          "--lib",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "seconds": 1048.95,
+        "tests_passed": 0,
+        "log_sha256": "641cb16dbd3a3e8725b5d554d938a48341aec29efa90287791580928770074bb"
+      }
+    ],
+    "db": [
+      {
+        "name": "ci-db-000-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Verify source query catalog and execution regressions",
+        "command": "cargo test -p edgequake-storage --features postgres --test postgres_query_catalog --test postgres_pdf_query_contract -- --test-threads=1 --nocapture",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 490.62,
+        "log": "edgequake-pr421-ci-db-000-pg18.log",
+        "tests_passed": 6,
+        "log_sha256": "073511df3bcf3843288ca34ea38bc26149aa5964009251b18e3453668b6bf281"
+      },
+      {
+        "name": "ci-db-016-pg16",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Typed CRUD matrix smoke",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_pg_matrix_smoke -- --test-threads=1",
+        "postgres_major": 16,
+        "exit_code": 0,
+        "seconds": 202.54,
+        "log": "edgequake-pr421-ci-db-016-pg16.log",
+        "tests_passed": 1,
+        "log_sha256": "b0d274b0cbeac584c5611a0f988bf8dda36f6b5c0a6f37f1eb394d9900590e18"
+      },
+      {
+        "name": "ci-db-062-pg16",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Matrix capability and graph contracts",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_capability_health -- --test-threads=1",
+        "postgres_major": 16,
+        "exit_code": 0,
+        "seconds": 488.37,
+        "log": "edgequake-pr421-ci-db-062-pg16.log",
+        "tests_passed": 3,
+        "log_sha256": "9f414711cc431d15e8549dafade05add5844e9082da20af68f417406a97ad9fe"
+      },
+      {
+        "name": "ci-db-063-pg16",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Matrix capability and graph contracts",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec098_fleet_mirror_report --test e2e_spec098_edge_upsert_cardinality -- --test-threads=1",
+        "postgres_major": 16,
+        "exit_code": 0,
+        "seconds": 251.14,
+        "log": "edgequake-pr421-ci-db-063-pg16.log",
+        "tests_passed": 4,
+        "log_sha256": "108313a6c764c290402242b8867a6f1ef0f4c0730bf7c6de2ad49bfcb3078171"
+      },
+      {
+        "name": "ci-db-017-pg17",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Typed CRUD matrix smoke",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_pg_matrix_smoke -- --test-threads=1",
+        "postgres_major": 17,
+        "exit_code": 0,
+        "seconds": 173.97,
+        "log": "edgequake-pr421-ci-db-017-pg17.log",
+        "tests_passed": 1,
+        "log_sha256": "5eea1e4e2b71133e48727bcffef4045f7cfcce9a8b88ac065314f39692041fc0"
+      },
+      {
+        "name": "ci-db-064-pg17",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Matrix capability and graph contracts",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_capability_health -- --test-threads=1",
+        "postgres_major": 17,
+        "exit_code": 0,
+        "seconds": 444.07,
+        "log": "edgequake-pr421-ci-db-064-pg17.log",
+        "tests_passed": 3,
+        "log_sha256": "86ac83cbbf2b01226a7ceba57d555966bd6cc7db5a12b64dc2bd2732888352ab"
+      },
+      {
+        "name": "ci-db-065-pg17",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Matrix capability and graph contracts",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec098_fleet_mirror_report --test e2e_spec098_edge_upsert_cardinality -- --test-threads=1",
+        "postgres_major": 17,
+        "exit_code": 0,
+        "seconds": 104.41,
+        "log": "edgequake-pr421-ci-db-065-pg17.log",
+        "tests_passed": 4,
+        "log_sha256": "09700e02f6427eec3ce3d8dc5602e7938db0f3632ff9da44c8d879ce64396958"
+      },
+      {
+        "name": "ci-db-018-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Typed CRUD matrix smoke",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_pg_matrix_smoke -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 252.27,
+        "log": "edgequake-pr421-ci-db-018-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "434dd2cbf70234c7c776da9295152a80793bc9fc462b8225df94e3667d50bcfe"
+      },
+      {
+        "name": "ci-db-066-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Matrix capability and graph contracts",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_capability_health -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 213.86,
+        "log": "edgequake-pr421-ci-db-066-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "374349a848d55bc39d14ef41ccbe8e3cd77d6111d99e16d27e8382beb3879479"
+      },
+      {
+        "name": "ci-db-067-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-pg-matrix-smoke",
+        "step": "Matrix capability and graph contracts",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec098_fleet_mirror_report --test e2e_spec098_edge_upsert_cardinality -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 253.25,
+        "log": "edgequake-pr421-ci-db-067-pg18.log",
+        "tests_passed": 4,
+        "log_sha256": "25a851abfcd98b9a385baeecd10b5b7c42987a616de3f50fc1485c54e030fc45"
+      },
+      {
+        "name": "ci-db-100-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run data-access fault and measurement gates",
+        "command": "cargo test -p edgequake-storage --features postgres    --test performance_harness_contract -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 152.79,
+        "log": "edgequake-pr421-ci-db-100-pg18.log",
+        "tests_passed": 4,
+        "log_sha256": "e874ddb969d81257c3ab1938a8ff6bf40a0cd1a5a777f5432cd10635918e5eb0"
+      },
+      {
+        "name": "ci-db-101-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run data-access fault and measurement gates",
+        "command": "cargo test -p edgequake-storage --features postgres    --test postgres_access_reliability    --test postgres_ann_measurement    --test postgres_typed_ann_measurement    --test e2e_spec090_multi_pool    -- --test-threads=1 --nocapture",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 212.06,
+        "log": "edgequake-pr421-ci-db-101-pg18.log",
+        "tests_passed": 16,
+        "log_sha256": "6ea067c869fa70d33460ff01c1bc899bd53f4f730d82262df56b1aa73f2f0a22"
+      },
+      {
+        "name": "ci-db-102-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Verify source query catalog and execution regressions",
+        "command": "cargo test -p edgequake-api --features postgres    --test postgres_query_regressions    --test contract_spec091_checkpoint_typed_write_stop    --test contract_spec091_cqrs_batch_sink    -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 203.6,
+        "log": "edgequake-pr421-ci-db-102-pg18.log",
+        "tests_passed": 7,
+        "log_sha256": "0f15a005d36960484904aca6d831b89e4afe0213ef8b21377e1e2a07ff7a1327"
+      },
+      {
+        "name": "ci-db-103-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Verify source query catalog and execution regressions",
+        "command": "cargo test -p edgequake-api --features postgres --test postgres_index_plans    -- --test-threads=1 --nocapture",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 221.53,
+        "log": "edgequake-pr421-ci-db-103-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "b948c341c46f3e97a781572af95d5c54b5697c921f82529c3e3913e2c8a45232"
+      },
+      {
+        "name": "ci-db-104-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Verify independently injected DAL providers",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_dal_provider_composition    -- --test-threads=1 --nocapture",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 269.51,
+        "log": "edgequake-pr421-ci-db-104-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "e2193905287e5d1201d4c4f280ca9c25e5f17c3cc714492d1ee57c5a1fc06a8c"
+      },
+      {
+        "name": "ci-db-105-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Verify independently injected DAL providers",
+        "command": "cargo test -p edgequake-storage --features postgres --test postgres_projection_provider_plans    -- --test-threads=1 --nocapture",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 3.82,
+        "log": "edgequake-pr421-ci-db-105-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "9f5491d51a323bea383dd1f702f74528a4383c54ae012126005b4c0ff5eeb5e1"
+      },
+      {
+        "name": "ci-db-106-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Require real tenant authorization and non-bypass RLS",
+        "command": "cargo test -p edgequake-api --features postgres    --test e2e_tenant_authorization --test e2e_tenant_rls    -- --test-threads=1 --nocapture",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 215.39,
+        "log": "edgequake-pr421-ci-db-106-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "2efd2b5c1d92be5990a5f6891e11504b1ef70b93b8fec8869595d40487841834"
+      },
+      {
+        "name": "ci-db-107-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-149 provider-access projection tests",
+        "command": "cargo test --package edgequake-storage --features postgres    --test e2e_spec149_projection_replay    --test e2e_spec149_ingestion_committer    -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 24.2,
+        "log": "edgequake-pr421-ci-db-107-pg18.log",
+        "tests_passed": 28,
+        "log_sha256": "4dc2a8438df8b9c65df62b362df1c00ec93dcfed92a41f230b6ec10c3c086f40"
+      },
+      {
+        "name": "ci-db-108-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-091 serving fence open e2e",
+        "command": "cargo test --package edgequake-storage --features postgres    --test e2e_spec091_serving_fence_open    -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 5.21,
+        "log": "edgequake-pr421-ci-db-108-pg18.log",
+        "tests_passed": 4,
+        "log_sha256": "e7f1fcf281ec19d5e6867fcf3f55a5072d5a5c2be4f5736a41eeefc608ecafd9"
+      },
+      {
+        "name": "ci-db-109-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-091 serving fence open e2e",
+        "command": "cargo test --package edgequake-storage --features postgres,provider-access-fault    --test e2e_spec149_process_kill    -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 41.67,
+        "log": "edgequake-pr421-ci-db-109-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "ba654030c946952b01a9e3be3bfc62616478f5cf74ab6ceb763f39e13a9173b8"
+      },
+      {
+        "name": "ci-db-110-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run PostgreSQL Storage Integration Tests",
+        "command": "cargo test --package edgequake-storage --test postgres_integration --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 10.82,
+        "log": "edgequake-pr421-ci-db-110-pg18.log",
+        "tests_passed": 14,
+        "log_sha256": "c9a30650231693fcf4efa9e1035c8837913bc649af28e05ae8682dc4f3403e7b"
+      },
+      {
+        "name": "ci-db-111-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run PostgreSQL Conversation Integration Tests",
+        "command": "cargo test --package edgequake-storage --test postgres_conversation_integration --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 4.51,
+        "log": "edgequake-pr421-ci-db-111-pg18.log",
+        "tests_passed": 19,
+        "log_sha256": "6c89f39b0a76851a7c17c7bc352c155f009bbd40bcc109913e4df7b0b208f126"
+      },
+      {
+        "name": "ci-db-112-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run PostgreSQL RLS E2E Tests",
+        "command": "cargo test --package edgequake-api --test e2e_postgres_rls --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 126.19,
+        "log": "edgequake-pr421-ci-db-112-pg18.log",
+        "tests_passed": 11,
+        "log_sha256": "fd7b27d797ea1fd5b08a49aa8784ac03839d860b504d68bc8d0418770407d95a"
+      },
+      {
+        "name": "ci-db-113-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run PostgreSQL Workspace Service Tests",
+        "command": "cargo test --package edgequake-api --test e2e_postgres_workspace --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 77.36,
+        "log": "edgequake-pr421-ci-db-113-pg18.log",
+        "tests_passed": 18,
+        "log_sha256": "2e7a897c87b7e6074ada6c329989e555a2409b73f21f776d87bfc9392d970d72"
+      },
+      {
+        "name": "ci-db-114-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run PostgreSQL Task Storage Tests",
+        "command": "cargo test --package edgequake-tasks --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 129.64,
+        "log": "edgequake-pr421-ci-db-114-pg18.log",
+        "tests_passed": 241,
+        "log_sha256": "ece8b70a7f08fda2af9988dc2c9bdd3576af53366f910c7f40fefbbd14a10579"
+      },
+      {
+        "name": "ci-db-115-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-129 touch-status CHECK e2e (#381)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec129_touch_status_check -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 53.53,
+        "log": "edgequake-pr421-ci-db-115-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "f7b17ff72c5b60cc91f4ec0706252805331a00e40f7d293a0b81745c14541aeb"
+      },
+      {
+        "name": "ci-db-116-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-129 touch-status CHECK e2e (#381)",
+        "command": "cargo test -p edgequake-api --features postgres --lib update_document_status_re_embedding_projects_processing_column -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 58.96,
+        "log": "edgequake-pr421-ci-db-116-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "05cf603db043a1b24027d3f18557e40fa4859203655adfbb9b9035825efa30d3"
+      },
+      {
+        "name": "ci-db-117-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-136 durable lid stamp-UPDATE absorb (#377)",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec120_legacy_vector_id_race -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.95,
+        "log": "edgequake-pr421-ci-db-117-pg18.log",
+        "tests_passed": 8,
+        "log_sha256": "be7b5c5d7a1a47cb93b72a12c934832fa1614e80b7b118da1cc117d93cd98fa8"
+      },
+      {
+        "name": "ci-db-118-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-136 durable lid stamp-UPDATE absorb (#377)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec136_durable_lid_retry -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 54.32,
+        "log": "edgequake-pr421-ci-db-118-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "5fe9bdc8af41a12068a26b07b2f73281f8c7e3946420bf2c7732c6e48b7aacce"
+      },
+      {
+        "name": "ci-db-119-pg18",
+        "workflow": "postgres-integration.yml/postgres-tests",
+        "step": "Run SPEC-154 security hardening e2e",
+        "command": "cargo test -p edgequake-api --features postgres    --test e2e_spec154_web_refresh_rotation    --test e2e_spec154_jti_durable    --test e2e_spec154_ws_no_query_token    --test e2e_spec154_api_key_scopes    --test e2e_spec154_membership_bind_mcp    --test e2e_spec154_audience_parity    --test e2e_spec154_scope_predicate    --test e2e_spec154_startup_auth_off_fatal    --test e2e_spec154_anonymous_vs_mcp    -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 141.23,
+        "log": "edgequake-pr421-ci-db-119-pg18.log",
+        "tests_passed": 35,
+        "log_sha256": "4b304f63c5c4cb25e9e9118e0f7c196de9ae002c11e3a80c17f1b687b2290123"
+      },
+      {
+        "name": "ci-db-120-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-017 storage backend contracts (postgres)",
+        "command": "cargo test -p edgequake-storage --test storage_backend_contract --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.52,
+        "log": "edgequake-pr421-ci-db-120-pg18.log",
+        "tests_passed": 6,
+        "log_sha256": "5e7b67d377ee60cb31bf815af4fd2e4a1642f6eec0d30b54fc303e6e55760570"
+      },
+      {
+        "name": "ci-db-121-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-017 storage backend contracts (postgres)",
+        "command": "cargo test -p edgequake-storage --test backend_e2e_contract --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.91,
+        "log": "edgequake-pr421-ci-db-121-pg18.log",
+        "tests_passed": 17,
+        "log_sha256": "1730f84a3ae09fbb7bbd9d1d63a3eac37ed4397073c93050cca3e4c55fa4cb4b"
+      },
+      {
+        "name": "ci-db-122-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-017 storage backend contracts (postgres)",
+        "command": "cargo test -p edgequake-storage --test graph_isp_contract --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.07,
+        "log": "edgequake-pr421-ci-db-122-pg18.log",
+        "tests_passed": 7,
+        "log_sha256": "ee203b7f05e07192a9e947b97766ee6ba4a7b5fd481f6305129764d05e6f17a1"
+      },
+      {
+        "name": "ci-db-123-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-044 Cypher parameter + compensation tests (postgres)",
+        "command": "cargo test -p edgequake-storage --test spec022_cypher_prepared_postgres --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.79,
+        "log": "edgequake-pr421-ci-db-123-pg18.log",
+        "tests_passed": 4,
+        "log_sha256": "fe9283ad10573908c092ef8d73245c52165ced76d0a87e4852b45194f7b2fb14"
+      },
+      {
+        "name": "ci-db-124-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-044 Cypher parameter + compensation tests (postgres)",
+        "command": "cargo test -p edgequake-storage --test spec044_compensation_postgres --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.26,
+        "log": "edgequake-pr421-ci-db-124-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "faa2ffb9066892626cb48e90cfeeef7e7bacac1cdc1e202cef9914bedb725976"
+      },
+      {
+        "name": "ci-db-125-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-006 migration bootstrap postgres e2e",
+        "command": "cargo test -p edgequake-api --test migration_bootstrap_proof --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 53.23,
+        "log": "edgequake-pr421-ci-db-125-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "7b7bd5ca87e4c95a9d0a6e712210d8fe9462fe2393d2a8eb54425a156435aecb"
+      },
+      {
+        "name": "ci-db-126-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-006 migration bootstrap postgres e2e",
+        "command": "cargo test -p edgequake-api --test migration_readiness_proof --features postgres -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 59.54,
+        "log": "edgequake-pr421-ci-db-126-pg18.log",
+        "tests_passed": 5,
+        "log_sha256": "a6064ad886adfc5d534927d603d3e92f86ee153eee4a7d7e809d09d8fabe97d2"
+      },
+      {
+        "name": "ci-db-127-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run PostgreSQL AGE Graph Tests",
+        "command": "cargo test --package edgequake-storage --test postgres_integration --features postgres -- test_postgres_age --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.95,
+        "log": "edgequake-pr421-ci-db-127-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "c54fbb983b7529452080202de978a2a7d476cd88ba3f2e0cffb05d06f1274206"
+      },
+      {
+        "name": "ci-db-128-pg18",
+        "workflow": "postgres-integration.yml/postgres-age-tests",
+        "step": "Run SPEC-106 graphid edges-batch E2E (Issue",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec106_graphid_edges_batch -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.08,
+        "log": "edgequake-pr421-ci-db-128-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "f0c65132d96d363b893d1c917bc5baeb12a5698f050bf668db1cc23cc62f224b"
+      },
+      {
+        "name": "ci-db-129-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Wave D KV-retirement end-state contracts",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_wave_d -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.4,
+        "log": "edgequake-pr421-ci-db-129-pg18.log",
+        "tests_passed": 9,
+        "log_sha256": "6dc44716650c22d1dfe5a2fd5f74bcc6492fa02378ae0aadf4dfddef3453ffb3"
+      },
+      {
+        "name": "ci-db-130-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Migration console advisor contracts",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_console -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 4.15,
+        "log": "edgequake-pr421-ci-db-130-pg18.log",
+        "tests_passed": 7,
+        "log_sha256": "9697b725f6629ffe499232ab1a9081aca740206a65cbcb92f2d6da5dc63db240"
+      },
+      {
+        "name": "ci-db-131-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Migration engine job control",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_job_control -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.88,
+        "log": "edgequake-pr421-ci-db-131-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "b04fa5a043fad3e75bb6517a30562d806cc4c5fd551f1f84aadd9a1b5b6001aa"
+      },
+      {
+        "name": "ci-db-132-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "W3 chunk-embedding port conformance",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_chunk_embeddings -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.95,
+        "log": "edgequake-pr421-ci-db-132-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "645d73162aac5c273098017237171d6c0bb718d4e8d3724097c3a38c4af3fd92"
+      },
+      {
+        "name": "ci-db-133-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "W3 vector backfill coverage + crash-resume",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_vector_backfill -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.12,
+        "log": "edgequake-pr421-ci-db-133-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "d11fcf0c6f2da27580c420180323e911c202956a1ee920fa2193b58c5ba04d30"
+      },
+      {
+        "name": "ci-db-134-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "W3 typed recall parity",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_recall_parity -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.97,
+        "log": "edgequake-pr421-ci-db-134-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "fa6cfe2f710af5ad45c0463cf5b57c2785112e280a3b02dad0ba2ab684b99b13"
+      },
+      {
+        "name": "ci-db-135-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "W3 dual-backend parity + fallback counter",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_vector_backend_dual -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.96,
+        "log": "edgequake-pr421-ci-db-135-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "36687432b7baadda602c333490455c762061343444eb2ad41619a5de8083b2fe"
+      },
+      {
+        "name": "ci-db-136-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Typed legacy vector write-stop",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_vector_write_stop -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.17,
+        "log": "edgequake-pr421-ci-db-136-pg18.log",
+        "tests_passed": 6,
+        "log_sha256": "ea73e6aa5b3d2c4762bfd0ae1b44c428e35fc358d8b9b8608adbc6be7b1417e6"
+      },
+      {
+        "name": "ci-db-137-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-091 typed-only ingest e2e",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_typed_only_ingest -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.83,
+        "log": "edgequake-pr421-ci-db-137-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "75cff6b748b6b9ee1a7f30956a763b193d16882bf33b7d0b6acc7925ac599a8d"
+      },
+      {
+        "name": "ci-db-138-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "W4 guarded vector retirement (migration 126)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_vector_retire -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.58,
+        "log": "edgequake-pr421-ci-db-138-pg18.log",
+        "tests_passed": 5,
+        "log_sha256": "c3fa16d38f81309fe261722c15bd46bc1e7798af3b3e50df0fbd1f58a9c59cd9"
+      },
+      {
+        "name": "ci-db-139-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "B1 boot migration gate contracts",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_boot_gate -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 55.23,
+        "log": "edgequake-pr421-ci-db-139-pg18.log",
+        "tests_passed": 7,
+        "log_sha256": "9782ba8473352c34afba9d5c3257b6da31d951ac7657d6b4b503fcd7af2d1e29"
+      },
+      {
+        "name": "ci-db-140-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "CLI migrate console (dry-run / confirm-drop)",
+        "command": "cargo test -p edgequake --features postgres --test cli_migrate_console -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 144.04,
+        "log": "edgequake-pr421-ci-db-140-pg18.log",
+        "tests_passed": 24,
+        "log_sha256": "1f3ea297bf0a31154b578060cfcf44355fc9cb8cfb99407bfd831636c34a949d"
+      },
+      {
+        "name": "ci-db-141-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW0 strict scope headers (fail-closed)",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_strict_scope_headers -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 63.29,
+        "log": "edgequake-pr421-ci-db-141-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "a41fe690acaebbbc4e21610469e0a9cb73e3aa66458168f23f25b6e6668fdf3e"
+      },
+      {
+        "name": "ci-db-142-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IP1 CQRS batch sink",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_cqrs_batch_sink -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 52.72,
+        "log": "edgequake-pr421-ci-db-142-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "f593c6aff780c1c04ebc811002acf7c9c49370df287052826d406562d97b1794"
+      },
+      {
+        "name": "ci-db-143-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IP2 outbox ingest contract",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_outbox_ingest -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 50.64,
+        "log": "edgequake-pr421-ci-db-143-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "a18838c83b1780941c33783745bef7d3661eea80496b22924fd2ffb6af9a6680"
+      },
+      {
+        "name": "ci-db-144-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "RM0 outbox drain contract",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_outbox_drain -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 51.18,
+        "log": "edgequake-pr421-ci-db-144-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "ae27c5a6565778c23398c5d00e07688a7fa43f9e6d68033ffe5ba57dd60942d5"
+      },
+      {
+        "name": "ci-db-145-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "RM2 AI write contract units",
+        "command": "cargo test -p edgequake-pipeline --lib spec091 -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 49.26,
+        "log": "edgequake-pr421-ci-db-145-pg18.log",
+        "tests_passed": 8,
+        "log_sha256": "2872ae44c50944fe628a3b585a5dcab64497014490d95c19e4c498d9f821137b"
+      },
+      {
+        "name": "ci-db-146-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "RM2 chunk FTS + RM3 AGE citation indexes",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_chunk_fts -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.67,
+        "log": "edgequake-pr421-ci-db-146-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "590840f073c0494220e6057780ec123f7cdf25a49239c3f4198f1808cf6865a0"
+      },
+      {
+        "name": "ci-db-147-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "RM2 chunk FTS + RM3 AGE citation indexes",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_age_citation_indexes -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.82,
+        "log": "edgequake-pr421-ci-db-147-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "d9155e3842c95ceb03f78560d0eb257a77afe7cf5c44f06e90d9c20003c68a06"
+      },
+      {
+        "name": "ci-db-148-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IP0 batch queue ETA + skip legacy upsert + fence default on",
+        "command": "cargo test -p edgequake-tasks --lib batch_estimate_ranks_pending_page -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.41,
+        "log": "edgequake-pr421-ci-db-148-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "e36ec7180c48c2cafcc9a67c8104135755c33a8976ae1cad10e9fb307abf9bb4"
+      },
+      {
+        "name": "ci-db-149-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IP0 batch queue ETA + skip legacy upsert + fence default on",
+        "command": "cargo test -p edgequake-pipeline --lib typed_authority_skips_legacy_chunk_vector_upsert -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.44,
+        "log": "edgequake-pr421-ci-db-149-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "9977a37425a6144be8ea51d93fc37f8dcb6658e4b02dfa9f5d01fb83c4d1a402"
+      },
+      {
+        "name": "ci-db-150-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IP0 batch queue ETA + skip legacy upsert + fence default on",
+        "command": "cargo test -p edgequake-storage --lib contract_spec091_serving_fence_default_on -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 5.75,
+        "log": "edgequake-pr421-ci-db-150-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "093e36db14e2f0190c1381a0cc2f32b051a2b7ffa8bc3d12c622cf41eb38c6d9"
+      },
+      {
+        "name": "ci-db-151-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW0 get_by_ids typed routing",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_get_by_ids_typed -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.94,
+        "log": "edgequake-pr421-ci-db-151-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "ff4514808f486513ddea4cd8515731b7ebb417436c55b135725d14737da1470b"
+      },
+      {
+        "name": "ci-db-152-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW0 unknown KV family loud error",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_unknown_family_loud -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.92,
+        "log": "edgequake-pr421-ci-db-152-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "931dad0de93845e26683eb4770c444de8eb7af7c4bed68b2e24f072607316acb"
+      },
+      {
+        "name": "ci-db-153-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW0 llm_cache cross-workspace scope contract",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_llm_cache_scope -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.75,
+        "log": "edgequake-pr421-ci-db-153-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "7d12ff22ab71948d1f9c02b2ff316e7d605d89f497ba48a3be785bcfccab5469"
+      },
+      {
+        "name": "ci-db-154-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW1 ingest p95 budget",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_ingestion_p95_budget -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 3.66,
+        "log": "edgequake-pr421-ci-db-154-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "c1d09115b7e3f2aec8d08a17223b26e66634bdb4bf82ae51b71894b170944819"
+      },
+      {
+        "name": "ci-db-155-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW1 retrieval SLO protection",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_retrieval_slo_protection -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 3.5,
+        "log": "edgequake-pr421-ci-db-155-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "dcca5629f6ff931cf59f0ec6e61f6e5cab0f5435e6b34d16f23eaec9930b5e73"
+      },
+      {
+        "name": "ci-db-156-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW1 shell batch write (unnest)",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_shell_batch_write -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.15,
+        "log": "edgequake-pr421-ci-db-156-pg18.log",
+        "tests_passed": 6,
+        "log_sha256": "8979f400543449dc73c068f231247bdd07adcab85cb27d0aa3061c6492d70837"
+      },
+      {
+        "name": "ci-db-157-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW1 HNSW policy converged (ef_construction=128)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_hnsw_policy_converged -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.65,
+        "log": "edgequake-pr421-ci-db-157-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "ff424d5fc6acea418ba3c9daea8d309eafa61c6d49a8f370b3608c46635f498e"
+      },
+      {
+        "name": "ci-db-158-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 fleet spine harden (mirror report + e2e)",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec098_fleet_mirror_report -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.64,
+        "log": "edgequake-pr421-ci-db-158-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "204f1fafe3d1168ad4964fa8809801968177c51880ecb368999f04f37f0cd3d2"
+      },
+      {
+        "name": "ci-db-159-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 fleet spine harden (mirror report + e2e)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_saturated_spine_ensure -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.65,
+        "log": "edgequake-pr421-ci-db-159-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "69d6010433fda7f8cc1fa7de01b88ee5f68d2e7d3c7397b209f65cc0878eb5b1"
+      },
+      {
+        "name": "ci-db-160-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 fleet spine harden (mirror report + e2e)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_relation_type_case -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.68,
+        "log": "edgequake-pr421-ci-db-160-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "70eefcf6aa057016b24c5b1ef1e95600c3e9dabf2b01cbb995af5fb9dada8de3"
+      },
+      {
+        "name": "ci-db-161-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 fleet spine harden (mirror report + e2e)",
+        "command": "cargo test -p edgequake-pipeline --lib spec098 -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.46,
+        "log": "edgequake-pr421-ci-db-161-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "3572f1864748e96026c1ea6a50f23bf52ef3bf37b800951195c34cdb8d3b5bbc"
+      },
+      {
+        "name": "ci-db-162-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_edge_upsert_cardinality -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.67,
+        "log": "edgequake-pr421-ci-db-162-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "777a32248ce146aba648f68dde1128aeeccf58a58ee9274f98e9bbaf5bc1187c"
+      },
+      {
+        "name": "ci-db-163-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_cypher_edge_multigraph -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.86,
+        "log": "edgequake-pr421-ci-db-163-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "0ea6f985b0fbcf2ff73a4168677778c5a7edafcf61d6a4720da376919e393b8f"
+      },
+      {
+        "name": "ci-db-164-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_legacy_edge_unique_reconcile -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.11,
+        "log": "edgequake-pr421-ci-db-164-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "e9b3025cd375b277f82299a80600d069b295cfbb7c7c908521dc383166d6171b"
+      },
+      {
+        "name": "ci-db-165-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_edge_upsert_perf -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 7.21,
+        "log": "edgequake-pr421-ci-db-165-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "123fac264bbb428d923e89cfad75d64fbedec3685c7c1f3a39f6c52610b89cc0"
+      },
+      {
+        "name": "ci-db-166-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec098_rel_sink_batch_dedupe -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 51.99,
+        "log": "edgequake-pr421-ci-db-166-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "ada000a909273022d8079a0afa6a202724fc7163511242af6ac39c6f10c00c7f"
+      },
+      {
+        "name": "ci-db-167-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-storage --test contract_spec047_p7ef_graph_upsert -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.94,
+        "log": "edgequake-pr421-ci-db-167-pg18.log",
+        "tests_passed": 4,
+        "log_sha256": "0d86a0e4bf46235a716c935b220c48072327aa3e8142f375581823124861842c"
+      },
+      {
+        "name": "ci-db-168-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "cargo test -p edgequake-storage --test contract_spec060_native_writes -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.92,
+        "log": "edgequake-pr421-ci-db-168-pg18.log",
+        "tests_passed": 6,
+        "log_sha256": "75cad3fae28a3b82f3a3ab4d1b805975c6fa2909ca3f646e25b182183cc1ffe4"
+      },
+      {
+        "name": "ci-db-169-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge upsert + arbiter harden (cardinality / reconcile / perf / sink)",
+        "command": "EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 cargo test -p edgequake-storage --features postgres --test e2e_spec106_graphid_edges_batch -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.84,
+        "log": "edgequake-pr421-ci-db-169-pg18.log",
+        "tests_passed": 3,
+        "log_sha256": "54f806bf6d83736ce46d04b7250976699b52f5edbbd3952a5de642e5da5473c7"
+      },
+      {
+        "name": "ci-db-170-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 delete dual-SSOT (admit + SQL CHECK + list merge)",
+        "command": "cargo test -p edgequake-api --test e2e_spec098_delete_list_merge_deleting -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 44.98,
+        "log": "edgequake-pr421-ci-db-170-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "e4478c2fd29016db186383f37a5c1aa7cda8fa8a1e680d673672bfac03926149"
+      },
+      {
+        "name": "ci-db-171-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 delete dual-SSOT (admit + SQL CHECK + list merge)",
+        "command": "cargo test -p edgequake-api --test e2e_spec098_batch_delete_admit_deleting -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 43.79,
+        "log": "edgequake-pr421-ci-db-171-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "c3d52492961999f96ed226e3b5d9a818bf157859342e9fc49dccc2be50c7bd29"
+      },
+      {
+        "name": "ci-db-172-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 delete dual-SSOT (admit + SQL CHECK + list merge)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec098_delete_sql_status_constraint -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 51.46,
+        "log": "edgequake-pr421-ci-db-172-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "3a90623a4b49abfdf5655861c09b0945968e30e1661509eeda76e46784277f45"
+      },
+      {
+        "name": "ci-db-173-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 delete dual-SSOT (admit + SQL CHECK + list merge)",
+        "command": "cargo test -p edgequake-api --lib document_read_model -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 42.65,
+        "log": "edgequake-pr421-ci-db-173-pg18.log",
+        "tests_passed": 21,
+        "log_sha256": "52ebadfc5091e9db6ed7db407681bf0d1a787632059f21e153cf6abe82f620ac"
+      },
+      {
+        "name": "ci-db-174-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 Symptom D delete failure honesty (W12)",
+        "command": "cargo test -p edgequake-api --test e2e_spec098_batch_failed_reasons -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 38.71,
+        "log": "edgequake-pr421-ci-db-174-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "9f743d89d03b516d41359cebfe5e62033b9ab605de6aa35a923ef6aed1452448"
+      },
+      {
+        "name": "ci-db-175-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 Symptom D delete failure honesty (W12)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec098_delete_failed_status_persists -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 46.23,
+        "log": "edgequake-pr421-ci-db-175-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "d4aaa02eac59a01a42896cef0bd47d2514c9f5d0507496c3e312c241eddbf33b"
+      },
+      {
+        "name": "ci-db-176-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 Symptom D delete failure honesty (W12)",
+        "command": "cargo test -p edgequake-storage --features postgres --lib normalize_documents_column_status_maps_kv_vocabulary -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 13.27,
+        "log": "edgequake-pr421-ci-db-176-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "e42a185c004c8b8b2ecc69afa87693368e02512a053fea34840b06b25967f05c"
+      },
+      {
+        "name": "ci-db-177-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 Symptom D delete failure honesty (W12)",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_shell_batch_write shell_batch_normalizes -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.4,
+        "log": "edgequake-pr421-ci-db-177-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "9de7dfae5bbe00c58ff78383fc31639a79f541861ed5084d98c31268f7e77c23"
+      },
+      {
+        "name": "ci-db-178-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 cascade prune vs eq_merge (LAW-098-12)",
+        "command": "cargo test -p edgequake-storage --test contract_spec060_native_writes contract_replace_mode_skips_eq_merge -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.17,
+        "log": "edgequake-pr421-ci-db-178-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "fc38cb1e03bdde905cef43d6e88bb46f98d2af67fe5f30f41e0af70e302eb7d1"
+      },
+      {
+        "name": "ci-db-179-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 cascade prune vs eq_merge (LAW-098-12)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec098_cascade_shared_prune_survives_eq_merge -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 45.67,
+        "log": "edgequake-pr421-ci-db-179-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "e092a90bde4f4d9246f5c343c1d8e66310e95570541dbda0b6b85d3705be7784"
+      },
+      {
+        "name": "ci-db-180-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge provenance SSOT (LAW-098-13)",
+        "command": "cargo test -p edgequake-storage --test graph_scan_ops_tests collect_source_references -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 0.23,
+        "log": "edgequake-pr421-ci-db-180-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "7e7072cccf480b7818b9bf5332053b32fddc58ff16c00266bce1cc66026ad70a"
+      },
+      {
+        "name": "ci-db-181-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge provenance SSOT (LAW-098-13)",
+        "command": "cargo test -p edgequake-storage --test contract_spec098_edge_delete_arbiter -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.5,
+        "log": "edgequake-pr421-ci-db-181-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "556e0be6c4659d3940355bceafd3b4cef97d662105273fb396bfbcc228800301"
+      },
+      {
+        "name": "ci-db-182-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge provenance SSOT (LAW-098-13)",
+        "command": "cargo test -p edgequake-api --lib clears_singular_citation_fields_when_empty -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 37.66,
+        "log": "edgequake-pr421-ci-db-182-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "37e688c90740c55df6cccd1a0af9684ec0df82cf7c0e8c33b44f44d0f1903b8b"
+      },
+      {
+        "name": "ci-db-183-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge provenance SSOT (LAW-098-13)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec098_accent_rel_delete_arbiter -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.95,
+        "log": "edgequake-pr421-ci-db-183-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "669113d4d1f9e75fffb8f88a75df7312408f74f5d3df7092aa8a628fed2d7ed9"
+      },
+      {
+        "name": "ci-db-184-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "SPEC-098 edge provenance SSOT (LAW-098-13)",
+        "command": "cargo test -p edgequake-api --features postgres --test e2e_spec098_edge_provenance_cascade -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 45.76,
+        "log": "edgequake-pr421-ci-db-184-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "64b1ef569d8cf613df76f2d27ba45da65df5b9e31670d42b771c9776f43b3cde"
+      },
+      {
+        "name": "ci-db-185-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "GH-350 agtype batch get (merge persist fingerprint)",
+        "command": "cargo test -p edgequake-storage --test contract_spec350_agtype_batch_get -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 69.97,
+        "log": "edgequake-pr421-ci-db-185-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "d4ece27fad9107ce6c73846d10346f6ef16406b2af3a4b47ced9aea64f098459"
+      },
+      {
+        "name": "ci-db-186-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "GH-350 agtype batch get (merge persist fingerprint)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec350_agtype_batch_get_nodes -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.2,
+        "log": "edgequake-pr421-ci-db-186-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "c5cc258e6b1f53ffe0854f2609d5444bbb7daa77c7d52b148c20c83516ec1970"
+      },
+      {
+        "name": "ci-db-187-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW2 fleet recall parity",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_fleet_recall_parity -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.75,
+        "log": "edgequake-pr421-ci-db-187-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "307d9e26965843bd82e3bc9d94b0675823482f238f0a674464e7d76499dd0529"
+      },
+      {
+        "name": "ci-db-188-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW2 zero runtime DDL after fleet drop (131)",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_zero_runtime_ddl -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.72,
+        "log": "edgequake-pr421-ci-db-188-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "e9f461deccddbae03e0b8af26b8904adfe1524b5f9e605bd472982956cfbe50c"
+      },
+      {
+        "name": "ci-db-189-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Doc 23 KV hot-path short-circuit + honesty",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_kv_ping_short_circuits -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.57,
+        "log": "edgequake-pr421-ci-db-189-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "4b93f2af75c110a96d63f2fbba92830e11b8872c35777ef374ca05c9deb82e04"
+      },
+      {
+        "name": "ci-db-190-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Doc 23 KV hot-path short-circuit + honesty",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_hot_path_no_missing_kv_sql -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.59,
+        "log": "edgequake-pr421-ci-db-190-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "367c8837826282be6b67f554fbbc3ce53d6ab37db9e78aedca1436c4615c8aa4"
+      },
+      {
+        "name": "ci-db-191-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Doc 23 KV hot-path short-circuit + honesty",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_admission_stamps_track_id -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.61,
+        "log": "edgequake-pr421-ci-db-191-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "0b1f517cd41602c3fdcf8d66792c7bef82ecf269b449b1d5b99a25d9efe247da"
+      },
+      {
+        "name": "ci-db-192-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Doc 23 KV hot-path short-circuit + honesty",
+        "command": "cargo test -p edgequake-storage --features postgres --test contract_spec091_advisor_purge_aware_residue -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.82,
+        "log": "edgequake-pr421-ci-db-192-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "3a206fd609c6bfd8a3f72350a4d5f711f6f5b4aff2d696a4c040172c609b4d01"
+      },
+      {
+        "name": "ci-db-193-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "Doc 23 KV hot-path short-circuit + honesty",
+        "command": "cargo test -p edgequake-api --features postgres --test contract_spec091_health_chunk_text_ssot -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 56.5,
+        "log": "edgequake-pr421-ci-db-193-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "5d2e61e98ee1334be0fdaa96bc4df51a642a83055b52e7cca1e3e5a04d972fdb"
+      },
+      {
+        "name": "ci-db-194-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW3 KV facade census allowlist (hermetic)",
+        "command": "cargo test -p edgequake-storage --test contract_spec091_no_kv_facade",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 5.8,
+        "log": "edgequake-pr421-ci-db-194-pg18.log",
+        "tests_passed": 4,
+        "log_sha256": "e5a754766db3d99c98eb7023f0acf026b3705b92aa32b8ccc2e81fa769920909"
+      },
+      {
+        "name": "ci-db-195-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW5 proptest key grammar + batch clamps (hermetic)",
+        "command": "cargo test -p edgequake-storage --test proptest_spec091_key_grammar",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.35,
+        "log": "edgequake-pr421-ci-db-195-pg18.log",
+        "tests_passed": 9,
+        "log_sha256": "977382ac8593e11ed608618413030c0dce3f88a4ed1b5382667b408d41c0f071"
+      },
+      {
+        "name": "ci-db-197-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW5 cross-tenant graph + ANN leak gates",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_cross_tenant_ann_leak -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.83,
+        "log": "edgequake-pr421-ci-db-197-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "762253eeb5bf04fdb3843170fbf691cde1f71ffab1c7877d30ece5c3d1df4b03"
+      },
+      {
+        "name": "ci-db-198-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW5 workspace delete zero-residue (100-row CI gate)",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_workspace_delete_zero_residue_1m -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 1.93,
+        "log": "edgequake-pr421-ci-db-198-pg18.log",
+        "tests_passed": 1,
+        "log_sha256": "cd0aa9d8c93eb0bd7c0ae05c1f3f20e203ca824b60c85c49cda446822e561b46"
+      },
+      {
+        "name": "ci-db-196-pg18",
+        "workflow": "spec091-data-layer.yml/spec091-data-layer",
+        "step": "IW5 cross-tenant graph + ANN leak gates",
+        "command": "cargo test -p edgequake-storage --features postgres --test e2e_spec091_cross_tenant_graph_leak -- --test-threads=1",
+        "postgres_major": 18,
+        "exit_code": 0,
+        "seconds": 2.69,
+        "log": "edgequake-pr421-ci-db-196-pg18.log",
+        "tests_passed": 2,
+        "log_sha256": "c8f7500807896998736561d8a79650f72d5381d8d50da3924507ddd2a3e6031b"
+      }
+    ],
+    "extra": [
+      {
+        "name": "inventory-contracts",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-storage",
+          "--test",
+          "data_layer_registry",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "seconds": 498.34,
+        "tests_passed": 2,
+        "log_sha256": "823c299871900358d4e216949ff9d1a295401e0d972219b7f2d490fc857930b4"
+      },
+      {
+        "name": "inventory-ddl",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-storage",
+          "--features",
+          "postgres",
+          "--test",
+          "data_layer_ops_matrix",
+          "data_pg_schema_",
+          "--",
+          "--test-threads=2",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 540.61,
+        "tests_passed": 22,
+        "log_sha256": "f68889483e2fe15d812758bf6609f353a1f53143916bad0493b8a868d53a3b91"
+      },
+      {
+        "name": "acc",
+        "command": [
+          "bash",
+          "specs/046-graphrag-study/e2e/run_spec046_acc.sh"
+        ],
+        "exit_code": 0,
+        "seconds": 187.91,
+        "tests_passed": 6,
+        "log_sha256": "7f7ffb8664791d8f260591fd162800a0acc51612c62259ddd1c79edabedb7ebc"
+      },
+      {
+        "name": "spec013-api",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--test",
+          "e2e_spec013_github_issues",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 337.55,
+        "tests_passed": 11,
+        "log_sha256": "740c825f4cd2d6a4d9b66c9ac72a47d595643620ea246ea6bf95fb06d0be20e9"
+      },
+      {
+        "name": "spec013-storage",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-storage",
+          "--features",
+          "postgres",
+          "--test",
+          "postgres_workspace_vector_stats",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 297.94,
+        "tests_passed": 0,
+        "log_sha256": "1615cbcdefc30d5655c821a59a755472fb5456198983b00432624e6a2e356b77"
+      },
+      {
+        "name": "migration-binary",
+        "command": [
+          "cargo",
+          "build",
+          "-p",
+          "edgequake",
+          "--features",
+          "postgres",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "seconds": 168.26,
+        "tests_passed": 0,
+        "log_sha256": "2d70377ca1d0f9966b4e8793342637d50e77bfce27c967988fdf604f0efc0e6f"
+      },
+      {
+        "name": "epoch-pg16",
+        "exit_code": 0,
+        "seconds": 709.38,
+        "mode": "full",
+        "command": null,
+        "tests_passed": 0,
+        "log_sha256": "c258a36de8e6da6b2e37cd1185b412b9497787820b416993a37cb1383d4a9bae",
+        "epoch_cases_passed": 32,
+        "lock_chaos_passed": true
+      },
+      {
+        "name": "epoch-pg17",
+        "exit_code": 0,
+        "seconds": 28.92,
+        "mode": "quick",
+        "command": null,
+        "tests_passed": 0,
+        "log_sha256": "0e192334d6646336d1879f2a79c664bc386039d2deac08c45817a4675038482d",
+        "epoch_cases_passed": 3,
+        "lock_chaos_passed": false
+      },
+      {
+        "name": "epoch-pg18",
+        "exit_code": 0,
+        "seconds": 27.66,
+        "mode": "quick",
+        "command": null,
+        "tests_passed": 0,
+        "log_sha256": "891af5e7821881c37ffd13f39fef3c45464e4f8e3786cc7d1060f22be4f7de12",
+        "epoch_cases_passed": 3,
+        "lock_chaos_passed": false
+      }
+    ],
+    "providers": [
+      {
+        "name": "external",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-storage",
+          "--features",
+          "full",
+          "--test",
+          "e2e_spec149_qdrant",
+          "--test",
+          "e2e_spec149_neo4j",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 466.82,
+        "tests_passed": 3,
+        "log_sha256": "3d2e2381d21584fc337257cced1a32e4599bb6632be22d355fa20c16f5204e05"
+      },
+      {
+        "name": "sqlite",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-storage",
+          "--features",
+          "full",
+          "--lib",
+          "adapters::sqlite",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 514.3,
+        "tests_passed": 8,
+        "log_sha256": "e143bc7362c31b2469db0e009fb15090be5dbaff511061521f8b75143e735977"
+      }
+    ],
+    "postflight": [
+      {
+        "name": "checksums",
+        "command": [
+          "bash",
+          "scripts/check_migration_checksums.sh",
+          "--verbose"
+        ],
+        "exit_code": 0,
+        "seconds": 21.76,
+        "log": "edgequake-pr421-ci-checksums.log",
+        "tests_passed": 0,
+        "log_sha256": "41aef73ec485b749fdc3178ae739d919bdad1bb1245079d48622a1b3cd9702b2"
+      },
+      {
+        "name": "spec013-strict",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--test",
+          "e2e_spec013_github_issues",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 193.6,
+        "log": "edgequake-pr421-ci-spec013-strict.log",
+        "tests_passed": 11,
+        "log_sha256": "80c428f4e84d2a49a150b788896ae5f8de037e15af53c073eee217acf1126132"
+      },
+      {
+        "name": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "seconds": 5.19,
+        "log": "edgequake-pr421-ci-fmt.log",
+        "tests_passed": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy-final",
+        "command": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 74.29,
+        "log": "edgequake-pr421-ci-clippy-final.log",
+        "tests_passed": 0,
+        "log_sha256": "8c24bc70d89b5e7a3b71126898532d149a403a74d446393a15ceaf6e9b0d44ae"
+      }
+    ]
+  },
+  "browser": {
+    "command": "CI=true PLAYWRIGHT_SKIP_STACK_CHECK=1 pnpm exec playwright test --project=chromium --retries=0 --reporter=line",
+    "passed": 270,
+    "skipped": 343,
+    "failed": 0,
+    "retries": 0,
+    "picker_repeat_passed": 12,
+    "layout_login_repeat_passed": 21
+  },
+  "database_isolation": {
+    "postgres_16_port": 28676,
+    "postgres_17_port": 28677,
+    "postgres_18_port": 28678,
+    "bind": "127.0.0.1",
+    "disposable": true,
+    "strict_postgres_tests": true,
+    "strict_provider_access_tests": true
+  },
+  "measurement_context": "Database gates ran on disposable local containers while Rust CI builds were active; paired original fixtures remain separately recorded.",
+  "source_query_catalog": {
+    "sites": 895,
+    "verification": {
+      "prepared": 642,
+      "dynamic_requires_execution_test": 253
+    },
+    "fresh_sqlx_replay": true,
+    "catalog_sha256": "cfad56d4cc0badffd37466d5226819ac3a081245f69a5c0f9a134d99159ff741"
+  },
+  "limits": [
+    "Local runs use macOS arm64 and Node 24; remote Linux and Node 20 checks remain required.",
+    "Historical upgrade fixtures verify replay and ledger convergence; schema-dump comparisons were skipped, matching the CI profile.",
+    "Headless browser output includes WebGL initialization diagnostics; GPU graph rendering is not certified by this run.",
+    "Browser cases requiring a live backend, external identity provider, or Tev1 model are skipped in the UI-only gate.",
+    "Catalog preparation verifies SQL types and bind shapes; 253 dynamic statements need individual execution coverage and are not all measured.",
+    "Security audit retains the same two explicit advisory exclusions as CI and reports eight permitted warnings.",
+    "API builds without PostgreSQL features emit existing unused-code warnings; the required default-feature Clippy gate passes with warnings denied.",
+    "Performance fixtures do not establish globally optimal plans for arbitrary production distributions."
+  ],
+  "query_shape_timings": {
+    "scope": "source inventory plus SQLx shape observations; not full execution coverage",
+    "source_sites": 895,
+    "static_sites_with_matching_sql_shape": 26,
+    "dynamic_sites_require_execution_contracts": 253,
+    "observed_distinct_sql_texts": 108,
+    "observed_query_events": 754,
+    "log_sha256": "3468f54481bd17e22d715d40366f27d436541d0992dd227661f1481ab039ea40"
+  },
+  "measurements_artifact": "local-ci-plans.json",
+  "additional_verification": {
+    "python_parser_tests": 15,
+    "sso_unit_tests": 9,
+    "ui_flake_lint": true,
+    "source_inventory_cross_references": 235,
+    "migration_guard_checks": 7,
+    "release_gates_passed": true,
+    "release_gates_log_sha256": "6ffe1b93196e6822e549c4c246e091fee4b2345655f940c2ce527c7c37398fe2",
+    "historical_epoch_cases": {
+      "pg16": 32,
+      "pg17": 3,
+      "pg18": 3,
+      "pg16_concurrent_lock_chaos": true
+    }
+  },
+  "test_count_scope": "Cargo/nextest-reported passing executions, including overlapping feature configurations. Optional harness soft-skips may be reported as passes outside the explicitly required PostgreSQL/provider gates."
+}

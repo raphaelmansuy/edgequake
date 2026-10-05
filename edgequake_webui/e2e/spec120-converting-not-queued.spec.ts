@@ -419,7 +419,10 @@ test.describe("SPEC-120 converting not queued", () => {
     );
     await expectBadgeTitle(page, /Converting/i);
 
-    await expect(activeRuns).toContainText(/Converting/i);
+    await expect(activeRuns).toContainText(/Prepare.*pages 7\/17/i);
+    await expect(activeRuns.getByTestId("spec091-phase-strip")).toHaveAttribute(
+      "data-wire-stage", "converting",
+    );
     await expect(activeRuns).toContainText(/Active run/i);
     await expect(activeRuns).not.toContainText("Queued — Queued");
     await expect(activeRuns).not.toContainText("Queued run");
@@ -432,7 +435,10 @@ test.describe("SPEC-120 converting not queued", () => {
       .poll(getDocumentPollCount, { timeout: 10_000 })
       .toBeGreaterThan(pollCountAfterWs);
     await expectBadgeTitle(page, /Converting/i);
-    await expect(activeRuns).toContainText(/Converting/i);
+    await expect(activeRuns).toContainText(/Prepare.*pages 7\/17/i);
+    await expect(activeRuns.getByTestId("spec091-phase-strip")).toHaveAttribute(
+      "data-wire-stage", "converting",
+    );
 
     // A different non-empty track is a new run and must replace all old-run
     // fields wholesale rather than creating a hybrid row.
@@ -505,7 +511,10 @@ test.describe("SPEC-120 converting not queued", () => {
     await expect(activeRuns).not.toContainText(/Waiting for a processing slot/i);
 
     setDocument(RUNNING_DOC);
-    await expect(activeRuns).toContainText(/Converting/i, { timeout: 10000 });
+    await expect(activeRuns).toContainText(/Prepare.*pages 7\/17/i, { timeout: 10000 });
+    await expect(activeRuns.getByTestId("spec091-phase-strip")).toHaveAttribute(
+      "data-wire-stage", "converting",
+    );
     await expect(activeRuns).not.toContainText(/Waiting for capacity/i);
     await expect(activeRuns).not.toContainText(/Waiting for a processing slot/i);
 

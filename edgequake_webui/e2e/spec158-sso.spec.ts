@@ -82,6 +82,11 @@ test.describe("@spec158 SSO login", () => {
 
 test.describe("@spec158 SSO callback errors (no IdP)", () => {
   test("a replayed or expired handoff code shows a clear error and a way back", async ({ page }) => {
+    await page.route("**/api/v1/auth/handoff", (route) => route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "code_invalid" } }),
+    }));
     await page.goto("/auth/callback?code=not-a-real-code");
     await expect(page.getByTestId("sso-error")).toBeVisible();
     await expect(page.getByTestId("sso-error-message")).toContainText(/expired|already used/i);

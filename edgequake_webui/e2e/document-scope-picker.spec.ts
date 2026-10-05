@@ -146,6 +146,10 @@ test.describe("Document scope picker — scroll & a11y", () => {
       page.getByRole("button", { name: /remove document 001 from scope/i }),
     ).toBeVisible({ timeout: 15_000 });
 
+    // Selection can retain the open popover. Close it explicitly before
+    // reopening so the trigger cannot toggle it shut during measurement.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("scope-picker-list")).toHaveCount(0);
     // Composer always uses `query-scope-chip` as the popover trigger (no separate Add).
     await page.getByTestId("query-scope-chip").click();
     const list = page.getByTestId("scope-picker-list");

@@ -35,17 +35,16 @@ interface RecentActivityProps {
 }
 
 function ActivitySkeleton() {
-  // Rows are sized like real ones (title + time + detail line) so the card does
-  // not jump when data arrives.
+  // Title + time placeholders fit inside the reserved content height, including
+  // when the first response is empty. Detail and footer arrive with real rows.
   return (
-    <div className="space-y-1" data-testid="spec100-dashboard-activity-skeleton">
+    <div className="h-[280px] overflow-hidden space-y-1" data-testid="spec100-dashboard-activity-skeleton">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-start gap-3 px-3 py-2.5">
+        <div key={i} className="flex items-start gap-3 px-3 py-2">
           <Skeleton className="mt-0.5 h-8 w-8 rounded-md" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-4 w-44" />
             <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-3 w-56 max-w-full" />
           </div>
           <Skeleton className="h-5 w-20" />
         </div>
@@ -106,11 +105,7 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
           </div>
         )}
       </CardContent>
-      {isLoading ? (
-        <div className="min-h-8 border-t px-4 pt-3">
-          <Skeleton className="h-5 w-36" />
-        </div>
-      ) : items.length > 0 ? (
+      {!isLoading && items.length > 0 ? (
         <div className="min-h-8 border-t px-4 pt-3">
           <Link
             href="/documents"

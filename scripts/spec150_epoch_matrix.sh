@@ -24,6 +24,7 @@ REPORT_ROOT="$REPO_ROOT/specs/150-reliable-migration-system/reports"
 EPOCHS_TOML="$REPO_ROOT/scripts/spec150/epochs.toml"
 SEED_SQL="$REPO_ROOT/scripts/spec150/seed_realistic.sql"
 ALLOWLIST="$REPO_ROOT/scripts/spec150/schema_diff_allowlist.txt"
+RUN_REPORTS=()
 
 # Forbidden host ports (SPEC-93 isolation)
 FORBIDDEN_PORTS="8787 55432 8080 5173 8000 5433 9000 9001 3100 5001"
@@ -165,6 +166,7 @@ run_one() {
   local tag="$1" major="$2" mode="$3"
   local port container url bin report_dir t0 t1 status
   report_dir="$REPORT_ROOT/pg${major}"
+  RUN_REPORTS+=("$report_dir/${tag}.json")
   mkdir -p "$report_dir"
   port=$(pick_port)
   container=$(start_pg "$major" "$port")
@@ -406,15 +408,16 @@ fi
 # Summarize
 echo ""
 echo "=== SPEC-150 epoch matrix summary ==="
-python3 - "$REPORT_ROOT" <<'PY' || true
+python3 - "${RUN_REPORTS[@]}" <<'PY' || true
 import json, sys
 from pathlib import Path
-root = Path(sys.argv[1])
 oks = fails = 0
-for path in sorted(root.glob("pg*/*.json")):
+for path in sys.argv[1:]:
     try:
-        o = json.loads(path.read_text())
-    except Exception:
+        o = json.loads(Path(path).read_text())
+    except Exception as error:
+        fails += 1
+        print("FAIL", path, str(error))
         continue
     if o.get("status") == "ok":
         oks += 1
