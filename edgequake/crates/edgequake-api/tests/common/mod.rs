@@ -38,6 +38,7 @@ pub mod spec114_live_extract;
 #[cfg(feature = "postgres")]
 pub mod test_db;
 
+pub mod identity_fixture;
 pub mod inflight_task_invariant;
 pub mod oidc_wiremock;
 pub mod spec026_delivery;

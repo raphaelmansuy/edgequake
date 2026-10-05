@@ -238,6 +238,7 @@ impl PostgresAGEGraphStorage {
         // SPEC-090 F-090-07: SET LOCAL search_path inside the timed txn (no leak).
         let timeout_ms = super::super::helpers::graph_query_statement_timeout_ms();
         let mut timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         if let Err(e) = sqlx::query("SET LOCAL search_path TO ag_catalog, \"$user\", public")
             .execute(timed.as_mut())
             .await

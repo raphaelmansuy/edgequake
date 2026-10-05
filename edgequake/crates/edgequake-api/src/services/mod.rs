@@ -113,6 +113,7 @@ pub mod reasoning_effort_resolve;
 pub mod relational_sidecar_store;
 pub mod reprocess_admission;
 pub mod reprocess_stage_reset;
+pub mod request_authorization;
 pub mod retract_document_indexes;
 pub mod retrieval_id_cache;
 pub mod route_registry;

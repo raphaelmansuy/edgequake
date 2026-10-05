@@ -2,18 +2,19 @@
 
 mod common;
 
+#[cfg(feature = "postgres")]
 use edgequake_api::services::{
     delete_document_mm_assets, list_mm_asset_summaries_for_document, load_mm_asset_bytes,
     load_mm_asset_bytes_by_id, materialize_mm_assets_to_dir, persist_document_mm_assets_from_dir,
 };
-use edgequake_storage::{
-    asset_id_from_path, DocumentMmAssetStorage, MemoryMmAssetStorage, ASSET_KIND_PAGE_CHART_CROP,
-    ASSET_KIND_PAGE_FULL,
-};
+#[cfg(feature = "postgres")]
+use edgequake_storage::{asset_id_from_path, ASSET_KIND_PAGE_CHART_CROP};
+use edgequake_storage::{DocumentMmAssetStorage, MemoryMmAssetStorage, ASSET_KIND_PAGE_FULL};
 use std::sync::Arc;
 use uuid::Uuid;
 
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn mm_assets_persist_roundtrip_with_page_lineage() {
     let dir = tempfile::tempdir().expect("temp");
     let assets = dir.path().join("assets");
@@ -56,6 +57,7 @@ async fn mm_assets_persist_roundtrip_with_page_lineage() {
 }
 
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn mm_assets_get_by_stable_id() {
     let dir = tempfile::tempdir().expect("temp");
     let assets = dir.path().join("assets");
@@ -98,6 +100,7 @@ async fn mm_assets_get_by_stable_id() {
 }
 
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn mm_assets_materialize_restores_disk_cache_for_analyze() {
     let storage = Arc::new(MemoryMmAssetStorage::new());
     let doc = Uuid::new_v4();
@@ -132,6 +135,7 @@ async fn mm_assets_materialize_restores_disk_cache_for_analyze() {
 }
 
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn delete_document_removes_assets_db_and_fs() {
     let dir = tempfile::tempdir().expect("temp");
     let assets = dir.path().join("assets");

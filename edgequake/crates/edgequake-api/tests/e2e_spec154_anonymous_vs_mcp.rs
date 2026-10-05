@@ -25,7 +25,7 @@ fn ec_154_21_auth_on_uses_principal_not_shared_guest() {
 
 #[tokio::test]
 async fn ec_154_21_mcp_write_without_creds_unauthorized() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state);
     let response = app
         .oneshot(

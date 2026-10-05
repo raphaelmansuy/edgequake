@@ -1,0 +1,225 @@
+{
+  "status": "verified_scoped_contracts",
+  "recorded_at_utc": "2026-10-05T06:58:30.823475+00:00",
+  "passing_test_executions": 3009,
+  "counting": "Executions, not unique tests; full-feature and postgres unit runs overlap. Counts include only the listed final successful logs.",
+  "test_suites": [
+    {
+      "suite": "api-unit",
+      "passed_test_executions": 1580,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-api --features postgres --lib -- --test-threads=1"
+    },
+    {
+      "suite": "storage",
+      "passed_test_executions": 530,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 4,
+      "command": "cargo test -p edgequake-storage --features postgres --lib --test e2e_spec149_ingestion_committer --test e2e_spec149_projection_replay --test postgres_access_reliability -- --test-threads=1"
+    },
+    {
+      "suite": "storage-full",
+      "passed_test_executions": 528,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-storage --features full --lib -- --test-threads=1 --nocapture"
+    },
+    {
+      "suite": "core-unit",
+      "passed_test_executions": 213,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-core --features postgres --lib -- --test-threads=1"
+    },
+    {
+      "suite": "security-regression",
+      "passed_test_executions": 6,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-api --features postgres --test spec027_pg_auth_e2e -- --test-threads=1"
+    },
+    {
+      "suite": "final-tenant",
+      "passed_test_executions": 5,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 3,
+      "command": "cargo test -p edgequake-api --features postgres --test e2e_tenant_authorization --test e2e_tenant_rls -- --test-threads=1"
+    },
+    {
+      "suite": "final-mcp-oauth",
+      "passed_test_executions": 25,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-api --features postgres --test spec028_mcp_oauth_e2e -- --test-threads=1"
+    },
+    {
+      "suite": "auth-regression",
+      "passed_test_executions": 53,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 6,
+      "command": "cargo test -p edgequake-api --features postgres --test e2e_auth --test e2e_spec154_anonymous_vs_mcp --test e2e_spec154_api_key_scopes --test e2e_spec154_audience_parity --test e2e_spec154_membership_bind_mcp --test e2e_spec154_scope_predicate -- --test-threads=1"
+    },
+    {
+      "suite": "legacy-rls",
+      "passed_test_executions": 11,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-api --features postgres --test e2e_postgres_rls -- --test-threads=1"
+    },
+    {
+      "suite": "api-regression",
+      "passed_test_executions": 18,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 3,
+      "command": "cargo test -p edgequake-api --features postgres --test provider_access_e2e --test postgres_query_regressions --test postgres_index_plans -- --test-threads=1"
+    },
+    {
+      "suite": "source-catalog",
+      "passed_test_executions": 5,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 2,
+      "command": "cargo test -p edgequake-storage --features postgres --test postgres_query_catalog --test postgres_projection_provider_plans -- --test-threads=1"
+    },
+    {
+      "suite": "external",
+      "passed_test_executions": 3,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 2,
+      "command": "cargo test -p edgequake-storage --features full --test e2e_spec149_qdrant --test e2e_spec149_neo4j -- --test-threads=1 --nocapture"
+    },
+    {
+      "suite": "ann-regression",
+      "passed_test_executions": 6,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 3,
+      "command": "cargo test -p edgequake-storage --features postgres --test postgres_typed_ann_measurement --test postgres_ann_measurement --test postgres_pdf_query_contract -- --test-threads=1 --nocapture"
+    },
+    {
+      "suite": "asset-feature-regression",
+      "passed_test_executions": 5,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-api --features postgres --test e2e_spec047_mm_assets_db -- --test-threads=1"
+    },
+    {
+      "suite": "asset-default-regression",
+      "passed_test_executions": 1,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-api --test e2e_spec047_mm_assets_db -- --test-threads=1"
+    },
+    {
+      "suite": "decision-feature-regression",
+      "passed_test_executions": 4,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-storage --features postgres --test contract_spec160_decision_store -- --test-threads=1"
+    },
+    {
+      "suite": "decision-default-regression",
+      "passed_test_executions": 1,
+      "failed": 0,
+      "ignored": 0,
+      "binary_results": 1,
+      "command": "cargo test -p edgequake-storage --test contract_spec160_decision_store -- --test-threads=1"
+    }
+  ],
+  "lint": [
+    {
+      "command": "cargo clippy -p edgequake-api --features postgres --all-targets -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "command": "cargo clippy -p edgequake-storage --features full --all-targets -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "command": "cargo clippy -p edgequake-core --features postgres --all-targets -- -D warnings",
+      "status": "passed"
+    }
+  ],
+  "build_environment": {
+    "CARGO_PROFILE_DEV_DEBUG": "1",
+    "CARGO_PROFILE_TEST_DEBUG": "1",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "RUST_MIN_STACK": "33554432"
+  },
+  "services": {
+    "postgres": "18.4",
+    "age": "1.8.0",
+    "pgvector": "0.8.5",
+    "qdrant": "1.19.0",
+    "neo4j": "5.26.31 Community"
+  },
+  "measurement_artifacts": [
+    "tenant-http.json",
+    "tenant-rls.json",
+    "tenant-ann.json",
+    "tenant-qdrant.json",
+    "tenant-neo4j.json",
+    "tenant-sqlite.json",
+    "tenant-provider-composition.json"
+  ],
+  "coverage_limits": [
+    "Not every catalogued query has runtime attribution or a measured plan.",
+    "Alternate full deployment profiles remain certification-gated.",
+    "Privileged legacy/control-plane SQL remains outside the new scoped transaction boundary.",
+    "Default-feature API code has existing unused-code warnings; production postgres lint uses -D warnings."
+  ],
+  "passing_rust_test_executions": 2994,
+  "python_tool_tests": [
+    {
+      "command": "python3 -m unittest discover -s scripts/tests -p test_compare_eq_perf_jsonl.py -v",
+      "passed": 12
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts/tests -p test_annotate_query_timings.py -v",
+      "passed": 3
+    }
+  ],
+  "default_feature_build": {
+    "command": "cargo check -p edgequake-api -p edgequake-core -p edgequake-storage --all-targets",
+    "status": "passed",
+    "warnings": "Existing feature-dependent unused-code warnings remain."
+  },
+  "repository_checks": {
+    "cargo_fmt_all": "passed",
+    "git_diff_check": "passed",
+    "migration_checksums": {
+      "passed": 214,
+      "modified": 0,
+      "missing": 0,
+      "unlocked": 0
+    },
+    "ci_yaml": "parsed; 4 jobs",
+    "migration_manifest": "TOML parsed"
+  },
+  "working_directory": "edgequake",
+  "required_test_environment": {
+    "EDGEQUAKE_REQUIRE_POSTGRES_TESTS": "1",
+    "EDGEQUAKE_REQUIRE_QDRANT": "1",
+    "EDGEQUAKE_REQUIRE_NEO4J": "1",
+    "EDGEQUAKE_PROVIDER_ACCESS_E2E": "1",
+    "EDGEQUAKE_REQUIRE_PROVIDER_ACCESS": "1",
+    "DATABASE_URL": "dedicated migrated test database; credential omitted",
+    "provider_endpoints": "local disposable Qdrant and Neo4j fixtures; credentials omitted"
+  }
+}

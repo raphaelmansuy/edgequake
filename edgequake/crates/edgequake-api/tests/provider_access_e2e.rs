@@ -699,16 +699,27 @@ async fn provider_access_e2e07_poison_and_pending() {
         false,
     )
     .await;
-    let (_, q_body) = server
+    // The running worker may open the fence after the fixture observes both acks.
+    // Hold only this document's receipts and close its fence atomically, so this
+    // assertion tests pending visibility rather than racing a successful drain.
+    let mut pending_tx = server.pool.begin().await.unwrap();
+    let held = sqlx::query("UPDATE projection_deliveries d SET state='leased', lease_owner=$2, lease_until=now()+interval '1 hour' FROM projection_events e WHERE e.event_id=d.event_id AND e.object_id=$1")
+        .bind(pending.document_id).bind(Uuid::new_v4()).execute(&mut *pending_tx).await.unwrap();
+    assert_eq!(held.rows_affected(), 2, "hold both provider receipts");
+    sqlx::query("INSERT INTO chunk_serving_state(chunk_id,state) VALUES($1,'declared') ON CONFLICT(chunk_id) DO UPDATE SET state='declared'")
+        .bind(pending.chunk_id).execute(&mut *pending_tx).await.unwrap();
+    pending_tx.commit().await.unwrap();
+    let (q_status, q_body) = server
         .query_naive(
             tenant_ok,
             ws_ok,
-            fixtures::PENDING_SECRET,
+            "Find the pending document",
             Some(vec![pending.document_id.to_string()]),
             Some(5),
         )
         .await;
-    assert!(!q_body.contains(fixtures::PENDING_SECRET));
+    assert!(q_status.is_success(), "{q_status} {q_body}");
+    assert!(!q_body.contains(fixtures::PENDING_SECRET), "{q_body}");
     http_harness::pass("PROVIDER-ACCESS-E2E07");
 }
 

@@ -20,7 +20,7 @@ pub enum TenantAccess {
 
 /// True when only members may see a tenant (multi-tenant / SSO deployments).
 pub fn membership_scoped(state: &AppState) -> bool {
-    state.security.strict_tenant_bind || state.auth.sso_active()
+    crate::services::request_authorization::binding_required(state) || state.auth.sso_active()
 }
 
 fn is_platform_admin(ctx: &RequestAuthContext) -> bool {
@@ -54,7 +54,27 @@ pub async fn require_tenant_access(
     if is_platform_admin(ctx) || (need == TenantAccess::Read && !membership_scoped(state)) {
         return Ok(());
     }
+    let tenant = state
+        .workspace_service
+        .get_tenant(tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(denied)?;
+    if !tenant.is_active {
+        return Err(denied());
+    }
     let user_id = Uuid::parse_str(&ctx.user_id).map_err(|_| denied())?;
+    if need == TenantAccess::Read
+        && state
+            .workspace_service
+            .get_user_memberships(user_id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .iter()
+            .any(|m| m.is_active && m.tenant_id == tenant_id)
+    {
+        return Ok(());
+    }
     let role = state
         .workspace_service
         .get_user_role(user_id, tenant_id)
@@ -92,7 +112,9 @@ pub async fn member_tenants(
                 .await
                 .map_err(internal)?
             {
-                tenants.push(t);
+                if t.is_active {
+                    tenants.push(t);
+                }
             }
         }
     }

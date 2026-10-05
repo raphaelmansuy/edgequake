@@ -26,6 +26,15 @@ pub struct Membership {
 }
 
 impl Membership {
+    /// Tenant administration requires a tenant-wide grant; content may select a workspace.
+    pub fn applies_to(&self, tenant: Uuid, workspace: Option<Uuid>) -> bool {
+        self.is_active
+            && self.tenant_id == tenant
+            && match workspace {
+                Some(workspace) => self.can_access_workspace(&workspace),
+                None => self.workspace_id.is_none(),
+            }
+    }
     /// Create a new membership.
     pub fn new(user_id: Uuid, tenant_id: Uuid, role: MembershipRole) -> Self {
         Self {
@@ -128,5 +137,28 @@ impl std::str::FromStr for MembershipRole {
             "owner" => Ok(MembershipRole::Owner),
             _ => Err(format!("Unknown role: {}", s)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_grants_never_become_tenant_administration() {
+        let tenant = Uuid::new_v4();
+        let workspace = Uuid::new_v4();
+        let mut membership =
+            Membership::new(Uuid::new_v4(), tenant, MembershipRole::Admin).for_workspace(workspace);
+        assert!(membership.applies_to(tenant, Some(workspace)));
+        assert!(!membership.applies_to(tenant, None));
+        assert!(!membership.applies_to(tenant, Some(Uuid::new_v4())));
+        assert!(!membership.applies_to(Uuid::new_v4(), Some(workspace)));
+        membership.workspace_id = None;
+        assert!(membership.applies_to(tenant, None));
+        assert!(membership.applies_to(tenant, Some(Uuid::new_v4())));
+        membership.is_active = false;
+        assert!(!membership.applies_to(tenant, None));
+        assert!(!membership.applies_to(tenant, Some(workspace)));
     }
 }

@@ -939,6 +939,13 @@ impl WorkspaceService for InMemoryWorkspaceService {
     }
 
     async fn check_tenant_access(&self, user_id: Uuid, tenant_id: Uuid) -> Result<bool> {
+        if !self
+            .get_tenant(tenant_id)
+            .await?
+            .is_some_and(|t| t.is_active)
+        {
+            return Ok(false);
+        }
         let memberships = self.memberships.read().await;
         Ok(memberships
             .values()
@@ -946,11 +953,17 @@ impl WorkspaceService for InMemoryWorkspaceService {
     }
 
     async fn check_workspace_access(&self, user_id: Uuid, workspace_id: Uuid) -> Result<bool> {
-        let workspaces = self.workspaces.read().await;
-        let workspace = match workspaces.get(&workspace_id) {
-            Some(ws) => ws,
-            None => return Ok(false),
+        let Some(workspace) = self.get_workspace(workspace_id).await? else {
+            return Ok(false);
         };
+        if !workspace.is_active
+            || !self
+                .get_tenant(workspace.tenant_id)
+                .await?
+                .is_some_and(|t| t.is_active)
+        {
+            return Ok(false);
+        }
 
         let memberships = self.memberships.read().await;
         Ok(memberships.values().any(|m| {
@@ -969,8 +982,14 @@ impl WorkspaceService for InMemoryWorkspaceService {
         let memberships = self.memberships.read().await;
         Ok(memberships
             .values()
-            .find(|m| m.user_id == user_id && m.tenant_id == tenant_id && m.is_active)
-            .map(|m| m.role))
+            .filter(|m| {
+                m.user_id == user_id
+                    && m.tenant_id == tenant_id
+                    && m.is_active
+                    && m.workspace_id.is_none()
+            })
+            .map(|m| m.role)
+            .max_by_key(MembershipRole::level))
     }
 
     async fn build_context(
@@ -979,6 +998,13 @@ impl WorkspaceService for InMemoryWorkspaceService {
         tenant_id: Uuid,
         workspace_id: Option<Uuid>,
     ) -> Result<TenantContext> {
+        if !self
+            .get_tenant(tenant_id)
+            .await?
+            .is_some_and(|t| t.is_active)
+        {
+            return Err(Error::validation("Tenant is inactive or missing"));
+        }
         // Check access
         if !self.check_tenant_access(user_id, tenant_id).await? {
             return Err(Error::validation(format!(
@@ -989,6 +1015,13 @@ impl WorkspaceService for InMemoryWorkspaceService {
 
         // If workspace specified, check access
         if let Some(ws_id) = workspace_id {
+            if !self
+                .get_workspace(ws_id)
+                .await?
+                .is_some_and(|w| w.is_active && w.tenant_id == tenant_id)
+            {
+                return Err(Error::validation("Workspace is inactive or outside tenant"));
+            }
             if !self.check_workspace_access(user_id, ws_id).await? {
                 return Err(Error::validation(format!(
                     "User {} does not have access to workspace {}",
@@ -997,15 +1030,20 @@ impl WorkspaceService for InMemoryWorkspaceService {
             }
         }
 
-        let role = self.get_user_role(user_id, tenant_id).await?;
+        let role = self
+            .get_user_memberships(user_id)
+            .await?
+            .into_iter()
+            .filter(|m| m.applies_to(tenant_id, workspace_id))
+            .map(|m| m.role)
+            .max_by_key(MembershipRole::level)
+            .ok_or_else(|| Error::validation("No active membership for scope"))?;
 
         let mut ctx = TenantContext::new(tenant_id);
         if let Some(ws_id) = workspace_id {
             ctx = ctx.with_workspace(ws_id);
         }
-        if let Some(r) = role {
-            ctx = ctx.with_user(user_id, r);
-        }
+        ctx = ctx.with_user(user_id, role);
 
         Ok(ctx)
     }
@@ -1392,6 +1430,61 @@ mod tests {
             .check_tenant_access(user_id, tenant.tenant_id)
             .await
             .unwrap());
+    }
+
+    #[tokio::test]
+    async fn scoped_context_rejects_tenant_escalation_and_foreign_workspace() {
+        let service = InMemoryWorkspaceService::new();
+        let tenant = service
+            .create_tenant(Tenant::new("Scope tenant", "scope-tenant"))
+            .await
+            .unwrap();
+        let foreign = service
+            .create_tenant(Tenant::new("Foreign tenant", "foreign-tenant"))
+            .await
+            .unwrap();
+        let workspace = service
+            .create_workspace(
+                tenant.tenant_id,
+                CreateWorkspaceRequest {
+                    name: "Scoped workspace".into(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let user = Uuid::new_v4();
+        service
+            .add_membership(
+                Membership::new(user, tenant.tenant_id, MembershipRole::Admin)
+                    .for_workspace(workspace.workspace_id),
+            )
+            .await
+            .unwrap();
+        service
+            .add_membership(Membership::new(
+                user,
+                foreign.tenant_id,
+                MembershipRole::Readonly,
+            ))
+            .await
+            .unwrap();
+        assert!(service
+            .build_context(user, tenant.tenant_id, None)
+            .await
+            .is_err());
+        assert!(service
+            .build_context(user, foreign.tenant_id, Some(workspace.workspace_id))
+            .await
+            .is_err());
+        assert_eq!(
+            service
+                .build_context(user, tenant.tenant_id, Some(workspace.workspace_id))
+                .await
+                .unwrap()
+                .role,
+            Some(MembershipRole::Admin)
+        );
     }
 
     #[tokio::test]

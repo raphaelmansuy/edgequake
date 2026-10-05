@@ -17,6 +17,7 @@ mod graph_lifecycle;
 mod lineage_gin_tuning;
 mod session;
 mod source_lineage_sql;
+mod sync_triggers;
 mod vertex_filter;
 
 pub(in crate::adapters::postgres::graph) use super::super::statement_timeout::{

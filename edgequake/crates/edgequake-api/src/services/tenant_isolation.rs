@@ -5,8 +5,8 @@
 //! | Surface | Mechanism | Enforcement |
 //! |---------|-----------|-------------|
 //! | **Relational PG** | RLS GUC `app.current_*` inside `with_rls_transaction` (`is_local=true`) | FORCE RLS + fail-closed policies |
-//! | **Graph (AGE)** | `workspace_id` / `tenant_id` properties (+ `eq_*` columns when present) | Query filters; property COALESCE fallback |
-//! | **Vectors** | Per-workspace table suffix (`eq_*_ws_{short}_vectors`) | Table isolation; avoid 8-hex collisions |
+//! | **Graph (AGE)** | Tenant/workspace properties and scoped transactions | Label RLS plus query filters |
+//! | **Vectors** | Typed workspace/model scope | RLS on PostgreSQL; mandatory provider scope filters |
 //! | **KV** | Workspace-prefixed keys (`wsdoc:`, `staging:hash:`) | Malformed / mixed-workspace upsert rejected in `PostgresKVStorage` |
 //! | **WebSocket / tasks** | `WsSession` + `get_task_for_context` | No cross-tenant progress/cancel |
 //!
@@ -15,7 +15,7 @@
 //! | Layer | Mechanism | Default | SSOT module |
 //! |-------|-----------|---------|-------------|
 //! | **1 — App (KV/graph)** | Handler filters + metadata match | Always on | `handlers/isolation.rs`, `isolation_context.rs` |
-//! | **2 — Auth bind** | JWT/header merge + membership verify | Opt-in | `middleware.rs`, `identity_storage.rs` |
+//! | **2 — Auth bind** | JWT/header merge + active membership verify | Required for production auth | `middleware.rs`, `identity_storage.rs` |
 //! | **3 — PostgreSQL RLS** | `with_rls_transaction` / `with_optional_pg_rls` | **Default on** | `edgequake-storage/rls.rs`, `conversation.rs` |
 //!
 //! ## Dual KV + PG for auth — First Principles verdict (phase 38)
@@ -61,7 +61,10 @@ impl PgIsolationScope {
     /// Build from request tenant context + optional authenticated user id.
     pub fn from_tenant_context(ctx: &TenantContext, user_id: Option<Uuid>) -> Option<Self> {
         let tenant_id = resolve_tenant_uuid(ctx.tenant_id.as_deref())?;
-        let workspace_id = resolve_workspace_uuid(ctx.workspace_id.as_deref());
+        let workspace_id = match ctx.workspace_id.as_deref() {
+            None => None,
+            Some(raw) => Some(resolve_workspace_uuid(Some(raw))?),
+        };
         Some(Self {
             tenant_id,
             workspace_id,
@@ -106,7 +109,7 @@ where
     .map_err(|e| crate::error::ApiError::Internal(format!("PG RLS operation failed: {e}")))
 }
 
-/// Run a PG operation with RLS when enabled and scope is present; otherwise plain acquire (SPEC-027 phase 41).
+/// Run a PG operation with RLS when enabled. Missing scope fails closed.
 ///
 /// SPEC-083 S-03: this is the only supported API-layer entry for tenant-scoped PG.
 /// Autocommit `acquire_rls_connection` was removed from this module — GUC must live
@@ -126,9 +129,10 @@ where
     T: Send,
 {
     if security.pg_rls_enabled {
-        if let Some(scope) = scope {
-            return run_with_pg_rls(pool, scope, operation).await;
-        }
+        let scope = scope.ok_or_else(|| {
+            crate::error::ApiError::forbidden_reason("PostgreSQL tenant scope is required")
+        })?;
+        return run_with_pg_rls(pool, scope, operation).await;
     }
 
     let mut conn = pool

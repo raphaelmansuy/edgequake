@@ -78,7 +78,7 @@ fn env_static_keys_are_not_break_glass() {
 
 #[tokio::test]
 async fn ec_154_06_master_key_can_list_tools() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state);
     let response = app
         .oneshot(
@@ -100,12 +100,8 @@ async fn ec_154_06_master_key_can_list_tools() {
 /// EC-154-05: stored API key with read+query must get HTTP 403 on write tool.
 #[tokio::test]
 async fn ec_154_05_stored_read_query_key_ingest_forbidden() {
-    let mut state = AppState::test_state();
-    state.auth.config.auth_enabled = true;
-    state.auth.config.dev_mode = false;
-    state.auth.config.master_api_key = Some("master-scope-test".to_string());
-    state.auth.config.api_keys = vec!["master-scope-test".to_string()];
-    state.initialize_defaults().await.expect("defaults");
+    let state = auth_enabled_mcp_state().await;
+    let owner = common::spec028_mcp::issue_web_session_jwt(&state, edgequake_auth::Role::Admin);
 
     let app = build_app(state);
 
@@ -115,7 +111,7 @@ async fn ec_154_05_stored_read_query_key_ingest_forbidden() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/api-keys")
-                .header(header::AUTHORIZATION, "Bearer master-scope-test")
+                .header(header::AUTHORIZATION, format!("Bearer {owner}"))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
@@ -165,7 +161,7 @@ async fn ec_154_05_stored_read_query_key_ingest_forbidden() {
 /// EC-154-06: master key may call write tools (scope gate passes; body may still error).
 #[tokio::test]
 async fn ec_154_06_master_key_write_not_insufficient_scope() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state);
     let response = app
         .oneshot(
@@ -223,7 +219,7 @@ async fn ec_154_env_api_key_not_break_glass_write_forbidden() {
 }
 
 #[tokio::test]
-async fn ec_154_env_api_key_can_still_list_tools() {
+async fn ec_154_env_api_key_without_membership_cannot_list_tools() {
     let mut state = AppState::test_state();
     state.auth.config.auth_enabled = true;
     state.auth.config.dev_mode = false;
@@ -246,5 +242,5 @@ async fn ec_154_env_api_key_can_still_list_tools() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }

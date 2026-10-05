@@ -1,5 +1,7 @@
 #![cfg(feature = "qdrant")]
 
+#[path = "common/tenant_measurements.rs"]
+mod tenant_measurements;
 use chrono::{Duration, Utc};
 use edgequake_storage::{
     contracts::{
@@ -70,7 +72,25 @@ async fn provider_access_qdrant_upsert_scope_search_and_delete() {
             vec![1.0, 0.0, 0.0],
         ),
     ];
-    client.upsert_points(&model, &points).await.unwrap();
+    let scope_a = AccessScope::new(TenantId::new(tenant), WorkspaceId::new(workspace_a));
+    let scope_b = AccessScope::new(TenantId::new(tenant), WorkspaceId::new(workspace_b));
+    client
+        .upsert_points(&scope_a, &model, &points[..1])
+        .await
+        .unwrap();
+    client
+        .upsert_points(&scope_b, &model, &points[1..])
+        .await
+        .unwrap();
+    assert!(client
+        .upsert_points(&scope_a, &model, &points[1..])
+        .await
+        .is_err());
+    // Delete with a foreign ID must leave that scope's point intact.
+    client
+        .delete_points(&scope_a, &[key_b.into_uuid()])
+        .await
+        .unwrap();
 
     let page = client
         .search(&VectorSearchRequest {
@@ -93,11 +113,14 @@ async fn provider_access_qdrant_upsert_scope_search_and_delete() {
     assert_eq!(page.hits.len(), 1);
     assert_eq!(page.hits[0].key, key_a);
 
-    client.delete_points(&[key_a.into_uuid()]).await.unwrap();
+    client
+        .delete_points(&scope_a, &[key_a.into_uuid()])
+        .await
+        .unwrap();
     let after_delete = client
         .search(&VectorSearchRequest {
             scope: AccessScope::new(TenantId::new(tenant), WorkspaceId::new(workspace_a)),
-            model,
+            model: model.clone(),
             family: "chunk".into(),
             embedding: vec![1.0, 0.0, 0.0],
             top_k: 10,
@@ -113,6 +136,85 @@ async fn provider_access_qdrant_upsert_scope_search_and_delete() {
         .unwrap();
     assert!(after_delete.hits.is_empty());
 
+    let mut foreign_request = VectorSearchRequest {
+        scope: scope_b,
+        model: model.clone(),
+        family: "chunk".into(),
+        embedding: vec![1.0, 0.0, 0.0],
+        top_k: 10,
+        document_ids: None,
+        modalities: None,
+        filter_ids: None,
+        threshold: None,
+        search_mode: VectorSearchMode::Exact,
+        deadline: Utc::now() + Duration::seconds(5),
+        scan_budget: 100,
+    };
+    assert_eq!(
+        client.search(&foreign_request).await.unwrap().hits[0].key,
+        key_b
+    );
+    foreign_request.scope =
+        AccessScope::new(TenantId::new(Uuid::new_v4()), WorkspaceId::new(workspace_b));
+    assert!(client
+        .search(&foreign_request)
+        .await
+        .unwrap()
+        .hits
+        .is_empty());
+    // Reusing a foreign revision UUID creates a distinct physical point, never an overwrite.
+    let mut collision = points[0].clone();
+    collision.key = key_b;
+    client
+        .upsert_points(&scope_a, &model, &[collision])
+        .await
+        .unwrap();
+    foreign_request.scope = scope_b;
+    assert_eq!(
+        client.search(&foreign_request).await.unwrap().hits[0].subject_id,
+        points[1].payload.subject_id
+    );
+    foreign_request.model.version = "unpublished-model".into();
+    assert!(client
+        .search(&foreign_request)
+        .await
+        .unwrap()
+        .hits
+        .is_empty());
+    foreign_request.model = model.clone();
+    // Shared collection: 1,000 own rows, plus the foreign workspace row above.
+    let fixture = (0..1000)
+        .map(|_| {
+            point(
+                EmbeddingKey::new(Uuid::new_v4()),
+                tenant,
+                workspace_a,
+                document_a,
+                Uuid::new_v4(),
+                vec![1.0, 0.0, 0.0],
+            )
+        })
+        .collect::<Vec<_>>();
+    client
+        .upsert_points(&scope_a, &model, &fixture)
+        .await
+        .unwrap();
+    foreign_request.scope = scope_a;
+    let mut samples = Vec::new();
+    for i in 0..26 {
+        foreign_request.deadline = Utc::now() + Duration::seconds(5);
+        let start = std::time::Instant::now();
+        let page = client.search(&foreign_request).await.unwrap();
+        assert_eq!(page.hits.len(), 10);
+        assert!(page
+            .hits
+            .iter()
+            .all(|h| h.subject_id != points[1].payload.subject_id));
+        if i >= 5 {
+            samples.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+    }
+    tenant_measurements::record("qdrant", 1002, samples);
     drop_qdrant_binding(&client).await.unwrap();
 }
 

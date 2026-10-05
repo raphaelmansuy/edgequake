@@ -1,5 +1,5 @@
 use edgequake_storage_contracts::{
-    AccessError, AccessResult, DocumentId, EmbeddingKey, VectorModelDescriptor,
+    AccessError, AccessResult, AccessScope, DocumentId, EmbeddingKey, VectorModelDescriptor,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -43,18 +43,34 @@ struct UpsertBody<'a> {
 struct UpsertPoint<'a> {
     id: Uuid,
     vector: &'a [f32],
-    payload: &'a QdrantPointPayload,
+    payload: StoredPayload<'a>,
 }
 
 #[derive(Debug, Serialize)]
-struct DeleteBody {
-    points: Vec<Uuid>,
+struct StoredPayload<'a> {
+    #[serde(flatten)]
+    payload: &'a QdrantPointPayload,
+    physical_revision_id: Uuid,
+}
+
+/// Provider IDs include the mandatory scope, so a forged foreign revision ID cannot overwrite a point.
+pub(super) fn scoped_point_id(scope: &AccessScope, revision: Uuid) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_OID,
+        format!(
+            "edgequake:qdrant:{}:{}:{revision}",
+            scope.tenant(),
+            scope.workspace()
+        )
+        .as_bytes(),
+    )
 }
 
 impl QdrantClient {
     /// Upsert immutable physical revisions and return a completed provider receipt.
     pub async fn upsert_points(
         &self,
+        scope: &AccessScope,
         model: &VectorModelDescriptor,
         points: &[QdrantVectorPoint],
     ) -> AccessResult<Option<String>> {
@@ -63,14 +79,24 @@ impl QdrantClient {
         }
         for point in points {
             validate_point(model, point)?;
+            if point.payload.tenant_id != scope.tenant().into_uuid()
+                || point.payload.workspace_id != scope.workspace().into_uuid()
+            {
+                return Err(AccessError::InvalidInput(
+                    "Qdrant point payload does not match mutation scope".into(),
+                ));
+            }
         }
         let body = UpsertBody {
             points: points
                 .iter()
                 .map(|point| UpsertPoint {
-                    id: point.key.into_uuid(),
+                    id: scoped_point_id(scope, point.key.into_uuid()),
                     vector: &point.vector,
-                    payload: &point.payload,
+                    payload: StoredPayload {
+                        payload: &point.payload,
+                        physical_revision_id: point.key.into_uuid(),
+                    },
                 })
                 .collect(),
         };
@@ -80,12 +106,19 @@ impl QdrantClient {
     }
 
     /// Delete exact physical revision UUIDs in bounded batches.
-    pub async fn delete_points(&self, point_ids: &[Uuid]) -> AccessResult<Vec<String>> {
+    pub async fn delete_points(
+        &self,
+        scope: &AccessScope,
+        point_ids: &[Uuid],
+    ) -> AccessResult<Vec<String>> {
         let mut receipts = Vec::new();
         for batch in point_ids.chunks(DELETE_BATCH_SIZE) {
-            let body = DeleteBody {
-                points: batch.to_vec(),
-            };
+            let ids: Vec<Uuid> = batch.iter().map(|id| scoped_point_id(scope, *id)).collect();
+            let body = serde_json::json!({ "filter": { "must": [
+                { "has_id": ids },
+                { "key": "tenant_id", "match": { "value": scope.tenant().to_string() } },
+                { "key": "workspace_id", "match": { "value": scope.workspace().to_string() } }
+            ] }});
             let path = format!(
                 "/collections/{}/points/delete?wait=true",
                 self.collection_name()

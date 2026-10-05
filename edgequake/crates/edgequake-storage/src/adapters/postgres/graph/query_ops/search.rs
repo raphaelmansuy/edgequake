@@ -189,6 +189,7 @@ impl PostgresAGEGraphStorage {
         // SPEC-089 / F-336-15 / LAW-H2: no app timeout on trait path — PG must kill.
         let timeout_ms = super::super::helpers::graph_query_statement_timeout_ms();
         let mut timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         let rows = match sqlx::query(&sql).fetch_all(timed.as_mut()).await {
             Ok(r) => {
                 timed.commit().await?;
@@ -248,6 +249,7 @@ impl PostgresAGEGraphStorage {
         // SPEC-089 / F-336-15 / LAW-H2: autocomplete has no tokio budget — PG kill.
         let timeout_ms = super::super::helpers::graph_query_statement_timeout_ms();
         let mut timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
 
         // Try full-text search first (best for word matching).
         // 032: FTS must use bare label — scoped node_id (`{ws}::NAME`) breaks
@@ -287,6 +289,7 @@ impl PostgresAGEGraphStorage {
             // FTS error aborts the local txn — reopen before falling back.
             let _ = timed.rollback().await;
             timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+            Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         }
 
         // WHY: Fallback to trigram similarity for fuzzy matching (typos, partial matches)
@@ -327,6 +330,7 @@ impl PostgresAGEGraphStorage {
         } else {
             let _ = timed.rollback().await;
             timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+            Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         }
 
         // Final fallback to simple ILIKE prefix matching (always works)
@@ -422,6 +426,7 @@ impl PostgresAGEGraphStorage {
         // SPEC-089 Wave 3 / F-336-10: match run_timed_graph_query with PG kill.
         let timeout_ms = super::super::helpers::graph_query_statement_timeout_ms();
         let mut timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         let rows = match sqlx::query(&sql).fetch_all(timed.as_mut()).await {
             Ok(r) => {
                 timed.commit().await?;
@@ -504,6 +509,7 @@ impl PostgresAGEGraphStorage {
         // SPEC-089 Wave 3 / F-336-10: PG kill aligned with run_timed_graph_query.
         let timeout_ms = super::super::helpers::graph_query_statement_timeout_ms();
         let mut timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         let rows = match sqlx::query(&sql).fetch_all(timed.as_mut()).await {
             Ok(r) => {
                 timed.commit().await?;

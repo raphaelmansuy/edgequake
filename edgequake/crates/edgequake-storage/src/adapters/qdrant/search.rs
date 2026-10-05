@@ -126,6 +126,7 @@ fn compile_request_filter(request: &VectorSearchRequest) -> RequestFilter {
         value_condition("tenant_id", request.scope.tenant().to_string()),
         value_condition("workspace_id", request.scope.workspace().to_string()),
         value_condition("family", request.family.clone()),
+        value_condition("model_revision", request.model.version.clone()),
     ];
     if let Some(document_ids) = &request.document_ids {
         conditions.push(any_condition(
@@ -224,7 +225,7 @@ impl ScopedVectorSearch for QdrantClient {
         let hits = result
             .points
             .into_iter()
-            .map(scored_point_to_hit)
+            .map(|point| scored_point_to_hit(point, &request.scope))
             .collect::<AccessResult<Vec<_>>>()?;
         Ok(VectorSearchPage {
             hits,
@@ -262,7 +263,10 @@ fn validate_request(request: &VectorSearchRequest) -> AccessResult<()> {
     Ok(())
 }
 
-fn scored_point_to_hit(point: ScoredPoint) -> AccessResult<VectorSearchHit> {
+fn scored_point_to_hit(
+    point: ScoredPoint,
+    scope: &edgequake_storage_contracts::AccessScope,
+) -> AccessResult<VectorSearchHit> {
     let point_id = point
         .id
         .as_str()
@@ -271,6 +275,15 @@ fn scored_point_to_hit(point: ScoredPoint) -> AccessResult<VectorSearchHit> {
     let payload = point
         .payload
         .ok_or_else(|| AccessError::CorruptData("Qdrant hit omitted payload".into()))?;
+    let revision_id = payload_uuid(&payload, "physical_revision_id")?;
+    if payload_uuid(&payload, "tenant_id")? != scope.tenant().into_uuid()
+        || payload_uuid(&payload, "workspace_id")? != scope.workspace().into_uuid()
+        || super::mutate::scoped_point_id(scope, revision_id) != point_id
+    {
+        return Err(AccessError::CorruptData(
+            "Qdrant returned a point outside the requested scope".into(),
+        ));
+    }
     let subject_id = payload_uuid(&payload, "subject_id")?;
     let content_revision = payload
         .get("content_revision")
@@ -279,7 +292,7 @@ fn scored_point_to_hit(point: ScoredPoint) -> AccessResult<VectorSearchHit> {
             AccessError::CorruptData("Qdrant payload omitted content_revision".into())
         })?;
     Ok(VectorSearchHit {
-        key: EmbeddingKey::new(point_id),
+        key: EmbeddingKey::new(revision_id),
         subject_id,
         content_revision,
         score: point.score,

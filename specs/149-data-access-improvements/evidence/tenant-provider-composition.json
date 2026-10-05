@@ -1,0 +1,43 @@
+{
+  "schema": "edgequake.dal.provider-composition.v1",
+  "fixture": "two isolated scopes; one document/chunk/node per scope; 1536D mock embeddings; mock LLM",
+  "baseline": {
+    "warmups": 3,
+    "graph_http": {
+      "samples": 21,
+      "p50_ms": 5.467917,
+      "p95_ms": 7.796709,
+      "max_ms": 8.496333
+    },
+    "vector_query_http": {
+      "samples": 21,
+      "p50_ms": 8.506042,
+      "p95_ms": 50.332,
+      "max_ms": 52.397208
+    }
+  },
+  "injected": {
+    "warmups": 3,
+    "graph_http": {
+      "samples": 21,
+      "p50_ms": 0.928625,
+      "p95_ms": 1.2164579999999998,
+      "max_ms": 1.435375
+    },
+    "vector_query_http": {
+      "samples": 21,
+      "p50_ms": 2.190667,
+      "p95_ms": 2.691667,
+      "max_ms": 2.9667909999999997
+    }
+  },
+  "providers": {
+    "relational": "PostgreSQL authority plus injected memory WorkspaceService",
+    "vector": "MemoryVectorStorage + workspace registry",
+    "graph": "MemoryGraphStorage"
+  },
+  "limitations": "Fixture certifies composition and chunk upserts; not Qdrant/Neo4j/SQLite deployments or alternate lifecycle deletion",
+  "durable_deliveries": 2,
+  "concurrent_provider_workers": 2,
+  "cross_scope_leaks": 0
+}

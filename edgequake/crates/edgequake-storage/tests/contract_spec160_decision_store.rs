@@ -4,6 +4,7 @@
 //! additive) and uses random workspace ids, then removes them. Without a
 //! database it skips, unless `EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1`.
 
+#[cfg(feature = "postgres")]
 use edgequake_storage::adapters::postgres::decision_store::PostgresDecisionStore;
 use edgequake_storage::decision::{
     DecisionScope, DecisionStore, MemoryDecisionStore, ReviewKind, ReviewRow,
@@ -11,6 +12,7 @@ use edgequake_storage::decision::{
 use serde_json::json;
 use uuid::Uuid;
 
+#[cfg(feature = "postgres")]
 const MIGRATION: &str = include_str!("../../../migrations/166_spec160_decision.sql");
 
 fn scope() -> DecisionScope {
@@ -145,16 +147,19 @@ async fn memory_store_meets_contract() {
     run_contract(&MemoryDecisionStore::new()).await;
 }
 
+#[cfg(feature = "postgres")]
 fn require_postgres() -> bool {
     std::env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
+#[cfg(feature = "postgres")]
 static MIGRATED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
 
 /// Apply migration 166 once per process. Parallel `CREATE TABLE IF NOT EXISTS`
 /// can race inside Postgres; the server avoids this with an advisory lock.
+#[cfg(feature = "postgres")]
 async fn migrate_once(pool: &sqlx::PgPool) {
     MIGRATED
         .get_or_init(|| async {
@@ -166,6 +171,7 @@ async fn migrate_once(pool: &sqlx::PgPool) {
         .await;
 }
 
+#[cfg(feature = "postgres")]
 async fn pg_pool() -> Option<sqlx::PgPool> {
     let url = std::env::var("DATABASE_URL").ok().filter(|u| !u.is_empty());
     let Some(url) = url else {
@@ -187,6 +193,7 @@ async fn pg_pool() -> Option<sqlx::PgPool> {
 }
 
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn postgres_store_meets_contract() {
     let Some(pool) = pg_pool().await else { return };
     migrate_once(&pool).await;
@@ -195,6 +202,7 @@ async fn postgres_store_meets_contract() {
 
 // T-160-I21 — migration 166 can run twice (expand-only, idempotent).
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn migration_is_idempotent() {
     let Some(pool) = pg_pool().await else { return };
     migrate_once(&pool).await;
@@ -206,6 +214,7 @@ async fn migration_is_idempotent() {
 
 // T-160-I20 — an id that is not a UUID cannot leak or crash: it reads empty, writes nothing.
 #[tokio::test]
+#[cfg(feature = "postgres")]
 async fn postgres_non_uuid_ids_are_inert() {
     let Some(pool) = pg_pool().await else { return };
     migrate_once(&pool).await;

@@ -19,7 +19,6 @@ use edgequake_audit::{AuditEventType, AuditResult};
 use edgequake_auth::Role;
 
 use crate::error::ApiError;
-use crate::handlers::auth::ApiAuthenticated;
 use crate::services::federation::scope_guard::revalidate_scope;
 use crate::services::login_tokens::{
     issue_session, mint_access_token, persist_new_refresh, SessionContext, SessionScope,
@@ -34,7 +33,7 @@ use super::refresh_cookie::{
     clear_refresh_cookie_header, cookie_secure_from_headers, refresh_token_for_json_body,
     resolve_refresh_token, set_refresh_cookie_header,
 };
-use super::{find_user_by_login, get_record_by_id, get_user_by_id, RequestAuthContext};
+use super::{find_user_by_login, get_record_by_id, get_user_by_id};
 pub use crate::handlers::auth_types::{
     GetMeResponse, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse, UserInfo,
 };
@@ -446,21 +445,37 @@ fn with_refresh_cookie<T: serde::Serialize>(
     )
 )]
 pub async fn get_me(
-    State(storage): State<StorageRuntime>,
-    State(pg_runtime): State<PostgresRuntime>,
-    State(security): State<ApiSecurityConfig>,
-    State(stores): State<OperationalStores>,
-    ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
+    State(state): State<crate::state::AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<GetMeResponse>, ApiError> {
-    let user_record = get_record_by_id(
-        &storage,
-        Some(&pg_runtime),
-        &security,
-        stores.identity.as_deref(),
-        &user_id,
+    let credential = crate::middleware::extract_token_from_headers(&headers)
+        .ok_or_else(ApiError::unauthorized)?;
+    let principal = crate::services::auth_validation::decide(
+        &state,
+        &credential,
+        crate::services::auth_validation::TokenProfile::WebSession,
+        &headers,
     )
     .await?
-    .ok_or_else(|| ApiError::NotFound(format!("User {} not found", user_id)))?;
+    .ok_or_else(ApiError::unauthorized)?;
+    #[cfg(feature = "postgres")]
+    let pg = state.pg_pool.clone().map(|pool| PostgresRuntime {
+        pool: Some(pool),
+        capabilities: None,
+    });
+    #[cfg(feature = "postgres")]
+    let pg = pg.as_ref();
+    #[cfg(not(feature = "postgres"))]
+    let pg = None;
+    let user_record = get_record_by_id(
+        &state.storage,
+        pg,
+        &state.security,
+        state.operational_stores.identity.as_deref(),
+        &principal.authenticated.auth.user_id,
+    )
+    .await?
+    .ok_or_else(ApiError::unauthorized)?;
 
     if !user_record.is_active {
         return Err(ApiError::forbidden_reason("account_inactive"));

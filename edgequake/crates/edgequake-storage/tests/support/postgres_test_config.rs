@@ -1,4 +1,5 @@
 //! Shared PostgreSQL test configuration (STORE-DRY-003 / P2-11).
+#![cfg(feature = "postgres")]
 #![allow(dead_code)]
 //!
 //! Single source for contract and e2e tests that need an isolated namespace.

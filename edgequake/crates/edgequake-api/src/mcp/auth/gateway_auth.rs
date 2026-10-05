@@ -48,11 +48,28 @@ pub async fn mcp_gateway_auth(
             ) {
                 return response;
             }
-            let bind = crate::middleware::membership_bind_decision(&state, &request);
-            if let Some(response) = crate::middleware::execute_membership_bind(bind).await {
-                return response;
+            if let Err(error) =
+                crate::services::request_authorization::bind_request(&state, &mut request).await
+            {
+                return error.into_response();
             }
-            request.extensions_mut().insert(decision.scopes);
+            let mut scopes = decision.scopes;
+            if request
+                .extensions()
+                .get::<crate::handlers::auth::RequestAuthContext>()
+                .is_some_and(|auth| auth.role == edgequake_auth::Role::Readonly)
+            {
+                scopes.break_glass = false;
+                scopes.scopes = [
+                    crate::oauth::scopes::MCP_SCOPE_READ,
+                    crate::oauth::scopes::MCP_SCOPE_QUERY,
+                ]
+                .into_iter()
+                .filter(|scope| scopes.allows(scope))
+                .map(str::to_string)
+                .collect();
+            }
+            request.extensions_mut().insert(scopes);
             next.run(request).await
         }
         Ok(None) => oauth_unauthorized_response(request.headers()),

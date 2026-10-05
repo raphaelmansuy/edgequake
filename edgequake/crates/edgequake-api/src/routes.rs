@@ -123,10 +123,15 @@ fn create_router_inner(state: AppState) -> Router {
             crate::middleware::protected_api_auth,
         ));
 
-    let ollama = ollama_api_routes().route_layer(middleware::from_fn_with_state(
-        state.clone(),
-        crate::middleware::ollama_compat_gate,
-    ));
+    let ollama = ollama_api_routes()
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::ollama_compat_gate,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::protected_api_auth,
+        ));
 
     let mcp = mcp_routes(state.clone());
 

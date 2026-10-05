@@ -26,6 +26,12 @@ pub use crate::handlers::auth_types::{
     ListApiKeysResponse, RevokeApiKeyResponse,
 };
 
+fn require_key_owner(user_id: &str) -> Result<(), ApiError> {
+    Uuid::parse_str(user_id)
+        .map(|_| ())
+        .map_err(|_| ApiError::forbidden_reason("API key management requires a user account"))
+}
+
 /// Create a new API key.
 ///
 /// POST /api/v1/api-keys
@@ -50,6 +56,7 @@ pub async fn create_api_key(
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), ApiError> {
+    require_key_owner(&user_id)?;
     // Generate API key
     let key_id = Uuid::new_v4().to_string();
     let raw_key = generate_api_key();
@@ -143,6 +150,7 @@ pub async fn list_api_keys(
     ApiAuthenticated(RequestAuthContext { user_id, .. }): ApiAuthenticated,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<Json<ListApiKeysResponse>, ApiError> {
+    require_key_owner(&user_id)?;
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
 
@@ -211,6 +219,7 @@ pub async fn revoke_api_key(
     ApiAuthenticated(auth): ApiAuthenticated,
     Path(key_id): Path<String>,
 ) -> Result<Json<RevokeApiKeyResponse>, ApiError> {
+    require_key_owner(&auth.user_id)?;
     crate::services::session_storage::revoke_api_key(
         &storage,
         Some(&pg_runtime),

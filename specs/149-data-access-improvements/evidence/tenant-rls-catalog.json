@@ -1,0 +1,3043 @@
+{
+  "server_version": "18.4 (Debian 18.4-1.pgdg12+1)",
+  "extensions": [
+    {
+      "name": "plpgsql",
+      "version": "1.0"
+    },
+    {
+      "name": "uuid-ossp",
+      "version": "1.1"
+    },
+    {
+      "name": "vector",
+      "version": "0.8.5"
+    },
+    {
+      "name": "age",
+      "version": "1.8.0"
+    },
+    {
+      "name": "pg_trgm",
+      "version": "1.6"
+    }
+  ],
+  "roles": [
+    {
+      "name": "edgequake",
+      "superuser": true,
+      "bypass_rls": true,
+      "login": true
+    },
+    {
+      "name": "edgequake_tenant_access",
+      "superuser": false,
+      "bypass_rls": false,
+      "login": false
+    }
+  ],
+  "content_policies": [
+    {
+      "schema": "eq_eq_spec149_batch_budget_74dbbb32_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_aecb8091_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_aecb8091_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "documents",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "chunks",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "entities",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "relationships",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "conversation_history",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "conversations",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "folders",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "tasks",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_aecb8091_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "tasks_history",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "failed_chunks",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "data_bindings",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "mutation_requests",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "object_revisions",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "ingest_batches",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "graph_contributions",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "embedding_manifests",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "embedding_projections",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "projection_events",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "projection_visibility",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "projection_cleanup_intents",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "vector_provider_cutovers",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "decision_cache",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "decision_review",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "document_originals",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "pdf_documents",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "document_pages",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "document_mm_assets",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "page_layout_regions",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "document_page_states",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "chunk_embeddings",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "entity_embeddings",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "relationship_embeddings",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "report_embeddings",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "chunk_entity_links",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "chunk_relation_links",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "tasks_p_2026_11",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "tasks_p_2026_12",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "tasks_p_2027_01",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "public",
+      "table": "projection_deliveries",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_858cd8e7_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_858cd8e7_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_858cd8e7_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_858cd8e7_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_6ee0ed78_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_6ee0ed78_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_6ee0ed78_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_6ee0ed78_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_2ecf309e_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_2ecf309e_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_2ecf309e_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_2ecf309e_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_be7778b5_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_be7778b5_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_be7778b5_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_be7778b5_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_8c7f6678_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_8c7f6678_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_8c7f6678_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_8c7f6678_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_028ff869_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_028ff869_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_028ff869_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_028ff869_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_b0dcf892_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_b0dcf892_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_b0dcf892_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_b0dcf892_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_8621e62b_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_8621e62b_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_8621e62b_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_8621e62b_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_a8a65e07_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_a8a65e07_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_a8a65e07_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_a8a65e07_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_74dbbb32_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_74dbbb32_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_74dbbb32_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_aecb8091_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_76a94a43_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_76a94a43_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_76a94a43_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_76a94a43_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_b9f43960_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_b9f43960_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_b9f43960_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_b9f43960_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_c0f63496_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_c0f63496_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_c0f63496_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_c0f63496_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_e8148026_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_e8148026_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_e8148026_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_e8148026_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_e088260c_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_e088260c_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_e088260c_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_e088260c_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_8b3fe84c_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_8b3fe84c_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_8b3fe84c_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_8b3fe84c_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_cbea0138_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_cbea0138_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_cbea0138_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_cbea0138_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_ab22e976_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_ab22e976_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_ab22e976_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_ab22e976_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_9ee36709_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_9ee36709_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_9ee36709_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_9ee36709_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_d840fb92_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_d840fb92_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_d840fb92_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_d840fb92_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_7da7441b_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_7da7441b_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_7da7441b_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_7da7441b_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_f60b09a5_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_f60b09a5_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_f60b09a5_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_f60b09a5_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_00b1012d_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_00b1012d_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_00b1012d_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_00b1012d_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_85e05897_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_85e05897_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_85e05897_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_85e05897_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_cedf300a_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_cedf300a_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_cedf300a_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_cedf300a_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_d1d5ba4f_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_d1d5ba4f_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_d1d5ba4f_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_d1d5ba4f_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_df7caae9_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_df7caae9_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_df7caae9_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_df7caae9_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_bb0d9b00_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_bb0d9b00_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_bb0d9b00_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_bb0d9b00_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_b083cf67_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_b083cf67_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_b083cf67_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_b083cf67_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_40168a82_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_40168a82_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_40168a82_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_40168a82_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_3decc596_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_3decc596_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_3decc596_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_backend_graph_3decc596_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_1b97801b_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_1b97801b_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_1b97801b_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_1b97801b_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a39758e0_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a39758e0_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a39758e0_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a39758e0_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_22f9ce10_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_22f9ce10_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_22f9ce10_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_22f9ce10_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_6f7c79e4_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_6f7c79e4_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_6f7c79e4_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_6f7c79e4_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_3044bc17_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_3044bc17_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_3044bc17_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_3044bc17_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_5715f28f_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_5715f28f_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_5715f28f_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_5715f28f_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_611b041e_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_611b041e_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_611b041e_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_611b041e_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_9cbcf04f_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_9cbcf04f_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_9cbcf04f_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_9cbcf04f_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e899644c_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e899644c_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e899644c_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e899644c_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_b923a172_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_b923a172_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_b923a172_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_b923a172_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a672d901_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a672d901_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a672d901_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_a672d901_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_09f058c7_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_09f058c7_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_09f058c7_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_09f058c7_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e5e57751_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e5e57751_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e5e57751_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_test_e5e57751_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec022_cypher_304e507b_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec022_cypher_304e507b_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec022_cypher_304e507b_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec022_cypher_304e507b_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec044_compensation_d3fdb02e_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec044_compensation_d3fdb02e_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec044_compensation_d3fdb02e_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec044_compensation_d3fdb02e_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_batch_a7c902c9_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_batch_a7c902c9_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_batch_a7c902c9_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_batch_a7c902c9_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_contract_568aea6d_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_contract_568aea6d_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_contract_568aea6d_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_contract_568aea6d_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_dedupe_eb4a3856_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_dedupe_eb4a3856_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_dedupe_eb4a3856_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_graph_dedupe_eb4a3856_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_87f021b5b3b9_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_87f021b5b3b9_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_87f021b5b3b9_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_87f021b5b3b9_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_58dc45780225_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_58dc45780225_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_58dc45780225_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_lin_58dc45780225_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_1f4d5469_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_1f4d5469_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_1f4d5469_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_1f4d5469_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_63eb2221_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_63eb2221_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_63eb2221_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_63eb2221_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_6c888afe_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_6c888afe_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_6c888afe_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_6c888afe_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_9588ec29_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_9588ec29_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_9588ec29_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_9588ec29_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_0490a186_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_0490a186_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_0490a186_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_0490a186_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_526eba34_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_526eba34_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_526eba34_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_526eba34_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_4cdcf759_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_4cdcf759_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_4cdcf759_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_4cdcf759_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_52190def_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_52190def_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_52190def_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_52190def_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_9964586c_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_9964586c_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_9964586c_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_9964586c_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_7642181f_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_7642181f_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_7642181f_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_7642181f_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_06dac219_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_06dac219_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_06dac219_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_06dac219_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_9fcde9c5_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_9fcde9c5_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_9fcde9c5_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_default_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_9fcde9c5_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_e1501c0a_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_e1501c0a_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_e1501c0a_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_default_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_e1501c0a_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_b9d19693_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_b9d19693_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_b9d19693_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_b9d19693_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_default_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_default_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_011e2abf_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_011e2abf_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_011e2abf_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_011e2abf_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_8fb0b7df_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_8fb0b7df_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_8fb0b7df_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_8fb0b7df_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_96f982b9_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_96f982b9_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_96f982b9_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_96f982b9_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_a78caf07_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_a78caf07_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_a78caf07_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_a78caf07_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_17c812b7_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_17c812b7_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_17c812b7_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_17c812b7_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_fb68eef0_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_fb68eef0_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_fb68eef0_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_fb68eef0_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_339e4a7a_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_339e4a7a_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_339e4a7a_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_339e4a7a_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_291eb146_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_291eb146_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_291eb146_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_291eb146_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_83911009_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_83911009_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_83911009_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_83911009_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_d9d0a9c4_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_d9d0a9c4_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_d9d0a9c4_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_d9d0a9c4_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_91ea8e78_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_91ea8e78_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_91ea8e78_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_91ea8e78_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_8939362e_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_8939362e_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_8939362e_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_8939362e_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_43833d4d_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_43833d4d_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_43833d4d_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_43833d4d_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_eb833015_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_eb833015_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_eb833015_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_eb833015_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_bcdeceab_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_bcdeceab_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_bcdeceab_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_lineage_shape_bcdeceab_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_553ddf7d_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_ef8d2323_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_553ddf7d_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_553ddf7d_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_replay_553ddf7d_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_ef8d2323_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_ef8d2323_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_del_batch_ef8d2323_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_7c5a1878_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_7c5a1878_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_7c5a1878_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_fact_unnest_7c5a1878_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_b3d46335_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_b3d46335_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_b3d46335_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_share_b3d46335_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_74a08a6a_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_74a08a6a_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_74a08a6a_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_legacy_ids_only_74a08a6a_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_bc399709_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_bc399709_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_bc399709_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_m156_bc399709_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_375a06c3_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_375a06c3_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_375a06c3_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_multi_batch_ack_375a06c3_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_b906c821_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_b906c821_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_b906c821_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_pre_fix_b906c821_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_fb1992c0_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_fb1992c0_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_fb1992c0_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_batch_budget_fb1992c0_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_c35c2364_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_c35c2364_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_c35c2364_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_iso_a_c35c2364_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_d0597b11_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_d0597b11_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_d0597b11_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_scoped_del_d0597b11_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_9ec275c5_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_9ec275c5_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_9ec275c5_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_edge_9ec275c5_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_3df1dde2_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_3df1dde2_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_3df1dde2_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_spec149_shared_3df1dde2_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_595d91e1b98849dd9ccca21c03294c48_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_595d91e1b98849dd9ccca21c03294c48_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_595d91e1b98849dd9ccca21c03294c48_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_595d91e1b98849dd9ccca21c03294c48_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_50ceaaf711d94a6da2064ccd25e5fa54_graph",
+      "table": "_ag_label_vertex",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_50ceaaf711d94a6da2064ccd25e5fa54_graph",
+      "table": "_ag_label_edge",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_50ceaaf711d94a6da2064ccd25e5fa54_graph",
+      "table": "Node",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "schema": "eq_eq_tenant_rls_50ceaaf711d94a6da2064ccd25e5fa54_graph",
+      "table": "EDGE",
+      "policy": "tenant_access_guard",
+      "permissive": "RESTRICTIVE"
+    }
+  ],
+  "scope_tables": [
+    {
+      "schema": "public",
+      "table": "users",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "tenants",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "workspaces",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "memberships",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "ingestion_dedup",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "jobs",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2026_10",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2026_11",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2026_12",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_01",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_02",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_03",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_04",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_05",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_06",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_07",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_08",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2027_09",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "rls_audit_log",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2024_12",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2025_01",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2025_02",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2025_03",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2025_04",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs_2025_05",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "compensation_quarantine",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "outbox_events",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "tenant_lane_quota",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "tenant_vruntime",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "oauth_refresh_grants",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "federated_sessions",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "auth_handoff_codes",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "edgequake",
+      "table": "audit_log",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "edgequake",
+      "table": "provider_slot",
+      "rls": false,
+      "force": false
+    },
+    {
+      "schema": "public",
+      "table": "documents",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "chunks",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "entities",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "relationships",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "conversation_history",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "conversations",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "folders",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "tasks",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "tasks_history",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "failed_chunks",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "data_bindings",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "mutation_requests",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "object_revisions",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "ingest_batches",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "graph_contributions",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "embedding_manifests",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "embedding_projections",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "projection_events",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "projection_visibility",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "projection_cleanup_intents",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "vector_provider_cutovers",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "decision_cache",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "decision_review",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "document_originals",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "pdf_documents",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "document_pages",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "document_mm_assets",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "page_layout_regions",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "document_page_states",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "chunk_embeddings",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "entity_embeddings",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "relationship_embeddings",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "report_embeddings",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "chunk_entity_links",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "chunk_relation_links",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "tasks_p_2026_11",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "tasks_p_2026_12",
+      "rls": true,
+      "force": true
+    },
+    {
+      "schema": "public",
+      "table": "tasks_p_2027_01",
+      "rls": true,
+      "force": true
+    }
+  ]
+}

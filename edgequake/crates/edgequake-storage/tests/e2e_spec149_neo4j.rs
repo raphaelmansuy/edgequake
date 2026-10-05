@@ -1,5 +1,7 @@
 #![cfg(feature = "neo4j")]
 
+#[path = "common/tenant_measurements.rs"]
+mod tenant_measurements;
 use edgequake_storage::{
     GraphObjectPayload, Neo4jClient, Neo4jConfig, Neo4jEdgeRevision, Neo4jEntityRevision,
 };
@@ -92,6 +94,84 @@ async fn immutable_edge_as_node_round_trip_and_exact_delete() {
     assert_eq!(page.items.len(), 1, "self-loop is one logical edge");
     assert_eq!(page.items[0].key.into_uuid(), edge.physical_id);
 
+    for foreign_scope in [
+        AccessScope::new(TenantId::new(Uuid::new_v4()), scope.workspace()),
+        AccessScope::new(scope.tenant(), WorkspaceId::new(Uuid::new_v4())),
+    ] {
+        let foreign_page = client
+            .incident_edges(&IncidentEdgesRequest {
+                scope: foreign_scope,
+                node_ids: vec![node],
+                cursor: None,
+                limit: 10,
+            })
+            .await
+            .unwrap();
+        assert!(foreign_page.items.is_empty());
+        assert!(client
+            .revision_digests(&foreign_scope, &[entity.physical_id, edge.physical_id])
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            client
+                .delete_edge_revisions(&foreign_scope, &[edge.physical_id])
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            client
+                .delete_entity_revisions(&foreign_scope, &[entity.physical_id])
+                .await
+                .unwrap(),
+            0
+        );
+    }
+    let mut forged = entity.clone();
+    forged.scope = AccessScope::new(
+        TenantId::new(Uuid::new_v4()),
+        WorkspaceId::new(Uuid::new_v4()),
+    );
+    assert!(client.upsert_graph_revisions(&[forged], &[]).await.is_err());
+    assert_eq!(
+        client
+            .incident_edges(&IncidentEdgesRequest {
+                scope,
+                node_ids: vec![node],
+                cursor: None,
+                limit: 10
+            })
+            .await
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+
+    let digests = client
+        .revision_digests(&scope, &[entity.physical_id, edge.physical_id])
+        .await
+        .unwrap();
+    assert_eq!(digests.len(), 2);
+    let mut samples = Vec::new();
+    for i in 0..26 {
+        let start = std::time::Instant::now();
+        let page = client
+            .incident_edges(&IncidentEdgesRequest {
+                scope,
+                node_ids: vec![node],
+                cursor: None,
+                limit: 10,
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.items.len(), 1);
+        if i >= 5 {
+            samples.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+    }
+    tenant_measurements::record("neo4j", 2, samples);
     let deleted = client
         .delete_edge_revisions(&scope, &[edge.physical_id])
         .await

@@ -60,7 +60,7 @@ pub(crate) async fn validate_presented_token(
         return Ok(None);
     }
 
-    Ok(Some(authenticated_from_claims(&claims)?))
+    refresh_principal(state, authenticated_from_claims(&claims)?).await
 }
 
 /// Classify and authorize a credential for the requested surface (SPEC-154 Wave 1).
@@ -109,9 +109,13 @@ pub(crate) async fn decide(
     }
 
     let scopes = McpAuthScopes::from_scope_claim(claims.scope.as_deref());
+    let Some(authenticated) = refresh_principal(state, authenticated_from_claims(&claims)?).await?
+    else {
+        return Ok(None);
+    };
     Ok(Some(CredentialDecision {
         profile,
-        authenticated: authenticated_from_claims(&claims)?,
+        authenticated,
         scopes,
     }))
 }
@@ -165,7 +169,7 @@ pub(crate) async fn validate_master_or_stored_api_key(
         return Ok(Some(AuthenticatedRequest {
             auth: RequestAuthContext {
                 user_id: "static-api-key".to_string(),
-                role: Role::Admin,
+                role: Role::Readonly,
             },
             jwt_tenant_id: None,
             jwt_workspace_id: None,
@@ -252,22 +256,89 @@ pub(crate) async fn validate_stored_api_key(
             || normalized.iter().any(|s| s == "*")
         {
             Role::Admin
-        } else {
+        } else if normalized
+            .iter()
+            .any(|s| s == crate::oauth::scopes::MCP_SCOPE_WRITE)
+        {
             Role::User
+        } else {
+            Role::Readonly
         };
 
-        return Ok(Some(AuthenticatedRequest {
-            auth: RequestAuthContext {
-                user_id: record.user_id,
-                role,
+        return refresh_principal(
+            state,
+            AuthenticatedRequest {
+                auth: RequestAuthContext {
+                    user_id: record.user_id,
+                    role,
+                },
+                jwt_tenant_id: None,
+                jwt_workspace_id: None,
+                api_key_scopes: Some(McpAuthScopes::from_api_key_scopes(normalized)),
             },
-            jwt_tenant_id: None,
-            jwt_workspace_id: None,
-            api_key_scopes: Some(McpAuthScopes::from_api_key_scopes(normalized)),
-        }));
+        )
+        .await;
     }
 
     Ok(None)
+}
+
+/// Durable identity is authoritative for account status and role reductions on every surface.
+async fn refresh_principal(
+    state: &AppState,
+    mut authenticated: AuthenticatedRequest,
+) -> Result<Option<AuthenticatedRequest>, crate::error::ApiError> {
+    // Synthetic identities exist only for explicitly configured service credentials.
+    if matches!(
+        authenticated.auth.user_id.as_str(),
+        "master-api-key" | "static-api-key"
+    ) {
+        return Ok(Some(authenticated));
+    }
+    #[cfg(feature = "postgres")]
+    let pg = state
+        .pg_pool
+        .clone()
+        .map(|pool| crate::state::PostgresRuntime {
+            pool: Some(pool),
+            capabilities: None,
+        });
+    #[cfg(feature = "postgres")]
+    let pg = pg.as_ref();
+    #[cfg(not(feature = "postgres"))]
+    let pg = None;
+    let user = crate::handlers::auth::get_record_by_id(
+        &state.storage,
+        pg,
+        &state.security,
+        state.operational_stores.identity.as_deref(),
+        &authenticated.auth.user_id,
+    )
+    .await?;
+    let Some(user) = user else {
+        if state.auth.config.dev_mode {
+            return Ok(Some(authenticated));
+        }
+        return Ok(None);
+    };
+    if !user.is_active || user.locked_until.is_some_and(|until| until > Utc::now()) {
+        return Ok(None);
+    }
+    let Ok(role) = Role::try_parse(&user.role) else {
+        return Ok(None);
+    };
+    authenticated.auth.role = lesser_role(authenticated.auth.role, role);
+    Ok(Some(authenticated))
+}
+
+fn lesser_role(granted: Role, current: Role) -> Role {
+    if granted == Role::Readonly || current == Role::Readonly {
+        Role::Readonly
+    } else if granted == Role::User || current == Role::User {
+        Role::User
+    } else {
+        Role::Admin
+    }
 }
 
 #[cfg(test)]

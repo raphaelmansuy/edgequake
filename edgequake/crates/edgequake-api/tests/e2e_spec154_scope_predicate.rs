@@ -26,7 +26,7 @@ fn ec_154_20_star_covers_when_explicit() {
 
 #[tokio::test]
 async fn ec_154_03_empty_scope_jwt_forbidden_on_query_tool() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     // Mint MCP JWT with empty scope claim (aud ok, scopes empty).
     let token = issue_mcp_jwt(&state, Role::User, "");
@@ -73,7 +73,7 @@ async fn ec_154_03_empty_scope_jwt_forbidden_on_query_tool() {
 
 #[tokio::test]
 async fn ec_154_read_scope_allows_tools_list() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let token = issue_mcp_jwt(&state, Role::User, "edgequake:read");
 

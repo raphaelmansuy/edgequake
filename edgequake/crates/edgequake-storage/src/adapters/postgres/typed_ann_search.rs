@@ -35,8 +35,18 @@ impl TypedAnnSearch {
         &self,
         conn: &'c mut PgConnection,
         top_k: usize,
+        tenant: Option<uuid::Uuid>,
+        workspace: Option<uuid::Uuid>,
     ) -> Result<LocalTimeoutTx<'c>> {
         let mut tx = LocalTimeoutTx::begin(conn, vector_query_statement_timeout_ms()).await?;
+        super::rls::enforce_workspace_context(tx.as_mut(), tenant, workspace).await?;
+        // Nullable scope/lineage binds have very different selectivity per workspace.
+        // A cached generic plan can scan the broad workspace after learning a
+        // selective one. Replan this bounded ANN statement with its actual binds.
+        sqlx::query("SET LOCAL plan_cache_mode = force_custom_plan")
+            .execute(tx.as_mut())
+            .await
+            .map_err(StorageError::from)?;
         // Probe on the held connection, inside the deadline. Acquiring another
         // connection here would deadlock single-connection or saturated pools.
         let supported = *self

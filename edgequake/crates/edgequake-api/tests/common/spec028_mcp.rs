@@ -8,7 +8,6 @@ use edgequake_api::{AppState, Server, ServerConfig};
 use edgequake_auth::Role;
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use uuid::Uuid;
 
 pub const MCP_ACCEPT: &str = "application/json, text/event-stream";
 pub const MCP_PROTOCOL: &str = "2026-07-28";
@@ -31,13 +30,43 @@ pub fn default_mcp_app() -> axum::Router {
     build_mcp_app(AppState::test_state())
 }
 
-pub fn auth_enabled_mcp_state() -> AppState {
+pub async fn auth_enabled_mcp_state() -> AppState {
     let mut state = AppState::test_state();
     state.auth.config.auth_enabled = true;
     state.auth.config.dev_mode = false;
     // SPEC-154: break-glass is master_api_key only (not EDGEQUAKE_API_KEYS).
     state.auth.config.master_api_key = Some("master-mcp-test-key".to_string());
     state.auth.config.api_keys = vec!["master-mcp-test-key".to_string()];
+    state.workspace_service.seed_default_workspace().await;
+    // An owned workspace must still use test providers, regardless of local credentials.
+    std::env::set_var("EDGEQUAKE_ALLOW_MOCK_PROVIDER", "1");
+    state
+        .workspace_service
+        .update_workspace(
+            edgequake_api::middleware::default_workspace_uuid(),
+            edgequake_core::UpdateWorkspaceRequest {
+                llm_provider: Some("mock".into()),
+                llm_model: Some("mock-model".into()),
+                embedding_provider: Some("mock".into()),
+                embedding_model: Some("mock-model".into()),
+                embedding_dimension: Some(1536),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("mock workspace providers");
+    state
+        .workspace_service
+        .add_membership(edgequake_core::Membership::new(
+            edgequake_api::middleware::default_user_uuid(),
+            edgequake_api::middleware::default_tenant_uuid(),
+            edgequake_core::MembershipRole::Owner,
+        ))
+        .await
+        .expect("fixture membership");
+    state.operational_stores.identity = Some(std::sync::Arc::new(
+        super::identity_fixture::FixtureIdentityStore::new(state.workspace_service.clone()),
+    ));
     state
 }
 
@@ -55,7 +84,7 @@ pub fn issue_mcp_jwt(state: &AppState, role: Role, scope: &str) -> String {
         .map(|s| format!("{}/mcp", s.trim().trim_end_matches('/')))
         .unwrap_or_else(|| "http://127.0.0.1:8080/mcp".to_string());
 
-    let claims = Claims::new(Uuid::new_v4(), role, 3600)
+    let claims = Claims::new(edgequake_api::middleware::default_user_uuid(), role, 3600)
         .with_audience(vec![resource])
         .with_scope(scope.to_string());
     state
@@ -69,7 +98,7 @@ pub fn issue_mcp_jwt(state: &AppState, role: Role, scope: &str) -> String {
 pub fn issue_web_session_jwt(state: &AppState, role: Role) -> String {
     use edgequake_auth::Claims;
 
-    let claims = Claims::new(Uuid::new_v4(), role, 3600);
+    let claims = Claims::new(edgequake_api::middleware::default_user_uuid(), role, 3600);
     state
         .auth
         .jwt

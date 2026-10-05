@@ -234,6 +234,32 @@ jobs:
           cargo test -p edgequake-storage --features postgres --test postgres_projection_provider_plans \
             -- --test-threads=1 --nocapture 2>&1 | tee /tmp/dal-provider-plans.log
 
+      - name: Require real tenant authorization and non-bypass RLS
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_PROVIDER_ACCESS_E2E: "1"
+          EDGEQUAKE_REQUIRE_PROVIDER_ACCESS: "1"
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          EQ_TENANT_RLS_REPORT: /tmp/tenant-rls.json
+          EQ_TENANT_HTTP_REPORT: /tmp/tenant-http.json
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-api --features postgres \
+            --test e2e_tenant_authorization --test e2e_tenant_rls \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/tenant-security.log
+          test -s /tmp/tenant-rls.json
+          test -s /tmp/tenant-http.json
+
+      - name: Archive tenant security measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tenant-security
+          path: |
+            /tmp/tenant-rls.json
+            /tmp/tenant-http.json
+            /tmp/tenant-security.log
+
       - name: Archive DAL provider composition measurements
         if: always()
         uses: actions/upload-artifact@v4
@@ -276,6 +302,7 @@ jobs:
             -- Grant permissions on all tables to app_user
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
             GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+            GRANT edgequake_tenant_access TO app_user;
           EOSQL
 
       - name: Run PostgreSQL Storage Integration Tests
@@ -571,6 +598,7 @@ jobs:
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
             GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+            GRANT edgequake_tenant_access TO app_user;
             GRANT SELECT ON ALL TABLES IN SCHEMA ag_catalog TO app_user;
           EOSQL
 
@@ -594,3 +622,64 @@ jobs:
           flags: postgres-integration
           name: postgres-coverage
           fail_ci_if_error: false
+
+  external-provider-tenancy:
+    name: External provider tenancy contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.19.0
+        ports: ["6333:6333"]
+      neo4j:
+        image: neo4j:5.26-community
+        env:
+          NEO4J_AUTH: neo4j/provider-access-test
+          NEO4J_server_memory_heap_initial__size: 256m
+          NEO4J_server_memory_heap_max__size: 512m
+          NEO4J_server_memory_pagecache_size: 256m
+        ports: ["7474:7474"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: edgequake
+          key: external-provider-tenancy
+      - name: Wait for both providers
+        run: |
+          set -euo pipefail
+          for url in http://localhost:6333/readyz http://localhost:7474/; do
+            ready=0
+            for attempt in {1..60}; do
+              if curl --fail --silent "$url" >/dev/null; then ready=1; break; fi
+              sleep 1
+            done
+            test "$ready" = 1
+          done
+      - name: Require adapter isolation and measure reads
+        working-directory: edgequake
+        env:
+          QDRANT_URL: http://localhost:6333
+          NEO4J_URL: http://localhost:7474
+          EDGEQUAKE_NEO4J_PASSWORD: provider-access-test
+          EDGEQUAKE_REQUIRE_QDRANT: "1"
+          EDGEQUAKE_REQUIRE_NEO4J: "1"
+          EQ_TENANT_PROVIDER_REPORT_DIR: /tmp/tenant-providers
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-storage --features full \
+            --test e2e_spec149_qdrant --test e2e_spec149_neo4j \
+            -- --test-threads=1 --nocapture
+          cargo test -p edgequake-storage --features full --lib adapters::sqlite \
+            -- --test-threads=1 --nocapture
+          test -s /tmp/tenant-providers/qdrant.json
+          test -s /tmp/tenant-providers/neo4j.json
+          test -s /tmp/tenant-providers/sqlite.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: external-provider-tenancy
+          path: /tmp/tenant-providers/*.json

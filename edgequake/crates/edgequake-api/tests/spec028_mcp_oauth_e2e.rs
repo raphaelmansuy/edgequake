@@ -12,7 +12,7 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn ec_mcp_11_unauthenticated_mcp_returns_401_with_www_authenticate() {
-    let app = build_mcp_app(auth_enabled_mcp_state());
+    let app = build_mcp_app(auth_enabled_mcp_state().await);
     let response = app
         .oneshot(mcp_post_legacy(
             "/mcp",
@@ -38,7 +38,7 @@ async fn ec_mcp_11_unauthenticated_mcp_returns_401_with_www_authenticate() {
 
 #[tokio::test]
 async fn ec_mcp_api_v1_unauthenticated_returns_www_authenticate() {
-    let app = build_mcp_app(auth_enabled_mcp_state());
+    let app = build_mcp_app(auth_enabled_mcp_state().await);
     let response = app
         .oneshot(mcp_post_legacy(
             "/api/v1/mcp",
@@ -65,9 +65,8 @@ async fn ec_mcp_dcr_redirect_uri_mismatch_rejected() {
     use axum::body::Body;
     use axum::http::{header, Request};
     use edgequake_auth::{Claims, Role};
-    use uuid::Uuid;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
 
     let register = app
@@ -95,7 +94,11 @@ async fn ec_mcp_dcr_redirect_uri_mismatch_rejected() {
         .unwrap()
         .to_string();
 
-    let session = Claims::new(Uuid::new_v4(), Role::User, 3600);
+    let session = Claims::new(
+        edgequake_api::middleware::default_user_uuid(),
+        Role::User,
+        3600,
+    );
     let session_jwt = state.auth.jwt.generate_token_with_claims(session).unwrap();
 
     let authorize_uri = format!(
@@ -206,9 +209,8 @@ async fn ec_mcp_dcr_then_pkce_token_then_tools_list() {
     use base64::Engine;
     use edgequake_auth::{Claims, Role};
     use sha2::{Digest, Sha256};
-    use uuid::Uuid;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
 
     let register = app
@@ -239,7 +241,11 @@ async fn ec_mcp_dcr_then_pkce_token_then_tools_list() {
     hasher.update(verifier.as_bytes());
     let challenge = URL_SAFE_NO_PAD.encode(hasher.finalize());
 
-    let session = Claims::new(Uuid::new_v4(), Role::User, 3600);
+    let session = Claims::new(
+        edgequake_api::middleware::default_user_uuid(),
+        Role::User,
+        3600,
+    );
     let session_jwt = state.auth.jwt.generate_token_with_claims(session).unwrap();
 
     let authorize_uri = format!(
@@ -352,7 +358,7 @@ async fn ec_mcp_dcr_then_pkce_token_then_tools_list() {
 async fn ec_mcp_insufficient_scope_returns_403_challenge() {
     use edgequake_auth::Role;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let token = common::spec028_mcp::issue_mcp_jwt(&state, Role::User, "edgequake:read");
     let app = build_mcp_app(state);
     let response = app
@@ -385,9 +391,13 @@ async fn ec_mcp_insufficient_scope_returns_403_challenge() {
 async fn ec_mcp_jwt_without_resource_aud_rejected() {
     use edgequake_auth::{Claims, Role};
 
-    let state = auth_enabled_mcp_state();
-    let claims = Claims::new(uuid::Uuid::new_v4(), Role::User, 3600)
-        .with_scope("edgequake:read edgequake:query".to_string());
+    let state = auth_enabled_mcp_state().await;
+    let claims = Claims::new(
+        edgequake_api::middleware::default_user_uuid(),
+        Role::User,
+        3600,
+    )
+    .with_scope("edgequake:read edgequake:query".to_string());
     let token = state.auth.jwt.generate_token_with_claims(claims).unwrap();
     let app = build_mcp_app(state);
     let response = app
@@ -403,7 +413,7 @@ async fn ec_mcp_jwt_without_resource_aud_rejected() {
 
 #[tokio::test]
 async fn ec_mcp_api_key_authenticates_root_mcp_when_auth_enabled() {
-    let app = build_mcp_app(auth_enabled_mcp_state());
+    let app = build_mcp_app(auth_enabled_mcp_state().await);
     let response = app
         .oneshot(
             axum::http::Request::builder()
@@ -425,7 +435,7 @@ async fn ec_mcp_api_key_authenticates_root_mcp_when_auth_enabled() {
 
 #[tokio::test]
 async fn ec_mcp_oauth_prm_to_tools_call_with_api_key() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state);
 
     let prm = app
@@ -444,7 +454,7 @@ async fn ec_mcp_oauth_prm_to_tools_call_with_api_key() {
     assert!(prm_body["authorization_servers"][0].is_string());
 
     let (status, body) = {
-        let app2 = build_mcp_app(auth_enabled_mcp_state());
+        let app2 = build_mcp_app(auth_enabled_mcp_state().await);
         let response = app2
             .oneshot(
                 axum::http::Request::builder()
@@ -472,15 +482,17 @@ async fn ec_mcp_oauth_prm_to_tools_call_with_api_key() {
     };
     assert_eq!(status, StatusCode::OK);
     assert!(body.get("error").is_none(), "{body:?}");
-    assert!(tool_structured(&body)["retrieval_id"]
-        .as_str()
-        .unwrap()
-        .starts_with("ret_"));
+    assert!(
+        tool_structured(&body)["retrieval_id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("ret_")),
+        "Authorized tool call must return a retrieval ID: {body}"
+    );
 }
 
 #[tokio::test]
 async fn ec_mcp_16_www_authenticate_title_case() {
-    let app = build_mcp_app(auth_enabled_mcp_state());
+    let app = build_mcp_app(auth_enabled_mcp_state().await);
     let response = app
         .oneshot(mcp_post_legacy(
             "/mcp",
@@ -531,7 +543,7 @@ async fn ec_mcp_modern_headers_tools_list_on_root() {
 async fn ec_mcp_jwt_bearer_authenticates_mcp_gateway() {
     use edgequake_auth::Role;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let token = common::spec028_mcp::issue_test_jwt(&state, Role::User);
     let app = build_mcp_app(state);
 
@@ -552,8 +564,8 @@ async fn ec_mcp_jwt_bearer_authenticates_mcp_gateway() {
 async fn ec_mcp_12_expired_jwt_returns_401() {
     use edgequake_auth::{Claims, Role};
 
-    let state = auth_enabled_mcp_state();
-    let user_id = uuid::Uuid::new_v4();
+    let state = auth_enabled_mcp_state().await;
+    let user_id = edgequake_api::middleware::default_user_uuid();
     let claims = Claims::new(user_id, Role::User, -3600);
     let token = state
         .auth
@@ -691,12 +703,39 @@ async fn ec_mcp_oidc_roundtrip_jwt_then_mcp_tools_list() {
     assert_eq!(mcp_session.status(), StatusCode::UNAUTHORIZED);
     assert!(mcp_session.headers().contains_key("www-authenticate"));
 
-    // MCP-bound JWT (as issued by /oauth/token) succeeds.
-    let mcp_token = common::spec028_mcp::issue_mcp_jwt(
-        &state,
+    // Bind the MCP token to the account actually persisted by the OIDC callback.
+    let oidc_user = uuid::Uuid::parse_str(login_body["user"]["user_id"].as_str().unwrap()).unwrap();
+    let claims = edgequake_api::services::identity_storage::access_token_claims(
+        oidc_user,
         edgequake_auth::Role::User,
-        "edgequake:read edgequake:query",
+        3600,
+    )
+    .with_audience(vec!["http://127.0.0.1:8080/mcp".into()])
+    .with_scope("edgequake:read edgequake:query");
+    let mcp_token = state.auth.jwt.generate_token_with_claims(claims).unwrap();
+    let denied = build_mcp_app(state.clone())
+        .oneshot(common::spec028_mcp::mcp_post_bearer(
+            "/mcp",
+            &mcp_token,
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        denied.status(),
+        StatusCode::FORBIDDEN,
+        "OIDC identity alone grants no content membership"
     );
+    state.workspace_service.seed_default_workspace().await;
+    state
+        .workspace_service
+        .add_membership(edgequake_core::Membership::new(
+            oidc_user,
+            edgequake_api::middleware::default_tenant_uuid(),
+            edgequake_core::MembershipRole::Member,
+        ))
+        .await
+        .unwrap();
     let app = build_mcp_app(state);
     let mcp_response = app
         .oneshot(common::spec028_mcp::mcp_post_bearer(
@@ -713,7 +752,7 @@ async fn ec_mcp_oidc_roundtrip_jwt_then_mcp_tools_list() {
 async fn ec_mcp_29_debug_granularity_forbidden_for_user_jwt() {
     use edgequake_auth::Role;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let token = common::spec028_mcp::issue_test_jwt(&state, Role::User);
     let app = build_mcp_app(state);
 
@@ -733,7 +772,7 @@ async fn ec_mcp_29_debug_granularity_forbidden_for_user_jwt() {
 async fn ec_mcp_29_debug_granularity_allowed_for_admin_jwt() {
     use edgequake_auth::Role;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let token = common::spec028_mcp::issue_test_jwt(&state, Role::Admin);
     let app = build_mcp_app(state);
 
@@ -753,7 +792,7 @@ async fn ec_mcp_29_debug_granularity_allowed_for_admin_jwt() {
 async fn ec_mcp_14_bearer_preferred_over_api_key() {
     use edgequake_auth::Role;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let user_jwt = common::spec028_mcp::issue_test_jwt(&state, Role::User);
     let master_key = "master-mcp-test-key";
     let app = build_mcp_app(state);
@@ -781,10 +820,10 @@ async fn ec_mcp_14_bearer_preferred_over_api_key() {
 async fn ec_mcp_30_workspace_claim_mismatch_forbidden() {
     use edgequake_auth::{Claims, Role};
 
-    let state = auth_enabled_mcp_state();
-    let user_id = uuid::Uuid::new_v4();
+    let state = auth_enabled_mcp_state().await;
+    let user_id = edgequake_api::middleware::default_user_uuid();
     let claims = Claims::new(user_id, Role::User, 3600)
-        .with_workspace_id("ws-claim-a")
+        .with_workspace_id(edgequake_api::middleware::default_workspace_uuid().to_string())
         .with_audience(vec!["http://127.0.0.1:8080/mcp".to_string()])
         .with_scope("edgequake:read edgequake:query".to_string());
     let token = state
@@ -799,7 +838,7 @@ async fn ec_mcp_30_workspace_claim_mismatch_forbidden() {
         "/mcp",
         &token,
         "edgequake_search",
-        json!({ "query": "workspace mismatch", "workspace_id": "ws-claim-b" }),
+        json!({ "query": "workspace mismatch", "workspace_id": "00000000-0000-0000-0000-0000000000bb" }),
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -834,7 +873,6 @@ async fn oauth_pkce_issue_tokens(
     use base64::Engine;
     use edgequake_auth::{Claims, Role};
     use sha2::{Digest, Sha256};
-    use uuid::Uuid;
 
     let register = app
         .clone()
@@ -867,7 +905,11 @@ async fn oauth_pkce_issue_tokens(
     let session_jwt = state
         .auth
         .jwt
-        .generate_token_with_claims(Claims::new(Uuid::new_v4(), Role::User, 3600))
+        .generate_token_with_claims(Claims::new(
+            edgequake_api::middleware::default_user_uuid(),
+            Role::User,
+            3600,
+        ))
         .unwrap();
 
     let approve = app
@@ -933,7 +975,7 @@ async fn ec_mcp_refresh_rotates_and_tools_list() {
     use axum::body::Body;
     use axum::http::Request;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let (client_id, _access, refresh1) = oauth_pkce_issue_tokens(&app, &state).await;
 
@@ -1025,7 +1067,7 @@ async fn ec_mcp_20_expired_refresh_invalid_grant() {
     use edgequake_api::oauth::types::{OAuthRefreshGrant, OAuthRefreshStatus};
     use uuid::Uuid;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let client_id = "eq_oauth_expired_test";
     let refresh = format!("eqr_{}", Uuid::new_v4());
@@ -1081,7 +1123,7 @@ async fn ec_mcp_revoke_then_refresh_fails() {
     use axum::body::Body;
     use axum::http::Request;
 
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let (client_id, _access, refresh) = oauth_pkce_issue_tokens(&app, &state).await;
 

@@ -51,7 +51,8 @@ pub async fn boot_with_providers(
         .expect("AppState::new_postgres must succeed");
     state.auth.config.auth_enabled = true;
     state.auth.config.dev_mode = false;
-    state.auth.config.api_keys = vec![API_KEY.to_string()];
+    state.auth.config.master_api_key = Some(API_KEY.to_string());
+    state.security.cors_origins = Some(vec!["http://localhost:3000".into()]);
     let pool = state.pg_pool.as_ref().expect("P0 pool").clone();
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

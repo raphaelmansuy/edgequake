@@ -40,19 +40,15 @@ LIMIT $limit
 "#;
 
 const REVISION_DIGESTS: &str = r#"
-UNWIND $physical_ids AS physical_id
-OPTIONAL MATCH (entity:EntityRevision {physical_id: physical_id})
-WHERE entity.tenant_id = $tenant_id AND entity.workspace_id = $workspace_id
-WITH physical_id, entity, NULL AS edge
+MATCH (entity:EntityRevision)
+WHERE entity.physical_id IN $physical_ids
+  AND entity.tenant_id = $tenant_id AND entity.workspace_id = $workspace_id
+RETURN entity.physical_id AS physical_id, entity.digest AS digest
 UNION ALL
-UNWIND $physical_ids AS physical_id
-OPTIONAL MATCH (edge:EdgeRevision {physical_id: physical_id})
-WHERE edge.tenant_id = $tenant_id AND edge.workspace_id = $workspace_id
-WITH physical_id, NULL AS entity, edge
-WITH physical_id, coalesce(entity.digest, edge.digest) AS digest
-WHERE digest IS NOT NULL
-RETURN physical_id, digest
-ORDER BY physical_id
+MATCH (edge:EdgeRevision)
+WHERE edge.physical_id IN $physical_ids
+  AND edge.tenant_id = $tenant_id AND edge.workspace_id = $workspace_id
+RETURN edge.physical_id AS physical_id, edge.digest AS digest
 "#;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

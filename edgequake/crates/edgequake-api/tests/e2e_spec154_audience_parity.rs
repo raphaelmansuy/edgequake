@@ -13,7 +13,7 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn ec_154_01_mcp_jwt_rejected_on_rest() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let mcp_token = issue_mcp_jwt(&state, Role::User, "edgequake:read edgequake:query");
 
@@ -38,7 +38,7 @@ async fn ec_154_01_mcp_jwt_rejected_on_rest() {
 
 #[tokio::test]
 async fn ec_154_02_web_session_jwt_rejected_on_mcp() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let web_token = issue_web_session_jwt(&state, Role::User);
 
@@ -65,7 +65,7 @@ async fn ec_154_02_web_session_jwt_rejected_on_mcp() {
 
 #[tokio::test]
 async fn ec_154_web_session_jwt_accepted_on_rest() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let web_token = issue_web_session_jwt(&state, Role::User);
 
@@ -91,7 +91,7 @@ async fn ec_154_web_session_jwt_accepted_on_rest() {
 
 #[tokio::test]
 async fn ec_154_mcp_jwt_accepted_on_mcp_tools_list() {
-    let state = auth_enabled_mcp_state();
+    let state = auth_enabled_mcp_state().await;
     let app = build_mcp_app(state.clone());
     let mcp_token = issue_mcp_jwt(&state, Role::User, "edgequake:read edgequake:query");
 

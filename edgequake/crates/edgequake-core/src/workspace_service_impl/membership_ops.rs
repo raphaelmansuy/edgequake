@@ -40,7 +40,7 @@ impl WorkspaceServiceImpl {
 
     pub(super) async fn pg_get_user_memberships(&self, user_id: Uuid) -> Result<Vec<Membership>> {
         let rows: Vec<MembershipRow> = sqlx::query_as(&format!(
-            "SELECT {MEMBERSHIP_COLUMNS} FROM memberships WHERE user_id = $1"
+            "SELECT {MEMBERSHIP_COLUMNS} FROM memberships WHERE user_id = $1 AND is_active = TRUE"
         ))
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -55,7 +55,7 @@ impl WorkspaceServiceImpl {
         tenant_id: Uuid,
     ) -> Result<Vec<Membership>> {
         let rows: Vec<MembershipRow> = sqlx::query_as(&format!(
-            "SELECT {MEMBERSHIP_COLUMNS} FROM memberships WHERE tenant_id = $1"
+            "SELECT {MEMBERSHIP_COLUMNS} FROM memberships WHERE tenant_id = $1 AND is_active = TRUE"
         ))
         .bind(tenant_id)
         .fetch_all(&self.pool)
@@ -111,8 +111,8 @@ impl WorkspaceServiceImpl {
         user_id: Uuid,
         tenant_id: Uuid,
     ) -> Result<bool> {
-        let exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT 1 FROM memberships WHERE user_id = $1 AND tenant_id = $2 LIMIT 1",
+        let exists: Option<(i32,)> = sqlx::query_as(
+            "SELECT 1 FROM memberships m JOIN tenants t USING(tenant_id) WHERE m.user_id = $1 AND m.tenant_id = $2 AND m.is_active = TRUE AND t.is_active = TRUE LIMIT 1",
         )
         .bind(user_id)
         .bind(tenant_id)
@@ -128,8 +128,8 @@ impl WorkspaceServiceImpl {
         user_id: Uuid,
         workspace_id: Uuid,
     ) -> Result<bool> {
-        let exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT 1 FROM memberships WHERE user_id = $1 AND workspace_id = $2 LIMIT 1",
+        let exists: Option<(i32,)> = sqlx::query_as(
+            "SELECT 1 FROM memberships m JOIN workspaces w ON w.tenant_id = m.tenant_id JOIN tenants t ON t.tenant_id=w.tenant_id WHERE m.user_id = $1 AND w.workspace_id = $2 AND m.is_active = TRUE AND w.is_active = TRUE AND t.is_active = TRUE AND (m.workspace_id IS NULL OR m.workspace_id = $2) LIMIT 1",
         )
         .bind(user_id)
         .bind(workspace_id)
@@ -146,7 +146,7 @@ impl WorkspaceServiceImpl {
         tenant_id: Uuid,
     ) -> Result<Option<MembershipRole>> {
         let role: Option<(String,)> = sqlx::query_as(
-            "SELECT role FROM memberships WHERE user_id = $1 AND tenant_id = $2 LIMIT 1",
+            "SELECT role FROM memberships WHERE user_id = $1 AND tenant_id = $2 AND is_active = TRUE AND workspace_id IS NULL ORDER BY CASE role WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'member' THEN 2 ELSE 1 END DESC LIMIT 1",
         )
         .bind(user_id)
         .bind(tenant_id)
@@ -166,10 +166,13 @@ impl WorkspaceServiceImpl {
         workspace_id: Option<Uuid>,
     ) -> Result<TenantContext> {
         // Verify tenant exists
-        let _tenant = self
+        let tenant = self
             .pg_get_tenant(tenant_id)
             .await?
             .ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
+        if !tenant.is_active {
+            return Err(Error::validation("Tenant is inactive"));
+        }
 
         // Verify workspace if provided
         if let Some(ws_id) = workspace_id {
@@ -178,7 +181,7 @@ impl WorkspaceServiceImpl {
                 .await?
                 .ok_or_else(|| Error::not_found(format!("Workspace {} not found", ws_id)))?;
 
-            if workspace.tenant_id != tenant_id {
+            if !workspace.is_active || workspace.tenant_id != tenant_id {
                 return Err(Error::validation(
                     "Workspace does not belong to the specified tenant",
                 ));
@@ -186,13 +189,20 @@ impl WorkspaceServiceImpl {
         }
 
         // Get user's role in this tenant
-        let role = self.pg_get_user_role(user_id, tenant_id).await?;
+        let role = self
+            .pg_get_user_memberships(user_id)
+            .await?
+            .into_iter()
+            .filter(|m| m.applies_to(tenant_id, workspace_id))
+            .map(|m| m.role)
+            .max_by_key(MembershipRole::level)
+            .ok_or_else(|| Error::validation("No active membership for scope"))?;
 
         Ok(TenantContext {
             tenant_id: Some(tenant_id),
             workspace_id,
             user_id: Some(user_id),
-            role,
+            role: Some(role),
         })
     }
 }

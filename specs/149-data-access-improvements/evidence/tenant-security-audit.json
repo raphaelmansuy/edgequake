@@ -1,0 +1,156 @@
+{
+  "validation_status": "verified_scoped_contracts",
+  "architecture": {
+    "provider_kinds": [
+      "relational authority",
+      "vector projection",
+      "graph projection"
+    ],
+    "authorization_boundary": "shared active-principal and WorkspaceService membership checks, independent of storage drivers",
+    "request_scope": "headers select a tenant/workspace; they cannot grant access",
+    "privileged_paths": "explicit master credential and trusted administration/projection workers"
+  },
+  "findings_fixed": [
+    {
+      "issue": "FORCE RLS does not constrain a superuser/BYPASSRLS runtime connection",
+      "fix": "scoped transactions assume edgequake_tenant_access, verify its attributes and install local context"
+    },
+    {
+      "issue": "membership verification depended on PostgreSQL and an opt-in flag",
+      "fix": "production authentication requires active membership through the selected WorkspaceService"
+    },
+    {
+      "issue": "workspace administrator could be treated as tenant administrator",
+      "fix": "tenant management requires a tenant-wide owner/admin membership"
+    },
+    {
+      "issue": "stale JWT/key owners could retain a disabled account or elevated role",
+      "fix": "reload durable owner status/lockout/role and cap granted privileges"
+    },
+    {
+      "issue": "nested Axum routes stripped prefixes used for authorization",
+      "fix": "classify original request URI"
+    },
+    {
+      "issue": "Ollama compatibility queries omitted tenant/workspace scope",
+      "fix": "gate authentication and construct one shared scoped request for chat/generate, streaming and nonstreaming"
+    },
+    {
+      "issue": "malformed workspace scope could degrade to tenant-wide RLS",
+      "fix": "reject malformed and missing scoped requests before invoking storage"
+    },
+    {
+      "issue": "Qdrant point identifiers and deletes could collide across scopes",
+      "fix": "scope-derived physical UUIDs, mandatory payload/model filters and scoped deletes"
+    },
+    {
+      "issue": "Neo4j revision digest query had invalid UNION structure",
+      "fix": "independent scoped MATCH/RETURN branches with matching columns"
+    },
+    {
+      "issue": "long AGE namespaces aliased node/edge trigger functions",
+      "fix": "short schema-qualified functions and centralized trigger repair"
+    },
+    {
+      "issue": "ownerless break-glass key management returned persistence errors",
+      "fix": "require a user-account identifier before managing user keys"
+    },
+    {
+      "issue": "legacy RLS tests truncated shared document data or silently skipped required fixtures",
+      "fix": "unique UUID fixtures, required-service failures and positive owner reads"
+    },
+    {
+      "issue": "default workspace authorization could attach a tenant-wide RLS context; equivalent UUID casing produced different storage keys",
+      "fix": "canonicalize tenant/workspace before attaching the shared request and RLS scope"
+    },
+    {
+      "issue": "generic prepared ANN plans ignore workspace and nullable lineage bind selectivity",
+      "fix": "use transaction-local custom plans in the shared typed ANN session, retaining natural scan selection and exact score reordering"
+    }
+  ],
+  "performance_change": {
+    "tenant_context_setup_queries_before": 4,
+    "tenant_context_setup_queries_after": 3,
+    "workspace_context_setup_queries_before": 5,
+    "workspace_context_setup_queries_after": 3,
+    "mechanism": "combine role attribute verification and local context setup; resolve workspace ownership once",
+    "limits": "local timings are affected by concurrent builds and Docker scheduling; no production SLA or controlled causal speedup claim",
+    "typed_ann_plan_cache_mode": "force_custom_plan (transaction local; confirmed reset to auto)",
+    "tradeoff": "paired measurements retain the selective relationship case where generic planning was faster; custom planning improves the broad measured workspaces, not every workload"
+  },
+  "limits": [
+    "Full alternate SQLite/Qdrant/Neo4j HTTP deployment profiles remain certification-gated; adapter isolation and independent factory composition have separate E2E coverage.",
+    "Privileged control-plane and legacy maintenance operations retain base-pool access; 39 content tables plus AGE labels have the new restrictive policies, not every scope-bearing table.",
+    "PostgreSQL infrastructure remains required by the current API platform.",
+    "Source-query PREPARE coverage is not execution or performance proof for every query; dynamic SQL is explicitly unresolved in the catalog.",
+    "Index-plan assertions apply to the measured fixtures and cannot establish globally optimal production plans.",
+    "Existing pre-certification Qdrant points without scoped physical-revision metadata need re-projection before use.",
+    "Neo4j Community and shared Qdrant service credentials rely on scoped adapter ports; tenant end users do not receive direct database credentials."
+  ],
+  "primary_sources": [
+    "https://www.postgresql.org/docs/18/ddl-rowsecurity.html",
+    "https://www.postgresql.org/docs/18/sql-set-role.html",
+    "https://www.postgresql.org/docs/18/sql-createtrigger.html",
+    "https://www.postgresql.org/docs/18/sql-syntax-lexical.html",
+    "https://qdrant.tech/documentation/manage-data/multitenancy/",
+    "https://api.qdrant.tech/api-reference/points/delete-points",
+    "https://neo4j.com/docs/cypher-manual/5/queries/combined-queries/",
+    "https://neo4j.com/docs/operations-manual/current/authentication-authorization/property-based-access-control/",
+    "https://www.postgresql.org/docs/18/runtime-config-query.html",
+    "https://www.postgresql.org/docs/18/sql-prepare.html"
+  ],
+  "design_changes": {
+    "single_responsibility": "request authorization, credential validation, RLS transaction setup and AGE trigger provisioning have separate focused modules",
+    "dependency_inversion": "authorization depends on WorkspaceService and IdentityStore ports; relational/vector/graph factories remain independent",
+    "dry": "REST, MCP and WebSockets share principal/scope validation; provider reads share bounded scoped ANN transactions; AGE trigger definitions have one implementation"
+  },
+  "fixture_repairs": [
+    "typed ANN temporary tables enforce RLS under the same non-bypass role and use owned workspace records",
+    "authenticated MCP workspaces explicitly select mock providers, independent of developer credentials",
+    "pending visibility atomically holds both provider receipts and closes the serving fence; queries do not echo the secret sentinel",
+    "PostgreSQL-only test helpers and cases have feature guards; memory contracts remain enabled in default builds."
+  ],
+  "query_coverage": {
+    "sites": 895,
+    "static_prepared": 642,
+    "dynamic_without_source_execution_attribution": 253,
+    "limits": "PREPARE validates schema and parameter types; it does not prove execution or performance. Dynamic provider paths have selected E2E coverage, not complete source-to-runtime attribution."
+  },
+  "measurements": {
+    "authenticated_http": {
+      "artifact": "tenant-http.json",
+      "p95_ms": 9.980875000000001
+    },
+    "rls_transaction": {
+      "artifact": "tenant-rls.json",
+      "p95_ms": 5.507042
+    },
+    "typed_ann": {
+      "artifact": "tenant-ann.json",
+      "paired_cases": 8,
+      "recall_at_10": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "limits": "paired planning includes EXPLAIN overhead; custom planning is slower for the measured selective relationship case"
+    },
+    "provider_adapters": [
+      "tenant-qdrant.json",
+      "tenant-neo4j.json",
+      "tenant-sqlite.json"
+    ],
+    "provider_composition": "tenant-provider-composition.json"
+  },
+  "validation_ledger": "tenant-validation.json",
+  "graph_mutation_review": {
+    "entity_updates": "Exact node resolution verifies tenant/workspace and restamps scope after allowlisted fields.",
+    "relationship_updates": "Scoped relationship lookup and allowlisted fields preserve top-level scope; arbitrary metadata is nested."
+  },
+  "passing_test_executions": 3009
+}

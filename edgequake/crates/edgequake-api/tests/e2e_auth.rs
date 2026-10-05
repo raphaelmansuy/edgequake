@@ -72,7 +72,7 @@ async fn test_create_user_success() {
 async fn test_create_user_with_role() {
     let mut state = AppState::test_state();
     state.auth.config.auth_enabled = true;
-    state.auth.config.api_keys = vec!["master-test-key".to_string()];
+    state.auth.config.master_api_key = Some("master-test-key".to_string());
 
     let config = ServerConfig {
         host: "127.0.0.1".to_string(),
@@ -183,7 +183,7 @@ async fn test_registration_can_be_disabled_via_config() {
 async fn test_auth_enabled_protects_business_endpoints() {
     let mut state = AppState::test_state();
     state.auth.config.auth_enabled = true;
-    state.auth.config.api_keys = vec!["master-test-key".to_string()];
+    state.auth.config.master_api_key = Some("master-test-key".to_string());
 
     let config = ServerConfig {
         host: "127.0.0.1".to_string(),
@@ -853,7 +853,7 @@ async fn test_create_api_key() {
     assert!(json.get("api_key").is_some());
     assert!(json.get("prefix").is_some());
     assert!(json["prefix"].as_str().unwrap().starts_with("eq_"));
-    assert_eq!(json["scopes"], json!(["read", "write"]));
+    assert_eq!(json["scopes"], json!(["edgequake:read", "edgequake:write"]));
 }
 
 #[tokio::test]
@@ -1304,8 +1304,8 @@ async fn test_get_me_bad_token_format() {
         .await
         .unwrap();
 
-    // Bad format returns BAD_REQUEST
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    // Invalid credentials return UNAUTHORIZED
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -1325,8 +1325,8 @@ async fn test_get_me_invalid_token() {
         .await
         .unwrap();
 
-    // Invalid token returns BAD_REQUEST
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    // Invalid credentials return UNAUTHORIZED
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

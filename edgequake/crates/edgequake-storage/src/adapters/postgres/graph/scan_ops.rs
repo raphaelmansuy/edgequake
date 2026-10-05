@@ -386,6 +386,12 @@ impl PostgresAGEGraphStorage {
 
         let timeout_ms = super::helpers::community_statement_timeout_ms();
         let mut timed = super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(
+            timed.as_mut(),
+            filter.tenant_id.as_deref(),
+            filter.workspace_id.as_deref(),
+        )
+        .await?;
         let rows = match sqlx::query(&page_sql).fetch_all(timed.as_mut()).await {
             Ok(r) => {
                 timed.commit().await?;
@@ -465,6 +471,12 @@ impl PostgresAGEGraphStorage {
 
         let timeout_ms = super::helpers::community_statement_timeout_ms();
         let mut timed = super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(
+            timed.as_mut(),
+            filter.tenant_id.as_deref(),
+            filter.workspace_id.as_deref(),
+        )
+        .await?;
         let rows = match sqlx::query(&page_sql).fetch_all(timed.as_mut()).await {
             Ok(r) => {
                 timed.commit().await?;
@@ -635,6 +647,12 @@ impl PostgresAGEGraphStorage {
         };
 
         let mut timed = super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(
+            timed.as_mut(),
+            filter.tenant_id.as_deref(),
+            filter.workspace_id.as_deref(),
+        )
+        .await?;
         let mut by_id: HashMap<String, GraphNode> = HashMap::new();
         let modern_rows = match sqlx::query(&modern_sql)
             .bind(&exact_ids)
@@ -805,6 +823,12 @@ impl PostgresAGEGraphStorage {
         };
 
         let mut timed = super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+        Self::enforce_graph_read_scope(
+            timed.as_mut(),
+            filter.tenant_id.as_deref(),
+            filter.workspace_id.as_deref(),
+        )
+        .await?;
         // SPEC-098 D-30 / Symptom F: collapse on (src, tgt, rel), not (src, tgt).
         let mut by_key: HashMap<(String, String, String), GraphEdge> = HashMap::new();
         let modern_rows = match sqlx::query(&modern_sql)

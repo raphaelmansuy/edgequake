@@ -234,7 +234,7 @@ pub async fn protected_api_auth(
         return next.run(request).await;
     }
 
-    let path = request.uri().path();
+    let path = crate::services::request_authorization::request_path(&request);
     let method = request.method().clone();
 
     if is_public_request(&state, &method, path) {
@@ -257,15 +257,31 @@ pub async fn protected_api_auth(
         .await
         {
             Ok(Some(decision)) => {
+                let scopes = decision.authenticated.api_key_scopes.clone();
                 if let Some(response) =
                     apply_authenticated_context(&state, &mut request, decision.authenticated)
                 {
                     return response;
                 }
                 // SPEC-154: extract bind decision sync (do not hold &Request across await).
-                let bind = membership_bind_decision(&state, &request);
-                if let Some(response) = execute_membership_bind(bind).await {
-                    return response;
+                if let Err(error) =
+                    crate::services::request_authorization::bind_request(&state, &mut request).await
+                {
+                    return error.into_response();
+                }
+                let auth = request
+                    .extensions()
+                    .get::<crate::handlers::auth::RequestAuthContext>()
+                    .expect("authenticated context installed");
+                if let Err(error) =
+                    crate::services::request_authorization::require_request_permission(
+                        auth,
+                        scopes.as_ref(),
+                        request.method(),
+                        crate::services::request_authorization::request_path(&request),
+                    )
+                {
+                    return error.into_response();
                 }
                 return next.run(request).await;
             }
@@ -338,69 +354,15 @@ pub(crate) fn apply_authenticated_context(
     // Never keep a random X-User-ID / localStorage UUID when JWT/API-key auth succeeded.
     tenant_ctx.user_id = Some(authenticated.auth.user_id.clone());
 
-    crate::services::tenant_isolation::attach_pg_isolation_scope(
-        request,
-        &tenant_ctx,
-        Some(&authenticated.auth.user_id),
-    );
     request.extensions_mut().insert(authenticated.auth);
     request.extensions_mut().insert(tenant_ctx);
     None
 }
 
-/// After auth context is applied, decide membership bind without holding `&Request`
-/// across await (axum middleware futures must be `Send` — SPEC-154 Wave 2).
-pub(crate) enum MembershipBindDecision {
-    /// Strict bind off, or insufficient ids to check.
-    Skip,
-    /// Master API key break-glass (already audited).
-    MasterBypass,
-    /// Must verify against Postgres memberships.
-    #[cfg(feature = "postgres")]
-    Check(MembershipBindScope),
-}
-
-/// Synchronously classify membership bind for the current request.
-pub(crate) fn membership_bind_decision(
-    state: &crate::state::AppState,
-    request: &Request,
-) -> MembershipBindDecision {
-    if !state.security.strict_tenant_bind {
-        return MembershipBindDecision::Skip;
-    }
-
-    if let Some(auth) = request
-        .extensions()
-        .get::<crate::handlers::auth::RequestAuthContext>()
-    {
-        if auth.user_id == "master-api-key" {
-            audit_master_api_key_membership_bypass(state);
-            return MembershipBindDecision::MasterBypass;
-        }
-    }
-
-    #[cfg(feature = "postgres")]
-    {
-        if let Some(scope) = membership_bind_scope(state, request) {
-            return MembershipBindDecision::Check(scope);
-        }
-    }
-    MembershipBindDecision::Skip
-}
-
-/// Execute a previously classified membership bind decision.
-pub(crate) async fn execute_membership_bind(decision: MembershipBindDecision) -> Option<Response> {
-    match decision {
-        MembershipBindDecision::Skip | MembershipBindDecision::MasterBypass => None,
-        #[cfg(feature = "postgres")]
-        MembershipBindDecision::Check(scope) => enforce_membership_bind(scope).await,
-    }
-}
-
-fn audit_master_api_key_membership_bypass(state: &crate::state::AppState) {
+pub(crate) fn audit_master_api_key_membership_bypass(state: &crate::state::AppState) {
     tracing::warn!(
         audit.event = "master_api_key_membership_bind_bypass",
-        "SPEC-154: master API key skipped membership bind (break-glass)"
+        "Master API key used tenant membership break-glass"
     );
     crate::services::record_compliance_event(
         state,
@@ -414,125 +376,15 @@ fn audit_master_api_key_membership_bypass(state: &crate::state::AppState) {
     );
 }
 
-/// Resolved tenant/workspace membership scope for strict bind (SPEC-027 phase 34).
-#[cfg(feature = "postgres")]
-pub(crate) struct MembershipBindScope {
-    pool: sqlx::PgPool,
-    security: crate::state::ApiSecurityConfig,
-    user_id: uuid::Uuid,
-    tenant_id: uuid::Uuid,
-    workspace_id: uuid::Uuid,
-}
-
-/// Extract membership scope synchronously — no request borrow across await.
-#[cfg(feature = "postgres")]
-fn membership_bind_scope(
-    state: &crate::state::AppState,
-    request: &Request,
-) -> Option<MembershipBindScope> {
-    let pool = state.pg_pool.clone()?;
-    let auth = request
-        .extensions()
-        .get::<crate::handlers::auth::RequestAuthContext>()?;
-    let tenant_ctx = request.extensions().get::<TenantContext>()?;
-
-    if auth.user_id == "master-api-key" {
-        return None;
-    }
-
-    let tenant_id = resolve_tenant_uuid(tenant_ctx.tenant_id.as_deref())?;
-    let workspace_id = resolve_workspace_uuid(tenant_ctx.workspace_id.as_deref())?;
-    let user_id = uuid::Uuid::parse_str(&auth.user_id).ok()?;
-    Some(MembershipBindScope {
-        pool,
-        security: state.security.clone(),
-        user_id,
-        tenant_id,
-        workspace_id,
-    })
-}
-
-/// Verify membership asynchronously (owns scope — no request borrow).
-#[cfg(feature = "postgres")]
-async fn enforce_membership_bind(scope: MembershipBindScope) -> Option<Response> {
-    match crate::services::identity_storage::verify_membership_active(
-        &scope.pool,
-        &scope.security,
-        scope.user_id,
-        scope.tenant_id,
-        scope.workspace_id,
-    )
-    .await
-    {
-        Ok(true) => None,
-        Ok(false) => Some(
-            (
-                StatusCode::FORBIDDEN,
-                Json(AuthError {
-                    error: "forbidden".to_string(),
-                    message: "No active membership for tenant/workspace scope".to_string(),
-                    request_id: edgequake_observability::current_request_id(),
-                }),
-            )
-                .into_response(),
-        ),
-        Err(e) => Some(e.into_response()),
-    }
-}
-
-/// Membership bind for WebSocket (no full Request extensions yet).
-#[cfg(feature = "postgres")]
-pub(crate) async fn maybe_enforce_membership_bind_ids(
-    state: &crate::state::AppState,
-    user_id: &str,
-    tenant_id: Option<&str>,
-    workspace_id: Option<&str>,
-) -> bool {
-    if !state.security.strict_tenant_bind {
-        return true;
-    }
-    if user_id == "master-api-key" {
-        audit_master_api_key_membership_bypass(state);
-        return true;
-    }
-    let Some(pool) = state.pg_pool.clone() else {
-        return true;
+fn same_scope(left: &str, right: &str, field: &str) -> bool {
+    let resolve = if field == "tenant_id" {
+        resolve_tenant_uuid
+    } else {
+        resolve_workspace_uuid
     };
-    let Some(tenant_id) = resolve_tenant_uuid(tenant_id) else {
-        return true;
-    };
-    let Some(workspace_id) = resolve_workspace_uuid(workspace_id) else {
-        return true;
-    };
-    let Ok(user_uuid) = uuid::Uuid::parse_str(user_id) else {
-        return false;
-    };
-    match crate::services::identity_storage::verify_membership_active(
-        &pool,
-        &state.security,
-        user_uuid,
-        tenant_id,
-        workspace_id,
-    )
-    .await
-    {
-        Ok(true) => true,
-        Ok(false) => false,
-        Err(_) => false,
-    }
-}
-
-#[cfg(not(feature = "postgres"))]
-pub(crate) async fn maybe_enforce_membership_bind_ids(
-    state: &crate::state::AppState,
-    user_id: &str,
-    _tenant_id: Option<&str>,
-    _workspace_id: Option<&str>,
-) -> bool {
-    if user_id == "master-api-key" && state.security.strict_tenant_bind {
-        audit_master_api_key_membership_bypass(state);
-    }
-    true
+    resolve(Some(left))
+        .zip(resolve(Some(right)))
+        .is_some_and(|(left, right)| left == right)
 }
 
 fn merge_claim_into_context(
@@ -545,7 +397,7 @@ fn merge_claim_into_context(
         None | Some("") => {
             *header_value = Some(claim_value.to_string());
         }
-        Some(existing) if existing == claim_value => {}
+        Some(existing) if existing == claim_value || same_scope(existing, claim_value, field) => {}
         Some(existing) => {
             tracing::warn!(
                 field = field,
@@ -553,7 +405,7 @@ fn merge_claim_into_context(
                 claim = claim_value,
                 "JWT tenant claim differs from request header (SPEC-027 IMP-004)"
             );
-            if state.security.strict_tenant_bind {
+            if crate::services::request_authorization::binding_required(state) {
                 return Some(
                     (
                         StatusCode::FORBIDDEN,
@@ -646,27 +498,41 @@ pub async fn ws_validate_token_with_headers(
     .ok()
     .flatten()?;
 
-    let workspace_id = decision.authenticated.jwt_workspace_id.clone().or_else(|| {
-        // EC-T2: API-key without workspace → bind default (fail closed vs global bus).
-        Some(default_workspace_uuid().to_string())
-    });
-    let tenant_id = decision
+    if decision
         .authenticated
-        .jwt_tenant_id
-        .clone()
-        .or_else(|| Some(default_tenant_uuid().to_string()));
-    let user_id = decision.authenticated.auth.user_id.clone();
-
-    if !maybe_enforce_membership_bind_ids(
-        state,
-        &user_id,
-        tenant_id.as_deref(),
-        workspace_id.as_deref(),
-    )
-    .await
+        .api_key_scopes
+        .as_ref()
+        .is_some_and(|scopes| !scopes.allows(crate::oauth::scopes::MCP_SCOPE_READ))
     {
         return None;
     }
+    let mut request = Request::new(Body::empty());
+    *request.headers_mut() = headers.clone();
+    if apply_authenticated_context(state, &mut request, decision.authenticated).is_some() {
+        return None;
+    }
+    if crate::services::request_authorization::bind_request(state, &mut request)
+        .await
+        .is_err()
+    {
+        return None;
+    }
+    let ctx = request.extensions().get::<TenantContext>()?;
+    let tenant_id = Some(
+        resolve_tenant_uuid(ctx.tenant_id.as_deref())
+            .unwrap_or_else(default_tenant_uuid)
+            .to_string(),
+    );
+    let workspace_id = Some(
+        resolve_workspace_uuid(ctx.workspace_id.as_deref())
+            .unwrap_or_else(default_workspace_uuid)
+            .to_string(),
+    );
+    let user_id = request
+        .extensions()
+        .get::<crate::handlers::auth::RequestAuthContext>()?
+        .user_id
+        .clone();
 
     Some(WsSession {
         tenant_id,

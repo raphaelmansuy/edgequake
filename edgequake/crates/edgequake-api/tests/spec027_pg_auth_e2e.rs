@@ -40,11 +40,21 @@ fn build_app(state: AppState) -> axum::Router {
     Server::new(server_config(), state).build_router()
 }
 
-fn auth_enabled_pg_state(pool: sqlx::PgPool) -> AppState {
+async fn auth_enabled_pg_state(pool: sqlx::PgPool) -> AppState {
     let mut state = AppState::test_state_with_pg_pool(pool);
     state.auth.config.auth_enabled = true;
-    state.auth.config.api_keys = vec!["master-test-key".to_string()];
+    state.auth.config.master_api_key = Some("master-test-key".to_string());
     state.security.kv_identity_mirror = false;
+    state.workspace_service.seed_default_workspace().await;
+    state
+        .workspace_service
+        .add_membership(edgequake_core::Membership::new(
+            edgequake_api::middleware::default_user_uuid(),
+            edgequake_api::middleware::default_tenant_uuid(),
+            edgequake_core::MembershipRole::Member,
+        ))
+        .await
+        .expect("fixture membership");
     state
 }
 
@@ -73,7 +83,7 @@ async fn spec027_pg_auth_login_refresh_stored_in_postgres() {
         }
     };
 
-    let state = auth_enabled_pg_state(pool.clone());
+    let state = auth_enabled_pg_state(pool.clone()).await;
     state.initialize_defaults().await.expect("defaults");
     let kv_storage = std::sync::Arc::clone(&state.storage.kv_storage);
 
@@ -102,7 +112,7 @@ async fn spec027_pg_auth_login_refresh_stored_in_postgres() {
         .unwrap();
     assert_eq!(create.status(), StatusCode::CREATED);
 
-    let login_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let login_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let login = login_app
         .oneshot(
             Request::builder()
@@ -156,7 +166,7 @@ async fn spec027_pg_auth_login_refresh_stored_in_postgres() {
         "PG-primary auth must not mirror user to KV when kv_identity_mirror=false"
     );
 
-    let refresh_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let refresh_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let refresh = refresh_app
         .oneshot(
             Request::builder()
@@ -185,12 +195,12 @@ async fn spec027_pg_auth_logout_revokes_refresh_token_in_postgres() {
         }
     };
 
-    let state = auth_enabled_pg_state(pool.clone());
+    let state = auth_enabled_pg_state(pool.clone()).await;
     state.initialize_defaults().await.expect("defaults");
 
     let username = format!("pg_logout_{}", &Uuid::new_v4().to_string()[..8]);
 
-    let create_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let create_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let create = create_app
         .oneshot(
             Request::builder()
@@ -213,7 +223,7 @@ async fn spec027_pg_auth_logout_revokes_refresh_token_in_postgres() {
         .unwrap();
     assert_eq!(create.status(), StatusCode::CREATED);
 
-    let login_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let login_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let login = login_app
         .oneshot(
             Request::builder()
@@ -235,12 +245,16 @@ async fn spec027_pg_auth_logout_revokes_refresh_token_in_postgres() {
     let login_body = parse_json(login).await;
     let refresh_token = login_body["refresh_token"].as_str().expect("refresh_token");
 
-    let logout_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let logout_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let logout = logout_app
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/auth/logout")
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", login_body["access_token"].as_str().unwrap()),
+                )
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({ "refresh_token": refresh_token }).to_string(),
@@ -267,7 +281,7 @@ async fn spec027_pg_auth_logout_revokes_refresh_token_in_postgres() {
         "logout must revoke refresh token in PostgreSQL"
     );
 
-    let refresh_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let refresh_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let refresh = refresh_app
         .oneshot(
             Request::builder()
@@ -298,9 +312,20 @@ async fn spec027_pg_auth_api_key_roundtrip_postgres() {
         }
     };
 
-    let state = auth_enabled_pg_state(pool.clone());
+    let state = auth_enabled_pg_state(pool.clone()).await;
     state.initialize_defaults().await.expect("defaults");
     let kv_storage = std::sync::Arc::clone(&state.storage.kv_storage);
+    let owner = state
+        .auth
+        .jwt
+        .generate_token_with_claims(
+            edgequake_api::services::identity_storage::access_token_claims(
+                edgequake_api::middleware::default_user_uuid(),
+                edgequake_auth::Role::User,
+                3600,
+            ),
+        )
+        .unwrap();
     let app = build_app(state);
 
     let create = app
@@ -309,7 +334,7 @@ async fn spec027_pg_auth_api_key_roundtrip_postgres() {
                 .method("POST")
                 .uri("/api/v1/api-keys")
                 .header(header::CONTENT_TYPE, "application/json")
-                .header("x-api-key", "master-test-key")
+                .header(header::AUTHORIZATION, format!("Bearer {owner}"))
                 .body(Body::from(
                     json!({ "name": "spec027-pg-roundtrip" }).to_string(),
                 ))
@@ -341,7 +366,7 @@ async fn spec027_pg_auth_api_key_roundtrip_postgres() {
         "PG-primary must not mirror API key to KV"
     );
 
-    let app = build_app(auth_enabled_pg_state(pool));
+    let app = build_app(auth_enabled_pg_state(pool).await);
     let response = app
         .oneshot(
             Request::builder()
@@ -366,12 +391,12 @@ async fn spec027_pg_auth_list_users_reads_from_postgres() {
         }
     };
 
-    let state = auth_enabled_pg_state(pool.clone());
+    let state = auth_enabled_pg_state(pool.clone()).await;
     state.initialize_defaults().await.expect("defaults");
 
     let username = format!("pg_list_{}", &Uuid::new_v4().to_string()[..8]);
 
-    let create_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let create_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let create = create_app
         .oneshot(
             Request::builder()
@@ -394,7 +419,7 @@ async fn spec027_pg_auth_list_users_reads_from_postgres() {
         .unwrap();
     assert_eq!(create.status(), StatusCode::CREATED);
 
-    let list_app = build_app(auth_enabled_pg_state(pool.clone()));
+    let list_app = build_app(auth_enabled_pg_state(pool.clone()).await);
     let list = list_app
         .oneshot(
             Request::builder()
@@ -434,7 +459,7 @@ async fn spec027_pg_auth_kv_mirror_env_ignored_when_pool() {
         }
     };
 
-    let mut state = auth_enabled_pg_state(pool.clone());
+    let mut state = auth_enabled_pg_state(pool.clone()).await;
     state.security.kv_identity_mirror = true;
     state.initialize_defaults().await.expect("defaults");
     let kv_storage = std::sync::Arc::clone(&state.storage.kv_storage);
@@ -475,7 +500,7 @@ async fn spec027_pg_auth_kv_mirror_env_ignored_when_pool() {
         "EDGEQUAKE_KV_IDENTITY_MIRROR must be ignored when PG pool exists (phase 47)"
     );
 
-    let mut health_state = auth_enabled_pg_state(pool.clone());
+    let mut health_state = auth_enabled_pg_state(pool.clone()).await;
     health_state.security.kv_identity_mirror = true;
     let health_app = build_app(health_state);
     let health = health_app
@@ -508,7 +533,7 @@ async fn spec027_pg_health_oauth_capabilities_postgres() {
         }
     };
 
-    let state = auth_enabled_pg_state(pool);
+    let state = auth_enabled_pg_state(pool).await;
     let app = build_app(state);
 
     let health = app

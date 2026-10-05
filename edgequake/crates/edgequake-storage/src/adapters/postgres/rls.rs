@@ -178,7 +178,7 @@ pub async fn clear_tenant_context(pool: &PgPool) -> Result<()> {
 pub async fn clear_tenant_context_on_conn(
     conn: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
 ) -> Result<()> {
-    sqlx::query("SELECT clear_tenant_context()")
+    sqlx::query("SELECT public.clear_tenant_context()")
         .execute(conn)
         .await
         .map_err(|e| StorageError::Database(format!("Failed to clear RLS context: {e}")))?;
@@ -195,7 +195,7 @@ pub async fn set_tenant_context_on_conn(
     workspace_id: Option<Uuid>,
     user_id: Option<Uuid>,
 ) -> Result<()> {
-    sqlx::query("SELECT set_tenant_context($1, $2, $3)")
+    sqlx::query("SELECT public.set_tenant_context($1, $2, $3)")
         .bind(tenant_id)
         .bind(workspace_id)
         .bind(user_id)
@@ -211,6 +211,96 @@ pub async fn set_tenant_context_on_conn(
     );
 
     Ok(())
+}
+
+/// Establish the mandatory RLS role and transaction-local context on an open transaction.
+/// SET LOCAL ROLE is rolled back by SQLx on cancellation as well as normal completion.
+pub async fn enforce_tenant_context(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    workspace_id: Option<Uuid>,
+    user_id: Option<Uuid>,
+) -> Result<()> {
+    if let Some(workspace) = workspace_id {
+        let owned: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.workspaces WHERE workspace_id=$1 AND tenant_id=$2 AND is_active)")
+            .bind(workspace).bind(tenant_id).fetch_one(&mut *conn).await.map_err(StorageError::from)?;
+        if !owned {
+            return Err(StorageError::InvalidInput(
+                "Tenant does not own an active workspace".into(),
+            ));
+        }
+    }
+    install_rls_context(conn, tenant_id, workspace_id, user_id).await
+}
+
+/// Role demotion and context installation share one implementation across scoped ports.
+async fn install_rls_context(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    workspace_id: Option<Uuid>,
+    user_id: Option<Uuid>,
+) -> Result<()> {
+    sqlx::query("SET LOCAL ROLE edgequake_tenant_access").execute(&mut *conn).await
+        .map_err(|e| StorageError::Database(format!("Cannot assume tenant RLS role (apply migration 167 and grant role to runtime user): {e}")))?;
+    let unsafe_role: bool = sqlx::query_scalar(
+        "SELECT rolsuper OR rolbypassrls, public.set_tenant_context($1, $2, $3) \
+         FROM pg_roles WHERE rolname = current_user",
+    )
+    .bind(tenant_id)
+    .bind(workspace_id)
+    .bind(user_id)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(StorageError::from)?;
+    if unsafe_role {
+        return Err(StorageError::InvalidConfig(
+            "Tenant RLS role must not bypass row security".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Authority operations take AccessScope at their boundary and own one scoped transaction.
+pub async fn begin_tenant_transaction(
+    pool: &PgPool,
+    scope: &edgequake_storage_contracts::AccessScope,
+) -> Result<sqlx::Transaction<'static, sqlx::Postgres>> {
+    let mut tx = pool.begin().await.map_err(StorageError::from)?;
+    enforce_tenant_context(
+        &mut tx,
+        scope.tenant().into_uuid(),
+        Some(scope.workspace().into_uuid()),
+        None,
+    )
+    .await?;
+    Ok(tx)
+}
+
+/// Older typed vector ports carry a workspace and optional tenant. Resolve its
+/// owner before demotion, then enforce both dimensions inside the held transaction.
+pub(crate) async fn enforce_workspace_context(
+    conn: &mut sqlx::PgConnection,
+    tenant: Option<Uuid>,
+    workspace: Option<Uuid>,
+) -> Result<()> {
+    let workspace = workspace.ok_or_else(|| {
+        StorageError::InvalidInput("Vector search requires a workspace scope".into())
+    })?;
+    let owner: Option<Uuid> = sqlx::query_scalar(
+        "SELECT tenant_id FROM public.workspaces WHERE workspace_id=$1 AND is_active",
+    )
+    .bind(workspace)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(StorageError::from)?;
+    let owner =
+        owner.ok_or_else(|| StorageError::InvalidInput("Unknown workspace scope".into()))?;
+    if tenant.is_some_and(|tenant| tenant != owner) {
+        return Err(StorageError::InvalidInput(
+            "Tenant does not own workspace scope".into(),
+        ));
+    }
+    install_rls_context(conn, owner, Some(workspace), None).await
 }
 
 /// Acquire a pooled connection with RLS tenant context set (SPEC-027 SEC-014).
@@ -272,7 +362,7 @@ where
     // `&mut Transaction` in this sqlx version — explicit deref is required.
     #[allow(clippy::explicit_auto_deref)]
     {
-        set_tenant_context_on_conn(&mut *tx, tenant_id, workspace_id, user_id).await?;
+        enforce_tenant_context(&mut tx, tenant_id, workspace_id, user_id).await?;
     }
 
     #[allow(clippy::explicit_auto_deref)]

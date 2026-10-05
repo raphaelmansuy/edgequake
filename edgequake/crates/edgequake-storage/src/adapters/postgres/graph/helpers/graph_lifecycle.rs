@@ -62,6 +62,11 @@ impl PostgresAGEGraphStorage {
     ) -> Result<()> {
         self.ensure_age_label(conn, 'v', "Node").await?;
         self.ensure_age_label(conn, 'e', "EDGE").await?;
+        sqlx::query("SELECT public.install_graph_tenant_rls($1)")
+            .bind(&self.graph_name)
+            .execute(&mut *conn)
+            .await
+            .map_err(StorageError::from)?;
         Ok(())
     }
 
@@ -571,116 +576,6 @@ impl PostgresAGEGraphStorage {
             }
         }
 
-        // Triggers: create only when missing — never unconditional DROP+CREATE.
-        let node_trig: bool = sqlx::query_scalar(
-            r#"
-            SELECT EXISTS (
-              SELECT 1 FROM pg_trigger t
-              JOIN pg_class c ON c.oid = t.tgrelid
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-              WHERE n.nspname = $1 AND c.relname = 'Node'
-                AND t.tgname = 'trg_eq_sync_node_id' AND NOT t.tgisinternal
-            )
-            "#,
-        )
-        .bind(g)
-        .fetch_one(&mut **conn)
-        .await
-        .unwrap_or(false);
-
-        if !node_trig {
-            let fn_sql = format!(
-                r#"CREATE OR REPLACE FUNCTION {g}_eq_sync_node_id() RETURNS trigger AS $$
-                   BEGIN
-                     NEW.eq_node_id := ag_catalog.agtype_to_json(NEW.properties)->>'node_id';
-                     RETURN NEW;
-                   END;
-                   $$ LANGUAGE plpgsql"#
-            );
-            let trg_sql = format!(
-                r#"CREATE TRIGGER trg_eq_sync_node_id
-                   BEFORE INSERT OR UPDATE OF properties ON {g}."Node"
-                   FOR EACH ROW EXECUTE PROCEDURE {g}_eq_sync_node_id()"#
-            );
-            for sql in [&fn_sql, &trg_sql] {
-                if let Err(e) = sqlx::query(sql).execute(&mut **conn).await {
-                    let msg = e.to_string();
-                    if msg.contains("does not exist") || msg.contains("undefined_table") {
-                        return Ok(());
-                    }
-                    if msg.contains("already exists") {
-                        continue;
-                    }
-                    tracing::warn!(error = %e, "SPEC-062 eq_id node trigger DDL warning");
-                }
-            }
-        }
-
-        let edge_trig: bool = sqlx::query_scalar(
-            r#"
-            SELECT EXISTS (
-              SELECT 1 FROM pg_trigger t
-              JOIN pg_class c ON c.oid = t.tgrelid
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-              WHERE n.nspname = $1 AND c.relname = 'EDGE'
-                AND t.tgname = 'trg_eq_sync_edge_ids' AND NOT t.tgisinternal
-            )
-            "#,
-        )
-        .bind(g)
-        .fetch_one(&mut **conn)
-        .await
-        .unwrap_or(false);
-
-        // Always refresh the sync function so eq_rel_type stays aligned (D-30 / LAW-098-7).
-        // Prefer column values (set by native INSERT), then properties — avoids collapsing
-        // distinct proposed keys when props.relation_type is missing/stale.
-        {
-            let fn_sql = format!(
-                r#"CREATE OR REPLACE FUNCTION {g}_eq_sync_edge_ids() RETURNS trigger AS $$
-                   BEGIN
-                     NEW.eq_source_id := COALESCE(
-                       NULLIF(TRIM(NEW.eq_source_id), ''),
-                       ag_catalog.agtype_to_json(NEW.properties)->>'source_id'
-                     );
-                     NEW.eq_target_id := COALESCE(
-                       NULLIF(TRIM(NEW.eq_target_id), ''),
-                       ag_catalog.agtype_to_json(NEW.properties)->>'target_id'
-                     );
-                     NEW.eq_rel_type := UPPER(COALESCE(
-                       NULLIF(TRIM(NEW.eq_rel_type), ''),
-                       NULLIF(TRIM(ag_catalog.agtype_to_json(NEW.properties)->>'relation_type'), ''),
-                       'RELATED_TO'
-                     ));
-                     RETURN NEW;
-                   END;
-                   $$ LANGUAGE plpgsql"#
-            );
-            if let Err(e) = sqlx::query(&fn_sql).execute(&mut **conn).await {
-                let msg = e.to_string();
-                if msg.contains("does not exist") || msg.contains("undefined_table") {
-                    return Ok(());
-                }
-                tracing::warn!(error = %e, "SPEC-062/D-30 eq_id edge trigger fn warning");
-            }
-            if !edge_trig {
-                let trg_sql = format!(
-                    r#"CREATE TRIGGER trg_eq_sync_edge_ids
-                       BEFORE INSERT OR UPDATE OF properties ON {g}."EDGE"
-                       FOR EACH ROW EXECUTE PROCEDURE {g}_eq_sync_edge_ids()"#
-                );
-                if let Err(e) = sqlx::query(&trg_sql).execute(&mut **conn).await {
-                    let msg = e.to_string();
-                    if msg.contains("does not exist") || msg.contains("undefined_table") {
-                        return Ok(());
-                    }
-                    if !msg.contains("already exists") {
-                        tracing::warn!(error = %e, "SPEC-062 eq_id edge trigger DDL warning");
-                    }
-                }
-            }
-        }
-
         self.reconcile_legacy_graph_arbiters(conn).await?;
 
         Ok(())
@@ -696,33 +591,7 @@ impl PostgresAGEGraphStorage {
     ) -> Result<()> {
         let g = &self.graph_name;
 
-        // Prefer column, then properties (same SSOT as migration 140 / ensure path).
-        let fn_sql = format!(
-            r#"CREATE OR REPLACE FUNCTION {g}_eq_sync_edge_ids() RETURNS trigger AS $$
-               BEGIN
-                 NEW.eq_source_id := COALESCE(
-                   NULLIF(TRIM(NEW.eq_source_id), ''),
-                   ag_catalog.agtype_to_json(NEW.properties)->>'source_id'
-                 );
-                 NEW.eq_target_id := COALESCE(
-                   NULLIF(TRIM(NEW.eq_target_id), ''),
-                   ag_catalog.agtype_to_json(NEW.properties)->>'target_id'
-                 );
-                 NEW.eq_rel_type := UPPER(COALESCE(
-                   NULLIF(TRIM(NEW.eq_rel_type), ''),
-                   NULLIF(TRIM(ag_catalog.agtype_to_json(NEW.properties)->>'relation_type'), ''),
-                   'RELATED_TO'
-                 ));
-                 RETURN NEW;
-               END;
-               $$ LANGUAGE plpgsql"#
-        );
-        if let Err(e) = sqlx::query(&fn_sql).execute(&mut **conn).await {
-            let msg = e.to_string();
-            if !msg.contains("does not exist") && !msg.contains("undefined_table") {
-                tracing::debug!(error = %e, "SPEC-098 edge sync fn refresh skipped");
-            }
-        }
+        self.ensure_sync_triggers(conn).await?;
 
         let drop_legacy = format!(
             r#"DO $drop$

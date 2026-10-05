@@ -4,7 +4,7 @@
 
 schema_version = 1
 compat_serve_min = 149
-compat_serve_max = 166
+compat_serve_max = 167
 irreversible_drop = [125, 126, 131]
 legacy_cutover_assert = 142
 
@@ -1206,6 +1206,13 @@ lock_class = "ddl_access_exclusive"
 [[migration]]
 version = 166
 file = "166_spec160_decision.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 167
+file = "167_tenant_access_rls.sql"
 phase = "expand"
 no_transaction = false
 lock_class = "ddl_access_exclusive"

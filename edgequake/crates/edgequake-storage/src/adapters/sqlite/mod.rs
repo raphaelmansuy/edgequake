@@ -46,6 +46,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn file_authority_enforces_tenant_workspace_and_mutation_scope() {
+        let temp = tempfile::tempdir().unwrap();
+        let pool = connect_sqlite(temp.path().join("isolation.db").to_string_lossy())
+            .await
+            .unwrap();
+        let committer = SqliteIngestionCommitter::new(pool);
+        let tenant = Uuid::new_v4();
+        let own = command(tenant, Uuid::new_v4(), Uuid::new_v4());
+        let sibling = command(tenant, Uuid::new_v4(), Uuid::new_v4());
+        let foreign = command(Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        // The same idempotency key is independent across scopes.
+        for cmd in [&own, &sibling, &foreign] {
+            committer.commit_batch(cmd).await.unwrap();
+            let views = committer
+                .get_many(&cmd.scope, &[cmd.document_id])
+                .await
+                .unwrap();
+            assert_eq!(views[0].as_ref().unwrap().revision, 1);
+        }
+        let mut timings = Vec::new();
+        for i in 0..26 {
+            let start = std::time::Instant::now();
+            assert_eq!(
+                committer
+                    .get_many(&own.scope, &[own.document_id])
+                    .await
+                    .unwrap()[0]
+                    .as_ref()
+                    .unwrap()
+                    .revision,
+                1
+            );
+            if i >= 5 {
+                timings.push(start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
+        timings.sort_by(f64::total_cmp);
+        let report = serde_json::json!({"provider":"sqlite","fixture_documents":3,"samples":21,"warmup":5,"p50_ms":timings[10],"p95_ms":timings[19],"samples_ms":timings,"limits":"local file-backed authority microfixture; not a production load test"});
+        if let Ok(directory) = std::env::var("EQ_TENANT_PROVIDER_REPORT_DIR") {
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join("sqlite.json"),
+                serde_json::to_vec_pretty(&report).unwrap(),
+            )
+            .unwrap();
+        }
+        for other in [&sibling, &foreign] {
+            assert!(committer
+                .get_many(&other.scope, &[own.document_id])
+                .await
+                .unwrap()[0]
+                .is_none());
+            let mut forged = own.clone();
+            forged.scope = other.scope;
+            forged.idempotency_key = Uuid::new_v4().to_string();
+            assert!(committer.commit_batch(&forged).await.is_err());
+            assert!(committer
+                .tombstone_document(&DeleteDocument {
+                    scope: other.scope,
+                    document_id: own.document_id,
+                    expected_revision: 1,
+                    idempotency_key: Uuid::new_v4().to_string(),
+                    command_digest: [19; 32],
+                })
+                .await
+                .is_err());
+            assert!(
+                !committer
+                    .get_many(&own.scope, &[own.document_id])
+                    .await
+                    .unwrap()[0]
+                    .as_ref()
+                    .unwrap()
+                    .deleted
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn commit_is_atomic_and_idempotent() {
         let temp = tempfile::tempdir().unwrap();
         let pool = connect_sqlite(temp.path().join("authority.db").to_string_lossy())

@@ -8,6 +8,8 @@ mod perf_harness;
 #[path = "support/postgres_access_pool.rs"]
 #[allow(dead_code)]
 mod postgres_access_pool;
+#[path = "support/typed_ann_scope.rs"]
+mod typed_ann_scope;
 
 use ann_fixture::{embedding, embedding_text, DIM};
 use edgequake_storage::traits::domain::{
@@ -72,13 +74,9 @@ async fn seed(pool: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     }
     sqlx::query("CREATE TEMP TABLE ann_vectors(id uuid PRIMARY KEY, i int, workspace_id uuid, tenant_id uuid, document_id uuid, embedding halfvec)")
         .execute(pool).await.unwrap();
-    let (small, large, tenant, document) = (
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-    );
-    let (other_tenant, other_document) = (Uuid::new_v4(), Uuid::new_v4());
+    let (tenant, small) = typed_ann_scope::seed(pool).await;
+    let (other_tenant, large) = typed_ann_scope::seed(pool).await;
+    let (document, other_document) = (Uuid::new_v4(), Uuid::new_v4());
     for start in (0..ROWS).step_by(250) {
         let rows: Vec<_> = (start..(start + 250).min(ROWS))
             .map(|i| {
@@ -152,6 +150,7 @@ async fn seed(pool: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
             .await
             .unwrap();
     }
+    typed_ann_scope::secure_temp_tables(pool).await;
     (small, large, tenant, document, model)
 }
 
@@ -202,6 +201,20 @@ async fn production_plan(pool: &PgPool, kind: &str, req: &VectorQuery, model: Uu
     let mut tx = edgequake_storage::adapters::postgres::LocalTimeoutTx::begin(&mut conn, 2_000)
         .await
         .unwrap();
+    let owner: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM public.workspaces WHERE workspace_id=$1")
+            .bind(workspace)
+            .fetch_one(tx.as_mut())
+            .await
+            .unwrap();
+    edgequake_storage::adapters::postgres::rls::enforce_tenant_context(
+        tx.as_mut(),
+        owner,
+        Some(workspace),
+        None,
+    )
+    .await
+    .unwrap();
     let candidate_limit = edgequake_storage::adapters::postgres::AnnExactReorderPolicy::for_search(
         "relaxed_order",
         TOP_K,
@@ -216,8 +229,46 @@ async fn production_plan(pool: &PgPool, kind: &str, req: &VectorQuery, model: Uu
     ) {
         sqlx::query(&statement).execute(tx.as_mut()).await.unwrap();
     }
-    let plan=sqlx::query_scalar(&format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) EXECUTE {name}('{vector}','{model}','{workspace}',{documents},{tenant},{modalities},NULL::text[]{extra},{candidate_limit})"))
-        .fetch_one(tx.as_mut()).await.unwrap();
+    let sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) EXECUTE {name}('{vector}','{model}','{workspace}',{documents},{tenant},{modalities},NULL::text[]{extra},{candidate_limit})");
+    let mut generic_samples = Vec::new();
+    let mut custom_samples = Vec::new();
+    let mut plan = Value::Null;
+    for sample in 0..26 {
+        for (mode, samples) in [
+            ("force_generic_plan", &mut generic_samples),
+            ("force_custom_plan", &mut custom_samples),
+        ] {
+            sqlx::query("SELECT set_config('plan_cache_mode',$1,true)")
+                .bind(mode)
+                .execute(tx.as_mut())
+                .await
+                .unwrap();
+            let start = Instant::now();
+            let measured: Value = sqlx::query_scalar(&sql)
+                .fetch_one(tx.as_mut())
+                .await
+                .unwrap();
+            if sample >= 5 {
+                samples.push(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            if mode == "force_custom_plan" {
+                plan = measured;
+            }
+        }
+    }
+    generic_samples.sort_by(f64::total_cmp);
+    custom_samples.sort_by(f64::total_cmp);
+    println!(
+        "TYPED_ANN_PLAN_COMPARISON {}",
+        json!({
+            "kind":kind, "workspace":workspace, "samples":21, "warmup":5,
+            "generic_p50_ms":generic_samples[10], "generic_p95_ms":generic_samples[19],
+            "custom_p50_ms":custom_samples[10], "custom_p95_ms":custom_samples[19],
+            "generic_samples_ms":generic_samples, "custom_samples_ms":custom_samples,
+            "planner_scan_switches_forced":false,
+            "limits":"paired modes on the same scoped connection/data/probe; includes EXPLAIN planning and execution, not a production SLA"
+        })
+    );
     tx.commit().await.unwrap();
     plan
 }
@@ -318,6 +369,16 @@ async fn typed_families_measure_natural_plans_filtered_recall_and_ordering() {
         .await
         .unwrap();
     assert_eq!(timeout, "0", "SET LOCAL must not leak across adapter calls");
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SHOW plan_cache_mode")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        "auto",
+        "ANN plan policy must not leak"
+    );
+    typed_ann_scope::cleanup(&pool, small).await;
+    typed_ann_scope::cleanup(&pool, large).await;
     pool.close().await;
 }
 
@@ -341,7 +402,8 @@ async fn typed_search_server_deadlines_cancel_and_recover_single_connection() {
         .unwrap();
     let chunk = PgChunkEmbeddingIndex::new(pool.clone(), &model_name);
     let fleet = PgFleetEmbeddingIndex::new(pool.clone(), &model_name);
-    let req = request(Uuid::new_v4(), 0);
+    let (_, workspace) = typed_ann_scope::seed(&pool).await;
+    let req = request(workspace, 0);
     for table in ["chunk_embeddings", "report_embeddings"] {
         let mut lock = admin.begin().await.unwrap();
         sqlx::query(&format!(
@@ -406,6 +468,7 @@ async fn typed_search_server_deadlines_cancel_and_recover_single_connection() {
         .execute(&pool)
         .await
         .unwrap();
+    typed_ann_scope::cleanup(&pool, workspace).await;
     pool.close().await;
     admin.close().await;
 }

@@ -194,7 +194,12 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
         let mut conn = self.pool.acquire().await.map_err(StorageError::from)?;
         let mut tx = self
             .search_session
-            .begin(&mut conn, candidate_limit)
+            .begin(
+                &mut conn,
+                candidate_limit,
+                req.tenant_id.map(|id| id.into_uuid()),
+                req.workspace_id.map(|id| id.into_uuid()),
+            )
             .await?;
         let model_id = match self
             .find_model_id(tx.as_mut(), &self.model_name, dim)

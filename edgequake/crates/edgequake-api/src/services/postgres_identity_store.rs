@@ -91,8 +91,11 @@ impl IdentityStore for PostgresIdentityStore {
 
     async fn membership_active(&self, scope: &AccessScope, user_id: Uuid) -> AccessResult<bool> {
         sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM memberships \
-             WHERE user_id=$1 AND tenant_id=$2 AND workspace_id=$3 AND is_active=TRUE)",
+            "SELECT EXISTS(SELECT 1 FROM memberships m \
+             JOIN tenants t ON t.tenant_id=m.tenant_id AND t.is_active \
+             JOIN workspaces w ON w.tenant_id=m.tenant_id AND w.workspace_id=$3 AND w.is_active \
+             WHERE m.user_id=$1 AND m.tenant_id=$2 \
+               AND (m.workspace_id=$3 OR m.workspace_id IS NULL) AND m.is_active=TRUE)",
         )
         .bind(user_id)
         .bind(scope.tenant().into_uuid())

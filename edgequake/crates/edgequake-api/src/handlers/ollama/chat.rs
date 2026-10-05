@@ -18,9 +18,10 @@ use crate::handlers::ollama_types::{
     OllamaChatRequest, OllamaChatResponse, OllamaMessage, OllamaSearchMode,
 };
 use crate::state::AppState;
-use edgequake_query::{QueryMode, QueryRequest as EngineQueryRequest};
 
-use super::helpers::{current_timestamp, estimate_tokens, model_name};
+use super::helpers::{
+    current_timestamp, estimate_tokens, model_name, response_text, scoped_request,
+};
 
 /// Handle chat completion requests with RAG.
 ///
@@ -49,6 +50,7 @@ use super::helpers::{current_timestamp, estimate_tokens, model_name};
 )]
 pub async fn ollama_chat(
     State(state): State<AppState>,
+    tenant_ctx: crate::middleware::TenantContext,
     Json(request): Json<OllamaChatRequest>,
 ) -> ApiResult<Response> {
     if request.messages.is_empty() {
@@ -81,57 +83,35 @@ pub async fn ollama_chat(
         })
         .collect();
 
+    let engine_request = scoped_request(
+        &cleaned_query,
+        mode,
+        context_only,
+        request.system.as_deref(),
+        &tenant_ctx,
+        conversation_history,
+    );
+
     if request.stream {
         // Streaming response
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(32);
 
         let engine = state.query.engine_impl.clone();
         let model = model_name();
-        // SPEC-004: Clone system prompt for async task
-        let system_prompt = request.system.clone();
-
         tokio::spawn(async move {
             let start = Instant::now();
-
-            // Execute query based on mode
-            let response_result = if mode == OllamaSearchMode::Bypass {
-                let mut engine_request = EngineQueryRequest::new(&cleaned_query)
-                    .with_mode(QueryMode::Bypass)
-                    .with_conversation_history(conversation_history);
-                if let Some(ref sp) = system_prompt {
-                    engine_request = engine_request.with_system_prompt(sp);
-                }
-                engine.query(engine_request).await
-            } else if let Some(query_mode) = mode.to_query_mode() {
-                let mut engine_request = EngineQueryRequest::new(&cleaned_query)
-                    .with_mode(query_mode)
-                    .with_conversation_history(conversation_history);
-                if context_only {
-                    engine_request = engine_request.context_only();
-                }
-                if let Some(ref sp) = system_prompt {
-                    engine_request = engine_request.with_system_prompt(sp);
-                }
-                engine.query(engine_request).await
-            } else {
-                let mut engine_request = EngineQueryRequest::new(&cleaned_query)
-                    .with_mode(QueryMode::Hybrid)
-                    .with_conversation_history(conversation_history);
-                if let Some(ref sp) = system_prompt {
-                    engine_request = engine_request.with_system_prompt(sp);
-                }
-                engine.query(engine_request).await
-            };
+            let response_result = engine.query(engine_request).await;
 
             match response_result {
                 Ok(response) => {
+                    let answer = response_text(response, context_only);
                     // Send content chunk
                     let chunk = serde_json::json!({
                         "model": model,
                         "created_at": current_timestamp(),
                         "message": {
                             "role": "assistant",
-                            "content": response.answer,
+                            "content": answer,
                             "images": null
                         },
                         "done": false
@@ -140,7 +120,7 @@ pub async fn ollama_chat(
 
                     // Send final chunk with stats
                     let elapsed = start.elapsed().as_nanos() as u64;
-                    let completion_tokens = estimate_tokens(&response.answer);
+                    let completion_tokens = estimate_tokens(&answer);
                     let final_chunk = serde_json::json!({
                         "model": model,
                         "created_at": current_timestamp(),
@@ -188,27 +168,6 @@ pub async fn ollama_chat(
             .unwrap())
     } else {
         // Non-streaming response
-        let engine_request = if let Some(query_mode) = mode.to_query_mode() {
-            let mut req = EngineQueryRequest::new(&cleaned_query)
-                .with_mode(query_mode)
-                .with_conversation_history(conversation_history);
-            if context_only {
-                req = req.context_only();
-            }
-            if let Some(ref sp) = request.system {
-                req = req.with_system_prompt(sp);
-            }
-            req
-        } else {
-            let mut req = EngineQueryRequest::new(&cleaned_query)
-                .with_mode(QueryMode::Hybrid)
-                .with_conversation_history(conversation_history);
-            if let Some(ref sp) = request.system {
-                req = req.with_system_prompt(sp);
-            }
-            req
-        };
-
         let response = state
             .query
             .engine_impl
@@ -216,15 +175,16 @@ pub async fn ollama_chat(
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
 
+        let answer = response_text(response, context_only);
         let elapsed = start_time.elapsed().as_nanos() as u64;
-        let completion_tokens = estimate_tokens(&response.answer);
+        let completion_tokens = estimate_tokens(&answer);
 
         Ok(Json(OllamaChatResponse {
             model: model_name(),
             created_at: current_timestamp(),
             message: OllamaMessage {
                 role: "assistant".to_string(),
-                content: response.answer,
+                content: answer,
                 images: None,
             },
             done: true,

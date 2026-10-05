@@ -85,6 +85,37 @@ impl PostgresAGEGraphStorage {
         Self::apply_age_tenant_rls_context(conn, tenant_id).await
     }
 
+    /// Filtered graph reads apply the same transaction-local RLS envelope as relational reads.
+    /// Both absent is the explicit legacy administration scan path.
+    pub(in crate::adapters::postgres::graph) async fn enforce_graph_read_scope(
+        conn: &mut sqlx::PgConnection,
+        tenant_id: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<()> {
+        if tenant_id.is_none() && workspace_id.is_none() {
+            return Ok(());
+        }
+        let parse = |raw: &str| {
+            uuid::Uuid::parse_str(raw)
+                .map_err(|_| StorageError::InvalidInput("Malformed graph scope".into()))
+        };
+        let tenant = tenant_id.map(parse).transpose()?;
+        let workspace = workspace_id.map(parse).transpose()?;
+        if workspace.is_some() {
+            super::super::super::rls::enforce_workspace_context(conn, tenant, workspace).await
+        } else {
+            super::super::super::rls::enforce_tenant_context(
+                conn,
+                tenant.ok_or_else(|| {
+                    StorageError::InvalidInput("Graph tenant scope is required".into())
+                })?,
+                None,
+                None,
+            )
+            .await
+        }
+    }
+
     /// SPEC-069: DDL-only session GUCs — never apply the query `statement_timeout`.
     ///
     /// Postgres ops guidance (2026): `statement_timeout = 0` so legitimate DDL can

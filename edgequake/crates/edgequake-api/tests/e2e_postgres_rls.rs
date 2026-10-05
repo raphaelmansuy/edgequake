@@ -22,6 +22,15 @@ async fn require_rls_rig() -> Option<(Pool<Postgres>, Pool<Postgres>)> {
     match (create_admin_pool().await, create_test_pool().await) {
         (Ok(admin_pool), Ok(test_pool)) => Some((admin_pool, test_pool)),
         (admin_result, test_result) => {
+            assert_ne!(
+                std::env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
+                    .ok()
+                    .as_deref(),
+                Some("1"),
+                "Required RLS rig unavailable: admin={}, app_user={}",
+                admin_result.is_ok(),
+                test_result.is_ok()
+            );
             eprintln!(
                 "SKIP e2e_postgres_rls: RLS rig unreachable (admin: {}, app_user: {}) — \
                  set ADMIN_DATABASE_URL/TEST_DATABASE_URL (CI postgres-tests job provides them)",
@@ -55,14 +64,6 @@ async fn create_admin_pool() -> Result<Pool<Postgres>, sqlx::Error> {
         .max_connections(2)
         .connect(&database_url)
         .await
-}
-
-/// Clean test data using admin pool
-async fn clean_test_data(admin_pool: &Pool<Postgres>) -> Result<(), sqlx::Error> {
-    sqlx::query("TRUNCATE TABLE documents CASCADE")
-        .execute(admin_pool)
-        .await?;
-    Ok(())
 }
 
 /// Ensure a tenant row exists (documents.tenant_id FK).
@@ -308,10 +309,6 @@ async fn test_postgres_rls_basic_isolation() {
         return;
     };
 
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
-
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
     let doc_a = Uuid::new_v4();
@@ -344,10 +341,6 @@ async fn test_postgres_rls_basic_isolation() {
         count_b, 1,
         "Tenant B should see exactly 1 document with RLS"
     );
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 #[tokio::test]
@@ -355,10 +348,6 @@ async fn test_postgres_rls_cross_tenant_query_blocked() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -388,10 +377,6 @@ async fn test_postgres_rls_cross_tenant_query_blocked() {
 
     assert!(result_b.is_some(), "Tenant B should see their own document");
     assert_eq!(result_b.unwrap(), "Secret B");
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 #[tokio::test]
@@ -399,10 +384,6 @@ async fn test_postgres_update_isolation() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -438,10 +419,6 @@ async fn test_postgres_update_isolation() {
         .expect("Failed to fetch doc B");
 
     assert_eq!(title.0, "Original B", "Document B should be unchanged");
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 #[tokio::test]
@@ -449,10 +426,6 @@ async fn test_postgres_delete_isolation() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -486,10 +459,6 @@ async fn test_postgres_delete_isolation() {
         exists.0,
         "Document B should still exist after failed delete"
     );
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 #[tokio::test]
@@ -497,10 +466,6 @@ async fn test_rls_insert_isolation() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -550,10 +515,6 @@ async fn test_rls_insert_isolation() {
         result_valid.is_ok(),
         "Tenant A should be able to insert with their own tenant_id"
     );
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 #[tokio::test]
@@ -561,10 +522,6 @@ async fn test_tenant_isolation_with_concurrent_access() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     // Create 5 tenants with 3 documents each
     let tenants: Vec<Uuid> = (0..5).map(|_| Uuid::new_v4()).collect();
@@ -610,10 +567,6 @@ async fn test_tenant_isolation_with_concurrent_access() {
             tenant_id
         );
     }
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 #[tokio::test]
@@ -621,10 +574,6 @@ async fn test_rls_performance_overhead() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant_id = Uuid::new_v4();
     let num_docs = 100;
@@ -676,10 +625,6 @@ async fn test_rls_performance_overhead() {
         "RLS query performance should be < 50ms, got {:.2}ms",
         avg_ms
     );
-
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 }
 
 // ---------------------------------------------------------------------------
@@ -693,9 +638,6 @@ async fn e2e_rls_guc_visible_on_following_insert() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant = Uuid::new_v4();
     let doc_id = Uuid::new_v4();
@@ -728,8 +670,6 @@ async fn e2e_rls_guc_visible_on_following_insert() {
         .await
         .expect("count");
     assert_eq!(count, 1);
-
-    clean_test_data(&admin_pool).await.expect("clean");
 }
 
 /// `e2e_owner_forced_rls`: FORCE RLS means even the table owner cannot bypass
@@ -739,9 +679,6 @@ async fn e2e_owner_forced_rls() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
@@ -786,8 +723,6 @@ async fn e2e_owner_forced_rls() {
         .await
         .expect("admin");
     assert_eq!(admin_count.0, 1);
-
-    clean_test_data(&admin_pool).await.expect("clean");
 }
 
 /// `e2e_null_tenant_row_invisible`: NULL tenant_id rows are not world-readable.
@@ -796,9 +731,6 @@ async fn e2e_null_tenant_row_invisible() {
     let Some((admin_pool, test_pool)) = require_rls_rig().await else {
         return;
     };
-    clean_test_data(&admin_pool)
-        .await
-        .expect("Failed to clean data");
 
     let doc_id = Uuid::new_v4();
     // Insert with NULL tenant via admin (may fail if NOT NULL constraint — skip gracefully)
@@ -836,8 +768,6 @@ async fn e2e_null_tenant_row_invisible() {
         .expect("count");
     rollback_tx(&mut conn).await.expect("rollback");
     assert_eq!(count.0, 0);
-
-    clean_test_data(&admin_pool).await.expect("clean");
 }
 
 /// `e2e_document_originals_cross_workspace_denied`: binary originals are workspace-scoped.
@@ -852,9 +782,7 @@ async fn e2e_document_originals_cross_workspace_denied() {
             .fetch_one(&admin_pool)
             .await
             .unwrap_or((false,));
-    if !exists.0 {
-        return;
-    }
+    assert!(exists.0, "required binary-originals table is missing");
 
     let ws_a = Uuid::new_v4();
     let ws_b = Uuid::new_v4();
@@ -878,7 +806,7 @@ async fn e2e_document_originals_cross_workspace_denied() {
     .await
     .expect("insert document for originals");
 
-    let inserted = sqlx::query(
+    sqlx::query(
         r#"
         INSERT INTO document_originals
             (document_id, workspace_id, filename, content_type, file_size_bytes, original_data)
@@ -889,22 +817,13 @@ async fn e2e_document_originals_cross_workspace_denied() {
     .bind(doc_id)
     .bind(ws_b)
     .execute(&admin_pool)
-    .await;
-
-    if inserted.is_err() {
-        // Cannot seed — skip rather than fail CI without originals fixture.
-        let _ = sqlx::query("DELETE FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .execute(&admin_pool)
-            .await;
-        return;
-    }
+    .await
+    .expect("seed binary originals");
 
     let mut conn = test_pool.acquire().await.expect("acquire");
-    sqlx::query("BEGIN")
-        .execute(&mut *conn)
+    begin_tenant_tx(&mut conn, tenant)
         .await
-        .expect("begin");
+        .expect("tenant scope");
     sqlx::query("SELECT set_config('app.current_workspace_id', $1, true)")
         .bind(ws_a.to_string())
         .execute(&mut *conn)
@@ -915,12 +834,25 @@ async fn e2e_document_originals_cross_workspace_denied() {
             .bind(doc_id)
             .fetch_one(&mut *conn)
             .await
-            .unwrap_or((0,));
-    rollback_tx(&mut conn).await.expect("rollback");
+            .expect("read originals under RLS");
     assert_eq!(
         seen.0, 0,
         "workspace A must not see originals belonging to workspace B"
     );
+
+    sqlx::query("SELECT set_config('app.current_workspace_id', $1, true)")
+        .bind(ws_b.to_string())
+        .execute(&mut *conn)
+        .await
+        .expect("own workspace");
+    let own: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM document_originals WHERE document_id=$1")
+            .bind(doc_id)
+            .fetch_one(&mut *conn)
+            .await
+            .expect("own originals read");
+    assert_eq!(own, 1, "own binary original must remain readable");
+    rollback_tx(&mut conn).await.expect("rollback");
 
     let _ = sqlx::query("DELETE FROM document_originals WHERE document_id = $1")
         .bind(doc_id)

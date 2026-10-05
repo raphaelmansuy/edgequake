@@ -117,6 +117,9 @@ impl PgBindingRegistry {
         &self,
         descriptor: &DataBindingDescriptor,
     ) -> AccessResult<DataBindingDescriptor> {
+        let mut tx = super::rls::begin_tenant_transaction(&self.pool, &descriptor.scope)
+            .await
+            .map_err(|e| AccessError::Unavailable(format!("begin binding transaction: {e}")))?;
         sqlx::query(INSERT_DEFAULT_BINDING)
             .bind(descriptor.binding_id)
             .bind(descriptor.scope.tenant().into_uuid())
@@ -133,7 +136,7 @@ impl PgBindingRegistry {
                 })?,
             )
             .bind(descriptor.state.as_str())
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(|error| AccessError::Unavailable(format!("upsert data binding: {error}")))?;
         let row = sqlx::query_as::<_, BindingRow>(
@@ -147,9 +150,12 @@ impl PgBindingRegistry {
         .bind(descriptor.scope.tenant().into_uuid())
         .bind(descriptor.scope.workspace().into_uuid())
         .bind(descriptor.role.as_str())
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|error| AccessError::Unavailable(format!("load configured binding: {error}")))?;
+        tx.commit()
+            .await
+            .map_err(|e| AccessError::Unavailable(format!("commit binding transaction: {e}")))?;
         row.into_descriptor()
     }
 }
@@ -191,6 +197,9 @@ impl BindingRegistry for PgBindingRegistry {
     }
 
     async fn list_active(&self, scope: &AccessScope) -> AccessResult<Vec<DataBindingDescriptor>> {
+        let mut tx = super::rls::begin_tenant_transaction(&self.pool, scope)
+            .await
+            .map_err(|e| AccessError::Unavailable(format!("begin binding read: {e}")))?;
         let rows = sqlx::query_as::<_, BindingRow>(
             r#"
             SELECT binding_id, tenant_id, workspace_id, role, provider, config_ref,
@@ -202,9 +211,12 @@ impl BindingRegistry for PgBindingRegistry {
         )
         .bind(scope.tenant().into_uuid())
         .bind(scope.workspace().into_uuid())
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await
         .map_err(|error| AccessError::Unavailable(format!("list active bindings: {error}")))?;
+        tx.commit()
+            .await
+            .map_err(|e| AccessError::Unavailable(format!("commit binding read: {e}")))?;
         rows.into_iter().map(BindingRow::into_descriptor).collect()
     }
 }
