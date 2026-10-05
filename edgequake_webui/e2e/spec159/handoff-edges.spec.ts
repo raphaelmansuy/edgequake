@@ -137,7 +137,19 @@ test.describe("SPEC-159 handoff edges @spec159", () => {
     await expect(page.getByTestId("companion-entity-graph")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText(/PE8 Extra Neighbor/i).first()).toBeVisible();
+    // Canvas labels are pixels when WebGL works. Select the accessible list
+    // explicitly so this isolation check does not depend on a GPU failure.
+    await expect(page.getByTestId("companion-entity-summary")).toContainText(
+      /3 entities · 2 relationships/i,
+    );
+    const listToggle = page.getByTestId("companion-entity-view-list");
+    await listToggle.click();
+    await expect(listToggle).toHaveAttribute("aria-pressed", "true");
+    const list = page.getByTestId("companion-graph-list");
+    await expect(list.getByRole("button")).toHaveCount(3);
+    await expect(
+      list.getByRole("button", { name: /PE8 Extra Neighbor/i }),
+    ).toBeVisible();
     await page.goto(
       `/graph?document=${GRAPH_FILTER_DOC_A}&stream=0`,
       { waitUntil: "domcontentloaded" },

@@ -2047,7 +2047,9 @@
     "failed": 0,
     "retries": 0,
     "picker_repeat_passed": 12,
-    "layout_login_repeat_passed": 21
+    "layout_login_repeat_passed": 21,
+    "latest_full_run_sha256": "10d73044ad0b10f0a039bb142dc873b8b33f293ec7d6d3a3867916aea0a920ff",
+    "studio_isolation_repeat_passed": 12
   },
   "database_isolation": {
     "postgres_16_port": 28676,
@@ -2103,5 +2105,82 @@
       "pg16_concurrent_lock_chaos": true
     }
   },
-  "test_count_scope": "Cargo/nextest-reported passing executions, including overlapping feature configurations. Optional harness soft-skips may be reported as passes outside the explicitly required PostgreSQL/provider gates."
+  "test_count_scope": "Cargo/nextest-reported passing executions, including overlapping feature configurations. Optional harness soft-skips may be reported as passes outside the explicitly required PostgreSQL/provider gates.",
+  "frontend_postflight": {
+    "base_revision": "b2cca3edba0e5ef301147203feb85f80c41bcbac",
+    "changed_files": [
+      "edgequake_webui/e2e/spec159/handoff-edges.spec.ts"
+    ],
+    "remote_failure": {
+      "run_id": 37299013118,
+      "test": "spec159_studio_not_clobbered",
+      "assertion": "PE8 Extra Neighbor expected as DOM text while the default view renders canvas labels"
+    },
+    "repair": "Select the existing accessible list explicitly; assert three companion nodes and two relationships, the extra neighbor, and the unchanged two-node/one-edge Studio graph without that neighbor.",
+    "checks": [
+      {
+        "name": "studio-isolation-repeat",
+        "command": "CI=true PLAYWRIGHT_SKIP_STACK_CHECK=1 pnpm exec playwright test e2e/spec159/handoff-edges.spec.ts --project=chromium --grep spec159_studio_not_clobbered --repeat-each=6 --retries=0 --reporter=line",
+        "exit_code": 0,
+        "tests_passed": 6,
+        "log_sha256": "282cd128ad8bfb4118f7afd90a691b608b73a4e0ecd930b4191cca40fd3f34fb"
+      },
+      {
+        "name": "studio-isolation-renderers",
+        "command": "CI=true PLAYWRIGHT_SKIP_STACK_CHECK=1 pnpm exec playwright test --config=/tmp/edgequake-pr421-webgl.config.ts e2e/spec159/handoff-edges.spec.ts --grep spec159_studio_not_clobbered --repeat-each=3 --retries=0 --reporter=line",
+        "exit_code": 0,
+        "tests_passed": 6,
+        "log_sha256": "2284cd2617aed19a37d9dce10103b81e6de2381362abb57f424634c0cecbd492"
+      },
+      {
+        "name": "typescript",
+        "command": "pnpm exec tsc --noEmit",
+        "exit_code": 0,
+        "tests_passed": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "flake-lint",
+        "command": "make test-e2e-lint",
+        "exit_code": 0,
+        "tests_passed": null,
+        "log_sha256": "f9e9289ab61091c1c7936dc981963a1c848c6b35c1ae3eb43feca87628d10fa1"
+      },
+      {
+        "name": "full-chromium",
+        "command": "CI=true PLAYWRIGHT_SKIP_STACK_CHECK=1 pnpm exec playwright test --project=chromium --retries=0 --reporter=line",
+        "exit_code": 0,
+        "tests_passed": 270,
+        "tests_skipped": 343,
+        "retries": 0,
+        "duration_minutes": 7.3,
+        "log_sha256": "10d73044ad0b10f0a039bb142dc873b8b33f293ec7d6d3a3867916aea0a920ff"
+      }
+    ],
+    "renderer_projects": [
+      {
+        "name": "webgl-metal",
+        "channel": "chrome",
+        "args": [
+          "--use-gl=angle",
+          "--use-angle=metal",
+          "--enable-webgl",
+          "--ignore-gpu-blocklist"
+        ],
+        "repeat_each": 3
+      },
+      {
+        "name": "webgl-disabled",
+        "args": [
+          "--disable-webgl"
+        ],
+        "repeat_each": 3
+      }
+    ],
+    "scope": "Test assertions only; the completed Rust, database, and release gates precede this frontend-only follow-up. All five affected local gates passed before committing and pushing.",
+    "primary_sources": [
+      "https://playwright.dev/docs/locators",
+      "https://playwright.dev/docs/test-retries"
+    ]
+  }
 }
