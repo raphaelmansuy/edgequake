@@ -58,7 +58,9 @@ jobs:
   postgres-tests:
     name: PostgreSQL Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Includes tenant HTTP/RLS, graph lineage, and security suites. A cold
+    # runner exceeded 25 minutes while compiling the final security binaries.
+    timeout-minutes: 45
     # SPEC-091 IW0 (GAP-091-27): re-enabled on the GHCR AGE image — the original
     # disable reason ("missing AGE extension") no longer exists. Do NOT set
     # continue-on-error on RLS / workspace / task gates — those must block.
