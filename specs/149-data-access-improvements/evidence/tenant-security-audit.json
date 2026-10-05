@@ -66,6 +66,10 @@
     {
       "issue": "generic prepared ANN plans ignore workspace and nullable lineage bind selectivity",
       "fix": "use transaction-local custom plans in the shared typed ANN session, retaining natural scan selection and exact score reordering"
+    },
+    {
+      "issue": "MCP workspace catalog exposed sibling workspace metadata and tenant-wide totals to workspace-only members",
+      "fix": "shared REST/MCP active-membership visibility policy, trusted principal and role, filtering before pagination"
     }
   ],
   "performance_change": {
@@ -102,7 +106,8 @@
   "design_changes": {
     "single_responsibility": "request authorization, credential validation, RLS transaction setup and AGE trigger provisioning have separate focused modules",
     "dependency_inversion": "authorization depends on WorkspaceService and IdentityStore ports; relational/vector/graph factories remain independent",
-    "dry": "REST, MCP and WebSockets share principal/scope validation; provider reads share bounded scoped ANN transactions; AGE trigger definitions have one implementation"
+    "dry": "REST, MCP and WebSockets share principal/scope validation; provider reads share bounded scoped ANN transactions; AGE trigger definitions have one implementation",
+    "workspace_catalog": "REST and both MCP aliases share WorkspaceService-based policy; no concrete-provider casts or duplicated visibility logic"
   },
   "fixture_repairs": [
     "typed ANN temporary tables enforce RLS under the same non-bypass role and use owned workspace records",
@@ -152,5 +157,6 @@
     "entity_updates": "Exact node resolution verifies tenant/workspace and restamps scope after allowlisted fields.",
     "relationship_updates": "Scoped relationship lookup and allowlisted fields preserve top-level scope; arbitrary metadata is nested."
   },
-  "passing_test_executions": 3009
+  "passing_test_executions": 3009,
+  "catalog_authorization_validation": "local-ci.json#catalog_authorization_postflight"
 }

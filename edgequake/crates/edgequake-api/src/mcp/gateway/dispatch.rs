@@ -193,7 +193,16 @@ pub async fn execute_tool_call(
     }
 
     let propagation = propagation_from_meta(&ctx.meta);
-    match execute_tool(&ctx.state, &ctx.tenant_ctx, name, arguments, &propagation).await {
+    match execute_tool(
+        &ctx.state,
+        &ctx.tenant_ctx,
+        name,
+        arguments,
+        &propagation,
+        ctx.auth_role.as_ref(),
+    )
+    .await
+    {
         Ok(structured) => {
             if structured.get("ok").and_then(|v| v.as_bool()) == Some(false) {
                 Ok(call_tool_error_structured(structured))
@@ -215,6 +224,7 @@ async fn execute_tool(
     name: &str,
     arguments: Value,
     propagation: &PropagationHeaders,
+    auth_role: Option<&Role>,
 ) -> ApiResult<Value> {
     let workspace =
         crate::handlers::query::resolve_query_workspace(state, tenant_ctx.workspace_id.as_deref())
@@ -235,7 +245,7 @@ async fn execute_tool(
     match canonical {
         "eq_document_list" => eq_document_list(state, tenant_ctx, &arguments).await,
         "eq_document_get" => eq_document_get(state, tenant_ctx, &arguments).await,
-        "eq_workspace_list" => eq_workspace_list(state, tenant_ctx, &arguments).await,
+        "eq_workspace_list" => eq_workspace_list(state, tenant_ctx, &arguments, auth_role).await,
         "eq_workspace_stats" => eq_workspace_stats(state, tenant_ctx, &arguments).await,
         "eq_search" => eq_search(state, tenant_ctx, &arguments, llm_override).await,
         "eq_fetch" => eq_fetch(&arguments, ws_id).await,

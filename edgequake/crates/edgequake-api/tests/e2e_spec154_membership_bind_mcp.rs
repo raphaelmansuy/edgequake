@@ -189,8 +189,15 @@ async fn ec_154_07_non_member_mcp_forbidden_with_pg() {
     state.auth.config.api_keys = vec!["master-mcp-test-key".to_string()];
     state.security.strict_tenant_bind = true;
     state.security.kv_identity_mirror = false;
-    state.initialize_defaults().await.expect("defaults");
-
+    // Provision authority rows before scoped identity helpers validate ownership.
+    // The fixture pool is administrative; request RLS remains enabled below.
+    common::provider_access::http_harness::seed_scope(
+        &pool,
+        edgequake_api::middleware::default_tenant_uuid(),
+        edgequake_api::middleware::default_workspace_uuid(),
+        "mcp-default",
+    )
+    .await;
     // Ensure default tenant/workspace exist; do NOT add membership for this user.
     edgequake_api::services::identity_storage::ensure_default_tenant_workspace(
         &pool,
@@ -198,6 +205,7 @@ async fn ec_154_07_non_member_mcp_forbidden_with_pg() {
     )
     .await
     .expect("default tenant/workspace");
+    state.initialize_defaults().await.expect("defaults");
 
     let user_id = edgequake_api::middleware::default_user_uuid();
     let tenant_id = edgequake_api::middleware::default_tenant_uuid();

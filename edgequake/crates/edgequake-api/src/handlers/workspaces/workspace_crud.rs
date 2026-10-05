@@ -233,66 +233,22 @@ pub async fn list_workspaces(
         super::tenant_access::TenantAccess::Read,
     )
     .await?;
-    let memberships = if super::tenant_access::membership_scoped(&state)
-        && auth.context().role != edgequake_auth::Role::Admin
-    {
-        let user_id =
-            Uuid::parse_str(&auth.context().user_id).map_err(|_| ApiError::unauthorized())?;
-        Some(
-            state
-                .workspace_service
-                .get_user_memberships(user_id)
-                .await
-                .map_err(|e| ApiError::Internal(e.to_string()))?,
-        )
-    } else {
-        None
-    };
-    crate::read_path::run_with_read_path_guard(&state.read_path_db, |_| async move {
+    let read_path = state.read_path_db.clone();
+    crate::read_path::run_with_read_path_guard(&read_path, |_| async move {
         let include_stats = params.include_stats;
         let limit = params.limit.min(100);
 
         tracing::debug!(tenant_id = %tenant_id, "Listing workspaces");
 
         // SPEC-140: `total` is COUNT(*), never page length (LAW-140-2).
-        let (total, workspaces) = if let Some(memberships) = memberships {
-            let allowed: Vec<_> = state
-                .workspace_service
-                .list_workspaces(tenant_id)
-                .await
-                .map_err(|e| ApiError::Internal(e.to_string()))?
-                .into_iter()
-                .filter(|ws| {
-                    ws.is_active
-                        && memberships.iter().any(|m| {
-                            m.tenant_id == tenant_id && m.can_access_workspace(&ws.workspace_id)
-                        })
-                })
-                .collect();
-            let total = allowed.len();
-            (
-                total,
-                allowed
-                    .into_iter()
-                    .skip(params.offset)
-                    .take(limit)
-                    .collect(),
-            )
-        } else {
-            let total = state
-                .workspace_service
-                .count_workspaces(tenant_id)
-                .await
-                .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-            let workspaces = state
-                .workspace_service
-                .list_workspaces_page(tenant_id, limit, params.offset)
-                .await
-                .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-            (total, workspaces)
-        };
+        let (total, workspaces) = crate::services::workspace_visibility::visible_workspace_page(
+            &state,
+            Some(auth.context()),
+            tenant_id,
+            limit,
+            params.offset,
+        )
+        .await?;
 
         let tenant = state
             .workspace_service

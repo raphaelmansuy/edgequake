@@ -139,6 +139,7 @@ pub mod vlm_provider_resolver;
 pub mod workspace_content_hash_dedup;
 pub mod workspace_document_index;
 pub mod workspace_document_wipe;
+pub mod workspace_visibility;
 pub mod workspace_wipe_admission;
 
 pub use audit::{

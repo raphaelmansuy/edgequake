@@ -184,6 +184,7 @@ pub async fn eq_workspace_list(
     state: &AppState,
     tenant_ctx: &TenantContext,
     args: &Value,
+    auth_role: Option<&edgequake_auth::Role>,
 ) -> ApiResult<Value> {
     let budget = BudgetClass::parse(args.get("budget").and_then(|v| v.as_str()));
     let limit = args
@@ -192,7 +193,7 @@ pub async fn eq_workspace_list(
         .unwrap_or(20)
         .clamp(1, 100) as usize;
     let page = decode_page_cursor(args.get("cursor").and_then(|v| v.as_str()));
-    let offset = page.saturating_sub(1) * limit;
+    let offset = page.saturating_sub(1).saturating_mul(limit);
 
     let tenant_id = tenant_ctx
         .tenant_id
@@ -200,16 +201,29 @@ pub async fn eq_workspace_list(
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| ApiError::BadRequest("tenant required".into()))?;
 
-    let items_raw = state
-        .workspace_service
-        .list_workspaces_page(tenant_id, limit, offset)
-        .await
-        .map_err(|e| ApiError::Internal(format!("list workspaces: {e}")))?;
-    let total = state
-        .workspace_service
-        .count_workspaces(tenant_id)
-        .await
-        .map_err(|e| ApiError::Internal(format!("count workspaces: {e}")))?;
+    // The gateway replaces header user IDs with the authenticated principal.
+    let auth = auth_role
+        .map(|role| {
+            tenant_ctx
+                .user_id
+                .clone()
+                .map(|user_id| crate::handlers::auth::RequestAuthContext {
+                    user_id,
+                    role: role.clone(),
+                })
+                .ok_or_else(ApiError::unauthorized)
+        })
+        .transpose()?;
+    let (total, items_raw) = run_with_read_path_guard(&state.read_path_db, |_| {
+        crate::services::workspace_visibility::visible_workspace_page(
+            state,
+            auth.as_ref(),
+            tenant_id,
+            limit,
+            offset,
+        )
+    })
+    .await?;
 
     let items: Vec<Value> = items_raw
         .iter()
@@ -222,7 +236,7 @@ pub async fn eq_workspace_list(
         })
         .collect();
 
-    let has_more = offset + items.len() < total;
+    let has_more = offset.saturating_add(items.len()) < total;
     let mut env = EnvelopeBuilder::new("workspace_list", budget)
         .insert("items", json!(items))
         .insert("total", json!(total));

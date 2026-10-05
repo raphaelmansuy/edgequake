@@ -20,7 +20,7 @@ pub enum TenantAccess {
 
 /// True when only members may see a tenant (multi-tenant / SSO deployments).
 pub fn membership_scoped(state: &AppState) -> bool {
-    crate::services::request_authorization::binding_required(state) || state.auth.sso_active()
+    crate::services::workspace_visibility::membership_scoped(state)
 }
 
 fn is_platform_admin(ctx: &RequestAuthContext) -> bool {

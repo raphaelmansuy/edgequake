@@ -2182,5 +2182,442 @@
       "https://playwright.dev/docs/locators",
       "https://playwright.dev/docs/test-retries"
     ]
+  },
+  "catalog_authorization_postflight": {
+    "run_date": "2026-10-05",
+    "previous_pushed_head": "12e6af85d95eee3a5f3e732e12cc502de85cab21",
+    "source_sha256": {
+      ".github/workflows/postgres-integration.yml": "59ba9e57999b92e0f4c7e2e125e3e7d53ad98be22512cce54ba286c8cdd17116",
+      "edgequake/crates/edgequake-api/src/handlers/workspaces/tenant_access.rs": "5dbfba494ffa57230935b6dc09db687c4db3902d50cd8a262ad5092cdfffe209",
+      "edgequake/crates/edgequake-api/src/handlers/workspaces/workspace_crud.rs": "3b0ac688182f6fedde595a196f3a32a267077e12d15c266027a703c58ad3650a",
+      "edgequake/crates/edgequake-api/src/mcp/gateway/dispatch.rs": "5cae6b3ec7b32addab0c003bfc27c92469125f74f3a54d08206b1600a4a8b04a",
+      "edgequake/crates/edgequake-api/src/mcp/project/catalog.rs": "9a73a3fa47f86dc4d8294ea50e63ac6aab4b0aa47cee4c14978da96d06019d13",
+      "edgequake/crates/edgequake-api/src/services/mod.rs": "d6fe7c45391d15d899c904e1da5cb66bcdc5366907958380c28844c7aa590085",
+      "edgequake/crates/edgequake-api/src/services/workspace_visibility.rs": "119b8b486293f751305e6a54e118f98985de9ec34e6984788d358e053f12cc62",
+      "edgequake/crates/edgequake-api/tests/common/workspace_catalog_security.rs": "1210da3a1088c22095d89ffd4de4b5e5cf88de4049631a9959a6d50e342a84f2",
+      "edgequake/crates/edgequake-api/tests/e2e_spec154_membership_bind_mcp.rs": "2317d8385630705818aa6c1c82f1bb67fef991240ffa1e24d09c139f6982525f",
+      "edgequake/crates/edgequake-api/tests/e2e_tenant_authorization.rs": "a3a56a03ca193006db791e3fd71f2786257e16181e91953eac52ba46520d1569"
+    },
+    "rust_commands": [
+      {
+        "name": "ci-workspace-clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 279.16,
+        "log_sha256": "efe42385ccd99f32384930aa6574b927e3a1ee6592406a2c487122b5f9be05db",
+        "tests_passed": 0
+      },
+      {
+        "name": "ci-workspace-nextest",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "--workspace",
+          "--lib",
+          "--locked",
+          "--no-fail-fast",
+          "--test-threads=4"
+        ],
+        "exit_code": 0,
+        "seconds": 303.76,
+        "log_sha256": "44f85b373abbe226e37e8a71889ba2eadd0e090280b7ba993658e564495cb91f",
+        "tests_passed": 3756
+      },
+      {
+        "name": "ci-real-statement-timeout",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--lib",
+          "real_statement_timeout_classifies_as_retryable",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 110.24,
+        "log_sha256": "727a6305605b371dcba5794c4f7be898ee2e1c16acc6f406c968ceddc957954a",
+        "tests_passed": 1
+      },
+      {
+        "name": "ci-prompt-cache",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "-p",
+          "edgequake-api",
+          "--test",
+          "e2e_spec126_prompt_cache",
+          "--locked",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "seconds": 46.21,
+        "log_sha256": "26d33bf1325e651d808496a9de02ce586411370c1854b24c42ceae028688b3e1",
+        "tests_passed": 4
+      },
+      {
+        "name": "ci-test-count",
+        "command": [
+          "cargo",
+          "test",
+          "--workspace",
+          "--lib",
+          "--no-default-features",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 118.48,
+        "log_sha256": "6c43ccef53022d6b97d71a634aecc4450cbb625755beb530ea532773cabd088c",
+        "tests_passed": 3437
+      },
+      {
+        "name": "ci-inviolable",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-core",
+          "--test",
+          "inviolable_invariants",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 42.47,
+        "log_sha256": "761c8376ac93307d8f260941af2605f8257e694047757492335f924dfa0e0681",
+        "tests_passed": 12
+      },
+      {
+        "name": "ci-edge-invariants",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-core",
+          "--test",
+          "edge_case_invariants",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 0.43,
+        "log_sha256": "32b89119f896f47ed25071f77e821643c5af44c14f8745245ba2fe2f18922a21",
+        "tests_passed": 32
+      },
+      {
+        "name": "ci-api-invariants",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--test",
+          "integration_invariants",
+          "--locked",
+          "--no-fail-fast"
+        ],
+        "exit_code": 0,
+        "seconds": 41.84,
+        "log_sha256": "26326c7e92794b3338771812d000b00f3a1a94d2639ce94778e38eb0bd1ed52f",
+        "tests_passed": 7
+      },
+      {
+        "name": "ci-docs",
+        "command": [
+          "cargo",
+          "doc",
+          "--workspace",
+          "--no-deps",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "seconds": 33.35,
+        "log_sha256": "a9c6854f35093625babda7b0716b929c374b9fe01b319c4299e133cc006055a4",
+        "tests_passed": 0
+      },
+      {
+        "name": "ci-release-libs",
+        "command": [
+          "cargo",
+          "build",
+          "--workspace",
+          "--release",
+          "--lib",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "seconds": 170.23,
+        "log_sha256": "3e7cda794c4d7580c482310444dfc82ccc51262662598006600c8ca4717cabd1",
+        "tests_passed": 0
+      }
+    ],
+    "final_postflight_commands": [
+      {
+        "name": "final-fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--check"
+        ],
+        "exit_code": 0,
+        "seconds": 5.06,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tests_passed": 0
+      },
+      {
+        "name": "final-clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 119.94,
+        "log_sha256": "03c8611dd35fe3b5595040db6b550d69f00555051a383167ed69bc4e74fa45e3",
+        "tests_passed": 0
+      },
+      {
+        "name": "leak-recheck-1",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "--workspace",
+          "--lib",
+          "--locked",
+          "-E",
+          "test(services::query_execution::tests::llm_override_requires_both_fields)",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "seconds": 52.29,
+        "log_sha256": "d2629c01d404ee578d6dae180feac3f8c82efb37f05a855ce1a65dd8a7621494",
+        "tests_passed": 1
+      },
+      {
+        "name": "leak-recheck-2",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "--workspace",
+          "--lib",
+          "--locked",
+          "-E",
+          "test(services::query_execution::tests::llm_override_requires_both_fields)",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "seconds": 49.08,
+        "log_sha256": "297d112c8a85a764b1a5ff9e6516bc8c303321d88593d722d0d7b3e6de1f8ae4",
+        "tests_passed": 1
+      },
+      {
+        "name": "leak-recheck-3",
+        "command": [
+          "cargo",
+          "nextest",
+          "run",
+          "--workspace",
+          "--lib",
+          "--locked",
+          "-E",
+          "test(services::query_execution::tests::llm_override_requires_both_fields)",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "seconds": 49.44,
+        "log_sha256": "76660e771548f6ef397f8d9cef9f49f8a6b5990477352bec98dedca1ce122a7c",
+        "tests_passed": 1
+      }
+    ],
+    "postgres_matrix_commands": [
+      {
+        "name": "catalog-final-pg18",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--test",
+          "e2e_tenant_authorization",
+          "--test",
+          "e2e_tenant_rls",
+          "--test",
+          "e2e_spec154_membership_bind_mcp",
+          "--test",
+          "e2e_spec140_list_pagination",
+          "--test",
+          "e2e_workspace_include_stats",
+          "--test",
+          "spec152_mcp_conformance",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 256.32,
+        "log": "edgequake-pr421-ci-catalog-final-pg18.log",
+        "log_sha256": "5f31f814f3308ab3d7541dade769d53aef5f9390bc6a1ce426bea6b136e36ea3",
+        "tests_passed": 25
+      },
+      {
+        "name": "catalog-final-pg16",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--test",
+          "e2e_tenant_authorization",
+          "--test",
+          "e2e_tenant_rls",
+          "--test",
+          "e2e_spec154_membership_bind_mcp",
+          "--test",
+          "e2e_spec140_list_pagination",
+          "--test",
+          "e2e_workspace_include_stats",
+          "--test",
+          "spec152_mcp_conformance",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 236.87,
+        "log": "edgequake-pr421-ci-catalog-final-pg16.log",
+        "log_sha256": "1bdea69499e375c00855ad508153fb1a664aa4cf3642fa8a773f572f1a2bb11b",
+        "tests_passed": 25
+      },
+      {
+        "name": "catalog-final-pg17",
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "edgequake-api",
+          "--features",
+          "postgres",
+          "--test",
+          "e2e_tenant_authorization",
+          "--test",
+          "e2e_tenant_rls",
+          "--test",
+          "e2e_spec154_membership_bind_mcp",
+          "--test",
+          "e2e_spec140_list_pagination",
+          "--test",
+          "e2e_workspace_include_stats",
+          "--test",
+          "spec152_mcp_conformance",
+          "--",
+          "--test-threads=1",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 256.03,
+        "log": "edgequake-pr421-ci-catalog-final-pg17.log",
+        "log_sha256": "5bd6ea4ea9e80005f73939a9c25b590db98e4867e7a63f80ba0e219fd50d6f9a",
+        "tests_passed": 25
+      }
+    ],
+    "strict_http_gates": {
+      "EDGEQUAKE_PROVIDER_ACCESS_E2E": "1",
+      "EDGEQUAKE_REQUIRE_PROVIDER_ACCESS": "1",
+      "EDGEQUAKE_REQUIRE_POSTGRES_TESTS": "1",
+      "proof": "runner requires a newly written catalog report with 21 samples; CI requires nonempty HTTP/RLS/catalog reports"
+    },
+    "coverage": [
+      "real TCP PostgreSQL authorization and RLS on majors 16, 17, 18",
+      "REST and /mcp and /api/v1/mcp catalog parity",
+      "active and inactive memberships/workspaces, revoked membership, spoofed X-User-ID",
+      "readonly/workspace-admin/tenant-wide-member/platform-admin roles and persisted admin reduction",
+      "filtered totals, REST offset pages, MCP cursors, usize::MAX cursor, admin/member pagination"
+    ],
+    "counts": {
+      "workspace_nextest_passed": 3756,
+      "workspace_nextest_skipped": 1,
+      "no_default_features_passed": 3437,
+      "no_default_features_ignored": 1,
+      "matrix_test_executions": 75,
+      "limits": "overlapping configurations and repetitions, not distinct cases; matrix contains in-process memory transport contracts as well as mandatory real TCP authorization and RLS"
+    },
+    "diagnostics": {
+      "nextest_leak": "one passing existing services::query_execution::tests::llm_override_requires_both_fields case reported a leak under concurrent compilation; three isolated reruns passed without LEAK diagnostics",
+      "corrected_attempts": [
+        {
+          "name": "catalog-matrix-pg16",
+          "exit_code": 101,
+          "log_sha256": "4683884121652759e6dbfd7fb311dd6b4787c3e03542d5d99e5922cd8318c1a2",
+          "cause": "fresh fixture lacked default authority rows; existing administrative seed_scope now provisions them before scoped identity helpers and initialize_defaults",
+          "followup": "all three PostgreSQL majors rerun on final fixture"
+        },
+        {
+          "name": "default identity helper before authority seeding",
+          "exit_code": 101,
+          "log_sha256": "d0165805e8d3e1755025c40f705b33e929619e0de33ed7150dcd665dc5dcab29",
+          "cause": "moving scoped identity helper earlier alone could not provision a missing workspace; now seed authority rows through existing fixture harness before invoking scoped operations"
+        },
+        {
+          "name": "initial persisted-admin fixture",
+          "exit_code": 101,
+          "log_sha256": "f31076adabacbe95174ec6a90a81aeb787f5a618b293a426fbb1d0918eaaa5b1",
+          "cause": "default read/query API key correctly limited platform-admin account to readonly; repaired fixture explicitly requests admin scope and now asserts default-key limits too"
+        },
+        {
+          "name": "initial HTTP invocation",
+          "cause": "enable/require provider flags missing; soft-skipped; excluded from passing real HTTP evidence"
+        },
+        {
+          "name": "initial unit invocation",
+          "cause": "test-state dev_mode defaulted true; corrected to production mode"
+        }
+      ]
+    },
+    "security_review": {
+      "base": "5988ac4e9d37c42c8e5f4f6beb50032d748ebd37",
+      "reviewed_head": "12e6af85d95eee3a5f3e732e12cc502de85cab21",
+      "finding": "pre-existing P2 eq_workspace_list disclosed sibling workspace identities and tenant totals",
+      "fix": "provider-independent shared active-membership visibility policy; filter before count/pagination; validated gateway role and bound principal",
+      "corrective_review": "no remaining exploitable authorization flaw found; pagination and persisted-admin coverage gaps subsequently tested",
+      "limits": "static reviewer did not execute tests"
+    },
+    "measurements_artifact": "local-ci-plans.json#catalog_authorization_postflight",
+    "performance_limits": "catalog timings include API-key password-hash verification in an unoptimized Rust test binary plus TCP/auth/database round trips; concurrent builds affect scheduling. Not isolated DAL latency or production SLA. Existing tenant-list-then-filter behavior is retained; large-tenant catalog scalability is not certified.",
+    "prior_gates_retained": "frontend (270 passed/343 skipped/zero retries), full PostgreSQL workflow, external adapters and independent provider-composition gates remain recorded; no changes to frontend or alternate-provider code in this postflight",
+    "previous_remote_ci": {
+      "head": "12e6af85d95eee3a5f3e732e12cc502de85cab21",
+      "success": 34,
+      "skipped": 3,
+      "failed": 0,
+      "limits": "does not certify the subsequent corrective catalog commit; final-head CI must run after local validation"
+    }
   }
 }

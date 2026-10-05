@@ -3,6 +3,8 @@
 mod common;
 #[path = "common/tenant_security.rs"]
 mod tenant_security;
+#[path = "common/workspace_catalog_security.rs"]
+mod workspace_catalog_security;
 
 use common::provider_access::{harness, http_harness};
 use edgequake_auth::Role;
@@ -185,6 +187,7 @@ async fn real_http_principal_membership_role_and_scope_isolation() {
     let page: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(page["total"], 1);
     assert_eq!(page["items"][0]["id"], a.to_string());
+    workspace_catalog_security::verify(&server, tenant, a, b, user).await;
     assert_eq!(
         request(
             &server,
