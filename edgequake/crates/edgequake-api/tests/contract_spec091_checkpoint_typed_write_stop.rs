@@ -1,63 +1,40 @@
 //! SPEC-091 WP1 / WP-AC-05: relational checkpoint authority skips KV write.
 //!
-//! Requires DATABASE_URL + migrations (pipeline_checkpoints). Skips when unset
-//! or when Postgres rejects the connection.
+//! Requires DATABASE_URL + migrations (pipeline_checkpoints). Strict CI forbids
+//! a missing-database skip.
 //!
 //! Run:
 //!   cargo test -p edgequake-api --features postgres --test contract_spec091_checkpoint_typed_write_stop -- --test-threads=1
 
 #![cfg(feature = "postgres")]
 
-#[path = "common/test_db.rs"]
-mod test_db;
+#[path = "../../edgequake-storage/tests/support/postgres_access_pool.rs"]
+#[allow(dead_code)]
+mod postgres_access_pool;
 
 use std::sync::Arc;
 
 use edgequake_api::processor::pipeline_checkpoint::{
     checkpoint_key, load_pipeline_checkpoint, save_pipeline_checkpoint,
 };
+use edgequake_api::services::postgres_checkpoint_artifact_store::PostgresCheckpointArtifactStore;
 use edgequake_api::services::relational_sidecar_store::{
-    register_sidecar_pool, sidecar_store, typed_checkpoint_get, CHECKPOINT_KIND_CRASH,
+    typed_checkpoint_get, CHECKPOINT_KIND_CRASH,
 };
 use edgequake_pipeline::{ProcessingResult, ProcessingStats};
 use edgequake_storage::traits::KVStorage;
 use edgequake_storage::MemoryKVStorage;
 use uuid::Uuid;
 
-fn require_db() -> Option<String> {
-    std::env::var("DATABASE_URL")
-        .ok()
-        .or_else(|| {
-            std::fs::read_to_string("/tmp/edgequake-db-url")
-                .ok()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-        })
-        .or_else(|| {
-            Some("postgresql://edgequake:edgequake_secret@localhost:5432/edgequake".to_string())
-        })
-}
-
 #[tokio::test]
 async fn relational_checkpoint_write_stops_kv() {
-    let Some(base) = require_db() else {
-        eprintln!("skip: DATABASE_URL unset");
+    let Some(pool) =
+        postgres_access_pool::test_pool_with_acquire_timeout(std::time::Duration::from_secs(10))
+            .await
+    else {
         return;
     };
-    let url = test_db::isolated_test_url(&base);
-    let pool = match sqlx::postgres::PgPoolOptions::new()
-        .max_connections(4)
-        .connect(&url)
-        .await
-    {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("skip: cannot connect to {url}: {e}");
-            return;
-        }
-    };
-
-    register_sidecar_pool(pool.clone());
+    let store = PostgresCheckpointArtifactStore::new(pool.clone());
 
     let doc_id = Uuid::new_v4().to_string();
 
@@ -75,7 +52,14 @@ async fn relational_checkpoint_write_stops_kv() {
     let text = "wp1 checkpoint write-stop body";
     let workspace = "cccccccc-0019-0019-0019-cccccccccccc";
     save_pipeline_checkpoint(
-        &kv, None, &doc_id, &result, workspace, "openai", "ollama", text,
+        &kv,
+        Some(&store),
+        &doc_id,
+        &result,
+        workspace,
+        "openai",
+        "ollama",
+        text,
     )
     .await
     .expect("save");
@@ -87,7 +71,7 @@ async fn relational_checkpoint_write_stops_kv() {
         "KV must not receive checkpoint when relational typed write succeeds; got {kv_val:?}"
     );
 
-    let typed = typed_checkpoint_get(sidecar_store().as_deref(), &doc_id, CHECKPOINT_KIND_CRASH)
+    let typed = typed_checkpoint_get(Some(&store), &doc_id, CHECKPOINT_KIND_CRASH)
         .await
         .expect("typed row present");
     assert!(
@@ -95,12 +79,26 @@ async fn relational_checkpoint_write_stops_kv() {
         "typed payload shape: {typed}"
     );
 
-    let loaded =
-        load_pipeline_checkpoint(&kv, None, &doc_id, workspace, "openai", "ollama", text).await;
+    let loaded = load_pipeline_checkpoint(
+        &kv,
+        Some(&store),
+        &doc_id,
+        workspace,
+        "openai",
+        "ollama",
+        text,
+    )
+    .await;
     assert!(
         loaded.is_some(),
         "resume must load from typed when KV empty"
     );
 
     std::env::remove_var("EDGEQUAKE_KV_FAMILY_CHECKPOINT");
+    sqlx::query("DELETE FROM documents WHERE id=$1")
+        .bind(doc_id.parse::<Uuid>().unwrap())
+        .execute(&pool)
+        .await
+        .unwrap();
+    pool.close().await;
 }

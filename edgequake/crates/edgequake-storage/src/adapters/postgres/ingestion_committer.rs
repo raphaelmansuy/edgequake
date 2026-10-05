@@ -264,7 +264,7 @@ impl LifecycleCommitter for PgIngestionCommitter {
             if let Some(receipt) = sqlx::query_scalar::<_, Vec<u8>>(
                 "SELECT receipt FROM public.mutation_requests \
                  WHERE tenant_id = $1 AND workspace_id = $2 AND operation = $3 \
-                   AND receipt::jsonb->>'document_id' = $4 \
+                   AND convert_from(receipt, 'UTF8')::jsonb->>'document_id' = $4 \
                  ORDER BY created_at DESC LIMIT 1",
             )
             .bind(tenant_id)

@@ -6,17 +6,27 @@ on:
     paths:
       - "edgequake/crates/edgequake-storage/**"
       - "edgequake/crates/edgequake-api/**"
+      - "edgequake/crates/edgequake-core/**"
       - "edgequake/crates/edgequake-tasks/**"
       - "edgequake/migrations/**"
       - ".github/workflows/postgres-integration.yml"
+      - "scripts/compare_eq_perf_jsonl.py"
+      - "scripts/tests/test_compare_eq_perf_jsonl.py"
+      - "scripts/annotate_query_timings.py"
+      - "scripts/tests/test_annotate_query_timings.py"
   pull_request:
     branches: [main, edgequake-main]
     paths:
       - "edgequake/crates/edgequake-storage/**"
       - "edgequake/crates/edgequake-api/**"
+      - "edgequake/crates/edgequake-core/**"
       - "edgequake/crates/edgequake-tasks/**"
       - "edgequake/migrations/**"
       - ".github/workflows/postgres-integration.yml"
+      - "scripts/compare_eq_perf_jsonl.py"
+      - "scripts/tests/test_compare_eq_perf_jsonl.py"
+      - "scripts/annotate_query_timings.py"
+      - "scripts/tests/test_annotate_query_timings.py"
   # Allow manual trigger for full integration test suite
   workflow_dispatch:
     inputs:
@@ -143,6 +153,71 @@ jobs:
             done
           fi
           echo "Migrations complete!"
+
+      - name: Verify performance evidence gates
+        run: |
+          python3 -m unittest discover -s scripts/tests -p test_compare_eq_perf_jsonl.py -v
+          python3 -m unittest discover -s scripts/tests -p test_annotate_query_timings.py -v
+
+      - name: Run data-access fault and measurement gates
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+        run: |
+          set -euo pipefail
+          export EQ_POSTGRES_MAJOR="$(psql "$DATABASE_URL" -XAtc "SELECT current_setting('server_version_num')::integer / 10000")"
+          export EQ_POSTGRES_PROFILE="pg${EQ_POSTGRES_MAJOR}"
+          cargo test -p edgequake-storage --features postgres \
+            --test performance_harness_contract -- --test-threads=1
+          cargo test -p edgequake-storage --features postgres \
+            --test postgres_access_reliability \
+            --test postgres_ann_measurement \
+            --test postgres_typed_ann_measurement \
+            --test e2e_spec090_multi_pool \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/postgres-access-reliability.log
+          sed -n 's/^.*PERF_REPORT //p' /tmp/postgres-access-reliability.log > /tmp/postgres-access-reliability.jsonl
+
+      - name: Archive data-access measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-access-reliability
+          path: |
+            /tmp/postgres-access-reliability.log
+            /tmp/postgres-access-reliability.jsonl
+          if-no-files-found: warn
+
+      - name: Verify source query catalog and execution regressions
+        working-directory: edgequake
+        env:
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+          EQ_QUERY_AUDIT_OUTPUT: /tmp/postgres-query-catalog.json
+          EQ_QUERY_EXECUTION_LOG: /tmp/postgres-query-execution.jsonl
+        run: |
+          set -euo pipefail
+          cargo test -p edgequake-storage --features postgres --test postgres_query_catalog --test postgres_pdf_query_contract -- --test-threads=1 --nocapture
+          cargo test -p edgequake-api --features postgres \
+            --test postgres_query_regressions \
+            --test contract_spec091_checkpoint_typed_write_stop \
+            --test contract_spec091_cqrs_batch_sink \
+            -- --test-threads=1
+          cargo test -p edgequake-api --features postgres --test postgres_index_plans \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/postgres-index-plans.log
+          sed -n 's/^.*INDEX_PLAN_REPORT //p' /tmp/postgres-index-plans.log > /tmp/postgres-index-plans.jsonl
+          python3 ../scripts/annotate_query_timings.py /tmp/postgres-query-catalog.json /tmp/postgres-query-execution.jsonl --output /tmp/postgres-query-timings.json
+
+      - name: Archive source query verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-query-catalog
+          path: |
+            /tmp/postgres-query-catalog.json
+            /tmp/postgres-query-execution.jsonl
+            /tmp/postgres-query-timings.json
+            /tmp/postgres-index-plans.log
+            /tmp/postgres-index-plans.jsonl
+          if-no-files-found: warn
 
       - name: Run SPEC-149 provider-access projection tests
         working-directory: edgequake

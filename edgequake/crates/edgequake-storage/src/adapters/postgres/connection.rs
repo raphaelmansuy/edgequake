@@ -79,7 +79,7 @@ pub fn pool_max_lifetime() -> Duration {
 /// SPEC-112: pin application_name + search_path + idle_in_transaction after connect/reset.
 ///
 /// `app_name` must be a trusted static from [`session_application_name`] (no user input).
-/// Statements are issued separately — sqlx extended protocol rejects multi-statement strings.
+/// One bound SELECT avoids SQL interpolation and three separate network round trips.
 pub async fn apply_session_baseline(
     conn: &mut PgConnection,
     app_name: &str,
@@ -92,15 +92,13 @@ pub async fn apply_session_baseline(
         "application_name must be a trusted edgequake:* label"
     );
     let idle_secs = idle_in_xact_timeout_secs();
-    sqlx::query(&format!("SET application_name = '{app_name}'"))
-        .execute(&mut *conn)
-        .await?;
-    sqlx::query("SET search_path TO public")
-        .execute(&mut *conn)
-        .await?;
-    sqlx::query(&format!(
-        "SET idle_in_transaction_session_timeout = '{idle_secs}s'"
-    ))
+    sqlx::query(
+        "SELECT set_config('application_name', $1, false), \
+                set_config('search_path', 'public', false), \
+                set_config('idle_in_transaction_session_timeout', $2, false)",
+    )
+    .bind(app_name)
+    .bind(format!("{idle_secs}s"))
     .execute(&mut *conn)
     .await?;
     Ok(())
@@ -225,7 +223,7 @@ impl PostgresPool {
                 .idle_timeout(Some(self.config.idle_timeout))
                 .max_lifetime(Some(pool_max_lifetime())),
         )
-        .connect(&self.config.connection_url())
+        .connect_with(self.config.connect_options())
         .await
         .map_err(|e| StorageError::Connection(format!("Failed to connect: {}", e)))?;
 

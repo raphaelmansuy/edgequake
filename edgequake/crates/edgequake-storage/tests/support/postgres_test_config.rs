@@ -8,6 +8,9 @@ use std::env;
 use std::time::Duration;
 use uuid::Uuid;
 
+#[path = "query_capture.rs"]
+mod query_capture;
+
 /// Embedded migrations (SSOT: `edgequake/migrations`). Used to auto-provision
 /// the dedicated scratch test database so tests never touch the shared dev DB.
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
@@ -37,15 +40,18 @@ fn test_database_name(base: &str) -> String {
     }
 }
 
+pub fn postgres_tests_required() -> bool {
+    env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
 /// Soft-skip unless `EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1` (SPEC-060: nightly hard gate).
 pub fn require_or_skip_postgres(namespace_prefix: &str) -> Option<PostgresConfig> {
     if let Some(cfg) = contract_postgres_config(namespace_prefix) {
         return Some(cfg);
     }
-    let strict = env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
-        .ok()
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+    let strict = postgres_tests_required();
     if strict {
         panic!(
             "EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 but DATABASE_URL/POSTGRES_PASSWORD missing \
@@ -61,10 +67,7 @@ pub fn require_or_skip_postgres(namespace_prefix: &str) -> Option<PostgresConfig
 /// Used by process-kill parent/child pairs that must share one AGE graph.
 pub fn require_or_skip_postgres_exact(namespace: &str) -> Option<PostgresConfig> {
     let Some(mut cfg) = contract_postgres_config("spec149_kill") else {
-        let strict = env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
-            .ok()
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
+        let strict = postgres_tests_required();
         if strict {
             panic!(
                 "EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 but DATABASE_URL/POSTGRES_PASSWORD missing \
@@ -84,6 +87,7 @@ pub fn require_or_skip_postgres_exact(namespace: &str) -> Option<PostgresConfig>
 /// (see [`test_database_name`]) and auto-provisioned once per process (see
 /// [`ensure_test_db_ready`]) so tests run fully isolated from the dev database.
 pub fn contract_postgres_config(namespace_prefix: &str) -> Option<PostgresConfig> {
+    query_capture::initialize();
     let cfg = resolve_postgres_config(namespace_prefix)?;
     ensure_test_db_ready(&cfg);
     Some(cfg)
@@ -177,11 +181,11 @@ fn ensure_test_db_ready(cfg: &PostgresConfig) {
 }
 
 async fn provision_test_db(cfg: PostgresConfig) {
-    let admin_url = format!(
-        "postgres://{}:{}@{}:{}/postgres",
-        cfg.user, cfg.password, cfg.host, cfg.port
-    );
-    let Ok(admin) = sqlx::PgPool::connect(&admin_url).await else {
+    let admin_options = cfg.connect_options().database("postgres");
+    let Ok(admin) = sqlx::postgres::PgPoolOptions::new()
+        .connect_with(admin_options)
+        .await
+    else {
         return;
     };
     let exists: bool =
@@ -193,17 +197,19 @@ async fn provision_test_db(cfg: PostgresConfig) {
     if !exists {
         // CREATE DATABASE cannot be parameterized; the name is derived internally
         // (`{base}_test` or the `EDGEQUAKE_TEST_DATABASE` override), never user SQL.
-        let _ = sqlx::query(&format!("CREATE DATABASE {}", cfg.database))
-            .execute(&admin)
-            .await;
+        let _ = sqlx::query(&format!(
+            "CREATE DATABASE \"{}\"",
+            cfg.database.replace('"', "\"\"")
+        ))
+        .execute(&admin)
+        .await;
     }
     admin.close().await;
 
-    let test_url = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        cfg.user, cfg.password, cfg.host, cfg.port, cfg.database
-    );
-    if let Ok(pool) = sqlx::PgPool::connect(&test_url).await {
+    if let Ok(pool) = sqlx::postgres::PgPoolOptions::new()
+        .connect_with(cfg.connect_options())
+        .await
+    {
         // Scratch DB only: reconcile known expandable-migration checksum
         // drifts (SPEC-110/111) so sqlx migrate can apply pending files
         // without requiring EDGEQUAKE_DEV_MODE (prod still fails closed).
@@ -319,16 +325,12 @@ fn isolated_namespace(namespace_prefix: &str) -> String {
 
 /// Connection pool for contract tests (DRY URL builder).
 pub async fn contract_pg_pool(config: &PostgresConfig) -> sqlx::PgPool {
-    let database_url = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        config.user, config.password, config.host, config.port, config.database
-    );
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(config.max_connections)
         .min_connections(config.min_connections)
         .acquire_timeout(config.connect_timeout)
         .idle_timeout(config.idle_timeout)
-        .connect(&database_url)
+        .connect_with(config.connect_options())
         .await
         .expect("postgres pool")
 }

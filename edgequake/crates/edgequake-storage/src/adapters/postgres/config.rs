@@ -229,6 +229,28 @@ impl PostgresConfig {
         )
     }
 
+    /// Preserve literal credentials and enforce the configured TLS policy.
+    /// URL interpolation can misparse passwords containing `@`, `/`, or `?`.
+    pub fn connect_options(&self) -> sqlx::postgres::PgConnectOptions {
+        use sqlx::postgres::{PgConnectOptions, PgSslMode};
+
+        let ssl_mode = match self.ssl_mode {
+            SslMode::Disable => PgSslMode::Disable,
+            SslMode::Allow => PgSslMode::Allow,
+            SslMode::Prefer => PgSslMode::Prefer,
+            SslMode::Require => PgSslMode::Require,
+            SslMode::VerifyCa => PgSslMode::VerifyCa,
+            SslMode::VerifyFull => PgSslMode::VerifyFull,
+        };
+        PgConnectOptions::new()
+            .host(&self.host)
+            .port(self.port)
+            .database(&self.database)
+            .username(&self.user)
+            .password(&self.password)
+            .ssl_mode(ssl_mode)
+    }
+
     /// Get the table prefix for this namespace.
     ///
     /// # WHY: prefix is interpolated into DDL/table names (not a bind param)
@@ -342,6 +364,38 @@ mod tests {
             config.connection_url(),
             "postgres://user:pass123@db.example.com:5432/mydb"
         );
+    }
+
+    #[test]
+    fn typed_options_preserve_literal_connection_fields() {
+        let config = PostgresConfig::new("::1", 5433, "db/name?", "user@host", "p@ss:/?#%");
+        let options = config.connect_options();
+        assert_eq!(options.get_host(), "::1");
+        assert_eq!(options.get_port(), 5433);
+        assert_eq!(options.get_database(), Some("db/name?"));
+        assert_eq!(options.get_username(), "user@host");
+    }
+
+    #[test]
+    fn typed_options_honor_every_ssl_mode() {
+        use sqlx::postgres::PgSslMode;
+        for (mode, expected) in [
+            (SslMode::Disable, PgSslMode::Disable),
+            (SslMode::Allow, PgSslMode::Allow),
+            (SslMode::Prefer, PgSslMode::Prefer),
+            (SslMode::Require, PgSslMode::Require),
+            (SslMode::VerifyCa, PgSslMode::VerifyCa),
+            (SslMode::VerifyFull, PgSslMode::VerifyFull),
+        ] {
+            let config = PostgresConfig {
+                ssl_mode: mode,
+                ..Default::default()
+            };
+            assert_eq!(
+                std::mem::discriminant(&config.connect_options().get_ssl_mode()),
+                std::mem::discriminant(&expected)
+            );
+        }
     }
 
     #[test]

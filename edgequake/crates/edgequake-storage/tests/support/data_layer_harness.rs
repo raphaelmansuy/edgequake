@@ -1,70 +1,27 @@
-//! SPEC-088 shared data-layer test harness (First Principles / DRY / SOLID).
+//! SPEC-088 synthetic SQL-shape smoke harness (not production query coverage).
 //!
 //! Single place for: DB connect, isolation, EXPLAIN assertions, scaling curves,
 //! and domain runners. Per-Ref-ID tests are thin wrappers (generated).
+//! Production query verification lives in postgres_query_catalog and adapter contracts.
 #![allow(dead_code)]
 
-use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub const SEED: u64 = 88;
 static TABLE_SEQ: AtomicU64 = AtomicU64::new(1);
 
-/// Soft-skip unless DATABASE_URL / /tmp/edgequake-db-url / EDGEQUAKE_REQUIRE_POSTGRES_TESTS.
-pub fn require_db() -> Option<String> {
-    if let Ok(u) = std::env::var("DATABASE_URL") {
-        if !u.trim().is_empty() {
-            return Some(u.trim().to_string());
-        }
-    }
-    if let Ok(u) = std::fs::read_to_string("/tmp/edgequake-db-url") {
-        let u = u.trim();
-        if !u.is_empty() {
-            return Some(u.to_string());
-        }
-    }
-    // Dev default used by make postgres / docker-compose
-    let default = "postgres://edgequake:edgequake_secret@localhost:5432/edgequake";
-    // Probe once: if connect works, use it (agentic / local dev convenience).
-    if std::env::var("EDGEQUAKE_DATA_LAYER_USE_DEFAULT_DB")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(true)
-    {
-        return Some(default.to_string());
-    }
-    if std::env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
-        .ok()
-        .as_deref()
-        == Some("1")
-    {
-        panic!("DATABASE_URL required when EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1");
-    }
-    eprintln!("skip: no DATABASE_URL");
-    None
+#[path = "postgres_test_config.rs"]
+mod postgres_test_config;
+
+/// Reuse the isolated, migrated scratch database; never guess credentials.
+pub fn require_db() -> Option<edgequake_storage::PostgresConfig> {
+    postgres_test_config::require_or_skip_postgres("data_layer_smoke")
 }
 
-pub async fn connect(url: &str) -> Option<PgPool> {
-    match PgPoolOptions::new()
-        .max_connections(8)
-        .acquire_timeout(Duration::from_secs(8))
-        .connect(url)
-        .await
-    {
-        Ok(p) => Some(p),
-        Err(e) => {
-            if std::env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
-                .ok()
-                .as_deref()
-                == Some("1")
-            {
-                panic!("postgres connect failed: {e}");
-            }
-            eprintln!("skip: postgres connect failed: {e}");
-            None
-        }
-    }
+pub async fn connect(config: &edgequake_storage::PostgresConfig) -> Option<PgPool> {
+    Some(postgres_test_config::contract_pg_pool(config).await)
 }
 
 /// Globally unique table suffix (process + atomic seq + thread) — safe under --test-threads>1.
@@ -79,7 +36,10 @@ pub fn unique_suffix() -> String {
 /// EXPLAIN (FORMAT TEXT) for a simple statement (no binds).
 pub async fn explain_text(pool: &PgPool, sql: &str) -> String {
     let q = format!("EXPLAIN (FORMAT TEXT) {sql}");
-    let rows = sqlx::query(&q).fetch_all(pool).await.unwrap_or_default();
+    let rows = sqlx::query(&q)
+        .fetch_all(pool)
+        .await
+        .expect("EXPLAIN must succeed");
     rows.iter()
         .filter_map(|r| r.try_get::<String, _>(0).ok())
         .collect::<Vec<_>>()
@@ -89,7 +49,10 @@ pub async fn explain_text(pool: &PgPool, sql: &str) -> String {
 /// EXPLAIN ANALYZE BUFFERS (heavier; used for capture).
 pub async fn explain_analyze(pool: &PgPool, sql: &str) -> String {
     let q = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) {sql}");
-    let rows = sqlx::query(&q).fetch_all(pool).await.unwrap_or_default();
+    let rows = sqlx::query(&q)
+        .fetch_all(pool)
+        .await
+        .expect("EXPLAIN must succeed");
     rows.iter()
         .filter_map(|r| r.try_get::<String, _>(0).ok())
         .collect::<Vec<_>>()
@@ -325,6 +288,10 @@ pub async fn run_vector(pool: &PgPool, ref_id: &str, operation: &str) {
             .await
             .unwrap_or(false);
     if !has_vector {
+        assert!(
+            !postgres_test_config::postgres_tests_required(),
+            "{ref_id}: required vector extension missing"
+        );
         eprintln!("skip {ref_id}: vector extension missing");
         return;
     }
@@ -517,6 +484,10 @@ pub async fn run_graph(pool: &PgPool, ref_id: &str, operation: &str) {
             .await
             .unwrap_or(false);
     if !has_age {
+        assert!(
+            !postgres_test_config::postgres_tests_required(),
+            "{ref_id}: required AGE extension missing"
+        );
         eprintln!("skip {ref_id}: age extension missing");
         return;
     }

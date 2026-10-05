@@ -195,6 +195,12 @@ impl AppState {
                 Some(report)
             }
             Err(e) => {
+                if edgequake_storage::BudgetMode::from_env() == edgequake_storage::BudgetMode::Fail
+                {
+                    return Err(
+                        format!("Strict PostgreSQL pool budget validation failed: {e}").into(),
+                    );
+                }
                 tracing::warn!(
                     error = %e,
                     "SPEC-112: pool budget probe failed — continuing without gate"

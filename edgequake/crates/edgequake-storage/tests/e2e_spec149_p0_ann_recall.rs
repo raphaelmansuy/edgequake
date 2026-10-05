@@ -153,6 +153,8 @@ async fn e2e_spec149_p0_ann_recall_and_p95() {
         "schema_version": 1,
         "profile": "P0",
         "index": "chunk_embeddings",
+        "measurement_kind": "typed_adapter_recall",
+        "hnsw_plan_verified": false,
         "model": "spec149-p0-ann-model",
         "corpus_size": CORPUS,
         "dimension": DIM,

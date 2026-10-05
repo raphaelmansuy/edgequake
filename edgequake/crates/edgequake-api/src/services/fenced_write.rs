@@ -15,7 +15,7 @@ pub enum FenceError {
 }
 
 fn record_stale_fence() {
-    edgequake_observability::record_fence_rejected_write("stale_epoch");
+    tracing::warn!(reason = "stale_epoch", "document fence rejected write");
 }
 
 /// Read `documents.fence_epoch` for `document_id`.
@@ -27,13 +27,14 @@ pub async fn read_fence_epoch(
 ) -> Result<FenceEpoch, FenceError> {
     #[cfg(feature = "postgres")]
     if let Some(pool) = pool {
-        let epoch =
-            sqlx::query_scalar::<_, i64>("SELECT fence_epoch FROM public.documents WHERE id::text = $1")
-                .bind(document_id)
-                .fetch_optional(pool)
-                .await
-                .map_err(|error| FenceError::Storage(error.to_string()))?
-                .ok_or_else(|| FenceError::NotFound(document_id.to_string()))?;
+        let epoch = sqlx::query_scalar::<_, i64>(
+            "SELECT fence_epoch FROM public.documents WHERE id::text = $1",
+        )
+        .bind(document_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|error| FenceError::Storage(error.to_string()))?
+        .ok_or_else(|| FenceError::NotFound(document_id.to_string()))?;
 
         return Ok(FenceEpoch(epoch));
     }
@@ -142,7 +143,7 @@ pub async fn bind_document_run_track(
         let result = sqlx::query(
             r#"
             UPDATE public.documents SET
-                track_id = $4,
+                track_id = $4::text,
                 metadata = COALESCE(metadata, '{}'::jsonb)
                     || jsonb_build_object(
                         'track_id', $4::text,

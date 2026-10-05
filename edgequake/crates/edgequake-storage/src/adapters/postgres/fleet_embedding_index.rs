@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use serde_json::Value;
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::adapters::postgres::fleet_legacy_absorb::{upsert_with_legacy_absorb, AbsorbBatch};
@@ -26,6 +26,7 @@ use std::collections::HashMap;
 /// Postgres adapter for entity/relationship/report typed embeddings.
 pub struct PgFleetEmbeddingIndex {
     pool: PgPool,
+    search_session: super::typed_ann_search::TypedAnnSearch,
     model_name: String,
 }
 
@@ -33,6 +34,7 @@ impl PgFleetEmbeddingIndex {
     pub fn new(pool: PgPool, model_name: impl Into<String>) -> Self {
         Self {
             pool,
+            search_session: Default::default(),
             model_name: model_name.into(),
         }
     }
@@ -56,6 +58,7 @@ impl PgFleetEmbeddingIndex {
 
     async fn find_model_id(
         &self,
+        conn: &mut PgConnection,
         name: &str,
         dimensions: i32,
     ) -> Result<Option<ModelId>, StorageError> {
@@ -64,7 +67,7 @@ impl PgFleetEmbeddingIndex {
         )
         .bind(name)
         .bind(dimensions)
-        .fetch_optional(&self.pool)
+        .fetch_optional(conn)
         .await
         .map_err(StorageError::from)?;
         Ok(id.map(ModelId))
@@ -191,7 +194,8 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
             }
             EmbeddingFamily::Report => kind.eq_ignore_ascii_case("report"),
         });
-        if !type_matches
+        if req.limit == 0
+            || !type_matches
             || req.document_ids.as_ref().is_some_and(Vec::is_empty)
             || req.modalities.as_ref().is_some_and(Vec::is_empty)
             || req.filter_ids.as_ref().is_some_and(Vec::is_empty)
@@ -206,13 +210,25 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
         }
 
         let dim = validate_ann_dimensions(req.embedding.len() as i32)?;
-        let model_id = match self.find_model_id(&self.model_name, dim).await? {
+        let candidate_limit =
+            super::typed_ann_search::TypedAnnSearch::candidate_limit(req.limit as usize);
+        let mut conn = self.pool.acquire().await.map_err(StorageError::from)?;
+        let mut tx = self
+            .search_session
+            .begin(&mut conn, candidate_limit)
+            .await?;
+        let model_id = match self
+            .find_model_id(tx.as_mut(), &self.model_name, dim)
+            .await?
+        {
             Some(id) => id,
-            None => return Ok(Vec::new()),
+            None => {
+                tx.commit().await?;
+                return Ok(Vec::new());
+            }
         };
 
         let vector = Self::format_vector(&req.embedding);
-        let limit = req.limit as i64;
         let cast = format!("halfvec({dim})");
 
         let q = match family {
@@ -265,6 +281,7 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
             ),
         };
 
+        let q = super::typed_ann_search::TypedAnnSearch::ordered_sql(&q, req.limit);
         let rows = sqlx::query(&q)
             .bind(&vector)
             .bind(model_id.0)
@@ -273,10 +290,11 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
             .bind(req.tenant_id.map(|id| id.into_uuid()))
             .bind(req.modalities.as_deref())
             .bind(req.filter_ids.as_deref())
-            .bind(limit)
-            .fetch_all(&self.pool)
+            .bind(candidate_limit as i64)
+            .fetch_all(tx.as_mut())
             .await
             .map_err(StorageError::from)?;
+        tx.commit().await?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let legacy_id: String = row.try_get("legacy_id").map_err(StorageError::from)?;

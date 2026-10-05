@@ -17,11 +17,21 @@ use edgequake_storage::EntityId;
 use sqlx::PgPool;
 use tracing::{debug, info, warn};
 
+mod queries;
+
 /// PostgreSQL-backed relational entity (and relationship) sink.
 pub struct PostgresEntitySink {
     pool: Arc<PgPool>,
     /// When true (typed vector backend), SQL failures fail closed.
     fail_closed: bool,
+}
+
+fn scope_uuid(value: Option<&str>, field: &str) -> edgequake_pipeline::Result<Option<uuid::Uuid>> {
+    value.map(str::parse).transpose().map_err(|_| {
+        edgequake_pipeline::PipelineError::StorageError(
+            edgequake_storage::StorageError::InvalidInput(format!("invalid {field} UUID")),
+        )
+    })
 }
 
 impl PostgresEntitySink {
@@ -87,6 +97,23 @@ impl PostgresEntitySink {
         }
     }
 
+    /// Bare names take precedence over the legacy workspace-prefixed form.
+    async fn resolve_entity_id(
+        &self,
+        name: &str,
+        tenant_id: Option<uuid::Uuid>,
+        workspace_id: Option<uuid::Uuid>,
+    ) -> edgequake_pipeline::Result<Option<uuid::Uuid>> {
+        let sql = queries::entity_lookup_sql(workspace_id.is_some(), tenant_id.is_some());
+        sqlx::query_scalar(&sql)
+            .bind(name)
+            .bind(workspace_id)
+            .bind(tenant_id)
+            .fetch_optional(self.pool.as_ref())
+            .await
+            .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))
+    }
+
     fn map_sql_result(
         &self,
         label: &str,
@@ -99,11 +126,7 @@ impl PostgresEntitySink {
             }
             Err(e) => {
                 if self.fail_closed {
-                    return Err(edgequake_pipeline::PipelineError::StorageError(
-                        edgequake_storage::error::StorageError::Database(format!(
-                            "relational sink failed ({label}): {e}"
-                        )),
-                    ));
+                    return Err(edgequake_pipeline::PipelineError::StorageError(e.into()));
                 }
                 warn!(target = %label, error = %e, "Relational sink failed (best-effort)");
                 Ok(())
@@ -127,8 +150,8 @@ impl RelationalEntitySink for PostgresEntitySink {
         if bare.is_empty() {
             return Ok(());
         }
-        let tenant_uuid: Option<uuid::Uuid> = tenant_id.and_then(|t| t.parse().ok());
-        let workspace_uuid: Option<uuid::Uuid> = workspace_id.and_then(|w| w.parse().ok());
+        let tenant_uuid = scope_uuid(tenant_id, "tenant_id")?;
+        let workspace_uuid = scope_uuid(workspace_id, "workspace_id")?;
 
         let result = sqlx::query(
             r#"INSERT INTO entities
@@ -175,8 +198,8 @@ impl RelationalEntitySink for PostgresEntitySink {
             if bare.is_empty() {
                 continue;
             }
-            let tenant = row.tenant_id.as_deref().and_then(|t| t.parse().ok());
-            let workspace = row.workspace_id.as_deref().and_then(|w| w.parse().ok());
+            let tenant = scope_uuid(row.tenant_id.as_deref(), "tenant_id")?;
+            let workspace = scope_uuid(row.workspace_id.as_deref(), "workspace_id")?;
             let key = (tenant, workspace, bare.to_string());
             by_key
                 .entry(key)
@@ -276,43 +299,15 @@ impl RelationalEntitySink for PostgresEntitySink {
             return Ok(());
         }
         let rel_type = edgequake_storage::normalize_relation_type_str(relation_type);
-        let tenant_uuid: Option<uuid::Uuid> = tenant_id.and_then(|t| t.parse().ok());
-        let workspace_uuid: Option<uuid::Uuid> = workspace_id.and_then(|w| w.parse().ok());
+        let tenant_uuid = scope_uuid(tenant_id, "tenant_id")?;
+        let workspace_uuid = scope_uuid(workspace_id, "workspace_id")?;
 
-        // Resolve endpoints (bare preferred; tolerate legacy scoped names).
-        let src_id: Option<uuid::Uuid> = sqlx::query_scalar(
-            r#"SELECT id FROM entities
-               WHERE workspace_id = $2
-                 AND (name = $1 OR name = ($2::text || '::' || $1))
-               ORDER BY CASE WHEN name = $1 THEN 0 ELSE 1 END
-               LIMIT 1"#,
-        )
-        .bind(src)
-        .bind(workspace_uuid)
-        .fetch_optional(self.pool.as_ref())
-        .await
-        .map_err(|e| {
-            edgequake_pipeline::PipelineError::StorageError(
-                edgequake_storage::error::StorageError::Database(e.to_string()),
-            )
-        })?;
-
-        let tgt_id: Option<uuid::Uuid> = sqlx::query_scalar(
-            r#"SELECT id FROM entities
-               WHERE workspace_id = $2
-                 AND (name = $1 OR name = ($2::text || '::' || $1))
-               ORDER BY CASE WHEN name = $1 THEN 0 ELSE 1 END
-               LIMIT 1"#,
-        )
-        .bind(tgt)
-        .bind(workspace_uuid)
-        .fetch_optional(self.pool.as_ref())
-        .await
-        .map_err(|e| {
-            edgequake_pipeline::PipelineError::StorageError(
-                edgequake_storage::error::StorageError::Database(e.to_string()),
-            )
-        })?;
+        let src_id = self
+            .resolve_entity_id(src, tenant_uuid, workspace_uuid)
+            .await?;
+        let tgt_id = self
+            .resolve_entity_id(tgt, tenant_uuid, workspace_uuid)
+            .await?;
 
         let (Some(source_id), Some(target_id)) = (src_id, tgt_id) else {
             let msg = format!(
@@ -374,14 +369,24 @@ impl RelationalEntitySink for PostgresEntitySink {
             ),
             RelationshipSinkRow,
         > = HashMap::new();
+        let mut batch_scope = None;
         for row in rows {
             let src = EntityId::bare_name_from_graph_node_id(&row.source_name);
             let tgt = EntityId::bare_name_from_graph_node_id(&row.target_name);
             if src.is_empty() || tgt.is_empty() {
                 continue;
             }
-            let tenant = row.tenant_id.as_deref().and_then(|t| t.parse().ok());
-            let workspace = row.workspace_id.as_deref().and_then(|w| w.parse().ok());
+            let tenant = scope_uuid(row.tenant_id.as_deref(), "tenant_id")?;
+            let workspace = scope_uuid(row.workspace_id.as_deref(), "workspace_id")?;
+            let scope = (tenant, workspace);
+            if batch_scope.is_some_and(|expected| expected != scope) {
+                return Err(edgequake_pipeline::PipelineError::StorageError(
+                    edgequake_storage::StorageError::InvalidInput(
+                        "relationship batch must use one tenant/workspace scope".into(),
+                    ),
+                ));
+            }
+            batch_scope = Some(scope);
             let rel_type = edgequake_storage::normalize_relation_type_str(&row.relation_type);
             let key = (
                 tenant,
@@ -412,13 +417,8 @@ impl RelationalEntitySink for PostgresEntitySink {
         }
         let rows: Vec<RelationshipSinkRow> = by_key.into_values().collect();
 
-        // All rows in a merge share workspace/tenant; take from first non-empty.
-        let workspace_uuid: Option<uuid::Uuid> = rows
-            .iter()
-            .find_map(|r| r.workspace_id.as_deref().and_then(|w| w.parse().ok()));
-        let tenant_uuid: Option<uuid::Uuid> = rows
-            .iter()
-            .find_map(|r| r.tenant_id.as_deref().and_then(|t| t.parse().ok()));
+        // Scope is validated before deduplication and before any SQL execution.
+        let (tenant_uuid, workspace_uuid) = batch_scope.expect("nonempty batch has a scope");
 
         let mut bare_names: Vec<String> = Vec::new();
         for row in &rows {
@@ -434,22 +434,14 @@ impl RelationalEntitySink for PostgresEntitySink {
         bare_names.sort();
         bare_names.dedup();
 
-        let id_rows: Vec<(uuid::Uuid, String)> = sqlx::query_as(
-            r#"
-            SELECT id, name FROM entities
-            WHERE workspace_id IS NOT DISTINCT FROM $2
-              AND name = ANY($1)
-            "#,
-        )
-        .bind(&bare_names)
-        .bind(workspace_uuid)
-        .fetch_all(self.pool.as_ref())
-        .await
-        .map_err(|e| {
-            edgequake_pipeline::PipelineError::StorageError(
-                edgequake_storage::error::StorageError::Database(e.to_string()),
-            )
-        })?;
+        let sql = queries::entity_batch_lookup_sql(workspace_uuid.is_some(), tenant_uuid.is_some());
+        let id_rows: Vec<(uuid::Uuid, String)> = sqlx::query_as(&sql)
+            .bind(&bare_names)
+            .bind(workspace_uuid)
+            .bind(tenant_uuid)
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
 
         let mut by_name: HashMap<String, uuid::Uuid> = HashMap::new();
         for (id, name) in id_rows {
@@ -478,18 +470,8 @@ impl RelationalEntitySink for PostgresEntitySink {
             let rel_type = edgequake_storage::normalize_relation_type_str(&row.relation_type);
             source_ids.push(*source_id);
             target_ids.push(*target_id);
-            tenants.push(
-                row.tenant_id
-                    .as_deref()
-                    .and_then(|t| t.parse().ok())
-                    .or(tenant_uuid),
-            );
-            workspaces.push(
-                row.workspace_id
-                    .as_deref()
-                    .and_then(|w| w.parse().ok())
-                    .or(workspace_uuid),
-            );
+            tenants.push(tenant_uuid);
+            workspaces.push(workspace_uuid);
             rel_types.push(rel_type);
             descs.push(row.description.clone());
             weights.push(row.weight);
@@ -560,11 +542,7 @@ impl RelationalEntitySink for PostgresEntitySink {
             }
             Err(e) => {
                 if self.fail_closed {
-                    return Err(edgequake_pipeline::PipelineError::StorageError(
-                        edgequake_storage::error::StorageError::Database(format!(
-                            "relational sink failed (relationships_batch): {e}"
-                        )),
-                    ));
+                    return Err(edgequake_pipeline::PipelineError::StorageError(e.into()));
                 }
                 warn!(
                     target = "relationships_batch",
@@ -613,12 +591,12 @@ impl RelationalEntitySink for PostgresEntitySink {
         remaining_sources: &[String],
     ) -> edgequake_pipeline::Result<()> {
         let bare = EntityId::bare_name_from_graph_node_id(name);
-        let workspace_uuid: Option<uuid::Uuid> = workspace_id.and_then(|w| w.parse().ok());
+        let workspace_uuid = scope_uuid(workspace_id, "workspace_id")?;
 
         let result = if remaining_sources.is_empty() {
             sqlx::query(
                 "DELETE FROM entities \
-                 WHERE (name = $1 OR name = (COALESCE($2::text, '') || '::' || $1)) \
+                 WHERE (name = $1 OR name = (COALESCE(($2::uuid)::text, '') || '::' || $1)) \
                    AND (workspace_id = $2 OR ($2 IS NULL AND workspace_id IS NULL))",
             )
             .bind(bare)
@@ -628,7 +606,7 @@ impl RelationalEntitySink for PostgresEntitySink {
         } else {
             sqlx::query(
                 "UPDATE entities SET source_chunk_ids = $1, sync_status = 'synced', updated_at = NOW() \
-                 WHERE (name = $2 OR name = (COALESCE($3::text, '') || '::' || $2)) \
+                 WHERE (name = $2 OR name = (COALESCE(($3::uuid)::text, '') || '::' || $2)) \
                    AND (workspace_id = $3 OR ($3 IS NULL AND workspace_id IS NULL))",
             )
             .bind(remaining_sources)

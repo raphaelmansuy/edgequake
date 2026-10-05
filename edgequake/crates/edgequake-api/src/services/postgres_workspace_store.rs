@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use edgequake_storage::contracts::{
-    AccessError, AccessResult, AccessScope, TenantId, WorkspaceRecord, WorkspaceStore,
+    AccessResult, AccessScope, TenantId, WorkspaceRecord, WorkspaceStore,
 };
 use sqlx::PgPool;
 
@@ -29,7 +29,7 @@ impl WorkspaceStore for PostgresWorkspaceStore {
         .fetch_optional(&self.pool)
         .await
         .map(|row| row.map(Into::into))
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn list_workspaces(&self, tenant_id: TenantId) -> AccessResult<Vec<WorkspaceRecord>> {
@@ -41,7 +41,7 @@ impl WorkspaceStore for PostgresWorkspaceStore {
         .fetch_all(&self.pool)
         .await
         .map(|rows| rows.into_iter().map(Into::into).collect())
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 }
 
@@ -72,8 +72,4 @@ impl From<WorkspaceRow> for WorkspaceRecord {
             updated_at: row.updated_at,
         }
     }
-}
-
-fn database_error(error: sqlx::Error) -> AccessError {
-    AccessError::Unavailable(format!("workspace store: {error}"))
 }

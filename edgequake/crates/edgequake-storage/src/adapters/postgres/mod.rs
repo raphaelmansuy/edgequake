@@ -73,6 +73,7 @@ pub(crate) mod serving_fence_writer;
 pub(crate) mod serving_state_sql;
 mod standalone_embedding_store;
 mod statement_timeout;
+mod typed_ann_search;
 pub(crate) mod typed_embedding_dims;
 pub mod vector;
 mod workspace_probe_cache;

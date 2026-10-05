@@ -27,6 +27,10 @@ pub fn emit_documented(
     plan_class: &str,
     detail: impl Into<String>,
 ) -> PerfReport {
+    assert!(
+        !samples.is_empty(),
+        "{op}: no performance samples collected"
+    );
     let p95_ms = percentile_p95_ms(samples);
     let report = PerfReport {
         op: op.to_string(),
@@ -72,6 +76,7 @@ impl PerfReport {
             "op": self.op,
             "p95_ms": self.p95_ms,
             "samples_ms": self.samples,
+            "sample_count": self.samples.len(),
             "plan_class": self.plan_class,
             "buffers_hint": self.buffers_hint,
             "pass": self.pass,
@@ -157,6 +162,14 @@ pub fn finish_report(
     buffers_hint: bool,
     detail: impl Into<String>,
 ) -> PerfReport {
+    assert!(
+        !samples.is_empty(),
+        "{op}: no performance samples collected"
+    );
+    assert!(
+        budget_ms.is_finite() && budget_ms > 0.0,
+        "{op}: performance budget must be finite and positive"
+    );
     let p95_ms = percentile_p95_ms(samples);
     let pass = p95_ms < budget_ms;
     let report = PerfReport {

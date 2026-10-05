@@ -89,7 +89,7 @@ pub async fn list_pdfs_dynamic(
                 pdf_data: Vec::new(),
                 processing_status: {
                     let status_str: String = r.try_get("processing_status")?;
-                    status_str.parse().unwrap()
+                    status_str.parse()?
                 },
                 extraction_method: {
                     let method_opt: Option<String> = r.try_get("extraction_method")?;

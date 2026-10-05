@@ -524,8 +524,17 @@ impl PdfDocumentStorage for PostgresPdfStorage {
     async fn list_pdfs(&self, filter: ListPdfFilter) -> Result<PdfList> {
         let page = filter.page.unwrap_or(1);
         let page_size = filter.page_size.unwrap_or(20);
-        let offset = ((page - 1) * page_size) as i64;
-        let limit = page_size as i64;
+        if page == 0 || page_size == 0 {
+            return Err(StorageError::InvalidInput(
+                "PDF page and page size must be positive".into(),
+            ));
+        }
+        let limit = i64::try_from(page_size)
+            .map_err(|_| StorageError::InvalidInput("PDF page size exceeds i64".into()))?;
+        let offset = (page - 1)
+            .checked_mul(page_size)
+            .and_then(|n| i64::try_from(n).ok())
+            .ok_or_else(|| StorageError::InvalidInput("PDF page offset exceeds i64".into()))?;
 
         let status_filter = filter.processing_status.map(|s| s.as_str().to_string());
 

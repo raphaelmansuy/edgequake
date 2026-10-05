@@ -5,7 +5,7 @@
 //! via `ON CONFLICT (model_id, chunk_id) DO NOTHING` (LD-05).
 
 use async_trait::async_trait;
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::adapters::postgres::typed_embedding_dims::{
@@ -23,6 +23,7 @@ use crate::traits::domain::{
 /// `embedding_models.id` for the supplied logical model first.
 pub struct PgChunkEmbeddingIndex {
     pool: PgPool,
+    search_session: super::typed_ann_search::TypedAnnSearch,
     /// Logical model name (e.g. `text-embedding-3-small`) mapped into
     /// `embedding_models` at upsert/search time.
     model_name: String,
@@ -32,6 +33,7 @@ impl PgChunkEmbeddingIndex {
     pub fn new(pool: PgPool, model_name: impl Into<String>) -> Self {
         Self {
             pool,
+            search_session: Default::default(),
             model_name: model_name.into(),
         }
     }
@@ -64,6 +66,7 @@ impl PgChunkEmbeddingIndex {
     /// without creating it (search must not mutate the registry).
     async fn find_model_id(
         &self,
+        conn: &mut PgConnection,
         name: &str,
         dimensions: i32,
     ) -> Result<Option<ModelId>, StorageError> {
@@ -72,7 +75,7 @@ impl PgChunkEmbeddingIndex {
         )
         .bind(name)
         .bind(dimensions)
-        .fetch_optional(&self.pool)
+        .fetch_optional(conn)
         .await
         .map_err(StorageError::from)?;
         Ok(id.map(ModelId))
@@ -173,7 +176,8 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
     }
 
     async fn search(&self, req: &VectorQuery) -> Result<Vec<ScoredChunk>, StorageError> {
-        if req.document_ids.as_ref().is_some_and(Vec::is_empty)
+        if req.limit == 0
+            || req.document_ids.as_ref().is_some_and(Vec::is_empty)
             || req.modalities.as_ref().is_some_and(Vec::is_empty)
             || req.filter_ids.as_ref().is_some_and(Vec::is_empty)
             || req
@@ -185,11 +189,24 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
         }
 
         let dim = validate_ann_dimensions(req.embedding.len() as i32)?;
-        let model_id = match self.find_model_id(&self.model_name, dim).await? {
+        let candidate_limit =
+            super::typed_ann_search::TypedAnnSearch::candidate_limit(req.limit as usize);
+        let mut conn = self.pool.acquire().await.map_err(StorageError::from)?;
+        let mut tx = self
+            .search_session
+            .begin(&mut conn, candidate_limit)
+            .await?;
+        let model_id = match self
+            .find_model_id(tx.as_mut(), &self.model_name, dim)
+            .await?
+        {
             Some(id) => id,
             // Registry miss for the requested dimension → authoritative empty set
             // (mirrors legacy "no table" behavior), not an error.
-            None => return Ok(Vec::new()),
+            None => {
+                tx.commit().await?;
+                return Ok(Vec::new());
+            }
         };
 
         // Dim-scoped expression HNSW (mig 132) requires matching cast + dimensions filter.
@@ -207,7 +224,10 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
             s
         };
 
-        let q = Self::search_sql(dim, &cast);
+        let q = super::typed_ann_search::TypedAnnSearch::ordered_sql(
+            &Self::search_sql(dim, &cast),
+            req.limit,
+        );
         let rows = sqlx::query(&q)
             .bind(&vector)
             .bind(model_id.0)
@@ -217,10 +237,11 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
             .bind(req.modalities.as_deref())
             .bind(req.filter_ids.as_deref())
             .bind(req.vector_type.as_deref())
-            .bind(req.limit as i64)
-            .fetch_all(&self.pool)
+            .bind(candidate_limit as i64)
+            .fetch_all(tx.as_mut())
             .await
             .map_err(StorageError::from)?;
+        tx.commit().await?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let chunk_id: Uuid = row.try_get("chunk_id").map_err(StorageError::from)?;

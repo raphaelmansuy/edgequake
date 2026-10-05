@@ -35,7 +35,7 @@ impl IdentityStore for PostgresIdentityStore {
         .bind(tenant_id.into_uuid())
         .fetch_optional(&self.pool)
         .await
-        .map_err(database_error)?;
+        .map_err(edgequake_storage::error::postgres_access_error)?;
         row.map(IdentityRow::try_into_identity).transpose()
     }
 
@@ -70,14 +70,14 @@ impl IdentityStore for PostgresIdentityStore {
         .bind(user.last_login_at)
         .execute(&self.pool)
         .await
-        .map_err(database_error)?;
+        .map_err(edgequake_storage::error::postgres_access_error)?;
         let updated =
             sqlx::query_scalar::<_, bool>("SELECT tenant_id = $2 FROM users WHERE user_id = $1")
                 .bind(user.user_id)
                 .bind(tenant_id.into_uuid())
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(database_error)?;
+                .map_err(edgequake_storage::error::postgres_access_error)?;
         match updated {
             Some(true) => Ok(()),
             Some(false) => Err(AccessError::Conflict(
@@ -99,7 +99,7 @@ impl IdentityStore for PostgresIdentityStore {
         .bind(scope.workspace().into_uuid())
         .fetch_one(&self.pool)
         .await
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 }
 
@@ -136,8 +136,4 @@ impl IdentityRow {
             metadata: serde_json::Value::Object(Default::default()),
         })
     }
-}
-
-fn database_error(error: sqlx::Error) -> AccessError {
-    AccessError::Unavailable(format!("identity store: {error}"))
 }

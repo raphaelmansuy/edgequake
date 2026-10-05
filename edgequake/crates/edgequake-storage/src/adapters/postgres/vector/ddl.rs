@@ -672,7 +672,7 @@ impl PgVectorStorage {
             return Ok(());
         }
         let pool = self.pool.get().await?;
-        let _ = sqlx::query(
+        sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS eq_hot_ann_workspaces (
               table_prefix TEXT NOT NULL,
@@ -683,7 +683,8 @@ impl PgVectorStorage {
             "#,
         )
         .execute(&pool)
-        .await;
+        .await
+        .map_err(|e| StorageError::Database(format!("create hot ANN registry failed: {e}")))?;
         sqlx::query(
             r#"
             INSERT INTO eq_hot_ann_workspaces (table_prefix, workspace_id)
@@ -712,7 +713,7 @@ impl PgVectorStorage {
         .bind(&self.prefix)
         .fetch_all(&pool)
         .await
-        .unwrap_or_default();
+        .map_err(|e| StorageError::Database(format!("read hot ANN registry failed: {e}")))?;
         if hot.is_empty() {
             return Ok(());
         }

@@ -219,7 +219,7 @@ async fn e2e_spec112_close_releases_backends() {
         .bind(&our_pids)
         .fetch_one(&probe)
         .await
-        .unwrap_or(1);
+        .expect("observe closed pool backend PIDs");
         if remaining == 0 {
             dropped = true;
             break;

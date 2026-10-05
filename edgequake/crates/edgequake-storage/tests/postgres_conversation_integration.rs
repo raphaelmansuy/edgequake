@@ -12,53 +12,19 @@
 
 #![cfg(feature = "postgres")]
 
-use std::env;
-use std::time::Duration;
 use uuid::Uuid;
 
 use edgequake_storage::{PostgresConfig, PostgresConversationStorage};
 
-/// Get PostgreSQL configuration from environment variables.
-fn get_test_config() -> Option<PostgresConfig> {
-    // Check if password is set (indicates test environment is configured)
-    let password = env::var("POSTGRES_PASSWORD").ok()?;
+#[path = "support/postgres_test_config.rs"]
+mod postgres_test_config;
 
-    Some(PostgresConfig {
-        host: env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        port: env::var("POSTGRES_PORT")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(5432),
-        database: env::var("POSTGRES_DB").unwrap_or_else(|_| "edgequake".to_string()),
-        user: env::var("POSTGRES_USER").unwrap_or_else(|_| "edgequake".to_string()),
-        password,
-        namespace: format!(
-            "test_conv_{}",
-            &uuid::Uuid::new_v4().to_string().replace('-', "")[..8]
-        ),
-        max_connections: 5,
-        min_connections: 1,
-        connect_timeout: Duration::from_secs(10),
-        idle_timeout: Duration::from_secs(60),
-        ..Default::default()
-    })
+fn get_test_config() -> Option<PostgresConfig> {
+    postgres_test_config::require_or_skip_postgres("test_conv")
 }
 
-/// Create a connection pool for testing.
 async fn create_test_pool(config: &PostgresConfig) -> sqlx::PgPool {
-    let database_url = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        config.user, config.password, config.host, config.port, config.database
-    );
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(config.max_connections)
-        .min_connections(config.min_connections)
-        .acquire_timeout(config.connect_timeout)
-        .idle_timeout(config.idle_timeout)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to PostgreSQL")
+    postgres_test_config::contract_pg_pool(config).await
 }
 
 /// Skip test if PostgreSQL is not configured.

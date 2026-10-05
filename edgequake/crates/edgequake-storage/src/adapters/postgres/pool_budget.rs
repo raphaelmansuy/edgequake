@@ -1,7 +1,7 @@
 //! SPEC-112 LAW-112-3 — shared-DB connection slot budget.
 //!
 //! `need = total_pool_max × instances` must fit under
-//! `max_connections − superuser_reserved − tools_headroom`.
+//! `max_connections − superuser_reserved − reserved_connections − tools_headroom`.
 
 use sqlx::PgPool;
 
@@ -102,19 +102,19 @@ pub fn evaluate_pool_budget(
     }
 }
 
-/// Probe `SHOW max_connections` / `superuser_reserved_connections` and evaluate.
+/// Read slot capacity in one round trip, including PG 16+ reserved connections.
+/// Missing `reserved_connections` on older servers contributes zero.
 pub async fn check_pool_budget(
     pool: &PgPool,
     total_pool_max: u32,
 ) -> Result<PoolBudgetReport, sqlx::Error> {
-    let pg_max_s: String = sqlx::query_scalar("SHOW max_connections")
-        .fetch_one(pool)
-        .await?;
-    let reserved_s: String = sqlx::query_scalar("SHOW superuser_reserved_connections")
-        .fetch_one(pool)
-        .await?;
-    let pg_max: i32 = pg_max_s.parse().unwrap_or(100);
-    let reserved: i32 = reserved_s.parse().unwrap_or(3);
+    let (pg_max, reserved): (i32, i32) = sqlx::query_as(
+        "SELECT current_setting('max_connections')::integer, \
+                current_setting('superuser_reserved_connections')::integer + \
+                COALESCE(current_setting('reserved_connections', true)::integer, 0)",
+    )
+    .fetch_one(pool)
+    .await?;
     let report = evaluate_pool_budget(
         total_pool_max,
         pool_instance_count_from_env(),
@@ -183,5 +183,14 @@ mod tests {
         let r = evaluate_pool_budget(10, 1, 5, 3, 10, BudgetMode::Fail);
         assert_eq!(r.limit, 0);
         assert!(!r.ok);
+    }
+
+    #[test]
+    fn reserved_slots_change_boundary_admission() {
+        assert!(evaluate_pool_budget(87, 1, 100, 3, 10, BudgetMode::Fail).ok);
+        let report = evaluate_pool_budget(87, 1, 100, 8, 10, BudgetMode::Fail);
+        assert_eq!(report.limit, 82);
+        assert!(!report.ok);
+        assert!(enforce_pool_budget(&report).is_err());
     }
 }

@@ -2,7 +2,7 @@
 
 #[test]
 fn bootstrap_for_serving_does_not_spawn_support_without_escape() {
-    let src = include_str!("../src/state/migration_bootstrap/mod.rs");
+    let src = include_str!("../src/state/migration_bootstrap/apply.rs");
     assert!(
         src.contains("EDGEQUAKE_SERVE_RECONCILE"),
         "serve reconcile escape hatch must exist"
@@ -15,7 +15,7 @@ fn bootstrap_for_serving_does_not_spawn_support_without_escape() {
 
 #[test]
 fn fossil_repair_is_cli_gated() {
-    let src = include_str!("../src/state/migration_bootstrap/mod.rs");
+    let src = include_str!("../src/state/migration_bootstrap/apply.rs");
     assert!(
         src.contains("let fossil_repairs = if migrate_cli_mode()"),
         "fossil checksum rewrite must be CLI-only"

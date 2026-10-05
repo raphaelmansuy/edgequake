@@ -19,7 +19,7 @@ impl PostgresCheckpointArtifactStore {
     async fn ensure_parent(&self, document_id: Uuid) -> AccessResult<()> {
         edgequake_storage::ensure_admission_document_row(&self.pool, document_id, None, None, "")
             .await
-            .map_err(|error| AccessError::Unavailable(error.to_string()))
+            .map_err(AccessError::from)
     }
 }
 
@@ -43,7 +43,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
         .bind(payload)
         .execute(&self.pool)
         .await
-        .map_err(database_error)?;
+        .map_err(edgequake_storage::error::postgres_access_error)?;
         Ok(())
     }
 
@@ -56,7 +56,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
         .bind(kind)
         .fetch_optional(&self.pool)
         .await
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn delete_checkpoint(&self, document_id: Uuid, kind: &str) -> AccessResult<()> {
@@ -65,7 +65,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
             .bind(kind)
             .execute(&self.pool)
             .await
-            .map_err(database_error)?;
+            .map_err(edgequake_storage::error::postgres_access_error)?;
         Ok(())
     }
 
@@ -80,7 +80,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
         .execute(&self.pool)
         .await
         .map(|result| result.rows_affected())
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn put_artifact(
@@ -101,7 +101,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
         .bind(payload)
         .execute(&self.pool)
         .await
-        .map_err(database_error)?;
+        .map_err(edgequake_storage::error::postgres_access_error)?;
         Ok(())
     }
 
@@ -114,7 +114,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
         .bind(kind)
         .fetch_optional(&self.pool)
         .await
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn delete_artifacts(&self, document_id: Uuid) -> AccessResult<()> {
@@ -122,11 +122,7 @@ impl CheckpointArtifactStore for PostgresCheckpointArtifactStore {
             .bind(document_id)
             .execute(&self.pool)
             .await
-            .map_err(database_error)?;
+            .map_err(edgequake_storage::error::postgres_access_error)?;
         Ok(())
     }
-}
-
-fn database_error(error: sqlx::Error) -> AccessError {
-    AccessError::Unavailable(format!("checkpoint/artifact store: {error}"))
 }

@@ -174,6 +174,18 @@ impl From<sqlx::Error> for StorageError {
     }
 }
 
+/// Shared SQLx error mapping for typed access adapters. Preserve retry and
+/// deadline semantics instead of turning every database error into unavailable.
+#[cfg(feature = "postgres")]
+pub fn postgres_access_error(error: sqlx::Error) -> edgequake_storage_contracts::AccessError {
+    if let sqlx::Error::Database(database) = &error {
+        if matches!(database.code().as_deref(), Some("23503" | "23514")) {
+            return edgequake_storage_contracts::AccessError::Conflict(error.to_string());
+        }
+    }
+    StorageError::from(error).into()
+}
+
 #[cfg(feature = "postgres")]
 fn classify_sqlstate(code: Option<&str>, message: &str, constraint: Option<&str>) -> StorageError {
     let message = match constraint {
@@ -196,6 +208,24 @@ pub type Result<T> = std::result::Result<T, StorageError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn typed_access_mapping_preserves_non_database_error_categories() {
+        use edgequake_storage_contracts::AccessError;
+        assert!(matches!(
+            postgres_access_error(sqlx::Error::RowNotFound),
+            AccessError::NotFound(_)
+        ));
+        assert!(matches!(
+            postgres_access_error(sqlx::Error::PoolClosed),
+            AccessError::Unavailable(_)
+        ));
+        assert!(matches!(
+            postgres_access_error(sqlx::Error::PoolTimedOut),
+            AccessError::Unavailable(_)
+        ));
+    }
 
     #[test]
     fn test_storage_error_connection() {

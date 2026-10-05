@@ -3,19 +3,17 @@
 use crate::error::{Result, StorageError};
 
 use super::super::PostgresAGEGraphStorage;
+use super::graph_query_statement_timeout_ms;
 
 impl PostgresAGEGraphStorage {
     /// QW1 (F2): build the AGE per-connection session-setup statements as a
     /// single simple-query batch (`LOAD 'age'; SET search_path; SET timeout`).
     pub(in crate::adapters::postgres::graph) fn age_session_setup_sql() -> String {
-        let timeout_secs: u32 = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(15);
+        let timeout_ms = graph_query_statement_timeout_ms();
         format!(
             "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public; \
-             SET statement_timeout = '{}s';",
-            timeout_secs
+             SET statement_timeout = '{}ms';",
+            timeout_ms
         )
     }
 
@@ -47,11 +45,8 @@ impl PostgresAGEGraphStorage {
             .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
-        let timeout_secs: u32 = std::env::var("EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(15);
-        sqlx::query(&format!("SET statement_timeout = '{}s'", timeout_secs))
+        let timeout_ms = graph_query_statement_timeout_ms();
+        sqlx::query(&format!("SET statement_timeout = '{timeout_ms}ms'"))
             .execute(&mut *conn)
             .await
             .map_err(|e| {

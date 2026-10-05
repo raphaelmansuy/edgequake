@@ -1,7 +1,7 @@
 //! PostgreSQL implementation of refresh-token and API-key persistence.
 
 use async_trait::async_trait;
-use edgequake_storage::contracts::{AccessError, AccessResult, ApiKey, RefreshToken, SessionStore};
+use edgequake_storage::contracts::{AccessResult, ApiKey, RefreshToken, SessionStore};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -37,7 +37,7 @@ impl SessionStore for PostgresSessionStore {
         .bind(if token.revoked { "revoked" } else { "active" })
         .execute(&self.pool)
         .await
-        .map_err(database_error)?;
+        .map_err(edgequake_storage::error::postgres_access_error)?;
         Ok(())
     }
 
@@ -50,7 +50,7 @@ impl SessionStore for PostgresSessionStore {
         .fetch_optional(&self.pool)
         .await
         .map(|row| row.map(Into::into))
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn revoke_refresh_token(&self, token_hash: &str) -> AccessResult<bool> {
@@ -62,7 +62,7 @@ impl SessionStore for PostgresSessionStore {
         .execute(&self.pool)
         .await
         .map(|result| result.rows_affected() > 0)
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn put_api_key(&self, key: &ApiKey) -> AccessResult<()> {
@@ -87,7 +87,7 @@ impl SessionStore for PostgresSessionStore {
         .bind(key.expires_at)
         .execute(&self.pool)
         .await
-        .map_err(database_error)?;
+        .map_err(edgequake_storage::error::postgres_access_error)?;
         Ok(())
     }
 
@@ -110,7 +110,7 @@ impl SessionStore for PostgresSessionStore {
         .fetch_all(&self.pool)
         .await
         .map(|rows| rows.into_iter().map(Into::into).collect())
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 
     async fn revoke_api_key(
@@ -127,7 +127,7 @@ impl SessionStore for PostgresSessionStore {
         .fetch_optional(&self.pool)
         .await
         .map(|row| row.map(Into::into))
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
     }
 }
 
@@ -137,7 +137,7 @@ async fn load_api_keys(pool: &PgPool, query: &str, user_id: Uuid) -> AccessResul
         .fetch_all(pool)
         .await
         .map(|rows| rows.into_iter().map(Into::into).collect())
-        .map_err(database_error)
+        .map_err(edgequake_storage::error::postgres_access_error)
 }
 
 #[derive(sqlx::FromRow)]
@@ -192,8 +192,4 @@ impl From<ApiKeyRow> for ApiKey {
             expires_at: row.expires_at,
         }
     }
-}
-
-fn database_error(error: sqlx::Error) -> AccessError {
-    AccessError::Unavailable(format!("session store: {error}"))
 }

@@ -51,6 +51,10 @@ uuid = { version = "1.19", features = ["v4"] }
 sqlx = { workspace = true, features = ["migrate"] }
 tracing-subscriber = { workspace = true }
 tempfile = "3.10"
+# Source-derived SQL verification; these dependencies never enter the library.
+syn = { version = "2", features = ["full", "visit"] }
+quote = "1"
+proc-macro2 = { version = "1", features = ["span-locations"] }
 
 [[test]]
 name = "e2e_spec149_process_kill"

@@ -731,10 +731,21 @@ async fn document_reader_matches_committed_generation() {
         idempotency_key: format!("delete:{document_id}:1"),
         command_digest: [21; 32],
     };
-    committer
+    let receipt = committer
         .tombstone_document(&delete)
         .await
         .expect("tombstone");
+    // A resumed delete with a new request key reads the existing bytea
+    // receipt through the tombstoned branch, rather than deleting twice.
+    let resumed = edgequake_storage_contracts::DeleteDocument {
+        idempotency_key: format!("resume-delete:{document_id}:1"),
+        ..delete.clone()
+    };
+    let replay = committer
+        .tombstone_document(&resumed)
+        .await
+        .expect("resume tombstone");
+    assert_eq!(receipt, replay);
     let views = committer
         .get_many(&scope, &[DocumentId::new(document_id)])
         .await
