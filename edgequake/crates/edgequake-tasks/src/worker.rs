@@ -301,6 +301,31 @@ fn calculate_backoff_delay(
     (delay as u64).min(max_delay_ms)
 }
 
+/// Terminal reason when the worker will not retry.
+///
+/// Do not say "Retries exhausted (n/max)" unless `retry_count >= max_retries`.
+fn permanent_failure_reason(task: &Task, error_msg: &str, is_permanent: bool) -> String {
+    if task.circuit_breaker_tripped {
+        format!(
+            "Circuit breaker tripped after {} consecutive timeouts. Last error: {}",
+            task.consecutive_timeout_failures, error_msg
+        )
+    } else if is_permanent {
+        format!("Permanent failure (not retryable): {}", error_msg)
+    } else if task.retry_count >= task.max_retries {
+        format!(
+            "Retries exhausted ({}/{} attempts). Last error: {}",
+            task.retry_count, task.max_retries, error_msg
+        )
+    } else {
+        let retryable = task.error.as_ref().map(|e| e.retryable).unwrap_or(true);
+        format!(
+            "Task failed without retry (retry_count={} max_retries={} retryable={}). Last error: {}",
+            task.retry_count, task.max_retries, retryable, error_msg
+        )
+    }
+}
+
 /// Worker pool for processing tasks
 pub struct WorkerPool {
     config: WorkerPoolConfig,
@@ -1013,23 +1038,11 @@ impl WorkerPool {
                                     }
                                 });
                             } else {
-                                let reason = if task.circuit_breaker_tripped {
-                                    format!(
-                                        "Circuit breaker tripped after {} consecutive timeouts. \
-                                        Last error: {}",
-                                        task.consecutive_timeout_failures, error_msg
-                                    )
-                                } else if is_permanent {
-                                    // Deterministic failure (SPEC-045): not retried.
-                                    // Surface the actionable cause directly instead of a
-                                    // misleading "retries exhausted" count.
-                                    format!("Permanent failure (not retryable): {}", error_msg)
-                                } else {
-                                    format!(
-                                        "Retries exhausted ({}/{} attempts). Last error: {}",
-                                        task.retry_count, task.max_retries, error_msg
-                                    )
-                                };
+                                let reason = permanent_failure_reason(
+                                    &task,
+                                    &error_msg,
+                                    is_permanent,
+                                );
                                 error!(
                                     task_id = %task.track_id,
                                     tenant_id = %task.tenant_id,
@@ -1396,7 +1409,7 @@ mod tests {
     use crate::{
         memory::MemoryTaskStorage,
         queue::ChannelTaskQueue,
-        types::{Task, TaskStatus, TaskType},
+        types::{Task, TaskFailureInfo, TaskStatus, TaskType},
     };
 
     const TEST_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
@@ -1940,8 +1953,122 @@ mod tests {
         pool.shutdown().await;
     }
 
+    #[test]
+    fn permanent_failure_reason_does_not_claim_exhausted_before_budget() {
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::PdfProcessing,
+            serde_json::json!({}),
+        );
+        task.max_retries = 3;
+        task.mark_failed_with_details(TaskFailureInfo::from_processing_error(
+            "Operation timed out: Vision extraction stalled [failure_class=timeout_phase_convert] [vision_progress=1]",
+        ));
+        assert_eq!(task.retry_count, 1);
+        let reason = permanent_failure_reason(&task, "stall", false);
+        assert!(
+            !reason.contains("Retries exhausted"),
+            "must not say exhausted at 1/3: {reason}"
+        );
+        task.retry_count = 3;
+        let exhausted = permanent_failure_reason(&task, "stall", false);
+        assert!(
+            exhausted.contains("Retries exhausted (3/3"),
+            "got: {exhausted}"
+        );
+    }
+
     #[tokio::test]
-    async fn test_cancel_intent_skips_pending_task() {
+    async fn convert_stall_auto_retries_instead_of_permanent_fail() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct StallThenOk {
+            attempts: Arc<AtomicUsize>,
+            permanent_reason: Arc<std::sync::Mutex<Option<String>>>,
+        }
+
+        #[async_trait::async_trait]
+        impl TaskProcessor for StallThenOk {
+            async fn process(
+                &self,
+                _task: &mut Task,
+                _cancel_token: CancellationToken,
+            ) -> TaskResult<serde_json::Value> {
+                let n = self.attempts.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    return Err(TaskError::Timeout(
+                        "Timeout: Operation timed out: Vision extraction stalled: no progress \
+                         for 300s (stall limit 300s) for PDF 2ec2c7ab-12f4-4356-9622-b04fa3adf135. \
+                         Provider 'ollama' may be hung. Progress during this attempt is preserved \
+                         for resume. [failure_class=timeout_phase_convert] [vision_progress=1]"
+                            .to_string(),
+                    ));
+                }
+                Ok(serde_json::json!({"status": "ok"}))
+            }
+
+            async fn on_permanent_failure(&self, _task: &Task, error_msg: &str) {
+                *self.permanent_reason.lock().unwrap() = Some(error_msg.to_string());
+            }
+        }
+
+        let queue = Arc::new(ChannelTaskQueue::new(10));
+        let storage = Arc::new(MemoryTaskStorage::new());
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let permanent_reason = Arc::new(std::sync::Mutex::new(None));
+        let processor: SharedTaskProcessor = Arc::new(StallThenOk {
+            attempts: Arc::clone(&attempts),
+            permanent_reason: Arc::clone(&permanent_reason),
+        });
+
+        let config = WorkerPoolConfig {
+            num_workers: 1,
+            auto_retry: true,
+            initial_retry_delay_ms: 10,
+            max_retry_delay_ms: 50,
+            backoff_multiplier: 2.0,
+            max_tasks_per_tenant: 0,
+            max_lifecycle_tasks_per_tenant: 0,
+            processing_timeout_secs: 300,
+            provider_budget: 0,
+            tenant_lane_weight: 1,
+        };
+
+        let mut pool = WorkerPool::new(config, queue.clone(), storage.clone(), processor);
+        pool.start();
+
+        let task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::PdfProcessing,
+            serde_json::json!({"pdf_id": "2ec2c7ab-12f4-4356-9622-b04fa3adf135"}),
+        );
+        let track_id = task.track_id.clone();
+        storage.create_task(&task).await.unwrap();
+        queue.send(task).await.unwrap();
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(400)).await;
+
+        let stored = storage.get_task(&track_id).await.unwrap().unwrap();
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            2,
+            "first stall must retry, got {} attempts",
+            attempts.load(Ordering::SeqCst)
+        );
+        assert_eq!(stored.status, TaskStatus::Indexed);
+        assert!(
+            permanent_reason.lock().unwrap().is_none(),
+            "must not permanently fail: {:?}",
+            permanent_reason.lock().unwrap()
+        );
+
+        pool.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_claim_then_cancel_intent_marks_cancelled() {
         let queue = Arc::new(ChannelTaskQueue::new(10));
         let storage = Arc::new(MemoryTaskStorage::new());
         let processor = Arc::new(MockTaskProcessor);

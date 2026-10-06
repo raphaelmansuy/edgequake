@@ -64,20 +64,21 @@ impl TaskFailureInfo {
         )
     }
 
-    /// Create a timeout error (LLM or embedding).
+    /// Create a timeout error (LLM, embedding, or vision convert stall).
     ///
     /// @implements CIRCUIT_BREAKER: Timeout classification
     ///
-    /// WHY: Timeouts need special handling via circuit breaker pattern.
-    /// Consecutive timeouts indicate structural problem (doc too large,
-    /// LLM overloaded) that won't resolve by retrying.
+    /// Retryable until the circuit breaker trips (3 consecutive *no-progress*
+    /// timeouts) or `max_retries` is spent. The breaker then sets
+    /// `retryable = false`. Progress-aware stalls (`made_progress`) do not
+    /// advance the breaker.
     pub fn timeout(step: impl Into<String>, reason: impl Into<String>) -> Self {
         Self::new(
             "Operation timed out",
             step,
             reason,
             "Document may be too large. Try: 1) Use smaller chunk size, 2) Split document, 3) Use provider with longer timeout",
-            false, // Not retryable after circuit breaker trips
+            true,
         )
     }
 

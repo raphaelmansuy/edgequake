@@ -331,12 +331,15 @@ mod tests {
 
         // WHEN: Task fails with timeout error
         let error = TaskFailureInfo::timeout("llm_extraction", "LLM request timed out after 300s");
+        assert!(error.retryable);
         task.mark_failed_with_details(error);
 
         // THEN: Consecutive timeout counter increments to 1
         assert_eq!(task.consecutive_timeout_failures, 1);
         assert!(!task.circuit_breaker_tripped);
         assert_eq!(task.status, TaskStatus::Failed);
+        assert!(task.can_retry());
+        assert_eq!(task.retry_count, 1);
     }
 
     #[test]
@@ -454,6 +457,31 @@ mod tests {
         );
         assert!(parsed.made_progress);
         assert!(parsed.is_timeout());
+        assert!(parsed.retryable);
+    }
+
+    #[test]
+    fn convert_stall_with_progress_is_retryable_after_first_attempt() {
+        let msg = "Timeout: Operation timed out: Vision extraction stalled: no progress for 300s \
+             (stall limit 300s) for PDF 2ec2c7ab-12f4-4356-9622-b04fa3adf135. \
+             Provider 'ollama' may be hung. Progress during this attempt is preserved for resume. \
+             [failure_class=timeout_phase_convert] [vision_progress=1]";
+        let parsed = TaskFailureInfo::from_processing_error(msg);
+        assert!(parsed.is_timeout());
+        assert!(parsed.retryable);
+        assert!(parsed.made_progress);
+
+        let mut task = Task::new(
+            test_tenant_id(),
+            test_workspace_id(),
+            TaskType::PdfProcessing,
+            serde_json::json!({}),
+        );
+        task.max_retries = 3;
+        task.mark_failed_with_details(parsed);
+        assert_eq!(task.retry_count, 1);
+        assert!(task.can_retry());
+        assert!(!task.circuit_breaker_tripped);
     }
 
     #[test]
