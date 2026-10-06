@@ -199,6 +199,112 @@ test.describe("SPEC-155 documents workspace @spec155", () => {
     );
   });
 
+  test("idle Classic: Runs is a thin rail and Upload fills the tools band", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.removeItem("edgequake.documents.workspaceLayout.v3");
+        localStorage.removeItem("edgequake.documents.pageLayoutMode");
+      } catch {
+        /* private mode */
+      }
+    });
+    const now = new Date().toISOString();
+    await prepareSpec155Page(page, {
+      documents: [
+        {
+          id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+          title: "ready-doc.md",
+          file_name: "ready-doc.md",
+          status: "completed",
+          current_stage: "completed",
+          source_type: "markdown",
+          entity_count: 4,
+          query_ready: true,
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+    });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/documents", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("documents-workspace")).toBeVisible({
+      timeout: 30_000,
+    });
+    const rail = page.getByTestId("workspace-zone-rail-runs");
+    await expect(rail).toBeVisible();
+    const railBox = await rail.boundingBox();
+    const intake = await page.getByTestId("workspace-zone-intake").boundingBox();
+    expect(railBox && intake).toBeTruthy();
+    expect(railBox!.width).toBeLessThanOrEqual(56);
+    expect(intake!.width).toBeGreaterThan(700);
+    const layout = await page
+      .getByTestId("document-dropzone")
+      .getAttribute("data-fill-layout");
+    expect(["row", "hero"]).toContain(layout);
+    const cell = page.getByTestId("status-cell").first();
+    await expect(cell).toBeVisible();
+    const statusText = ((await cell.textContent()) ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+    expect(statusText).not.toMatch(/Ready Ready/);
+  });
+
+  test("idle compact viewport hides Preview rail until a document is selected", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.removeItem("edgequake.documents.workspaceLayout.v3");
+        localStorage.removeItem("edgequake.documents.pageLayoutMode");
+      } catch {
+        /* private mode */
+      }
+    });
+    await prepareSpec155Page(page, { emptyDocs: true });
+    await page.setViewportSize({ width: 1023, height: 768 });
+    await page.goto("/documents", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("documents-workspace")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("right-panel-collapsed-bar")).toHaveCount(0);
+    const rail = page.getByTestId("workspace-zone-rail-runs");
+    await expect(rail).toBeVisible();
+    const railBox = await rail.boundingBox();
+    expect(railBox).toBeTruthy();
+    expect(railBox!.width).toBeLessThanOrEqual(56);
+  });
+
+  test("idle phone stack: railed Runs does not steal equal height", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.removeItem("edgequake.documents.workspaceLayout.v3");
+        localStorage.removeItem("edgequake.documents.pageLayoutMode");
+      } catch {
+        /* private mode */
+      }
+    });
+    await prepareSpec155Page(page, { emptyDocs: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/documents", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("documents-workspace")).toHaveAttribute(
+      "data-mobile",
+      "true",
+      { timeout: 30_000 },
+    );
+    const rail = page.getByTestId("workspace-zone-rail-runs");
+    await expect(rail).toBeVisible();
+    const railBox = await rail.boundingBox();
+    const library = await page.getByTestId("workspace-zone-library").boundingBox();
+    expect(railBox && library).toBeTruthy();
+    expect(railBox!.height).toBeLessThanOrEqual(40);
+    expect(library!.height).toBeGreaterThan(railBox!.height * 4);
+    await expect(page.getByTestId("right-panel-collapsed-bar")).toHaveCount(0);
+  });
+
   test("stalled Cancel stays clickable (no inventory header overlap)", async ({
     page,
   }) => {

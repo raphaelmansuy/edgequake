@@ -204,11 +204,16 @@ export const WORKSPACE_PRESET_ORDER: readonly WorkspacePresetId[] = [
   "library-center",
 ] as const;
 
+/** Idle Classic: Runs starts as a rail so Upload owns the tools band. */
+export const IDLE_RUNS_COLLAPSED: Partial<Record<WorkspaceZoneId, boolean>> = {
+  runs: true,
+};
+
 export function defaultWorkspaceDocument(): WorkspaceLayoutDocument {
   return {
     version: 3,
     tree: presetClassic(),
-    collapsed: {},
+    collapsed: { ...IDLE_RUNS_COLLAPSED },
     maximized: null,
     presetId: "classic",
   };
@@ -513,12 +518,14 @@ export function writeWorkspaceLayout(
 
 export function applyPreset(
   presetId: WorkspacePresetId,
+  options?: { runsIdle?: boolean },
 ): WorkspaceLayoutDocument {
   const preset = WORKSPACE_PRESETS[presetId];
+  const runsIdle = options?.runsIdle ?? true;
   return {
     version: 3,
     tree: preset.build(),
-    collapsed: {},
+    collapsed: runsIdle ? { ...IDLE_RUNS_COLLAPSED } : {},
     maximized: null,
     presetId,
   };

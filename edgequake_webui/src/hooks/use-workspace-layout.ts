@@ -4,6 +4,7 @@
 
 "use client";
 
+import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   applyPreset,
   defaultWorkspaceDocument,
@@ -47,19 +48,6 @@ export interface UseWorkspaceLayoutReturn {
   clearAnnouncement: () => void;
 }
 
-function useIsMobile(breakpoint = MOBILE_BREAKPOINT_PX): boolean {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    const update = () => setMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, [breakpoint]);
-  return mobile;
-}
-
 export function useWorkspaceLayout(
   options: UseWorkspaceLayoutOptions = {},
 ): UseWorkspaceLayoutReturn {
@@ -69,11 +57,17 @@ export function useWorkspaceLayout(
   );
   const [hydrated, setHydrated] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const isMobile = useIsMobile();
+  const isMobile = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`);
   /** User explicitly collapsed/expanded Runs — auto-rail must not override. */
   const runsUserOverride = useRef(false);
   const prevRunsIdle = useRef(runsIdle);
   const runsSyncedAfterHydrate = useRef(false);
+  const runsIdleRef = useRef(runsIdle);
+  runsIdleRef.current = runsIdle;
+
+  const presetDoc = useCallback((id: WorkspacePresetId) => {
+    return applyPreset(id, { runsIdle: runsIdleRef.current });
+  }, []);
 
   useEffect(() => {
     setDoc(readWorkspaceLayout());
@@ -124,29 +118,28 @@ export function useWorkspaceLayout(
       if (idx >= 0 && idx < WORKSPACE_PRESET_ORDER.length) {
         event.preventDefault();
         const id = WORKSPACE_PRESET_ORDER[idx]!;
-        setDoc(applyPreset(id));
+        setDoc(presetDoc(id));
         runsUserOverride.current = false;
         setAnnouncement(`Layout: ${id}`);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [presetDoc]);
 
   const applyPresetId = useCallback((id: WorkspacePresetId) => {
     runsUserOverride.current = false;
-    const next = applyPreset(id);
-    // Fresh preset: let smart Runs rail manage idle collapse.
+    const next = presetDoc(id);
     setDoc(next);
     setAnnouncement(`Layout: ${next.presetId}`);
-  }, []);
+  }, [presetDoc]);
 
   const reset = useCallback(() => {
     runsUserOverride.current = false;
-    const next = applyPreset("classic");
+    const next = presetDoc("classic");
     setDoc(next);
     setAnnouncement("Layout reset to Classic");
-  }, []);
+  }, [presetDoc]);
 
   const dock = useCallback(
     (dragged: WorkspaceZoneId, target: WorkspaceZoneId, edge: DockEdge) => {

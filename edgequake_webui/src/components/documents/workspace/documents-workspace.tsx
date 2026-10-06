@@ -185,11 +185,33 @@ export function DocumentsWorkspace({
             className="flex min-h-0 min-w-0 flex-1 flex-col gap-0"
             data-testid={`workspace-mobile-stack-${path}`}
           >
-            {leafZones(node).map((z) => (
-              <div key={z} className="min-h-0 flex-1 border-b last:border-b-0">
-                {renderZone(z)}
-              </div>
-            ))}
+            {leafZones(node).map((z) => {
+              const railed = Boolean(collapsed[z]) && !maximized;
+              return (
+                <div
+                  key={z}
+                  className={cn(
+                    "min-h-0 border-b last:border-b-0",
+                    railed
+                      ? "h-7 shrink-0"
+                      : z === "library"
+                        ? "flex-1"
+                        : "shrink-0",
+                  )}
+                  style={
+                    railed
+                      ? { height: ZONE_RAIL_PX }
+                      : z === "intake"
+                        ? { minHeight: ZONE_MIN_PX.intake.height }
+                        : undefined
+                  }
+                  data-mobile-zone={z}
+                  data-railed={railed ? "true" : "false"}
+                >
+                  {renderZone(z, "horizontal")}
+                </div>
+              );
+            })}
           </div>
         );
       }
@@ -297,6 +319,7 @@ export function DocumentsWorkspace({
       return (
         <Group
           key={path}
+          id={`workspace-split-${path}`}
           orientation={orientation}
           className="min-h-0 min-w-0 flex-1"
           data-testid={`workspace-split-${path}`}
@@ -304,7 +327,7 @@ export function DocumentsWorkspace({
         >
           <CollapsingPanel
             id={`${path}-0`}
-            defaultSize={`${leftDefaultResolved}`}
+            defaultSize={leftAllCollapsed ? ZONE_RAIL_PX : `${leftDefaultResolved}`}
             minSize={leftMin}
             collapsed={leftAllCollapsed}
             collapsedSize={ZONE_RAIL_PX}
@@ -332,7 +355,9 @@ export function DocumentsWorkspace({
           />
           <CollapsingPanel
             id={`${path}-1`}
-            defaultSize={`${rightDefaultResolved}`}
+            defaultSize={
+              rightAllCollapsed ? ZONE_RAIL_PX : `${rightDefaultResolved}`
+            }
             minSize={rightMin}
             collapsed={rightAllCollapsed}
             collapsedSize={ZONE_RAIL_PX}

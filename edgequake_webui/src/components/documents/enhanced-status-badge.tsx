@@ -43,8 +43,11 @@ function pipelineLabel(status: string): string {
  */
 export function ServingFenceBadge({
   queryReady,
+  visuallyHidden = false,
 }: {
   queryReady: boolean | null | undefined;
+  /** Keep SPEC-091 selectors without duplicating visible "Ready" in compact cells. */
+  visuallyHidden?: boolean;
 }) {
   if (typeof queryReady !== 'boolean') return null;
   if (queryReady) {
@@ -52,6 +55,7 @@ export function ServingFenceBadge({
       <span
         data-testid="spec091-serving-fence-badge"
         data-query-ready="true"
+        className={visuallyHidden ? 'sr-only' : undefined}
       >
         Ready
       </span>
@@ -162,10 +166,10 @@ export function EnhancedStatusBadge({
       >
         {queryReady ? (
           compact ? (
-            <>
-              <span data-testid="status-badge">Ready</span>
-              <ServingFenceBadge queryReady={true} />
-            </>
+            <span data-testid="status-badge">
+              Ready
+              <ServingFenceBadge queryReady={true} visuallyHidden />
+            </span>
           ) : (
             <>
               <span data-testid="status-badge">{pipelineLabel(displayStatus)}</span>

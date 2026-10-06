@@ -118,6 +118,13 @@ describe("sanitize / serialize", () => {
     expect(defaultWorkspaceDocument().presetId).toBe("classic");
     assertAllZonesOnce(defaultWorkspaceDocument().tree);
   });
+
+  it("default document and presets rail idle Runs", () => {
+    expect(defaultWorkspaceDocument().collapsed.runs).toBe(true);
+    expect(applyPreset("classic").collapsed.runs).toBe(true);
+    expect(applyPreset("library-left").collapsed.runs).toBe(true);
+    expect(applyPreset("classic", { runsIdle: false }).collapsed.runs).toBeFalsy();
+  });
 });
 
 describe("legacy migration", () => {

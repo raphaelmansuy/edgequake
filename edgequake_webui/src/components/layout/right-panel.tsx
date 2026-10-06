@@ -101,6 +101,7 @@ export const RightPanel = forwardRef<HTMLDivElement, RightPanelProps>(
             "w-10 border-l bg-card/50 flex flex-col items-center py-4 cursor-pointer hover:bg-muted transition-colors",
             className
           )}
+          data-testid="right-panel-collapsed-bar"
           onClick={onToggle}
           role="button"
           tabIndex={0}

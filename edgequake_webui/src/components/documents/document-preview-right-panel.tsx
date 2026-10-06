@@ -11,6 +11,7 @@
 'use client';
 
 import { RightPanel } from '@/components/layout/right-panel';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import type { Document } from '@/types';
 import { FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -74,6 +75,9 @@ export function DocumentPreviewRightPanel({
   viewerPdfId,
 }: DocumentPreviewRightPanelProps) {
   const { t } = useTranslation();
+  const isCompactViewport = useMediaQuery('(max-width: 1023px)');
+  const showCollapsedBar =
+    !isCompactViewport || selectedDocument != null;
 
   const title = selectedDocument 
     ? (selectedDocument.title || selectedDocument.file_name || `Document ${selectedDocument.id.slice(0, 8)}`) 
@@ -96,7 +100,7 @@ export function DocumentPreviewRightPanel({
         title={t('documents.preview.title', 'Document')}
         subtitle={undefined}
         width="wide"
-        showCollapsedBar={true}
+        showCollapsedBar={showCollapsedBar}
         collapsedLabel={t('documents.preview.panelLabel', 'Preview')}
         headerIcon={<FileText className="h-4 w-4" />}
         resizable={true}

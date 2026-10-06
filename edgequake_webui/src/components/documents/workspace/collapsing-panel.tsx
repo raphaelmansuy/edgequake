@@ -1,5 +1,7 @@
 "use client";
 
+import { ZONE_RAIL_PX } from "@/lib/documents/workspace-layout";
+import { panelSizePercent } from "@/lib/documents/panel-size-percent";
 import { cn } from "@/lib/utils";
 import { useEffect, type ReactNode } from "react";
 import { Panel, usePanelRef } from "react-resizable-panels";
@@ -32,37 +34,42 @@ export function CollapsingPanel({
   id,
   defaultSize,
   minSize: _zoneMinPx,
-  collapsedSize = 28,
+  collapsedSize = ZONE_RAIL_PX,
   collapsed,
   sizePercent,
   className,
   children,
 }: CollapsingPanelProps) {
   const panelRef = usePanelRef();
+  const mountDefault = collapsed ? collapsedSize : defaultSize;
 
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    if (collapsed) {
-      if (!panel.isCollapsed()) panel.collapse();
-      return;
-    }
-    if (panel.isCollapsed()) {
-      panel.expand();
-    }
-    const targetPct =
-      typeof sizePercent === "number" && Number.isFinite(sizePercent)
-        ? sizePercent
-        : typeof defaultSize === "string"
-          ? Number(defaultSize)
-          : typeof defaultSize === "number" && defaultSize <= 100
-            ? defaultSize
-            : null;
-    if (targetPct != null && Number.isFinite(targetPct)) {
-      const current = panel.getSize().asPercentage;
-      if (Math.abs(current - targetPct) > 1.5) {
-        panel.resize(`${targetPct}%`);
+    try {
+      if (collapsed) {
+        if (!panel.isCollapsed()) panel.collapse();
+        return;
       }
+      if (panel.isCollapsed()) {
+        panel.expand();
+      }
+      const targetPct =
+        typeof sizePercent === "number" && Number.isFinite(sizePercent)
+          ? sizePercent
+          : typeof defaultSize === "string" && !defaultSize.endsWith("px")
+            ? Number(defaultSize.replace("%", ""))
+            : typeof defaultSize === "number" && defaultSize <= 100
+              ? defaultSize
+              : null;
+      if (targetPct != null && Number.isFinite(targetPct)) {
+        const current = panelSizePercent(panel.getSize());
+        if (current == null || Math.abs(current - targetPct) > 1.5) {
+          panel.resize(`${targetPct}%`);
+        }
+      }
+    } catch {
+      // Group may have unmounted (mobile stack / HMR); next paint remounts.
     }
   }, [collapsed, sizePercent, defaultSize, panelRef]);
 
@@ -70,7 +77,7 @@ export function CollapsingPanel({
     <Panel
       id={id}
       panelRef={panelRef}
-      defaultSize={defaultSize}
+      defaultSize={mountDefault}
       // Do not pass ZONE_MIN as Panel minSize: react-resizable-panels
       // auto-collapses when computed size < minSize (library-center Intake
       // at ~16% was snapping to a 28px column while still painting dropzone).
