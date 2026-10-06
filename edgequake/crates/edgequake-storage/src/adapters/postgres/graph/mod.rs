@@ -251,8 +251,8 @@ impl PostgresAGEGraphStorage {
         workspace_id: Option<&str>,
         limit: usize,
     ) -> String {
-        let src = helpers::coalesce_endpoint("e", "source");
-        let tgt = helpers::coalesce_endpoint("e", "target");
+        let src = helpers::degree_endpoint_rows(&self.graph_name, "source", true);
+        let tgt = helpers::degree_endpoint_rows(&self.graph_name, "target", true);
         let filter = crate::traits::EdgeListFilter {
             tenant_id: None,
             workspace_id: workspace_id.map(str::to_string),
@@ -320,7 +320,7 @@ impl PostgresAGEGraphStorage {
         };
         let vertex_where = Self::vertex_where_clause("v", &filter);
         let node_id = helpers::coalesce_endpoint("v", "node");
-        let src = helpers::coalesce_endpoint("e", "source");
+        let src = helpers::degree_endpoint_rows(&self.graph_name, "source", true);
         Self::popular_nodes_with_degree_sql(
             &self.graph_name,
             &vertex_where,
@@ -346,8 +346,8 @@ impl PostgresAGEGraphStorage {
         };
         let vertex_where = Self::vertex_where_clause("v", &filter);
         let node_id = helpers::coalesce_endpoint("v", "node");
-        let src = helpers::coalesce_endpoint("e", "source");
-        let tgt = helpers::coalesce_endpoint("e", "target");
+        let src = helpers::degree_endpoint_rows(&self.graph_name, "source", true);
+        let tgt = helpers::degree_endpoint_rows(&self.graph_name, "target", true);
         Self::search_nodes_with_degree_sql(
             &self.graph_name,
             &vertex_where,

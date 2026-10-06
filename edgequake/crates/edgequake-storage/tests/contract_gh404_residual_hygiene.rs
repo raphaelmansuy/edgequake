@@ -85,7 +85,9 @@ fn contract_popular_and_search_use_edge_eq_endpoints() {
             "{label} must scan Node child"
         );
         assert!(
-            region.contains(".\"EDGE\"") || region.contains(".\\\"EDGE\\\""),
+            region.contains("FROM {src_rows} e")
+                && include_str!("../src/adapters/postgres/graph/helpers/eq_id_sql.rs")
+                    .contains("FROM {graph}.\\\"EDGE\\\" e"),
             "{label} must scan EDGE child"
         );
         assert!(

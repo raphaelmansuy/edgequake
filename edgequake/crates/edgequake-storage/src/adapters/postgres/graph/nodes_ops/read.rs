@@ -113,16 +113,10 @@ impl PostgresAGEGraphStorage {
         //   degree 0 for isolated nodes without a second table scan.
         // SPEC-083 / X-03: COALESCE(eq_*, props) when columns exist; prop-only otherwise.
         let eq_present = self.eq_columns_present(&mut conn).await?;
-        let src = if eq_present {
-            super::super::helpers::coalesce_endpoint("e", "source")
-        } else {
-            super::super::helpers::prop_only_endpoint("e", "source")
-        };
-        let tgt = if eq_present {
-            super::super::helpers::coalesce_endpoint("e", "target")
-        } else {
-            super::super::helpers::prop_only_endpoint("e", "target")
-        };
+        let src =
+            super::super::helpers::degree_endpoint_rows(&self.graph_name, "source", eq_present);
+        let tgt =
+            super::super::helpers::degree_endpoint_rows(&self.graph_name, "target", eq_present);
         if !eq_present || super::super::helpers::eq_id_fallback_env_enabled() {
             tracing::debug!(
                 target: "edgequake_storage",
@@ -133,15 +127,15 @@ impl PostgresAGEGraphStorage {
         let sql = format!(
             "WITH input(node_id) AS ( VALUES {values_list} ), \
              out_deg AS ( \
-               SELECT {src} AS node_id, COUNT(*)::bigint AS cnt \
-               FROM {graph}.\"EDGE\" e \
-               WHERE {src} IN ({in_list}) \
+               SELECT e.node_id, COUNT(*)::bigint AS cnt \
+               FROM {src_rows} e \
+               WHERE e.node_id IN ({in_list}) \
                GROUP BY 1 \
              ), \
              in_deg AS ( \
-               SELECT {tgt} AS node_id, COUNT(*)::bigint AS cnt \
-               FROM {graph}.\"EDGE\" e \
-               WHERE {tgt} IN ({in_list}) \
+               SELECT e.node_id, COUNT(*)::bigint AS cnt \
+               FROM {tgt_rows} e \
+               WHERE e.node_id IN ({in_list}) \
                GROUP BY 1 \
              ) \
              SELECT i.node_id, \
@@ -150,10 +144,9 @@ impl PostgresAGEGraphStorage {
              LEFT JOIN out_deg o ON o.node_id = i.node_id \
              LEFT JOIN in_deg  d ON d.node_id = i.node_id",
             values_list = values_list,
-            graph = self.graph_name,
             in_list = in_list,
-            src = src,
-            tgt = tgt,
+            src_rows = src,
+            tgt_rows = tgt,
         );
 
         tracing::debug!(

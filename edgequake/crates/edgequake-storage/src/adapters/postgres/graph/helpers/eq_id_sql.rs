@@ -43,6 +43,27 @@ pub(in crate::adapters::postgres::graph) fn prop_only_endpoint(alias: &str, side
     }
 }
 
+/// Project degree endpoints without decoding properties on populated native rows.
+/// The disjoint UNION ALL branches preserve COALESCE semantics and duplicates,
+/// while letting PostgreSQL use the native endpoint's covering partial index.
+pub(in crate::adapters::postgres::graph) fn degree_endpoint_rows(
+    graph: &str,
+    side: &str,
+    eq_present: bool,
+) -> String {
+    assert!(matches!(side, "source" | "target"));
+    let property = prop_only_endpoint("e", side);
+    if !eq_present {
+        return format!("(SELECT {property} AS node_id FROM {graph}.\"EDGE\" e)");
+    }
+    format!(
+        "(SELECT e.eq_{side}_id AS node_id FROM {graph}.\"EDGE\" e \
+         WHERE e.eq_{side}_id IS NOT NULL UNION ALL \
+         SELECT {property} AS node_id FROM {graph}.\"EDGE\" e \
+         WHERE e.eq_{side}_id IS NULL)"
+    )
+}
+
 /// True when EDGEQUAKE_EQ_ID_FALLBACK forces property-aware SQL (COALESCE / prop-only).
 pub(in crate::adapters::postgres::graph) fn eq_id_fallback_env_enabled() -> bool {
     matches!(

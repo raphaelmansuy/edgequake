@@ -28,13 +28,24 @@ function humanise(
   t: (key: string, fallback: string) => string,
 ): string {
   const lower = raw.toLowerCase();
+  const timedOut =
+    lower.includes("timeout") ||
+    lower.includes("timed out") ||
+    lower.includes("deadline exceeded") ||
+    lower.includes("deadline_exceeded");
+  if (timedOut && (lower.includes("storage") || lower.includes("database"))) {
+    return t(
+      "query.errorStorageTimeout",
+      "Searching the knowledge base took too long. Try again in a moment.",
+    );
+  }
   if (lower.includes("network") || lower.includes("fetch")) {
     return t(
       "query.errorNetwork",
       "Network problem reaching the server. Check your connection and try again.",
     );
   }
-  if (lower.includes("timeout")) {
+  if (timedOut) {
     return t(
       "query.errorTimeout",
       "The model took too long to respond. Try again or switch mode.",

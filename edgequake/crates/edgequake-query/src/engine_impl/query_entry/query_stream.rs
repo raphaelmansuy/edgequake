@@ -195,8 +195,8 @@ impl QueryEngine {
         );
 
         // SPEC-103 answer cache: stream cached answer as one chunk.
-        // Warm fills happen on the non-stream generate path (LR also skips
-        // caching streaming responses). Skip empty context / vision (no images here).
+        // Blocking answers and successfully completed structured streams fill it.
+        // Skip empty context / vision (no images here).
         let mode_str = mode.as_str();
         let cache_key = crate::cache::llm_cache_storage_key(
             mode_str,
@@ -239,26 +239,75 @@ impl QueryEngine {
         let provider_name = llm.name().to_string();
         let query_text = request.query.clone();
 
+        let completion_opts = super::structured_answer_stream::completion_options(
+            request.reasoning_effort.as_deref(),
+            llm.as_ref(),
+        );
+
+        // Structured chat streaming preserves message roles, reasoning effort and
+        // provider prompt-cache options. Calling chat() here waits for the entire
+        // answer before context/first-token delivery and mislabels generation time
+        // as retrieval. Providers without this capability keep the existing path.
+        if !use_complete_blob && llm.supports_tool_streaming() {
+            use edgequake_llm::traits::ToolChoice;
+            let messages = super::super::prompt::answer_chat_messages(&system_text, &query_text);
+            match llm
+                .chat_with_tools_stream(
+                    &messages,
+                    &[],
+                    Some(ToolChoice::none()),
+                    Some(&completion_opts),
+                )
+                .await
+            {
+                Ok(raw) => {
+                    let input = crate::conversation_context::format_chat_messages_for_observation(
+                        &messages,
+                    );
+                    let tokens = super::structured_answer_stream::text_deltas(raw);
+                    let tokens = super::structured_answer_stream::on_complete(
+                        tokens,
+                        move |answer| async move {
+                            if context_nonempty {
+                                if let Some(cache) = llm_cache {
+                                    cache
+                                        .set_return(
+                                            &cache_key_for_write,
+                                            crate::cache::LlmCacheType::Query,
+                                            &answer,
+                                            Some(&prompt_for_cache),
+                                        )
+                                        .await;
+                                } else if let Some(cache) = answer_cache {
+                                    cache.set(
+                                        &crate::cache::answer_cache_key(&prompt_for_cache),
+                                        &answer,
+                                    );
+                                }
+                            }
+                        },
+                    );
+                    let stream = edgequake_observability::instrument_generation_token_stream(
+                        "generate-answer",
+                        &model,
+                        &provider_name,
+                        input,
+                        tokens,
+                    )
+                    .boxed();
+                    return Ok((context, mode, stream));
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "Structured answer stream failed to start; falling back to chat")
+                }
+            }
+        }
+
         // SPEC-124 / SPEC-145: chat/complete use with_rag_generation_span (span ends with
         // future). Live llm.stream uses instrument_generation_token_stream so the
         // generation span stays open until tokens are consumed (LAW-145-9).
         let stream: TokenStream = if !use_complete_blob {
-            use edgequake_llm::traits::CompletionOptions;
             let messages = super::super::prompt::answer_chat_messages(&system_text, &query_text);
-            let completion_opts = {
-                let mut opts = request
-                    .reasoning_effort
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .map(|effort| CompletionOptions {
-                        reasoning_effort: Some(effort.to_string()),
-                        ..Default::default()
-                    })
-                    .unwrap_or_default();
-                opts = opts.with_provider_prompt_cache("query", llm.name(), llm.model());
-                opts
-            };
             match llm.chat(&messages, Some(&completion_opts)).await {
                 Ok(response) => {
                     let llm_input =
@@ -433,3 +482,7 @@ mod spec124_stream_genai {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "structured_answer_tests.rs"]
+mod structured_answer_tests;

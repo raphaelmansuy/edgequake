@@ -17,6 +17,8 @@ use edgequake_llm::{
 };
 use futures::stream::BoxStream;
 
+mod structured_stream;
+
 /// Default maximum tokens for generation (16384).
 ///
 /// WHY 16384: Entity extraction prompts generate structured JSON that can contain
@@ -366,6 +368,30 @@ impl LLMProvider for SafetyLimitedProviderWrapper {
 
     fn supports_streaming(&self) -> bool {
         self.inner.supports_streaming()
+    }
+
+    fn supports_tool_streaming(&self) -> bool {
+        self.inner.supports_tool_streaming()
+    }
+
+    async fn chat_with_tools_stream(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[edgequake_llm::ToolDefinition],
+        tool_choice: Option<edgequake_llm::ToolChoice>,
+        options: Option<&CompletionOptions>,
+    ) -> Result<BoxStream<'static, Result<edgequake_llm::traits::StreamChunk>>> {
+        let safe_options = self.apply_token_limit(&options.cloned().unwrap_or_default());
+        let permit = crate::local_inference_gate::acquire_local_inference_permit(self.name()).await;
+        let deadline = tokio::time::Instant::now() + self.config.timeout;
+        let raw = tokio::time::timeout_at(
+            deadline,
+            self.inner
+                .chat_with_tools_stream(messages, tools, tool_choice, Some(&safe_options)),
+        )
+        .await
+        .map_err(|_| LlmError::Timeout)??;
+        Ok(structured_stream::with_deadline(raw, deadline, permit))
     }
 }
 

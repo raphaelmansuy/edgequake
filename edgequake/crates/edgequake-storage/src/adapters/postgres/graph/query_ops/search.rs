@@ -35,7 +35,7 @@ impl PostgresAGEGraphStorage {
         graph: &str,
         vertex_where: &str,
         node_id_expr: &str,
-        src_expr: &str,
+        src_rows: &str,
         min_degree: usize,
         limit: usize,
     ) -> String {
@@ -46,9 +46,9 @@ impl PostgresAGEGraphStorage {
                 {vertex_where} \
             ), \
             edge_counts AS ( \
-                SELECT {src} AS node_id, COUNT(*) AS out_degree \
-                FROM {graph}.\"EDGE\" e \
-                INNER JOIN filtered_nodes fn ON {src} = fn.node_id \
+                SELECT e.node_id, COUNT(*) AS out_degree \
+                FROM {src_rows} e \
+                INNER JOIN filtered_nodes fn ON e.node_id = fn.node_id \
                 GROUP BY 1 \
             ) \
             SELECT \
@@ -62,7 +62,7 @@ impl PostgresAGEGraphStorage {
             graph = graph,
             vertex_where = vertex_where,
             node_id = node_id_expr,
-            src = src_expr,
+            src_rows = src_rows,
             min_degree = min_degree,
             limit = limit
         )
@@ -73,8 +73,8 @@ impl PostgresAGEGraphStorage {
         graph: &str,
         vertex_where: &str,
         node_id_expr: &str,
-        src_expr: &str,
-        tgt_expr: &str,
+        src_rows: &str,
+        tgt_rows: &str,
         limit: usize,
     ) -> String {
         format!(
@@ -84,15 +84,15 @@ impl PostgresAGEGraphStorage {
                 {vertex_where} \
             ), \
             out_degrees AS ( \
-                SELECT {src} AS node_id, COUNT(*) AS out_degree \
-                FROM {graph}.\"EDGE\" e \
-                INNER JOIN filtered_nodes fn ON {src} = fn.node_id \
+                SELECT e.node_id, COUNT(*) AS out_degree \
+                FROM {src_rows} e \
+                INNER JOIN filtered_nodes fn ON e.node_id = fn.node_id \
                 GROUP BY 1 \
             ), \
             in_degrees AS ( \
-                SELECT {tgt} AS node_id, COUNT(*) AS in_degree \
-                FROM {graph}.\"EDGE\" e \
-                INNER JOIN filtered_nodes fn ON {tgt} = fn.node_id \
+                SELECT e.node_id, COUNT(*) AS in_degree \
+                FROM {tgt_rows} e \
+                INNER JOIN filtered_nodes fn ON e.node_id = fn.node_id \
                 GROUP BY 1 \
             ) \
             SELECT \
@@ -106,8 +106,8 @@ impl PostgresAGEGraphStorage {
             graph = graph,
             vertex_where = vertex_where,
             node_id = node_id_expr,
-            src = src_expr,
-            tgt = tgt_expr,
+            src_rows = src_rows,
+            tgt_rows = tgt_rows,
             limit = limit
         )
     }
@@ -117,7 +117,7 @@ impl PostgresAGEGraphStorage {
         graph: &str,
         vertex_where: &str,
         node_id_expr: &str,
-        src_expr: &str,
+        src_rows: &str,
         label_expr: &str,
         limit: usize,
     ) -> String {
@@ -128,9 +128,9 @@ impl PostgresAGEGraphStorage {
                 {vertex_where} \
             ), \
             edge_counts AS ( \
-                SELECT {src} AS node_id, COUNT(*) AS out_degree \
-                FROM {graph}.\"EDGE\" e \
-                INNER JOIN filtered_nodes fn ON {src} = fn.node_id \
+                SELECT e.node_id, COUNT(*) AS out_degree \
+                FROM {src_rows} e \
+                INNER JOIN filtered_nodes fn ON e.node_id = fn.node_id \
                 GROUP BY 1 \
             ) \
             SELECT {label} AS label \
@@ -141,7 +141,7 @@ impl PostgresAGEGraphStorage {
             graph = graph,
             vertex_where = vertex_where,
             node_id = node_id_expr,
-            src = src_expr,
+            src_rows = src_rows,
             label = label_expr,
             limit = limit
         )
@@ -170,11 +170,8 @@ impl PostgresAGEGraphStorage {
         } else {
             super::super::helpers::prop_only_endpoint("v", "node")
         };
-        let src = if eq_present {
-            super::super::helpers::coalesce_endpoint("e", "source")
-        } else {
-            super::super::helpers::prop_only_endpoint("e", "source")
-        };
+        let src =
+            super::super::helpers::degree_endpoint_rows(&self.graph_name, "source", eq_present);
         let label_expr = Self::sql_vertex_search_text("fn");
 
         let sql = Self::popular_labels_sql(
@@ -292,45 +289,44 @@ impl PostgresAGEGraphStorage {
             Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         }
 
-        // WHY: Fallback to trigram similarity for fuzzy matching (typos, partial matches)
-        // WHY: pg_trgm extension is in ag_catalog schema, so we must use OPERATOR(ag_catalog.%)
-        //      and ag_catalog.similarity() explicitly to avoid "function not found" errors
-        let trgm_sql = format!(
-            "SELECT \
-                {search_text} as label, \
-                ag_catalog.similarity( \
-                    coalesce({search_text}, ''), \
-                    '{0}' \
-                ) as sim \
-             FROM {1}.\"Node\" v \
-             WHERE coalesce({search_text}, '') OPERATOR(ag_catalog.%) '{0}' \
-             {2} \
-             ORDER BY sim DESC \
-             LIMIT {3}",
-            escaped_query, self.graph_name, tenant_and, limit
-        );
-
-        let trgm_rows = sqlx::query(&trgm_sql).fetch_all(timed.as_mut()).await;
-        tracing::debug!(sql = %trgm_sql, result = ?trgm_rows.as_ref().map(|r| r.len()).unwrap_or(0), "trigram search");
-
-        // If trigram search finds results, return them
-        if let Ok(rows) = &trgm_rows {
-            if !rows.is_empty() {
+        // pg_trgm can be installed outside ag_catalog (commonly public).
+        // Resolve its namespace instead of aborting the transaction on every
+        // fuzzy lookup. quote_ident keeps extension schema names safe in SQL.
+        let trgm_schema: Option<String> = sqlx::query_scalar(
+            "SELECT pg_catalog.quote_ident(n.nspname) FROM pg_catalog.pg_extension e \
+             JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='pg_trgm'",
+        )
+        .fetch_optional(timed.as_mut())
+        .await?;
+        if let Some(schema) = trgm_schema {
+            let trgm_sql = format!(
+                "SELECT {search_text} AS label, \
+                        {schema}.similarity(coalesce({search_text}, ''), $1) AS sim \
+                 FROM {graph}.\"Node\" v \
+                 WHERE coalesce({search_text}, '') OPERATOR({schema}.%) $1 \
+                       {tenant_and} \
+                 ORDER BY sim DESC LIMIT $2",
+                graph = self.graph_name,
+            );
+            let trgm_rows = sqlx::query(&trgm_sql)
+                .bind(query)
+                .bind(limit as i64)
+                .fetch_all(timed.as_mut())
+                .await;
+            if let Ok(rows) = &trgm_rows {
                 let labels: Vec<String> = rows
                     .iter()
                     .filter_map(|row| row.get::<Option<String>, _>("label"))
                     .collect();
-                tracing::debug!(labels = ?labels, "trigram search found labels");
-
                 if !labels.is_empty() {
                     timed.commit().await?;
                     return Ok(labels);
                 }
+            } else {
+                let _ = timed.rollback().await;
+                timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
+                Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
             }
-        } else {
-            let _ = timed.rollback().await;
-            timed = super::super::helpers::LocalTimeoutTx::begin(&mut conn, timeout_ms).await?;
-            Self::enforce_graph_read_scope(timed.as_mut(), tenant_id, workspace_id).await?;
         }
 
         // Final fallback to simple ILIKE prefix matching (always works)
@@ -399,16 +395,10 @@ impl PostgresAGEGraphStorage {
         } else {
             super::super::helpers::prop_only_endpoint("v", "node")
         };
-        let src = if eq_present {
-            super::super::helpers::coalesce_endpoint("e", "source")
-        } else {
-            super::super::helpers::prop_only_endpoint("e", "source")
-        };
-        let tgt = if eq_present {
-            super::super::helpers::coalesce_endpoint("e", "target")
-        } else {
-            super::super::helpers::prop_only_endpoint("e", "target")
-        };
+        let src =
+            super::super::helpers::degree_endpoint_rows(&self.graph_name, "source", eq_present);
+        let tgt =
+            super::super::helpers::degree_endpoint_rows(&self.graph_name, "target", eq_present);
 
         // GH-404 residual: filter `"Node"` first, degree via `"EDGE"` eq_* — never
         // parent-table `start_id::text` joins (those nested-looped for 22s+).
@@ -489,11 +479,8 @@ impl PostgresAGEGraphStorage {
         } else {
             super::super::helpers::prop_only_endpoint("v", "node")
         };
-        let src = if eq_present {
-            super::super::helpers::coalesce_endpoint("e", "source")
-        } else {
-            super::super::helpers::prop_only_endpoint("e", "source")
-        };
+        let src =
+            super::super::helpers::degree_endpoint_rows(&self.graph_name, "source", eq_present);
 
         // WHY: Filter `"Node"` first (MATERIALIZED), then hash-join EDGE counts on
         // eq_* text endpoints. Avoids AGE parent `start_id::text` nested loops.

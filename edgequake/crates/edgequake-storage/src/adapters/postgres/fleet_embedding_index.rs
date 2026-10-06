@@ -251,6 +251,9 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                         OR ('entity:' || e.name) = ANY($7)) \
                  ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $8"
             ),
+            // Resolve document chunks once (an uncorrelated InitPlan), rather than
+            // joining chunks for every relationship. The correlated unnest path
+            // exceeds the ANN deadline on large workspaces under tenant RLS.
             EmbeddingFamily::Relationship => format!(
                 "SELECT (es.name || '->' || et.name || ':' || r.relation_type) AS legacy_id, \
                         1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
@@ -260,11 +263,8 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                  JOIN entities et ON et.id = r.target_id \
                  WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
                    AND ($3::uuid IS NULL OR fe.workspace_id = $3) \
-                   AND ($4::uuid[] IS NULL OR EXISTS ( \
-                         SELECT 1 \
-                         FROM unnest(COALESCE(r.source_chunk_ids, '{{}}'::uuid[])) AS source_chunk_id \
-                         JOIN chunks c ON c.id = source_chunk_id \
-                         WHERE c.document_id = ANY($4) \
+                   AND ($4::uuid[] IS NULL OR r.source_chunk_ids && ARRAY( \
+                         SELECT c.id FROM chunks c WHERE c.document_id = ANY($4) \
                        )) \
                    AND ($5::uuid IS NULL OR r.tenant_id = $5) \
                    AND $6::text[] IS NULL \

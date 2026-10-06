@@ -118,13 +118,16 @@ fn contract_native_upsert_targets_unique_index_names() {
 }
 
 #[test]
-fn contract_spec083_degree_and_incident_use_coalesce_fallback() {
+fn contract_spec083_degree_and_incident_preserve_endpoint_fallback() {
     let read = include_str!("../src/adapters/postgres/graph/nodes_ops/read.rs");
     let edges = include_str!("../src/adapters/postgres/graph/edges_ops.rs");
     let helper = include_str!("../src/adapters/postgres/graph/helpers/eq_id_sql.rs");
     assert!(helper.contains("fn coalesce_endpoint"));
     assert!(helper.contains("fn prop_only_endpoint"));
-    assert!(read.contains("coalesce_endpoint") || read.contains("prop_only_endpoint"));
+    assert!(read.contains("degree_endpoint_rows"));
+    assert!(helper.contains("UNION ALL"));
+    assert!(helper.contains("WHERE e.eq_{side}_id IS NULL"));
+    assert!(helper.contains("WHERE e.eq_{side}_id IS NOT NULL"));
     assert!(edges.contains("coalesce_endpoint") || edges.contains("prop_only_endpoint"));
     assert!(read.contains("eq_columns_present"));
     assert!(edges.contains("eq_columns_present"));

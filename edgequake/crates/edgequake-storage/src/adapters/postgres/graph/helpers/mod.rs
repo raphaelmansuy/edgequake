@@ -27,7 +27,7 @@ pub(in crate::adapters::postgres::graph) use super::super::statement_timeout::{
 pub use super::super::statement_timeout::interactive_statement_timeout_ms;
 
 pub(in crate::adapters::postgres::graph) use eq_id_sql::{
-    coalesce_endpoint, eq_id_fallback_env_enabled, prop_only_endpoint,
+    coalesce_endpoint, degree_endpoint_rows, eq_id_fallback_env_enabled, prop_only_endpoint,
 };
 
 pub(in crate::adapters::postgres::graph) use source_lineage_sql::{
