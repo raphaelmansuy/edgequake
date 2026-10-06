@@ -136,7 +136,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev dev-auth dev-bg dev-auth-bg dev-langfuse dev-bg-langfuse dev-memory kill-app stop clean build test lint format sync-dev-ports \
+.PHONY: help install dev migrate dev-auth dev-bg dev-auth-bg dev-langfuse dev-bg-langfuse dev-memory kill-app stop clean build test lint format sync-dev-ports \
         ops17-smoke spec046-acc data-access-perf-matrix data-access-perf-matrix-release data-access-perf-matrix-prod data-access-perf-capacity-ladder ann-scale-battle ceiling-proof recall-pareto dedicated-midscale diskann-battle diskann-recall-pareto diskann-rescore-smoke filtered-recall-gate precision-layers-gate binary-quantize-bakeoff filtered-diskann-labels-bakeoff midscale-quantize-labels tiny-slice-exact-gate serving-view-check push-scale-ladder wave2-greenfield-env product-limits-check compare-eq-perf \
         postgres-image-build-pg18-vectorscale \
         dev-pg16 dev-pg17 dev-pg18 dev-bg-pg16 dev-bg-pg17 dev-bg-pg18 \
@@ -202,6 +202,11 @@ RESET := $(shell printf '\033[0m')
 
 # GNU make defaults to /bin/sh (dash on Ubuntu CI); extension-pins.sh needs bash pipefail.
 SHELL := /bin/bash
+
+# rustup reads edgequake/rust-toolchain.toml (Rust 1.95.0). Homebrew's cargo
+# does not, and Cargo older than 1.78 cannot read Cargo.lock version 4.
+# Prepend rustup even when /opt/homebrew/bin is earlier in the caller's PATH.
+export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 # Project directories
 ROOT_DIR := $(shell pwd)
@@ -611,6 +616,30 @@ EDGEQUAKE_VISION_MODEL    ?= $(EDGEQUAKE_DEFAULT_LLM_MODEL)
 
 help: ## Show this help message
 	@echo ""
+	@echo "$(BOLD)EdgeQuake — start here$(RESET)"
+	@echo ""
+	@echo "  $(GREEN)make dev$(RESET)"
+	@echo "    Starts Postgres if it is not already running, updates the database"
+	@echo "    schema, then starts the API and the website. Leave this terminal open."
+	@echo "    The website address is printed when startup finishes."
+	@echo ""
+	@echo "  $(GREEN)make migrate$(RESET)"
+	@echo "    Updates the database schema only. It does not start the website."
+	@echo "    Run this when startup stops at \"edgequake migrate\", then run make dev."
+	@echo ""
+	@echo "  $(GREEN)make status$(RESET)    Says whether the API, the website, and Postgres are up."
+	@echo "  $(GREEN)make stop$(RESET)      Stops the API and the website. Postgres keeps running."
+	@echo ""
+	@echo "  If you see \"lock file version 4\":"
+	@echo "    The Rust on your PATH is older than 1.78. This repo needs Rust 1.95.0"
+	@echo "    from rustup. Homebrew's cargo ignores edgequake/rust-toolchain.toml."
+	@echo "    1. Open a new terminal."
+	@echo "    2. rustup toolchain install 1.95.0"
+	@echo "    3. cd edgequake && cargo --version     (must say 1.95.0, not 1.77)"
+	@echo "    4. make migrate"
+	@echo "    5. make dev"
+	@echo "    make itself prefers ~/.cargo/bin, so step 3 is only for commands you type."
+	@echo ""
 	@echo "$(BOLD)EdgeQuake Development Commands$(RESET)"
 	@echo "  $(GREEN)make install-cargo-release$(RESET)  Install cargo-release for version management"
 	@echo "  $(GREEN)make release VERSION=0.2.2$(RESET)  Bump all crate versions and tag release"
@@ -618,6 +647,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Quick Start$(RESET)"
 	@echo "  $(GREEN)make install$(RESET)      Install all dependencies"
+	@echo "  $(GREEN)make migrate$(RESET)      Update the database schema, then stop (no API, no website)"
 	@echo "  $(GREEN)make dev$(RESET)          Start full development stack (PostgreSQL PG18 — default)"
 	@echo "  $(GREEN)make dev-langfuse$(RESET) Full stack + local Langfuse v4 (UI :3310; injects init keys)"
 	@echo "  $(GREEN)make dev-pg16$(RESET)     Start dev stack with PostgreSQL 16 (legacy)"
@@ -952,9 +982,39 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		BACKEND_PID=$$!; \
 	fi; \
 	echo "$(YELLOW)→ Starting frontend on port $$FRONTEND_PORT...$(RESET)"; \
-	(bash $(FRONTEND_DIR)/scripts/ensure-dev-cache.sh && sleep 2 && cd $(FRONTEND_DIR) && PORT="$$FRONTEND_PORT" EDGEQUAKE_API_URL="$$EDGEQUAKE_API_URL" NEXT_PUBLIC_API_URL="$$NEXT_PUBLIC_API_URL" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c '(pnpm run dev 2>/dev/null || bun run dev)' 2>&1 | sed 's/^/[frontend] /') & \
+	if [ ! -d "$(FRONTEND_DIR)/node_modules/next" ]; then \
+		echo "$(YELLOW)→ Website dependencies are missing. Installing them now (first run)...$(RESET)"; \
+		(cd $(FRONTEND_DIR) && pnpm install) || { \
+			echo "$(RED)✗ Could not install the website. The API is still starting.$(RESET)"; \
+			echo "  Fix: cd edgequake_webui && pnpm install"; \
+		}; \
+	fi; \
+	(bash $(FRONTEND_DIR)/scripts/ensure-dev-cache.sh && sleep 2 && cd $(FRONTEND_DIR) && PORT="$$FRONTEND_PORT" EDGEQUAKE_API_URL="$$EDGEQUAKE_API_URL" NEXT_PUBLIC_API_URL="$$NEXT_PUBLIC_API_URL" NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)" sh -c 'pnpm run dev || bun run dev' 2>&1 | sed 's/^/[frontend] /') & \
 	FRONTEND_PID=$$!; \
-	echo "$(GREEN)✓ Startup in progress$(RESET)"; \
+	echo ""; \
+	echo "$(BOLD)$(GREEN)  Website: $$FRONTEND_URL$(RESET)"; \
+	echo "  API:      $$BACKEND_URL"; \
+	echo "  Swagger:  $$BACKEND_URL/swagger-ui"; \
+	echo ""; \
+	echo "$(YELLOW)Waiting until the website answers...$(RESET)"; \
+	_web_ready=0; \
+	for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do \
+		if curl -fsS "$$FRONTEND_URL" >/dev/null 2>&1; then \
+			_web_ready=1; \
+			break; \
+		fi; \
+		if ! kill -0 "$$FRONTEND_PID" 2>/dev/null; then \
+			break; \
+		fi; \
+		sleep 2; \
+	done; \
+	if [ "$$_web_ready" = "1" ]; then \
+		echo "$(BOLD)$(GREEN)✓ Open this in your browser: $$FRONTEND_URL$(RESET)"; \
+	else \
+		echo "$(RED)✗ The website is not up at $$FRONTEND_URL$(RESET)"; \
+		echo "  Look for lines starting with [frontend] above."; \
+		echo "  If they mention missing packages: cd edgequake_webui && pnpm install"; \
+	fi; \
 	echo "$(YELLOW)Press Ctrl+C to stop only this session's app processes$(RESET)"; \
 	wait
 
@@ -1219,21 +1279,89 @@ LOAD_EFF_DB_URL = _EFF_DB_URL=$$(cat /tmp/edgequake-db-url 2>/dev/null); [ -z "$
 # drop-readiness is GREEN. A hard failure here still aborts before the server.
 #
 # SPEC-150: known fossils auto-accept under the rules above.
+# Plain-English stop when Homebrew (or any Cargo < 1.78) is ahead of rustup.
+# Lockfile v4 shipped in Rust 1.78; this repo pins 1.95.0.
+define EXPLAIN_RUST_LOCKFILE
+	echo "$(RED)✗ Rust cannot read this project's Cargo.lock.$(RESET)"; \
+	echo ""; \
+	echo "  Cargo.lock is format version 4. Cargo 1.77 and older stop here."; \
+	echo "  EdgeQuake is pinned to Rust 1.95.0 (edgequake/rust-toolchain.toml)."; \
+	echo "  rustup honors that file. Homebrew's cargo does not, so an old"; \
+	echo "  /opt/homebrew/bin/cargo hides Rust 1.95.0 even when it is installed."; \
+	echo ""; \
+	echo "  Do this:"; \
+	echo "    1. Open a new terminal (so PATH reloads)."; \
+	echo "    2. Install the pinned compiler, if rustup does not already have it:"; \
+	echo "         rustup toolchain install 1.95.0"; \
+	echo "    3. Check the compiler this repo will use:"; \
+	echo "         cd edgequake && cargo --version"; \
+	echo "       It must say 1.95.0, not 1.77."; \
+	echo "    4. Update the database:"; \
+	echo "         make migrate"; \
+	echo "    5. Start the API and the website:"; \
+	echo "         make dev"; \
+	echo ""; \
+	echo "  If step 3 still prints Homebrew's cargo, run this first:"; \
+	echo '    export PATH="$$HOME/.cargo/bin:$$PATH"'
+endef
+
 VISIBLE_MIGRATE_STEP = \
-	echo "$(YELLOW)→ edgequake migrate — applying database schema (explicit step, SPEC-091 LD-15)$(RESET)"; \
-	( cd $(BACKEND_DIR) && \
+	echo "$(YELLOW)→ Updating the database schema.$(RESET)"; \
+	echo "  Compiles EdgeQuake if needed, then applies pending database changes."; \
+	echo "  This step does not start the API or the website."; \
+	if [ -x "$$HOME/.cargo/bin/cargo" ]; then export PATH="$$HOME/.cargo/bin:$$PATH"; fi; \
+	_cargo_line=$$(cd $(BACKEND_DIR) && cargo --version 2>&1 || true); \
+	_cargo_ver=$$(printf '%s\n' "$$_cargo_line" | awk '/^cargo /{print $$2; exit}'); \
+	_cargo_bin=$$(command -v cargo 2>/dev/null || echo "(cargo not found)"); \
+	_major=$$(printf '%s' "$$_cargo_ver" | awk -F. '{print $$1}'); \
+	_minor=$$(printf '%s' "$$_cargo_ver" | awk -F. '{print $$2}'); \
+	if [ -z "$$_minor" ] || [ "$$_major" -lt 1 ] 2>/dev/null || { [ "$$_major" -eq 1 ] && [ "$$_minor" -lt 78 ]; }; then \
+		echo "  Found: $$_cargo_bin $${_cargo_ver:-unknown}"; \
+		$(EXPLAIN_RUST_LOCKFILE); \
+		exit 1; \
+	fi; \
+	echo "  Using $$_cargo_bin (cargo $$_cargo_ver)."; \
+	set -o pipefail; \
+	_mig_log=$$(mktemp); \
+	if ( cd $(BACKEND_DIR) && \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
-		cargo run -- migrate ) || { \
-		echo "$(RED)✗ edgequake migrate failed — server not started.$(RESET)"; \
-		echo "  Preview impact first: (cd $(BACKEND_DIR) && DATABASE_URL=\"$$_EFF_DB_URL\" cargo run -- migrate dry-run)"; \
-		echo "  Checksum drift (unknown hash): EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=<version> cargo run -- migrate"; \
-		echo "  Known *dev_only* fossil on a non-dev migrate: set EDGEQUAKE_DEV_MODE=true once, or use ALLOW_CHECKSUM_REPAIR"; \
-		echo "  Spec: specs/150-reliable-migration-system/11-ops-runbook.md"; \
-		echo "  If only an irreversible drop remains, soft-exit is expected — check WARN above."; \
-		echo "  When fleet/KV drop-readiness is GREEN: cargo run -- migrate --confirm-drop"; \
+		cargo run -- migrate ) 2>&1 | tee "$$_mig_log"; then \
+		rm -f "$$_mig_log"; \
+	else \
+		echo ""; \
+		echo "$(RED)✗ Database update failed, so the server was not started.$(RESET)"; \
+		if grep -q "lock file version" "$$_mig_log"; then \
+			$(EXPLAIN_RUST_LOCKFILE); \
+		else \
+			echo ""; \
+			echo "  Read the error above, then:"; \
+			echo "    1. See what would change, without writing it:"; \
+			echo "         (cd $(BACKEND_DIR) && cargo run -- migrate dry-run)"; \
+			echo "    2. If the error says a migration checksum does not match, and you"; \
+			echo "       know that change is expected:"; \
+			echo "         EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=<version> cargo run -- migrate"; \
+			echo "    3. If it stopped because the next change would delete data, that"; \
+			echo "       pause is intentional. When you have confirmed it is safe:"; \
+			echo "         cargo run -- migrate --confirm-drop"; \
+			echo "    4. Longer notes: specs/150-reliable-migration-system/11-ops-runbook.md"; \
+		fi; \
+		rm -f "$$_mig_log"; \
 		exit 1; \
-	}
+	fi
+
+migrate: db-start db-wait ## Update the database schema only (does not start the API or website)
+	@echo ""
+	@echo "$(BOLD)Updating the EdgeQuake database$(RESET)"
+	@echo "  This applies schema changes to Postgres."
+	@echo "  It does not start the API or the website."
+	@echo ""
+	@$(LOAD_EFF_DB_URL); \
+	$(VISIBLE_MIGRATE_STEP); \
+	echo ""; \
+	echo "$(GREEN)✓ Database schema is up to date.$(RESET)"; \
+	echo "  Next: $(GREEN)make dev$(RESET)    starts the API and the website."; \
+	echo "        $(GREEN)make status$(RESET) checks what is already running."
 
 # SPEC-040 v0.4.1: pdfium is now EMBEDDED in the edgequake-pdf2md 0.4.1 binary
 # via pdfium-auto at compile time. No external libpdfium.dylib, no env vars needed.

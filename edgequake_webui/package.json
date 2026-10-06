@@ -153,7 +153,9 @@
       "flatted": ">=3.4.2",
       "vite": ">=7.3.5",
       "@babel/core": ">=7.29.6",
-      "esbuild": ">=0.28.1"
+      "esbuild": ">=0.28.1",
+      "@radix-ui/react-compose-refs": "1.1.5",
+      "@radix-ui/react-slot": "1.4.0"
     }
   }
 }
