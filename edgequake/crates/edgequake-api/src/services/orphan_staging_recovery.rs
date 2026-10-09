@@ -117,6 +117,31 @@ pub async fn recover_orphaned_staging_admissions(
         let Some(mut value) = maybe_value else {
             continue;
         };
+
+        // SPEC-149: `projecting` is NOT an interrupted upload.
+        //
+        // WHY: durable commit returns `awaiting_projection` and parks the
+        // document on `projecting` with no live task — extraction, embedding
+        // and the graph write already succeeded (deliveries applied to AGE /
+        // pgvector). The only thing left is the lazy `projecting -> completed`
+        // promote, which fires on document list / detail reads.
+        //
+        // BUG (this check was missing): headless ingestion never reads those
+        // endpoints, so such a document sits on `projecting` until the 30-min
+        // periodic age-out below flips it to `failed` +
+        // FAILURE_CODE_SERVER_RESTART_INTERRUPTED + "please re-upload" and
+        // releases its dedup reservation — after which the reconcile re-enqueues
+        // it and the whole extract is redone. That is an infinite reprocess loop
+        // that burns LLM time on documents that were already indexed correctly.
+        //
+        // DRY: reuse the SPEC-149 projecting SSOT (checks status OR
+        // current_stage). Never fail-close it here; the promote owns it.
+        //
+        // Checked before `as_object_mut` so `&value` is still an immutable borrow.
+        if crate::services::task_document_sync::metadata_is_projecting(&value) {
+            continue;
+        }
+
         let Some(obj) = value.as_object_mut() else {
             continue;
         };
@@ -355,6 +380,78 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    /// SPEC-149 regression: a document parked on `projecting` by the durable
+    /// commit is NOT an interrupted upload — its deliveries already applied.
+    ///
+    /// Bug: without the guard it was rewritten to `failed` +
+    /// `SERVER_RESTART_INTERRUPTED` + "please re-upload", its dedup hash was
+    /// released, and the reconcile re-enqueued it — re-running the whole LLM
+    /// extract for a document that was already indexed correctly.
+    #[tokio::test]
+    async fn keeps_staging_when_projecting() {
+        for (label, status, stage) in [
+            ("status", "projecting", "storing"),
+            ("current_stage", "processing", "projecting"),
+        ] {
+            let kv: Arc<dyn KVStorage> =
+                Arc::new(MemoryKVStorage::new(format!("orphan-staging-proj-{label}")));
+            let tasks: SharedTaskStorage = Arc::new(MemoryTaskStorage::new());
+            let doc_id = "doc-projecting-1";
+            let track = "insert-projecting-1";
+            let hash = "hash-projecting";
+
+            let mut meta = staging_meta(doc_id, track);
+            meta["status"] = json!(status);
+            meta["current_stage"] = json!(stage);
+
+            kv.upsert(&[
+                (kv_keys::staging_doc_metadata(doc_id), meta),
+                (
+                    kv_keys::staging_workspace_hash("default", hash),
+                    json!(doc_id),
+                ),
+            ])
+            .await
+            .unwrap();
+
+            let report = recover_orphaned_staging_admissions(
+                kv.clone(),
+                tasks,
+                None,
+                #[cfg(feature = "postgres")]
+                None,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(report.failed_count, 0, "{label}: must not fail-close");
+            let after = kv
+                .get_by_id(&kv_keys::staging_doc_metadata(doc_id))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(after["status"], json!(status), "{label}: status untouched");
+            assert_eq!(
+                after["current_stage"],
+                json!(stage),
+                "{label}: current_stage untouched"
+            );
+            assert!(
+                after.get("failure_code").is_none(),
+                "{label}: no restart-interrupted failure code"
+            );
+            // Dedup reservation must survive, otherwise a re-upload is not
+            // duplicate_processing and the document gets ingested twice.
+            assert!(
+                kv.get_by_id(&kv_keys::staging_workspace_hash("default", hash))
+                    .await
+                    .unwrap()
+                    .is_some(),
+                "{label}: staging reservation must not be released"
+            );
+        }
     }
 
     #[tokio::test]
